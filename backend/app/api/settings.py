@@ -5,7 +5,7 @@ DB values override .env at startup; PUT applies changes immediately in-memory.
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_session
+from app.database import get_db as get_session
 from app.config import settings as _cfg
 from app.repositories.settings_repo import (
     SettingsRepository,
