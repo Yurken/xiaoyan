@@ -73,7 +73,6 @@ function CopilotContent() {
     setInput("");
     setSending(true);
 
-    // Optimistically add user message
     const tempUserMsg: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
@@ -81,39 +80,70 @@ function CopilotContent() {
       sources: undefined,
       created_at: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, tempUserMsg]);
+    const assistantId = Date.now().toString() + "_a";
+    const assistantMsg: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      sources: undefined,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, tempUserMsg, assistantMsg]);
 
     try {
-      const res = await chatApi.send({
-        session_id: currentSession?.id,
-        message: userMessage,
-        context_type: contextType,
-        context_id: contextId,
-      }) as { session_id: string; message: string; sources: ChatMessage["sources"] };
+      const res = await fetch("/api/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: currentSession?.id,
+          message: userMessage,
+          context_type: contextType,
+          context_id: contextId,
+        }),
+      });
 
-      const assistantMsg: ChatMessage = {
-        id: Date.now().toString() + "_a",
-        role: "assistant",
-        content: res.message,
-        sources: res.sources,
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
 
-      // Update or create session
-      if (!currentSession) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let sessionId = currentSession?.id;
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const json = JSON.parse(line.slice(6));
+            if (json.session_id) sessionId = json.session_id;
+            if (json.delta) {
+              const delta = json.delta.replace(/\\n/g, "\n");
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId ? { ...m, content: m.content + delta } : m
+                )
+              );
+            }
+          } catch {}
+        }
+      }
+
+      if (sessionId && !currentSession) {
         await loadSessions();
-        setCurrentSession({ id: res.session_id } as ChatSession);
+        setCurrentSession({ id: sessionId } as ChatSession);
       }
     } catch (e) {
-      const errMsg: ChatMessage = {
-        id: Date.now().toString() + "_err",
-        role: "assistant",
-        content: `抱歉，发生了错误：${e instanceof Error ? e.message : "未知错误"}`,
-        sources: undefined,
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, errMsg]);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? { ...m, content: `抱歉，发生了错误：${e instanceof Error ? e.message : "未知错误"}` }
+            : m
+        )
+      );
     } finally {
       setSending(false);
     }
@@ -153,7 +183,7 @@ function CopilotContent() {
                 <MessageSquare className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium truncate">{session.title}</div>
-                  <div className="text-xs text-gray-400">{new Date(session.updated_at).toLocaleDateString("zh-CN")}</div>
+                  <div className="text-xs text-gray-400">{session.updated_at ? new Date(session.updated_at).toLocaleDateString("zh-CN") : new Date(session.created_at).toLocaleDateString("zh-CN")}</div>
                 </div>
                 <button
                   onClick={(e) => handleDeleteSession(session.id, e)}

@@ -20,7 +20,7 @@ class ChatSessionOut(BaseModel):
     context_type: str
     context_id: str | None
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None
     messages: list[ChatMessageOut] = []
 
     class Config:
@@ -32,7 +32,7 @@ class ChatSessionListItem(BaseModel):
     title: str
     context_type: str
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None
 
     class Config:
         from_attributes = True

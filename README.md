@@ -17,7 +17,7 @@
 ## 技术栈
 
 - **后端**: Python 3.11 + FastAPI + SQLAlchemy (async) + pgvector
-- **前端**: Next.js 15 (App Router) + TypeScript + Tailwind CSS
+- **前端**: Next.js 15.5.14 (App Router) + TypeScript + Tailwind CSS
 - **数据库**: PostgreSQL 15 + pgvector
 - **LLM**: 支持 OpenAI / Anthropic / 任意 OpenAI-compatible API
 
@@ -59,10 +59,10 @@ python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8008
 ```
 
-后端 API 文档：http://localhost:8000/docs
+后端 API 文档：http://localhost:8008/docs
 
 ### 4. 启动前端
 
@@ -70,10 +70,10 @@ uvicorn app.main:app --reload --port 8000
 cd frontend
 npm install
 cp .env.local.example .env.local
-npm run dev
+npm run dev -- --port 3333
 ```
 
-前端：http://localhost:3000
+前端：http://localhost:3333
 
 ## 环境变量说明
 
