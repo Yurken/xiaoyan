@@ -3,7 +3,7 @@ Paper-related SQLAlchemy models.
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, Integer, Float, ForeignKey
+from sqlalchemy import String, Text, DateTime, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from pgvector.sqlalchemy import Vector

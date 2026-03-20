@@ -8,7 +8,7 @@ from app.repositories.job_repo import JobRepository
 from app.repositories.paper_repo import PaperRepository
 from app.services.pdf_parser import chunk_text
 from app.services.embedding_service import embed_texts
-from app.services.paper_analyzer import analyze_paper, generate_reproduction_guide
+from app.services.paper_analyzer import analyze_paper
 from app.services.survey_service import generate_survey_report
 import json
 

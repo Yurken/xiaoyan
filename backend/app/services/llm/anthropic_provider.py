@@ -5,7 +5,6 @@ Note: Anthropic does not offer an embedding API, so embedding falls back to Open
 from typing import AsyncIterator
 import anthropic
 from app.services.llm.base import BaseLLMProvider, ChatMessage, ChatResponse
-from app.config import settings
 
 
 class AnthropicLLMProvider(BaseLLMProvider):
