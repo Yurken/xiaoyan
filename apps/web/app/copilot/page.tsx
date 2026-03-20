@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense, type MouseEvent, type KeyboardEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { MessageSquare, Send, Plus, Trash2, Bot, User } from "lucide-react";
 import { Card, Button, Badge, MarkdownRenderer } from "@research-copilot/ui";
@@ -52,7 +52,7 @@ function CopilotContent() {
     setMessages([]);
   };
 
-  const handleDeleteSession = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteSession = async (id: string, e: MouseEvent) => {
     e.stopPropagation();
     try {
       await chatApi.deleteSession(id);
@@ -124,7 +124,7 @@ function CopilotContent() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();

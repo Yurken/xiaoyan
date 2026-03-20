@@ -16,6 +16,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+# Un-ignore frontend source lib directories (not Python virtualenv)
+!apps/*/lib/
 parts/
 sdist/
 var/
