@@ -71,7 +71,7 @@ uvicorn app.main:app --reload --port 8008
 ### 4. 启动前端
 
 ```bash
-cd frontend
+cd apps/web
 npm install
 cp .env.local.example .env.local
 npm run dev -- --port 3333

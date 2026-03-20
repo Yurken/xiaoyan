@@ -3,11 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { FileText, Upload, Plus, Trash2, Eye, Clock } from "lucide-react";
-import { Card } from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
-import Badge from "@/components/ui/Badge";
-import { papersApi } from "@/lib/api";
-import type { Paper } from "@/lib/types";
+import { Card } from "@research-copilot/ui";
+import Button from "@research-copilot/ui";
+import Badge from "@research-copilot/ui";
+import { papersApi } from "@/lib/client";
+import type { Paper } from "@research-copilot/types";
 
 const statusMap: Record<string, { label: string; variant: "default" | "info" | "success" | "warning" }> = {
   uploaded: { label: "已上传", variant: "default" },

@@ -3,12 +3,12 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { MessageSquare, Send, Plus, Trash2, Bot, User } from "lucide-react";
-import { Card } from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
-import Badge from "@/components/ui/Badge";
-import MarkdownRenderer from "@/components/features/MarkdownRenderer";
-import { chatApi } from "@/lib/api";
-import type { ChatSession, ChatMessage } from "@/lib/types";
+import { Card } from "@research-copilot/ui";
+import Button from "@research-copilot/ui";
+import Badge from "@research-copilot/ui";
+import MarkdownRenderer from "@research-copilot/ui";
+import { chatApi } from "@/lib/client";
+import type { ChatSession, ChatMessage } from "@research-copilot/types";
 
 function CopilotContent() {
   const searchParams = useSearchParams();
@@ -91,44 +91,22 @@ function CopilotContent() {
     setMessages((prev) => [...prev, tempUserMsg, assistantMsg]);
 
     try {
-      const res = await fetch("/api/chat/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: currentSession?.id,
-          message: userMessage,
-          context_type: contextType,
-          context_id: contextId,
-        }),
-      });
-
-      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
       let sessionId = currentSession?.id;
-      let buffer = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const json = JSON.parse(line.slice(6));
-            if (json.session_id) sessionId = json.session_id;
-            if (json.delta) {
-              const delta = json.delta.replace(/\\n/g, "\n");
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId ? { ...m, content: m.content + delta } : m
-                )
-              );
-            }
-          } catch {}
+      for await (const chunk of chatApi.stream({
+        session_id: currentSession?.id,
+        message: userMessage,
+        context_type: contextType,
+        context_id: contextId,
+      })) {
+        if (chunk.type === "session_id") {
+          sessionId = chunk.value;
+        } else if (chunk.type === "delta") {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, content: m.content + chunk.value } : m
+            )
+          );
         }
       }
 
