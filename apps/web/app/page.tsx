@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Map, BookOpen, FileText, Library, MessageSquare, ArrowRight, Sparkles } from "lucide-react";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@research-copilot/ui";
 
 const features = [
   {

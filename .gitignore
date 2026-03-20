@@ -210,9 +210,12 @@ __marimo__/
 backend/.env
 backend/uploads/
 backend/.venv/
-frontend/.env.local
-frontend/node_modules/
-frontend/.next/
+
+# Frontend / monorepo
+node_modules/
+**/node_modules/
+**/.next/
+**/.env.local
 
 # macOS
 .DS_Store

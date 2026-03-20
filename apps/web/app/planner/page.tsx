@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { Map, Sparkles, BookOpen, Target, ChevronDown, ChevronUp } from "lucide-react";
-import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
-import Button from "@/components/ui/Button";
-import { plannerApi } from "@/lib/api";
-import type { LearningPath } from "@/lib/types";
+import { Card, CardHeader, CardTitle } from "@research-copilot/ui";
+import { Input } from "@research-copilot/ui";
+import Button from "@research-copilot/ui";
+import { plannerApi } from "@/lib/client";
+import type { LearningPath } from "@research-copilot/types";
 
 export default function PlannerPage() {
   const [topic, setTopic] = useState("");

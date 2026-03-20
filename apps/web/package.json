@@ -1,14 +1,18 @@
 {
-  "name": "research-copilot-frontend",
+  "name": "@research-copilot/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@research-copilot/api-sdk": "workspace:*",
+    "@research-copilot/types": "workspace:*",
+    "@research-copilot/ui": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
     "next": "^15.5.14",
