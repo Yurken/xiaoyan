@@ -18,6 +18,7 @@ lib/
 lib64/
 # Un-ignore frontend source lib directories (not Python virtualenv)
 !apps/*/lib/
+!apps/*/src/lib/
 parts/
 sdist/
 var/
