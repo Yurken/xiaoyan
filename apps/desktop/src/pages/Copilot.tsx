@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, Bot, User, Plus, MessageSquare } from "lucide-react";
+import { Send, Bot, User, Plus, MessageSquare, AlertCircle } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
-import { apiClient } from "../lib/client";
+import { apiClient, formatErrorMessage } from "../lib/client";
 import type { ChatMessage, ChatSession } from "@research-copilot/types";
 
 export default function Copilot() {
@@ -10,10 +10,30 @@ export default function Copilot() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    apiClient.chat.listSessions().then(setSessions);
+    let cancelled = false;
+
+    setLoadError("");
+
+    apiClient.chat.listSessions()
+      .then((data) => {
+        if (!cancelled) {
+          setSessions(data);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(formatErrorMessage(error));
+          setSessions([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -21,9 +41,14 @@ export default function Copilot() {
   }, [messages]);
 
   const loadSession = async (s: ChatSession) => {
-    const data = await apiClient.chat.getSession(s.id);
-    setCurrentSession(data);
-    setMessages(data.messages ?? []);
+    try {
+      setLoadError("");
+      const data = await apiClient.chat.getSession(s.id);
+      setCurrentSession(data);
+      setMessages(data.messages ?? []);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+    }
   };
 
   const handleSend = async () => {
@@ -48,6 +73,7 @@ export default function Copilot() {
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
     try {
+      setLoadError("");
       let sessionId = currentSession?.id;
       for await (const chunk of apiClient.chat.stream({
         session_id: currentSession?.id,
@@ -67,6 +93,14 @@ export default function Copilot() {
         setSessions(updated);
         setCurrentSession({ id: sessionId } as ChatSession);
       }
+    } catch (error) {
+      const message = `请求失败：${formatErrorMessage(error)}`;
+      setLoadError(message);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId ? { ...m, content: message } : m
+        )
+      );
     } finally {
       setSending(false);
     }
@@ -149,6 +183,21 @@ export default function Copilot() {
             {currentSession ? "当前对话" : "新对话"}
           </span>
         </div>
+
+        {loadError && (
+          <div className="px-5 pt-4">
+            <div
+              className="flex items-start gap-3 rounded-2xl px-4 py-3 text-sm text-apple-red"
+              style={{
+                background: "#F2EAEA",
+                boxShadow: "inset 2px 2px 5px rgba(180,59,48,0.14), inset -2px -2px 5px rgba(255,255,255,0.8)",
+              }}
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span className="break-all">{loadError}</span>
+            </div>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">

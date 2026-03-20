@@ -1,7 +1,7 @@
 import { useState, useEffect, type ComponentType } from "react";
 import { Server, Brain, Database, Info, Eye, EyeOff, CheckCircle, Loader2, AlertCircle } from "lucide-react";
 import { Card } from "@research-copilot/ui";
-import { apiClient } from "../lib/client";
+import { apiClient, formatErrorMessage, getApiBaseUrl, setApiBaseUrl } from "../lib/client";
 import type { AppSettings, LlmProvider } from "@research-copilot/types";
 
 // ── helpers ──────────────────────────────────────────────────────
@@ -133,9 +133,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 type SaveState = "idle" | "saving" | "saved" | "error";
 
 export default function Settings() {
-  const [apiUrl, setApiUrl] = useState(
-    localStorage.getItem("api_url") ?? import.meta.env.VITE_API_URL ?? "http://localhost:8008"
-  );
+  const [apiUrl, setApiUrl] = useState(getApiBaseUrl());
   const [form, setForm] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -144,16 +142,28 @@ export default function Settings() {
   const set = (key: keyof AppSettings) => (val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
 
+  const loadSettings = async () => {
+    setLoading(true);
+    setLoadError("");
+
+    try {
+      const data = await apiClient.settings.get();
+      setForm({ ...DEFAULT_SETTINGS, ...data });
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    apiClient.settings
-      .get()
-      .then((data) => setForm({ ...DEFAULT_SETTINGS, ...data }))
-      .catch((e) => setLoadError(e.message))
-      .finally(() => setLoading(false));
+    void loadSettings();
   }, []);
 
-  const handleSaveApiUrl = () => {
-    localStorage.setItem("api_url", apiUrl);
+  const handleSaveApiUrl = async () => {
+    const normalized = setApiBaseUrl(apiUrl);
+    setApiUrl(normalized);
+    await loadSettings();
   };
 
   const handleSaveSettings = async () => {
@@ -162,7 +172,8 @@ export default function Settings() {
       await apiClient.settings.update(form);
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2500);
-    } catch {
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
       setSaveState("error");
       setTimeout(() => setSaveState("idle"), 3000);
     }
