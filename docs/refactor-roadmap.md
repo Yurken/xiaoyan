@@ -23,15 +23,15 @@
 
 **目标**：让后端具备支撑多端的能力。
 
-- [ ] 新增 `jobs` 表（迁移脚本）
-- [ ] 集成 ARQ，替换 `BackgroundTasks`（PDF 解析/向量化/综述生成改为 Job）
-- [ ] 新增 `GET /api/jobs/{job_id}` 接口（状态轮询）
-- [ ] 新增 `users` 表 + JWT 鉴权模块（login / refresh）
-- [ ] 所有现有表增加 `user_id` 字段
-- [ ] 集成 MinIO，新增 `files` 表，替换本地 `uploads/` 目录（保留本地模式）
-- [ ] 更新 `docker-compose.yml`，增加 Redis 和 MinIO 服务
-- [ ] `message_citations` 表，替换 `chat_messages.sources` JSONB
-- [ ] `packages/api-sdk` 增加 auth token 注入 + job 轮询工具函数
+- [x] 新增 `jobs` 表（迁移脚本 002_phase2.sql）
+- [x] 集成 ARQ，替换 `BackgroundTasks`（upload/analyze 改为 Job + fallback）
+- [x] 新增 `GET /api/jobs/{job_id}` 接口（状态轮询）
+- [x] 新增 `users` 表 + JWT 鉴权模块（login / refresh，auth_enabled 开关）
+- [ ] 所有现有表增加 `user_id` 字段（待 auth_enabled=true 时推进）
+- [x] 集成 MinIO 配置，新增 `files` 表（storage_backend 开关，默认 local）
+- [x] 更新 `docker-compose.yml`，增加 Redis (6380) 和 MinIO (9000/9001)
+- [ ] `message_citations` 表，替换 `chat_messages.sources` JSONB（Phase 3 前）
+- [ ] `packages/api-sdk` 增加 job 轮询工具函数（下一步）
 
 ---
 
