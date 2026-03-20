@@ -7,20 +7,67 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ── Stage 1: Create draft release ─────────────────────────────
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.tauri-release.outputs.releaseId }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Create draft release
+        id: tauri-release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "智研 Copilot ${{ github.ref_name }}"
+          releaseBody: |
+            ## 智研 Copilot ${{ github.ref_name }}
+
+            ### 下载说明
+            - **macOS Apple Silicon** → `.dmg` (aarch64)
+            - **macOS Intel** → `.dmg` (x86_64)
+            - **Windows** → `.msi` 或 `.exe`
+
+            > 首次安装 macOS 版本如提示"无法验证"，请前往系统设置 → 隐私与安全性 → 仍要打开。
+          releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+  # ── Stage 2: Build all platforms (parallel) ───────────────────
   build:
+    name: Build (${{ matrix.label }})
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          - label: macOS Apple Silicon
+            platform: macos-latest
             args: "--target aarch64-apple-darwin"
-            target: aarch64-apple-darwin
-          - platform: macos-latest
+            rust_target: aarch64-apple-darwin
+          - label: macOS Intel
+            platform: macos-latest
             args: "--target x86_64-apple-darwin"
-            target: x86_64-apple-darwin
-          - platform: windows-latest
+            rust_target: x86_64-apple-darwin
+          - label: Windows x64
+            platform: windows-latest
             args: ""
-            target: ""
+            rust_target: ""
 
     runs-on: ${{ matrix.platform }}
 
@@ -38,7 +85,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust_target }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -48,7 +95,7 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Build Tauri app
+      - name: Build & upload artifacts
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -56,9 +103,19 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
-          tagName: ${{ github.ref_name }}
-          releaseName: "智研 Copilot ${{ github.ref_name }}"
-          releaseBody: "See CHANGELOG for details."
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+  # ── Stage 3: Publish release after all builds succeed ─────────
+  publish-release:
+    name: Publish Release
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release (remove draft)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --draft=false
