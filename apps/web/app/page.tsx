@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Map, BookOpen, FileText, Library, MessageSquare, ArrowRight, Sparkles } from "lucide-react";
+import { Map, BookOpen, FileText, Library, MessageSquare, ArrowRight, Sparkles, SlidersHorizontal } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 
 const features = [
@@ -38,10 +38,18 @@ const features = [
   {
     href: "/copilot",
     icon: MessageSquare,
-    title: "对话式 Copilot",
-    description: "围绕论文、知识库和研究方向进行多轮问答，随时获取 AI 辅助",
+    title: "多 Agent Copilot",
+    description: "让 supervisor 自动拆解任务，把检索、综述、论文解析和复现建议串成一条可观察的执行链路",
     color: "text-rose-600",
     bg: "bg-rose-50",
+  },
+  {
+    href: "/settings",
+    icon: SlidersHorizontal,
+    title: "设置中心",
+    description: "统一管理模型、RAG 参数和多 Agent 编排策略，避免配置散落在不同入口",
+    color: "text-slate-700",
+    bg: "bg-slate-100",
   },
 ];
 
@@ -58,7 +66,7 @@ export default function HomePage() {
           智研 Copilot
         </h1>
         <p className="text-lg text-gray-500 max-w-2xl">
-          专为高校学生和科研新手设计的 AI 助手，帮助你高效完成从方向规划、文献调研、论文精读到实验复现的全流程科研工作。
+          现在已经支持多 Agent 协同，把方向规划、文献调研、论文精读、实验复现和最终回答串成一条可追踪的科研工作流。
         </p>
       </div>
 
@@ -91,7 +99,7 @@ export default function HomePage() {
             { step: "2", text: "在「文献调研」中搜索关键词，生成结构化综述，快速了解领域现状" },
             { step: "3", text: "上传你感兴趣的 PDF 论文，获取 AI 精读分析和复现指导" },
             { step: "4", text: "所有内容自动归档到「知识库」，支持语义搜索和问答" },
-            { step: "5", text: "随时打开「Copilot」进行多轮对话，围绕你的研究深度探讨" },
+            { step: "5", text: "随时打开「Copilot」查看 supervisor 计划、agent 时间线和结构化产物" },
           ].map(({ step, text }) => (
             <li key={step} className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center">

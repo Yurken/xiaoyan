@@ -1,8 +1,9 @@
+import type { ComponentProps } from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Platform, StyleSheet } from "react-native";
 
-type IconName = React.ComponentProps<typeof Ionicons>["name"];
+type IconName = ComponentProps<typeof Ionicons>["name"];
 
 const tabs: {
   name: string;
@@ -46,7 +47,7 @@ export default function TabsLayout() {
           name={tab.name}
           options={{
             title: tab.title,
-            tabBarIcon: ({ focused, color, size }) => (
+            tabBarIcon: ({ focused, color, size }: { focused: boolean; color: string; size: number }) => (
               <Ionicons
                 name={focused ? tab.activeIcon : tab.icon}
                 size={size}

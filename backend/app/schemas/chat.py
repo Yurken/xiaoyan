@@ -38,6 +38,39 @@ class ChatSessionListItem(BaseModel):
         from_attributes = True
 
 
+class AgentArtifactOut(BaseModel):
+    id: UUID
+    run_id: UUID
+    artifact_type: str
+    title: str
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AgentRunOut(BaseModel):
+    id: UUID
+    session_id: UUID
+    request_id: UUID
+    parent_run_id: UUID | None = None
+    agent_name: str
+    step_name: str
+    status: str
+    order_index: int
+    input_payload: dict | None = None
+    output_payload: dict | None = None
+    summary: str | None = None
+    error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    artifacts: list[AgentArtifactOut] = []
+
+    class Config:
+        from_attributes = True
+
+
 class ChatRequest(BaseModel):
     session_id: UUID | None = None
     message: str

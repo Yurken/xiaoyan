@@ -1,8 +1,8 @@
 import { useState, useEffect, type ComponentType } from "react";
-import { Server, Brain, Database, Info, Eye, EyeOff, CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { Server, Brain, Database, Info, Eye, EyeOff, CheckCircle, Loader2, AlertCircle, Bot } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage, getApiBaseUrl, setApiBaseUrl } from "../lib/client";
-import type { AppSettings, LlmProvider } from "@research-copilot/types";
+import type { AppSettings, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
 
 // ── helpers ──────────────────────────────────────────────────────
 
@@ -109,6 +109,38 @@ function SectionIcon({ icon: Icon, color }: { icon: ComponentType<{ className?: 
   );
 }
 
+function AgentChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-3 py-2 rounded-2xl text-xs font-medium transition-all duration-150"
+      style={
+        active
+          ? {
+              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+              color: "#FFFFFF",
+              boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
+            }
+          : {
+              background: "#E8ECF0",
+              color: "#3C3C43",
+              boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+            }
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 
 const MASK = "***";
@@ -128,7 +160,28 @@ const DEFAULT_SETTINGS: AppSettings = {
   chunk_overlap: "150",
   rag_top_k: "5",
   semantic_scholar_api_key: "",
+  multi_agent_enabled: "true",
+  multi_agent_routing_mode: "hybrid",
+  multi_agent_enabled_agents: "retrieval,planner,literature_scout,survey,paper_analyst,reproduction,synthesis",
+  multi_agent_max_steps: "4",
+  multi_agent_search_limit: "8",
+  multi_agent_supervisor_model: "",
+  multi_agent_supervisor_temperature: "0.1",
+  multi_agent_worker_model: "",
+  multi_agent_worker_temperature: "0.3",
+  multi_agent_synthesis_model: "",
+  multi_agent_synthesis_temperature: "0.4",
 };
+
+const AGENT_OPTIONS = [
+  ["retrieval", "检索"],
+  ["planner", "规划"],
+  ["literature_scout", "侦察"],
+  ["survey", "综述"],
+  ["paper_analyst", "论文解析"],
+  ["reproduction", "复现"],
+  ["synthesis", "整合"],
+] as const;
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -180,6 +233,18 @@ export default function Settings() {
   };
 
   const provider = form.llm_provider as LlmProvider;
+  const routingMode = form.multi_agent_routing_mode as MultiAgentRoutingMode;
+  const enabledAgents = form.multi_agent_enabled_agents
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const toggleAgent = (agentName: string) => {
+    const next = enabledAgents.includes(agentName)
+      ? enabledAgents.filter((item) => item !== agentName)
+      : [...enabledAgents, agentName];
+    set("multi_agent_enabled_agents")(next.join(","));
+  };
 
   return (
     <div className="h-full overflow-y-auto p-6 space-y-5">
@@ -377,6 +442,128 @@ export default function Settings() {
         </Card>
       )}
 
+      {/* ── Multi-Agent Settings ───────────────────── */}
+      {!loading && !loadError && (
+        <Card padding="md" className="space-y-4">
+          <div className="flex items-center gap-3">
+            <SectionIcon icon={Bot} color="#34C759" />
+            <div>
+              <h2 className="text-sm font-semibold text-ink-primary">多 Agent 编排</h2>
+              <p className="text-xs text-ink-tertiary mt-0.5">控制 supervisor、worker 和 synthesis 的路由行为</p>
+            </div>
+          </div>
+
+          <div
+            className="rounded-3xl px-4 py-4 flex items-center justify-between gap-4"
+            style={{
+              background: "#E8ECF0",
+              boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+            }}
+          >
+            <div>
+              <div className="text-sm font-semibold text-ink-primary">启用 Multi-Agent</div>
+              <div className="text-xs text-ink-tertiary mt-1">关闭后只保留最终回答能力，不再展示 supervisor 拆解链路</div>
+            </div>
+            <button
+              onClick={() => set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")}
+              className="w-16 h-9 rounded-full relative transition-colors"
+              style={{ background: form.multi_agent_enabled === "true" ? "#34C759" : "#C8CDD3" }}
+            >
+              <span
+                className="absolute top-1 h-7 w-7 rounded-full bg-white transition-transform"
+                style={{
+                  transform: form.multi_agent_enabled === "true" ? "translateX(32px)" : "translateX(4px)",
+                  boxShadow: "0 4px 10px rgba(0,0,0,0.12)",
+                }}
+              />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-ink-tertiary ml-1">路由模式</label>
+            <div className="flex gap-2 flex-wrap">
+              {([
+                ["rule", "规则优先"],
+                ["llm", "LLM 路由"],
+                ["hybrid", "混合模式"],
+              ] as const).map(([value, label]) => (
+                <ProviderTab
+                  key={value}
+                  label={label}
+                  active={routingMode === value}
+                  onClick={() => set("multi_agent_routing_mode")(value)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-ink-tertiary ml-1">启用的 Specialist</label>
+            <div className="flex gap-2 flex-wrap">
+              {AGENT_OPTIONS.map(([value, label]) => (
+                <AgentChip
+                  key={value}
+                  label={label}
+                  active={enabledAgents.includes(value)}
+                  onClick={() => toggleAgent(value)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <SettingInput
+              label="最大步骤数"
+              value={form.multi_agent_max_steps}
+              onChange={set("multi_agent_max_steps")}
+              placeholder="4"
+            />
+            <SettingInput
+              label="检索上限"
+              value={form.multi_agent_search_limit}
+              onChange={set("multi_agent_search_limit")}
+              placeholder="8"
+            />
+            <SettingInput
+              label="Supervisor 模型"
+              value={form.multi_agent_supervisor_model}
+              onChange={set("multi_agent_supervisor_model")}
+              placeholder="留空沿用主模型"
+            />
+            <SettingInput
+              label="Supervisor Temperature"
+              value={form.multi_agent_supervisor_temperature}
+              onChange={set("multi_agent_supervisor_temperature")}
+              placeholder="0.1"
+            />
+            <SettingInput
+              label="Worker 模型"
+              value={form.multi_agent_worker_model}
+              onChange={set("multi_agent_worker_model")}
+              placeholder="留空沿用主模型"
+            />
+            <SettingInput
+              label="Worker Temperature"
+              value={form.multi_agent_worker_temperature}
+              onChange={set("multi_agent_worker_temperature")}
+              placeholder="0.3"
+            />
+            <SettingInput
+              label="Synthesis 模型"
+              value={form.multi_agent_synthesis_model}
+              onChange={set("multi_agent_synthesis_model")}
+              placeholder="留空沿用主模型"
+            />
+            <SettingInput
+              label="Synthesis Temperature"
+              value={form.multi_agent_synthesis_temperature}
+              onChange={set("multi_agent_synthesis_temperature")}
+              placeholder="0.4"
+            />
+          </div>
+        </Card>
+      )}
+
       {/* ── Save Button ──────────────────────────── */}
       {!loading && !loadError && (
         <button
@@ -414,8 +601,8 @@ export default function Settings() {
         </div>
         <div className="space-y-2 ml-12">
           {[
-            ["应用", "智研 Copilot Desktop v0.1.0"],
-            ["技术栈", "Tauri v2 · React · FastAPI · pgvector"],
+            ["应用", "智研 Copilot Desktop v0.1.4"],
+            ["技术栈", "Tauri v2 · React · FastAPI · pgvector · Multi-Agent"],
             ["存储", "PostgreSQL + pgvector"],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between">

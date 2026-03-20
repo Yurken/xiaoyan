@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NmCard } from "../../components/NmCard";
+import { getApiBaseUrl, setApiBaseUrl } from "../../lib/client";
 
 type SectionRow = {
   label: string;
@@ -20,13 +20,11 @@ function InfoRow({ label, value }: SectionRow) {
 }
 
 export default function SettingsScreen() {
-  const [apiUrl, setApiUrl] = useState(
-    process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8008"
-  );
+  const [apiUrl, setApiUrlState] = useState(getApiBaseUrl());
   const [saved, setSaved] = useState(false);
 
   const handleSave = async () => {
-    await AsyncStorage.setItem("api_url", apiUrl);
+    await setApiBaseUrl(apiUrl);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -52,7 +50,7 @@ export default function SettingsScreen() {
           <TextInput
             style={styles.input}
             value={apiUrl}
-            onChangeText={setApiUrl}
+            onChangeText={setApiUrlState}
             placeholder="http://localhost:8008"
             placeholderTextColor="#8E8E93"
             autoCapitalize="none"
@@ -80,11 +78,11 @@ export default function SettingsScreen() {
 
           <InfoRow label="应用名称" value="智研 Copilot" />
           <View style={styles.divider} />
-          <InfoRow label="版本" value="0.1.0 (1)" />
+          <InfoRow label="版本" value="0.1.4 (4)" />
           <View style={styles.divider} />
           <InfoRow label="平台" value="Expo SDK 52 · React Native" />
           <View style={styles.divider} />
-          <InfoRow label="后端" value="FastAPI · PostgreSQL · pgvector" />
+          <InfoRow label="后端" value="FastAPI · PostgreSQL · pgvector · Multi-Agent" />
         </NmCard>
       </ScrollView>
     </SafeAreaView>

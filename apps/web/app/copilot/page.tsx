@@ -1,11 +1,164 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense, type MouseEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, Suspense, type KeyboardEvent, type MouseEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { MessageSquare, Send, Plus, Trash2, Bot, User } from "lucide-react";
-import { Card, Button, Badge, MarkdownRenderer } from "@research-copilot/ui";
+import {
+  Bot,
+  BrainCircuit,
+  CheckCircle2,
+  Clock3,
+  MessageSquare,
+  Plus,
+  Radar,
+  Send,
+  Sparkles,
+  Trash2,
+  User,
+  XCircle,
+} from "lucide-react";
+import { Badge, Button, Card, MarkdownRenderer } from "@research-copilot/ui";
 import { chatApi } from "@/lib/client";
-import type { ChatSession, ChatMessage } from "@research-copilot/types";
+import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession } from "@research-copilot/types";
+
+function upsertRun(runs: AgentRun[], next: AgentRun) {
+  const index = runs.findIndex((item) => item.id === next.id);
+  if (index === -1) {
+    return [...runs, next];
+  }
+  return runs.map((item) => (item.id === next.id ? next : item));
+}
+
+function runStatusLabel(status: AgentRun["status"]) {
+  if (status === "done") return "已完成";
+  if (status === "failed") return "失败";
+  if (status === "running") return "执行中";
+  return "等待中";
+}
+
+function runStatusTone(status: AgentRun["status"]) {
+  if (status === "done") return "bg-emerald-100 text-emerald-700";
+  if (status === "failed") return "bg-rose-100 text-rose-700";
+  if (status === "running") return "bg-amber-100 text-amber-700";
+  return "bg-slate-100 text-slate-600";
+}
+
+function runStatusIcon(status: AgentRun["status"]) {
+  if (status === "done") return <CheckCircle2 className="h-4 w-4" />;
+  if (status === "failed") return <XCircle className="h-4 w-4" />;
+  return <Clock3 className="h-4 w-4" />;
+}
+
+function MissionControl({
+  plan,
+  runs,
+  requestId,
+  sending,
+}: {
+  plan: AgentPlanStep[];
+  runs: AgentRun[];
+  requestId?: string;
+  sending: boolean;
+}) {
+  const orderedRuns = [...runs].sort((a, b) => {
+    if (a.order_index !== b.order_index) return a.order_index - b.order_index;
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
+  const artifacts = orderedRuns.flatMap((run) => run.artifacts ?? []);
+
+  return (
+    <div className="border-t border-slate-200/80 bg-white/70 p-4 xl:w-[360px] xl:flex-shrink-0 xl:border-l xl:border-t-0 xl:p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Mission Control</div>
+          <div className="mt-1 text-lg font-semibold text-slate-950">Supervisor 视图</div>
+        </div>
+        <Badge variant={sending ? "warning" : "success"}>{sending ? "运行中" : "空闲"}</Badge>
+      </div>
+
+      {requestId && (
+        <div className="mb-4 rounded-2xl bg-slate-950 px-4 py-3 text-xs text-slate-300">
+          Request ID
+          <div className="mt-1 truncate font-mono text-[11px] text-white">{requestId}</div>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <Card variant="flat" className="border border-white/80">
+          <div className="mb-3 flex items-center gap-2">
+            <Radar className="h-4 w-4 text-brand-600" />
+            <h3 className="text-sm font-semibold text-slate-900">计划分解</h3>
+          </div>
+          {plan.length === 0 ? (
+            <p className="text-sm leading-6 text-slate-500">尚未启动拆解。发送问题后，supervisor 会在这里展示当前链路。</p>
+          ) : (
+            <div className="space-y-3">
+              {plan.map((step, index) => (
+                <div key={`${step.agent_name}-${index}`} className="rounded-2xl border border-slate-200 bg-white/80 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-slate-900">{index + 1}. {step.title}</span>
+                    <Badge variant="default">{step.agent_name}</Badge>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">{step.goal}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card variant="flat" className="border border-white/80">
+          <div className="mb-3 flex items-center gap-2">
+            <BrainCircuit className="h-4 w-4 text-amber-600" />
+            <h3 className="text-sm font-semibold text-slate-900">Agent 时间线</h3>
+          </div>
+          {orderedRuns.length === 0 ? (
+            <p className="text-sm leading-6 text-slate-500">暂无 agent 运行记录。</p>
+          ) : (
+            <div className="space-y-3">
+              {orderedRuns.map((run) => (
+                <div key={run.id} className="rounded-2xl border border-slate-200 bg-white/80 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">{run.step_name}</div>
+                      <div className="mt-1 text-xs text-slate-400">{run.agent_name}</div>
+                    </div>
+                    <div className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${runStatusTone(run.status)}`}>
+                      {runStatusIcon(run.status)}
+                      {runStatusLabel(run.status)}
+                    </div>
+                  </div>
+                  {(run.summary || run.error) && (
+                    <p className="mt-3 text-xs leading-5 text-slate-500">{run.error || run.summary}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card variant="flat" className="border border-white/80">
+          <div className="mb-3 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-violet-600" />
+            <h3 className="text-sm font-semibold text-slate-900">Artifacts</h3>
+          </div>
+          {artifacts.length === 0 ? (
+            <p className="text-sm leading-6 text-slate-500">当前对话还没有结构化产物。</p>
+          ) : (
+            <div className="space-y-3">
+              {artifacts.slice(0, 4).map((artifact) => (
+                <div key={artifact.id} className="rounded-2xl border border-slate-200 bg-white/80 p-3">
+                  <div className="text-sm font-semibold text-slate-900">{artifact.title}</div>
+                  <div className="mt-2 line-clamp-5 whitespace-pre-wrap text-xs leading-5 text-slate-500">
+                    {artifact.content}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 function CopilotContent() {
   const searchParams = useSearchParams();
@@ -16,76 +169,96 @@ function CopilotContent() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [plan, setPlan] = useState<AgentPlanStep[]>([]);
+  const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
+  const [requestId, setRequestId] = useState<string>();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [streamError, setStreamError] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const scrollToBottom = () => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => { scrollToBottom(); }, [messages]);
+  }, [messages]);
 
   const loadSessions = async () => {
     try {
-      const data = await chatApi.listSessions() as ChatSession[];
+      const data = await chatApi.listSessions();
       setSessions(data);
     } finally {
       setLoadingSessions(false);
     }
   };
 
-  useEffect(() => { loadSessions(); }, []);
+  useEffect(() => {
+    void loadSessions();
+  }, []);
 
   const loadSession = async (session: ChatSession) => {
     try {
-      const data = await chatApi.getSession(session.id) as ChatSession;
-      setCurrentSession(data);
-      setMessages(data.messages || []);
+      const [sessionData, runData] = await Promise.all([
+        chatApi.getSession(session.id),
+        chatApi.listAgentRuns(session.id),
+      ]);
+      setCurrentSession(sessionData);
+      setMessages(sessionData.messages || []);
+      setAgentRuns(runData);
+      const latestRequestId = runData[0]?.request_id;
+      setRequestId(latestRequestId);
+      setPlan([]);
+      setStreamError("");
     } catch {}
   };
 
   const handleNewChat = () => {
     setCurrentSession(null);
     setMessages([]);
+    setPlan([]);
+    setAgentRuns([]);
+    setRequestId(undefined);
+    setStreamError("");
   };
 
-  const handleDeleteSession = async (id: string, e: MouseEvent) => {
-    e.stopPropagation();
+  const handleDeleteSession = async (id: string, event: MouseEvent) => {
+    event.stopPropagation();
     try {
       await chatApi.deleteSession(id);
-      setSessions((prev) => prev.filter((s) => s.id !== id));
+      setSessions((prev) => prev.filter((session) => session.id !== id));
       if (currentSession?.id === id) {
-        setCurrentSession(null);
-        setMessages([]);
+        handleNewChat();
       }
     } catch {}
   };
 
   const handleSend = async () => {
     if (!input.trim() || sending) return;
+
     const userMessage = input.trim();
+    const assistantId = `${Date.now()}_assistant`;
+
     setInput("");
     setSending(true);
+    setStreamError("");
+    setPlan([]);
+    setAgentRuns([]);
+    setRequestId(undefined);
 
-    const tempUserMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: userMessage,
-      sources: undefined,
-      created_at: new Date().toISOString(),
-    };
-    const assistantId = Date.now().toString() + "_a";
-    const assistantMsg: ChatMessage = {
-      id: assistantId,
-      role: "assistant",
-      content: "",
-      sources: undefined,
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, tempUserMsg, assistantMsg]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        role: "user",
+        content: userMessage,
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        created_at: new Date().toISOString(),
+      },
+    ]);
 
     try {
       let sessionId = currentSession?.id;
@@ -98,10 +271,41 @@ function CopilotContent() {
       })) {
         if (chunk.type === "session_id") {
           sessionId = chunk.value;
-        } else if (chunk.type === "delta") {
+        }
+        if (chunk.type === "request_id") {
+          setRequestId(chunk.value);
+        }
+        if (chunk.type === "plan") {
+          setPlan(chunk.value);
+        }
+        if (chunk.type === "agent_start" || chunk.type === "agent_complete" || chunk.type === "agent_error") {
+          setAgentRuns((prev) => upsertRun(prev, chunk.value));
+        }
+        if (chunk.type === "delta") {
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: m.content + chunk.value } : m
+            prev.map((message) =>
+              message.id === assistantId
+                ? { ...message, content: message.content + chunk.value }
+                : message
+            )
+          );
+        }
+        if (chunk.type === "sources") {
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId
+                ? { ...message, sources: chunk.value }
+                : message
+            )
+          );
+        }
+        if (chunk.type === "error") {
+          setStreamError(chunk.value);
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId
+                ? { ...message, content: chunk.value || "请求失败" }
+                : message
             )
           );
         }
@@ -111,12 +315,14 @@ function CopilotContent() {
         await loadSessions();
         setCurrentSession({ id: sessionId } as ChatSession);
       }
-    } catch (e) {
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "未知错误";
+      setStreamError(text);
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId
-            ? { ...m, content: `抱歉，发生了错误：${e instanceof Error ? e.message : "未知错误"}` }
-            : m
+        prev.map((message) =>
+          message.id === assistantId
+            ? { ...message, content: `抱歉，发生了错误：${text}` }
+            : message
         )
       );
     } finally {
@@ -124,47 +330,64 @@ function CopilotContent() {
     }
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  const activeRequestId =
+    requestId ||
+    [...agentRuns].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.request_id;
+
+  const displayedRuns = [...agentRuns]
+    .filter((run) => !activeRequestId || run.request_id === activeRequestId)
+    .sort((a, b) => a.order_index - b.order_index);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void handleSend();
     }
   };
 
   return (
-    <div className="flex h-full">
-      {/* Sessions sidebar */}
-      <div className="w-56 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-3 border-b border-gray-200">
-          <Button onClick={handleNewChat} size="sm" variant="secondary" className="w-full">
-            <Plus className="w-4 h-4" />
-            新对话
+    <div className="flex h-full bg-[radial-gradient(circle_at_top_left,_rgba(244,114,182,0.08),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.1),_transparent_24%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)]">
+      <div className="w-60 flex-shrink-0 border-r border-slate-200 bg-white/80 backdrop-blur">
+        <div className="border-b border-slate-200 p-4">
+          <Button onClick={handleNewChat} className="w-full justify-center">
+            <Plus className="h-4 w-4" />
+            新建多 Agent 对话
           </Button>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="space-y-2 p-3">
           {loadingSessions ? (
-            <div className="text-xs text-gray-400 text-center py-4">加载中...</div>
+            <div className="py-8 text-center text-sm text-slate-400">加载中…</div>
           ) : sessions.length === 0 ? (
-            <div className="text-xs text-gray-400 text-center py-4">还没有对话记录</div>
+            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm leading-6 text-slate-400">
+              暂无对话记录
+            </div>
           ) : (
             sessions.map((session) => (
               <div
                 key={session.id}
                 onClick={() => loadSession(session)}
-                className={`group flex items-start gap-2 p-2.5 rounded-lg cursor-pointer transition-colors ${
-                  currentSession?.id === session.id ? "bg-brand-50 text-brand-700" : "hover:bg-gray-100 text-gray-700"
+                className={`group flex cursor-pointer gap-3 rounded-2xl px-3 py-3 transition-all ${
+                  currentSession?.id === session.id
+                    ? "bg-slate-950 text-white shadow-[0_18px_32px_rgba(15,23,42,0.16)]"
+                    : "bg-white/80 text-slate-600 hover:bg-white"
                 }`}
               >
-                <MessageSquare className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium truncate">{session.title}</div>
-                  <div className="text-xs text-gray-400">{session.updated_at ? new Date(session.updated_at).toLocaleDateString("zh-CN") : new Date(session.created_at).toLocaleDateString("zh-CN")}</div>
+                <MessageSquare className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{session.title}</div>
+                  <div className={`mt-1 text-xs ${currentSession?.id === session.id ? "text-slate-300" : "text-slate-400"}`}>
+                    {new Date(session.updated_at || session.created_at).toLocaleDateString("zh-CN")}
+                  </div>
                 </div>
                 <button
-                  onClick={(e) => handleDeleteSession(session.id, e)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-500 transition-all flex-shrink-0"
+                  onClick={(event) => void handleDeleteSession(session.id, event)}
+                  className={`rounded-full p-1 transition ${
+                    currentSession?.id === session.id
+                      ? "text-slate-300 hover:bg-white/10 hover:text-white"
+                      : "text-slate-400 hover:bg-slate-100 hover:text-rose-500"
+                  }`}
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             ))
@@ -172,127 +395,142 @@ function CopilotContent() {
         </div>
       </div>
 
-      {/* Chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="h-14 flex items-center px-6 border-b border-gray-200 bg-white gap-3">
-          <MessageSquare className="w-5 h-5 text-rose-500" />
-          <div className="flex-1">
-            <span className="font-semibold text-gray-900">对话式 Copilot</span>
-            {contextType !== "general" && contextTitle && (
-              <Badge variant="info" className="ml-2 text-xs">{contextTitle}</Badge>
-            )}
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                <Bot className="w-8 h-8 text-gray-400" />
+      <div className="flex min-w-0 flex-1 flex-col xl:flex-row">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="border-b border-slate-200/80 bg-white/70 px-6 py-4 backdrop-blur">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-[0_18px_35px_rgba(15,23,42,0.18)]">
+                    <BrainCircuit className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold text-slate-950">Copilot Mission Room</div>
+                    <div className="mt-1 text-sm text-slate-500">Supervisor 负责拆解，specialist 负责执行，右侧实时显示链路。</div>
+                  </div>
+                </div>
               </div>
-              <h3 className="font-semibold text-gray-700 mb-2">开始对话</h3>
-              <p className="text-sm text-gray-500 max-w-sm">
-                {contextType === "paper"
-                  ? "围绕当前论文提问，AI 会优先从论文内容中寻找答案"
-                  : "可以问我任何科研相关的问题，我会结合你的知识库来回答"}
-              </p>
-              <div className="mt-6 space-y-2 w-full max-w-sm">
-                {[
-                  contextType === "paper" ? "这篇论文的核心创新点是什么？" : "帮我解释一下注意力机制",
-                  contextType === "paper" ? "实验是在哪些数据集上进行的？" : "联邦学习和集中式学习的区别是什么？",
-                  contextType === "paper" ? "这篇论文有什么局限性？" : "如何选择合适的基线方法？",
-                ].map((suggestion, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setInput(suggestion)}
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="default">{contextType === "paper" ? "论文上下文" : "通用科研"}</Badge>
+                {contextTitle && <Badge variant="info">{contextTitle}</Badge>}
+                <Badge variant={sending ? "warning" : "success"}>{sending ? "编排中" : "就绪"}</Badge>
+              </div>
+            </div>
+          </div>
+
+          {streamError && (
+            <div className="px-6 pt-4">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {streamError}
               </div>
             </div>
           )}
 
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                msg.role === "user" ? "bg-brand-600" : "bg-gray-100"
-              }`}>
-                {msg.role === "user"
-                  ? <User className="w-4 h-4 text-white" />
-                  : <Bot className="w-4 h-4 text-gray-600" />
-                }
-              </div>
-              <div className={`max-w-[80%] ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col gap-1`}>
-                <div className={`rounded-2xl px-4 py-3 ${
-                  msg.role === "user"
-                    ? "bg-brand-600 text-white rounded-tr-sm"
-                    : "bg-white border border-gray-200 rounded-tl-sm"
-                }`}>
-                  {msg.role === "user"
-                    ? <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    : <MarkdownRenderer content={msg.content} />
-                  }
-                </div>
-                {msg.sources && msg.sources.length > 0 && msg.role === "assistant" && (
-                  <div className="flex flex-wrap gap-1 ml-1">
-                    {msg.sources.slice(0, 3).map((s, i) => (
-                      <span key={i} title={s.content}
-                        className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full truncate max-w-[150px]">
-                        📄 {s.source || `来源 ${i + 1}`}
-                      </span>
+          <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
+            {messages.length === 0 && (
+              <div className="flex h-full flex-col items-center justify-center">
+                <div className="w-full max-w-3xl rounded-[32px] border border-white/80 bg-white/70 p-8 shadow-[0_28px_80px_rgba(15,23,42,0.08)] backdrop-blur">
+                  <div className="mb-6 flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                      <Sparkles className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="text-xl font-semibold text-slate-950">多 Agent Copilot</div>
+                      <div className="mt-1 text-sm text-slate-500">
+                        输入问题后，系统会自动拆解为检索、规划、综述、论文解析或复现等链路。
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {[
+                      contextType === "paper" ? "总结这篇论文的核心创新点和局限" : "帮我规划多模态检索方向的学习路径",
+                      contextType === "paper" ? "给出这篇论文的复现实验建议" : "帮我做一个关于图神经网络的文献综述切入点",
+                      contextType === "paper" ? "这篇论文最关键的实验设计是什么" : "围绕知识图谱问答，列出值得先读的几篇论文",
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => setInput(suggestion)}
+                        className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-4 text-left text-sm leading-6 text-slate-600 transition hover:border-brand-200 hover:text-slate-900"
+                      >
+                        {suggestion}
+                      </button>
                     ))}
                   </div>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {sending && (
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                <Bot className="w-4 h-4 text-gray-600" />
-              </div>
-              <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3">
-                <div className="flex gap-1">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: `${i * 0.15}s` }} />
-                  ))}
                 </div>
               </div>
+            )}
+
+            {messages.map((message) => (
+              <div key={message.id} className={`flex gap-4 ${message.role === "user" ? "flex-row-reverse" : ""}`}>
+                <div
+                  className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl ${
+                    message.role === "user"
+                      ? "bg-brand-600 text-white shadow-[0_16px_30px_rgba(0,122,255,0.2)]"
+                      : "bg-slate-950 text-white shadow-[0_16px_30px_rgba(15,23,42,0.16)]"
+                  }`}
+                >
+                  {message.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                </div>
+
+                <div className={`max-w-[85%] ${message.role === "user" ? "items-end" : "items-start"} flex flex-col gap-2`}>
+                  <div
+                    className={`rounded-[28px] px-5 py-4 ${
+                      message.role === "user"
+                        ? "bg-brand-600 text-white shadow-[0_20px_40px_rgba(0,122,255,0.18)]"
+                        : "border border-white/70 bg-white/85 text-slate-900 shadow-[0_20px_45px_rgba(15,23,42,0.08)]"
+                    }`}
+                  >
+                    {message.role === "user" ? (
+                      <p className="whitespace-pre-wrap text-sm leading-7">{message.content}</p>
+                    ) : (
+                      <MarkdownRenderer content={message.content || "…"} />
+                    )}
+                  </div>
+                  {message.role === "assistant" && message.sources && message.sources.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {message.sources.map((source, index) => (
+                        <span
+                          key={`${source.source}-${index}`}
+                          title={source.content}
+                          className="max-w-[220px] truncate rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs text-slate-500"
+                        >
+                          {source.source || `来源 ${index + 1}`}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className="border-t border-slate-200/80 bg-white/70 px-6 py-5 backdrop-blur">
+            <div className="mx-auto flex w-full max-w-4xl items-end gap-3 rounded-[28px] border border-white/70 bg-white/80 p-3 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <textarea
+                rows={3}
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="输入你的研究问题，系统会自动选择合适的 agent 链路…"
+                className="min-h-[84px] flex-1 resize-none rounded-[24px] border-0 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-900 outline-none"
+              />
+              <Button onClick={handleSend} disabled={!input.trim() || sending} className="h-12 px-5">
+                <Send className="h-4 w-4" />
+                发送
+              </Button>
             </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <div className="p-4 border-t border-gray-200 bg-white">
-          <div className="flex gap-3 items-end">
-            <textarea
-              ref={inputRef}
-              rows={2}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="输入问题... (Enter 发送，Shift+Enter 换行)"
-              className="flex-1 resize-none rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-colors"
-            />
-            <Button
-              onClick={handleSend}
-              loading={sending}
-              disabled={!input.trim()}
-              size="md"
-              className="flex-shrink-0 h-12 px-4"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
           </div>
         </div>
+
+        <MissionControl
+          plan={plan}
+          runs={displayedRuns}
+          requestId={activeRequestId}
+          sending={sending}
+        />
       </div>
     </div>
   );
@@ -300,7 +538,7 @@ function CopilotContent() {
 
 export default function CopilotPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-gray-400">加载中...</div>}>
+    <Suspense fallback={<div className="p-6 text-sm text-slate-500">加载中…</div>}>
       <CopilotContent />
     </Suspense>
   );

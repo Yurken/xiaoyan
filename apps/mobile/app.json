@@ -2,7 +2,7 @@
   "expo": {
     "name": "智研 Copilot",
     "slug": "research-copilot",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "research-copilot",
@@ -18,7 +18,7 @@
         "backgroundColor": "#E8ECF0"
       },
       "package": "com.researchcopilot.app",
-      "versionCode": 1,
+      "versionCode": 4,
       "permissions": [
         "NOTIFICATIONS"
       ]

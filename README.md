@@ -1,165 +1,183 @@
-# 智研 Copilot — AI 科研全流程助手
+# 智研 Copilot v0.1.4
 
-面向高校学生和科研新手的 AI 助手，帮助完成研究方向规划、文献调研、论文精读、实验复现指导和知识库沉淀。
+面向科研学习与论文工作的多端 AI Copilot。项目现在采用 Supervisor 驱动的多 agent 编排，覆盖研究方向规划、文献调研、论文精读、复现建议、知识库沉淀和带引用的对话问答。
 
-## 功能一览
+## 当前能力
 
-| 页面 | 功能 |
+- 多 agent 协同：Supervisor 负责任务拆解、调用专长 agent、汇总结果与引用来源。
+- 设置中心：可在界面内配置 LLM Provider、模型、Base URL、多 agent 开关与运行参数，修改后即时生效。
+- 可观测 Copilot：Web 与 Desktop 的 Copilot 页面会展示计划步骤、agent 执行轨迹、产物和来源。
+- 跨端支持：提供 Web、Desktop、Mobile 三端；移动端当前只发布 Android APK，不构建 iOS。
+
+## 页面一览
+
+| 页面 | 说明 |
 |---|---|
-| `/` | 工作台首页，快速入口 |
-| `/planner` | 研究方向规划，生成学习路径 + 经典论文推荐 |
-| `/survey` | 文献调研，自动检索 + 生成结构化综述 |
-| `/papers` | 论文库，上传 PDF，AI 精读分析 |
-| `/papers/[id]` | 论文详情 + 复现指导 |
-| `/knowledge` | 个人知识库，语义搜索，笔记管理 |
-| `/copilot` | 多轮对话 Copilot，支持基于论文/知识库的 RAG 问答 |
+| `/` | 工作台首页 |
+| `/planner` | 研究方向规划 |
+| `/survey` | 文献调研与结构化综述 |
+| `/papers` | 论文库与 PDF 分析 |
+| `/knowledge` | 知识卡片与语义检索 |
+| `/copilot` | 多 agent Copilot 工作台 |
+| `/settings` | 模型、Provider、多 agent 与运行设置 |
 
-## 技术栈
+## 架构概览
 
-- **后端**: Python 3.11 + FastAPI + SQLAlchemy (async) + pgvector
-- **前端**: Next.js 15.5.14 (App Router) + TypeScript + Tailwind CSS
-- **数据库**: PostgreSQL 15 + pgvector
-- **LLM**: 支持 OpenAI / Anthropic / 任意 OpenAI-compatible API
+### 后端
+
+- FastAPI + SQLAlchemy(async) + PostgreSQL + pgvector
+- OpenAI / Anthropic / OpenAI-compatible LLM Provider 抽象
+- RAG 检索、PDF 解析、论文分析、综述生成、异步任务队列
+- `agent_runs` / `agent_artifacts` 持久化与 SSE 事件流
+
+### 前端
+
+- `apps/web`: Next.js 15 App Router
+- `apps/desktop`: Tauri v2 + React
+- `apps/mobile`: Expo Router + React Native
+- `packages/types` / `packages/api-sdk` / `packages/ui`: 共享类型、SDK 与 UI 组件
 
 ## 快速启动
 
 ### 前置条件
 
-- Python 3.11+
 - Node.js 18+
-- Docker（用于启动数据库）
+- pnpm 9+
+- Python 3.11+
+- Docker
 
-### 1. 克隆 & 配置环境变量
+### 1. 安装前端依赖
 
 ```bash
-# 复制并填写环境变量
-cp .env.example backend/.env
-# 编辑 backend/.env，至少填写：
-#   DATABASE_URL
-#   LLM_PROVIDER + 对应的 API Key
+pnpm install
 ```
 
-### 2. 启动数据库
+### 2. 配置后端环境变量
 
-使用 Docker Compose 一键启动（已内置 pgvector 扩展，并自动执行 schema 初始化）：
+```bash
+cp .env.example backend/.env
+```
+
+至少需要配置：
+
+- `DATABASE_URL`
+- `LLM_PROVIDER`
+- 对应 Provider 的 API Key / Base URL / Model
+
+### 3. 启动数据库
 
 ```bash
 docker compose up -d
 ```
 
-数据库监听 `localhost:5433`，`backend/.env` 中的默认 `DATABASE_URL` 已与此配置对应。
+默认使用带 pgvector 的 PostgreSQL，数据库端口为 `5433`。
 
-> 如果已有 PostgreSQL 且安装了 pgvector，也可手动初始化：
-> ```bash
-> createdb research_copilot
-> psql research_copilot < backend/migrations/init.sql
-> ```
-
-### 3. 启动后端
+### 4. 启动后端
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
-
 uvicorn app.main:app --reload --port 8008
 ```
 
-后端 API 文档：http://localhost:8008/docs
+后端文档地址：`http://localhost:8008/docs`
 
-### 4. 启动前端
+### 5. 启动前端
+
+Web:
 
 ```bash
-cd apps/web
-npm install
-cp .env.local.example .env.local
-npm run dev -- --port 3333
+pnpm dev:web
 ```
 
-前端：http://localhost:3333
+Desktop:
 
-## 环境变量说明
-
-详见 `.env.example`，核心配置：
-
-```env
-DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/research_copilot
-
-# LLM 供应商: openai | anthropic | openai_compatible
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-OPENAI_CHAT_MODEL=gpt-4o-mini
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-
-# 使用 OpenAI 兼容 API（DeepSeek、月之暗面、硅基流动等）
-# LLM_PROVIDER=openai_compatible
-# OPENAI_COMPATIBLE_BASE_URL=https://api.deepseek.com/v1
-# OPENAI_COMPATIBLE_API_KEY=sk-...
-# OPENAI_COMPATIBLE_EMBEDDING_MODEL=BAAI/bge-m3
+```bash
+cd apps/desktop
+pnpm dev
 ```
+
+Mobile:
+
+```bash
+cd apps/mobile
+pnpm start
+```
+
+## 设置与运行时配置
+
+设置页面支持直接配置：
+
+- LLM Provider 与 API Key
+- Chat / Embedding 模型
+- OpenAI-compatible Base URL
+- 多 agent 开关
+- 最大并发、超时、步骤预算等运行参数
+
+后端在设置保存后会刷新 Provider 缓存，因此模型与密钥调整不需要重启服务。
+
+## 发布说明
+
+### 桌面端
+
+- 推送 `v*` tag 后会触发 GitHub Release 工作流
+- 输出 macOS `.dmg` 与 Windows `.exe` / `.msi`
+
+### 移动端
+
+- 推送 `v*` tag 后会触发 EAS Android 构建
+- 当前仅构建 Android APK
+- iOS 发布链已禁用
+
+### 版本同步
+
+发布前可使用：
+
+```bash
+node scripts/sync-version.mjs --tag v0.1.4
+```
+
+该脚本会同步根包、Web、Desktop、Mobile、共享包以及后端版本号。
 
 ## 项目结构
 
-```
+```text
 .
+├── apps/
+│   ├── desktop/          # Tauri 桌面端
+│   ├── mobile/           # Expo 移动端（Android APK）
+│   └── web/              # Next.js Web 端
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              # FastAPI 入口
-│   │   ├── config.py            # 配置管理
-│   │   ├── database.py          # 数据库连接
-│   │   ├── models/              # SQLAlchemy 数据模型
-│   │   ├── schemas/             # Pydantic 请求/响应模型
-│   │   ├── services/
-│   │   │   ├── llm/             # LLM 供应商抽象层
-│   │   │   ├── pdf_parser.py    # PDF 解析 & 分块
-│   │   │   ├── embedding_service.py
-│   │   │   ├── rag_service.py   # 向量检索
-│   │   │   ├── literature_search.py  # Semantic Scholar
-│   │   │   ├── planner_service.py
-│   │   │   ├── survey_service.py
-│   │   │   └── paper_analyzer.py
-│   │   ├── repositories/        # 数据访问层
-│   │   ├── api/                 # API 路由
-│   │   └── prompts/             # Prompt 模板
-│   ├── migrations/init.sql      # 数据库 Schema
-│   └── requirements.txt
-├── frontend/
-│   ├── app/                     # Next.js App Router 页面
-│   ├── components/              # React 组件
-│   └── lib/                     # API 客户端 & 类型定义
-├── .env.example
+│   │   ├── api/          # FastAPI 路由
+│   │   ├── models/       # 数据模型
+│   │   ├── prompts/      # Prompt 模板
+│   │   ├── repositories/ # 数据访问层
+│   │   ├── schemas/      # Pydantic 模型
+│   │   └── services/     # LLM / RAG / Agent / Jobs
+│   └── migrations/       # SQL 迁移
+├── packages/
+│   ├── api-sdk/          # 共享 API SDK
+│   ├── config/           # 共享配置
+│   ├── types/            # 共享类型
+│   └── ui/               # 共享 UI 组件
+├── scripts/
+│   └── sync-version.mjs  # 版本同步脚本
 └── README.md
 ```
 
-## RAG 设计
-
-1. PDF 上传后自动分块（默认 800 字符，150 重叠）
-2. 每个 chunk 向量化后存入 pgvector
-3. 问答时先检索 Top-K 相关 chunk，拼入 Prompt
-4. 知识库笔记同样向量化，支持跨论文语义检索
-5. 响应中附上引用来源片段
-
-## Prompt 模板
-
-| 任务 | 文件 |
-|---|---|
-| 学习路径生成 | `backend/app/prompts/planner.py` |
-| 文献综述 | `backend/app/prompts/survey.py` |
-| 论文精读 | `backend/app/prompts/paper_reading.py` |
-| 复现指导 | `backend/app/prompts/reproduction.py` |
-| 知识库问答 | `backend/app/prompts/qa.py` |
-
 ## 常见问题
 
-**Q: pgvector 安装失败？**
-参考：https://github.com/pgvector/pgvector#installation
+**Q: 可以接国内模型吗？**
 
-**Q: 文献检索返回空结果？**
-Semantic Scholar 是免费公开 API，网络不稳定时可能无结果。综述仍会基于 LLM 知识生成。
+可以。将 `LLM_PROVIDER` 设为 `openai_compatible`，并配置对应 `OPENAI_COMPATIBLE_*` 参数即可。
 
-**Q: 使用国内大模型（DeepSeek 等）？**
-设置 `LLM_PROVIDER=openai_compatible`，配置对应 `OPENAI_COMPATIBLE_*` 参数。
+**Q: 为什么移动端没有 iOS 包？**
 
-**Q: embedding 维度不匹配？**
-修改 `migrations/init.sql` 中 `vector(1536)` 为目标维度，重新初始化数据库。
+当前发布策略只保留 Android APK，移动端工作流不会构建 iOS。
+
+**Q: 设置页改了模型后为什么能立即生效？**
+
+后端保存设置时会主动失效并重建 LLM Provider 缓存。

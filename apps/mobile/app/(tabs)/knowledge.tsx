@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  RefreshControl, TextInput,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -70,30 +70,27 @@ export default function KnowledgeScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={notes}
-          keyExtractor={(n) => n.id}
-          numColumns={2}
-          contentContainerStyle={styles.grid}
-          columnWrapperStyle={{ gap: 12 }}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); load(true); }}
-              tintColor="#007AFF"
-            />
-          }
-          renderItem={({ item }) => (
-            <NmCard style={styles.noteCard}>
-              <Text style={styles.noteTitle} numberOfLines={2}>{item.title}</Text>
-              <Text style={styles.noteContent} numberOfLines={4}>{item.content}</Text>
-              <Text style={styles.noteDate}>
-                {new Date(item.created_at).toLocaleDateString("zh-CN")}
-              </Text>
-            </NmCard>
-          )}
-        />
+        <View style={styles.grid}>
+          <FlatList<KnowledgeNote>
+            data={notes}
+            keyExtractor={(n) => n.id}
+            numColumns={2}
+            columnWrapperStyle={{ gap: 12 }}
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); load(true); }}
+            renderItem={({ item }: { item: KnowledgeNote }) => (
+              <View style={styles.noteItem}>
+                <NmCard style={styles.noteCard}>
+                  <Text style={styles.noteTitle} numberOfLines={2}>{item.title}</Text>
+                  <Text style={styles.noteContent} numberOfLines={4}>{item.content}</Text>
+                  <Text style={styles.noteDate}>
+                    {new Date(item.created_at).toLocaleDateString("zh-CN")}
+                  </Text>
+                </NmCard>
+              </View>
+            )}
+          />
+        </View>
       )}
     </SafeAreaView>
   );
@@ -121,6 +118,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15, color: "#1C1C1E" },
 
   grid:   { paddingHorizontal: 20, paddingBottom: 20 },
+  noteItem: { flex: 1, marginBottom: 12 },
   noteCard: { flex: 1, padding: 14, gap: 6 },
   noteTitle:   { fontSize: 14, fontWeight: "600", color: "#1C1C1E", lineHeight: 20 },
   noteContent: { fontSize: 13, color: "#3C3C43", lineHeight: 18 },

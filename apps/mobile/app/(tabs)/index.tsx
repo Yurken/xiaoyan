@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  RefreshControl, TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -103,22 +102,19 @@ export default function PapersScreen() {
           <Text style={styles.emptyText}>在桌面端导入 PDF 后即可在此浏览</Text>
         </View>
       ) : (
-        <FlatList
-          data={papers}
-          keyExtractor={(p) => p.id}
-          contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); load(true); }}
-              tintColor="#007AFF"
-            />
-          }
-          renderItem={({ item }) => (
-            <PaperItem paper={item} onAnalyze={handleAnalyze} />
-          )}
-        />
+        <View style={styles.list}>
+          <FlatList<Paper>
+            data={papers}
+            keyExtractor={(p) => p.id}
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); load(true); }}
+            renderItem={({ item }: { item: Paper }) => (
+              <View style={styles.paperItem}>
+                <PaperItem paper={item} onAnalyze={handleAnalyze} />
+              </View>
+            )}
+          />
+        </View>
       )}
     </SafeAreaView>
   );
@@ -137,6 +133,7 @@ const styles = StyleSheet.create({
   title:    { fontSize: 28, fontWeight: "700", color: "#1C1C1E" },
   subtitle: { fontSize: 14, color: "#8E8E93", marginTop: 2 },
   list: { paddingHorizontal: 20, paddingBottom: 20 },
+  paperItem: { marginBottom: 12 },
   paperCard: { padding: 14 },
   paperRow:  { flexDirection: "row", alignItems: "center", gap: 12 },
   statusIcon: {

@@ -12,6 +12,7 @@ from app.repositories.settings_repo import (
     EXPOSED_KEYS,
     SENSITIVE_KEYS,
 )
+from app.services.llm.factory import invalidate_provider_cache
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -21,6 +22,8 @@ MASK = "***"
 def _env_default(key: str) -> str:
     """Return the current in-memory (env-loaded) value for a key."""
     val = getattr(_cfg, key, "")
+    if isinstance(val, bool):
+        return "true" if val else "false"
     return str(val) if val is not None else ""
 
 
@@ -41,6 +44,8 @@ def _apply_to_runtime(data: dict[str, str]) -> None:
                 setattr(_cfg, key, raw.lower() in ("true", "1", "yes"))
             elif isinstance(current, int):
                 setattr(_cfg, key, int(raw))
+            elif isinstance(current, float):
+                setattr(_cfg, key, float(raw))
             else:
                 setattr(_cfg, key, raw)
         except Exception:
@@ -84,5 +89,6 @@ async def update_settings(
     if to_save:
         await repo.upsert_many(to_save)
         _apply_to_runtime(to_save)
+        invalidate_provider_cache()
 
     return {"ok": True, "updated": list(to_save.keys())}

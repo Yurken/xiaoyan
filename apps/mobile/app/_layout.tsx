@@ -3,7 +3,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
-import { loadToken } from "../lib/client";
+import { loadApiBaseUrl, loadToken } from "../lib/client";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -17,7 +17,7 @@ Notifications.setNotificationHandler({
 
 export default function RootLayout() {
   useEffect(() => {
-    loadToken().finally(() => SplashScreen.hideAsync());
+    Promise.all([loadToken(), loadApiBaseUrl()]).finally(() => SplashScreen.hideAsync());
     registerForPushNotifications();
   }, []);
 
@@ -30,8 +30,11 @@ export default function RootLayout() {
 }
 
 async function registerForPushNotifications() {
-  const { status } = await Notifications.requestPermissionsAsync();
-  if (status !== "granted") return;
+  const permissions = await Notifications.requestPermissionsAsync() as {
+    granted?: boolean;
+    status?: string;
+  };
+  if (!permissions.granted && permissions.status !== "granted") return;
   const token = await Notifications.getExpoPushTokenAsync();
   // TODO: 将 token 上报给后端，用于 job 完成时推送
   console.log("Expo Push Token:", token.data);

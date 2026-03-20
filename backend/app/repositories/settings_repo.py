@@ -23,6 +23,18 @@ EXPOSED_KEYS: list[str] = [
     "rag_top_k",
     # External APIs
     "semantic_scholar_api_key",
+    # Multi-agent
+    "multi_agent_enabled",
+    "multi_agent_routing_mode",
+    "multi_agent_enabled_agents",
+    "multi_agent_max_steps",
+    "multi_agent_search_limit",
+    "multi_agent_supervisor_model",
+    "multi_agent_supervisor_temperature",
+    "multi_agent_worker_model",
+    "multi_agent_worker_temperature",
+    "multi_agent_synthesis_model",
+    "multi_agent_synthesis_temperature",
 ]
 
 # Keys whose values are masked in GET responses

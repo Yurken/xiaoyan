@@ -6,7 +6,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { NmCard } from "../../components/NmCard";
 import { apiClient } from "../../lib/client";
 import type { ChatMessage } from "@research-copilot/types";
 
@@ -43,7 +42,7 @@ export default function CopilotScreen() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
-  const listRef = useRef<FlatList>(null);
+  const listRef = useRef<FlatList<ChatMessage>>(null);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -140,14 +139,18 @@ export default function CopilotScreen() {
             </Text>
           </View>
         ) : (
-          <FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={(m) => m.id}
-            contentContainerStyle={styles.messageList}
-            ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
-            renderItem={({ item }) => <MessageBubble message={item} />}
-          />
+          <View style={styles.messageList}>
+            <FlatList<ChatMessage>
+              ref={listRef}
+              data={messages}
+              keyExtractor={(m) => m.id}
+              renderItem={({ item }: { item: ChatMessage }) => (
+                <View style={styles.messageItem}>
+                  <MessageBubble message={item} />
+                </View>
+              )}
+            />
+          </View>
         )}
 
         {/* Input Bar */}
@@ -230,6 +233,7 @@ const styles = StyleSheet.create({
   welcomeText:  { fontSize: 14, color: "#8E8E93", textAlign: "center", paddingHorizontal: 40 },
 
   messageList: { paddingHorizontal: 16, paddingVertical: 12 },
+  messageItem: { marginBottom: 16 },
   bubbleRow:     { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   bubbleRowUser: { flexDirection: "row-reverse" },
   avatar: {

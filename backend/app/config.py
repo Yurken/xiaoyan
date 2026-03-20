@@ -43,6 +43,21 @@ class Settings(BaseSettings):
     # Semantic Scholar
     semantic_scholar_api_key: str = ""
 
+    # Multi-agent orchestration
+    multi_agent_enabled: bool = True
+    multi_agent_routing_mode: Literal["rule", "llm", "hybrid"] = "hybrid"
+    multi_agent_enabled_agents: str = (
+        "retrieval,planner,literature_scout,survey,paper_analyst,reproduction,synthesis"
+    )
+    multi_agent_max_steps: int = 4
+    multi_agent_search_limit: int = 8
+    multi_agent_supervisor_model: str = ""
+    multi_agent_supervisor_temperature: float = 0.1
+    multi_agent_worker_model: str = ""
+    multi_agent_worker_temperature: float = 0.3
+    multi_agent_synthesis_model: str = ""
+    multi_agent_synthesis_temperature: float = 0.4
+
     # Auth (disabled by default for single-user mode)
     auth_enabled: bool = False
     jwt_secret: str = "change-me-in-production"

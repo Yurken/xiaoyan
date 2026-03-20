@@ -96,6 +96,62 @@ export interface ChatMessage {
 }
 
 export type LlmProvider = "openai" | "anthropic" | "openai_compatible";
+export type MultiAgentRoutingMode = "rule" | "llm" | "hybrid";
+
+export interface AgentArtifact {
+  id: string;
+  run_id: string;
+  artifact_type: string;
+  title: string;
+  content: string;
+  created_at: string;
+}
+
+export interface AgentRun {
+  id: string;
+  session_id: string;
+  request_id: string;
+  parent_run_id?: string | null;
+  agent_name: string;
+  step_name: string;
+  status: "pending" | "running" | "done" | "failed";
+  order_index: number;
+  input_payload?: Record<string, unknown> | null;
+  output_payload?: Record<string, unknown> | null;
+  summary?: string | null;
+  error?: string | null;
+  created_at: string;
+  updated_at: string;
+  artifacts?: AgentArtifact[];
+}
+
+export interface AgentPlanStep {
+  agent_name: string;
+  title: string;
+  goal: string;
+}
+
+export interface ChatSendResponse {
+  success: boolean;
+  session_id: string;
+  request_id: string;
+  message: string;
+  sources?: ChatMessage["sources"];
+  plan: AgentPlanStep[];
+  agent_runs: AgentRun[];
+}
+
+export type ChatStreamChunk =
+  | { type: "session_id"; value: string }
+  | { type: "request_id"; value: string }
+  | { type: "plan"; value: AgentPlanStep[] }
+  | { type: "agent_start"; value: AgentRun }
+  | { type: "agent_complete"; value: AgentRun }
+  | { type: "agent_error"; value: AgentRun }
+  | { type: "delta"; value: string }
+  | { type: "sources"; value: NonNullable<ChatMessage["sources"]> }
+  | { type: "error"; value: string }
+  | { type: "done" };
 
 export interface AppSettings {
   // Provider
@@ -119,6 +175,18 @@ export interface AppSettings {
   rag_top_k: string;
   // External
   semantic_scholar_api_key: string;
+  // Multi-agent
+  multi_agent_enabled: string;
+  multi_agent_routing_mode: MultiAgentRoutingMode;
+  multi_agent_enabled_agents: string;
+  multi_agent_max_steps: string;
+  multi_agent_search_limit: string;
+  multi_agent_supervisor_model: string;
+  multi_agent_supervisor_temperature: string;
+  multi_agent_worker_model: string;
+  multi_agent_worker_temperature: string;
+  multi_agent_synthesis_model: string;
+  multi_agent_synthesis_temperature: string;
 }
 
 export interface Job {
