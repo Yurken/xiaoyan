@@ -5,12 +5,13 @@ import os
 import uuid
 import json
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.config import settings
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.knowledge_repo import KnowledgeNoteRepository
+from app.repositories.job_repo import JobRepository
 from app.services.pdf_parser import extract_text_from_pdf, chunk_text, extract_metadata_from_text
 from app.services.embedding_service import embed_texts
 from app.services.paper_analyzer import analyze_paper, generate_reproduction_guide
@@ -36,15 +37,13 @@ async def get_paper(paper_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 @router.post("/upload")
 async def upload_paper(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload a PDF paper, extract text, and kick off async processing."""
+    """Upload a PDF paper, extract text, and enqueue chunk+embed job."""
     if not file.filename or not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
-    # Save file to disk
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
     file_id = str(uuid.uuid4())
@@ -57,7 +56,6 @@ async def upload_paper(
     with open(file_path, "wb") as f:
         f.write(content)
 
-    # Extract text synchronously (fast enough for MVP)
     try:
         text = extract_text_from_pdf(str(file_path))
     except Exception as e:
@@ -67,25 +65,45 @@ async def upload_paper(
     metadata = extract_metadata_from_text(text)
     title = metadata.get("title") or file.filename.replace(".pdf", "")
 
-    # Create paper record
-    repo = PaperRepository(db)
-    paper = await repo.create(
+    paper_repo = PaperRepository(db)
+    paper = await paper_repo.create(
         title=title,
         file_path=str(file_path),
         full_text=text,
         status="parsed",
     )
+
+    job_repo = JobRepository(db)
+    job = await job_repo.create(
+        type="process_paper",
+        payload={"paper_id": str(paper.id)},
+        paper_id=paper.id,
+    )
     await db.commit()
 
-    # Process in background: chunk + embed
-    background_tasks.add_task(_process_paper_chunks, str(paper.id), text)
+    # Try ARQ; fall back to in-process background if Redis unavailable
+    try:
+        from app.services.jobs import get_arq_pool
+        pool = await get_arq_pool()
+        await pool.enqueue_job("process_paper_chunks",
+                               job_id=str(job.id), paper_id=str(paper.id))
+    except Exception:
+        import asyncio
+        from app.services.jobs.tasks import process_paper_chunks
+        asyncio.create_task(process_paper_chunks(None, str(job.id), str(paper.id)))
 
-    return {"success": True, "paper_id": str(paper.id), "title": title, "status": "parsed"}
+    return {
+        "success": True,
+        "paper_id": str(paper.id),
+        "job_id": str(job.id),
+        "title": title,
+        "status": "processing",
+    }
 
 
 @router.post("/{paper_id}/analyze")
 async def analyze(paper_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    """Run AI analysis on a paper (blocking, may take ~30s)."""
+    """Enqueue AI analysis job for a paper."""
     repo = PaperRepository(db)
     paper = await repo.get(paper_id)
     if not paper:
@@ -93,41 +111,25 @@ async def analyze(paper_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     if not paper.full_text:
         raise HTTPException(status_code=422, detail="Paper has no extracted text")
 
-    try:
-        raw = await analyze_paper(paper.full_text)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
-    # Map to model fields
-    analysis_data = {
-        "research_question": raw.get("research_question", ""),
-        "core_method": raw.get("core_method", ""),
-        "experiment_design": raw.get("experiment_design", ""),
-        "innovations": json.dumps(raw.get("innovations", []), ensure_ascii=False),
-        "limitations": json.dumps(raw.get("limitations", []), ensure_ascii=False),
-        "key_conclusions": raw.get("key_conclusions", ""),
-        "raw_analysis": raw,
-    }
-    analysis = await repo.upsert_analysis(paper_id, analysis_data)
-
-    # Update title if extracted
-    if raw.get("title") and paper.title.endswith(".pdf"):
-        await repo.update(paper_id, title=raw["title"], status="analyzed")
-    else:
-        await repo.update(paper_id, status="analyzed")
-
-    # Auto-save to knowledge base
-    note_repo = KnowledgeNoteRepository(db)
-    note_content = f"# {paper.title}\n\n**研究问题**\n{raw.get('research_question','')}\n\n**核心方法**\n{raw.get('core_method','')}\n\n**创新点**\n{raw.get('innovations','')}\n\n**主要结论**\n{raw.get('key_conclusions','')}"
-    await note_repo.create(
-        title=f"论文精读: {paper.title}",
-        content=note_content,
-        source_type="paper_analysis",
-        source_id=str(paper_id),
+    job_repo = JobRepository(db)
+    job = await job_repo.create(
+        type="analyze_paper",
+        payload={"paper_id": str(paper_id)},
+        paper_id=paper_id,
     )
     await db.commit()
 
-    return {"success": True, "analysis": analysis_data}
+    try:
+        from app.services.jobs import get_arq_pool
+        pool = await get_arq_pool()
+        await pool.enqueue_job("analyze_paper_task",
+                               job_id=str(job.id), paper_id=str(paper_id))
+    except Exception:
+        import asyncio
+        from app.services.jobs.tasks import analyze_paper_task
+        asyncio.create_task(analyze_paper_task(None, str(job.id), str(paper_id)))
+
+    return {"success": True, "job_id": str(job.id), "status": "processing"}
 
 
 @router.post("/{paper_id}/reproduce")
@@ -196,21 +198,3 @@ async def delete_paper(paper_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     return {"success": True}
 
 
-async def _process_paper_chunks(paper_id: str, text: str):
-    """Background task: chunk text, compute embeddings, store in DB."""
-    from app.database import AsyncSessionLocal
-    async with AsyncSessionLocal() as db:
-        try:
-            chunks = chunk_text(text)
-            texts = [c["content"] for c in chunks]
-            embeddings = await embed_texts(texts)
-            for chunk, emb in zip(chunks, embeddings):
-                chunk["embedding"] = emb
-            repo = PaperRepository(db)
-            pid = uuid.UUID(paper_id)
-            await repo.delete_chunks(pid)
-            await repo.add_chunks(pid, chunks)
-            await db.commit()
-            print(f"[papers] Processed {len(chunks)} chunks for paper {paper_id}")
-        except Exception as e:
-            print(f"[papers] Chunk processing failed for {paper_id}: {e}")

@@ -46,6 +46,7 @@
 - [ ] 实现全局快捷键唤起 Copilot 窗口
 - [ ] 桌面端页面：论文库、Copilot、知识库、设置
 - [ ] 打包脚本（macOS `.dmg`、Windows `.msi`）
+- [ ] github打包流程
 
 ---
 
@@ -59,6 +60,7 @@
 - [ ] Push Notification（ARQ job 完成时触发）
 - [ ] EAS Build 配置
 - [ ] App Store / Google Play 提交
+- [ ] github多平台打包流程（win、mac、app）
 
 ---
 
