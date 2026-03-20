@@ -26,7 +26,7 @@ class PaperRepository:
         )
         return result.scalar_one_or_none()
 
-    async def list(self, offset: int = 0, limit: int = 20) -> list[Paper]:
+    async def list_all(self, offset: int = 0, limit: int = 20) -> list[Paper]:
         result = await self.db.execute(
             select(Paper).order_by(Paper.created_at.desc()).offset(offset).limit(limit)
         )

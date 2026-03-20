@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/papers", tags=["papers"])
 @router.get("", response_model=list[PaperListItem])
 async def list_papers(offset: int = 0, limit: int = 20, db: AsyncSession = Depends(get_db)):
     repo = PaperRepository(db)
-    return await repo.list(offset=offset, limit=limit)
+    return await repo.list_all(offset=offset, limit=limit)
 
 
 @router.get("/{paper_id}", response_model=PaperOut)

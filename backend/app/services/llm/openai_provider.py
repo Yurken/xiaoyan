@@ -60,6 +60,9 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         "text-embedding-3-small": 1536,
         "text-embedding-3-large": 3072,
         "text-embedding-ada-002": 1536,
+        "text-embedding-v1": 1536,
+        "text-embedding-v2": 1536,
+        "text-embedding-v3": 1024,
     }
 
     def __init__(self, client: AsyncOpenAI, model: str):
