@@ -6,6 +6,9 @@ on:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   # ── Stage 1: Create draft release ─────────────────────────────
   create-release:
