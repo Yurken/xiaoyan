@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import init_db
-from app.api import planner, survey, papers, knowledge, chat
+from app.api import planner, survey, papers, knowledge, chat, jobs, auth
 
 
 @asynccontextmanager
@@ -39,6 +39,8 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir, check_dir=False), name="uploads")
 
 # Routers
+app.include_router(auth.router)
+app.include_router(jobs.router)
 app.include_router(planner.router)
 app.include_router(survey.router)
 app.include_router(papers.router)

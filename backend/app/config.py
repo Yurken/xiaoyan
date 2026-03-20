@@ -38,10 +38,27 @@ class Settings(BaseSettings):
     max_file_size_mb: int = 50
 
     # CORS
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3333"
 
     # Semantic Scholar
     semantic_scholar_api_key: str = ""
+
+    # Auth (disabled by default for single-user mode)
+    auth_enabled: bool = False
+    jwt_secret: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_access_expire_minutes: int = 60
+    jwt_refresh_expire_days: int = 7
+
+    # Redis (for ARQ job queue)
+    redis_url: str = "redis://localhost:6379"
+
+    # Storage backend: "local" or "s3"
+    storage_backend: str = "local"
+    s3_endpoint: str = "http://localhost:9000"
+    s3_access_key: str = "minioadmin"
+    s3_secret_key: str = "minioadmin"
+    s3_bucket: str = "research-copilot"
 
     class Config:
         env_file = ".env"
