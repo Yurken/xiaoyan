@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import Link from "next/link";
 import { FileText, Upload, Plus, Trash2, Eye, Clock } from "lucide-react";
 import { Card, Button, Badge } from "@research-copilot/ui";
@@ -33,7 +33,7 @@ export default function PapersPage() {
 
   useEffect(() => { fetchPapers(); }, []);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);

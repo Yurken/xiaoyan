@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Sparkles, Code2, FlaskConical, Lightbulb, AlertTriangle,
@@ -12,7 +12,7 @@ import type { Paper } from "@research-copilot/types";
 
 interface SectionProps {
   title: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   content?: string;
   defaultOpen?: boolean;
 }

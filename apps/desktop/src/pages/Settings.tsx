@@ -162,7 +162,7 @@ export default function Settings() {
       await apiClient.settings.update(form);
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2500);
-    } catch (e) {
+    } catch {
       setSaveState("error");
       setTimeout(() => setSaveState("idle"), 3000);
     }
