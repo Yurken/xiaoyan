@@ -126,6 +126,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Ad-hoc sign macOS builds when no Apple Developer cert is configured.
+          # "-" means ad-hoc; prevents "app is damaged" rejection on macOS 13+.
+          # Override with APPLE_CERTIFICATE secret for proper notarized signing.
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY || '-' }}
         with:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
