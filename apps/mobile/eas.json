@@ -12,7 +12,6 @@
     },
     "preview": {
       "distribution": "internal",
-      "ios": { "simulator": false },
       "android": { "buildType": "apk" },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://your-backend.example.com"
@@ -20,21 +19,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "android": { "buildType": "apk" },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://your-backend.example.com"
-      }
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "appleId": "your@apple.com",
-        "ascAppId": "YOUR_APP_STORE_APP_ID",
-        "appleTeamId": "YOUR_APPLE_TEAM_ID"
-      },
-      "android": {
-        "serviceAccountKeyPath": "./google-play-key.json",
-        "track": "internal"
       }
     }
   }
