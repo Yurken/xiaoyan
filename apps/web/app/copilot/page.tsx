@@ -3,10 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { MessageSquare, Send, Plus, Trash2, Bot, User } from "lucide-react";
-import { Card } from "@research-copilot/ui";
-import Button from "@research-copilot/ui";
-import Badge from "@research-copilot/ui";
-import MarkdownRenderer from "@research-copilot/ui";
+import { Card, Button, Badge, MarkdownRenderer } from "@research-copilot/ui";
 import { chatApi } from "@/lib/client";
 import type { ChatSession, ChatMessage } from "@research-copilot/types";
 

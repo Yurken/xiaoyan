@@ -2,10 +2,7 @@
 
 import { useState } from "react";
 import { BookOpen, Sparkles, ExternalLink, TrendingUp, AlertCircle, Lightbulb } from "lucide-react";
-import { Card, CardHeader, CardTitle } from "@research-copilot/ui";
-import { Input } from "@research-copilot/ui";
-import Button from "@research-copilot/ui";
-import Badge from "@research-copilot/ui";
+import { Card, CardHeader, CardTitle, Input, Button, Badge } from "@research-copilot/ui";
 import { surveyApi } from "@/lib/client";
 
 interface SurveyData {

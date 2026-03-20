@@ -24,9 +24,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build packages
-        run: pnpm --filter "@research-copilot/types" build && pnpm --filter "@research-copilot/api-sdk" build && pnpm --filter "@research-copilot/ui" build
-
+      # packages expose TypeScript source directly (no build step needed)
       - name: Type check web
         run: pnpm --filter "@research-copilot/web" exec tsc --noEmit
 
