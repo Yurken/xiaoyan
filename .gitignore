@@ -213,3 +213,9 @@ backend/.venv/
 frontend/.env.local
 frontend/node_modules/
 frontend/.next/
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
