@@ -10,6 +10,7 @@ import {
   Library,
   MessageSquare,
   Microscope,
+  SlidersHorizontal,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -20,6 +21,7 @@ const navItems = [
   { href: "/papers", icon: FileText, label: "论文库" },
   { href: "/knowledge", icon: Library, label: "知识库" },
   { href: "/copilot", icon: MessageSquare, label: "Copilot" },
+  { href: "/settings", icon: SlidersHorizontal, label: "设置中心" },
 ];
 
 export default function Sidebar() {
@@ -57,7 +59,7 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-gray-200">
-        <p className="text-xs text-gray-400">智研 Copilot v0.1</p>
+        <p className="text-xs text-gray-400">智研 Copilot v0.1.4</p>
       </div>
     </aside>
   );

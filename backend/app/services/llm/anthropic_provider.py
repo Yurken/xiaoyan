@@ -28,10 +28,11 @@ class AnthropicLLMProvider(BaseLLMProvider):
         messages: list[ChatMessage],
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        model: str | None = None,
     ) -> ChatResponse:
         system_prompt, conv = self._build_messages(messages)
         kwargs = dict(
-            model=self._model,
+            model=model or self._model,
             max_tokens=max_tokens,
             temperature=temperature,
             messages=conv,
@@ -50,10 +51,11 @@ class AnthropicLLMProvider(BaseLLMProvider):
         messages: list[ChatMessage],
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        model: str | None = None,
     ) -> AsyncIterator[str]:
         system_prompt, conv = self._build_messages(messages)
         kwargs = dict(
-            model=self._model,
+            model=model or self._model,
             max_tokens=max_tokens,
             temperature=temperature,
             messages=conv,

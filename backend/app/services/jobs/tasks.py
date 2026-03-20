@@ -9,7 +9,7 @@ from app.repositories.paper_repo import PaperRepository
 from app.services.pdf_parser import chunk_text
 from app.services.embedding_service import embed_texts
 from app.services.paper_analyzer import analyze_paper
-from app.services.survey_service import generate_survey_report
+from app.services.survey_service import generate_survey
 import json
 
 
@@ -109,7 +109,7 @@ async def generate_survey_task(ctx, job_id: str, query: str, max_papers: int):
         await db.commit()
 
         try:
-            result = await generate_survey_report(query, max_papers)
+            result = await generate_survey(query, max_papers)
             await job_repo.update_status(job_uuid, "done", progress=100, result=result)
             await db.commit()
         except Exception as e:

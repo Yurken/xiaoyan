@@ -29,6 +29,7 @@ class BaseLLMProvider(ABC):
         messages: list[ChatMessage],
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        model: str | None = None,
     ) -> ChatResponse:
         """Single-turn chat completion."""
         ...
@@ -39,6 +40,7 @@ class BaseLLMProvider(ABC):
         messages: list[ChatMessage],
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        model: str | None = None,
     ) -> AsyncIterator[str]:
         """Streaming chat completion, yields text deltas."""
         ...

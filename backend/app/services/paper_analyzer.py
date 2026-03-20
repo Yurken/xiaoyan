@@ -10,26 +10,34 @@ from app.prompts import reproduction as repro_prompts
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=15))
-async def analyze_paper(paper_text: str) -> dict:
+async def analyze_paper(
+    paper_text: str,
+    model: str | None = None,
+    temperature: float = 0.3,
+) -> dict:
     """Generate structured analysis of a research paper."""
     llm = get_llm_provider()
     messages = [
         ChatMessage(role="system", content=reading_prompts.SYSTEM),
         ChatMessage(role="user", content=reading_prompts.build_paper_analysis_prompt(paper_text)),
     ]
-    response = await llm.chat(messages, temperature=0.3, max_tokens=4000)
+    response = await llm.chat(messages, temperature=temperature, max_tokens=4000, model=model)
     return _parse_json_response(response.content)
 
-
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=15))
-async def generate_reproduction_guide(paper_text: str, analysis: dict | None = None) -> dict:
+async def generate_reproduction_guide(
+    paper_text: str,
+    analysis: dict | None = None,
+    model: str | None = None,
+    temperature: float = 0.3,
+) -> dict:
     """Generate a detailed reproduction guide for a paper."""
     llm = get_llm_provider()
     messages = [
         ChatMessage(role="system", content=repro_prompts.SYSTEM),
         ChatMessage(role="user", content=repro_prompts.build_reproduction_prompt(paper_text, analysis)),
     ]
-    response = await llm.chat(messages, temperature=0.3, max_tokens=5000)
+    response = await llm.chat(messages, temperature=temperature, max_tokens=5000, model=model)
     return _parse_json_response(response.content)
 
 

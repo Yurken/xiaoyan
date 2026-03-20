@@ -22,9 +22,10 @@ class OpenAILLMProvider(BaseLLMProvider):
         messages: list[ChatMessage],
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        model: str | None = None,
     ) -> ChatResponse:
         response = await self._client.chat.completions.create(
-            model=self._model,
+            model=model or self._model,
             messages=[{"role": m.role, "content": m.content} for m in messages],
             temperature=temperature,
             max_tokens=max_tokens,
@@ -40,9 +41,10 @@ class OpenAILLMProvider(BaseLLMProvider):
         messages: list[ChatMessage],
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        model: str | None = None,
     ) -> AsyncIterator[str]:
         stream = await self._client.chat.completions.create(
-            model=self._model,
+            model=model or self._model,
             messages=[{"role": m.role, "content": m.content} for m in messages],
             temperature=temperature,
             max_tokens=max_tokens,

@@ -2,10 +2,13 @@ import type {
   Paper,
   ChatSession,
   ChatMessage,
+  ChatSendResponse,
+  ChatStreamChunk,
   ResearchInterest,
   KnowledgeNote,
   Job,
   AppSettings,
+  AgentRun,
 } from "@research-copilot/types";
 
 export interface ClientConfig {
@@ -39,7 +42,7 @@ export async function* streamChat(
     context_type?: string;
     context_id?: string;
   }
-): AsyncGenerator<{ type: "session_id"; value: string } | { type: "delta"; value: string } | { type: "done" }> {
+): AsyncGenerator<ChatStreamChunk> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (config.getToken) {
     const token = config.getToken();
@@ -67,7 +70,14 @@ export async function* streamChat(
       try {
         const json = JSON.parse(line.slice(6));
         if (json.session_id) yield { type: "session_id", value: json.session_id };
-        else if (json.delta) yield { type: "delta", value: json.delta.replace(/\\n/g, "\n") };
+        else if (json.request_id) yield { type: "request_id", value: json.request_id };
+        else if (json.plan) yield { type: "plan", value: json.plan };
+        else if (json.agent_start) yield { type: "agent_start", value: json.agent_start };
+        else if (json.agent_complete) yield { type: "agent_complete", value: json.agent_complete };
+        else if (json.agent_error) yield { type: "agent_error", value: json.agent_error };
+        else if (json.delta) yield { type: "delta", value: String(json.delta).replace(/\\n/g, "\n") };
+        else if (json.sources) yield { type: "sources", value: json.sources };
+        else if (json.error) yield { type: "error", value: json.error };
         else if (json.done) yield { type: "done" };
       } catch {}
     }
@@ -167,9 +177,13 @@ export function createClient(config: ClientConfig) {
     chat: {
       listSessions: () => r<ChatSession[]>("/api/chat/sessions"),
       getSession: (id: string) => r<ChatSession>(`/api/chat/sessions/${id}`),
+      listAgentRuns: (sessionId: string, requestId?: string) =>
+        r<AgentRun[]>(
+          `/api/chat/sessions/${sessionId}/agent-runs${requestId ? `?request_id=${encodeURIComponent(requestId)}` : ""}`
+        ),
       deleteSession: (id: string) => r(`/api/chat/sessions/${id}`, { method: "DELETE" }),
       send: (data: { session_id?: string; message: string; context_type?: string; context_id?: string }) =>
-        r<{ success: boolean; session_id: string; message: string; sources: ChatMessage["sources"] }>(
+        r<ChatSendResponse>(
           "/api/chat/send",
           { method: "POST", body: JSON.stringify(data) }
         ),

@@ -55,7 +55,7 @@ const rawVersion =
   process.env.TAG_NAME;
 
 if (!rawVersion) {
-  throw new Error("Missing version. Use --version 0.1.3 or --tag v0.1.3.");
+  throw new Error("Missing version. Use --version 1.2.3 or --tag v1.2.3.");
 }
 
 const version = normalizeVersion(rawVersion);
