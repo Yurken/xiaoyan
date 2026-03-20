@@ -8,14 +8,14 @@
 
 **目标**：不改功能，重组目录结构，为跨平台打好基础。
 
-- [ ] 初始化 pnpm workspace
-- [ ] 初始化 Turborepo（turbo.json）
-- [ ] 迁移 `frontend/` → `apps/web/`
-- [ ] 创建 `packages/types`，迁移 `lib/types.ts`
-- [ ] 创建 `packages/api-sdk`，迁移 `lib/api.ts`，增加 `baseURL` 配置
-- [ ] 创建 `packages/ui`，迁移 `components/ui/`，去除 Next.js 依赖
-- [ ] 创建 `packages/config`（tsconfig.base.json、eslint.base.js）
-- [ ] 更新根目录 README
+- [x] 初始化 pnpm workspace
+- [x] 初始化 Turborepo（turbo.json）
+- [x] 迁移 `frontend/` → `apps/web/`
+- [x] 创建 `packages/types`，迁移 `lib/types.ts`
+- [x] 创建 `packages/api-sdk`，迁移 `lib/api.ts`，增加 `baseURL` 配置
+- [x] 创建 `packages/ui`，迁移 `components/ui/`，去除 Next.js 依赖
+- [x] 创建 `packages/config`（tsconfig.base.json）
+- [x] 更新根目录 README
 
 ---
 
