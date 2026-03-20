@@ -1,7 +1,6 @@
 """
 Embedding service: wraps the embedding provider with batching and error handling.
 """
-import asyncio
 from tenacity import retry, stop_after_attempt, wait_exponential
 from app.services.llm import get_embedding_provider
 

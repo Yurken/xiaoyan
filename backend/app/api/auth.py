@@ -2,11 +2,11 @@
 Auth endpoints: register, login, refresh, me.
 Only functional when settings.auth_enabled = True.
 """
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from app.database import get_db
 from app.models.user import User
 from app.services.auth import (

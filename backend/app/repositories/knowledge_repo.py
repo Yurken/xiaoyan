@@ -4,7 +4,6 @@ Data access layer for knowledge base: research interests and notes.
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, or_
-from sqlalchemy.orm import selectinload
 from app.models.knowledge import ResearchInterest, KnowledgeNote
 
 

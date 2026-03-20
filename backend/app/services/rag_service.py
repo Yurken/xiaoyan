@@ -3,10 +3,8 @@ RAG (Retrieval-Augmented Generation) service.
 Handles vector similarity search over paper chunks and knowledge notes.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select
+from sqlalchemy import text
 from app.services.embedding_service import embed_one
-from app.models.paper import PaperChunk
-from app.models.knowledge import KnowledgeNote
 from app.config import settings
 
 

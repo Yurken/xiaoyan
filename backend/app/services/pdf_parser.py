@@ -2,7 +2,6 @@
 PDF text extraction and chunking service.
 """
 import re
-from pathlib import Path
 from pypdf import PdfReader
 from app.config import settings
 
@@ -62,7 +61,7 @@ def extract_metadata_from_text(text: str) -> dict:
     Returns partial metadata dict.
     """
     first_page = text[:2000]
-    lines = [l.strip() for l in first_page.split('\n') if l.strip()]
+    lines = [line.strip() for line in first_page.split('\n') if line.strip()]
 
     # Title is often the first non-trivial line
     title = ""

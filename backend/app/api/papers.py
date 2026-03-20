@@ -12,9 +12,8 @@ from app.config import settings
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.knowledge_repo import KnowledgeNoteRepository
 from app.repositories.job_repo import JobRepository
-from app.services.pdf_parser import extract_text_from_pdf, chunk_text, extract_metadata_from_text
-from app.services.embedding_service import embed_texts
-from app.services.paper_analyzer import analyze_paper, generate_reproduction_guide
+from app.services.pdf_parser import extract_text_from_pdf, extract_metadata_from_text
+from app.services.paper_analyzer import generate_reproduction_guide
 from app.schemas.paper import PaperOut, PaperListItem
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
@@ -151,7 +150,6 @@ async def reproduce(paper_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Guide generation failed: {str(e)}")
 
-    import json
 
     def safe_json(val):
         if isinstance(val, (dict, list)):
