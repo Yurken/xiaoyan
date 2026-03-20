@@ -31,7 +31,7 @@
 - [x] 集成 MinIO 配置，新增 `files` 表（storage_backend 开关，默认 local）
 - [x] 更新 `docker-compose.yml`，增加 Redis (6380) 和 MinIO (9000/9001)
 - [ ] `message_citations` 表，替换 `chat_messages.sources` JSONB（Phase 3 前）
-- [ ] `packages/api-sdk` 增加 job 轮询工具函数（下一步）
+- [x] `packages/api-sdk` 增加 job 轮询工具函数（`pollJob` async generator）
 
 ---
 
@@ -39,14 +39,14 @@
 
 **目标**：发布 macOS / Windows 桌面客户端。
 
-- [ ] 初始化 `apps/desktop`（Tauri v2 + React + React Router）
-- [ ] 接入 `packages/api-sdk`、`packages/ui`、`packages/types`
-- [ ] 实现文件上传适配器（Tauri `dialog.open()`）
+- [x] 初始化 `apps/desktop`（Tauri v2 + React + React Router）
+- [x] 接入 `packages/api-sdk`、`packages/ui`、`packages/types`
+- [x] 实现文件上传适配器（Tauri `dialog.open()`）
 - [ ] 实现 Token 存储适配器（Tauri keychain plugin）
 - [ ] 实现全局快捷键唤起 Copilot 窗口
-- [ ] 桌面端页面：论文库、Copilot、知识库、设置
-- [ ] 打包脚本（macOS `.dmg`、Windows `.msi`）
-- [ ] github打包流程
+- [x] 桌面端页面：论文库、Copilot、知识库、设置
+- [x] 打包脚本（macOS `.dmg`、Windows `.msi`）
+- [x] github打包流程（.github/workflows/desktop-release.yml）
 
 ---
 
