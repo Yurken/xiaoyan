@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Send, Bot, User, Plus, MessageSquare } from "lucide-react";
-import { Button, MarkdownRenderer } from "@research-copilot/ui";
+import { MarkdownRenderer } from "@research-copilot/ui";
 import { apiClient } from "../lib/client";
 import type { ChatMessage, ChatSession } from "@research-copilot/types";
 

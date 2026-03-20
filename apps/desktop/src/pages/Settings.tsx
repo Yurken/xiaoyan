@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ComponentType } from "react";
 import { Server, Brain, Database, Info, Eye, EyeOff, CheckCircle, Loader2, AlertCircle } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { apiClient } from "../lib/client";
@@ -94,7 +94,7 @@ function ProviderTab({
   );
 }
 
-function SectionIcon({ icon: Icon, color }: { icon: React.ComponentType<{ className?: string }>; color: string }) {
+function SectionIcon({ icon: Icon, color }: { icon: ComponentType<{ className?: string }>; color: string }) {
   return (
     <div
       className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
