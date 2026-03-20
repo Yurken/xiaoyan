@@ -1,0 +1,24 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: research_copilot_db
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: research_copilot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - research_copilot_db_data:/var/lib/postgresql/data
+      - ./backend/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+volumes:
+  research_copilot_db_data:
+    name: research_copilot_db_data
