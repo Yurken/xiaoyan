@@ -25,7 +25,7 @@ async def _load_db_settings():
     """Load persisted settings from DB and apply to in-memory config."""
     try:
         from app.database import AsyncSessionLocal
-        from app.repositories.settings_repo import SettingsRepository, EXPOSED_KEYS, SENSITIVE_KEYS
+        from app.repositories.settings_repo import SettingsRepository
         async with AsyncSessionLocal() as session:
             repo = SettingsRepository(session)
             db = await repo.get_all()

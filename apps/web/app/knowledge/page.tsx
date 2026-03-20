@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Library, Plus, Search, Trash2, Tag, Clock, Sparkles, Map, FileText } from "lucide-react";
 import { Card, CardHeader, CardTitle, Input, Textarea, Button, Badge } from "@research-copilot/ui";
 import { knowledgeApi } from "@/lib/client";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 
-const sourceIcons: Record<string, React.ReactNode> = {
+const sourceIcons: Record<string, ReactNode> = {
   manual: <Tag className="w-3 h-3" />,
   paper_analysis: <FileText className="w-3 h-3" />,
   planner: <Map className="w-3 h-3" />,
