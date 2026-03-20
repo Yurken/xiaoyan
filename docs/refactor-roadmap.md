@@ -54,13 +54,14 @@
 
 **目标**：只读消费端，上架 App Store / Google Play。
 
-- [ ] 初始化 `apps/mobile`（Expo SDK + Expo Router）
-- [ ] 接入 `packages/api-sdk`
-- [ ] 实现页面：论文列表浏览、知识库阅读、Copilot 对话
-- [ ] Push Notification（ARQ job 完成时触发）
-- [ ] EAS Build 配置
-- [ ] App Store / Google Play 提交
-- [ ] github多平台打包流程（win、mac、app）
+- [x] 初始化 `apps/mobile`（Expo SDK 52 + Expo Router 4）
+- [x] 接入 `packages/api-sdk`（Metro monorepo 配置）
+- [x] 实现页面：论文列表浏览、知识库阅读、Copilot SSE对话、设置
+- [x] Push Notification 基础接入（expo-notifications 权限注册 + push token 获取）
+- [ ] 后端推送接口（job完成时调用 Expo Push API）
+- [x] EAS Build 配置（development/preview/production 三环境）
+- [ ] App Store / Google Play 正式提交（需配置 eas.json 账号信息）
+- [x] github多平台打包流程（.github/workflows/mobile-release.yml，含 EAS submit）
 
 ---
 
