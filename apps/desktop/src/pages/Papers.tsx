@@ -1,20 +1,47 @@
 import { useState, useEffect } from "react";
 import { FileText, Upload, Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { Button, Card, Badge } from "@research-copilot/ui";
-import { apiClient } from "../lib/client";
+import { apiClient, formatErrorMessage } from "../lib/client";
 import type { Paper } from "@research-copilot/types";
 
 export default function Papers() {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    apiClient.papers.list().then(setPapers).finally(() => setLoading(false));
+    let cancelled = false;
+
+    setLoading(true);
+    setLoadError("");
+
+    apiClient.papers.list()
+      .then((data) => {
+        if (!cancelled) {
+          setPapers(data);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(formatErrorMessage(error));
+          setPapers([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleUpload = async () => {
     try {
+      setLoadError("");
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selected = await open({
         multiple: false,
@@ -38,8 +65,20 @@ export default function Papers() {
       setPapers(updated);
     } catch (e) {
       console.error(e);
+      setLoadError(formatErrorMessage(e));
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleAnalyze = async (id: string) => {
+    try {
+      setLoadError("");
+      await apiClient.papers.analyze(id);
+      const updated = await apiClient.papers.list();
+      setPapers(updated);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
     }
   };
 
@@ -84,6 +123,22 @@ export default function Papers() {
           </div>
           <p className="text-sm text-ink-tertiary">加载中…</p>
         </div>
+      ) : loadError ? (
+        <Card className="flex flex-col items-center py-20 text-center gap-4">
+          <div
+            className="w-16 h-16 rounded-3xl flex items-center justify-center"
+            style={{
+              background: "#E8ECF0",
+              boxShadow: "inset 4px 4px 8px #C8CDD3, inset -4px -4px 8px #FFFFFF",
+            }}
+          >
+            <AlertCircle className="w-8 h-8 text-apple-red" />
+          </div>
+          <div>
+            <p className="text-ink-secondary font-medium">无法连接后端</p>
+            <p className="mt-1 break-all text-sm text-apple-red">{loadError}</p>
+          </div>
+        </Card>
       ) : papers.length === 0 ? (
         <Card className="flex flex-col items-center py-20 text-center gap-4">
           <div
@@ -130,7 +185,7 @@ export default function Papers() {
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => apiClient.papers.analyze(p.id)}
+                onClick={() => void handleAnalyze(p.id)}
                 disabled={p.status === "analyzing"}
               >
                 AI 分析

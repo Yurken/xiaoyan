@@ -1,20 +1,43 @@
 import { useState, useEffect } from "react";
-import { BookOpen, Search, Loader2 } from "lucide-react";
+import { BookOpen, Search, Loader2, AlertCircle } from "lucide-react";
 import { Card } from "@research-copilot/ui";
-import { apiClient } from "../lib/client";
+import { apiClient, formatErrorMessage } from "../lib/client";
 import type { KnowledgeNote } from "@research-copilot/types";
 
 export default function Knowledge() {
   const [notes, setNotes] = useState<KnowledgeNote[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     setLoading(true);
+    setLoadError("");
+
     apiClient.knowledge
       .listNotes(search || undefined)
-      .then(setNotes)
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (!cancelled) {
+          setNotes(data);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(formatErrorMessage(error));
+          setNotes([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [search]);
 
   return (
@@ -66,6 +89,22 @@ export default function Knowledge() {
           </div>
           <p className="text-sm text-ink-tertiary">加载中…</p>
         </div>
+      ) : loadError ? (
+        <Card className="flex flex-col items-center py-20 text-center gap-4">
+          <div
+            className="w-16 h-16 rounded-3xl flex items-center justify-center"
+            style={{
+              background: "#E8ECF0",
+              boxShadow: "inset 4px 4px 8px #C8CDD3, inset -4px -4px 8px #FFFFFF",
+            }}
+          >
+            <AlertCircle className="w-8 h-8 text-apple-red" />
+          </div>
+          <div>
+            <p className="text-ink-secondary font-medium">无法连接后端</p>
+            <p className="mt-1 break-all text-sm text-apple-red">{loadError}</p>
+          </div>
+        </Card>
       ) : notes.length === 0 ? (
         <Card className="flex flex-col items-center py-20 text-center gap-4">
           <div

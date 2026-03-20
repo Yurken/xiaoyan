@@ -57,6 +57,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Sync versions from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node scripts/sync-version.mjs --tag "${{ github.ref_name }}"
+
       - name: Setup EAS
         uses: expo/expo-github-action@v8
         with:

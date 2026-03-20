@@ -38,7 +38,7 @@ async def _load_db_settings():
 app = FastAPI(
     title="Research Copilot API",
     description="AI-powered research assistant for students and researchers",
-    version="0.1.0",
+    version="0.1.3",
     lifespan=lifespan,
 )
 
@@ -66,4 +66,4 @@ app.include_router(chat.router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "0.1.3"}
