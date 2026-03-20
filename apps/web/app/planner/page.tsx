@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { Map, Sparkles, BookOpen, Target, ChevronDown, ChevronUp } from "lucide-react";
-import { Card, CardHeader, CardTitle } from "@research-copilot/ui";
-import { Input } from "@research-copilot/ui";
-import Button from "@research-copilot/ui";
+import { Card, CardHeader, CardTitle, Input, Button } from "@research-copilot/ui";
 import { plannerApi } from "@/lib/client";
 import type { LearningPath } from "@research-copilot/types";
 

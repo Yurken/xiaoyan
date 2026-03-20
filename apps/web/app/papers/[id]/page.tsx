@@ -6,9 +6,7 @@ import {
   ArrowLeft, Sparkles, Code2, FlaskConical, Lightbulb, AlertTriangle,
   CheckCircle, ChevronDown, ChevronUp, MessageSquare
 } from "lucide-react";
-import { Card, CardHeader, CardTitle } from "@research-copilot/ui";
-import Button from "@research-copilot/ui";
-import Badge from "@research-copilot/ui";
+import { Card, CardHeader, CardTitle, Button, Badge } from "@research-copilot/ui";
 import { papersApi } from "@/lib/client";
 import type { Paper } from "@research-copilot/types";
 

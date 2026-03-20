@@ -2,10 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Library, Plus, Search, Trash2, Tag, Clock, Sparkles, Map, FileText } from "lucide-react";
-import { Card, CardHeader, CardTitle } from "@research-copilot/ui";
-import { Input, Textarea } from "@research-copilot/ui";
-import Button from "@research-copilot/ui";
-import Badge from "@research-copilot/ui";
+import { Card, CardHeader, CardTitle, Input, Textarea, Button, Badge } from "@research-copilot/ui";
 import { knowledgeApi } from "@/lib/client";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 
