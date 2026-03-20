@@ -95,6 +95,32 @@ export interface ChatMessage {
   created_at: string;
 }
 
+export type LlmProvider = "openai" | "anthropic" | "openai_compatible";
+
+export interface AppSettings {
+  // Provider
+  llm_provider: LlmProvider;
+  // OpenAI
+  openai_api_key: string;
+  openai_base_url: string;
+  openai_chat_model: string;
+  openai_embedding_model: string;
+  // Anthropic
+  anthropic_api_key: string;
+  anthropic_chat_model: string;
+  // OpenAI-Compatible
+  openai_compatible_base_url: string;
+  openai_compatible_api_key: string;
+  openai_compatible_chat_model: string;
+  openai_compatible_embedding_model: string;
+  // RAG
+  chunk_size: string;
+  chunk_overlap: string;
+  rag_top_k: string;
+  // External
+  semantic_scholar_api_key: string;
+}
+
 export interface Job {
   id: string;
   type: string;

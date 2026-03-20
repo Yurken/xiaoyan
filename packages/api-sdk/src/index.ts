@@ -5,6 +5,7 @@ import type {
   ResearchInterest,
   KnowledgeNote,
   Job,
+  AppSettings,
 } from "@research-copilot/types";
 
 export interface ClientConfig {
@@ -173,6 +174,15 @@ export function createClient(config: ClientConfig) {
           { method: "POST", body: JSON.stringify(data) }
         ),
       stream: (data: Parameters<typeof streamChat>[1]) => streamChat(config, data),
+    },
+
+    settings: {
+      get: () => r<AppSettings>("/api/settings"),
+      update: (data: Partial<AppSettings>) =>
+        r<{ ok: boolean; updated: string[] }>("/api/settings", {
+          method: "PUT",
+          body: JSON.stringify(data),
+        }),
     },
 
     planner: {
