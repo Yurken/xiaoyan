@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { BookOpen, Search, Loader2 } from "lucide-react";
-import { Card, Input } from "@research-copilot/ui";
+import { Card } from "@research-copilot/ui";
 import { apiClient } from "../lib/client";
 import type { KnowledgeNote } from "@research-copilot/types";
 
@@ -10,39 +10,91 @@ export default function Knowledge() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiClient.knowledge.listNotes(search || undefined)
+    setLoading(true);
+    apiClient.knowledge
+      .listNotes(search || undefined)
       .then(setNotes)
       .finally(() => setLoading(false));
   }, [search]);
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">知识库</h1>
+    <div className="h-full overflow-y-auto p-6 space-y-5">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-ink-primary">知识库</h1>
+        <p className="text-sm text-ink-tertiary mt-0.5">
+          {notes.length > 0 ? `共 ${notes.length} 条笔记` : "分析论文后自动生成"}
+        </p>
       </div>
+
+      {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div
+          className="absolute left-4 top-1/2 -translate-y-1/2"
+          style={{ color: "#8E8E93" }}
+        >
+          <Search className="w-4 h-4" />
+        </div>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜索笔记..."
-          className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          placeholder="搜索笔记…"
+          className="w-full rounded-3xl pl-10 pr-4 py-3 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 transition-shadow duration-150"
+          style={{
+            background: "#E8ECF0",
+            boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.boxShadow =
+              "inset 3px 3px 7px #C0C5CB, inset -3px -3px 7px #FFFFFF, 0 0 0 2px rgba(0,122,255,0.2)";
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.boxShadow =
+              "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF";
+          }}
         />
       </div>
+
+      {/* Content */}
       {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-gray-300" /></div>
+        <div className="flex flex-col items-center justify-center py-24 gap-3">
+          <div
+            className="w-14 h-14 rounded-3xl flex items-center justify-center"
+            style={{ background: "#E8ECF0", boxShadow: "5px 5px 10px #C8CDD3, -5px -5px 10px #FFFFFF" }}
+          >
+            <Loader2 className="w-7 h-7 text-apple-blue animate-spin" />
+          </div>
+          <p className="text-sm text-ink-tertiary">加载中…</p>
+        </div>
       ) : notes.length === 0 ? (
-        <Card className="flex flex-col items-center py-20 text-center">
-          <BookOpen className="w-12 h-12 text-gray-300 mb-3" />
-          <p className="text-gray-500">暂无笔记，分析论文后自动生成</p>
+        <Card className="flex flex-col items-center py-20 text-center gap-4">
+          <div
+            className="w-16 h-16 rounded-3xl flex items-center justify-center"
+            style={{
+              background: "#E8ECF0",
+              boxShadow: "inset 4px 4px 8px #C8CDD3, inset -4px -4px 8px #FFFFFF",
+            }}
+          >
+            <BookOpen className="w-8 h-8 text-ink-tertiary" />
+          </div>
+          <div>
+            <p className="text-ink-secondary font-medium">
+              {search ? "未找到相关笔记" : "暂无笔记"}
+            </p>
+            <p className="text-sm text-ink-tertiary mt-1">
+              {search ? "换个关键词试试" : "分析论文后自动生成知识卡片"}
+            </p>
+          </div>
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {notes.map((n) => (
-            <Card key={n.id} padding="sm">
-              <p className="text-sm font-medium text-gray-900">{n.title}</p>
-              <p className="text-xs text-gray-500 mt-1 line-clamp-2">{n.content}</p>
-              <p className="text-xs text-gray-400 mt-2">{new Date(n.created_at).toLocaleDateString("zh-CN")}</p>
+            <Card key={n.id} padding="sm" className="flex flex-col gap-2 cursor-default hover:scale-[1.01] transition-transform duration-150">
+              <p className="text-sm font-semibold text-ink-primary line-clamp-1">{n.title}</p>
+              <p className="text-xs text-ink-secondary leading-relaxed line-clamp-3">{n.content}</p>
+              <p className="text-xs text-ink-tertiary mt-auto pt-1">
+                {new Date(n.created_at).toLocaleDateString("zh-CN")}
+              </p>
             </Card>
           ))}
         </div>

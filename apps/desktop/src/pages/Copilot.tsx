@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, Bot, User, Plus } from "lucide-react";
+import { Send, Bot, User, Plus, MessageSquare } from "lucide-react";
 import { Button, MarkdownRenderer } from "@research-copilot/ui";
 import { apiClient } from "../lib/client";
 import type { ChatMessage, ChatSession } from "@research-copilot/types";
@@ -56,7 +56,9 @@ export default function Copilot() {
         if (chunk.type === "session_id") sessionId = chunk.value;
         else if (chunk.type === "delta") {
           setMessages((prev) =>
-            prev.map((m) => m.id === assistantId ? { ...m, content: m.content + chunk.value } : m)
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, content: m.content + chunk.value } : m
+            )
           );
         }
       }
@@ -72,64 +74,195 @@ export default function Copilot() {
 
   return (
     <div className="flex h-full">
-      {/* Sidebar */}
-      <div className="w-52 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50">
-        <div className="p-3 border-b border-gray-200">
-          <Button size="sm" variant="secondary" className="w-full"
-            onClick={() => { setCurrentSession(null); setMessages([]); }}>
-            <Plus className="w-4 h-4" /> 新对话
-          </Button>
+      {/* Session Sidebar */}
+      <div
+        className="w-52 flex-shrink-0 flex flex-col"
+        style={{
+          background: "linear-gradient(180deg, #F0F4F8 0%, #E8ECF0 100%)",
+          boxShadow: "4px 0 10px rgba(0,0,0,0.04)",
+        }}
+      >
+        <div className="p-3 pb-2">
+          <button
+            onClick={() => { setCurrentSession(null); setMessages([]); }}
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl text-sm font-medium text-white transition-all duration-150 active:scale-[0.98]"
+            style={{
+              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+              boxShadow: "4px 4px 10px rgba(0,62,204,0.35), -3px -3px 8px rgba(58,155,255,0.2)",
+            }}
+          >
+            <Plus className="w-4 h-4" />
+            新对话
+          </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+
+        <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
+          {sessions.length === 0 && (
+            <div className="flex flex-col items-center py-8 gap-2">
+              <MessageSquare className="w-8 h-8 text-ink-tertiary opacity-40" />
+              <p className="text-xs text-ink-tertiary">暂无对话记录</p>
+            </div>
+          )}
           {sessions.map((s) => (
-            <button key={s.id} onClick={() => loadSession(s)}
-              className={`w-full text-left px-2 py-2 rounded-lg text-xs transition-colors ${
-                currentSession?.id === s.id ? "bg-brand-50 text-brand-700" : "hover:bg-gray-100 text-gray-600"
-              }`}>
-              <div className="truncate font-medium">{s.title}</div>
+            <button
+              key={s.id}
+              onClick={() => loadSession(s)}
+              className="w-full text-left px-3 py-2.5 rounded-2xl text-xs transition-all duration-150"
+              style={
+                currentSession?.id === s.id
+                  ? {
+                      background: "#E8ECF0",
+                      boxShadow: "inset 3px 3px 6px #C8CDD3, inset -3px -3px 6px #FFFFFF",
+                      color: "#007AFF",
+                      fontWeight: 600,
+                    }
+                  : { color: "#3C3C43" }
+              }
+              onMouseEnter={(e) => {
+                if (currentSession?.id !== s.id) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(232,236,240,0.7)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (currentSession?.id !== s.id) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                }
+              }}
+            >
+              <div className="truncate">{s.title || "新对话"}</div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Chat */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="h-12 flex items-center px-4 border-b border-gray-200 bg-white">
-          <span className="font-semibold text-sm text-gray-800">对话式 Copilot</span>
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col min-w-0 bg-nm-bg">
+        {/* Header */}
+        <div
+          className="h-12 flex items-center px-5"
+          style={{
+            background: "linear-gradient(180deg, #F0F4F8, #E8ECF0)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+          }}
+        >
+          <span className="font-semibold text-sm text-ink-primary">
+            {currentSession ? "当前对话" : "新对话"}
+          </span>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((m) => (
-            <div key={m.id} className={`flex gap-2 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                m.role === "user" ? "bg-brand-600" : "bg-gray-100"}`}>
-                {m.role === "user"
-                  ? <User className="w-3.5 h-3.5 text-white" />
-                  : <Bot className="w-3.5 h-3.5 text-gray-600" />}
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full gap-4 pb-12">
+              <div
+                className="w-16 h-16 rounded-3xl flex items-center justify-center"
+                style={{
+                  background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                  boxShadow: "6px 6px 14px rgba(0,62,204,0.35), -4px -4px 10px rgba(58,155,255,0.25)",
+                }}
+              >
+                <Bot className="w-8 h-8 text-white" />
               </div>
-              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
-                m.role === "user"
-                  ? "bg-brand-600 text-white"
-                  : "bg-white border border-gray-200"}`}>
+              <div className="text-center">
+                <p className="font-semibold text-ink-primary">智研 Copilot</p>
+                <p className="text-sm text-ink-tertiary mt-1">你的 AI 科研助手，随时为你解答</p>
+              </div>
+            </div>
+          )}
+
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex gap-3 ${m.role === "user" ? "flex-row-reverse" : ""}`}
+            >
+              {/* Avatar */}
+              <div
+                className="w-8 h-8 rounded-2xl flex-shrink-0 flex items-center justify-center"
+                style={
+                  m.role === "user"
+                    ? {
+                        background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                        boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
+                      }
+                    : {
+                        background: "#E8ECF0",
+                        boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+                      }
+                }
+              >
                 {m.role === "user"
-                  ? <p className="whitespace-pre-wrap">{m.content}</p>
+                  ? <User className="w-4 h-4 text-white" />
+                  : <Bot className="w-4 h-4 text-apple-blue" />}
+              </div>
+
+              {/* Bubble */}
+              <div
+                className="max-w-[78%] rounded-3xl px-4 py-3 text-sm"
+                style={
+                  m.role === "user"
+                    ? {
+                        background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                        boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
+                        color: "#FFFFFF",
+                      }
+                    : {
+                        background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)",
+                        boxShadow: "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF",
+                        color: "#1C1C1E",
+                      }
+                }
+              >
+                {m.role === "user"
+                  ? <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
                   : <MarkdownRenderer content={m.content || "…"} />}
               </div>
             </div>
           ))}
           <div ref={bottomRef} />
         </div>
-        <div className="p-3 border-t border-gray-200 bg-white flex gap-2">
-          <textarea
-            rows={2}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="输入问题… (Enter 发送)"
-            className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-          <Button onClick={handleSend} loading={sending} disabled={!input.trim()} className="h-full px-3">
+
+        {/* Input Area */}
+        <div className="p-4 flex gap-3 items-end">
+          <div className="flex-1">
+            <textarea
+              rows={2}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="输入问题… (Enter 发送，Shift+Enter 换行)"
+              className="w-full rounded-3xl px-5 py-3 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none transition-shadow duration-150"
+              style={{
+                background: "#E8ECF0",
+                boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.boxShadow =
+                  "inset 3px 3px 7px #C0C5CB, inset -3px -3px 7px #FFFFFF, 0 0 0 2px rgba(0,122,255,0.2)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.boxShadow =
+                  "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF";
+              }}
+            />
+          </div>
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || sending}
+            className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-white transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+              boxShadow: input.trim() && !sending
+                ? "4px 4px 10px rgba(0,62,204,0.4), -3px -3px 8px rgba(58,155,255,0.25)"
+                : "none",
+            }}
+          >
             <Send className="w-4 h-4" />
-          </Button>
+          </button>
         </div>
       </div>
     </div>
