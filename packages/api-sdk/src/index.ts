@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ResearchInterest,
   KnowledgeNote,
+  Job,
 } from "@research-copilot/types";
 
 export interface ClientConfig {
@@ -72,11 +73,50 @@ export async function* streamChat(
   }
 }
 
+// ── Job polling helper ───────────────────────────────────────────
+export async function* pollJob(
+  config: ClientConfig,
+  jobId: string,
+  intervalMs = 1500
+): AsyncGenerator<Job> {
+  while (true) {
+    const job = await request<Job>(config, `/api/jobs/${jobId}`);
+    yield job;
+    if (job.status === "done" || job.status === "failed") break;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
 // ── API factory ──────────────────────────────────────────────────
 export function createClient(config: ClientConfig) {
   const r = <T>(path: string, options?: RequestInit) => request<T>(config, path, options);
 
   return {
+    jobs: {
+      get: (jobId: string) => r<Job>(`/api/jobs/${jobId}`),
+      poll: (jobId: string, intervalMs?: number) => pollJob(config, jobId, intervalMs),
+    },
+
+    auth: {
+      login: (email: string, password: string) =>
+        r<{ access_token: string; refresh_token: string }>("/api/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        }),
+      register: (email: string, password: string) =>
+        r<{ access_token: string; refresh_token: string }>("/api/auth/register", {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        }),
+      refresh: (refreshToken: string) =>
+        request<{ access_token: string; refresh_token: string }>(
+          { ...config, getToken: () => refreshToken },
+          "/api/auth/refresh",
+          { method: "POST" }
+        ),
+      me: () => r("/api/auth/me"),
+    },
+
     papers: {
       list: (offset = 0, limit = 20) =>
         r<Paper[]>(`/api/papers?offset=${offset}&limit=${limit}`),
