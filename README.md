@@ -27,7 +27,7 @@
 
 - Python 3.11+
 - Node.js 18+
-- PostgreSQL 15+（需安装 pgvector 扩展）
+- Docker（用于启动数据库）
 
 ### 1. 克隆 & 配置环境变量
 
@@ -39,17 +39,21 @@ cp .env.example backend/.env
 #   LLM_PROVIDER + 对应的 API Key
 ```
 
-### 2. 初始化数据库
+### 2. 启动数据库
+
+使用 Docker Compose 一键启动（已内置 pgvector 扩展，并自动执行 schema 初始化）：
 
 ```bash
-# 创建数据库
-createdb research_copilot
-
-# 初始化 schema（需要 pgvector 扩展）
-psql research_copilot < backend/migrations/init.sql
+docker compose up -d
 ```
 
-> 如果 pgvector 未安装，参考：https://github.com/pgvector/pgvector
+数据库监听 `localhost:5433`，`backend/.env` 中的默认 `DATABASE_URL` 已与此配置对应。
+
+> 如果已有 PostgreSQL 且安装了 pgvector，也可手动初始化：
+> ```bash
+> createdb research_copilot
+> psql research_copilot < backend/migrations/init.sql
+> ```
 
 ### 3. 启动后端
 
