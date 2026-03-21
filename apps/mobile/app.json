@@ -2,7 +2,7 @@
   "expo": {
     "name": "智研 Copilot",
     "slug": "research-copilot",
-    "version": "0.1.4",
+    "version": "0.2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "research-copilot",

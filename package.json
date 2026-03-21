@@ -1,6 +1,6 @@
 {
   "name": "research-copilot",
-  "version": "0.1.4",
+  "version": "0.2.1",
   "private": true,
   "scripts": {
     "dev:web": "turbo run dev --filter=@research-copilot/web",
