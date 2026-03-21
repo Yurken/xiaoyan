@@ -28,6 +28,22 @@ function upsertRun(runs: AgentRun[], next: AgentRun) {
   return runs.map((item) => (item.id === next.id ? next : item));
 }
 
+function splitThoughtFromContent(content: string) {
+  const thinkTagPattern = /<think>([\s\S]*?)<\/think>/gi;
+  const thoughts: string[] = [];
+  let match: RegExpExecArray | null = null;
+
+  while ((match = thinkTagPattern.exec(content)) !== null) {
+    const text = (match[1] || "").trim();
+    if (text) thoughts.push(text);
+  }
+
+  return {
+    thought: thoughts.join("\n\n"),
+    answer: content.replace(thinkTagPattern, "").trim(),
+  };
+}
+
 function runStatusLabel(status: AgentRun["status"]) {
   if (status === "done") return "已完成";
   if (status === "failed") return "失败";
@@ -172,6 +188,7 @@ function CopilotContent() {
   const [plan, setPlan] = useState<AgentPlanStep[]>([]);
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
   const [requestId, setRequestId] = useState<string>();
+  const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
@@ -208,6 +225,7 @@ function CopilotContent() {
       setRequestId(latestRequestId);
       setPlan([]);
       setStreamError("");
+      setActiveAssistantId(null);
     } catch {}
   };
 
@@ -218,6 +236,7 @@ function CopilotContent() {
     setAgentRuns([]);
     setRequestId(undefined);
     setStreamError("");
+    setActiveAssistantId(null);
   };
 
   const handleDeleteSession = async (id: string, event: MouseEvent) => {
@@ -243,6 +262,7 @@ function CopilotContent() {
     setPlan([]);
     setAgentRuns([]);
     setRequestId(undefined);
+    setActiveAssistantId(assistantId);
 
     setMessages((prev) => [
       ...prev,
@@ -474,19 +494,71 @@ function CopilotContent() {
                 </div>
 
                 <div className={`max-w-[85%] ${message.role === "user" ? "items-end" : "items-start"} flex flex-col gap-2`}>
+                  {message.role === "assistant" && (() => {
+                    const parsed = splitThoughtFromContent(message.content || "");
+                    const isActiveAssistant = message.id === activeAssistantId;
+                    const planForBubble = isActiveAssistant ? plan : [];
+                    const runsForBubble = isActiveAssistant ? displayedRuns : [];
+
+                    return (
+                      <>
+                        {(parsed.thought || planForBubble.length > 0 || runsForBubble.length > 0) && (
+                          <div className="w-full rounded-2xl border border-amber-200/80 bg-amber-50/80 px-4 py-3">
+                            {parsed.thought && (
+                              <details open className="group">
+                                <summary className="cursor-pointer list-none text-xs font-semibold tracking-wide text-amber-700">
+                                  模型思考过程
+                                </summary>
+                                <div className="mt-2 whitespace-pre-wrap text-xs leading-6 text-amber-900/90">
+                                  {parsed.thought}
+                                </div>
+                              </details>
+                            )}
+
+                            {planForBubble.length > 0 && (
+                              <div className={`${parsed.thought ? "mt-3" : ""}`}>
+                                <div className="mb-2 text-xs font-semibold tracking-wide text-slate-700">Agent 规划步骤</div>
+                                <div className="space-y-2">
+                                  {planForBubble.map((step, index) => {
+                                    const run = [...runsForBubble]
+                                      .reverse()
+                                      .find((item) => item.agent_name === step.agent_name);
+                                    const status = run?.status || "pending";
+
+                                    return (
+                                      <div key={`${step.agent_name}-${index}`} className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="text-xs font-semibold text-slate-900">{index + 1}. {step.title}</span>
+                                          <span className={`rounded-full px-2 py-0.5 text-[11px] ${runStatusTone(status)}`}>
+                                            {runStatusLabel(status)}
+                                          </span>
+                                        </div>
+                                        <p className="mt-1 text-[11px] leading-5 text-slate-500">{step.goal}</p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div
+                          className="rounded-[28px] border border-white/70 bg-white/85 px-5 py-4 text-slate-900 shadow-[0_20px_45px_rgba(15,23,42,0.08)]"
+                        >
+                          <MarkdownRenderer content={parsed.answer || (sending && isActiveAssistant ? "正在整理最终回答..." : "…")} />
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  {message.role === "user" && (
                   <div
-                    className={`rounded-[28px] px-5 py-4 ${
-                      message.role === "user"
-                        ? "bg-brand-600 text-white shadow-[0_20px_40px_rgba(0,122,255,0.18)]"
-                        : "border border-white/70 bg-white/85 text-slate-900 shadow-[0_20px_45px_rgba(15,23,42,0.08)]"
-                    }`}
+                    className="rounded-[28px] bg-brand-600 px-5 py-4 text-white shadow-[0_20px_40px_rgba(0,122,255,0.18)]"
                   >
-                    {message.role === "user" ? (
-                      <p className="whitespace-pre-wrap text-sm leading-7">{message.content}</p>
-                    ) : (
-                      <MarkdownRenderer content={message.content || "…"} />
-                    )}
+                    <p className="whitespace-pre-wrap text-sm leading-7">{message.content}</p>
                   </div>
+                  )}
                   {message.role === "assistant" && message.sources && message.sources.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {message.sources.map((source, index) => (

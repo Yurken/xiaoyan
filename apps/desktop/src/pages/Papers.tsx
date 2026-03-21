@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { FileText, Upload, Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { FileText, Upload, Loader2, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
 import { Button, Card, Badge } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { Paper } from "@research-copilot/types";
@@ -9,6 +10,7 @@ export default function Papers() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,18 +51,19 @@ export default function Papers() {
       });
       if (!selected) return;
 
-      setUploading(true);
-      const { readFile } = await import("@tauri-apps/plugin-fs");
-      const bytes = await readFile(selected as string);
-      const fileName = (selected as string).split("/").pop() ?? "paper.pdf";
-      const file = new File([bytes], fileName, { type: "application/pdf" });
+      const selectedPath =
+        typeof selected === "string"
+          ? selected
+          : typeof selected === "object" && selected !== null && "path" in selected
+            ? String((selected as { path: unknown }).path)
+            : "";
 
-      const res = await apiClient.papers.upload(file);
-      if (res.job_id) {
-        for await (const job of apiClient.jobs.poll(res.job_id)) {
-          if (job.status === "done" || job.status === "failed") break;
-        }
+      if (!selectedPath) {
+        throw new Error("未识别的文件路径，请重新选择 PDF 文件");
       }
+
+      setUploading(true);
+      const res = await apiClient.papers.upload(selectedPath);
       const updated = await apiClient.papers.list();
       setPapers(updated);
     } catch (e) {
@@ -71,14 +74,29 @@ export default function Papers() {
     }
   };
 
+  // Listen for paper:status events from the Rust backend
+  useEffect(() => {
+    const unlisten = listen<{ paper_id: string; status: string; error?: string }>(
+      "paper:status",
+      (e) => {
+        const { paper_id, status } = e.payload;
+        setPapers((prev) =>
+          prev.map((p) => (p.id === paper_id ? { ...p, status } : p))
+        );
+      }
+    );
+    return () => { void unlisten.then((fn) => fn()); };
+  }, []);
+
   const handleAnalyze = async (id: string) => {
     try {
       setLoadError("");
+      // Optimistic update
+      setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "analyzing" } : p)));
       await apiClient.papers.analyze(id);
-      const updated = await apiClient.papers.list();
-      setPapers(updated);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
+      setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "failed" } : p)));
     }
   };
 
@@ -158,38 +176,73 @@ export default function Papers() {
       ) : (
         <div className="space-y-3">
           {papers.map((p) => (
-            <Card key={p.id} padding="sm" className="flex items-center gap-4">
-              {/* Icon */}
-              <div
-                className="w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center"
-                style={{
-                  background: "#E8ECF0",
-                  boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
-                }}
-              >
-                {statusIcon(p.status)}
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-ink-primary truncate">{p.title}</p>
-                  {statusBadge(p.status)}
+            <Card key={p.id} padding="sm" className="space-y-0">
+              <div className="flex items-center gap-4">
+                {/* Icon */}
+                <div
+                  className="w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center"
+                  style={{
+                    background: "#E8ECF0",
+                    boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                  }}
+                >
+                  {statusIcon(p.status)}
                 </div>
-                <p className="text-xs text-ink-tertiary mt-0.5">
-                  {new Date(p.created_at).toLocaleDateString("zh-CN")}
-                </p>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-ink-primary truncate">{p.title}</p>
+                    {statusBadge(p.status)}
+                  </div>
+                  <p className="text-xs text-ink-tertiary mt-0.5">
+                    {new Date(p.created_at).toLocaleDateString("zh-CN")}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void handleAnalyze(p.id)}
+                    disabled={p.status === "analyzing"}
+                  >
+                    {p.status === "analyzing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    {p.status === "analyzing" ? "分析中…" : "AI 分析"}
+                  </Button>
+                  {p.status === "analyzed" && (
+                    <button
+                      onClick={() => setExpanded(expanded === p.id ? null : p.id)}
+                      className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary transition-colors"
+                      style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
+                    >
+                      {expanded === p.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Action */}
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => void handleAnalyze(p.id)}
-                disabled={p.status === "analyzing"}
-              >
-                AI 分析
-              </Button>
+              {/* Analysis result panel */}
+              {expanded === p.id && p.analysis && (
+                <div className="mt-3 pt-3 border-t border-nm-dark/10 space-y-2">
+                  {(
+                    [
+                      ["研究问题", p.analysis.research_question],
+                      ["核心方法", p.analysis.core_method],
+                      ["实验设计", p.analysis.experiment_design],
+                      ["创新点", p.analysis.innovations],
+                      ["局限性", p.analysis.limitations],
+                      ["关键结论", p.analysis.key_conclusions],
+                    ] as [string, string | undefined][]
+                  ).filter(([, v]) => v).map(([label, value]) => (
+                    <div key={label}>
+                      <span className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">{label}</span>
+                      <p className="text-xs text-ink-secondary mt-0.5 leading-5">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
           ))}
         </div>

@@ -25,6 +25,22 @@ function upsertRun(runs: AgentRun[], next: AgentRun) {
   return runs.map((item) => (item.id === next.id ? next : item));
 }
 
+function splitThoughtFromContent(content: string) {
+  const thinkTagPattern = /<think>([\s\S]*?)<\/think>/gi;
+  const thoughts: string[] = [];
+  let match: RegExpExecArray | null = null;
+
+  while ((match = thinkTagPattern.exec(content)) !== null) {
+    const text = (match[1] || "").trim();
+    if (text) thoughts.push(text);
+  }
+
+  return {
+    thought: thoughts.join("\n\n"),
+    answer: content.replace(thinkTagPattern, "").trim(),
+  };
+}
+
 function runTone(status: AgentRun["status"]) {
   if (status === "done") {
     return {
@@ -57,6 +73,7 @@ export default function Copilot() {
   const [plan, setPlan] = useState<AgentPlanStep[]>([]);
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
   const [requestId, setRequestId] = useState<string>();
+  const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -101,6 +118,7 @@ export default function Copilot() {
       setAgentRuns(runData);
       setPlan([]);
       setRequestId(runData[0]?.request_id);
+      setActiveAssistantId(null);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
     }
@@ -113,6 +131,7 @@ export default function Copilot() {
     setAgentRuns([]);
     setRequestId(undefined);
     setLoadError("");
+    setActiveAssistantId(null);
   };
 
   const handleDeleteSession = async (sessionId: string) => {
@@ -138,6 +157,7 @@ export default function Copilot() {
     setPlan([]);
     setAgentRuns([]);
     setRequestId(undefined);
+    setActiveAssistantId(assistantId);
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -387,26 +407,92 @@ export default function Copilot() {
                 </div>
 
                 <div className="max-w-[78%] flex flex-col gap-2">
-                  <div
-                    className="rounded-3xl px-4 py-3 text-sm"
-                    style={
-                      message.role === "user"
-                        ? {
-                            background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                            boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
-                            color: "#FFFFFF",
-                          }
-                        : {
+                  {message.role === "assistant" && (() => {
+                    const parsed = splitThoughtFromContent(message.content || "");
+                    const isActiveAssistant = message.id === activeAssistantId;
+                    const planForBubble = isActiveAssistant ? plan : [];
+                    const runsForBubble = isActiveAssistant ? displayedRuns : [];
+
+                    return (
+                      <>
+                        {(parsed.thought || planForBubble.length > 0 || runsForBubble.length > 0) && (
+                          <div
+                            className="rounded-2xl px-3 py-3"
+                            style={{
+                              background: "#F8EFE0",
+                              boxShadow: "inset 2px 2px 5px rgba(204,162,84,0.25), inset -2px -2px 5px rgba(255,255,255,0.7)",
+                            }}
+                          >
+                            {parsed.thought && (
+                              <details open>
+                                <summary className="cursor-pointer text-xs font-semibold text-[#9A6A00]">模型思考过程</summary>
+                                <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#5A4A2F]">
+                                  {parsed.thought}
+                                </div>
+                              </details>
+                            )}
+
+                            {planForBubble.length > 0 && (
+                              <div className={parsed.thought ? "mt-3" : ""}>
+                                <div className="mb-2 text-xs font-semibold text-ink-secondary">Agent 规划步骤</div>
+                                <div className="space-y-2">
+                                  {planForBubble.map((step, index) => {
+                                    const run = [...runsForBubble]
+                                      .reverse()
+                                      .find((item) => item.agent_name === step.agent_name);
+                                    const tone = runTone(run?.status || "pending");
+
+                                    return (
+                                      <div
+                                        key={`${step.agent_name}-${index}`}
+                                        className="rounded-xl px-3 py-2"
+                                        style={{
+                                          background: "#E8ECF0",
+                                          boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                                        }}
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="text-xs font-semibold text-ink-primary">{index + 1}. {step.title}</span>
+                                          <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ color: tone.color, background: tone.background }}>
+                                            {tone.label}
+                                          </span>
+                                        </div>
+                                        <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{step.goal}</p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div
+                          className="rounded-3xl px-4 py-3 text-sm"
+                          style={{
                             background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)",
                             boxShadow: "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF",
                             color: "#1C1C1E",
-                          }
-                    }
-                  >
-                    {message.role === "user"
-                      ? <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                      : <MarkdownRenderer content={message.content || "…"} />}
-                  </div>
+                          }}
+                        >
+                          <MarkdownRenderer content={parsed.answer || (sending && isActiveAssistant ? "正在整理最终回答..." : "…")} />
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  {message.role === "user" && (
+                    <div
+                      className="rounded-3xl px-4 py-3 text-sm"
+                      style={{
+                        background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                        boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
+                        color: "#FFFFFF",
+                      }}
+                    >
+                      <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    </div>
+                  )}
                   {message.role === "assistant" && message.sources && message.sources.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {message.sources.map((source, index) => (
