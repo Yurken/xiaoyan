@@ -58,6 +58,40 @@ export interface ResearchInterestProfile {
   preferred_output?: string;
 }
 
+export type PlannerNextField =
+  | "topic"
+  | "keywords"
+  | "goal"
+  | "background"
+  | "time_budget"
+  | "constraints"
+  | "known_context"
+  | "preferred_output";
+
+export interface ResearchInterestHintRequest {
+  topic: string;
+  keywords?: string[];
+  goal?: string;
+  background?: string;
+  time_budget?: string;
+  constraints?: string[];
+  known_context?: string;
+  preferred_output?: string;
+}
+
+export interface ResearchInterestHintResponse {
+  summary: string;
+  next_field: PlannerNextField;
+  matched_domains: string[];
+  keyword_suggestions: string[];
+  goal_suggestions: string[];
+  background_prompts: string[];
+  time_budget_suggestions: string[];
+  constraint_suggestions: string[];
+  known_context_suggestions: string[];
+  output_suggestions: string[];
+}
+
 export interface LearningPath {
   overview?: string;
   prerequisites?: Array<{ name: string; description: string; resources: string[] }>;

@@ -3,6 +3,7 @@ use crate::rag::{combined_search, serialize_embedding};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashSet;
 use sqlx::Row;
 use tauri::{Emitter, State};
 use uuid::Uuid;
@@ -15,6 +16,20 @@ pub struct ResearchInterestProfilePayload {
     pub constraints: Option<Vec<String>>,
     pub known_context: Option<String>,
     pub preferred_output: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResearchInterestHintResponse {
+    pub summary: String,
+    pub next_field: String,
+    pub matched_domains: Vec<String>,
+    pub keyword_suggestions: Vec<String>,
+    pub goal_suggestions: Vec<String>,
+    pub background_prompts: Vec<String>,
+    pub time_budget_suggestions: Vec<String>,
+    pub constraint_suggestions: Vec<String>,
+    pub known_context_suggestions: Vec<String>,
+    pub output_suggestions: Vec<String>,
 }
 
 // ── Research Interests ──────────────────────────────────────────
@@ -92,6 +107,34 @@ const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{k
 const PLANNER_ANALYST_SYSTEM: &str = "你是研究方向分析 Agent，负责把研究主题拆解为学习重点和能力目标。";
 const PLANNER_ANALYST_PROMPT: &str = r#"请分析研究方向「{topic}」（关键词：{keywords}），仅返回 JSON：
 {"scope":"一句话定义范围","focus_topics":["核心主题"],"skill_targets":["需要掌握的能力"],"risk_points":["新手常见误区"]}"#;
+const INTEREST_HINT_SYSTEM: &str = "你是研究规划表单里的实时 AI 助手。你的职责不是生成完整路线，而是根据用户当前已填写的部分内容，判断下一步该补什么，并提供可点击的候选短语。";
+const INTEREST_HINT_PROMPT: &str = r#"请根据下面这个“正在填写中的研究规划表单”，给出实时补全建议。
+
+目标：
+1. 用 1-2 句中文总结你当前理解的研究方向，避免空泛。
+2. 判断“现在最值得继续填写的字段” next_field。只能从 topic, keywords, goal, background, time_budget, constraints, known_context, preferred_output 中选择一个。
+3. 给出各字段的候选建议，供界面做点击补全。建议应补充用户输入，而不是重复原文。
+4. 每个数组最多 6 项，尽量短、可直接点击、避免长句。
+5. 若研究主题与大模型/LLM 相关，关键词建议通常要优先覆盖 LLM、Deep Learning、Transformer、Alignment、RLHF、RAG、Reasoning、Evaluation 中合适的项，但仍然要结合用户已经填写的内容过滤不合适项。
+6. 在信息不足时，优先顺序通常是：topic -> keywords -> goal -> background -> time_budget -> constraints -> known_context -> preferred_output；但如果你认为某个后续字段更关键，可以调整。
+
+只返回合法 JSON，不要包含 markdown、解释或代码块：
+{
+  "summary": "一句到两句中文总结",
+  "next_field": "keywords",
+  "matched_domains": ["领域标签"],
+  "keyword_suggestions": ["关键词"],
+  "goal_suggestions": ["研究目标建议"],
+  "background_prompts": ["当前基础补充问题"],
+  "time_budget_suggestions": ["时间预算建议"],
+  "constraint_suggestions": ["约束条件建议"],
+  "known_context_suggestions": ["已知论文或方法"],
+  "output_suggestions": ["期望输出建议"]
+}
+
+当前表单：
+{form}
+"#;
 
 #[tauri::command]
 pub async fn knowledge_generate_plan(
@@ -288,6 +331,64 @@ pub async fn knowledge_generate_plan(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn knowledge_generate_interest_hints(
+    state: State<'_, AppState>,
+    topic: String,
+    keywords: Option<Vec<String>>,
+    goal: Option<String>,
+    background: Option<String>,
+    time_budget: Option<String>,
+    constraints: Option<Vec<String>>,
+    known_context: Option<String>,
+    preferred_output: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let settings = state.settings.read().await.clone();
+    let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
+
+    let profile = ResearchInterestProfilePayload {
+        goal,
+        background,
+        time_budget,
+        constraints,
+        known_context,
+        preferred_output,
+    };
+    let keywords = keywords.unwrap_or_default();
+    let prompt = INTEREST_HINT_PROMPT.replace("{form}", &format_interest_hint_form(&topic, &keywords, &profile));
+    let messages = vec![
+        LlmMessage::system(INTEREST_HINT_SYSTEM),
+        LlmMessage::user(prompt),
+    ];
+    let response = client.chat(&messages, None, 0.2).await.map_err(|e| e.to_string())?;
+    let clean = crate::commands::papers::extract_json_pub(&response);
+    let parsed: serde_json::Value = serde_json::from_str(&clean).map_err(|e| format!("Failed to parse interest hints JSON: {e}"))?;
+
+    let result = ResearchInterestHintResponse {
+        summary: parsed
+            .get("summary")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "已结合当前输入生成实时建议。".to_string()),
+        next_field: normalize_next_field(
+            parsed
+                .get("next_field")
+                .and_then(|value| value.as_str())
+        ),
+        matched_domains: extract_string_list(parsed.get("matched_domains"), 4),
+        keyword_suggestions: extract_string_list(parsed.get("keyword_suggestions"), 6),
+        goal_suggestions: extract_string_list(parsed.get("goal_suggestions"), 6),
+        background_prompts: extract_string_list(parsed.get("background_prompts"), 6),
+        time_budget_suggestions: extract_string_list(parsed.get("time_budget_suggestions"), 6),
+        constraint_suggestions: extract_string_list(parsed.get("constraint_suggestions"), 6),
+        known_context_suggestions: extract_string_list(parsed.get("known_context_suggestions"), 6),
+        output_suggestions: extract_string_list(parsed.get("output_suggestions"), 6),
+    };
+
+    Ok(json!(result))
+}
+
 fn profile_to_analysis_context(profile: &ResearchInterestProfilePayload) -> String {
     let mut lines = Vec::new();
 
@@ -324,6 +425,67 @@ fn profile_to_prompt_context(profile: &ResearchInterestProfilePayload) -> String
     } else {
         format!("{}\n- 请据此调整学习路线的深度、节奏和资源选择。", context)
     }
+}
+
+fn format_interest_hint_form(
+    topic: &str,
+    keywords: &[String],
+    profile: &ResearchInterestProfilePayload,
+) -> String {
+    let to_line = |label: &str, value: Option<&str>| -> String {
+        format!("- {}：{}", label, value.filter(|item| !item.trim().is_empty()).unwrap_or("未填写"))
+    };
+
+    [
+        to_line("研究主题", Some(topic)),
+        if keywords.is_empty() {
+            "- 关键词：未填写".to_string()
+        } else {
+            format!("- 关键词：{}", keywords.join("、"))
+        },
+        to_line("研究目标", profile.goal.as_deref()),
+        to_line("当前基础", profile.background.as_deref()),
+        to_line("时间预算", profile.time_budget.as_deref()),
+        if let Some(items) = profile.constraints.as_ref().filter(|value| !value.is_empty()) {
+            format!("- 约束条件：{}", items.join("、"))
+        } else {
+            "- 约束条件：未填写".to_string()
+        },
+        to_line("已知论文/方法", profile.known_context.as_deref()),
+        to_line("期望输出", profile.preferred_output.as_deref()),
+    ]
+    .join("\n")
+}
+
+fn normalize_next_field(value: Option<&str>) -> String {
+    match value.unwrap_or_default().trim() {
+        "topic" => "topic",
+        "keywords" => "keywords",
+        "goal" => "goal",
+        "background" => "background",
+        "time_budget" => "time_budget",
+        "constraints" => "constraints",
+        "known_context" => "known_context",
+        "preferred_output" => "preferred_output",
+        _ => "keywords",
+    }
+    .to_string()
+}
+
+fn extract_string_list(value: Option<&serde_json::Value>, limit: usize) -> Vec<String> {
+    let mut seen = HashSet::new();
+
+    value
+        .and_then(|items| items.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.as_str())
+        .map(|item| item.trim())
+        .filter(|item| !item.is_empty())
+        .filter(|item| seen.insert(item.to_lowercase()))
+        .take(limit)
+        .map(|item| item.to_string())
+        .collect()
 }
 
 // ── Knowledge Notes ─────────────────────────────────────────────
