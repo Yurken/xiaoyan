@@ -1,10 +1,21 @@
 use crate::llm::{LlmClient, LlmMessage};
 use crate::rag::{combined_search, serialize_embedding};
 use crate::state::AppState;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::Row;
 use tauri::{Emitter, State};
 use uuid::Uuid;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ResearchInterestProfilePayload {
+    pub goal: Option<String>,
+    pub background: Option<String>,
+    pub time_budget: Option<String>,
+    pub constraints: Option<Vec<String>>,
+    pub known_context: Option<String>,
+    pub preferred_output: Option<String>,
+}
 
 // ── Research Interests ──────────────────────────────────────────
 
@@ -13,7 +24,7 @@ pub async fn knowledge_list_interests(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let rows = sqlx::query(
-        "SELECT id, topic, keywords, learning_path, status, created_at FROM research_interests ORDER BY created_at DESC",
+        "SELECT id, topic, keywords, profile, learning_path, status, created_at FROM research_interests ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
     .await
@@ -23,6 +34,7 @@ pub async fn knowledge_list_interests(
         .iter()
         .map(|r| {
             let kw: String = r.get::<Option<String>, _>("keywords").unwrap_or_else(|| "[]".into());
+            let profile_str: Option<String> = r.get::<Option<String>, _>("profile");
             let lp_str: Option<String> = r.get::<Option<String>, _>("learning_path");
             let learning_path = lp_str
                 .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
@@ -30,6 +42,7 @@ pub async fn knowledge_list_interests(
                 "id": r.get::<String, _>("id"),
                 "topic": r.get::<String, _>("topic"),
                 "keywords": serde_json::from_str::<serde_json::Value>(&kw).unwrap_or(json!([])),
+                "profile": profile_str.and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok()),
                 "learning_path": learning_path,
                 "status": r.get::<String, _>("status"),
                 "created_at": r.get::<String, _>("created_at"),
@@ -44,21 +57,33 @@ pub async fn knowledge_create_interest(
     state: State<'_, AppState>,
     topic: String,
     keywords: Vec<String>,
+    profile: Option<ResearchInterestProfilePayload>,
 ) -> Result<serde_json::Value, String> {
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let kw_json = serde_json::to_string(&keywords).unwrap_or_else(|_| "[]".into());
+    let profile_json = profile
+        .as_ref()
+        .and_then(|value| serde_json::to_string(value).ok());
     sqlx::query(
-        "INSERT INTO research_interests (id, topic, keywords, created_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO research_interests (id, topic, keywords, profile, created_at) VALUES (?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&topic)
     .bind(&kw_json)
+    .bind(&profile_json)
     .bind(&now)
     .execute(&state.db)
     .await
     .map_err(|e| e.to_string())?;
-    Ok(json!({ "id": id, "topic": topic, "keywords": keywords, "status": "active", "created_at": now }))
+    Ok(json!({
+        "id": id,
+        "topic": topic,
+        "keywords": keywords,
+        "profile": profile,
+        "status": "active",
+        "created_at": now
+    }))
 }
 
 const PLANNER_SYSTEM: &str = "你是一位顶尖的学术导师，擅长为学生设计系统化的研究学习路线。";
@@ -74,7 +99,7 @@ pub async fn knowledge_generate_plan(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
-    let row = sqlx::query("SELECT topic, keywords FROM research_interests WHERE id = ?")
+    let row = sqlx::query("SELECT topic, keywords, profile FROM research_interests WHERE id = ?")
         .bind(&id)
         .fetch_optional(&state.db)
         .await
@@ -83,7 +108,11 @@ pub async fn knowledge_generate_plan(
 
     let topic: String = row.get("topic");
     let kw_str: String = row.get::<Option<String>, _>("keywords").unwrap_or_else(|| "[]".into());
+    let profile_str: Option<String> = row.get::<Option<String>, _>("profile");
     let keywords: Vec<String> = serde_json::from_str(&kw_str).unwrap_or_default();
+    let profile = profile_str
+        .and_then(|value| serde_json::from_str::<ResearchInterestProfilePayload>(&value).ok())
+        .unwrap_or_default();
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
     let rid = id.clone();
@@ -107,7 +136,8 @@ pub async fn knowledge_generate_plan(
 
         let analyst_prompt = PLANNER_ANALYST_PROMPT
             .replace("{topic}", &topic)
-            .replace("{keywords}", &keywords.join("、"));
+            .replace("{keywords}", &keywords.join("、"))
+            + &profile_to_analysis_context(&profile);
         let analyst_msgs = vec![LlmMessage::system(PLANNER_ANALYST_SYSTEM), LlmMessage::user(&analyst_prompt)];
         let analysis_json = match client.chat(&analyst_msgs, None, 0.2).await {
             Ok(resp) => {
@@ -204,11 +234,13 @@ pub async fn knowledge_generate_plan(
             .and_then(|v| v.as_array())
             .map(|arr| arr.iter().filter_map(|x| x.as_str()).collect::<Vec<&str>>().join("、"))
             .unwrap_or_default();
+        let profile_context = profile_to_prompt_context(&profile);
         let prompt = format!(
-            "{}\n\n补充约束：\n- 方向范围：{}\n- 优先覆盖主题：{}\n- 本地候选论文：{}",
+            "{}\n{}\n\n补充约束：\n- 方向范围：{}\n- 优先覆盖主题：{}\n- 本地候选论文：{}",
             PLANNER_PROMPT
                 .replace("{topic}", &topic)
                 .replace("{keywords}", &keywords.join(", ")),
+            profile_context,
             analysis_scope,
             analysis_focus,
             if paper_hints.is_empty() { "无".to_string() } else { paper_hints.join("；") }
@@ -254,6 +286,44 @@ pub async fn knowledge_generate_plan(
         }
     });
     Ok(())
+}
+
+fn profile_to_analysis_context(profile: &ResearchInterestProfilePayload) -> String {
+    let mut lines = Vec::new();
+
+    if let Some(goal) = profile.goal.as_deref().filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("- 用户目标：{}", goal));
+    }
+    if let Some(background) = profile.background.as_deref().filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("- 用户基础：{}", background));
+    }
+    if let Some(time_budget) = profile.time_budget.as_deref().filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("- 时间预算：{}", time_budget));
+    }
+    if let Some(known_context) = profile.known_context.as_deref().filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("- 已知论文/方法：{}", known_context));
+    }
+    if let Some(preferred_output) = profile.preferred_output.as_deref().filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("- 期望输出：{}", preferred_output));
+    }
+    if let Some(constraints) = profile.constraints.as_ref().filter(|value| !value.is_empty()) {
+        lines.push(format!("- 约束条件：{}", constraints.join("、")));
+    }
+
+    if lines.is_empty() {
+        String::new()
+    } else {
+        format!("\n补充用户画像：\n{}", lines.join("\n"))
+    }
+}
+
+fn profile_to_prompt_context(profile: &ResearchInterestProfilePayload) -> String {
+    let context = profile_to_analysis_context(profile);
+    if context.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n- 请据此调整学习路线的深度、节奏和资源选择。", context)
+    }
 }
 
 // ── Knowledge Notes ─────────────────────────────────────────────

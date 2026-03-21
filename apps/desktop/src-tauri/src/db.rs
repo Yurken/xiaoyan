@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS research_interests (
     id            TEXT PRIMARY KEY,
     topic         TEXT NOT NULL,
     keywords      TEXT NOT NULL DEFAULT '[]',
+    profile       TEXT,
     learning_path TEXT,
     status        TEXT NOT NULL DEFAULT 'active',
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
@@ -149,6 +150,26 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
 
     // Run schema – SQLite handles multiple statements via raw_sql
     sqlx::raw_sql(SCHEMA).execute(&pool).await?;
+    ensure_research_interest_profile_column(&pool).await?;
 
     Ok(pool)
+}
+
+async fn ensure_research_interest_profile_column(pool: &SqlitePool) -> Result<()> {
+    let columns = sqlx::query("PRAGMA table_info(research_interests)")
+        .fetch_all(pool)
+        .await?;
+
+    let has_profile = columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == "profile"
+    });
+
+    if !has_profile {
+        sqlx::query("ALTER TABLE research_interests ADD COLUMN profile TEXT")
+            .execute(pool)
+            .await?;
+    }
+
+    Ok(())
 }

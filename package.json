@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "dev:web": "turbo run dev --filter=@research-copilot/web",
+    "dev:desktop": "pnpm --dir apps/desktop exec tauri dev",
     "build:web": "turbo run build --filter=@research-copilot/web",
+    "build:desktop": "pnpm --dir apps/desktop exec tauri build",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "type-check": "turbo run type-check"
+    "type-check": "turbo run type-check",
+    "tauri": "pnpm --dir apps/desktop exec tauri"
   },
   "devDependencies": {
     "turbo": "^2.3.3"
