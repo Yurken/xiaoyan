@@ -81,15 +81,22 @@ pub fn run() {
 
                 // Load persisted settings, merge with defaults
                 let mut settings = default_settings();
-                if let Ok(rows) = sqlx::query("SELECT key, value FROM settings")
+                let rows = sqlx::query("SELECT key, value FROM settings")
                     .fetch_all(&pool)
-                    .await
-                {
-                    use sqlx::Row;
-                    for row in rows {
-                        let key: String = row.get("key");
-                        let value: String = row.get("value");
-                        settings.insert(key, value);
+                    .await;
+                match rows {
+                    Ok(rows) => {
+                        use sqlx::Row;
+                        let count = rows.len();
+                        for row in rows {
+                            let key: String = row.get("key");
+                            let value: String = row.get("value");
+                            settings.insert(key, value);
+                        }
+                        append_diagnostic_log(&format!("startup: loaded {count} settings from db"));
+                    }
+                    Err(e) => {
+                        append_diagnostic_log(&format!("startup: failed to load settings: {e}"));
                     }
                 }
 
