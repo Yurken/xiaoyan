@@ -17,6 +17,7 @@ mod state;
 use tauri::Manager;
 
 use commands::{
+    arxiv::arxiv_search,
     ccf::ccf_lookup,
     chat::{
         chat_delete_session, chat_get_session, chat_list_agent_runs, chat_list_sessions,
@@ -125,6 +126,8 @@ pub fn run() {
             papers_reproduce,
             // CCF
             ccf_lookup,
+            // arXiv
+            arxiv_search,
             // Knowledge
             knowledge_list_interests,
             knowledge_create_interest,
