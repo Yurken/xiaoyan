@@ -333,6 +333,8 @@ export default function InterestsPanel() {
         <div className="space-y-3">
           {interests.map((interest) => {
             const profileHighlights = summarizeProfile(interest);
+            const agents = agentsByInterest[interest.id] || [];
+            const hasRunningAgent = agents.some((agent) => agent.status === "running");
 
             return (
               <Card key={interest.id} padding="sm" className="space-y-0">
@@ -412,35 +414,64 @@ export default function InterestsPanel() {
                   </div>
                 </div>
 
-                {(agentsByInterest[interest.id]?.length || 0) > 0 && (
+                {agents.length > 0 && (
                   <div className="mt-4 border-t border-nm-dark/10 pt-4">
-                    <div className="mb-2 flex items-center gap-1.5">
-                      <GitBranch className="h-3.5 w-3.5 text-apple-blue" />
-                      <p className="text-xs font-semibold text-ink-primary">规划 Agent 协作（白盒）</p>
-                    </div>
-                    <div className="grid gap-2 lg:grid-cols-3">
-                      {(agentsByInterest[interest.id] || []).map((agent) => (
-                        <div
-                          key={agent.id}
-                          className="rounded-2xl p-3"
-                          style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-semibold text-ink-primary">{agent.name}</p>
-                              <p className="truncate text-[11px] text-ink-tertiary">{agent.role}</p>
-                            </div>
-                            <Badge variant={agent.status === "done" ? "success" : agent.status === "failed" ? "danger" : "info"}>
-                              {agent.status === "done" ? "完成" : agent.status === "failed" ? "失败" : "运行中"}
-                            </Badge>
+                    <div className="agent-flow-shell">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <GitBranch className="h-3.5 w-3.5 text-apple-blue" />
+                            <p className="text-xs font-semibold text-ink-primary">规划 Agent 协作流程</p>
                           </div>
-                          {(agent.summary || agent.error) && (
-                            <p className={`mt-2 text-[11px] leading-5 ${agent.error ? "text-apple-red" : "text-ink-secondary"}`}>
-                              {agent.error || agent.summary}
-                            </p>
-                          )}
+                          <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">
+                            实时展示主题分析、文献侦察与路线生成的接力状态。
+                          </p>
                         </div>
-                      ))}
+                        <span className="text-[11px] text-ink-tertiary">
+                          {hasRunningAgent ? "协作进行中" : "阶段结果已同步"}
+                        </span>
+                      </div>
+
+                      <div className="agent-flow-track" aria-hidden="true">
+                        <span className="agent-flow-track__line" />
+                        <span className={`agent-flow-track__signal${hasRunningAgent ? "" : " is-idle"}`} />
+                      </div>
+
+                      <div className="agent-flow-grid">
+                        {agents.map((agent, index) => (
+                          <div key={agent.id} className={`agent-flow-card agent-flow-card--${agent.status}`}>
+                            <span
+                              className="agent-flow-card__beam"
+                              aria-hidden="true"
+                              style={{ animationDelay: `${index * 140}ms` }}
+                            />
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="agent-flow-card__meta">
+                                  <span className="agent-flow-step">{String(index + 1).padStart(2, "0")}</span>
+                                  <span className={`agent-flow-dot agent-flow-dot--${agent.status}`} aria-hidden="true" />
+                                </div>
+                                <p className="mt-3 truncate text-sm font-semibold text-ink-primary">{agent.name}</p>
+                                <p className="mt-1 truncate text-[11px] text-ink-tertiary">{agent.role}</p>
+                              </div>
+                              <Badge variant={agent.status === "done" ? "success" : agent.status === "failed" ? "danger" : "info"}>
+                                {agent.status === "done" ? "完成" : agent.status === "failed" ? "失败" : "运行中"}
+                              </Badge>
+                            </div>
+
+                            <p className={`mt-3 text-[11px] leading-5 ${agent.error ? "text-apple-red" : "text-ink-secondary"}`}>
+                              {agent.error || agent.summary || "等待该 Agent 输出阶段性结论。"}
+                            </p>
+
+                            <div className="agent-flow-progress" aria-hidden="true">
+                              <span
+                                className="agent-flow-progress__bar"
+                                style={{ animationDelay: `${index * 140}ms` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}

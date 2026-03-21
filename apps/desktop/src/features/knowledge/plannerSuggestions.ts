@@ -32,6 +32,46 @@ interface DomainSuggestionProfile {
   outputs: string[];
 }
 
+const BACKGROUND_HINT_POSITIVE_TOKENS = [
+  "基础",
+  "学过",
+  "熟悉",
+  "了解",
+  "做过",
+  "经验",
+  "掌握",
+  "背景",
+  "读过",
+  "看过",
+  "复现过",
+  "训练过",
+  "实现过",
+  "会用",
+  "用过",
+  "数学",
+  "编程",
+  "pytorch",
+  "transformer",
+  "benchmark",
+];
+
+const BACKGROUND_HINT_NEGATIVE_TOKENS = [
+  "twitter",
+  "weibo",
+  "douban",
+  "评价指标",
+  "实验设计",
+  "实验设置",
+  "应用场景",
+  "任务定义",
+  "真实数据",
+  "真实场景",
+  "使用什么",
+  "选择什么",
+  "哪些基线",
+  "哪种基线",
+];
+
 export interface PlannerSuggestionState {
   matchedDomains: string[];
   nextField: DraftField;
@@ -58,8 +98,8 @@ const DOMAIN_PROFILES: DomainSuggestionProfile[] = [
       "先完成领域综述，再收敛到可执行的实验路线",
     ],
     backgroundPrompts: [
-      "你是否已具备深度学习、NLP、Transformer 和 PyTorch 的基础？",
-      "你更熟悉模型训练、推理系统，还是评测与数据构建？",
+      "已学过深度学习、NLP、Transformer 和 PyTorch",
+      "更熟悉模型训练、推理系统或评测与数据构建",
     ],
     timeBudgets: ["4-6 周：快速入门与论文扫描", "8-12 周：完成综述与复现", "3-6 个月：形成实验路线"],
     constraints: ["单卡 24G 显存以内", "中文资料优先", "开源模型优先", "可复现优先"],
@@ -76,8 +116,8 @@ const DOMAIN_PROFILES: DomainSuggestionProfile[] = [
       "比较主流 VLM 架构差异，找出可复现且有扩展空间的方向",
     ],
     backgroundPrompts: [
-      "你是否已经做过图像分类、视觉表征学习或多模态数据处理？",
-      "你更关注模型架构、数据对齐，还是应用场景验证？",
+      "做过图像分类、视觉表征学习或多模态数据处理",
+      "更关注模型架构、数据对齐或应用场景验证",
     ],
     timeBudgets: ["6-8 周：任务入门与论文梳理", "10-12 周：复现主流 baseline", "4-6 个月：扩展实验"],
     constraints: ["需要公开数据集", "优先轻量模型", "单机训练", "应用场景明确"],
@@ -94,8 +134,8 @@ const DOMAIN_PROFILES: DomainSuggestionProfile[] = [
       "梳理图学习与生物任务结合的范式，并锁定可复现 baseline",
     ],
     backgroundPrompts: [
-      "你是否熟悉图神经网络基础、分子表示和常见药物发现数据集？",
-      "你更想做性质预测、交互预测，还是生成与设计？",
+      "熟悉图神经网络基础、分子表示和常见药物发现数据集",
+      "更想做性质预测、交互预测或生成设计",
     ],
     timeBudgets: ["6-8 周：补足图学习与生物背景", "8-12 周：复现公开 benchmark", "3-6 个月：设计扩展实验"],
     constraints: ["公开 benchmark 优先", "不依赖湿实验", "单人可完成", "评价指标明确"],
@@ -112,8 +152,8 @@ const DOMAIN_PROFILES: DomainSuggestionProfile[] = [
       "聚焦泛化、长序列建模或异常检测，形成实验问题",
     ],
     backgroundPrompts: [
-      "你是否熟悉统计预测方法、深度学习和常见时序 benchmark？",
-      "你更偏基础模型、业务场景还是系统部署？",
+      "熟悉统计预测方法、深度学习和常见时序 benchmark",
+      "更偏基础模型研究、业务场景理解或系统部署",
     ],
     timeBudgets: ["4-6 周：任务和 benchmark 入门", "8-10 周：复现与对比实验", "3-4 个月：深入一个问题"],
     constraints: ["公开数据优先", "指标可复现", "长序列场景优先", "低算力可跑"],
@@ -143,6 +183,24 @@ function includesToken(haystack: string, token: string) {
 
 function unique(values: string[]) {
   return [...new Set(values.filter((value) => value.trim().length > 0))];
+}
+
+function sanitizeBackgroundPrompts(values: string[]) {
+  return unique(values).filter((value) => {
+    const text = normalize(value);
+
+    if (/[?？]/.test(value)) {
+      return false;
+    }
+
+    const hasPositiveSignal = BACKGROUND_HINT_POSITIVE_TOKENS.some((token) => includesToken(text, token));
+    if (!hasPositiveSignal) {
+      return false;
+    }
+
+    const hasNegativeSignal = BACKGROUND_HINT_NEGATIVE_TOKENS.some((token) => includesToken(text, token));
+    return !hasNegativeSignal;
+  });
 }
 
 export function isDraftField(value: string): value is DraftField {
@@ -214,7 +272,7 @@ export function buildPlannerSuggestions(draft: PlannerDraft): PlannerSuggestionS
     ...profiles.flatMap((profile) => profile.goals),
   ]);
 
-  const backgroundPrompts = unique([
+  const backgroundPrompts = sanitizeBackgroundPrompts([
     ...profiles.flatMap((profile) => profile.backgroundPrompts),
   ]);
 
@@ -270,6 +328,7 @@ export function mergePlannerSuggestions(
   if (!ai) return fallback;
 
   const nextField = ai.nextField ?? fallback.nextField;
+  const backgroundPrompts = sanitizeBackgroundPrompts(ai.backgroundPrompts);
 
   return {
     matchedDomains: unique([...ai.matchedDomains, ...fallback.matchedDomains]),
@@ -278,7 +337,7 @@ export function mergePlannerSuggestions(
     summary: ai.summary || fallback.summary,
     keywordSuggestions: ai.keywordSuggestions.length > 0 ? ai.keywordSuggestions : fallback.keywordSuggestions,
     goalSuggestions: ai.goalSuggestions.length > 0 ? ai.goalSuggestions : fallback.goalSuggestions,
-    backgroundPrompts: ai.backgroundPrompts.length > 0 ? ai.backgroundPrompts : fallback.backgroundPrompts,
+    backgroundPrompts: backgroundPrompts.length > 0 ? backgroundPrompts : fallback.backgroundPrompts,
     timeBudgetSuggestions: ai.timeBudgetSuggestions.length > 0 ? ai.timeBudgetSuggestions : fallback.timeBudgetSuggestions,
     constraintSuggestions: ai.constraintSuggestions.length > 0 ? ai.constraintSuggestions : fallback.constraintSuggestions,
     knownContextSuggestions: ai.knownContextSuggestions.length > 0 ? ai.knownContextSuggestions : fallback.knownContextSuggestions,

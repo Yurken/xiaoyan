@@ -117,6 +117,8 @@ const INTEREST_HINT_PROMPT: &str = r#"请根据下面这个“正在填写中的
 4. 每个数组最多 6 项，尽量短、可直接点击、避免长句。
 5. 若研究主题与大模型/LLM 相关，关键词建议通常要优先覆盖 LLM、Deep Learning、Transformer、Alignment、RLHF、RAG、Reasoning、Evaluation 中合适的项，但仍然要结合用户已经填写的内容过滤不合适项。
 6. 在信息不足时，优先顺序通常是：topic -> keywords -> goal -> background -> time_budget -> constraints -> known_context -> preferred_output；但如果你认为某个后续字段更关键，可以调整。
+7. background_prompts 只能写“当前基础可补充的信息”或“可直接填写的短语模板”，例如“学过深度学习与 PyTorch”“做过时序预测 benchmark 复现”。不要写成问句，不要写数据集选择、baseline 比较、实验设计、评价指标等内容。
+8. constraint_suggestions 才适合出现算力、公开数据、中文资料优先等限制；known_context_suggestions 才适合出现论文、模型、baseline 名称。
 
 只返回合法 JSON，不要包含 markdown、解释或代码块：
 {

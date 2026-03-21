@@ -363,6 +363,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
                 />
                 {suggestions.backgroundPrompts.length > 0 && (
                   <div className="mt-3 space-y-2">
+                    <p className="text-[11px] leading-5 text-ink-tertiary">可补充这些基础信息：</p>
                     {suggestions.backgroundPrompts.slice(0, 2).map((prompt) => (
                       <button
                         key={prompt}

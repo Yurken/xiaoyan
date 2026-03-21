@@ -177,7 +177,7 @@ export default function PlannerPage() {
       {(workflow.length > 0 || loading) && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>规划 Agent 协作（白盒）</CardTitle>
+            <CardTitle>规划 Agent 协作流程</CardTitle>
             <GitBranch className="w-4 h-4 text-gray-400" />
           </CardHeader>
           <div className="space-y-2.5">

@@ -48,4 +48,312 @@
     background: rgba(0, 122, 255, 0.2);
     color: #1C1C1E;
   }
+
+  .agent-flow-shell {
+    position: relative;
+    overflow: hidden;
+    border-radius: 28px;
+    border: 1px solid rgba(10, 132, 193, 0.12);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.42));
+    padding: 16px;
+    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.72), 0 14px 28px rgba(114, 128, 145, 0.08);
+    backdrop-filter: blur(18px);
+  }
+
+  .agent-flow-shell::before {
+    content: "";
+    position: absolute;
+    inset: -20% auto auto -12%;
+    width: 220px;
+    height: 220px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(10, 132, 193, 0.16), transparent 68%);
+    pointer-events: none;
+  }
+
+  .agent-flow-shell::after {
+    content: "";
+    position: absolute;
+    inset: auto -10% -30% auto;
+    width: 240px;
+    height: 240px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(52, 199, 89, 0.12), transparent 70%);
+    pointer-events: none;
+  }
+
+  .agent-flow-track {
+    position: relative;
+    margin: 12px 0 16px;
+    height: 28px;
+  }
+
+  .agent-flow-track__line {
+    position: absolute;
+    top: 50%;
+    left: 10px;
+    right: 10px;
+    height: 1px;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg, rgba(10, 132, 193, 0.14), rgba(10, 132, 193, 0.4), rgba(52, 199, 89, 0.18));
+  }
+
+  .agent-flow-track__signal {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 88px;
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(126, 208, 255, 0), rgba(126, 208, 255, 0.8), rgba(10, 132, 193, 0.12));
+    transform: translate(-100%, -50%);
+    filter: blur(0.4px);
+    animation: agentBeam 2.8s linear infinite;
+    pointer-events: none;
+  }
+
+  .agent-flow-track__signal.is-idle {
+    width: 56px;
+    opacity: 0.45;
+    transform: translate(0, -50%);
+    animation: none;
+  }
+
+  .agent-flow-grid {
+    position: relative;
+    display: grid;
+    gap: 12px;
+  }
+
+  .agent-flow-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    background: rgba(255, 255, 255, 0.56);
+    padding: 14px;
+    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.72), 0 12px 26px rgba(114, 128, 145, 0.08);
+    backdrop-filter: blur(14px);
+  }
+
+  .agent-flow-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid transparent;
+    background: linear-gradient(135deg, rgba(126, 208, 255, 0.3), rgba(255, 255, 255, 0)) border-box;
+    opacity: 0.7;
+    pointer-events: none;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) padding-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  .agent-flow-card::after {
+    content: "";
+    position: absolute;
+    inset: auto auto -50% -20%;
+    width: 160px;
+    height: 160px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(10, 132, 193, 0.1), transparent 70%);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .agent-flow-card--running {
+    border-color: rgba(10, 132, 193, 0.28);
+    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.78), 0 14px 32px rgba(10, 132, 193, 0.12);
+  }
+
+  .agent-flow-card--done {
+    border-color: rgba(52, 199, 89, 0.22);
+  }
+
+  .agent-flow-card--failed {
+    border-color: rgba(255, 59, 48, 0.22);
+  }
+
+  .agent-flow-card__beam {
+    position: absolute;
+    top: -38%;
+    left: -40%;
+    width: 44%;
+    height: 180%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0));
+    opacity: 0;
+    transform: rotate(18deg);
+    pointer-events: none;
+  }
+
+  .agent-flow-card--running .agent-flow-card__beam {
+    opacity: 0.95;
+    animation: agentCardSweep 2.4s ease-in-out infinite;
+  }
+
+  .agent-flow-card__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .agent-flow-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(10, 132, 193, 0.1);
+    color: #0A84C1;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+
+  .agent-flow-dot {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  .agent-flow-dot::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: inherit;
+    opacity: 0;
+  }
+
+  .agent-flow-dot--running {
+    background: #0A84C1;
+    box-shadow: 0 0 0 5px rgba(10, 132, 193, 0.12);
+  }
+
+  .agent-flow-dot--running::after {
+    background: rgba(10, 132, 193, 0.22);
+    animation: agentPulse 1.8s ease-out infinite;
+    opacity: 1;
+  }
+
+  .agent-flow-dot--done {
+    background: #34C759;
+    box-shadow: 0 0 0 5px rgba(52, 199, 89, 0.12);
+  }
+
+  .agent-flow-dot--failed {
+    background: #FF3B30;
+    box-shadow: 0 0 0 5px rgba(255, 59, 48, 0.12);
+  }
+
+  .agent-flow-progress {
+    margin-top: 12px;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(200, 205, 211, 0.46);
+  }
+
+  .agent-flow-progress__bar {
+    display: block;
+    height: 100%;
+    width: 42%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #7ED0FF, #0A84C1, #7ED0FF);
+    background-size: 200% 100%;
+  }
+
+  .agent-flow-card--running .agent-flow-progress__bar {
+    animation: agentProgress 1.8s ease-in-out infinite;
+  }
+
+  .agent-flow-card--done .agent-flow-progress__bar {
+    width: 100%;
+    background: linear-gradient(90deg, #8DE3A7, #34C759);
+  }
+
+  .agent-flow-card--failed .agent-flow-progress__bar {
+    width: 68%;
+    background: linear-gradient(90deg, #FFB7B2, #FF3B30);
+  }
+
+  @media (min-width: 1024px) {
+    .agent-flow-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .agent-flow-track__signal,
+    .agent-flow-card__beam,
+    .agent-flow-dot--running::after,
+    .agent-flow-card--running .agent-flow-progress__bar {
+      animation: none !important;
+    }
+  }
+}
+
+@keyframes agentPulse {
+  0% {
+    transform: scale(0.72);
+    opacity: 0.6;
+  }
+
+  70% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+@keyframes agentBeam {
+  0% {
+    left: 0;
+    opacity: 0;
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  100% {
+    left: calc(100% - 88px);
+    opacity: 0;
+  }
+}
+
+@keyframes agentCardSweep {
+  0% {
+    transform: translateX(0) rotate(18deg);
+  }
+
+  100% {
+    transform: translateX(300%) rotate(18deg);
+  }
+}
+
+@keyframes agentProgress {
+  0% {
+    width: 36%;
+    background-position: 0% 50%;
+  }
+
+  50% {
+    width: 76%;
+    background-position: 100% 50%;
+  }
+
+  100% {
+    width: 36%;
+    background-position: 0% 50%;
+  }
 }
