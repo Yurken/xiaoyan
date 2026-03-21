@@ -1,15 +1,29 @@
-import { Routes, Route, NavLink, Navigate } from "react-router-dom";
-import { FileText, MessageSquare, BookOpen, Settings as SettingsIcon } from "lucide-react";
+import { Routes, Route, NavLink } from "react-router-dom";
+import {
+  BookOpen,
+  FileText,
+  LayoutDashboard,
+  Library,
+  Map,
+  MessageSquare,
+  Settings as SettingsIcon,
+} from "lucide-react";
+import Home from "./pages/Home";
+import Planner from "./pages/Planner";
+import Survey from "./pages/Survey";
 import Papers from "./pages/Papers";
 import Copilot from "./pages/Copilot";
 import Knowledge from "./pages/Knowledge";
 import Settings from "./pages/Settings";
 
 const navItems = [
-  { to: "/papers",    icon: FileText,       label: "论文库" },
-  { to: "/copilot",   icon: MessageSquare,  label: "Copilot" },
-  { to: "/knowledge", icon: BookOpen,       label: "知识库" },
-  { to: "/settings",  icon: SettingsIcon,   label: "设置" },
+  { to: "/",          icon: LayoutDashboard, label: "工作台" },
+  { to: "/planner",   icon: Map,             label: "规划" },
+  { to: "/survey",    icon: BookOpen,        label: "综述" },
+  { to: "/papers",    icon: FileText,        label: "论文" },
+  { to: "/knowledge", icon: Library,         label: "知识" },
+  { to: "/copilot",   icon: MessageSquare,   label: "Copilot" },
+  { to: "/settings",  icon: SettingsIcon,    label: "设置" },
 ];
 
 export default function App() {
@@ -24,21 +38,24 @@ export default function App() {
         }}
       >
         {/* Logo */}
-        <div
-          className="w-11 h-11 rounded-2xl mb-4 flex items-center justify-center text-white text-base font-bold"
-          style={{
-            background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-            boxShadow: "5px 5px 12px rgba(0,62,204,0.4), -3px -3px 8px rgba(58,155,255,0.25)",
-          }}
-        >
-          智
-        </div>
+        <NavLink to="/" title="工作台" className="mb-4">
+          <div
+            className="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-base font-bold"
+            style={{
+              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+              boxShadow: "5px 5px 12px rgba(0,62,204,0.4), -3px -3px 8px rgba(58,155,255,0.25)",
+            }}
+          >
+            智
+          </div>
+        </NavLink>
 
         {/* Nav items */}
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
+            end={to === "/"}
             title={label}
             className={({ isActive }) =>
               isActive
@@ -87,7 +104,9 @@ export default function App() {
       {/* Main content */}
       <main className="flex-1 min-w-0 overflow-hidden">
         <Routes>
-          <Route path="/"           element={<Navigate to="/papers" replace />} />
+          <Route path="/"           element={<Home />} />
+          <Route path="/planner"    element={<Planner />} />
+          <Route path="/survey"     element={<Survey />} />
           <Route path="/papers"     element={<Papers />} />
           <Route path="/copilot"    element={<Copilot />} />
           <Route path="/knowledge"  element={<Knowledge />} />

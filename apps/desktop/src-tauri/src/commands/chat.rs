@@ -223,14 +223,56 @@ async fn run_chat(
         run_simple(app, &client, settings, request_id, message, &history).await?
     };
 
+    let sources = collect_sources(db, settings, message).await;
+    let sources_json = if sources.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&sources)?)
+    };
+
     let msg_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
-    sqlx::query("INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, 'assistant', ?, ?)")
-        .bind(&msg_id).bind(session_id).bind(&full).bind(&now)
+    sqlx::query("INSERT INTO chat_messages (id, session_id, role, content, sources, created_at) VALUES (?, ?, 'assistant', ?, ?, ?)")
+        .bind(&msg_id).bind(session_id).bind(&full).bind(&sources_json).bind(&now)
         .execute(db).await?;
 
+    if !sources.is_empty() {
+        let _ = app.emit("chat:sources", json!({ "request_id": request_id, "value": sources }));
+    }
     let _ = app.emit("chat:done", json!({ "request_id": request_id }));
     Ok(())
+}
+
+async fn collect_sources(
+    db: &sqlx::SqlitePool,
+    settings: &HashMap<String, String>,
+    message: &str,
+) -> Vec<serde_json::Value> {
+    let embed_client = match LlmClient::embed_client_from_settings(settings) {
+        Ok(client) => client,
+        Err(_) => return Vec::new(),
+    };
+
+    let embeddings = match embed_client.embed(&[message.to_string()]).await {
+        Ok(value) => value,
+        Err(_) => return Vec::new(),
+    };
+
+    let embedding = match embeddings.into_iter().next() {
+        Some(value) => value,
+        None => return Vec::new(),
+    };
+
+    let top_k = settings.get("rag_top_k").and_then(|v| v.parse().ok()).unwrap_or(5);
+    let results = match combined_search(db, &embedding, top_k).await {
+        Ok(value) => value,
+        Err(_) => return Vec::new(),
+    };
+
+    results
+        .into_iter()
+        .map(|item| json!({ "content": item.content, "source": item.source }))
+        .collect()
 }
 
 async fn run_simple(
