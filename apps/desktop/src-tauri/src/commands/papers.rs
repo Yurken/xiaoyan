@@ -167,7 +167,7 @@ pub async fn papers_upload(
     tokio::spawn(async move {
         let chunks = chunk_text(&text, chunk_size, chunk_overlap);
         let contents: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
-        let embeddings: Option<Vec<Vec<f32>>> = if let Ok(client) = LlmClient::from_settings(&settings) {
+        let embeddings: Option<Vec<Vec<f32>>> = if let Ok(client) = LlmClient::embed_client_from_settings(&settings) {
             client.embed(&contents).await.ok()
         } else {
             None

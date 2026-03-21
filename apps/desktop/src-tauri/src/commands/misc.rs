@@ -84,20 +84,24 @@ pub async fn survey_generate(
         };
 
         // Try RAG: embed query and search papers
-        let rag_context = if let Ok(embeddings) = client.embed(&[query.clone()]).await {
-            if let Some(emb) = embeddings.into_iter().next() {
-                let top_k = max_papers.unwrap_or(10) as usize;
-                crate::rag::combined_search(&db, &emb, top_k)
-                    .await
-                    .ok()
-                    .map(|results| {
-                        results
-                            .iter()
-                            .map(|r| format!("【{}】\n{}", r.source, r.content))
-                            .collect::<Vec<_>>()
-                            .join("\n\n")
-                    })
-                    .unwrap_or_default()
+        let rag_context = if let Ok(embed_client) = LlmClient::embed_client_from_settings(&settings) {
+            if let Ok(embeddings) = embed_client.embed(&[query.clone()]).await {
+                if let Some(emb) = embeddings.into_iter().next() {
+                    let top_k = max_papers.unwrap_or(10) as usize;
+                    crate::rag::combined_search(&db, &emb, top_k)
+                        .await
+                        .ok()
+                        .map(|results| {
+                            results
+                                .iter()
+                                .map(|r| format!("【{}】\n{}", r.source, r.content))
+                                .collect::<Vec<_>>()
+                                .join("\n\n")
+                        })
+                        .unwrap_or_default()
+                } else {
+                    String::new()
+                }
             } else {
                 String::new()
             }
@@ -141,8 +145,8 @@ pub async fn survey_search(
     let settings = state.settings.read().await.clone();
 
     // Try semantic search
-    if let Ok(client) = LlmClient::from_settings(&settings) {
-        if let Ok(embeddings) = client.embed(&[query.clone()]).await {
+    if let Ok(embed_client) = LlmClient::embed_client_from_settings(&settings) {
+        if let Ok(embeddings) = embed_client.embed(&[query.clone()]).await {
             if let Some(emb) = embeddings.into_iter().next() {
                 let results = crate::rag::search_paper_chunks(&state.db, &emb, None, limit)
                     .await

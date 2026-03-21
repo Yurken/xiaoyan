@@ -378,12 +378,14 @@ async fn execute_agent(
 ) -> anyhow::Result<String> {
     match agent_name {
         "retrieval" => {
-            if let Ok(embeddings) = client.embed(&[message.to_string()]).await {
-                if let Some(emb) = embeddings.into_iter().next() {
-                    let top_k: usize = settings.get("rag_top_k").and_then(|v| v.parse().ok()).unwrap_or(5);
-                    let results = combined_search(db, &emb, top_k).await.unwrap_or_default();
-                    if results.is_empty() { return Ok(String::new()); }
-                    return Ok(results.iter().map(|r| format!("来源：{}\n{}", r.source, r.content)).collect::<Vec<_>>().join("\n\n"));
+            if let Ok(embed_client) = LlmClient::embed_client_from_settings(settings) {
+                if let Ok(embeddings) = embed_client.embed(&[message.to_string()]).await {
+                    if let Some(emb) = embeddings.into_iter().next() {
+                        let top_k: usize = settings.get("rag_top_k").and_then(|v| v.parse().ok()).unwrap_or(5);
+                        let results = combined_search(db, &emb, top_k).await.unwrap_or_default();
+                        if results.is_empty() { return Ok(String::new()); }
+                        return Ok(results.iter().map(|r| format!("来源：{}\n{}", r.source, r.content)).collect::<Vec<_>>().join("\n\n"));
+                    }
                 }
             }
             Ok(String::new())

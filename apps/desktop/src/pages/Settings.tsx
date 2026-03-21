@@ -156,6 +156,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   openai_compatible_api_key: "",
   openai_compatible_chat_model: "deepseek-chat",
   openai_compatible_embedding_model: "BAAI/bge-m3",
+  embedding_base_url: "",
+  embedding_api_key: "",
+  embedding_model: "",
   chunk_size: "800",
   chunk_overlap: "150",
   rag_top_k: "5",
@@ -270,7 +273,7 @@ export default function Settings() {
         </div>
         <div className="flex items-center gap-2">
           {/* 测试连接 */}
-          <div className="flex flex-col items-end gap-0.5">
+          <div className="relative">
             <button
               onClick={handleTestConnection}
               disabled={testState === "testing" || loading}
@@ -291,8 +294,8 @@ export default function Settings() {
               {testState === "testing" ? "测试中…" : testState === "ok" ? "连接正常" : testState === "error" ? "连接失败" : "测试连接"}
             </button>
             {testMsg && (
-              <span className={`text-xs max-w-[220px] truncate ${testState === "error" ? "text-red-500" : "text-green-600"}`}>
-                {testMsg}
+              <span className={`absolute top-full left-0 mt-0.5 text-xs whitespace-nowrap ${testState === "error" ? "text-red-500" : "text-green-600"}`}>
+                {testMsg.slice(0, 30)}
               </span>
             )}
           </div>
@@ -379,12 +382,6 @@ export default function Settings() {
                   onChange={set("openai_compatible_chat_model")}
                   placeholder="qwen-plus / deepseek-chat"
                 />
-                <SettingInput
-                  label="Embedding 模型"
-                  value={form.openai_compatible_embedding_model}
-                  onChange={set("openai_compatible_embedding_model")}
-                  placeholder="text-embedding-v3"
-                />
               </div>
             )}
 
@@ -409,12 +406,6 @@ export default function Settings() {
                   value={form.openai_chat_model}
                   onChange={set("openai_chat_model")}
                   placeholder="gpt-4o-mini"
-                />
-                <SettingInput
-                  label="Embedding 模型"
-                  value={form.openai_embedding_model}
-                  onChange={set("openai_embedding_model")}
-                  placeholder="text-embedding-3-small"
                 />
               </div>
             )}
@@ -452,6 +443,42 @@ export default function Settings() {
           </>
         )}
       </Card>
+
+      {/* ── Embedding Provider ───────────────────── */}
+      {!loading && !loadError && (
+        <Card padding="md" className="space-y-4">
+          <div className="flex items-center gap-3">
+            <SectionIcon icon={Database} color="#5856D6" />
+            <div>
+              <h2 className="text-sm font-semibold text-ink-primary">独立 Embedding 接口（可选）</h2>
+              <p className="text-xs text-ink-tertiary mt-0.5">填写后将使用此接口进行向量化，留空则沿用上方 AI 服务的 Embedding 模型</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <SettingInput
+              label="Embedding Base URL"
+              value={form.embedding_base_url}
+              onChange={set("embedding_base_url")}
+              placeholder="https://api.openai.com/v1"
+            />
+            <SettingInput
+              label="Embedding API Key"
+              value={form.embedding_api_key}
+              onChange={set("embedding_api_key")}
+              placeholder="sk-..."
+              sensitive
+              hint="留空或输入 *** 表示不更改"
+            />
+            <SettingInput
+              label="Embedding 模型"
+              value={form.embedding_model}
+              onChange={set("embedding_model")}
+              placeholder="text-embedding-3-small"
+              hint="留空将使用默认模型 text-embedding-3-small"
+            />
+          </div>
+        </Card>
+      )}
 
       {/* ── RAG Settings ─────────────────────────── */}
       {!loading && !loadError && (
