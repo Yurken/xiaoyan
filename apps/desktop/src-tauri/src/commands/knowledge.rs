@@ -1,4 +1,4 @@
-use crate::llm::{LlmClient, LlmMessage};
+use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{combined_search, serialize_embedding};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -182,7 +182,9 @@ pub async fn knowledge_generate_plan(
             .replace("{keywords}", &keywords.join("、"))
             + &profile_to_analysis_context(&profile);
         let analyst_msgs = vec![LlmMessage::system(PLANNER_ANALYST_SYSTEM), LlmMessage::user(&analyst_prompt)];
-        let analysis_json = match client.chat(&analyst_msgs, None, 0.2).await {
+        let analyst_model = resolve_model(&settings, &["planner_analysis_model"]);
+        let analyst_temperature = resolve_temperature(&settings, "planner_analysis_temperature", 0.2);
+        let analysis_json = match client.chat(&analyst_msgs, analyst_model.as_deref(), analyst_temperature).await {
             Ok(resp) => {
                 let clean = crate::commands::papers::extract_json_pub(&resp);
                 let parsed = serde_json::from_str::<serde_json::Value>(&clean).unwrap_or(json!({}));
@@ -288,8 +290,10 @@ pub async fn knowledge_generate_plan(
             analysis_focus,
             if paper_hints.is_empty() { "无".to_string() } else { paper_hints.join("；") }
         );
+        let designer_model = resolve_model(&settings, &["planner_generation_model"]);
+        let designer_temperature = resolve_temperature(&settings, "planner_generation_temperature", 0.3);
         let msgs = vec![LlmMessage::system(PLANNER_SYSTEM), LlmMessage::user(&prompt)];
-        match client.chat(&msgs, None, 0.3).await {
+        match client.chat(&msgs, designer_model.as_deref(), designer_temperature).await {
             Ok(resp) => {
                 let clean = crate::commands::papers::extract_json_pub(&resp);
                 let v: serde_json::Value = serde_json::from_str(&clean).unwrap_or_default();
@@ -360,7 +364,12 @@ pub async fn knowledge_generate_interest_hints(
         LlmMessage::system(INTEREST_HINT_SYSTEM),
         LlmMessage::user(prompt),
     ];
-    let response = client.chat(&messages, None, 0.2).await.map_err(|e| e.to_string())?;
+    let hint_model = resolve_model(&settings, &["planner_hint_model"]);
+    let hint_temperature = resolve_temperature(&settings, "planner_hint_temperature", 0.2);
+    let response = client
+        .chat(&messages, hint_model.as_deref(), hint_temperature)
+        .await
+        .map_err(|e| e.to_string())?;
     let clean = crate::commands::papers::extract_json_pub(&response);
     let parsed: serde_json::Value = serde_json::from_str(&clean).map_err(|e| format!("Failed to parse interest hints JSON: {e}"))?;
 
