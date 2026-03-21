@@ -32,6 +32,22 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("embedding_api_key".into(), "".into());
     m.insert("embedding_model".into(), "".into());
     m.insert("semantic_scholar_api_key".into(), "".into());
+    m.insert("planner_hint_model".into(), "".into());
+    m.insert("planner_hint_temperature".into(), "0.2".into());
+    m.insert("planner_analysis_model".into(), "".into());
+    m.insert("planner_analysis_temperature".into(), "0.2".into());
+    m.insert("planner_generation_model".into(), "".into());
+    m.insert("planner_generation_temperature".into(), "0.3".into());
+    m.insert("survey_planner_model".into(), "".into());
+    m.insert("survey_planner_temperature".into(), "0.2".into());
+    m.insert("survey_writer_model".into(), "".into());
+    m.insert("survey_writer_temperature".into(), "0.3".into());
+    m.insert("paper_analysis_model".into(), "".into());
+    m.insert("paper_analysis_temperature".into(), "0.3".into());
+    m.insert("paper_reproduction_model".into(), "".into());
+    m.insert("paper_reproduction_temperature".into(), "0.25".into());
+    m.insert("copilot_simple_model".into(), "".into());
+    m.insert("copilot_simple_temperature".into(), "0.4".into());
     m.insert("multi_agent_enabled".into(), "true".into());
     m.insert("multi_agent_routing_mode".into(), "hybrid".into());
     m.insert(
@@ -44,6 +60,16 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("multi_agent_supervisor_temperature".into(), "0.1".into());
     m.insert("multi_agent_worker_model".into(), "".into());
     m.insert("multi_agent_worker_temperature".into(), "0.3".into());
+    m.insert("multi_agent_planner_model".into(), "".into());
+    m.insert("multi_agent_planner_temperature".into(), "".into());
+    m.insert("multi_agent_literature_scout_model".into(), "".into());
+    m.insert("multi_agent_literature_scout_temperature".into(), "".into());
+    m.insert("multi_agent_survey_model".into(), "".into());
+    m.insert("multi_agent_survey_temperature".into(), "".into());
+    m.insert("multi_agent_paper_analyst_model".into(), "".into());
+    m.insert("multi_agent_paper_analyst_temperature".into(), "".into());
+    m.insert("multi_agent_reproduction_model".into(), "".into());
+    m.insert("multi_agent_reproduction_temperature".into(), "".into());
     m.insert("multi_agent_synthesis_model".into(), "".into());
     m.insert("multi_agent_synthesis_temperature".into(), "0.4".into());
     m

@@ -1,6 +1,7 @@
-use crate::llm::{LlmClient, LlmMessage};
+use crate::llm::{resolve_model, resolve_temperature, resolve_temperature_chain, LlmClient, LlmMessage};
 use crate::rag::combined_search;
 use crate::state::AppState;
+use serde::Deserialize;
 use serde_json::json;
 use sqlx::Row;
 use std::collections::HashMap;
@@ -286,8 +287,8 @@ async fn run_simple(
     let mut msgs = vec![LlmMessage::system("你是智研 Copilot，一个专注于学术研究的 AI 助手。请用中文回答。")];
     msgs.extend_from_slice(history);
     msgs.push(LlmMessage::user(message));
-    let temperature: f32 = settings.get("multi_agent_synthesis_temperature").and_then(|v| v.parse().ok()).unwrap_or(0.4);
-    let model = settings.get("multi_agent_synthesis_model").and_then(|m| if m.is_empty() { None } else { Some(m.clone()) });
+    let temperature = resolve_temperature(settings, "copilot_simple_temperature", 0.4);
+    let model = resolve_model(settings, &["copilot_simple_model"]);
     let rid = request_id.to_string();
     let app = app.clone();
     client.stream_chat(&msgs, model.as_deref(), temperature, move |delta| {
@@ -307,14 +308,30 @@ async fn run_agentic(
     context_id: &Option<String>,
     history: &[LlmMessage],
 ) -> anyhow::Result<String> {
-    let enabled: Vec<&str> = settings
+    let enabled: Vec<String> = settings
         .get("multi_agent_enabled_agents")
         .map(|v| v.as_str())
         .unwrap_or("retrieval,synthesis")
-        .split(',').map(|s| s.trim()).collect();
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
 
     let max_steps: usize = settings.get("multi_agent_max_steps").and_then(|v| v.parse().ok()).unwrap_or(4);
-    let selected = select_agents(message, context_type, &enabled, max_steps);
+    let routing_mode = settings
+        .get("multi_agent_routing_mode")
+        .map(|value| value.as_str())
+        .unwrap_or("hybrid");
+    let selected = select_agents(
+        client,
+        settings,
+        message,
+        context_type,
+        &enabled,
+        max_steps,
+        routing_mode,
+    )
+    .await;
 
     let plan: Vec<serde_json::Value> = selected.iter()
         .map(|a| json!({ "agent_name": a, "title": agent_title(a), "goal": agent_goal(a) }))
@@ -322,11 +339,11 @@ async fn run_agentic(
     let _ = app.emit("chat:plan", json!({ "request_id": request_id, "plan": plan }));
 
     let mut context_parts: Vec<String> = Vec::new();
-    let worker_temp: f32 = settings.get("multi_agent_worker_temperature").and_then(|v| v.parse().ok()).unwrap_or(0.3);
-    let worker_model = settings.get("multi_agent_worker_model").and_then(|m| if m.is_empty() { None } else { Some(m.clone()) });
+    let worker_temp = resolve_temperature(settings, "multi_agent_worker_temperature", 0.3);
+    let worker_model = resolve_model(settings, &["multi_agent_worker_model"]);
 
     for (idx, agent_name) in selected.iter().enumerate() {
-        if *agent_name == "synthesis" { continue; }
+        if agent_name == "synthesis" { continue; }
 
         let run_id = Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
@@ -381,8 +398,8 @@ async fn run_agentic(
     }
 
     // Synthesis — stream
-    let synthesis_temp: f32 = settings.get("multi_agent_synthesis_temperature").and_then(|v| v.parse().ok()).unwrap_or(0.4);
-    let synthesis_model = settings.get("multi_agent_synthesis_model").and_then(|m| if m.is_empty() { None } else { Some(m.clone()) });
+    let synthesis_temp = resolve_temperature(settings, "multi_agent_synthesis_temperature", 0.4);
+    let synthesis_model = resolve_model(settings, &["multi_agent_synthesis_model"]);
     let ctx = context_parts.join("\n\n---\n\n");
     let synthesis_prompt = if ctx.is_empty() {
         message.to_string()
@@ -411,19 +428,26 @@ async fn execute_agent(
     settings: &HashMap<String, String>,
     agent_name: &str,
     message: &str,
-    context_type: &str,
+    _context_type: &str,
     context_id: &Option<String>,
     prior_context: &[String],
     _history: &[LlmMessage],
     model: Option<&str>,
     temperature: f32,
 ) -> anyhow::Result<String> {
+    let (agent_model, agent_temperature) =
+        resolve_agent_model_config(settings, agent_name, model, temperature);
+
     match agent_name {
         "retrieval" => {
             if let Ok(embed_client) = LlmClient::embed_client_from_settings(settings) {
                 if let Ok(embeddings) = embed_client.embed(&[message.to_string()]).await {
                     if let Some(emb) = embeddings.into_iter().next() {
-                        let top_k: usize = settings.get("rag_top_k").and_then(|v| v.parse().ok()).unwrap_or(5);
+                        let top_k: usize = settings
+                            .get("multi_agent_search_limit")
+                            .or_else(|| settings.get("rag_top_k"))
+                            .and_then(|v| v.parse().ok())
+                            .unwrap_or(5);
                         let results = combined_search(db, &emb, top_k).await.unwrap_or_default();
                         if results.is_empty() { return Ok(String::new()); }
                         return Ok(results.iter().map(|r| format!("来源：{}\n{}", r.source, r.content)).collect::<Vec<_>>().join("\n\n"));
@@ -437,17 +461,17 @@ async fn execute_agent(
             let preview = if text.len() > 6000 { &text[..6000] } else { &text };
             let prompt = format!("请分析以下论文内容，回答问题：「{}」\n\n论文内容：\n{}", message, preview);
             let msgs = vec![LlmMessage::system("你是一位资深论文分析专家。"), LlmMessage::user(&prompt)];
-            client.chat(&msgs, model, temperature).await
+            client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "planner" => {
             let prompt = format!("请为研究方向「{}」设计学习路径。背景：{}", message, prior_context.join("; "));
             let msgs = vec![LlmMessage::system("你是一位学术导师。"), LlmMessage::user(&prompt)];
-            client.chat(&msgs, model, temperature).await
+            client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "literature_scout" => {
             let prompt = format!("请列出与「{}」最相关的核心论文（标题、作者、年份、核心贡献）。", message);
             let msgs = vec![LlmMessage::system("你是一位文献调研专家。"), LlmMessage::user(&prompt)];
-            client.chat(&msgs, model, temperature).await
+            client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "survey" => {
             let prompt = format!(
@@ -455,14 +479,14 @@ async fn execute_agent(
                 message, prior_context.join("\n\n")
             );
             let msgs = vec![LlmMessage::system("你是一位综述写作专家。"), LlmMessage::user(&prompt)];
-            client.chat(&msgs, model, temperature).await
+            client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "reproduction" => {
             let text = paper_text(db, context_id).await;
             let preview = if text.len() > 6000 { &text[..6000] } else { &text };
             let prompt = format!("请给出论文复现指南，重点回答：「{}」\n\n论文内容：{}", message, preview);
             let msgs = vec![LlmMessage::system("你是一位 ML 工程师，专注于论文复现。"), LlmMessage::user(&prompt)];
-            client.chat(&msgs, model, temperature).await
+            client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         _ => Ok(String::new()),
     }
@@ -485,11 +509,64 @@ async fn paper_text(db: &sqlx::SqlitePool, context_id: &Option<String>) -> Strin
 
 // ── Agent selection ─────────────────────────────────────────────
 
-fn select_agents<'a>(message: &str, context_type: &str, enabled: &[&'a str], max_steps: usize) -> Vec<&'a str> {
-    fn add<'a>(list: &mut Vec<&'a str>, enabled: &[&'a str], name: &'a str) {
-        if enabled.contains(&name) && !list.contains(&name) { list.push(name); }
+#[derive(Deserialize)]
+struct RoutingDecision {
+    agents: Vec<String>,
+}
+
+async fn select_agents(
+    client: &LlmClient,
+    settings: &HashMap<String, String>,
+    message: &str,
+    context_type: &str,
+    enabled: &[String],
+    max_steps: usize,
+    routing_mode: &str,
+) -> Vec<String> {
+    let rule_selected = select_agents_by_rule(message, context_type, enabled, max_steps);
+
+    let selected = match routing_mode {
+        "rule" => rule_selected.clone(),
+        "llm" => select_agents_by_llm(
+            client,
+            settings,
+            message,
+            context_type,
+            enabled,
+            max_steps,
+            &[],
+        )
+        .await
+        .unwrap_or_else(|_| rule_selected.clone()),
+        _ => select_agents_by_llm(
+            client,
+            settings,
+            message,
+            context_type,
+            enabled,
+            max_steps,
+            &rule_selected,
+        )
+        .await
+        .unwrap_or_else(|_| rule_selected.clone()),
+    };
+
+    append_synthesis(selected, enabled)
+}
+
+fn select_agents_by_rule(
+    message: &str,
+    context_type: &str,
+    enabled: &[String],
+    max_steps: usize,
+) -> Vec<String> {
+    fn add(list: &mut Vec<String>, enabled: &[String], name: &str) {
+        if enabled.iter().any(|item| item == name) && !list.iter().any(|item| item == name) {
+            list.push(name.to_string());
+        }
     }
-    let mut agents: Vec<&'a str> = Vec::new();
+
+    let mut agents: Vec<String> = Vec::new();
     add(&mut agents, enabled, "retrieval");
     if ["研究方向","规划","学习路径","roadmap","入门","方向"].iter().any(|k| message.contains(k)) {
         add(&mut agents, enabled, "planner");
@@ -504,9 +581,196 @@ fn select_agents<'a>(message: &str, context_type: &str, enabled: &[&'a str], max
     if context_type == "paper" && ["复现","reproduce","训练","实验配置","实现"].iter().any(|k| message.contains(k)) {
         add(&mut agents, enabled, "reproduction");
     }
-    let mut result: Vec<&'a str> = agents.iter().filter(|&&a| a != "synthesis").copied().take(max_steps).collect();
-    if enabled.contains(&"synthesis") { result.push("synthesis"); }
+    normalize_selected_agents(agents, enabled, max_steps)
+}
+
+async fn select_agents_by_llm(
+    client: &LlmClient,
+    settings: &HashMap<String, String>,
+    message: &str,
+    context_type: &str,
+    enabled: &[String],
+    max_steps: usize,
+    rule_suggestion: &[String],
+) -> anyhow::Result<Vec<String>> {
+    let candidates: Vec<String> = enabled
+        .iter()
+        .filter(|item| item.as_str() != "synthesis")
+        .cloned()
+        .collect();
+
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let model = resolve_model(settings, &["multi_agent_supervisor_model"]);
+    let temperature = resolve_temperature(settings, "multi_agent_supervisor_temperature", 0.1);
+    let rule_hint = if rule_suggestion.is_empty() {
+        "无".to_string()
+    } else {
+        rule_suggestion.join("、")
+    };
+
+    let prompt = format!(
+        "请为一次科研 Copilot 对话选择最合适的专项 agent。\n\
+用户问题：{message}\n\
+上下文类型：{context_type}\n\
+可选 agent：{candidates}\n\
+最多选择：{max_steps}\n\
+规则模式建议：{rule_hint}\n\n\
+选择原则：\n\
+1. 只选择真正有帮助的 agent，不要把所有 agent 都选上。\n\
+2. 如果问题需要先找证据，再考虑选择 retrieval。\n\
+3. 只有涉及论文精读时才选择 paper_analyst，涉及复现实现时才选择 reproduction。\n\
+4. 如果是主题调研、综述或论文推荐，可考虑 literature_scout 与 survey。\n\
+5. 如果是研究路线、学习路径或选题规划，可考虑 planner。\n\n\
+请只返回 JSON，对象格式必须为 {{\"agents\": [\"agent_name\"]}}。",
+        candidates = candidates.join(", "),
+    );
+
+    let messages = vec![
+        LlmMessage::system("你是多 agent 科研助手的调度模型。你的职责是谨慎地选择最少但最有效的专项 agent。"),
+        LlmMessage::user(prompt),
+    ];
+    let response = client.chat(&messages, model.as_deref(), temperature).await?;
+    let selected = parse_routing_decision(&response).unwrap_or_default();
+    Ok(normalize_selected_agents(selected, enabled, max_steps))
+}
+
+fn parse_routing_decision(raw: &str) -> Option<Vec<String>> {
+    serde_json::from_str::<RoutingDecision>(raw)
+        .ok()
+        .or_else(|| {
+            let start = raw.find('{')?;
+            let end = raw.rfind('}')?;
+            serde_json::from_str::<RoutingDecision>(&raw[start..=end]).ok()
+        })
+        .map(|decision| decision.agents)
+}
+
+fn normalize_selected_agents(
+    selected: Vec<String>,
+    enabled: &[String],
+    max_steps: usize,
+) -> Vec<String> {
+    let mut result = Vec::new();
+
+    for agent in selected {
+        if agent == "synthesis" {
+            continue;
+        }
+        if !enabled.iter().any(|item| item == &agent) {
+            continue;
+        }
+        if result.iter().any(|item| item == &agent) {
+            continue;
+        }
+        result.push(agent);
+        if result.len() >= max_steps {
+            break;
+        }
+    }
+
+    if result.is_empty() {
+        if enabled.iter().any(|item| item == "retrieval") {
+            result.push("retrieval".to_string());
+        } else if let Some(first) = enabled.iter().find(|item| item.as_str() != "synthesis") {
+            result.push(first.clone());
+        }
+    }
+
     result
+}
+
+fn append_synthesis(mut selected: Vec<String>, enabled: &[String]) -> Vec<String> {
+    if enabled.iter().any(|item| item == "synthesis") {
+        selected.push("synthesis".to_string());
+    }
+    selected
+}
+
+fn resolve_agent_model_config(
+    settings: &HashMap<String, String>,
+    agent_name: &str,
+    default_model: Option<&str>,
+    default_temperature: f32,
+) -> (Option<String>, f32) {
+    let model = match agent_name {
+        "planner" => resolve_model(
+            settings,
+            &[
+                "multi_agent_planner_model",
+                "planner_generation_model",
+                "planner_analysis_model",
+            ],
+        ),
+        "literature_scout" => resolve_model(
+            settings,
+            &["multi_agent_literature_scout_model", "survey_planner_model"],
+        ),
+        "survey" => resolve_model(
+            settings,
+            &["multi_agent_survey_model", "survey_writer_model", "survey_planner_model"],
+        ),
+        "paper_analyst" => resolve_model(
+            settings,
+            &["multi_agent_paper_analyst_model", "paper_analysis_model"],
+        ),
+        "reproduction" => resolve_model(
+            settings,
+            &["multi_agent_reproduction_model", "paper_reproduction_model"],
+        ),
+        _ => None,
+    }
+    .or_else(|| default_model.map(|value| value.to_string()));
+
+    let temperature = match agent_name {
+        "planner" => resolve_temperature_chain(
+            settings,
+            &[
+                "multi_agent_planner_temperature",
+                "planner_generation_temperature",
+                "planner_analysis_temperature",
+            ],
+            default_temperature,
+        ),
+        "literature_scout" => resolve_temperature_chain(
+            settings,
+            &[
+                "multi_agent_literature_scout_temperature",
+                "survey_planner_temperature",
+            ],
+            default_temperature,
+        ),
+        "survey" => resolve_temperature_chain(
+            settings,
+            &[
+                "multi_agent_survey_temperature",
+                "survey_writer_temperature",
+                "survey_planner_temperature",
+            ],
+            default_temperature,
+        ),
+        "paper_analyst" => resolve_temperature_chain(
+            settings,
+            &[
+                "multi_agent_paper_analyst_temperature",
+                "paper_analysis_temperature",
+            ],
+            default_temperature,
+        ),
+        "reproduction" => resolve_temperature_chain(
+            settings,
+            &[
+                "multi_agent_reproduction_temperature",
+                "paper_reproduction_temperature",
+            ],
+            default_temperature,
+        ),
+        _ => default_temperature,
+    };
+
+    (model, temperature)
 }
 
 fn agent_title(name: &str) -> &str {

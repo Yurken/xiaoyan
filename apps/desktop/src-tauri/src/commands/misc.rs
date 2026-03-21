@@ -1,4 +1,4 @@
-use crate::llm::{LlmClient, LlmMessage};
+use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::state::AppState;
 use serde_json::json;
 use sqlx::Row;
@@ -39,7 +39,9 @@ pub async fn planner_generate(
             .replace("{topic}", &topic)
             .replace("{keywords}", &keywords.join("、"));
         let msgs = vec![LlmMessage::system(PLANNER_SYS), LlmMessage::user(&prompt)];
-        match client.chat(&msgs, None, 0.3).await {
+        let planner_model = resolve_model(&settings, &["planner_generation_model"]);
+        let planner_temperature = resolve_temperature(&settings, "planner_generation_temperature", 0.3);
+        match client.chat(&msgs, planner_model.as_deref(), planner_temperature).await {
             Ok(resp) => {
                 let clean = extract_json(&resp);
                 let v: serde_json::Value = serde_json::from_str(&clean).unwrap_or(json!({"raw": resp}));
@@ -141,7 +143,9 @@ pub async fn survey_generate(
         let plan_prompt = SURVEY_PLANNER_TPL.replace("{query}", &query);
         let plan_msgs = vec![LlmMessage::system(SURVEY_PLANNER_SYS), LlmMessage::user(plan_prompt)];
 
-        let plan_json = match client.chat(&plan_msgs, None, 0.2).await {
+        let survey_planner_model = resolve_model(&settings, &["survey_planner_model"]);
+        let survey_planner_temperature = resolve_temperature(&settings, "survey_planner_temperature", 0.2);
+        let plan_json = match client.chat(&plan_msgs, survey_planner_model.as_deref(), survey_planner_temperature).await {
             Ok(resp) => {
                 let parsed = serde_json::from_str::<serde_json::Value>(&extract_json(&resp)).unwrap_or(json!({}));
                 let _ = app.emit("survey:agent_complete", json!({
@@ -324,7 +328,9 @@ pub async fn survey_generate(
             .replace("{evidence}", &rag_context);
 
         let writer_msgs = vec![LlmMessage::system(SURVEY_WRITER_SYS), LlmMessage::user(writer_prompt)];
-        match client.chat(&writer_msgs, None, 0.3).await {
+        let survey_writer_model = resolve_model(&settings, &["survey_writer_model"]);
+        let survey_writer_temperature = resolve_temperature(&settings, "survey_writer_temperature", 0.3);
+        match client.chat(&writer_msgs, survey_writer_model.as_deref(), survey_writer_temperature).await {
             Ok(resp) => {
                 let mut report =
                     serde_json::from_str::<serde_json::Value>(&extract_json(&resp)).unwrap_or(json!({}));

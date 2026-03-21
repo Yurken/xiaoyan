@@ -223,6 +223,33 @@ impl LlmClient {
     }
 }
 
+pub fn resolve_model(settings: &HashMap<String, String>, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .filter_map(|key| settings.get(*key))
+        .map(|value| value.trim())
+        .find(|value| !value.is_empty())
+        .map(|value| value.to_string())
+}
+
+pub fn resolve_temperature(settings: &HashMap<String, String>, key: &str, default: f32) -> f32 {
+    settings
+        .get(key)
+        .and_then(|value| value.trim().parse::<f32>().ok())
+        .unwrap_or(default)
+}
+
+pub fn resolve_temperature_chain(
+    settings: &HashMap<String, String>,
+    keys: &[&str],
+    default: f32,
+) -> f32 {
+    keys.iter()
+        .filter_map(|key| settings.get(*key))
+        .map(|value| value.trim())
+        .find_map(|value| value.parse::<f32>().ok())
+        .unwrap_or(default)
+}
+
 // ── OpenAI helpers ──────────────────────────────────────────────
 
 const USER_AGENT: &str = "claude-code/1.0";

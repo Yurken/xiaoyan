@@ -1,4 +1,4 @@
-use crate::llm::{LlmClient, LlmMessage};
+use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{chunk_text, serialize_embedding};
 use crate::state::AppState;
 use serde_json::json;
@@ -280,11 +280,11 @@ pub async fn papers_analyze(
                 return;
             }
         };
-        let model_opt = settings.get("multi_agent_worker_model").and_then(|m| if m.is_empty() { None } else { Some(m.as_str()) });
-        let temperature: f32 = settings.get("multi_agent_worker_temperature").and_then(|v| v.parse().ok()).unwrap_or(0.3);
+        let model = resolve_model(&settings, &["paper_analysis_model", "multi_agent_paper_analyst_model", "multi_agent_worker_model"]);
+        let temperature = resolve_temperature(&settings, "paper_analysis_temperature", 0.3);
         let msgs = vec![LlmMessage::system(ANALYZE_SYSTEM), LlmMessage::user(&prompt)];
 
-        match client.chat(&msgs, model_opt, temperature).await {
+        match client.chat(&msgs, model.as_deref(), temperature).await {
             Ok(response) => {
                 let v: serde_json::Value = serde_json::from_str(&extract_json(&response)).unwrap_or_default();
                 let analysis_id = Uuid::new_v4().to_string();
@@ -361,11 +361,11 @@ pub async fn papers_reproduce(
                 return;
             }
         };
-        let model_opt = settings.get("multi_agent_worker_model").and_then(|m| if m.is_empty() { None } else { Some(m.as_str()) });
-        let temperature: f32 = settings.get("multi_agent_worker_temperature").and_then(|v| v.parse().ok()).unwrap_or(0.3);
+        let model = resolve_model(&settings, &["paper_reproduction_model", "multi_agent_reproduction_model", "multi_agent_worker_model"]);
+        let temperature = resolve_temperature(&settings, "paper_reproduction_temperature", 0.25);
         let msgs = vec![LlmMessage::system(REPRODUCE_SYSTEM), LlmMessage::user(&prompt)];
 
-        match client.chat(&msgs, model_opt, temperature).await {
+        match client.chat(&msgs, model.as_deref(), temperature).await {
             Ok(response) => {
                 let v: serde_json::Value = serde_json::from_str(&extract_json(&response)).unwrap_or_default();
                 let guide_id = Uuid::new_v4().to_string();

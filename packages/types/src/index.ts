@@ -223,6 +223,23 @@ export interface AppSettings {
   rag_top_k: string;
   // External
   semantic_scholar_api_key: string;
+  // Role-based model routing
+  planner_hint_model: string;
+  planner_hint_temperature: string;
+  planner_analysis_model: string;
+  planner_analysis_temperature: string;
+  planner_generation_model: string;
+  planner_generation_temperature: string;
+  survey_planner_model: string;
+  survey_planner_temperature: string;
+  survey_writer_model: string;
+  survey_writer_temperature: string;
+  paper_analysis_model: string;
+  paper_analysis_temperature: string;
+  paper_reproduction_model: string;
+  paper_reproduction_temperature: string;
+  copilot_simple_model: string;
+  copilot_simple_temperature: string;
   // Multi-agent
   multi_agent_enabled: string;
   multi_agent_routing_mode: MultiAgentRoutingMode;
@@ -233,6 +250,16 @@ export interface AppSettings {
   multi_agent_supervisor_temperature: string;
   multi_agent_worker_model: string;
   multi_agent_worker_temperature: string;
+  multi_agent_planner_model: string;
+  multi_agent_planner_temperature: string;
+  multi_agent_literature_scout_model: string;
+  multi_agent_literature_scout_temperature: string;
+  multi_agent_survey_model: string;
+  multi_agent_survey_temperature: string;
+  multi_agent_paper_analyst_model: string;
+  multi_agent_paper_analyst_temperature: string;
+  multi_agent_reproduction_model: string;
+  multi_agent_reproduction_temperature: string;
   multi_agent_synthesis_model: string;
   multi_agent_synthesis_temperature: string;
 }
