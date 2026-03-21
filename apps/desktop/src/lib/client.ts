@@ -29,6 +29,8 @@ export const settingsApi = {
   get: (): Promise<AppSettings> => invoke("settings_get"),
   update: (data: Partial<AppSettings>): Promise<{ ok: boolean; updated: string[] }> =>
     invoke("settings_update", { data }),
+  test: (data: Partial<AppSettings>): Promise<string> =>
+    invoke("settings_test", { data }),
 };
 
 // ── Papers ───────────────────────────────────────────────────────

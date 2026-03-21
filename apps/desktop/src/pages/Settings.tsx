@@ -1,5 +1,5 @@
 import { useState, useEffect, type ComponentType } from "react";
-import { Brain, Database, Info, Eye, EyeOff, CheckCircle, Loader2, AlertCircle, Bot } from "lucide-react";
+import { Brain, Database, Info, Eye, EyeOff, CheckCircle, Loader2, AlertCircle, Bot, Wifi } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { AppSettings, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
@@ -184,12 +184,15 @@ const AGENT_OPTIONS = [
 ] as const;
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+type TestState = "idle" | "testing" | "ok" | "error";
 
 export default function Settings() {
   const [form, setForm] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [testState, setTestState] = useState<TestState>("idle");
+  const [testMsg, setTestMsg] = useState("");
 
   const set = (key: keyof AppSettings) => (val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
@@ -225,6 +228,21 @@ export default function Settings() {
     }
   };
 
+  const handleTestConnection = async () => {
+    setTestState("testing");
+    setTestMsg("");
+    try {
+      const reply = await apiClient.settings.test(form);
+      setTestState("ok");
+      setTestMsg(reply.slice(0, 80));
+      setTimeout(() => setTestState("idle"), 4000);
+    } catch (error) {
+      setTestState("error");
+      setTestMsg(formatErrorMessage(error).slice(0, 120));
+      setTimeout(() => setTestState("idle"), 5000);
+    }
+  };
+
   const provider = form.llm_provider as LlmProvider;
   const routingMode = form.multi_agent_routing_mode as MultiAgentRoutingMode;
   const enabledAgents = form.multi_agent_enabled_agents
@@ -240,12 +258,68 @@ export default function Settings() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-ink-primary">设置</h1>
-        <p className="text-sm text-ink-tertiary mt-0.5">配置后端连接和 AI 服务</p>
+    <div className="h-full flex flex-col">
+      {/* ── 顶部固定操作栏 ─────────────────────── */}
+      <div
+        className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-nm-dark/10"
+        style={{ background: "#EEF1F5" }}
+      >
+        <div>
+          <h1 className="text-lg font-bold text-ink-primary leading-tight">设置</h1>
+          <p className="text-xs text-ink-tertiary">配置 AI 服务与运行参数</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* 测试连接 */}
+          <div className="flex flex-col items-end gap-0.5">
+            <button
+              onClick={handleTestConnection}
+              disabled={testState === "testing" || loading}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
+              style={{
+                background: testState === "ok"
+                  ? "linear-gradient(145deg,#40D466,#28A844)"
+                  : testState === "error"
+                  ? "linear-gradient(145deg,#FF5555,#CC2200)"
+                  : "#E8ECF0",
+                color: testState === "ok" || testState === "error" ? "#fff" : "#3C3C43",
+                boxShadow: testState === "idle" || testState === "testing"
+                  ? "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF"
+                  : "none",
+              }}
+            >
+              {testState === "testing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5" />}
+              {testState === "testing" ? "测试中…" : testState === "ok" ? "连接正常" : testState === "error" ? "连接失败" : "测试连接"}
+            </button>
+            {testMsg && (
+              <span className={`text-xs max-w-[220px] truncate ${testState === "error" ? "text-red-500" : "text-green-600"}`}>
+                {testMsg}
+              </span>
+            )}
+          </div>
+          {/* 保存 */}
+          <button
+            onClick={handleSaveSettings}
+            disabled={saveState === "saving" || loading}
+            className="flex items-center gap-1.5 px-5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
+            style={{
+              background: saveState === "saved"
+                ? "linear-gradient(145deg,#40D466,#28A844)"
+                : saveState === "error"
+                ? "linear-gradient(145deg,#FF5555,#CC2200)"
+                : "linear-gradient(145deg,#1A8AFF,#0062CC)",
+              boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
+            }}
+          >
+            {saveState === "saving" && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {saveState === "saved" && <CheckCircle className="w-3.5 h-3.5" />}
+            {saveState === "error" && <AlertCircle className="w-3.5 h-3.5" />}
+            {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "error" ? "保存失败" : "保存"}
+          </button>
+        </div>
       </div>
+
+      {/* ── 内容区 ─────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
       {/* ── LLM Settings ────────────────────────── */}
       <Card padding="md" className="space-y-4">
@@ -531,35 +605,6 @@ export default function Settings() {
         </Card>
       )}
 
-      {/* ── Save Button ──────────────────────────── */}
-      {!loading && !loadError && (
-        <button
-          onClick={handleSaveSettings}
-          disabled={saveState === "saving"}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-[0.99] disabled:opacity-60"
-          style={{
-            background:
-              saveState === "saved"
-                ? "linear-gradient(145deg, #40D466, #28A844)"
-                : saveState === "error"
-                ? "linear-gradient(145deg, #FF5555, #CC2200)"
-                : "linear-gradient(145deg, #1A8AFF, #0062CC)",
-            boxShadow:
-              saveState === "saved"
-                ? "4px 4px 10px rgba(0,140,0,0.35), -3px -3px 8px rgba(80,220,100,0.2)"
-                : "4px 4px 10px rgba(0,62,204,0.35), -3px -3px 8px rgba(58,155,255,0.2)",
-          }}
-        >
-          {saveState === "saving" && <Loader2 className="w-4 h-4 animate-spin" />}
-          {saveState === "saved" && <CheckCircle className="w-4 h-4" />}
-          {saveState === "error" && <AlertCircle className="w-4 h-4" />}
-          {saveState === "saving" ? "保存中…"
-            : saveState === "saved" ? "已保存"
-            : saveState === "error" ? "保存失败，请重试"
-            : "保存所有设置"}
-        </button>
-      )}
-
       {/* ── About ───────────────────────────────── */}
       <Card padding="md" className="space-y-3">
         <div className="flex items-center gap-3">
@@ -568,7 +613,7 @@ export default function Settings() {
         </div>
         <div className="space-y-2 ml-12">
           {[
-            ["应用", "智研 Copilot Desktop v0.2.0"],
+            ["应用", "智研 Copilot Desktop v0.2.1"],
             ["技术栈", "Tauri v2 · React · Rust · Multi-Agent"],
             ["存储", "SQLite（本地嵌入式）"],
           ].map(([k, v]) => (
@@ -579,6 +624,7 @@ export default function Settings() {
           ))}
         </div>
       </Card>
+      </div>
     </div>
   );
 }

@@ -26,7 +26,7 @@ use commands::{
     },
     misc::{planner_generate, survey_generate, survey_search},
     papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_reproduce, papers_upload},
-    settings::{settings_get, settings_update},
+    settings::{settings_get, settings_test, settings_update},
 };
 use state::{default_settings, AppState};
 
@@ -110,6 +110,7 @@ pub fn run() {
             // Settings
             settings_get,
             settings_update,
+            settings_test,
             // Papers
             papers_list,
             papers_get,
