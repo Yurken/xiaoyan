@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Bot, FileSearch, GitBranch, Loader2 } from "lucide-react";
 import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
+import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { listen } from "@tauri-apps/api/event";
 
@@ -39,6 +40,11 @@ interface StructuredSurveyResult {
     year?: number;
     venue?: string;
     doi?: string;
+    ccf_rating?: string;
+    ccf_area?: string;
+    ccf_type?: string;
+    ccf_label?: string;
+    ccf_publisher?: string;
   }>;
 }
 
@@ -245,13 +251,18 @@ export default function SurveyPanel() {
                 <div className="space-y-2">
                   {structured.papers.slice(0, 6).map((paper, index) => (
                     <div key={paper.id || `${paper.title}-${index}`} className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
-                      <p className="text-sm font-medium text-ink-primary">
-                        [{index + 1}] {paper.title}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-ink-primary">
+                          [{index + 1}] {paper.title}
+                        </p>
+                        <CcfRatingBadge rating={paper.ccf_rating} />
+                        <VenueTypeBadge type={paper.ccf_type} />
+                      </div>
                       <p className="mt-1 text-xs text-ink-tertiary">
                         {paper.authors || "未知作者"}
                         {paper.year ? ` · ${paper.year}` : ""}
                         {paper.venue ? ` · ${paper.venue}` : ""}
+                        {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
                       </p>
                       {paper.abstract && (
                         <p className="mt-2 line-clamp-3 text-xs leading-5 text-ink-secondary">{paper.abstract}</p>

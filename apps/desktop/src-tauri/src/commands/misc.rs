@@ -1,3 +1,4 @@
+use crate::ccf::match_venue;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::state::AppState;
 use serde_json::json;
@@ -13,7 +14,7 @@ const PLANNER_TPL: &str = r#"请为研究主题「{topic}」（关键词：{keyw
   "overview": "领域概述（2-3句）",
   "prerequisites": [{{"name": "前置知识名", "description": "说明", "resources": ["推荐资源"]}}],
   "learning_stages": [{{"stage": 1, "title": "阶段标题", "duration": "预计时长", "goals": ["学习目标"], "topics": ["学习主题"], "resources": ["资源"]}}],
-  "classic_papers": [{{"title": "论文标题", "authors": "作者", "year": 2020, "reason": "推荐理由"}}],
+  "classic_papers": [{{"title": "论文标题", "authors": "作者", "year": 2020, "venue": "会议/期刊名称", "reason": "推荐理由"}}],
   "research_directions": [{{"direction": "研究方向", "description": "描述", "open_problems": ["开放问题"]}}],
   "tools_and_frameworks": ["工具/框架列表"],
   "communities": ["社区/会议/期刊"]
@@ -44,7 +45,7 @@ pub async fn planner_generate(
         match client.chat(&msgs, planner_model.as_deref(), planner_temperature).await {
             Ok(resp) => {
                 let clean = extract_json(&resp);
-                let v: serde_json::Value = serde_json::from_str(&clean).unwrap_or(json!({"raw": resp}));
+                let v: serde_json::Value = enrich_planner_result(serde_json::from_str(&clean).unwrap_or(json!({"raw": resp})));
                 let _ = app.emit("planner:result", json!({ "topic": topic, "plan": v }));
             }
             Err(e) => {
@@ -488,6 +489,17 @@ async fn retrieve_papers(
                 "doi": row.get::<Option<String>, _>("doi").unwrap_or_default(),
                 "status": row.get::<String, _>("status"),
             }));
+            if let Some(last) = papers.last_mut() {
+                if let Some(venue) = last.get("venue").and_then(|value| value.as_str()) {
+                    if let Some(tag) = match_venue(venue) {
+                        last["ccf_rating"] = json!(tag.rating);
+                        last["ccf_area"] = json!(tag.area);
+                        last["ccf_type"] = json!(tag.kind);
+                        last["ccf_label"] = json!(tag.label);
+                        last["ccf_publisher"] = json!(tag.publisher);
+                    }
+                }
+            }
             if papers.len() >= limit as usize {
                 break;
             }
@@ -585,9 +597,36 @@ fn build_survey_markdown(
             let authors = p.get("authors").and_then(|v| v.as_str()).unwrap_or("");
             let year = p.get("year").and_then(|v| v.as_i64()).map(|y| y.to_string()).unwrap_or_default();
             let venue = p.get("venue").and_then(|v| v.as_str()).unwrap_or("");
-            out.push_str(&format!("{}. {} {} {} {}\n", idx + 1, title, authors, year, venue));
+            let ccf = p
+                .get("ccf_rating")
+                .and_then(|v| v.as_str())
+                .map(|value| format!(" [CCF {}]", value))
+                .unwrap_or_default();
+            let venue_type = p
+                .get("ccf_type")
+                .and_then(|v| v.as_str())
+                .map(|value| if value == "journal" { " [期刊]" } else { " [会议]" })
+                .unwrap_or("");
+            out.push_str(&format!("{}. {} {} {} {}{}{}\n", idx + 1, title, authors, year, venue, ccf, venue_type));
         }
     }
 
     out
+}
+
+fn enrich_planner_result(mut value: serde_json::Value) -> serde_json::Value {
+    if let Some(papers) = value.get_mut("classic_papers").and_then(|item| item.as_array_mut()) {
+        for paper in papers {
+            if let Some(venue) = paper.get("venue").and_then(|item| item.as_str()) {
+                if let Some(tag) = match_venue(venue) {
+                    paper["ccf_rating"] = json!(tag.rating);
+                    paper["ccf_area"] = json!(tag.area);
+                    paper["ccf_type"] = json!(tag.kind);
+                    paper["ccf_label"] = json!(tag.label);
+                    paper["ccf_publisher"] = json!(tag.publisher);
+                }
+            }
+        }
+    }
+    value
 }

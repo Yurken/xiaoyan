@@ -6,6 +6,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  CcfLookupResponse,
   Paper,
   ChatSession,
   ChatMessage,
@@ -45,12 +46,26 @@ export const papersApi = {
     invoke("papers_get", { id }),
   upload: (filePath: string, research_interest_id?: string): Promise<{ paper_id: string; title: string }> =>
     invoke("papers_upload", { filePath, researchInterestId: research_interest_id ?? null }),
+  update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string }): Promise<Paper> =>
+    invoke("papers_update", {
+      id,
+      title: data.title ?? null,
+      authors: data.authors ?? null,
+      venue: data.venue ?? null,
+      year: data.year ?? null,
+      doi: data.doi ?? null,
+    }),
   delete: (id: string): Promise<void> =>
     invoke("papers_delete", { id }),
   analyze: (id: string): Promise<void> =>
     invoke("papers_analyze", { id }),
   reproduce: (id: string): Promise<void> =>
     invoke("papers_reproduce", { id }),
+};
+
+export const ccfApi = {
+  lookup: (query: string, limit = 8): Promise<CcfLookupResponse> =>
+    invoke("ccf_lookup", { query, limit }),
 };
 
 // ── Knowledge ─────────────────────────────────────────────────────
@@ -223,6 +238,7 @@ export const surveyApi = {
 // ── Unified client (mirrors api-sdk shape) ────────────────────────
 
 export const apiClient = {
+  ccf: ccfApi,
   settings: settingsApi,
   papers: papersApi,
   knowledge: knowledgeApi,

@@ -1,3 +1,4 @@
+use crate::ccf::{infer_from_text, match_venue};
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{chunk_text, serialize_embedding};
 use crate::state::AppState;
@@ -157,6 +158,78 @@ pub async fn papers_get(
     Ok(paper)
 }
 
+#[tauri::command]
+pub async fn papers_update(
+    state: State<'_, AppState>,
+    id: String,
+    title: Option<String>,
+    authors: Option<String>,
+    venue: Option<String>,
+    year: Option<i64>,
+    doi: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let now = chrono::Utc::now().to_rfc3339();
+
+    if let Some(value) = title {
+        let next = value.trim();
+        if next.is_empty() {
+            return Err("论文标题不能为空".to_string());
+        }
+        sqlx::query("UPDATE papers SET title = ?, updated_at = ? WHERE id = ?")
+            .bind(next)
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if let Some(value) = authors {
+        let next = value.trim();
+        sqlx::query("UPDATE papers SET authors = ?, updated_at = ? WHERE id = ?")
+            .bind(if next.is_empty() { None::<String> } else { Some(next.to_string()) })
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if let Some(value) = venue {
+        let next = value.trim();
+        sqlx::query("UPDATE papers SET venue = ?, updated_at = ? WHERE id = ?")
+            .bind(if next.is_empty() { None::<String> } else { Some(next.to_string()) })
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if let Some(value) = year {
+        sqlx::query("UPDATE papers SET year = ?, updated_at = ? WHERE id = ?")
+            .bind(if value <= 0 { None } else { Some(value) })
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if let Some(value) = doi {
+        let next = value.trim();
+        sqlx::query("UPDATE papers SET doi = ?, updated_at = ? WHERE id = ?")
+            .bind(if next.is_empty() { None::<String> } else { Some(next.to_string()) })
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    papers_get(state, id).await
+}
+
 // ── Delete ───────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -194,16 +267,18 @@ pub async fn papers_upload(
 
     let full_text = pdf_extract::extract_text(&path)
         .map_err(|e| format!("PDF extraction failed: {e}"))?;
+    let inferred_venue = infer_from_text(&full_text).map(|tag| tag.full_name);
 
     let paper_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO papers (id, title, file_path, full_text, research_interest_id, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'parsed', ?, ?)",
+        "INSERT INTO papers (id, title, venue, file_path, full_text, research_interest_id, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'parsed', ?, ?)",
     )
     .bind(&paper_id)
     .bind(&title_guess)
+    .bind(&inferred_venue)
     .bind(&file_path_str)
     .bind(&full_text)
     .bind(&research_interest_id)
@@ -444,12 +519,13 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
     let tags_str: String = r.get::<Option<String>, _>("tags").unwrap_or_else(|| "[]".into());
     // "abstract" is a Rust reserved keyword; fetch into a variable first
     let paper_abstract: Option<String> = r.get("abstract");
+    let paper_venue: Option<String> = r.get("venue");
     let mut obj = json!({
         "id": r.get::<String, _>("id"),
         "title": r.get::<String, _>("title"),
         "authors": r.get::<Option<String>, _>("authors"),
         "year": r.get::<Option<i64>, _>("year"),
-        "venue": r.get::<Option<String>, _>("venue"),
+        "venue": paper_venue,
         "doi": r.get::<Option<String>, _>("doi"),
         "tags": serde_json::from_str::<serde_json::Value>(&tags_str).unwrap_or(json!([])),
         "research_interest_id": r.get::<Option<String>, _>("research_interest_id"),
@@ -458,5 +534,14 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
         "updated_at": r.get::<String, _>("updated_at"),
     });
     obj["abstract"] = json!(paper_abstract);
+    if let Some(venue) = obj.get("venue").and_then(|value| value.as_str()) {
+        if let Some(tag) = match_venue(venue) {
+            obj["ccf_rating"] = json!(tag.rating);
+            obj["ccf_area"] = json!(tag.area);
+            obj["ccf_type"] = json!(tag.kind);
+            obj["ccf_label"] = json!(tag.label);
+            obj["ccf_publisher"] = json!(tag.publisher);
+        }
+    }
     obj
 }

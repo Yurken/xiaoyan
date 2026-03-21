@@ -1,3 +1,4 @@
+use crate::ccf::match_venue;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{combined_search, serialize_embedding};
 use crate::state::AppState;
@@ -52,7 +53,8 @@ pub async fn knowledge_list_interests(
             let profile_str: Option<String> = r.get::<Option<String>, _>("profile");
             let lp_str: Option<String> = r.get::<Option<String>, _>("learning_path");
             let learning_path = lp_str
-                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                .map(enrich_learning_path_json);
             json!({
                 "id": r.get::<String, _>("id"),
                 "topic": r.get::<String, _>("topic"),
@@ -103,7 +105,7 @@ pub async fn knowledge_create_interest(
 
 const PLANNER_SYSTEM: &str = "你是一位顶尖的学术导师，擅长为学生设计系统化的研究学习路线。";
 const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{keywords}）设计系统化学习路线，以 JSON 格式返回：
-{{"overview":"...","prerequisites":[{{"name":"...","description":"...","resources":["..."]}}],"learning_stages":[{{"stage":1,"title":"...","duration":"...","goals":["..."],"topics":["..."],"resources":["..."]}}],"classic_papers":[{{"title":"...","authors":"...","year":2020,"reason":"..."}}],"research_directions":[{{"direction":"...","description":"...","open_problems":["..."]}}],"tools_and_frameworks":["..."],"communities":["..."]}}"#;
+{{"overview":"...","prerequisites":[{{"name":"...","description":"...","resources":["..."]}}],"learning_stages":[{{"stage":1,"title":"...","duration":"...","goals":["..."],"topics":["..."],"resources":["..."]}}],"classic_papers":[{{"title":"...","authors":"...","year":2020,"venue":"会议/期刊名称","reason":"..."}}],"research_directions":[{{"direction":"...","description":"...","open_problems":["..."]}}],"tools_and_frameworks":["..."],"communities":["..."]}}"#;
 const PLANNER_ANALYST_SYSTEM: &str = "你是研究方向分析 Agent，负责把研究主题拆解为学习重点和能力目标。";
 const PLANNER_ANALYST_PROMPT: &str = r#"请分析研究方向「{topic}」（关键词：{keywords}），仅返回 JSON：
 {"scope":"一句话定义范围","focus_topics":["核心主题"],"skill_targets":["需要掌握的能力"],"risk_points":["新手常见误区"]}"#;
@@ -298,7 +300,7 @@ pub async fn knowledge_generate_plan(
         match client.chat(&msgs, designer_model.as_deref(), designer_temperature).await {
             Ok(resp) => {
                 let clean = crate::commands::papers::extract_json_pub(&resp);
-                let v: serde_json::Value = serde_json::from_str(&clean).unwrap_or_default();
+                let v: serde_json::Value = enrich_learning_path_json(serde_json::from_str(&clean).unwrap_or_default());
                 let path_str = serde_json::to_string(&v).unwrap_or_default();
                 let _ = sqlx::query("UPDATE research_interests SET learning_path = ?, status = 'planned' WHERE id = ?")
                     .bind(&path_str).bind(&rid).execute(&db).await;
@@ -497,6 +499,23 @@ fn extract_string_list(value: Option<&serde_json::Value>, limit: usize) -> Vec<S
         .take(limit)
         .map(|item| item.to_string())
         .collect()
+}
+
+fn enrich_learning_path_json(mut value: serde_json::Value) -> serde_json::Value {
+    if let Some(papers) = value.get_mut("classic_papers").and_then(|item| item.as_array_mut()) {
+        for paper in papers {
+            if let Some(venue) = paper.get("venue").and_then(|item| item.as_str()) {
+                if let Some(tag) = match_venue(venue) {
+                    paper["ccf_rating"] = json!(tag.rating);
+                    paper["ccf_area"] = json!(tag.area);
+                    paper["ccf_type"] = json!(tag.kind);
+                    paper["ccf_label"] = json!(tag.label);
+                    paper["ccf_publisher"] = json!(tag.publisher);
+                }
+            }
+        }
+    }
+    value
 }
 
 // ── Knowledge Notes ─────────────────────────────────────────────

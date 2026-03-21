@@ -6,6 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+mod ccf;
 mod commands;
 mod db;
 mod llm;
@@ -15,6 +16,7 @@ mod state;
 use tauri::Manager;
 
 use commands::{
+    ccf::ccf_lookup,
     chat::{
         chat_delete_session, chat_get_session, chat_list_agent_runs, chat_list_sessions,
         chat_stream,
@@ -26,7 +28,7 @@ use commands::{
         knowledge_update_note,
     },
     misc::{planner_generate, survey_generate, survey_search},
-    papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_reproduce, papers_upload},
+    papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_reproduce, papers_update, papers_upload},
     settings::{settings_get, settings_test, settings_update},
 };
 use state::{default_settings, AppState};
@@ -116,9 +118,12 @@ pub fn run() {
             papers_list,
             papers_get,
             papers_upload,
+            papers_update,
             papers_delete,
             papers_analyze,
             papers_reproduce,
+            // CCF
+            ccf_lookup,
             // Knowledge
             knowledge_list_interests,
             knowledge_create_interest,
