@@ -145,6 +145,39 @@ export interface CcfLookupResponse {
   matches: CcfEntry[];
 }
 
+export type ArxivRankingMode = "relevance" | "quality";
+
+export interface ArxivRecommendation {
+  arxiv_id: string;
+  title: string;
+  title_zh?: string;
+  authors: string;
+  category: string;
+  published_at: string;
+  updated_at: string;
+  abstract_text: string;
+  abs_url: string;
+  pdf_url: string;
+  score: number;
+  reason: string;
+  tldr_zh?: string;
+  tags: string[];
+}
+
+export interface ArxivSearchResponse {
+  query: string;
+  keywords: string[];
+  days: number;
+  limit: number;
+  ranking_mode: ArxivRankingMode;
+  candidate_count: number;
+  llm_used: boolean;
+  ranking_note: string;
+  overall_summary: string;
+  disclaimer: string;
+  papers: ArxivRecommendation[];
+}
+
 export interface KnowledgeNote {
   id: string;
   title: string;

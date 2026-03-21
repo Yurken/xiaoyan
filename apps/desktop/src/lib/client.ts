@@ -6,6 +6,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  ArxivRankingMode,
+  ArxivSearchResponse,
   CcfLookupResponse,
   Paper,
   ChatSession,
@@ -66,6 +68,16 @@ export const papersApi = {
 export const ccfApi = {
   lookup: (query: string, limit = 8): Promise<CcfLookupResponse> =>
     invoke("ccf_lookup", { query, limit }),
+};
+
+export const arxivApi = {
+  search: (
+    query: string,
+    days = 14,
+    limit = 5,
+    ranking_mode: ArxivRankingMode = "relevance"
+  ): Promise<ArxivSearchResponse> =>
+    invoke("arxiv_search", { query, days, limit, rankingMode: ranking_mode }),
 };
 
 // ── Knowledge ─────────────────────────────────────────────────────
@@ -238,6 +250,7 @@ export const surveyApi = {
 // ── Unified client (mirrors api-sdk shape) ────────────────────────
 
 export const apiClient = {
+  arxiv: arxivApi,
   ccf: ccfApi,
   settings: settingsApi,
   papers: papersApi,
