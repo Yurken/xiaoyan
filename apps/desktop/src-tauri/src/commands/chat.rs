@@ -1,6 +1,7 @@
 use crate::llm::{resolve_model, resolve_temperature, resolve_temperature_chain, LlmClient, LlmMessage};
 use crate::rag::combined_search;
 use crate::state::AppState;
+use crate::commands::knowledge::ResearchInterestProfilePayload;
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::Row;
@@ -217,11 +218,25 @@ async fn run_chat(
 ) -> anyhow::Result<()> {
     let client = LlmClient::from_settings(settings)?;
     let multi_agent = settings.get("multi_agent_enabled").map(|v| v == "true").unwrap_or(true);
+    let context_summary = load_context_summary(db, context_type, context_id).await;
 
     let full = if multi_agent {
-        run_agentic(app, db, settings, &client, request_id, session_id, message, context_type, context_id, &history).await?
+        run_agentic(
+            app,
+            db,
+            settings,
+            &client,
+            request_id,
+            session_id,
+            message,
+            context_type,
+            context_id,
+            &context_summary,
+            &history,
+        )
+        .await?
     } else {
-        run_simple(app, &client, settings, request_id, message, &history).await?
+        run_simple(app, &client, settings, request_id, message, &context_summary, &history).await?
     };
 
     let sources = collect_sources(db, settings, message).await;
@@ -282,9 +297,18 @@ async fn run_simple(
     settings: &HashMap<String, String>,
     request_id: &str,
     message: &str,
+    context_summary: &str,
     history: &[LlmMessage],
 ) -> anyhow::Result<String> {
-    let mut msgs = vec![LlmMessage::system("你是智研 Copilot，一个专注于学术研究的 AI 助手。请用中文回答。")];
+    let system_prompt = if context_summary.trim().is_empty() {
+        "你是智研 Copilot，一个专注于学术研究的 AI 助手。请用中文回答。".to_string()
+    } else {
+        format!(
+            "你是智研 Copilot，一个专注于学术研究的 AI 助手。请用中文回答。\n\n当前研究工作台上下文：\n{}",
+            context_summary
+        )
+    };
+    let mut msgs = vec![LlmMessage::system(&system_prompt)];
     msgs.extend_from_slice(history);
     msgs.push(LlmMessage::user(message));
     let temperature = resolve_temperature(settings, "copilot_simple_temperature", 0.4);
@@ -306,6 +330,7 @@ async fn run_agentic(
     message: &str,
     context_type: &str,
     context_id: &Option<String>,
+    context_summary: &str,
     history: &[LlmMessage],
 ) -> anyhow::Result<String> {
     let enabled: Vec<String> = settings
@@ -338,7 +363,11 @@ async fn run_agentic(
         .collect();
     let _ = app.emit("chat:plan", json!({ "request_id": request_id, "plan": plan }));
 
-    let mut context_parts: Vec<String> = Vec::new();
+    let mut context_parts: Vec<String> = if context_summary.trim().is_empty() {
+        Vec::new()
+    } else {
+        vec![format!("[当前研究工作台]\n{}", context_summary)]
+    };
     let worker_temp = resolve_temperature(settings, "multi_agent_worker_temperature", 0.3);
     let worker_model = resolve_model(settings, &["multi_agent_worker_model"]);
 
@@ -428,7 +457,7 @@ async fn execute_agent(
     settings: &HashMap<String, String>,
     agent_name: &str,
     message: &str,
-    _context_type: &str,
+    context_type: &str,
     context_id: &Option<String>,
     prior_context: &[String],
     _history: &[LlmMessage],
@@ -464,20 +493,44 @@ async fn execute_agent(
             client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "planner" => {
-            let prompt = format!("请为研究方向「{}」设计学习路径。背景：{}", message, prior_context.join("; "));
+            let prompt = if context_type == "interest" && !prior_context.is_empty() {
+                format!(
+                    "你正在一个已规划的研究工作台中继续推进路线。\n\n当前上下文：\n{}\n\n请围绕用户问题给出下一步学习安排、实验推进建议或路线修订意见。\n用户问题：{}",
+                    prior_context.join("\n\n"),
+                    message,
+                )
+            } else {
+                format!("请为研究方向「{}」设计学习路径。背景：{}", message, prior_context.join("; "))
+            };
             let msgs = vec![LlmMessage::system("你是一位学术导师。"), LlmMessage::user(&prompt)];
             client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "literature_scout" => {
-            let prompt = format!("请列出与「{}」最相关的核心论文（标题、作者、年份、核心贡献）。", message);
+            let prompt = if context_type == "interest" && !prior_context.is_empty() {
+                format!(
+                    "这里是当前研究工作台的上下文：\n{}\n\n请围绕用户问题推荐最值得优先阅读的核心论文，输出标题、作者、年份、核心贡献，并说明为什么适合当前路线。\n用户问题：{}",
+                    prior_context.join("\n\n"),
+                    message,
+                )
+            } else {
+                format!("请列出与「{}」最相关的核心论文（标题、作者、年份、核心贡献）。", message)
+            };
             let msgs = vec![LlmMessage::system("你是一位文献调研专家。"), LlmMessage::user(&prompt)];
             client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "survey" => {
-            let prompt = format!(
-                "请为「{}」领域撰写结构化文献综述，涵盖发展历程、主要方法、对比分析与未来趋势。\n\n参考：{}",
-                message, prior_context.join("\n\n")
-            );
+            let prompt = if context_type == "interest" && !prior_context.is_empty() {
+                format!(
+                    "请基于当前研究工作台上下文，为用户问题整理结构化综述或相关工作总结，重点服务于当前路线推进。\n\n上下文：\n{}\n\n用户问题：{}",
+                    prior_context.join("\n\n"),
+                    message,
+                )
+            } else {
+                format!(
+                    "请为「{}」领域撰写结构化文献综述，涵盖发展历程、主要方法、对比分析与未来趋势。\n\n参考：{}",
+                    message, prior_context.join("\n\n")
+                )
+            };
             let msgs = vec![LlmMessage::system("你是一位综述写作专家。"), LlmMessage::user(&prompt)];
             client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
@@ -505,6 +558,163 @@ async fn paper_text(db: &sqlx::SqlitePool, context_id: &Option<String>) -> Strin
     } else {
         String::new()
     }
+}
+
+async fn load_context_summary(
+    db: &sqlx::SqlitePool,
+    context_type: &str,
+    context_id: &Option<String>,
+) -> String {
+    match context_type {
+        "interest" => interest_context_summary(db, context_id).await,
+        "paper" => paper_context_summary(db, context_id).await,
+        _ => String::new(),
+    }
+}
+
+async fn paper_context_summary(
+    db: &sqlx::SqlitePool,
+    context_id: &Option<String>,
+) -> String {
+    let Some(paper_id) = context_id.as_deref() else {
+        return String::new();
+    };
+
+    let row = match sqlx::query(
+        "SELECT title, abstract, status FROM papers WHERE id = ?",
+    )
+    .bind(paper_id)
+    .fetch_optional(db)
+    .await
+    {
+        Ok(Some(row)) => row,
+        _ => return String::new(),
+    };
+
+    let mut lines = vec![format!("当前论文：{}", row.get::<String, _>("title"))];
+
+    if let Some(status) = row.get::<Option<String>, _>("status") {
+        lines.push(format!("论文状态：{}", status));
+    }
+    if let Some(abstract_text) = row.get::<Option<String>, _>("abstract") {
+        let preview = if abstract_text.chars().count() > 240 {
+            abstract_text.chars().take(240).collect::<String>() + "…"
+        } else {
+            abstract_text
+        };
+        lines.push(format!("摘要：{}", preview));
+    }
+
+    lines.join("\n")
+}
+
+async fn interest_context_summary(
+    db: &sqlx::SqlitePool,
+    context_id: &Option<String>,
+) -> String {
+    let Some(interest_id) = context_id.as_deref() else {
+        return String::new();
+    };
+
+    let row = match sqlx::query(
+        "SELECT topic, keywords, profile, learning_path FROM research_interests WHERE id = ?",
+    )
+    .bind(interest_id)
+    .fetch_optional(db)
+    .await
+    {
+        Ok(Some(row)) => row,
+        _ => return String::new(),
+    };
+
+    let topic: String = row.get("topic");
+    let keywords_str: String = row
+        .get::<Option<String>, _>("keywords")
+        .unwrap_or_else(|| "[]".into());
+    let keywords: Vec<String> = serde_json::from_str(&keywords_str).unwrap_or_default();
+    let profile = row
+        .get::<Option<String>, _>("profile")
+        .and_then(|value| serde_json::from_str::<ResearchInterestProfilePayload>(&value).ok())
+        .unwrap_or_default();
+    let learning_path = row
+        .get::<Option<String>, _>("learning_path")
+        .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+        .unwrap_or_default();
+
+    let mut lines = vec![format!("当前研究方向：{}", topic)];
+    if !keywords.is_empty() {
+        lines.push(format!("关键词：{}", keywords.join("、")));
+    }
+    if let Some(goal) = profile.goal.as_deref().filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("研究目标：{}", goal));
+    }
+    if let Some(background) = profile.background.as_deref().filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("当前基础：{}", background));
+    }
+    if let Some(time_budget) = profile.time_budget.as_deref().filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("时间预算：{}", time_budget));
+    }
+    if let Some(preferred_output) = profile.preferred_output.as_deref().filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("期望输出：{}", preferred_output));
+    }
+    if let Some(known_context) = profile.known_context.as_deref().filter(|value| !value.trim().is_empty()) {
+        lines.push(format!("已知论文/方法：{}", known_context));
+    }
+    if let Some(constraints) = profile.constraints.as_ref().filter(|value| !value.is_empty()) {
+        lines.push(format!("约束条件：{}", constraints.join("、")));
+    }
+
+    let stage_titles = learning_path
+        .get("learning_stages")
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.get("title").and_then(|value| value.as_str()))
+                .take(4)
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if !stage_titles.is_empty() {
+        lines.push(format!("当前路线阶段：{}", stage_titles.join(" -> ")));
+    }
+
+    let paper_rows = sqlx::query(
+        "SELECT title, status FROM papers WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 5",
+    )
+    .bind(interest_id)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+    if !paper_rows.is_empty() {
+        let related_papers = paper_rows
+            .iter()
+            .map(|item| {
+                let title: String = item.get("title");
+                let status: Option<String> = item.get("status");
+                format!("{}{}", title, status.map(|value| format!("（{}）", value)).unwrap_or_default())
+            })
+            .collect::<Vec<_>>();
+        lines.push(format!("已关联论文：{}", related_papers.join("；")));
+    }
+
+    let note_rows = sqlx::query(
+        "SELECT title FROM knowledge_notes WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 5",
+    )
+    .bind(interest_id)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+    if !note_rows.is_empty() {
+        let note_titles = note_rows
+            .iter()
+            .map(|item| item.get::<String, _>("title"))
+            .collect::<Vec<_>>();
+        lines.push(format!("已沉淀笔记：{}", note_titles.join("；")));
+    }
+
+    lines.join("\n")
 }
 
 // ── Agent selection ─────────────────────────────────────────────
@@ -571,9 +781,15 @@ fn select_agents_by_rule(
     if ["研究方向","规划","学习路径","roadmap","入门","方向"].iter().any(|k| message.contains(k)) {
         add(&mut agents, enabled, "planner");
     }
+    if context_type == "interest" && ["下一步","阶段","安排","计划","里程碑","开题","选题"].iter().any(|k| message.contains(k)) {
+        add(&mut agents, enabled, "planner");
+    }
     if ["综述","survey","文献","论文推荐","最新研究","领域现状","调研"].iter().any(|k| message.contains(k)) {
         add(&mut agents, enabled, "literature_scout");
         add(&mut agents, enabled, "survey");
+    }
+    if context_type == "interest" && ["论文","阅读","相关工作","benchmark","baseline"].iter().any(|k| message.contains(k)) {
+        add(&mut agents, enabled, "literature_scout");
     }
     if context_type == "paper" || ["论文","创新点","方法","实验","局限","精读"].iter().any(|k| message.contains(k)) {
         add(&mut agents, enabled, "paper_analyst");

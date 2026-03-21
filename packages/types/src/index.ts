@@ -7,6 +7,7 @@ export interface Paper {
   venue?: string;
   doi?: string;
   tags?: string[];
+  research_interest_id?: string;
   status: string;
   created_at: string;
   updated_at: string;

@@ -13,24 +13,45 @@ pub async fn papers_list(
     state: State<'_, AppState>,
     offset: Option<i64>,
     limit: Option<i64>,
+    research_interest_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let offset = offset.unwrap_or(0);
     let limit = limit.unwrap_or(20);
-    let rows = sqlx::query(
-        "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.tags, p.status, p.created_at, p.updated_at,
-                a.research_question, a.core_method, a.experiment_design, a.innovations, a.limitations, a.key_conclusions,
-                rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
-                rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
-         FROM papers p
-         LEFT JOIN paper_analyses a ON a.paper_id = p.id
-         LEFT JOIN reproduction_guides rg ON rg.paper_id = p.id
-         ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
-    )
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(&state.db)
-    .await
-    .map_err(|e| e.to_string())?;
+    let rows = if let Some(interest_id) = research_interest_id.filter(|value| !value.trim().is_empty()) {
+        sqlx::query(
+            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.tags, p.research_interest_id, p.status, p.created_at, p.updated_at,
+                    a.research_question, a.core_method, a.experiment_design, a.innovations, a.limitations, a.key_conclusions,
+                    rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
+                    rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
+             FROM papers p
+             LEFT JOIN paper_analyses a ON a.paper_id = p.id
+             LEFT JOIN reproduction_guides rg ON rg.paper_id = p.id
+             WHERE p.research_interest_id = ?
+             ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
+        )
+        .bind(&interest_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| e.to_string())?
+    } else {
+        sqlx::query(
+            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.tags, p.research_interest_id, p.status, p.created_at, p.updated_at,
+                    a.research_question, a.core_method, a.experiment_design, a.innovations, a.limitations, a.key_conclusions,
+                    rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
+                    rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
+             FROM papers p
+             LEFT JOIN paper_analyses a ON a.paper_id = p.id
+             LEFT JOIN reproduction_guides rg ON rg.paper_id = p.id
+             ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
+        )
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| e.to_string())?
+    };
 
     let papers: Vec<serde_json::Value> = rows
         .iter()
@@ -74,7 +95,7 @@ pub async fn papers_get(
     id: String,
 ) -> Result<serde_json::Value, String> {
     let row = sqlx::query(
-        "SELECT id, title, authors, abstract, year, venue, doi, file_path, tags, status, created_at, updated_at
+        "SELECT id, title, authors, abstract, year, venue, doi, file_path, tags, research_interest_id, status, created_at, updated_at
          FROM papers WHERE id = ?",
     )
     .bind(&id)
@@ -158,6 +179,7 @@ pub async fn papers_upload(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     file_path: tauri_plugin_fs::FilePath,
+    research_interest_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let path = file_path.into_path().map_err(|e| e.to_string())?;
     let file_path_str = path.to_string_lossy().to_string();
@@ -177,13 +199,14 @@ pub async fn papers_upload(
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO papers (id, title, file_path, full_text, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'parsed', ?, ?)",
+        "INSERT INTO papers (id, title, file_path, full_text, research_interest_id, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'parsed', ?, ?)",
     )
     .bind(&paper_id)
     .bind(&title_guess)
     .bind(&file_path_str)
     .bind(&full_text)
+    .bind(&research_interest_id)
     .bind(&now)
     .bind(&now)
     .execute(&state.db)
@@ -429,6 +452,7 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
         "venue": r.get::<Option<String>, _>("venue"),
         "doi": r.get::<Option<String>, _>("doi"),
         "tags": serde_json::from_str::<serde_json::Value>(&tags_str).unwrap_or(json!([])),
+        "research_interest_id": r.get::<Option<String>, _>("research_interest_id"),
         "status": r.get::<String, _>("status"),
         "created_at": r.get::<String, _>("created_at"),
         "updated_at": r.get::<String, _>("updated_at"),

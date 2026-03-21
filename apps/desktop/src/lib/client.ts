@@ -39,12 +39,12 @@ export const settingsApi = {
 // ── Papers ───────────────────────────────────────────────────────
 
 export const papersApi = {
-  list: (offset = 0, limit = 20): Promise<Paper[]> =>
-    invoke("papers_list", { offset, limit }),
+  list: (offset = 0, limit = 20, research_interest_id?: string): Promise<Paper[]> =>
+    invoke("papers_list", { offset, limit, researchInterestId: research_interest_id ?? null }),
   get: (id: string): Promise<Paper> =>
     invoke("papers_get", { id }),
-  upload: (filePath: string): Promise<{ paper_id: string; title: string }> =>
-    invoke("papers_upload", { filePath: filePath }),
+  upload: (filePath: string, research_interest_id?: string): Promise<{ paper_id: string; title: string }> =>
+    invoke("papers_upload", { filePath, researchInterestId: research_interest_id ?? null }),
   delete: (id: string): Promise<void> =>
     invoke("papers_delete", { id }),
   analyze: (id: string): Promise<void> =>
