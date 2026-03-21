@@ -6,6 +6,8 @@ import type {
   ChatStreamChunk,
   ResearchInterest,
   ResearchInterestProfile,
+  ResearchInterestHintRequest,
+  ResearchInterestHintResponse,
   KnowledgeNote,
   Job,
   AppSettings,
@@ -161,6 +163,11 @@ export function createClient(config: ClientConfig) {
         r<ResearchInterest>("/api/knowledge/interests", {
           method: "POST",
           body: JSON.stringify({ topic, keywords, profile }),
+        }),
+      generateInterestHints: (data: ResearchInterestHintRequest) =>
+        r<ResearchInterestHintResponse>("/api/knowledge/interests/hints", {
+          method: "POST",
+          body: JSON.stringify(data),
         }),
       generatePlan: (id: string) =>
         r(`/api/knowledge/interests/${id}/plan`, { method: "POST" }),

@@ -1,9 +1,22 @@
-import { useMemo, useState } from "react";
-import { ArrowRight, Clock3, Compass, Lightbulb, Sparkles, Wand2 } from "lucide-react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Clock3, Compass, Lightbulb, Loader2, Sparkles, Wand2 } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../../lib/client";
-import type { ResearchInterest, ResearchInterestProfile } from "@research-copilot/types";
-import { appendTag, buildPlannerSuggestions, parseTagInput } from "./plannerSuggestions";
+import type {
+  ResearchInterest,
+  ResearchInterestHintRequest,
+  ResearchInterestHintResponse,
+  ResearchInterestProfile,
+} from "@research-copilot/types";
+import {
+  appendTag,
+  buildPlannerSuggestions,
+  FIELD_LABELS,
+  isDraftField,
+  mergePlannerSuggestions,
+  parseTagInput,
+  type PlannerSuggestionState,
+} from "./plannerSuggestions";
 
 interface PlannerComposerProps {
   onCancel: () => void;
@@ -32,6 +45,8 @@ const INITIAL_STATE: PlannerFormState = {
   preferredOutput: "",
 };
 
+const AI_DEBOUNCE_MS = 700;
+
 function fieldTone(active: boolean) {
   if (!active) return "border-nm-dark/10 bg-white/30";
   return "border-apple-blue/30 bg-apple-blue/5";
@@ -50,14 +65,42 @@ function completedCount(state: PlannerFormState) {
   ].filter((value) => value.trim().length > 0).length;
 }
 
+function isAiConfigError(message: string) {
+  return /not configured|api key/i.test(message);
+}
+
+function mapAiSuggestion(response: ResearchInterestHintResponse): PlannerSuggestionState {
+  const nextField = isDraftField(response.next_field) ? response.next_field : "keywords";
+
+  return {
+    matchedDomains: response.matched_domains,
+    nextField,
+    nextFieldLabel: FIELD_LABELS[nextField],
+    summary: response.summary,
+    keywordSuggestions: response.keyword_suggestions,
+    goalSuggestions: response.goal_suggestions,
+    backgroundPrompts: response.background_prompts,
+    timeBudgetSuggestions: response.time_budget_suggestions,
+    constraintSuggestions: response.constraint_suggestions,
+    knownContextSuggestions: response.known_context_suggestions,
+    outputSuggestions: response.output_suggestions,
+  };
+}
+
 export default function PlannerComposer({ onCancel, onCreated }: PlannerComposerProps) {
   const [form, setForm] = useState(INITIAL_STATE);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [aiSuggestions, setAiSuggestions] = useState<PlannerSuggestionState | null>(null);
+  const [hintStatus, setHintStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
+  const [hintMessage, setHintMessage] = useState("");
+  const requestIdRef = useRef(0);
+  const hintCacheRef = useRef(new Map<string, PlannerSuggestionState>());
+  const aiDisabledRef = useRef(false);
 
   const keywords = useMemo(() => parseTagInput(form.keywordsRaw), [form.keywordsRaw]);
   const constraints = useMemo(() => parseTagInput(form.constraintsRaw), [form.constraintsRaw]);
-  const suggestions = useMemo(
+  const fallbackSuggestions = useMemo(
     () =>
       buildPlannerSuggestions({
         topic: form.topic,
@@ -70,6 +113,24 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
         preferred_output: form.preferredOutput,
       }),
     [constraints, form.background, form.goal, form.knownContext, form.preferredOutput, form.timeBudget, form.topic, keywords]
+  );
+  const hintPayload = useMemo<ResearchInterestHintRequest>(
+    () => ({
+      topic: form.topic.trim(),
+      keywords,
+      goal: form.goal.trim() || undefined,
+      background: form.background.trim() || undefined,
+      time_budget: form.timeBudget.trim() || undefined,
+      constraints,
+      known_context: form.knownContext.trim() || undefined,
+      preferred_output: form.preferredOutput.trim() || undefined,
+    }),
+    [constraints, form.background, form.goal, form.knownContext, form.preferredOutput, form.timeBudget, form.topic, keywords]
+  );
+  const deferredHintPayload = useDeferredValue(hintPayload);
+  const suggestions = useMemo(
+    () => mergePlannerSuggestions(fallbackSuggestions, aiSuggestions),
+    [aiSuggestions, fallbackSuggestions]
   );
 
   const set = <K extends keyof PlannerFormState>(key: K, value: PlannerFormState[K]) =>
@@ -88,6 +149,78 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
     Array.isArray(value) ? value.length > 0 : Boolean(value)
   );
 
+  useEffect(() => {
+    if (!deferredHintPayload.topic.trim()) {
+      startTransition(() => {
+        setAiSuggestions(null);
+        setHintStatus("idle");
+        setHintMessage("");
+      });
+      return;
+    }
+
+    if (aiDisabledRef.current) {
+      startTransition(() => {
+        setAiSuggestions(null);
+        setHintStatus("fallback");
+      });
+      return;
+    }
+
+    const signature = JSON.stringify(deferredHintPayload);
+    const cached = hintCacheRef.current.get(signature);
+    if (cached) {
+      startTransition(() => {
+        setAiSuggestions(cached);
+        setHintStatus("ready");
+        setHintMessage("");
+      });
+      return;
+    }
+
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
+    startTransition(() => {
+      setHintStatus("loading");
+      setHintMessage("");
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      void apiClient.knowledge.generateInterestHints(deferredHintPayload)
+        .then((response) => {
+          const nextSuggestions = mapAiSuggestion(response);
+          hintCacheRef.current.set(signature, nextSuggestions);
+
+          if (requestIdRef.current !== requestId) return;
+
+          startTransition(() => {
+            setAiSuggestions(nextSuggestions);
+            setHintStatus("ready");
+            setHintMessage("");
+          });
+        })
+        .catch((nextError) => {
+          if (requestIdRef.current !== requestId) return;
+
+          const message = formatErrorMessage(nextError);
+          if (isAiConfigError(message)) {
+            aiDisabledRef.current = true;
+          }
+
+          startTransition(() => {
+            setAiSuggestions(null);
+            setHintStatus("fallback");
+            setHintMessage(message);
+          });
+        });
+    }, AI_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [deferredHintPayload]);
+
   const handleCreate = async () => {
     if (!form.topic.trim()) {
       setError("请先输入研究主题。");
@@ -105,6 +238,9 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
       );
       onCreated(interest);
       setForm(INITIAL_STATE);
+      setAiSuggestions(null);
+      setHintStatus("idle");
+      setHintMessage("");
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
     } finally {
@@ -357,14 +493,26 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
 
         <div className="space-y-4">
           <Card padding="sm" className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-apple-blue" />
-              <p className="text-sm font-semibold text-ink-primary">智能提示</p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-apple-blue" />
+                <p className="text-sm font-semibold text-ink-primary">智能提示</p>
+              </div>
+              <Badge variant={hintStatus === "fallback" ? "default" : "info"}>
+                {hintStatus === "loading" ? "AI 分析中" : hintStatus === "ready" ? "AI 实时反馈" : hintStatus === "fallback" ? "本地兜底" : "等待输入"}
+              </Badge>
             </div>
 
             <div className="rounded-2xl bg-white/45 p-3">
               <p className="text-[11px] uppercase tracking-wide text-ink-tertiary">系统理解</p>
-              <p className="mt-2 text-sm leading-6 text-ink-secondary">{suggestions.summary}</p>
+              <div className="mt-2 flex items-start gap-2">
+                {hintStatus === "loading" && <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-apple-blue" />}
+                <p className="text-sm leading-6 text-ink-secondary">
+                  {hintStatus === "loading"
+                    ? "AI 正在结合你刚刚输入的内容更新建议。当前先显示最近一次结果。"
+                    : suggestions.summary}
+                </p>
+              </div>
             </div>
 
             <div className="rounded-2xl bg-white/45 p-3">
@@ -374,6 +522,15 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
                 前面的信息已经足够触发这一项的更精准建议，继续补充后，规划 prompt 会明显更聚焦。
               </p>
             </div>
+
+            {hintStatus === "fallback" && hintMessage && (
+              <div className="rounded-2xl border border-[#E7D7AA] bg-[#FBF6E7] p-3">
+                <p className="text-[11px] uppercase tracking-wide text-[#9A6A00]">AI 提示暂不可用</p>
+                <p className="mt-2 text-xs leading-5 text-[#7D5A00]">
+                  当前显示本地兜底建议。原因：{hintMessage}
+                </p>
+              </div>
+            )}
 
             <div className="rounded-2xl bg-white/45 p-3">
               <p className="text-[11px] uppercase tracking-wide text-ink-tertiary">已识别方向</p>

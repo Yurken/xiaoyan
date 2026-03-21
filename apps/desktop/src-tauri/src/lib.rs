@@ -21,8 +21,9 @@ use commands::{
     },
     knowledge::{
         knowledge_create_interest, knowledge_create_note, knowledge_delete_note,
-        knowledge_generate_plan, knowledge_list_interests, knowledge_list_notes,
-        knowledge_search, knowledge_update_note,
+        knowledge_generate_interest_hints, knowledge_generate_plan,
+        knowledge_list_interests, knowledge_list_notes, knowledge_search,
+        knowledge_update_note,
     },
     misc::{planner_generate, survey_generate, survey_search},
     papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_reproduce, papers_upload},
@@ -121,6 +122,7 @@ pub fn run() {
             // Knowledge
             knowledge_list_interests,
             knowledge_create_interest,
+            knowledge_generate_interest_hints,
             knowledge_generate_plan,
             knowledge_list_notes,
             knowledge_create_note,

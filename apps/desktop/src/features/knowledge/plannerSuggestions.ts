@@ -9,7 +9,7 @@ export interface PlannerDraft {
   preferred_output: string;
 }
 
-type DraftField =
+export type DraftField =
   | "topic"
   | "keywords"
   | "goal"
@@ -122,7 +122,7 @@ const DOMAIN_PROFILES: DomainSuggestionProfile[] = [
   },
 ];
 
-const FIELD_LABELS: Record<DraftField, string> = {
+export const FIELD_LABELS: Record<DraftField, string> = {
   topic: "研究主题",
   keywords: "关键词",
   goal: "研究目标",
@@ -143,6 +143,10 @@ function includesToken(haystack: string, token: string) {
 
 function unique(values: string[]) {
   return [...new Set(values.filter((value) => value.trim().length > 0))];
+}
+
+export function isDraftField(value: string): value is DraftField {
+  return value in FIELD_LABELS;
 }
 
 function detectProfiles(draft: PlannerDraft) {
@@ -256,6 +260,29 @@ export function buildPlannerSuggestions(draft: PlannerDraft): PlannerSuggestionS
     constraintSuggestions,
     knownContextSuggestions,
     outputSuggestions,
+  };
+}
+
+export function mergePlannerSuggestions(
+  fallback: PlannerSuggestionState,
+  ai: PlannerSuggestionState | null
+) {
+  if (!ai) return fallback;
+
+  const nextField = ai.nextField ?? fallback.nextField;
+
+  return {
+    matchedDomains: unique([...ai.matchedDomains, ...fallback.matchedDomains]),
+    nextField,
+    nextFieldLabel: FIELD_LABELS[nextField],
+    summary: ai.summary || fallback.summary,
+    keywordSuggestions: ai.keywordSuggestions.length > 0 ? ai.keywordSuggestions : fallback.keywordSuggestions,
+    goalSuggestions: ai.goalSuggestions.length > 0 ? ai.goalSuggestions : fallback.goalSuggestions,
+    backgroundPrompts: ai.backgroundPrompts.length > 0 ? ai.backgroundPrompts : fallback.backgroundPrompts,
+    timeBudgetSuggestions: ai.timeBudgetSuggestions.length > 0 ? ai.timeBudgetSuggestions : fallback.timeBudgetSuggestions,
+    constraintSuggestions: ai.constraintSuggestions.length > 0 ? ai.constraintSuggestions : fallback.constraintSuggestions,
+    knownContextSuggestions: ai.knownContextSuggestions.length > 0 ? ai.knownContextSuggestions : fallback.knownContextSuggestions,
+    outputSuggestions: ai.outputSuggestions.length > 0 ? ai.outputSuggestions : fallback.outputSuggestions,
   };
 }
 

@@ -12,6 +12,8 @@ import type {
   ChatStreamChunk,
   ResearchInterest,
   ResearchInterestProfile,
+  ResearchInterestHintRequest,
+  ResearchInterestHintResponse,
   KnowledgeNote,
   AppSettings,
   AgentRun,
@@ -62,6 +64,17 @@ export const knowledgeApi = {
     profile?: ResearchInterestProfile
   ): Promise<ResearchInterest> =>
     invoke("knowledge_create_interest", { topic, keywords, profile: profile ?? null }),
+  generateInterestHints: (data: ResearchInterestHintRequest): Promise<ResearchInterestHintResponse> =>
+    invoke("knowledge_generate_interest_hints", {
+      topic: data.topic,
+      keywords: data.keywords ?? null,
+      goal: data.goal ?? null,
+      background: data.background ?? null,
+      timeBudget: data.time_budget ?? null,
+      constraints: data.constraints ?? null,
+      knownContext: data.known_context ?? null,
+      preferredOutput: data.preferred_output ?? null,
+    }),
   generatePlan: (id: string): Promise<void> =>
     invoke("knowledge_generate_plan", { id }),
   listNotes: (search?: string): Promise<KnowledgeNote[]> =>
