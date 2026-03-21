@@ -112,7 +112,7 @@ pub async fn knowledge_list_notes(
 ) -> Result<serde_json::Value, String> {
     if let Some(q) = search.filter(|s| !s.is_empty()) {
         let settings = state.settings.read().await.clone();
-        if let Ok(client) = LlmClient::from_settings(&settings) {
+        if let Ok(client) = LlmClient::embed_client_from_settings(&settings) {
             if let Ok(embeddings) = client.embed(&[q.clone()]).await {
                 if let Some(emb) = embeddings.into_iter().next() {
                     let top_k: usize = settings.get("rag_top_k").and_then(|v| v.parse().ok()).unwrap_or(10);
@@ -181,7 +181,7 @@ pub async fn knowledge_create_note(
     let note_id = id.clone();
     let text = format!("{} {}", title, content);
     tokio::spawn(async move {
-        if let Ok(client) = LlmClient::from_settings(&settings) {
+        if let Ok(client) = LlmClient::embed_client_from_settings(&settings) {
             if let Ok(embeddings) = client.embed(&[text]).await {
                 if let Some(emb) = embeddings.into_iter().next() {
                     let emb_str = serialize_embedding(&emb);
@@ -246,9 +246,18 @@ pub async fn knowledge_search(
 ) -> Result<serde_json::Value, String> {
     let top_k = top_k.unwrap_or(5) as usize;
     let settings = state.settings.read().await.clone();
-    let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
-    let embeddings = client.embed(&[q]).await.map_err(|e| e.to_string())?;
-    let emb = embeddings.into_iter().next().ok_or("No embedding")?;
+    let client = match LlmClient::embed_client_from_settings(&settings) {
+        Ok(c) => c,
+        Err(_) => return Ok(json!([])),
+    };
+    let embeddings = match client.embed(&[q]).await {
+        Ok(e) => e,
+        Err(_) => return Ok(json!([])),
+    };
+    let emb = match embeddings.into_iter().next() {
+        Some(e) => e,
+        None => return Ok(json!([])),
+    };
     let results = combined_search(&state.db, &emb, top_k).await.map_err(|e| e.to_string())?;
     Ok(json!(results.into_iter().map(|r| json!({ "id": r.id, "content": r.content, "source": r.source, "score": r.score })).collect::<Vec<_>>()))
 }

@@ -7,6 +7,7 @@ pub const SENSITIVE_KEYS: &[&str] = &[
     "openai_api_key",
     "anthropic_api_key",
     "openai_compatible_api_key",
+    "embedding_api_key",
     "semantic_scholar_api_key",
 ];
 
@@ -27,6 +28,9 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("chunk_size".into(), "800".into());
     m.insert("chunk_overlap".into(), "150".into());
     m.insert("rag_top_k".into(), "5".into());
+    m.insert("embedding_base_url".into(), "".into());
+    m.insert("embedding_api_key".into(), "".into());
+    m.insert("embedding_model".into(), "".into());
     m.insert("semantic_scholar_api_key".into(), "".into());
     m.insert("multi_agent_enabled".into(), "true".into());
     m.insert("multi_agent_routing_mode".into(), "hybrid".into());

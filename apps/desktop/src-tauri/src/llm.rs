@@ -102,6 +102,31 @@ impl LlmClient {
         }
     }
 
+    /// Build a client for embedding only.
+    /// If `embedding_base_url` + `embedding_api_key` are set, use those.
+    /// Otherwise fall back to the main LLM provider.
+    pub fn embed_client_from_settings(s: &HashMap<String, String>) -> Result<Self> {
+        let base_url = s.get("embedding_base_url").map(|v| v.trim().to_string()).unwrap_or_default();
+        let api_key = s.get("embedding_api_key").map(|v| v.trim().to_string()).unwrap_or_default();
+        let model = s.get("embedding_model").map(|v| v.trim().to_string()).unwrap_or_default();
+
+        if !base_url.is_empty() && !api_key.is_empty() {
+            let embed_model = if model.is_empty() {
+                "text-embedding-3-small".to_string()
+            } else {
+                model
+            };
+            Ok(LlmClient::OpenAI {
+                base_url,
+                api_key,
+                chat_model: embed_model.clone(),
+                embed_model,
+            })
+        } else {
+            Self::from_settings(s)
+        }
+    }
+
     pub fn model_for_role(&self, role_key: &str, s: &HashMap<String, String>) -> String {
         if let Some(m) = s.get(role_key) {
             if !m.is_empty() {
@@ -200,6 +225,8 @@ impl LlmClient {
 
 // ── OpenAI helpers ──────────────────────────────────────────────
 
+const USER_AGENT: &str = "claude-code/1.0";
+
 fn build_message_array(messages: &[LlmMessage]) -> serde_json::Value {
     json!(messages
         .iter()
@@ -225,6 +252,7 @@ async fn openai_chat(
     let resp = client
         .post(format!("{}/chat/completions", base_url.trim_end_matches('/')))
         .header("Authorization", format!("Bearer {}", api_key))
+        .header("User-Agent", USER_AGENT)
         .json(&body)
         .send()
         .await?;
@@ -261,6 +289,7 @@ async fn stream_openai(
         .post(format!("{}/chat/completions", base_url.trim_end_matches('/')))
         .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
+        .header("User-Agent", USER_AGENT)
         .json(&body)
         .send()
         .await?;
@@ -313,6 +342,7 @@ async fn embed_openai(
     let resp = client
         .post(format!("{}/embeddings", base_url.trim_end_matches('/')))
         .header("Authorization", format!("Bearer {}", api_key))
+        .header("User-Agent", USER_AGENT)
         .json(&body)
         .send()
         .await?;

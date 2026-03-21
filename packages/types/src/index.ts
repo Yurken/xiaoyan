@@ -169,6 +169,10 @@ export interface AppSettings {
   openai_compatible_api_key: string;
   openai_compatible_chat_model: string;
   openai_compatible_embedding_model: string;
+  // Embedding (optional, overrides provider embedding settings)
+  embedding_base_url: string;
+  embedding_api_key: string;
+  embedding_model: string;
   // RAG
   chunk_size: string;
   chunk_overlap: string;
