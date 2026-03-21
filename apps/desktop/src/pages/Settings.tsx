@@ -427,19 +427,19 @@ export default function Settings() {
               boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
             }}
           >
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold text-ink-primary">启用 Multi-Agent</div>
               <div className="text-xs text-ink-tertiary mt-1">关闭后只保留最终回答能力，不再展示 supervisor 拆解链路</div>
             </div>
             <button
               onClick={() => set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")}
-              className="w-16 h-9 rounded-full relative transition-colors"
+              className="w-16 h-9 rounded-full relative transition-colors flex-shrink-0 overflow-hidden"
               style={{ background: form.multi_agent_enabled === "true" ? "#34C759" : "#C8CDD3" }}
             >
               <span
-                className="absolute top-1 h-7 w-7 rounded-full bg-white transition-transform"
+                className="absolute left-1 top-1 h-7 w-7 rounded-full bg-white transition-transform"
                 style={{
-                  transform: form.multi_agent_enabled === "true" ? "translateX(32px)" : "translateX(4px)",
+                  transform: form.multi_agent_enabled === "true" ? "translateX(28px)" : "translateX(0)",
                   boxShadow: "0 4px 10px rgba(0,0,0,0.12)",
                 }}
               />
