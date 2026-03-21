@@ -54,7 +54,7 @@ pub fn default_settings() -> HashMap<String, String> {
         "multi_agent_enabled_agents".into(),
         "retrieval,planner,literature_scout,survey,paper_analyst,reproduction,synthesis".into(),
     );
-    m.insert("multi_agent_max_steps".into(), "4".into());
+    m.insert("multi_agent_max_steps".into(), "6".into());
     m.insert("multi_agent_search_limit".into(), "8".into());
     m.insert("multi_agent_supervisor_model".into(), "".into());
     m.insert("multi_agent_supervisor_temperature".into(), "0.1".into());
