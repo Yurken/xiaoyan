@@ -568,7 +568,7 @@ export default function Settings() {
         </div>
         <div className="space-y-2 ml-12">
           {[
-            ["应用", "智研 Copilot Desktop v0.1.4"],
+            ["应用", "智研 Copilot Desktop v0.2.0"],
             ["技术栈", "Tauri v2 · React · Rust · Multi-Agent"],
             ["存储", "SQLite（本地嵌入式）"],
           ].map(([k, v]) => (
