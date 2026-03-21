@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, ChevronDown, ChevronUp, GitBranch, Loader2, Plus, Sparkles } from "lucide-react";
-import { Badge, Button, Card, Input } from "@research-copilot/ui";
+import { Badge, Button, Card } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { LearningPath, ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
+import PlannerComposer from "./PlannerComposer";
 
 interface InterestAgentState {
   id: string;
@@ -148,6 +149,22 @@ function LearningPathView({ path }: { path: LearningPath }) {
   );
 }
 
+function summarizeProfile(interest: ResearchInterest) {
+  const highlights: Array<{ label: string; value: string }> = [];
+
+  if (interest.profile?.goal) {
+    highlights.push({ label: "目标", value: interest.profile.goal });
+  }
+  if (interest.profile?.time_budget) {
+    highlights.push({ label: "时间", value: interest.profile.time_budget });
+  }
+  if (interest.profile?.preferred_output) {
+    highlights.push({ label: "输出", value: interest.profile.preferred_output });
+  }
+
+  return highlights;
+}
+
 export default function InterestsPanel() {
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [agentsByInterest, setAgentsByInterest] = useState<Record<string, InterestAgentState[]>>({});
@@ -155,9 +172,6 @@ export default function InterestsPanel() {
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [topic, setTopic] = useState("");
-  const [keywordsRaw, setKeywordsRaw] = useState("");
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,26 +250,6 @@ export default function InterestsPanel() {
     };
   }, []);
 
-  const handleCreate = async () => {
-    if (!topic.trim()) return;
-
-    setSaving(true);
-
-    try {
-      const keywords = keywordsRaw.split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean);
-      const nextInterest = await apiClient.knowledge.createInterest(topic.trim(), keywords);
-      setInterests((prev) => [nextInterest, ...prev]);
-      setTopic("");
-      setKeywordsRaw("");
-      setCreating(false);
-      setError("");
-    } catch (nextError) {
-      setError(formatErrorMessage(nextError));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleGeneratePlan = async (id: string) => {
     setInterests((prev) => prev.map((item) => (item.id === id ? { ...item, status: "planning" } : item)));
     setAgentsByInterest((prev) => ({ ...prev, [id]: [] }));
@@ -304,28 +298,14 @@ export default function InterestsPanel() {
         </div>
 
         {creating && (
-          <div className="grid gap-3 rounded-2xl border border-nm-dark/10 bg-white/30 p-3 md:grid-cols-[1.3fr_1fr_auto] md:items-end">
-            <Input
-              label="研究主题"
-              value={topic}
-              onChange={(event) => setTopic(event.target.value)}
-              placeholder="如：大语言模型对齐、医疗多模态诊断、时序预测"
-            />
-            <Input
-              label="关键词"
-              value={keywordsRaw}
-              onChange={(event) => setKeywordsRaw(event.target.value)}
-              placeholder="逗号分隔，如 RLHF, reward model, preference optimization"
-            />
-            <div className="flex gap-2 md:justify-end">
-              <Button size="sm" variant="secondary" onClick={() => setCreating(false)}>
-                取消
-              </Button>
-              <Button size="sm" loading={saving} onClick={() => void handleCreate()}>
-                创建
-              </Button>
-            </div>
-          </div>
+          <PlannerComposer
+            onCancel={() => setCreating(false)}
+            onCreated={(nextInterest) => {
+              setInterests((prev) => [nextInterest, ...prev]);
+              setCreating(false);
+              setError("");
+            }}
+          />
         )}
 
         {error && interests.length > 0 && (
@@ -351,91 +331,128 @@ export default function InterestsPanel() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {interests.map((interest) => (
-            <Card key={interest.id} padding="sm" className="space-y-0">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-base font-semibold text-ink-primary">{interest.topic}</p>
-                    <StatusBadge status={interest.status} />
-                  </div>
-                  {interest.keywords && interest.keywords.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {interest.keywords.map((keyword) => (
-                        <span key={`${interest.id}-${keyword}`} className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue">
-                          {keyword}
-                        </span>
-                      ))}
+          {interests.map((interest) => {
+            const profileHighlights = summarizeProfile(interest);
+
+            return (
+              <Card key={interest.id} padding="sm" className="space-y-0">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-base font-semibold text-ink-primary">{interest.topic}</p>
+                      <StatusBadge status={interest.status} />
                     </div>
-                  )}
-                </div>
+                    {interest.keywords && interest.keywords.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {interest.keywords.map((keyword) => (
+                          <span key={`${interest.id}-${keyword}`} className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue">
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  {interest.status !== "planning" ? (
-                    <Button size="sm" variant="secondary" onClick={() => void handleGeneratePlan(interest.id)}>
-                      <Sparkles className="h-3.5 w-3.5" />
-                      {interest.status === "planned" ? "重新规划" : "生成路线"}
-                    </Button>
-                  ) : (
-                    <span className="flex items-center gap-1 text-xs text-apple-blue">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      生成中…
-                    </span>
-                  )}
+                    {(profileHighlights.length > 0 || interest.profile?.constraints?.length) && (
+                      <div className="mt-3 rounded-2xl border border-nm-dark/10 bg-white/35 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">研究画像</p>
 
-                  {interest.learning_path && (
-                    <button
-                      type="button"
-                      onClick={() => setExpanded((prev) => (prev === interest.id ? null : interest.id))}
-                      className="rounded-xl p-1.5 text-ink-tertiary transition-colors hover:text-ink-primary"
-                      style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
-                    >
-                      {expanded === interest.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {(agentsByInterest[interest.id]?.length || 0) > 0 && (
-                <div className="mt-4 border-t border-nm-dark/10 pt-4">
-                  <div className="mb-2 flex items-center gap-1.5">
-                    <GitBranch className="h-3.5 w-3.5 text-apple-blue" />
-                    <p className="text-xs font-semibold text-ink-primary">规划 Agent 协作（白盒）</p>
-                  </div>
-                  <div className="grid gap-2 lg:grid-cols-3">
-                    {(agentsByInterest[interest.id] || []).map((agent) => (
-                      <div
-                        key={agent.id}
-                        className="rounded-2xl p-3"
-                        style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold text-ink-primary">{agent.name}</p>
-                            <p className="truncate text-[11px] text-ink-tertiary">{agent.role}</p>
+                        {profileHighlights.length > 0 && (
+                          <div className="mt-2 grid gap-2 lg:grid-cols-3">
+                            {profileHighlights.map((item) => (
+                              <div
+                                key={`${interest.id}-${item.label}`}
+                                className="rounded-2xl border border-white/60 bg-white/55 px-3 py-2"
+                              >
+                                <p className="text-[11px] uppercase tracking-wide text-ink-tertiary">{item.label}</p>
+                                <p className="mt-1 text-xs leading-5 text-ink-secondary">{item.value}</p>
+                              </div>
+                            ))}
                           </div>
-                          <Badge variant={agent.status === "done" ? "success" : agent.status === "failed" ? "danger" : "info"}>
-                            {agent.status === "done" ? "完成" : agent.status === "failed" ? "失败" : "运行中"}
-                          </Badge>
-                        </div>
-                        {(agent.summary || agent.error) && (
-                          <p className={`mt-2 text-[11px] leading-5 ${agent.error ? "text-apple-red" : "text-ink-secondary"}`}>
-                            {agent.error || agent.summary}
-                          </p>
+                        )}
+
+                        {interest.profile?.constraints && interest.profile.constraints.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {interest.profile.constraints.map((constraint) => (
+                              <span
+                                key={`${interest.id}-${constraint}`}
+                                className="rounded-full bg-[#D7EEF8] px-2 py-1 text-[11px] text-[#0A84C1]"
+                              >
+                                {constraint}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    ))}
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                    {interest.status !== "planning" ? (
+                      <Button size="sm" variant="secondary" onClick={() => void handleGeneratePlan(interest.id)}>
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {interest.status === "planned" ? "重新规划" : "生成路线"}
+                      </Button>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs text-apple-blue">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        生成中…
+                      </span>
+                    )}
+
+                    {interest.learning_path && (
+                      <button
+                        type="button"
+                        onClick={() => setExpanded((prev) => (prev === interest.id ? null : interest.id))}
+                        className="rounded-xl p-1.5 text-ink-tertiary transition-colors hover:text-ink-primary"
+                        style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
+                      >
+                        {expanded === interest.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+                    )}
                   </div>
                 </div>
-              )}
 
-              {expanded === interest.id && interest.learning_path && (
-                <div className="mt-4 border-t border-nm-dark/10 pt-4">
-                  <LearningPathView path={interest.learning_path} />
-                </div>
-              )}
-            </Card>
-          ))}
+                {(agentsByInterest[interest.id]?.length || 0) > 0 && (
+                  <div className="mt-4 border-t border-nm-dark/10 pt-4">
+                    <div className="mb-2 flex items-center gap-1.5">
+                      <GitBranch className="h-3.5 w-3.5 text-apple-blue" />
+                      <p className="text-xs font-semibold text-ink-primary">规划 Agent 协作（白盒）</p>
+                    </div>
+                    <div className="grid gap-2 lg:grid-cols-3">
+                      {(agentsByInterest[interest.id] || []).map((agent) => (
+                        <div
+                          key={agent.id}
+                          className="rounded-2xl p-3"
+                          style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold text-ink-primary">{agent.name}</p>
+                              <p className="truncate text-[11px] text-ink-tertiary">{agent.role}</p>
+                            </div>
+                            <Badge variant={agent.status === "done" ? "success" : agent.status === "failed" ? "danger" : "info"}>
+                              {agent.status === "done" ? "完成" : agent.status === "failed" ? "失败" : "运行中"}
+                            </Badge>
+                          </div>
+                          {(agent.summary || agent.error) && (
+                            <p className={`mt-2 text-[11px] leading-5 ${agent.error ? "text-apple-red" : "text-ink-secondary"}`}>
+                              {agent.error || agent.summary}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {expanded === interest.id && interest.learning_path && (
+                  <div className="mt-4 border-t border-nm-dark/10 pt-4">
+                    <LearningPathView path={interest.learning_path} />
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

@@ -11,6 +11,7 @@ import type {
   ChatMessage,
   ChatStreamChunk,
   ResearchInterest,
+  ResearchInterestProfile,
   KnowledgeNote,
   AppSettings,
   AgentRun,
@@ -55,8 +56,12 @@ export const papersApi = {
 export const knowledgeApi = {
   listInterests: (): Promise<ResearchInterest[]> =>
     invoke("knowledge_list_interests"),
-  createInterest: (topic: string, keywords: string[]): Promise<ResearchInterest> =>
-    invoke("knowledge_create_interest", { topic, keywords }),
+  createInterest: (
+    topic: string,
+    keywords: string[],
+    profile?: ResearchInterestProfile
+  ): Promise<ResearchInterest> =>
+    invoke("knowledge_create_interest", { topic, keywords, profile: profile ?? null }),
   generatePlan: (id: string): Promise<void> =>
     invoke("knowledge_generate_plan", { id }),
   listNotes: (search?: string): Promise<KnowledgeNote[]> =>

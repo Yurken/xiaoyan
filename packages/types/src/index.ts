@@ -43,9 +43,19 @@ export interface ResearchInterest {
   id: string;
   topic: string;
   keywords?: string[];
+  profile?: ResearchInterestProfile;
   learning_path?: LearningPath;
   status: string;
   created_at: string;
+}
+
+export interface ResearchInterestProfile {
+  goal?: string;
+  background?: string;
+  time_budget?: string;
+  constraints?: string[];
+  known_context?: string;
+  preferred_output?: string;
 }
 
 export interface LearningPath {
