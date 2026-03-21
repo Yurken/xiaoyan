@@ -14,9 +14,6 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@research-copilot/api-sdk':
-        specifier: workspace:*
-        version: link:../../packages/api-sdk
       '@research-copilot/types':
         specifier: workspace:*
         version: link:../../packages/types
