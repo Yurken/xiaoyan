@@ -66,7 +66,6 @@ for (const file of [
   "apps/desktop/package.json",
   "apps/mobile/package.json",
   "apps/web/package.json",
-  "packages/api-sdk/package.json",
   "packages/config/package.json",
   "packages/types/package.json",
   "packages/ui/package.json",
@@ -95,11 +94,6 @@ updateText("apps/desktop/src-tauri/Cargo.toml", (text) => {
   return text.replace(/^version = ".*"$/m, `version = "${version}"`);
 }, touched);
 
-updateText("backend/app/main.py", (text) => {
-  return text
-    .replace(/version="[^"]+"/, `version="${version}"`)
-    .replace(/"version": "[^"]+"/, `"version": "${version}"`);
-}, touched);
 
 if (touched.length === 0) {
   console.log(`Version already synced: ${version}`);
