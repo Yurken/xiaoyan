@@ -17,8 +17,11 @@ pub async fn papers_list(
     let offset = offset.unwrap_or(0);
     let limit = limit.unwrap_or(20);
     let rows = sqlx::query(
-        "SELECT id, title, authors, abstract, year, venue, doi, tags, status, created_at, updated_at
-         FROM papers ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.tags, p.status, p.created_at, p.updated_at,
+                a.research_question, a.core_method, a.experiment_design, a.innovations, a.limitations, a.key_conclusions
+         FROM papers p
+         LEFT JOIN paper_analyses a ON a.paper_id = p.id
+         ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
     )
     .bind(limit)
     .bind(offset)
@@ -28,7 +31,22 @@ pub async fn papers_list(
 
     let papers: Vec<serde_json::Value> = rows
         .iter()
-        .map(|r| paper_row_to_json(r, false))
+        .map(|r| {
+            let mut v = paper_row_to_json(r, false);
+            // Attach analysis inline if any field is present
+            let rq: Option<String> = r.try_get("research_question").ok().flatten();
+            if rq.is_some() {
+                v["analysis"] = json!({
+                    "research_question": r.try_get::<Option<String>, _>("research_question").ok().flatten(),
+                    "core_method": r.try_get::<Option<String>, _>("core_method").ok().flatten(),
+                    "experiment_design": r.try_get::<Option<String>, _>("experiment_design").ok().flatten(),
+                    "innovations": r.try_get::<Option<String>, _>("innovations").ok().flatten(),
+                    "limitations": r.try_get::<Option<String>, _>("limitations").ok().flatten(),
+                    "key_conclusions": r.try_get::<Option<String>, _>("key_conclusions").ok().flatten(),
+                });
+            }
+            v
+        })
         .collect();
     Ok(json!(papers))
 }
@@ -124,9 +142,10 @@ pub async fn papers_delete(
 pub async fn papers_upload(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-    file_path: String,
+    file_path: tauri_plugin_fs::FilePath,
 ) -> Result<serde_json::Value, String> {
-    let path = std::path::Path::new(&file_path);
+    let path = file_path.into_path().map_err(|e| e.to_string())?;
+    let file_path_str = path.to_string_lossy().to_string();
     let file_name = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -136,7 +155,7 @@ pub async fn papers_upload(
         .unwrap_or(file_name)
         .replace(['_', '-'], " ");
 
-    let full_text = pdf_extract::extract_text(path)
+    let full_text = pdf_extract::extract_text(&path)
         .map_err(|e| format!("PDF extraction failed: {e}"))?;
 
     let paper_id = Uuid::new_v4().to_string();
@@ -148,7 +167,7 @@ pub async fn papers_upload(
     )
     .bind(&paper_id)
     .bind(&title_guess)
-    .bind(&file_path)
+    .bind(&file_path_str)
     .bind(&full_text)
     .bind(&now)
     .bind(&now)
@@ -230,6 +249,14 @@ pub async fn papers_analyze(
     let pid = id.clone();
     let prompt = ANALYZE_PROMPT.replace("{text}", text_preview);
 
+    // Mark as analyzing immediately so the UI can react
+    let now_pre = chrono::Utc::now().to_rfc3339();
+    let _ = sqlx::query("UPDATE papers SET status = 'analyzing', updated_at = ? WHERE id = ?")
+        .bind(&now_pre)
+        .bind(&id)
+        .execute(&state.db)
+        .await;
+
     tokio::spawn(async move {
         let client = match LlmClient::from_settings(&settings) {
             Ok(c) => c,
@@ -303,6 +330,13 @@ pub async fn papers_reproduce(
     let db = state.db.clone();
     let pid = id.clone();
     let prompt = REPRODUCE_PROMPT.replace("{text}", text_preview);
+
+    let now_pre = chrono::Utc::now().to_rfc3339();
+    let _ = sqlx::query("UPDATE papers SET status = 'analyzing', updated_at = ? WHERE id = ?")
+        .bind(&now_pre)
+        .bind(&id)
+        .execute(&state.db)
+        .await;
 
     tokio::spawn(async move {
         let client = match LlmClient::from_settings(&settings) {
