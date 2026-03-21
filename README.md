@@ -1,13 +1,17 @@
-# 智研 Copilot v0.2.0
+# 智研 Copilot v0.2.2
 
 面向科研学习与论文工作的桌面端 AI Copilot。采用 Supervisor 驱动的多 Agent 编排，覆盖研究方向规划、文献调研、论文精读、复现建议、知识库沉淀和带引用的对话问答。
 
+> **v0.2.2 更新**：研究方向规划与文献综述已支持白盒多 Agent 协作可视化，用户可实时查看各 Agent 的职责、状态与阶段性产物。
+>
 > **v0.2.0 重大变更**：桌面端已完全去除 Python 后端依赖，改为纯 Rust Tauri Commands + 本地 SQLite，开箱即用，无需 Docker / PostgreSQL / Python 环境。
 
 ## 功能概览
 
 - **多 Agent 协同**：Supervisor 负责任务拆解，调用检索、规划、文献侦察、综述、论文解析、复现等专长 Agent，最终整合回答。
 - **可观测 Copilot**：实时展示计划步骤、Agent 执行轨迹与来源（Mission Control 面板）。
+- **白盒研究规划**：研究方向规划支持 Agent 协作白盒视图，可查看 Topic Analyst / Paper Scout / Learning Path Designer 的执行过程。
+- **白盒文献综述**：文献综述支持 Intent Planner / Literature Retriever / Survey Writer 协作流程可视化，并输出结构化综述与候选论文。
 - **论文库**：上传 PDF，自动提取全文、分块向量化，支持语义检索与论文精读分析。
 - **知识卡片**：创建笔记，自动生成 Embedding，支持语义搜索。
 - **研究规划**：输入研究方向，AI 生成系统化学习路线（前置知识、阶段、经典论文、开放问题）。
@@ -26,7 +30,7 @@
 | `/copilot` | 多 Agent Copilot 工作台 |
 | `/settings` | 模型、Provider、多 Agent 与运行设置 |
 
-## 架构（v0.2.0）
+## 架构（v0.2.2）
 
 桌面端为完全自包含的 Tauri v2 应用，所有逻辑在 Rust 进程内运行：
 

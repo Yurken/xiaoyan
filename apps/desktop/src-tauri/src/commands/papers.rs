@@ -18,9 +18,12 @@ pub async fn papers_list(
     let limit = limit.unwrap_or(20);
     let rows = sqlx::query(
         "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.tags, p.status, p.created_at, p.updated_at,
-                a.research_question, a.core_method, a.experiment_design, a.innovations, a.limitations, a.key_conclusions
+                a.research_question, a.core_method, a.experiment_design, a.innovations, a.limitations, a.key_conclusions,
+                rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
+                rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
          FROM papers p
          LEFT JOIN paper_analyses a ON a.paper_id = p.id
+         LEFT JOIN reproduction_guides rg ON rg.paper_id = p.id
          ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
     )
     .bind(limit)
@@ -43,6 +46,18 @@ pub async fn papers_list(
                     "innovations": r.try_get::<Option<String>, _>("innovations").ok().flatten(),
                     "limitations": r.try_get::<Option<String>, _>("limitations").ok().flatten(),
                     "key_conclusions": r.try_get::<Option<String>, _>("key_conclusions").ok().flatten(),
+                });
+            }
+            let env: Option<String> = r.try_get("environment_setup").ok().flatten();
+            if env.is_some() {
+                v["reproduction_guide"] = json!({
+                    "environment_setup": r.try_get::<Option<String>, _>("environment_setup").ok().flatten(),
+                    "dependencies": r.try_get::<Option<String>, _>("dependencies").ok().flatten(),
+                    "dataset_preparation": r.try_get::<Option<String>, _>("dataset_preparation").ok().flatten(),
+                    "training_process": r.try_get::<Option<String>, _>("training_process").ok().flatten(),
+                    "inference_process": r.try_get::<Option<String>, _>("inference_process").ok().flatten(),
+                    "evaluation_metrics": r.try_get::<Option<String>, _>("evaluation_metrics").ok().flatten(),
+                    "risks_and_notes": r.try_get::<Option<String>, _>("risks_and_notes").ok().flatten(),
                 });
             }
             v
@@ -371,6 +386,8 @@ pub async fn papers_reproduce(
                 .bind(v["inference_process"].as_str()).bind(v["evaluation_metrics"].as_str())
                 .bind(v["risks_and_notes"].as_str()).bind(&raw).bind(&now)
                 .execute(&db).await;
+                let _ = sqlx::query("UPDATE papers SET status = 'reproduced', updated_at = ? WHERE id = ?")
+                    .bind(&now).bind(&pid).execute(&db).await;
                 let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "reproduced" }));
             }
             Err(e) => {

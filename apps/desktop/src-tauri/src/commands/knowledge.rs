@@ -13,7 +13,7 @@ pub async fn knowledge_list_interests(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let rows = sqlx::query(
-        "SELECT id, topic, keywords, status, created_at FROM research_interests ORDER BY created_at DESC",
+        "SELECT id, topic, keywords, learning_path, status, created_at FROM research_interests ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
     .await
@@ -23,10 +23,14 @@ pub async fn knowledge_list_interests(
         .iter()
         .map(|r| {
             let kw: String = r.get::<Option<String>, _>("keywords").unwrap_or_else(|| "[]".into());
+            let lp_str: Option<String> = r.get::<Option<String>, _>("learning_path");
+            let learning_path = lp_str
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
             json!({
                 "id": r.get::<String, _>("id"),
                 "topic": r.get::<String, _>("topic"),
                 "keywords": serde_json::from_str::<serde_json::Value>(&kw).unwrap_or(json!([])),
+                "learning_path": learning_path,
                 "status": r.get::<String, _>("status"),
                 "created_at": r.get::<String, _>("created_at"),
             })
@@ -60,6 +64,9 @@ pub async fn knowledge_create_interest(
 const PLANNER_SYSTEM: &str = "你是一位顶尖的学术导师，擅长为学生设计系统化的研究学习路线。";
 const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{keywords}）设计系统化学习路线，以 JSON 格式返回：
 {{"overview":"...","prerequisites":[{{"name":"...","description":"...","resources":["..."]}}],"learning_stages":[{{"stage":1,"title":"...","duration":"...","goals":["..."],"topics":["..."],"resources":["..."]}}],"classic_papers":[{{"title":"...","authors":"...","year":2020,"reason":"..."}}],"research_directions":[{{"direction":"...","description":"...","open_problems":["..."]}}],"tools_and_frameworks":["..."],"communities":["..."]}}"#;
+const PLANNER_ANALYST_SYSTEM: &str = "你是研究方向分析 Agent，负责把研究主题拆解为学习重点和能力目标。";
+const PLANNER_ANALYST_PROMPT: &str = r#"请分析研究方向「{topic}」（关键词：{keywords}），仅返回 JSON：
+{"scope":"一句话定义范围","focus_topics":["核心主题"],"skill_targets":["需要掌握的能力"],"risk_points":["新手常见误区"]}"#;
 
 #[tauri::command]
 pub async fn knowledge_generate_plan(
@@ -86,7 +93,126 @@ pub async fn knowledge_generate_plan(
             Ok(c) => c,
             Err(e) => { let _ = app.emit("interest:error", json!({ "id": rid, "error": e.to_string() })); return; }
         };
-        let prompt = PLANNER_PROMPT.replace("{topic}", &topic).replace("{keywords}", &keywords.join(", "));
+
+        let analyst_id = Uuid::new_v4().to_string();
+        let _ = app.emit("interest:agent_start", json!({
+            "id": rid,
+            "agent": {
+                "id": analyst_id,
+                "name": "Topic Analyst",
+                "role": "拆解研究主题与能力目标",
+                "status": "running"
+            }
+        }));
+
+        let analyst_prompt = PLANNER_ANALYST_PROMPT
+            .replace("{topic}", &topic)
+            .replace("{keywords}", &keywords.join("、"));
+        let analyst_msgs = vec![LlmMessage::system(PLANNER_ANALYST_SYSTEM), LlmMessage::user(&analyst_prompt)];
+        let analysis_json = match client.chat(&analyst_msgs, None, 0.2).await {
+            Ok(resp) => {
+                let clean = crate::commands::papers::extract_json_pub(&resp);
+                let parsed = serde_json::from_str::<serde_json::Value>(&clean).unwrap_or(json!({}));
+                let _ = app.emit("interest:agent_complete", json!({
+                    "id": rid,
+                    "agent": {
+                        "id": analyst_id,
+                        "name": "Topic Analyst",
+                        "role": "拆解研究主题与能力目标",
+                        "status": "done",
+                        "summary": parsed.get("scope").and_then(|v| v.as_str()).unwrap_or("已完成主题拆解")
+                    }
+                }));
+                parsed
+            }
+            Err(e) => {
+                let _ = app.emit("interest:agent_error", json!({
+                    "id": rid,
+                    "agent": {
+                        "id": analyst_id,
+                        "name": "Topic Analyst",
+                        "role": "拆解研究主题与能力目标",
+                        "status": "failed",
+                        "error": e.to_string()
+                    }
+                }));
+                json!({})
+            }
+        };
+
+        let scout_id = Uuid::new_v4().to_string();
+        let _ = app.emit("interest:agent_start", json!({
+            "id": rid,
+            "agent": {
+                "id": scout_id,
+                "name": "Paper Scout",
+                "role": "从本地论文库筛选参考论文",
+                "status": "running"
+            }
+        }));
+
+        let mut paper_hints: Vec<String> = Vec::new();
+        let mut terms = vec![topic.clone()];
+        terms.extend(keywords.clone());
+        for term in terms.into_iter().take(6) {
+            let like = format!("%{}%", term);
+            let rows = sqlx::query("SELECT title, year FROM papers WHERE title LIKE ? OR abstract LIKE ? LIMIT 3")
+                .bind(&like)
+                .bind(&like)
+                .fetch_all(&db)
+                .await
+                .unwrap_or_default();
+            for row in rows {
+                let title: String = row.get("title");
+                let year: Option<i64> = row.get("year");
+                paper_hints.push(format!("{}{}", title, year.map(|y| format!(" ({})", y)).unwrap_or_default()));
+            }
+            if paper_hints.len() >= 8 {
+                break;
+            }
+        }
+        paper_hints.sort();
+        paper_hints.dedup();
+        let _ = app.emit("interest:agent_complete", json!({
+            "id": rid,
+            "agent": {
+                "id": scout_id,
+                "name": "Paper Scout",
+                "role": "从本地论文库筛选参考论文",
+                "status": "done",
+                "summary": format!("已找到 {} 篇候选参考论文", paper_hints.len())
+            }
+        }));
+
+        let designer_id = Uuid::new_v4().to_string();
+        let _ = app.emit("interest:agent_start", json!({
+            "id": rid,
+            "agent": {
+                "id": designer_id,
+                "name": "Learning Path Designer",
+                "role": "生成结构化学习路线",
+                "status": "running"
+            }
+        }));
+
+        let analysis_scope = analysis_json
+            .get("scope")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let analysis_focus = analysis_json
+            .get("focus_topics")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|x| x.as_str()).collect::<Vec<&str>>().join("、"))
+            .unwrap_or_default();
+        let prompt = format!(
+            "{}\n\n补充约束：\n- 方向范围：{}\n- 优先覆盖主题：{}\n- 本地候选论文：{}",
+            PLANNER_PROMPT
+                .replace("{topic}", &topic)
+                .replace("{keywords}", &keywords.join(", ")),
+            analysis_scope,
+            analysis_focus,
+            if paper_hints.is_empty() { "无".to_string() } else { paper_hints.join("；") }
+        );
         let msgs = vec![LlmMessage::system(PLANNER_SYSTEM), LlmMessage::user(&prompt)];
         match client.chat(&msgs, None, 0.3).await {
             Ok(resp) => {
@@ -95,9 +221,36 @@ pub async fn knowledge_generate_plan(
                 let path_str = serde_json::to_string(&v).unwrap_or_default();
                 let _ = sqlx::query("UPDATE research_interests SET learning_path = ?, status = 'planned' WHERE id = ?")
                     .bind(&path_str).bind(&rid).execute(&db).await;
+                let stage_count = v
+                    .get("learning_stages")
+                    .and_then(|x| x.as_array())
+                    .map(|arr| arr.len())
+                    .unwrap_or(0);
+                let _ = app.emit("interest:agent_complete", json!({
+                    "id": rid,
+                    "agent": {
+                        "id": designer_id,
+                        "name": "Learning Path Designer",
+                        "role": "生成结构化学习路线",
+                        "status": "done",
+                        "summary": format!("学习路线生成完成，共 {} 个阶段", stage_count)
+                    }
+                }));
                 let _ = app.emit("interest:plan", json!({ "id": rid, "learning_path": v }));
             }
-            Err(e) => { let _ = app.emit("interest:error", json!({ "id": rid, "error": e.to_string() })); }
+            Err(e) => {
+                let _ = app.emit("interest:agent_error", json!({
+                    "id": rid,
+                    "agent": {
+                        "id": designer_id,
+                        "name": "Learning Path Designer",
+                        "role": "生成结构化学习路线",
+                        "status": "failed",
+                        "error": e.to_string()
+                    }
+                }));
+                let _ = app.emit("interest:error", json!({ "id": rid, "error": e.to_string() }));
+            }
         }
     });
     Ok(())

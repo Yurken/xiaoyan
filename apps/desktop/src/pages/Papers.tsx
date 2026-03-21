@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FileText, Upload, Loader2, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, Upload, Loader2, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, FlaskConical } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { Button, Card, Badge } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../lib/client";
@@ -11,6 +11,7 @@ export default function Papers() {
   const [uploading, setUploading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedRepro, setExpandedRepro] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,9 +92,19 @@ export default function Papers() {
   const handleAnalyze = async (id: string) => {
     try {
       setLoadError("");
-      // Optimistic update
       setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "analyzing" } : p)));
       await apiClient.papers.analyze(id);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "failed" } : p)));
+    }
+  };
+
+  const handleReproduce = async (id: string) => {
+    try {
+      setLoadError("");
+      setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "analyzing" } : p)));
+      await apiClient.papers.reproduce(id);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
       setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "failed" } : p)));
@@ -209,15 +220,33 @@ export default function Papers() {
                     disabled={p.status === "analyzing"}
                   >
                     {p.status === "analyzing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                    {p.status === "analyzing" ? "分析中…" : "AI 分析"}
+                    {p.status === "analyzing" ? "处理中…" : "AI 分析"}
                   </Button>
-                  {p.status === "analyzed" && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void handleReproduce(p.id)}
+                    disabled={p.status === "analyzing"}
+                  >
+                    <FlaskConical className="w-3.5 h-3.5" />
+                    复现指南
+                  </Button>
+                  {p.analysis && (
                     <button
                       onClick={() => setExpanded(expanded === p.id ? null : p.id)}
                       className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary transition-colors"
                       style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
                     >
                       {expanded === p.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+                  )}
+                  {p.reproduction_guide && (
+                    <button
+                      onClick={() => setExpandedRepro(expandedRepro === p.id ? null : p.id)}
+                      className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary transition-colors"
+                      style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
+                    >
+                      <FlaskConical className={`w-4 h-4 ${expandedRepro === p.id ? "text-apple-blue" : ""}`} />
                     </button>
                   )}
                 </div>
@@ -239,6 +268,29 @@ export default function Papers() {
                     <div key={label}>
                       <span className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">{label}</span>
                       <p className="text-xs text-ink-secondary mt-0.5 leading-5">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Reproduction guide panel */}
+              {expandedRepro === p.id && p.reproduction_guide && (
+                <div className="mt-3 pt-3 border-t border-nm-dark/10 space-y-2">
+                  <p className="text-[11px] font-semibold text-apple-blue uppercase tracking-wide">复现指南</p>
+                  {(
+                    [
+                      ["环境配置", p.reproduction_guide.environment_setup],
+                      ["依赖安装", p.reproduction_guide.dependencies],
+                      ["数据准备", p.reproduction_guide.dataset_preparation],
+                      ["训练流程", p.reproduction_guide.training_process],
+                      ["推理流程", p.reproduction_guide.inference_process],
+                      ["评估指标", p.reproduction_guide.evaluation_metrics],
+                      ["风险与注意事项", p.reproduction_guide.risks_and_notes],
+                    ] as [string, string | undefined][]
+                  ).filter(([, v]) => v).map(([label, value]) => (
+                    <div key={label}>
+                      <span className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">{label}</span>
+                      <p className="text-xs text-ink-secondary mt-0.5 leading-5 whitespace-pre-wrap">{value}</p>
                     </div>
                   ))}
                 </div>
