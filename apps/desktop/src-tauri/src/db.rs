@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS papers (
     doi        TEXT,
     file_path  TEXT,
     full_text  TEXT,
+    research_interest_id TEXT REFERENCES research_interests(id) ON DELETE SET NULL,
     tags       TEXT NOT NULL DEFAULT '[]',
     status     TEXT NOT NULL DEFAULT 'uploaded',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -151,6 +152,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     // Run schema – SQLite handles multiple statements via raw_sql
     sqlx::raw_sql(SCHEMA).execute(&pool).await?;
     ensure_research_interest_profile_column(&pool).await?;
+    ensure_papers_research_interest_column(&pool).await?;
 
     Ok(pool)
 }
@@ -167,6 +169,25 @@ async fn ensure_research_interest_profile_column(pool: &SqlitePool) -> Result<()
 
     if !has_profile {
         sqlx::query("ALTER TABLE research_interests ADD COLUMN profile TEXT")
+            .execute(pool)
+            .await?;
+    }
+
+    Ok(())
+}
+
+async fn ensure_papers_research_interest_column(pool: &SqlitePool) -> Result<()> {
+    let columns = sqlx::query("PRAGMA table_info(papers)")
+        .fetch_all(pool)
+        .await?;
+
+    let has_research_interest_id = columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == "research_interest_id"
+    });
+
+    if !has_research_interest_id {
+        sqlx::query("ALTER TABLE papers ADD COLUMN research_interest_id TEXT")
             .execute(pool)
             .await?;
     }

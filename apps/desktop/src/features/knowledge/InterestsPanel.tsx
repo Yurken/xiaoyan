@@ -5,6 +5,7 @@ import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { LearningPath, ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
 import PlannerComposer from "./PlannerComposer";
+import ResearchWorkbench from "./ResearchWorkbench";
 
 interface InterestAgentState {
   id: string;
@@ -478,7 +479,10 @@ export default function InterestsPanel() {
 
                 {expanded === interest.id && interest.learning_path && (
                   <div className="mt-4 border-t border-nm-dark/10 pt-4">
-                    <LearningPathView path={interest.learning_path} />
+                    <div className="space-y-5">
+                      <LearningPathView path={interest.learning_path} />
+                      <ResearchWorkbench interest={interest} />
+                    </div>
                   </div>
                 )}
               </Card>
