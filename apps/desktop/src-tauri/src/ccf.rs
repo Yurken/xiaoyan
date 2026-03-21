@@ -10,6 +10,7 @@ struct CcfEntry {
     label: String,
     full_name: String,
     publisher: String,
+    url: String,
     aliases: Vec<String>,
 }
 
@@ -21,6 +22,7 @@ pub struct CcfTag {
     pub label: String,
     pub full_name: String,
     pub publisher: String,
+    pub url: String,
 }
 
 #[derive(Debug, Clone)]
@@ -183,6 +185,7 @@ fn to_tag(entry: &CcfEntry) -> CcfTag {
         label: entry.label.clone(),
         full_name: entry.full_name.clone(),
         publisher: entry.publisher.clone(),
+        url: entry.url.clone(),
     }
 }
 

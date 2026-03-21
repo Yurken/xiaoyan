@@ -3,7 +3,9 @@ import { AlertCircle, BookOpenCheck, FileText, FlaskConical, Loader2, MessageSqu
 import { listen } from "@tauri-apps/api/event";
 import { Badge, Button, Card, Input, MarkdownRenderer, Textarea } from "@research-copilot/ui";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
+import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
+import { openLink } from "../../lib/links";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 
 interface ResearchWorkbenchProps {
@@ -431,7 +433,12 @@ export default function ResearchWorkbench({ interest }: ResearchWorkbenchProps) 
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-ink-primary">{paper.title}</p>
+                        <ExternalLink
+                          href={paper.paper_url}
+                          className="truncate text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
+                        >
+                          {paper.title}
+                        </ExternalLink>
                         <CcfRatingBadge rating={paper.ccf_rating} />
                         <VenueTypeBadge type={paper.ccf_type} />
                       </div>
@@ -440,7 +447,14 @@ export default function ResearchWorkbench({ interest }: ResearchWorkbenchProps) 
                       </p>
                       {(paper.venue || paper.ccf_area) && (
                         <p className="mt-1 text-[11px] leading-5 text-ink-secondary">
-                          {paper.venue || "未识别来源"}
+                          {paper.venue ? (
+                            <ExternalLink
+                              href={paper.venue_url}
+                              className="text-[11px] text-ink-secondary hover:text-apple-blue hover:underline"
+                            >
+                              {paper.venue}
+                            </ExternalLink>
+                          ) : "未识别来源"}
                           {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
                         </p>
                       )}
@@ -538,11 +552,33 @@ export default function ResearchWorkbench({ interest }: ResearchWorkbenchProps) 
                       }`}
                     >
                       {message.role === "assistant" ? (
-                        <MarkdownRenderer content={message.content || "…"} className="text-sm leading-7" />
+                        <MarkdownRenderer content={message.content || "…"} className="text-sm leading-7" onLinkClick={openLink} />
                       ) : (
                         <p className="whitespace-pre-wrap leading-6">{message.content}</p>
                       )}
                     </div>
+                    {message.role === "assistant" && message.sources && message.sources.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {message.sources.map((source, index) => (
+                          <ExternalLink
+                            key={`${source.source}-${index}`}
+                            href={source.url}
+                            title={source.content}
+                            className="rounded-full px-2.5 py-1 text-[11px] text-ink-tertiary"
+                          >
+                            <span
+                              style={{
+                                background: "#E8ECF0",
+                                boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                              }}
+                              className="inline-flex rounded-full px-2.5 py-1 hover:text-apple-blue"
+                            >
+                              {source.source || `来源 ${index + 1}`}
+                            </span>
+                          </ExternalLink>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
                 <div ref={bottomRef} />

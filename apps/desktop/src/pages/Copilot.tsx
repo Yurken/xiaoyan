@@ -14,7 +14,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
+import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
+import { openLink } from "../lib/links";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession } from "@research-copilot/types";
 
 function upsertRun(runs: AgentRun[], next: AgentRun) {
@@ -475,7 +477,10 @@ export default function Copilot() {
                             color: "#1C1C1E",
                           }}
                         >
-                          <MarkdownRenderer content={parsed.answer || (sending && isActiveAssistant ? "正在整理最终回答..." : "…")} />
+                          <MarkdownRenderer
+                            content={parsed.answer || (sending && isActiveAssistant ? "正在整理最终回答..." : "…")}
+                            onLinkClick={openLink}
+                          />
                         </div>
                       </>
                     );
@@ -496,18 +501,22 @@ export default function Copilot() {
                   {message.role === "assistant" && message.sources && message.sources.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {message.sources.map((source, index) => (
-                        <span
+                        <ExternalLink
                           key={`${source.source}-${index}`}
-                          className="px-2.5 py-1 rounded-full text-[11px]"
+                          href={source.url}
+                          className="px-2.5 py-1 rounded-full text-[11px] text-[#6B7280] hover:text-apple-blue"
                           title={source.content}
-                          style={{
-                            background: "#E8ECF0",
-                            color: "#6B7280",
-                            boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
-                          }}
                         >
-                          {source.source || `来源 ${index + 1}`}
-                        </span>
+                          <span
+                            className="rounded-full px-2.5 py-1"
+                            style={{
+                              background: "#E8ECF0",
+                              boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                            }}
+                          >
+                            {source.source || `来源 ${index + 1}`}
+                          </span>
+                        </ExternalLink>
                       ))}
                     </div>
                   )}
@@ -675,8 +684,8 @@ export default function Copilot() {
                     }}
                   >
                     <div className="text-sm font-semibold text-ink-primary">{artifact.title}</div>
-                    <div className="text-xs text-ink-tertiary mt-2 leading-5 whitespace-pre-wrap line-clamp-5">
-                      {artifact.content}
+                    <div className="mt-2 line-clamp-5 text-xs text-ink-tertiary">
+                      <MarkdownRenderer content={artifact.content} className="text-xs leading-5" onLinkClick={openLink} />
                     </div>
                   </div>
                 ))

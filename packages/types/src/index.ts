@@ -13,6 +13,8 @@ export interface Paper {
   ccf_type?: string;
   ccf_label?: string;
   ccf_publisher?: string;
+  paper_url?: string;
+  venue_url?: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -119,6 +121,8 @@ export interface LearningPath {
     ccf_type?: string;
     ccf_label?: string;
     ccf_publisher?: string;
+    paper_url?: string;
+    venue_url?: string;
     reason: string;
   }>;
   research_directions?: Array<{ direction: string; description: string; open_problems: string[] }>;
@@ -133,6 +137,7 @@ export interface CcfEntry {
   label: string;
   full_name: string;
   publisher: string;
+  url: string;
 }
 
 export interface CcfLookupResponse {
@@ -166,7 +171,7 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  sources?: Array<{ content: string; source: string }>;
+  sources?: Array<{ content: string; source: string; url?: string }>;
   created_at: string;
 }
 

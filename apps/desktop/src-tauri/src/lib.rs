@@ -10,6 +10,7 @@ mod ccf;
 mod commands;
 mod db;
 mod llm;
+mod links;
 mod rag;
 mod state;
 

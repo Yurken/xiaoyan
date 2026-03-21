@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AlertCircle, ChevronDown, ChevronUp, GitBranch, Loader2, Plus, Sparkles } from "lucide-react";
 import { Badge, Button, Card } from "@research-copilot/ui";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
+import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { LearningPath, ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
@@ -89,16 +90,26 @@ function LearningPathView({ path }: { path: LearningPath }) {
             {path.classic_papers.map((paper, index) => (
               <div key={`${paper.title}-${index}`} className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-ink-primary">
+                  <ExternalLink
+                    href={paper.paper_url}
+                    className="text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
+                  >
                     {paper.title} <span className="font-normal text-ink-tertiary">({paper.year})</span>
-                  </p>
+                  </ExternalLink>
                   <CcfRatingBadge rating={paper.ccf_rating} />
                   <VenueTypeBadge type={paper.ccf_type} />
                 </div>
                 <p className="mt-1 text-xs text-ink-tertiary">{paper.authors}</p>
                 {(paper.venue || paper.ccf_area) && (
                   <p className="mt-1 text-xs leading-5 text-ink-secondary">
-                    {paper.venue || "未提供来源"}
+                    {paper.venue ? (
+                      <ExternalLink
+                        href={paper.venue_url}
+                        className="text-xs text-ink-secondary hover:text-apple-blue hover:underline"
+                      >
+                        {paper.venue}
+                      </ExternalLink>
+                    ) : "未提供来源"}
                     {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
                   </p>
                 )}
