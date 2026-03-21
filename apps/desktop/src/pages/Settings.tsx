@@ -1,7 +1,7 @@
 import { useState, useEffect, type ComponentType } from "react";
-import { Server, Brain, Database, Info, Eye, EyeOff, CheckCircle, Loader2, AlertCircle, Bot } from "lucide-react";
+import { Brain, Database, Info, Eye, EyeOff, CheckCircle, Loader2, AlertCircle, Bot } from "lucide-react";
 import { Card } from "@research-copilot/ui";
-import { apiClient, formatErrorMessage, getApiBaseUrl, setApiBaseUrl } from "../lib/client";
+import { apiClient, formatErrorMessage } from "../lib/client";
 import type { AppSettings, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
 
 // ── helpers ──────────────────────────────────────────────────────
@@ -186,7 +186,6 @@ const AGENT_OPTIONS = [
 type SaveState = "idle" | "saving" | "saved" | "error";
 
 export default function Settings() {
-  const [apiUrl, setApiUrl] = useState(getApiBaseUrl());
   const [form, setForm] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -212,12 +211,6 @@ export default function Settings() {
   useEffect(() => {
     void loadSettings();
   }, []);
-
-  const handleSaveApiUrl = async () => {
-    const normalized = setApiBaseUrl(apiUrl);
-    setApiUrl(normalized);
-    await loadSettings();
-  };
 
   const handleSaveSettings = async () => {
     setSaveState("saving");
@@ -254,32 +247,6 @@ export default function Settings() {
         <p className="text-sm text-ink-tertiary mt-0.5">配置后端连接和 AI 服务</p>
       </div>
 
-      {/* ── Backend Connection ────────────────────── */}
-      <Card padding="md" className="space-y-4">
-        <div className="flex items-center gap-3">
-          <SectionIcon icon={Server} color="#007AFF" />
-          <h2 className="text-sm font-semibold text-ink-primary">后端连接</h2>
-        </div>
-
-        <SettingInput
-          label="API 地址"
-          value={apiUrl}
-          onChange={setApiUrl}
-          placeholder="http://localhost:8008"
-        />
-
-        <button
-          onClick={handleSaveApiUrl}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-medium text-white transition-all duration-150 active:scale-95"
-          style={{
-            background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-            boxShadow: "4px 4px 10px rgba(0,62,204,0.35), -3px -3px 8px rgba(58,155,255,0.2)",
-          }}
-        >
-          保存地址
-        </button>
-      </Card>
-
       {/* ── LLM Settings ────────────────────────── */}
       <Card padding="md" className="space-y-4">
         <div className="flex items-center gap-3">
@@ -295,7 +262,7 @@ export default function Settings() {
         ) : loadError ? (
           <div className="flex items-center gap-2 py-4 text-sm text-apple-red">
             <AlertCircle className="w-4 h-4" />
-            {loadError} — 请先确认后端已启动
+            {loadError}
           </div>
         ) : (
           <>
@@ -602,8 +569,8 @@ export default function Settings() {
         <div className="space-y-2 ml-12">
           {[
             ["应用", "智研 Copilot Desktop v0.1.4"],
-            ["技术栈", "Tauri v2 · React · FastAPI · pgvector · Multi-Agent"],
-            ["存储", "PostgreSQL + pgvector"],
+            ["技术栈", "Tauri v2 · React · Rust · Multi-Agent"],
+            ["存储", "SQLite（本地嵌入式）"],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between">
               <span className="text-xs text-ink-tertiary">{k}</span>
