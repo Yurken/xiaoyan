@@ -443,7 +443,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   multi_agent_enabled: "true",
   multi_agent_routing_mode: "hybrid",
   multi_agent_enabled_agents: "retrieval,planner,literature_scout,survey,paper_analyst,reproduction,synthesis",
-  multi_agent_max_steps: "4",
+  multi_agent_max_steps: "6",
   multi_agent_search_limit: "8",
   multi_agent_supervisor_model: "",
   multi_agent_supervisor_temperature: "0.1",
@@ -486,8 +486,8 @@ const ROUTING_MODE_COPY: Record<MultiAgentRoutingMode, { label: string; descript
   },
   hybrid: {
     label: "混合判断",
-    description: "先用规则给出候选，再由调度模型裁剪或补充，兼顾稳定性和灵活性。",
-    note: "这是当前最推荐的模式，通常比纯规则更聪明，又比纯模型更稳。",
+    description: "先用规则确定基础班底，再由调度模型补充和重排，兼顾稳定性和灵活性。",
+    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键 agent，再由模型补充额外角色。",
   },
 };
 
@@ -1381,7 +1381,7 @@ export default function Settings() {
                       label="单次最多调用的专项 agent 数"
                       value={form.multi_agent_max_steps}
                       onChange={set("multi_agent_max_steps")}
-                      placeholder="4"
+                      placeholder="6"
                     />
                     <SettingInput
                       label="文献检索条数上限"
