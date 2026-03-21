@@ -51,13 +51,7 @@
       "open": true
     },
 "fs": {
-      "scope": {
-        "allow": [
-          {
-            "path": "$HOME/**"
-          }
-        ]
-      }
+      "requireLiteralLeadingDot": false
     }
   }
 }
