@@ -1,4 +1,5 @@
 import type {
+  CcfLookupResponse,
   Paper,
   ChatSession,
   ChatMessage,
@@ -154,6 +155,8 @@ export function createClient(config: ClientConfig) {
       },
       analyze: (id: string) => r(`/api/papers/${id}/analyze`, { method: "POST" }),
       reproduce: (id: string) => r(`/api/papers/${id}/reproduce`, { method: "POST" }),
+      update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string }) =>
+        r<Paper>(`/api/papers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
       delete: (id: string) => r(`/api/papers/${id}`, { method: "DELETE" }),
     },
 
@@ -217,6 +220,11 @@ export function createClient(config: ClientConfig) {
         r("/api/survey/generate", { method: "POST", body: JSON.stringify({ query, max_papers }) }),
       search: (query: string, limit = 20) =>
         r(`/api/survey/search?query=${encodeURIComponent(query)}&limit=${limit}`),
+    },
+
+    ccf: {
+      lookup: (query: string, limit = 8) =>
+        r<CcfLookupResponse>(`/api/ccf/lookup?query=${encodeURIComponent(query)}&limit=${limit}`),
     },
   };
 }

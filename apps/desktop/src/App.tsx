@@ -7,6 +7,7 @@ import {
   Map,
   MessageSquare,
   Settings as SettingsIcon,
+  Wrench,
 } from "lucide-react";
 import Home from "./pages/Home";
 import Planner from "./pages/Planner";
@@ -15,12 +16,14 @@ import Papers from "./pages/Papers";
 import Copilot from "./pages/Copilot";
 import Knowledge from "./pages/Knowledge";
 import Settings from "./pages/Settings";
+import Tools from "./pages/Tools";
 
 const navItems = [
   { to: "/",          icon: LayoutDashboard, label: "工作台" },
   { to: "/planner",   icon: Map,             label: "规划" },
   { to: "/survey",    icon: BookOpen,        label: "综述" },
   { to: "/papers",    icon: FileText,        label: "论文" },
+  { to: "/tools",     icon: Wrench,          label: "工具" },
   { to: "/knowledge", icon: Library,         label: "知识" },
   { to: "/copilot",   icon: MessageSquare,   label: "Copilot" },
   { to: "/settings",  icon: SettingsIcon,    label: "设置" },
@@ -108,6 +111,7 @@ export default function App() {
           <Route path="/planner"    element={<Planner />} />
           <Route path="/survey"     element={<Survey />} />
           <Route path="/papers"     element={<Papers />} />
+          <Route path="/tools"      element={<Tools />} />
           <Route path="/copilot"    element={<Copilot />} />
           <Route path="/knowledge"  element={<Knowledge />} />
           <Route path="/settings"   element={<Settings />} />

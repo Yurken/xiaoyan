@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, BookOpenCheck, FileText, FlaskConical, Loader2, MessageSquare, Send, StickyNote, Upload } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { Badge, Button, Card, Input, MarkdownRenderer, Textarea } from "@research-copilot/ui";
+import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 
@@ -429,10 +430,20 @@ export default function ResearchWorkbench({ interest }: ResearchWorkbenchProps) 
                 <div key={paper.id} className="rounded-2xl border border-nm-dark/10 bg-white/35 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-ink-primary">{paper.title}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-ink-primary">{paper.title}</p>
+                        <CcfRatingBadge rating={paper.ccf_rating} />
+                        <VenueTypeBadge type={paper.ccf_type} />
+                      </div>
                       <p className="mt-1 text-[11px] text-ink-tertiary">
                         {new Date(paper.updated_at || paper.created_at).toLocaleDateString("zh-CN")}
                       </p>
+                      {(paper.venue || paper.ccf_area) && (
+                        <p className="mt-1 text-[11px] leading-5 text-ink-secondary">
+                          {paper.venue || "未识别来源"}
+                          {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
+                        </p>
+                      )}
                     </div>
                     {paperStatusBadge(paper.status)}
                   </div>

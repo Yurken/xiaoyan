@@ -8,6 +8,11 @@ export interface Paper {
   doi?: string;
   tags?: string[];
   research_interest_id?: string;
+  ccf_rating?: string;
+  ccf_area?: string;
+  ccf_type?: string;
+  ccf_label?: string;
+  ccf_publisher?: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -104,10 +109,35 @@ export interface LearningPath {
     topics: string[];
     resources: string[];
   }>;
-  classic_papers?: Array<{ title: string; authors: string; year: number; reason: string }>;
+  classic_papers?: Array<{
+    title: string;
+    authors: string;
+    year: number;
+    venue?: string;
+    ccf_rating?: string;
+    ccf_area?: string;
+    ccf_type?: string;
+    ccf_label?: string;
+    ccf_publisher?: string;
+    reason: string;
+  }>;
   research_directions?: Array<{ direction: string; description: string; open_problems: string[] }>;
   tools_and_frameworks?: string[];
   communities?: string[];
+}
+
+export interface CcfEntry {
+  kind: string;
+  rating: string;
+  area: string;
+  label: string;
+  full_name: string;
+  publisher: string;
+}
+
+export interface CcfLookupResponse {
+  query: string;
+  matches: CcfEntry[];
 }
 
 export interface KnowledgeNote {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, BookOpen, FileText, Library, Loader2, MessageSquare, Microscope, Sparkles } from "lucide-react";
+import { ArrowRight, BookOpen, FileText, Library, Loader2, MessageSquare, Microscope, Sparkles, Wrench } from "lucide-react";
 import { Badge, Button, Card } from "@research-copilot/ui";
 import { Link } from "react-router-dom";
 import { apiClient, formatErrorMessage } from "../lib/client";
@@ -36,6 +36,12 @@ const quickActions = [
     icon: MessageSquare,
     title: "进入 Copilot",
     description: "查看 agent 链路，围绕论文或研究问题继续追问。",
+  },
+  {
+    to: "/tools",
+    icon: Wrench,
+    title: "查询 CCF",
+    description: "输入期刊或会议名称，快速查看 CCF 评级与类别。",
   },
 ];
 
