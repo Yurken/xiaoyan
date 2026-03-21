@@ -31,21 +31,3 @@ jobs:
       - name: Type check desktop
         run: pnpm --filter "@research-copilot/desktop" exec tsc --noEmit
 
-  backend:
-    name: Backend Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install ruff
-        working-directory: backend
-
-      - name: Lint
-        run: ruff check .
-        working-directory: backend
