@@ -186,6 +186,31 @@ const AGENT_OPTIONS = [
   ["synthesis", "整合"],
 ] as const;
 
+const ROUTING_MODE_COPY: Record<MultiAgentRoutingMode, { label: string; description: string }> = {
+  rule: {
+    label: "规则判断",
+    description: "按关键词和上下文类型选择 agent，行为稳定、可预期。",
+  },
+  llm: {
+    label: "模型判断",
+    description: "理论上由调度模型决定调用哪些 agent，更灵活但也更依赖模型质量。",
+  },
+  hybrid: {
+    label: "混合判断",
+    description: "先用规则给出基础方案，再结合模型做补充或修正。",
+  },
+};
+
+const AGENT_GUIDES = [
+  { key: "retrieval", label: "检索", description: "先从本地论文库和知识库中找上下文证据。" },
+  { key: "planner", label: "规划", description: "把研究问题拆成学习路径、阶段目标和行动建议。" },
+  { key: "literature_scout", label: "侦察", description: "筛选核心论文、代表工作和候选阅读清单。" },
+  { key: "survey", label: "综述", description: "围绕主题组织结构化综述，梳理方法、趋势和空白。" },
+  { key: "paper_analyst", label: "论文解析", description: "精读单篇论文，提炼方法、实验和局限。" },
+  { key: "reproduction", label: "复现", description: "围绕实现细节、训练配置和复现实验给建议。" },
+  { key: "synthesis", label: "整合", description: "把前面各个 agent 的结果汇总成最终回答。" },
+];
+
 type SaveState = "idle" | "saving" | "saved" | "error";
 type TestState = "idle" | "testing" | "ok" | "error";
 
@@ -345,12 +370,12 @@ export default function Settings() {
           <>
             {/* Provider selector */}
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-ink-tertiary ml-1">LLM 服务商</label>
+              <label className="block text-xs font-medium text-ink-tertiary ml-1">模型服务商</label>
               <div className="flex gap-2 flex-wrap">
                 {(["openai_compatible", "openai", "anthropic"] as LlmProvider[]).map((p) => (
                   <ProviderTab
                     key={p}
-                    label={p === "openai_compatible" ? "兼容接口 (推荐)" : p === "openai" ? "OpenAI" : "Anthropic"}
+                    label={p === "openai_compatible" ? "兼容接口（推荐）" : p === "openai" ? "OpenAI" : "Anthropic"}
                     active={provider === p}
                     onClick={() => set("llm_provider")(p)}
                   />
@@ -362,14 +387,14 @@ export default function Settings() {
             {provider === "openai_compatible" && (
               <div className="space-y-3">
                 <SettingInput
-                  label="API Base URL"
+                  label="接口地址"
                   value={form.openai_compatible_base_url}
                   onChange={set("openai_compatible_base_url")}
                   placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
                   hint="阿里云 DashScope: https://dashscope.aliyuncs.com/compatible-mode/v1"
                 />
                 <SettingInput
-                  label="API Key"
+                  label="接口密钥"
                   value={form.openai_compatible_api_key}
                   onChange={set("openai_compatible_api_key")}
                   placeholder="sk-..."
@@ -389,13 +414,13 @@ export default function Settings() {
             {provider === "openai" && (
               <div className="space-y-3">
                 <SettingInput
-                  label="API Base URL"
+                  label="接口地址"
                   value={form.openai_base_url}
                   onChange={set("openai_base_url")}
                   placeholder="https://api.openai.com/v1"
                 />
                 <SettingInput
-                  label="API Key"
+                  label="接口密钥"
                   value={form.openai_api_key}
                   onChange={set("openai_api_key")}
                   placeholder="sk-..."
@@ -414,7 +439,7 @@ export default function Settings() {
             {provider === "anthropic" && (
               <div className="space-y-3">
                 <SettingInput
-                  label="API Key"
+                  label="接口密钥"
                   value={form.anthropic_api_key}
                   onChange={set("anthropic_api_key")}
                   placeholder="sk-ant-..."
@@ -431,9 +456,9 @@ export default function Settings() {
 
             {/* External APIs */}
             <div className="space-y-3 pt-1 border-t border-nm-dark/10">
-              <p className="text-xs font-medium text-ink-tertiary">外部服务</p>
+              <p className="text-xs font-medium text-ink-tertiary">外部学术服务</p>
               <SettingInput
-                label="Semantic Scholar API Key（可选）"
+                label="Semantic Scholar 接口密钥（可选）"
                 value={form.semantic_scholar_api_key}
                 onChange={set("semantic_scholar_api_key")}
                 placeholder="留空使用免费限速额度"
@@ -450,19 +475,19 @@ export default function Settings() {
           <div className="flex items-center gap-3">
             <SectionIcon icon={Database} color="#5856D6" />
             <div>
-              <h2 className="text-sm font-semibold text-ink-primary">独立 Embedding 接口（可选）</h2>
-              <p className="text-xs text-ink-tertiary mt-0.5">填写后将使用此接口进行向量化，留空则沿用上方 AI 服务的 Embedding 模型</p>
+              <h2 className="text-sm font-semibold text-ink-primary">独立向量化接口（可选）</h2>
+              <p className="text-xs text-ink-tertiary mt-0.5">填写后将使用此接口生成向量，留空则沿用上方 AI 服务的向量模型</p>
             </div>
           </div>
           <div className="space-y-3">
             <SettingInput
-              label="Embedding Base URL"
+              label="向量接口地址"
               value={form.embedding_base_url}
               onChange={set("embedding_base_url")}
               placeholder="https://api.openai.com/v1"
             />
             <SettingInput
-              label="Embedding API Key"
+              label="向量接口密钥"
               value={form.embedding_api_key}
               onChange={set("embedding_api_key")}
               placeholder="sk-..."
@@ -470,7 +495,7 @@ export default function Settings() {
               hint="留空或输入 *** 表示不更改"
             />
             <SettingInput
-              label="Embedding 模型"
+              label="向量模型"
               value={form.embedding_model}
               onChange={set("embedding_model")}
               placeholder="text-embedding-3-small"
@@ -489,19 +514,19 @@ export default function Settings() {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <SettingInput
-              label="分块大小（tokens）"
+              label="分块大小（Token）"
               value={form.chunk_size}
               onChange={set("chunk_size")}
               placeholder="800"
             />
             <SettingInput
-              label="重叠大小（tokens）"
+              label="重叠大小（Token）"
               value={form.chunk_overlap}
               onChange={set("chunk_overlap")}
               placeholder="150"
             />
             <SettingInput
-              label="检索 Top-K"
+              label="检索数量上限"
               value={form.rag_top_k}
               onChange={set("rag_top_k")}
               placeholder="5"
@@ -517,7 +542,7 @@ export default function Settings() {
             <SectionIcon icon={Bot} color="#34C759" />
             <div>
               <h2 className="text-sm font-semibold text-ink-primary">多 Agent 编排</h2>
-              <p className="text-xs text-ink-tertiary mt-0.5">控制 supervisor、worker 和 synthesis 的路由行为</p>
+              <p className="text-xs text-ink-tertiary mt-0.5">控制调度 agent、执行 agent 和整合 agent 的协同行为</p>
             </div>
           </div>
 
@@ -529,8 +554,8 @@ export default function Settings() {
             }}
           >
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-ink-primary">启用 Multi-Agent</div>
-              <div className="text-xs text-ink-tertiary mt-1">关闭后只保留最终回答能力，不再展示 supervisor 拆解链路</div>
+              <div className="text-sm font-semibold text-ink-primary">启用多 agent 编排</div>
+              <div className="text-xs text-ink-tertiary mt-1">关闭后仅保留最终回答，不再展示中间拆解链路</div>
             </div>
             <button
               onClick={() => set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")}
@@ -548,12 +573,12 @@ export default function Settings() {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-ink-tertiary ml-1">路由模式</label>
+            <label className="block text-xs font-medium text-ink-tertiary ml-1">选路方式</label>
             <div className="flex gap-2 flex-wrap">
               {([
-                ["rule", "规则优先"],
-                ["llm", "LLM 路由"],
-                ["hybrid", "混合模式"],
+                ["rule", "规则判断"],
+                ["llm", "模型判断"],
+                ["hybrid", "混合判断"],
               ] as const).map(([value, label]) => (
                 <ProviderTab
                   key={value}
@@ -563,10 +588,19 @@ export default function Settings() {
                 />
               ))}
             </div>
+            <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
+              <p className="text-sm font-semibold text-ink-primary">{ROUTING_MODE_COPY[routingMode].label}</p>
+              <p className="mt-1 text-xs leading-5 text-ink-secondary">
+                {ROUTING_MODE_COPY[routingMode].description}
+              </p>
+              <p className="mt-2 text-[11px] leading-5 text-ink-tertiary">
+                当前桌面端仍以规则判断为主，这一项已预留给后续更细的模型选路能力，因此你现在切换模式，主要影响配置展示和后续兼容。
+              </p>
+            </div>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-ink-tertiary ml-1">启用的 Specialist</label>
+            <label className="block text-xs font-medium text-ink-tertiary ml-1">启用的专项 agent</label>
             <div className="flex gap-2 flex-wrap">
               {AGENT_OPTIONS.map(([value, label]) => (
                 <AgentChip
@@ -577,53 +611,61 @@ export default function Settings() {
                 />
               ))}
             </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {AGENT_GUIDES.map((item) => (
+                <div key={item.key} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-3 py-2.5">
+                  <p className="text-xs font-semibold text-ink-primary">{item.label}</p>
+                  <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{item.description}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <SettingInput
-              label="最大步骤数"
+              label="单次最多调用的专项 agent 数"
               value={form.multi_agent_max_steps}
               onChange={set("multi_agent_max_steps")}
               placeholder="4"
             />
             <SettingInput
-              label="检索上限"
+              label="单次检索条数上限"
               value={form.multi_agent_search_limit}
               onChange={set("multi_agent_search_limit")}
               placeholder="8"
             />
             <SettingInput
-              label="Supervisor 模型"
+              label="调度模型"
               value={form.multi_agent_supervisor_model}
               onChange={set("multi_agent_supervisor_model")}
               placeholder="留空沿用主模型"
             />
             <SettingInput
-              label="Supervisor Temperature"
+              label="调度温度"
               value={form.multi_agent_supervisor_temperature}
               onChange={set("multi_agent_supervisor_temperature")}
               placeholder="0.1"
             />
             <SettingInput
-              label="Worker 模型"
+              label="执行模型"
               value={form.multi_agent_worker_model}
               onChange={set("multi_agent_worker_model")}
               placeholder="留空沿用主模型"
             />
             <SettingInput
-              label="Worker Temperature"
+              label="执行温度"
               value={form.multi_agent_worker_temperature}
               onChange={set("multi_agent_worker_temperature")}
               placeholder="0.3"
             />
             <SettingInput
-              label="Synthesis 模型"
+              label="整合模型"
               value={form.multi_agent_synthesis_model}
               onChange={set("multi_agent_synthesis_model")}
               placeholder="留空沿用主模型"
             />
             <SettingInput
-              label="Synthesis Temperature"
+              label="整合温度"
               value={form.multi_agent_synthesis_temperature}
               onChange={set("multi_agent_synthesis_temperature")}
               placeholder="0.4"
@@ -640,8 +682,8 @@ export default function Settings() {
         </div>
         <div className="space-y-2 ml-12">
           {[
-            ["应用", "智研 Copilot Desktop v0.2.1"],
-            ["技术栈", "Tauri v2 · React · Rust · Multi-Agent"],
+            ["应用", "智研 Copilot 桌面端 v0.2.1"],
+            ["技术栈", "Tauri v2 · React · Rust · 多 agent 协同"],
             ["存储", "SQLite（本地嵌入式）"],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between">

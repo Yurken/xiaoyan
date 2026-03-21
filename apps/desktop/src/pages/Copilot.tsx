@@ -268,7 +268,7 @@ export default function Copilot() {
             }}
           >
             <Plus className="w-4 h-4" />
-            新建多 Agent 对话
+            新建多 agent 对话
           </button>
         </div>
 
@@ -330,8 +330,8 @@ export default function Copilot() {
                 <BrainCircuit className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-semibold text-sm text-ink-primary">Copilot Mission Room</span>
-                <p className="text-xs text-ink-tertiary mt-0.5">Supervisor + Specialist Agents</p>
+                <span className="font-semibold text-sm text-ink-primary">Copilot 协同台</span>
+                <p className="text-xs text-ink-tertiary mt-0.5">调度 agent 与专项 agent 协同工作</p>
               </div>
             </div>
             <div
@@ -374,7 +374,7 @@ export default function Copilot() {
                   <Sparkles className="w-9 h-9 text-white" />
                 </div>
                 <div className="text-center max-w-md">
-                  <p className="font-semibold text-ink-primary">多 Agent Copilot</p>
+                  <p className="font-semibold text-ink-primary">多 agent 研究助手</p>
                   <p className="text-sm text-ink-tertiary mt-2 leading-6">
                     发送问题后，系统会自动拆解为检索、规划、综述、论文解析和复现等链路，并把每一步显示在右侧。
                   </p>
@@ -434,7 +434,7 @@ export default function Copilot() {
 
                             {planForBubble.length > 0 && (
                               <div className={parsed.thought ? "mt-3" : ""}>
-                                <div className="mb-2 text-xs font-semibold text-ink-secondary">Agent 规划步骤</div>
+                                <div className="mb-2 text-xs font-semibold text-ink-secondary">拆解步骤</div>
                                 <div className="space-y-2">
                                   {planForBubble.map((step, index) => {
                                     const run = [...runsForBubble]
@@ -567,8 +567,8 @@ export default function Copilot() {
               boxShadow: "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF",
             }}
           >
-            <div className="text-xs uppercase tracking-[0.22em] text-ink-tertiary">Mission Control</div>
-            <div className="mt-1 text-base font-semibold text-ink-primary">Supervisor 视图</div>
+            <div className="text-xs uppercase tracking-[0.22em] text-ink-tertiary">任务总览</div>
+            <div className="mt-1 text-base font-semibold text-ink-primary">调度视图</div>
             {activeRequestId && (
               <div className="mt-3 rounded-2xl px-3 py-2 text-[11px] text-white break-all"
                 style={{ background: "linear-gradient(145deg, #111827, #334155)" }}>
@@ -587,7 +587,7 @@ export default function Copilot() {
             <div className="text-sm font-semibold text-ink-primary mb-3">计划分解</div>
             <div className="space-y-3">
               {plan.length === 0 ? (
-                <p className="text-xs text-ink-tertiary leading-5">发送问题后，supervisor 会在这里显示拆解步骤。</p>
+                <p className="text-xs text-ink-tertiary leading-5">发送问题后，调度 agent 会在这里显示拆解步骤。</p>
               ) : (
                 plan.map((step, index) => (
                   <div
@@ -614,7 +614,7 @@ export default function Copilot() {
               boxShadow: "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF",
             }}
           >
-            <div className="text-sm font-semibold text-ink-primary mb-3">Agent 时间线</div>
+            <div className="text-sm font-semibold text-ink-primary mb-3">执行时间线</div>
             <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
               {displayedRuns.length === 0 ? (
                 <p className="text-xs text-ink-tertiary leading-5">还没有 agent 运行记录。</p>
@@ -660,7 +660,7 @@ export default function Copilot() {
               boxShadow: "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF",
             }}
           >
-            <div className="text-sm font-semibold text-ink-primary mb-3">Artifacts</div>
+            <div className="text-sm font-semibold text-ink-primary mb-3">结构化产物</div>
             <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
               {artifacts.length === 0 ? (
                 <p className="text-xs text-ink-tertiary leading-5">当前对话暂无结构化产物。</p>

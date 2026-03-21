@@ -34,7 +34,7 @@ const quickActions = [
   {
     to: "/copilot",
     icon: MessageSquare,
-    title: "打开 Copilot",
+    title: "进入 Copilot",
     description: "查看 agent 链路，围绕论文或研究问题继续追问。",
   },
 ];
@@ -114,7 +114,7 @@ export default function Home() {
               科研工作台
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-ink-primary">智研 Copilot Desktop</h1>
+              <h1 className="text-3xl font-bold text-ink-primary">智研 Copilot 桌面端</h1>
               <p className="mt-2 max-w-2xl text-sm leading-7 text-ink-secondary">
                 现在的重点不是再加孤立工具，而是把方向规划、文献综述、论文分析、知识沉淀和多 Agent 问答串成可持续推进的研究闭环。
               </p>
@@ -127,7 +127,7 @@ export default function Home() {
                 </Button>
               </Link>
               <Link to="/copilot">
-                <Button variant="secondary">进入 Copilot Mission Room</Button>
+                <Button variant="secondary">进入 Copilot 协同台</Button>
               </Link>
             </div>
           </div>
@@ -137,7 +137,7 @@ export default function Home() {
               { label: "论文库", value: state.papers.length, note: `${analyzedCount} 篇已生成分析` },
               { label: "研究方向", value: state.interests.length, note: `${plannedCount} 条已形成路线` },
               { label: "知识笔记", value: state.notes.length, note: "支持语义检索" },
-              { label: "Copilot 会话", value: state.sessions.length, note: "可回溯 agent 过程" },
+              { label: "Copilot 会话", value: state.sessions.length, note: "可回溯 agent 执行过程" },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl bg-white/35 p-4" style={{ boxShadow: "inset 2px 2px 5px #D0D6DC, inset -2px -2px 5px #FFFFFF" }}>
                 <p className="text-xs uppercase tracking-wide text-ink-tertiary">{item.label}</p>
@@ -156,7 +156,7 @@ export default function Home() {
               <p className="text-lg font-semibold text-ink-primary">下一步建议</p>
               <p className="mt-1 text-xs text-ink-tertiary">优先把已有能力串成闭环，而不是继续分散入口。</p>
             </div>
-            <Badge variant="info">高 ROI</Badge>
+            <Badge variant="info">高优先级</Badge>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             {quickActions.map(({ to, icon: Icon, title, description }) => (
