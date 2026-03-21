@@ -50,8 +50,7 @@
     "shell": {
       "open": true
     },
-    "dialog": {},
-    "fs": {
+"fs": {
       "scope": {
         "allow": [
           {
