@@ -1,3 +1,4 @@
+use crate::llm::{LlmClient, LlmMessage};
 use crate::state::{AppState, SENSITIVE_KEYS};
 use sqlx::Row;
 use std::collections::HashMap;
@@ -100,4 +101,29 @@ pub async fn settings_update(
 
     let updated: Vec<String> = to_save.keys().cloned().collect();
     Ok(serde_json::json!({ "ok": true, "updated": updated }))
+}
+
+// ── Test connection ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn settings_test(
+    state: State<'_, AppState>,
+    data: serde_json::Value,
+) -> Result<String, String> {
+    // Merge submitted form values over saved settings (skip masked values)
+    let saved = state.settings.read().await.clone();
+    let mut merged = saved;
+    if let Some(map) = data.as_object() {
+        for (k, v) in map {
+            let val = v.as_str().unwrap_or("").trim().to_string();
+            if !val.is_empty() && val != "***" {
+                merged.insert(k.clone(), val);
+            }
+        }
+    }
+
+    let client = LlmClient::from_settings(&merged).map_err(|e| e.to_string())?;
+    let msgs = vec![LlmMessage::user("Reply with the single word: ok")];
+    let reply = client.chat(&msgs, None, 0.0).await.map_err(|e| e.to_string())?;
+    Ok(reply.trim().to_string())
 }
