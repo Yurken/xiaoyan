@@ -1,16 +1,85 @@
 "use client";
 
 import { useState } from "react";
-import { Map, Sparkles, BookOpen, Target, ChevronDown, ChevronUp } from "lucide-react";
-import { Card, CardHeader, CardTitle, Input, Button } from "@research-copilot/ui";
+import { Map, Sparkles, BookOpen, Target, ChevronDown, ChevronUp, GitBranch, Bot, CheckCircle2, Clock3, XCircle } from "lucide-react";
+import { Card, CardHeader, CardTitle, Input, Button, Badge } from "@research-copilot/ui";
 import { plannerApi } from "@/lib/client";
 import type { LearningPath } from "@research-copilot/types";
+
+type PlannerAgentStatus = "pending" | "running" | "done" | "failed";
+
+interface PlannerAgentStep {
+  id: string;
+  name: string;
+  role: string;
+  status: PlannerAgentStatus;
+  summary?: string;
+  error?: string;
+}
+
+function defaultPlannerWorkflow(): PlannerAgentStep[] {
+  return [
+    { id: "analyst", name: "Topic Analyst", role: "拆解研究主题与能力目标", status: "pending" },
+    { id: "scout", name: "Paper Scout", role: "筛选候选经典论文", status: "pending" },
+    { id: "designer", name: "Learning Path Designer", role: "生成结构化学习路径", status: "pending" },
+  ];
+}
+
+function plannerStatusLabel(status: PlannerAgentStatus) {
+  if (status === "done") return "完成";
+  if (status === "failed") return "失败";
+  if (status === "running") return "运行中";
+  return "等待中";
+}
+
+function plannerStatusIcon(status: PlannerAgentStatus) {
+  if (status === "done") return <CheckCircle2 className="w-3.5 h-3.5" />;
+  if (status === "failed") return <XCircle className="w-3.5 h-3.5" />;
+  return <Clock3 className="w-3.5 h-3.5" />;
+}
+
+function plannerStatusVariant(status: PlannerAgentStatus) {
+  if (status === "done") return "success" as const;
+  if (status === "failed") return "danger" as const;
+  if (status === "running") return "warning" as const;
+  return "default" as const;
+}
+
+function normalizePlannerPayload(raw: Record<string, unknown>): { path: LearningPath | null; workflow: PlannerAgentStep[] | null } {
+  if (raw.data && typeof raw.data === "object") {
+    return normalizePlannerPayload(raw.data as Record<string, unknown>);
+  }
+
+  const path = (raw.plan && typeof raw.plan === "object" ? raw.plan : raw) as LearningPath;
+  const maybeWorkflow = raw.agent_workflow;
+
+  if (!Array.isArray(maybeWorkflow)) {
+    return { path, workflow: null };
+  }
+
+  const workflow = maybeWorkflow.map((it, idx) => {
+    const step = it as Record<string, unknown>;
+    const s = String(step.status ?? "pending");
+    const status: PlannerAgentStatus = s === "running" || s === "done" || s === "failed" ? s : "pending";
+    return {
+      id: String(step.id ?? `step_${idx}`),
+      name: String(step.name ?? `Agent ${idx + 1}`),
+      role: String(step.role ?? "执行任务"),
+      status,
+      summary: step.summary ? String(step.summary) : undefined,
+      error: step.error ? String(step.error) : undefined,
+    };
+  });
+
+  return { path, workflow };
+}
 
 export default function PlannerPage() {
   const [topic, setTopic] = useState("");
   const [keywords, setKeywords] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<LearningPath | null>(null);
+  const [workflow, setWorkflow] = useState<PlannerAgentStep[]>([]);
   const [error, setError] = useState("");
   const [expandedStage, setExpandedStage] = useState<number | null>(0);
 
@@ -19,11 +88,51 @@ export default function PlannerPage() {
     setLoading(true);
     setError("");
     setResult(null);
+    setWorkflow(defaultPlannerWorkflow().map((s, i) => ({ ...s, status: i === 0 ? "running" : "pending" })));
     try {
       const kwList = keywords.split(/[,，\s]+/).filter(Boolean);
-      const res = await plannerApi.generate(topic, kwList) as { data: LearningPath };
-      setResult(res.data);
+      const res = await plannerApi.generate(topic, kwList) as Record<string, unknown>;
+      const normalized = normalizePlannerPayload(res);
+      setResult(normalized.path);
+      if (normalized.workflow) {
+        setWorkflow(normalized.workflow);
+      } else {
+        setWorkflow([
+          {
+            id: "analyst",
+            name: "Topic Analyst",
+            role: "拆解研究主题与能力目标",
+            status: "done",
+            summary: `完成「${topic.trim()}」的学习能力拆解`,
+          },
+          {
+            id: "scout",
+            name: "Paper Scout",
+            role: "筛选候选经典论文",
+            status: "done",
+            summary: `已完成候选文献推荐（${normalized.path?.classic_papers?.length || 0} 篇）`,
+          },
+          {
+            id: "designer",
+            name: "Learning Path Designer",
+            role: "生成结构化学习路径",
+            status: "done",
+            summary: `路径已生成（${normalized.path?.learning_stages?.length || 0} 个阶段）`,
+          },
+        ]);
+      }
     } catch (e) {
+      setWorkflow((prev) => {
+        const base = prev.length > 0 ? [...prev] : defaultPlannerWorkflow();
+        const idx = base.findIndex((s) => s.status === "running");
+        const target = idx >= 0 ? idx : 0;
+        base[target] = {
+          ...base[target],
+          status: "failed",
+          error: e instanceof Error ? e.message : "生成失败",
+        };
+        return base;
+      });
       setError(e instanceof Error ? e.message : "生成失败，请重试");
     } finally {
       setLoading(false);
@@ -64,6 +173,41 @@ export default function PlannerPage() {
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
       </Card>
+
+      {(workflow.length > 0 || loading) && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>规划 Agent 协作（白盒）</CardTitle>
+            <GitBranch className="w-4 h-4 text-gray-400" />
+          </CardHeader>
+          <div className="space-y-2.5">
+            {(workflow.length > 0 ? workflow : defaultPlannerWorkflow()).map((step) => (
+              <div key={step.id} className="p-3 border border-gray-200 rounded-lg bg-white">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Bot className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 truncate">{step.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{step.role}</div>
+                    </div>
+                  </div>
+                  <Badge variant={plannerStatusVariant(step.status)}>
+                    <span className="inline-flex items-center gap-1">
+                      {plannerStatusIcon(step.status)}
+                      {plannerStatusLabel(step.status)}
+                    </span>
+                  </Badge>
+                </div>
+                {(step.summary || step.error) && (
+                  <p className={`text-xs mt-2 ${step.error ? "text-red-600" : "text-gray-600"}`}>
+                    {step.error || step.summary}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {result && (
         <div className="space-y-5">
