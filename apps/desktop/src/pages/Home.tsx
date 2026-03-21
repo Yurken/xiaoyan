@@ -1,0 +1,253 @@
+import { useEffect, useState } from "react";
+import { ArrowRight, BookOpen, FileText, Library, Loader2, MessageSquare, Microscope, Sparkles } from "lucide-react";
+import { Badge, Button, Card } from "@research-copilot/ui";
+import { Link } from "react-router-dom";
+import { apiClient, formatErrorMessage } from "../lib/client";
+import type { ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
+
+interface DashboardState {
+  papers: Paper[];
+  interests: ResearchInterest[];
+  notes: KnowledgeNote[];
+  sessions: ChatSession[];
+}
+
+const quickActions = [
+  {
+    to: "/planner",
+    icon: Sparkles,
+    title: "规划研究方向",
+    description: "从研究主题生成学习路线、经典论文和潜在研究切口。",
+  },
+  {
+    to: "/survey",
+    icon: BookOpen,
+    title: "生成文献综述",
+    description: "自动规划检索、整理候选论文并输出结构化综述。",
+  },
+  {
+    to: "/papers",
+    icon: FileText,
+    title: "导入论文",
+    description: "上传 PDF 做论文精读、方法拆解和复现指南生成。",
+  },
+  {
+    to: "/copilot",
+    icon: MessageSquare,
+    title: "打开 Copilot",
+    description: "查看 agent 链路，围绕论文或研究问题继续追问。",
+  },
+];
+
+export default function Home() {
+  const [state, setState] = useState<DashboardState>({
+    papers: [],
+    interests: [],
+    notes: [],
+    sessions: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([
+      apiClient.papers.list(0, 100),
+      apiClient.knowledge.listInterests(),
+      apiClient.knowledge.listNotes(),
+      apiClient.chat.listSessions(),
+    ])
+      .then(([papers, interests, notes, sessions]) => {
+        if (!cancelled) {
+          setState({
+            papers,
+            interests,
+            notes,
+            sessions,
+          });
+          setLoading(false);
+        }
+      })
+      .catch((nextError) => {
+        if (!cancelled) {
+          setError(formatErrorMessage(nextError));
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-apple-blue" />
+        <p className="text-sm text-ink-tertiary">正在加载工作台…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-full overflow-y-auto p-6">
+        <Card className="flex flex-col gap-3 py-14 text-center">
+          <p className="text-base font-semibold text-ink-primary">无法加载工作台</p>
+          <p className="break-all text-sm text-apple-red">{error}</p>
+        </Card>
+      </div>
+    );
+  }
+
+  const analyzedCount = state.papers.filter((paper) => paper.analysis).length;
+  const plannedCount = state.interests.filter((interest) => interest.status === "planned").length;
+
+  return (
+    <div className="h-full overflow-y-auto p-6 space-y-5">
+      <Card padding="lg" className="overflow-hidden">
+        <div className="grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full bg-apple-blue/10 px-3 py-1 text-xs font-semibold text-apple-blue">
+              <Microscope className="h-4 w-4" />
+              科研工作台
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-ink-primary">智研 Copilot Desktop</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-ink-secondary">
+                现在的重点不是再加孤立工具，而是把方向规划、文献综述、论文分析、知识沉淀和多 Agent 问答串成可持续推进的研究闭环。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link to="/planner">
+                <Button>
+                  开始研究规划
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+              <Link to="/copilot">
+                <Button variant="secondary">进入 Copilot Mission Room</Button>
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { label: "论文库", value: state.papers.length, note: `${analyzedCount} 篇已生成分析` },
+              { label: "研究方向", value: state.interests.length, note: `${plannedCount} 条已形成路线` },
+              { label: "知识笔记", value: state.notes.length, note: "支持语义检索" },
+              { label: "Copilot 会话", value: state.sessions.length, note: "可回溯 agent 过程" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-3xl bg-white/35 p-4" style={{ boxShadow: "inset 2px 2px 5px #D0D6DC, inset -2px -2px 5px #FFFFFF" }}>
+                <p className="text-xs uppercase tracking-wide text-ink-tertiary">{item.label}</p>
+                <p className="mt-2 text-3xl font-bold text-ink-primary">{item.value}</p>
+                <p className="mt-1 text-xs text-ink-tertiary">{item.note}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card padding="md" className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-lg font-semibold text-ink-primary">下一步建议</p>
+              <p className="mt-1 text-xs text-ink-tertiary">优先把已有能力串成闭环，而不是继续分散入口。</p>
+            </div>
+            <Badge variant="info">高 ROI</Badge>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {quickActions.map(({ to, icon: Icon, title, description }) => (
+              <Link key={to} to={to} className="group">
+                <div className="rounded-3xl border border-nm-dark/10 bg-white/40 p-4 transition-transform group-hover:-translate-y-[1px]">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <p className="text-sm font-semibold text-ink-primary">{title}</p>
+                  <p className="mt-2 text-xs leading-6 text-ink-secondary">{description}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Card>
+
+        <Card padding="md" className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-lg font-semibold text-ink-primary">研究资产概览</p>
+              <p className="mt-1 text-xs text-ink-tertiary">最近沉淀下来的方向、笔记和会话。</p>
+            </div>
+            <Link to="/knowledge" className="text-xs font-medium text-apple-blue">
+              查看知识库
+            </Link>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-apple-blue" />
+                <p className="text-sm font-semibold text-ink-primary">最近研究方向</p>
+              </div>
+              {state.interests.length === 0 ? (
+                <p className="text-xs text-ink-tertiary">还没有研究方向，建议先去规划页创建。</p>
+              ) : (
+                <div className="space-y-2">
+                  {state.interests.slice(0, 3).map((interest) => (
+                    <div key={interest.id} className="flex items-center justify-between gap-3">
+                      <span className="truncate text-sm text-ink-secondary">{interest.topic}</span>
+                      <Badge variant={interest.status === "planned" ? "success" : interest.status === "planning" ? "info" : "default"}>
+                        {interest.status === "planned" ? "已规划" : interest.status === "planning" ? "生成中" : "待处理"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Library className="h-4 w-4 text-[#9A6A00]" />
+                <p className="text-sm font-semibold text-ink-primary">最近知识卡片</p>
+              </div>
+              {state.notes.length === 0 ? (
+                <p className="text-xs text-ink-tertiary">还没有笔记，建议把综述和论文分析逐步沉淀为知识卡片。</p>
+              ) : (
+                <div className="space-y-2">
+                  {state.notes.slice(0, 3).map((note) => (
+                    <div key={note.id}>
+                      <p className="truncate text-sm font-medium text-ink-primary">{note.title}</p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink-tertiary">{note.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-[#34C759]" />
+                <p className="text-sm font-semibold text-ink-primary">最近 Copilot 会话</p>
+              </div>
+              {state.sessions.length === 0 ? (
+                <p className="text-xs text-ink-tertiary">还没有会话，适合围绕论文或研究方向发起上下文问答。</p>
+              ) : (
+                <div className="space-y-2">
+                  {state.sessions.slice(0, 3).map((session) => (
+                    <div key={session.id}>
+                      <p className="truncate text-sm font-medium text-ink-primary">{session.title || "新会话"}</p>
+                      <p className="mt-1 text-xs text-ink-tertiary">
+                        {new Date(session.updated_at || session.created_at).toLocaleDateString("zh-CN")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}

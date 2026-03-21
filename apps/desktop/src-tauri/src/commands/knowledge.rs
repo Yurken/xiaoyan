@@ -320,7 +320,8 @@ pub async fn knowledge_create_note(
 ) -> Result<serde_json::Value, String> {
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
-    let tags_json = serde_json::to_string(&tags.unwrap_or_default()).unwrap_or_else(|_| "[]".into());
+    let next_tags = tags.unwrap_or_default();
+    let tags_json = serde_json::to_string(&next_tags).unwrap_or_else(|_| "[]".into());
     sqlx::query(
         "INSERT INTO knowledge_notes (id, title, content, tags, research_interest_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
@@ -345,7 +346,17 @@ pub async fn knowledge_create_note(
         }
     });
 
-    Ok(json!({ "id": id, "title": title, "content": content, "source_type": "manual", "tags": [], "created_at": now, "updated_at": now }))
+    Ok(json!({
+        "id": id,
+        "title": title,
+        "content": content,
+        "source_type": "manual",
+        "source_id": serde_json::Value::Null,
+        "tags": next_tags,
+        "research_interest_id": research_interest_id,
+        "created_at": now,
+        "updated_at": now
+    }))
 }
 
 #[tauri::command]
