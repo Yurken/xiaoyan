@@ -14,6 +14,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Badge, Button, Card, Input } from "@research-copilot/ui";
 import type { Paper } from "@research-copilot/types";
 import { CcfRatingBadge, VenueTypeBadge } from "../components/CcfBadges";
+import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
 
 export default function Papers() {
@@ -256,7 +257,12 @@ export default function Papers() {
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-semibold text-ink-primary">{paper.title}</p>
+                    <ExternalLink
+                      href={paper.paper_url}
+                      className="truncate text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
+                    >
+                      {paper.title}
+                    </ExternalLink>
                     {statusBadge(paper.status)}
                     <CcfRatingBadge rating={paper.ccf_rating} />
                     <VenueTypeBadge type={paper.ccf_type} />
@@ -266,7 +272,14 @@ export default function Papers() {
                   </p>
                   {(paper.venue || paper.ccf_area || paper.ccf_publisher) && (
                     <p className="mt-1 text-xs leading-5 text-ink-secondary">
-                      {paper.venue || "未识别来源"}
+                      {paper.venue ? (
+                        <ExternalLink
+                          href={paper.venue_url}
+                          className="text-xs text-ink-secondary hover:text-apple-blue hover:underline"
+                        >
+                          {paper.venue}
+                        </ExternalLink>
+                      ) : "未识别来源"}
                       {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
                       {paper.ccf_publisher ? ` · ${paper.ccf_publisher}` : ""}
                     </p>

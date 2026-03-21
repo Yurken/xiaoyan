@@ -1,4 +1,5 @@
 use crate::ccf::match_venue;
+use crate::links::paper_search_url;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{combined_search, serialize_embedding};
 use crate::state::AppState;
@@ -511,6 +512,12 @@ fn enrich_learning_path_json(mut value: serde_json::Value) -> serde_json::Value 
                     paper["ccf_type"] = json!(tag.kind);
                     paper["ccf_label"] = json!(tag.label);
                     paper["ccf_publisher"] = json!(tag.publisher);
+                    paper["venue_url"] = json!(tag.url);
+                }
+            }
+            if let Some(title) = paper.get("title").and_then(|item| item.as_str()) {
+                if let Some(url) = paper_search_url(Some(title)) {
+                    paper["paper_url"] = json!(url);
                 }
             }
         }

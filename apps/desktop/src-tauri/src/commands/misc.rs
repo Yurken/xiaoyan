@@ -1,4 +1,5 @@
 use crate::ccf::match_venue;
+use crate::links::{doi_url, paper_reference_url, paper_search_url};
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::state::AppState;
 use serde_json::json;
@@ -461,7 +462,7 @@ async fn retrieve_papers(
         }
         let like = format!("%{}%", term);
         let rows = sqlx::query(
-            "SELECT id, title, authors, abstract, year, venue, doi, status
+            "SELECT id, title, authors, abstract, year, venue, doi, file_path, status
              FROM papers
              WHERE title LIKE ? OR abstract LIKE ?
              ORDER BY updated_at DESC
@@ -487,6 +488,11 @@ async fn retrieve_papers(
                 "year": row.get::<Option<i64>, _>("year"),
                 "venue": row.get::<Option<String>, _>("venue").unwrap_or_default(),
                 "doi": row.get::<Option<String>, _>("doi").unwrap_or_default(),
+                "paper_url": paper_reference_url(
+                    row.get::<Option<String>, _>("title").as_deref(),
+                    row.get::<Option<String>, _>("doi").as_deref(),
+                    row.get::<Option<String>, _>("file_path").as_deref(),
+                ),
                 "status": row.get::<String, _>("status"),
             }));
             if let Some(last) = papers.last_mut() {
@@ -497,6 +503,7 @@ async fn retrieve_papers(
                         last["ccf_type"] = json!(tag.kind);
                         last["ccf_label"] = json!(tag.label);
                         last["ccf_publisher"] = json!(tag.publisher);
+                        last["venue_url"] = json!(tag.url);
                     }
                 }
             }
@@ -540,7 +547,12 @@ fn build_survey_markdown(
                 let rep_titles = reps
                     .iter()
                     .filter_map(|v| v.as_str())
-                    .collect::<Vec<&str>>()
+                    .map(|title| {
+                        paper_search_url(Some(title))
+                            .map(|url| format!("[{}]({})", title, url))
+                            .unwrap_or_else(|| title.to_string())
+                    })
+                    .collect::<Vec<String>>()
                     .join("；");
                 if !rep_titles.is_empty() {
                     out.push_str(&format!("- 代表论文：{}\n", rep_titles));
@@ -607,7 +619,15 @@ fn build_survey_markdown(
                 .and_then(|v| v.as_str())
                 .map(|value| if value == "journal" { " [期刊]" } else { " [会议]" })
                 .unwrap_or("");
-            out.push_str(&format!("{}. {} {} {} {}{}{}\n", idx + 1, title, authors, year, venue, ccf, venue_type));
+            let link = p
+                .get("doi")
+                .and_then(|v| v.as_str())
+                .and_then(|value| doi_url(Some(value)))
+                .or_else(|| paper_search_url(Some(title)));
+            let linked_title = link
+                .map(|url| format!("[{}]({})", title, url))
+                .unwrap_or_else(|| title.to_string());
+            out.push_str(&format!("{}. {} {} {} {}{}{}\n", idx + 1, linked_title, authors, year, venue, ccf, venue_type));
         }
     }
 
@@ -624,6 +644,12 @@ fn enrich_planner_result(mut value: serde_json::Value) -> serde_json::Value {
                     paper["ccf_type"] = json!(tag.kind);
                     paper["ccf_label"] = json!(tag.label);
                     paper["ccf_publisher"] = json!(tag.publisher);
+                    paper["venue_url"] = json!(tag.url);
+                }
+            }
+            if let Some(title) = paper.get("title").and_then(|item| item.as_str()) {
+                if let Some(url) = paper_search_url(Some(title)) {
+                    paper["paper_url"] = json!(url);
                 }
             }
         }

@@ -1,3 +1,4 @@
+use crate::links::paper_reference_url;
 use anyhow::Result;
 use sqlx::{Row, SqlitePool};
 
@@ -76,6 +77,7 @@ pub struct SearchResult {
     pub id: String,
     pub content: String,
     pub source: String,
+    pub url: Option<String>,
     pub score: f32,
 }
 
@@ -87,7 +89,10 @@ pub async fn search_paper_chunks(
 ) -> Result<Vec<SearchResult>> {
     let rows = if let Some(pid) = paper_id {
         sqlx::query(
-            "SELECT id, content, chunk_index, embedding FROM paper_chunks WHERE paper_id = ? AND embedding IS NOT NULL",
+            "SELECT pc.id, pc.content, pc.chunk_index, pc.embedding, p.title, p.doi, p.file_path
+             FROM paper_chunks pc
+             JOIN papers p ON pc.paper_id = p.id
+             WHERE pc.paper_id = ? AND pc.embedding IS NOT NULL",
         )
         .bind(pid)
         .fetch_all(db)
@@ -98,12 +103,17 @@ pub async fn search_paper_chunks(
             let content: String = r.get("content");
             let idx: i64 = r.get("chunk_index");
             let emb: Option<String> = r.get("embedding");
-            (id, content, format!("chunk_{}", idx), emb)
+            let title: String = r.get("title");
+            let doi: Option<String> = r.get("doi");
+            let file_path: Option<String> = r.get("file_path");
+            let source = format!("{} · chunk_{}", title, idx);
+            let url = paper_reference_url(Some(&title), doi.as_deref(), file_path.as_deref());
+            (id, content, source, emb, url)
         })
         .collect::<Vec<_>>()
     } else {
         sqlx::query(
-            "SELECT pc.id, pc.content, pc.chunk_index, pc.embedding, p.title
+            "SELECT pc.id, pc.content, pc.chunk_index, pc.embedding, p.title, p.doi, p.file_path
              FROM paper_chunks pc JOIN papers p ON pc.paper_id = p.id
              WHERE pc.embedding IS NOT NULL",
         )
@@ -115,18 +125,21 @@ pub async fn search_paper_chunks(
             let content: String = r.get("content");
             let title: String = r.get("title");
             let emb: Option<String> = r.get("embedding");
-            (id, content, title, emb)
+            let doi: Option<String> = r.get("doi");
+            let file_path: Option<String> = r.get("file_path");
+            let url = paper_reference_url(Some(&title), doi.as_deref(), file_path.as_deref());
+            (id, content, title, emb, url)
         })
         .collect::<Vec<_>>()
     };
 
     let mut results: Vec<SearchResult> = rows
         .into_iter()
-        .filter_map(|(id, content, source, emb_opt)| {
+        .filter_map(|(id, content, source, emb_opt, url)| {
             let emb = parse_embedding(emb_opt?.as_str());
             if emb.is_empty() { return None; }
             let score = cosine_similarity(query_embedding, &emb);
-            Some(SearchResult { id, content, source, score })
+            Some(SearchResult { id, content, source, url, score })
         })
         .collect();
 
@@ -156,7 +169,7 @@ pub async fn search_knowledge_notes(
             let emb = parse_embedding(emb_opt?.as_str());
             if emb.is_empty() { return None; }
             let score = cosine_similarity(query_embedding, &emb);
-            Some(SearchResult { id, content, source: title, score })
+            Some(SearchResult { id, content, source: title, url: None, score })
         })
         .collect();
 

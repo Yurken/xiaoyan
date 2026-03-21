@@ -7,9 +7,10 @@ import { clsx } from "clsx";
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  onLinkClick?: (href: string) => void | Promise<void>;
 }
 
-export default function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+export default function MarkdownRenderer({ content, className, onLinkClick }: MarkdownRendererProps) {
   return (
     <div
       className={clsx(
@@ -30,6 +31,23 @@ export default function MarkdownRenderer({ content, className }: MarkdownRendere
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
+          a({ href, children, ...props }) {
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(event) => {
+                  if (!href || !onLinkClick) return;
+                  event.preventDefault();
+                  void onLinkClick(href);
+                }}
+                {...props}
+              >
+                {children}
+              </a>
+            );
+          },
           code({ className, children, ...props }) {
             const isBlock = Boolean(className?.includes("language-"));
 

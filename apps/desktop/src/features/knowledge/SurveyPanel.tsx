@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Bot, FileSearch, GitBranch, Loader2 } from "lucide-react";
 import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
+import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
+import { buildPaperSearchUrl, openLink } from "../../lib/links";
 import { listen } from "@tauri-apps/api/event";
 
 type SurveyAgentStatus = "running" | "done" | "failed";
@@ -45,6 +47,8 @@ interface StructuredSurveyResult {
     ccf_type?: string;
     ccf_label?: string;
     ccf_publisher?: string;
+    paper_url?: string;
+    venue_url?: string;
   }>;
 }
 
@@ -252,16 +256,27 @@ export default function SurveyPanel() {
                   {structured.papers.slice(0, 6).map((paper, index) => (
                     <div key={paper.id || `${paper.title}-${index}`} className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-medium text-ink-primary">
+                        <ExternalLink
+                          href={paper.paper_url}
+                          className="text-sm font-medium text-ink-primary hover:text-apple-blue hover:underline"
+                        >
                           [{index + 1}] {paper.title}
-                        </p>
+                        </ExternalLink>
                         <CcfRatingBadge rating={paper.ccf_rating} />
                         <VenueTypeBadge type={paper.ccf_type} />
                       </div>
                       <p className="mt-1 text-xs text-ink-tertiary">
                         {paper.authors || "未知作者"}
                         {paper.year ? ` · ${paper.year}` : ""}
-                        {paper.venue ? ` · ${paper.venue}` : ""}
+                        {paper.venue ? " · " : ""}
+                        {paper.venue ? (
+                          <ExternalLink
+                            href={paper.venue_url}
+                            className="text-xs text-ink-tertiary hover:text-apple-blue hover:underline"
+                          >
+                            {paper.venue}
+                          </ExternalLink>
+                        ) : null}
                         {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
                       </p>
                       {paper.abstract && (
@@ -306,7 +321,19 @@ export default function SurveyPanel() {
                           )}
                           {method.representative_papers && method.representative_papers.length > 0 && (
                             <p className="mt-2 text-[11px] text-ink-tertiary">
-                              代表论文：{method.representative_papers.join(" · ")}
+                              代表论文：
+                              {" "}
+                              {method.representative_papers.map((title, titleIndex) => (
+                                <span key={`${title}-${titleIndex}`}>
+                                  {titleIndex > 0 ? " · " : ""}
+                                  <ExternalLink
+                                    href={buildPaperSearchUrl(title)}
+                                    className="text-[11px] text-ink-tertiary hover:text-apple-blue hover:underline"
+                                  >
+                                    {title}
+                                  </ExternalLink>
+                                </span>
+                              ))}
                             </p>
                           )}
                         </div>
@@ -366,7 +393,7 @@ export default function SurveyPanel() {
 
             {content && (
               <Card padding="sm">
-                <MarkdownRenderer content={content} />
+                <MarkdownRenderer content={content} onLinkClick={openLink} />
                 {generating && (
                   <div className="mt-3 flex items-center gap-1.5 text-xs text-ink-tertiary">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -1,4 +1,5 @@
 use crate::ccf::{infer_from_text, match_venue};
+use crate::links::paper_reference_url;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{chunk_text, serialize_embedding};
 use crate::state::AppState;
@@ -20,7 +21,7 @@ pub async fn papers_list(
     let limit = limit.unwrap_or(20);
     let rows = if let Some(interest_id) = research_interest_id.filter(|value| !value.trim().is_empty()) {
         sqlx::query(
-            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.tags, p.research_interest_id, p.status, p.created_at, p.updated_at,
+            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.research_interest_id, p.status, p.created_at, p.updated_at,
                     a.research_question, a.core_method, a.experiment_design, a.innovations, a.limitations, a.key_conclusions,
                     rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
                     rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
@@ -38,7 +39,7 @@ pub async fn papers_list(
         .map_err(|e| e.to_string())?
     } else {
         sqlx::query(
-            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.tags, p.research_interest_id, p.status, p.created_at, p.updated_at,
+            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.research_interest_id, p.status, p.created_at, p.updated_at,
                     a.research_question, a.core_method, a.experiment_design, a.innovations, a.limitations, a.key_conclusions,
                     rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
                     rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
@@ -520,13 +521,16 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
     // "abstract" is a Rust reserved keyword; fetch into a variable first
     let paper_abstract: Option<String> = r.get("abstract");
     let paper_venue: Option<String> = r.get("venue");
+    let paper_doi: Option<String> = r.get("doi");
+    let paper_file_path: Option<String> = r.get("file_path");
+    let paper_title: String = r.get("title");
     let mut obj = json!({
         "id": r.get::<String, _>("id"),
-        "title": r.get::<String, _>("title"),
+        "title": paper_title,
         "authors": r.get::<Option<String>, _>("authors"),
         "year": r.get::<Option<i64>, _>("year"),
         "venue": paper_venue,
-        "doi": r.get::<Option<String>, _>("doi"),
+        "doi": paper_doi,
         "tags": serde_json::from_str::<serde_json::Value>(&tags_str).unwrap_or(json!([])),
         "research_interest_id": r.get::<Option<String>, _>("research_interest_id"),
         "status": r.get::<String, _>("status"),
@@ -534,6 +538,13 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
         "updated_at": r.get::<String, _>("updated_at"),
     });
     obj["abstract"] = json!(paper_abstract);
+    if let Some(url) = paper_reference_url(
+        obj.get("title").and_then(|value| value.as_str()),
+        paper_doi.as_deref(),
+        paper_file_path.as_deref(),
+    ) {
+        obj["paper_url"] = json!(url);
+    }
     if let Some(venue) = obj.get("venue").and_then(|value| value.as_str()) {
         if let Some(tag) = match_venue(venue) {
             obj["ccf_rating"] = json!(tag.rating);
@@ -541,6 +552,7 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
             obj["ccf_type"] = json!(tag.kind);
             obj["ccf_label"] = json!(tag.label);
             obj["ccf_publisher"] = json!(tag.publisher);
+            obj["venue_url"] = json!(tag.url);
         }
     }
     obj

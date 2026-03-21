@@ -287,7 +287,7 @@ async fn collect_sources(
 
     results
         .into_iter()
-        .map(|item| json!({ "content": item.content, "source": item.source }))
+        .map(|item| json!({ "content": item.content, "source": item.source, "url": item.url }))
         .collect()
 }
 

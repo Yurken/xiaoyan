@@ -3,6 +3,7 @@ import { AlertCircle, Search, Wrench } from "lucide-react";
 import { Badge, Button, Card, Input } from "@research-copilot/ui";
 import type { CcfEntry } from "@research-copilot/types";
 import { CcfRatingBadge, VenueTypeBadge } from "../components/CcfBadges";
+import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
 
 export default function Tools() {
@@ -81,7 +82,12 @@ export default function Tools() {
           {matches.map((match, index) => (
             <Card key={`${match.full_name}-${index}`} padding="sm" className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-ink-primary">{match.full_name}</p>
+                <ExternalLink
+                  href={match.url}
+                  className="text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
+                >
+                  {match.full_name}
+                </ExternalLink>
                 <CcfRatingBadge rating={match.rating} />
                 <VenueTypeBadge type={match.kind} />
                 {match.label && <Badge variant="default">{match.label}</Badge>}
