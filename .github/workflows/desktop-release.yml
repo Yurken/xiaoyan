@@ -136,9 +136,31 @@ jobs:
         with:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
-          releaseId: ${{ needs.create-release.outputs.release_id }}
-          tagName: ${{ github.ref_name }}
           args: ${{ matrix.args }}
+
+      - name: Collect release installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_root="apps/desktop/src-tauri/target/${{ matrix.build_target_dir }}/bundle"
+          output_dir=".release-artifacts/release-${{ matrix.updater_target }}"
+          mkdir -p "$output_dir"
+          find "$bundle_root" -type f \
+            \( \
+              -path '*/dmg/*.dmg' -o \
+              -path '*/msi/*.msi' -o \
+              -path '*/nsis/*setup.exe' \
+            \) \
+            -exec cp '{}' "$output_dir/" ';'
+          test -n "$(find "$output_dir" -type f | head -n 1)"
+          ls -l "$output_dir"
+
+      - name: Upload release installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.updater_target }}
+          path: .release-artifacts/release-${{ matrix.updater_target }}
+          if-no-files-found: error
 
       - name: Collect updater bundles
         shell: bash
@@ -170,6 +192,30 @@ jobs:
           name: updater-${{ matrix.updater_target }}
           path: .updater-artifacts/updater-${{ matrix.updater_target }}
           if-no-files-found: error
+
+  publish-github-assets:
+    name: Upload GitHub Release Assets
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download release installers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: .release-assets
+          merge-multiple: true
+
+      - name: Upload installers to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ls -l .release-assets
+          gh release upload "${{ github.ref_name }}" \
+            .release-assets/* \
+            --repo "${{ github.repository }}" \
+            --clobber
 
   publish-updater:
     name: Publish Updater Assets
@@ -235,7 +281,7 @@ jobs:
   # ── Stage 3: Publish release after all builds succeed ─────────
   publish-release:
     name: Publish Release
-    needs: [create-release, build, publish-updater]
+    needs: [create-release, build, publish-github-assets, publish-updater]
     runs-on: ubuntu-latest
     steps:
       - name: Publish release (remove draft)
