@@ -178,6 +178,39 @@ export interface JournalLookupResponse {
   matches: JournalPartitionEntry[];
 }
 
+export interface SourceLookupItem {
+  source: string;
+  entity_type?: string;
+  name: string;
+  url?: string;
+  publisher?: string;
+  rating?: string;
+  area?: string;
+  label?: string;
+  issn?: string;
+  eissn?: string;
+  indexes: string[];
+  wos_categories: string[];
+  jcr_quartile?: string;
+  jcr_category?: string;
+  jif?: string;
+  jif_rank?: string;
+  cas_quartile?: string;
+  cas_top?: boolean;
+  open_access?: boolean;
+}
+
+export interface SourceLookupSection {
+  key: string;
+  title: string;
+  items: SourceLookupItem[];
+}
+
+export interface SourceLookupResponse {
+  query: string;
+  sections: SourceLookupSection[];
+}
+
 export type ArxivRankingMode = "relevance" | "quality";
 
 export interface ArxivRecommendation {

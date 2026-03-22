@@ -20,11 +20,11 @@ export default function ExternalLink({ href, children, className, title }: Exter
     <a
       href={value}
       title={title}
-      target="_blank"
       rel="noreferrer"
       className={clsx("cursor-pointer", className)}
       onClick={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         void openLink(value);
       }}
     >
