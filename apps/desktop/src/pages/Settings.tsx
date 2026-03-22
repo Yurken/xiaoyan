@@ -1064,7 +1064,6 @@ export default function Settings() {
   };
 
   const contentUnavailable = loading || Boolean(loadError);
-  const activeSectionMeta = SETTINGS_SECTIONS.find((item) => item.key === activeSection) ?? SETTINGS_SECTIONS[0];
   const updatePublishedAt = formatUpdateDate(updateInfo?.pub_date);
 
   return (
@@ -1165,6 +1164,8 @@ export default function Settings() {
           ))}
         </div>
 
+        {/* 当前分区摘要卡与上方导航重复，先注释掉。 */}
+        {/*
         <Card padding="md" className="space-y-3">
           <div className="flex items-center gap-3">
             <SectionIcon icon={activeSectionMeta.icon} color={activeSectionMeta.color} />
@@ -1174,6 +1175,7 @@ export default function Settings() {
             </div>
           </div>
         </Card>
+        */}
 
         {loading ? (
           <Card padding="md" className="flex items-center gap-2 text-sm text-ink-tertiary">
