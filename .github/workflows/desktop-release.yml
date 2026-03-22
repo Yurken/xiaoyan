@@ -138,17 +138,76 @@ jobs:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
           releaseId: ${{ needs.create-release.outputs.release_id }}
+          tagName: ${{ github.ref_name }}
           args: ${{ matrix.args }}
+
+  publish-updater:
+    name: Publish Updater Assets
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p .updater-assets
+          gh release download "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --dir .updater-assets
+
+      - name: Prepare updater manifest
+        env:
+          UPDATE_BASE_URL: http://111.231.56.208/research-copilot-updates
+        run: |
+          node scripts/prepare-updater-assets.mjs \
+            --input-dir .updater-assets \
+            --base-url "${UPDATE_BASE_URL%/}/${{ github.ref_name }}" \
+            --output .updater-assets/latest.json
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.UPDATE_SERVER_SSH_PRIVATE_KEY }}
+
+      - name: Upload updater assets to server
+        env:
+          UPDATE_SERVER_HOST: 111.231.56.208
+          UPDATE_SERVER_PORT: 22
+          UPDATE_SERVER_USER: root
+          UPDATE_SERVER_PATH: /var/www/html/research-copilot-updates
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "$UPDATE_SERVER_PORT" -H "$UPDATE_SERVER_HOST" >> ~/.ssh/known_hosts
+          remote_root="${UPDATE_SERVER_PATH%/}"
+          remote_tag_dir="${remote_root}/${{ github.ref_name }}"
+          ssh -p "$UPDATE_SERVER_PORT" "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST" "mkdir -p '$remote_tag_dir'"
+          rsync -av \
+            --chown=root:root \
+            --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+            -e "ssh -p $UPDATE_SERVER_PORT" \
+            .updater-assets/ \
+            "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST:$remote_tag_dir/"
+          scp -P "$UPDATE_SERVER_PORT" \
+            .updater-assets/latest.json \
+            "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST:$remote_root/latest.json"
 
   # ── Stage 3: Publish release after all builds succeed ─────────
   publish-release:
     name: Publish Release
-    needs: [create-release, build]
+    needs: [create-release, build, publish-updater]
     runs-on: ubuntu-latest
     steps:
       - name: Publish release (remove draft)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release edit "${{ github.ref_name }}" \
             --repo "${{ github.repository }}" \

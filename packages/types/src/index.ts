@@ -211,6 +211,15 @@ export interface SourceLookupResponse {
   sections: SourceLookupSection[];
 }
 
+export interface AppUpdateInfo {
+  configured: boolean;
+  available: boolean;
+  current_version: string;
+  version?: string;
+  body?: string;
+  pub_date?: string;
+}
+
 export type ArxivRankingMode = "relevance" | "quality";
 
 export interface ArxivRecommendation {
