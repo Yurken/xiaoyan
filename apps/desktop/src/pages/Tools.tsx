@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { AlertCircle, CalendarDays, FileSearch, Globe2, Search, Sparkles } from "lucide-react";
+import { AlertCircle, CalendarDays, ChevronDown, FileSearch, Globe2, Search, Sparkles } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode, ArxivSearchResponse, SourceLookupSection } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, WosIndexBadge, VenueTypeBadge } from "../components/CcfBadges";
@@ -71,6 +71,9 @@ export default function Tools() {
   const [arxivSearched, setArxivSearched] = useState(false);
   const [arxivResult, setArxivResult] = useState<ArxivSearchResponse | null>(null);
   const arxivLastSearchAt = useRef<number>(0);
+  const [openFriendSections, setOpenFriendSections] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => [section.title, index === 0]))
+  );
 
   const currentMode = useMemo(
     () => ARXIV_MODE_OPTIONS.find((item) => item.value === arxivMode) ?? ARXIV_MODE_OPTIONS[0],
@@ -84,6 +87,29 @@ export default function Tools() {
     () => sourceSections.find((section) => section.key === "ccf"),
     [sourceSections]
   );
+  const expandedFriendSectionCount = useMemo(
+    () => YANWEB_FRIEND_LINK_SECTIONS.filter((section) => openFriendSections[section.title]).length,
+    [openFriendSections]
+  );
+  const allFriendSectionsExpanded = expandedFriendSectionCount === YANWEB_FRIEND_LINK_SECTIONS.length;
+
+  const toggleFriendSection = (title: string) => {
+    setOpenFriendSections((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
+
+  const setAllFriendSections = (open: boolean) => {
+    setOpenFriendSections(Object.fromEntries(YANWEB_FRIEND_LINK_SECTIONS.map((section) => [section.title, open])));
+  };
+
+  const revealFriendSection = (title: string, index: number) => {
+    setOpenFriendSections((prev) => ({ ...prev, [title]: true }));
+    window.requestAnimationFrame(() => {
+      document.getElementById(friendLinkSectionId(index))?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
 
   const handleArxivSearch = async () => {
     if (!arxivQuery.trim() || arxivLoading) return;
@@ -450,72 +476,108 @@ export default function Tools() {
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
             <Globe2 className="h-5 w-5" />
           </div>
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 flex-1">
             <p className="text-sm font-semibold text-ink-primary">科研友链</p>
             <p className="text-xs text-ink-tertiary">{`共 ${YANWEB_FRIEND_LINK_TOTAL} 条 · ${YANWEB_FRIEND_LINK_SECTIONS.length} 个分类`}</p>
           </div>
+          <button
+            type="button"
+            onClick={() => setAllFriendSections(!allFriendSectionsExpanded)}
+            className="inline-flex items-center rounded-full bg-white/45 px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
+            aria-label={allFriendSectionsExpanded ? "收起全部友链分类" : "展开全部友链分类"}
+          >
+            {allFriendSectionsExpanded ? "收起全部" : "展开全部"}
+          </button>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => (
-            <a
+            <button
+              type="button"
               key={section.title}
-              href={`#${friendLinkSectionId(index)}`}
+              onClick={() => revealFriendSection(section.title, index)}
               className="inline-flex items-center gap-2 rounded-full bg-white/45 px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
+              aria-expanded={openFriendSections[section.title] ?? false}
+              aria-controls={friendLinkSectionId(index)}
             >
               <span>{section.title}</span>
               <span className="text-ink-tertiary">{section.items.length}</span>
-            </a>
+            </button>
           ))}
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           {YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => (
-            <section key={section.title} id={friendLinkSectionId(index)} className="space-y-3 scroll-mt-6">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-ink-primary">{section.title}</p>
-                <Badge variant="default">{`${section.items.length} 条`}</Badge>
-              </div>
+            <section
+              key={section.title}
+              id={friendLinkSectionId(index)}
+              className="scroll-mt-6 overflow-hidden rounded-3xl border border-white/55 bg-white/25"
+              style={{ boxShadow: "inset 1px 1px 0 rgba(255, 255, 255, 0.72)" }}
+            >
+              <button
+                type="button"
+                onClick={() => toggleFriendSection(section.title)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-white/20"
+                aria-expanded={openFriendSections[section.title] ?? false}
+                aria-controls={`${friendLinkSectionId(index)}-panel`}
+              >
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-ink-primary">{section.title}</p>
+                  <Badge variant="default">{`${section.items.length} 条`}</Badge>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-ink-tertiary">
+                  <span>{openFriendSections[section.title] ? "收起" : "展开"}</span>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      openFriendSections[section.title] ? "rotate-180 text-apple-blue" : ""
+                    }`}
+                  />
+                </div>
+              </button>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {section.items.map((item) => (
-                  <ExternalLink
-                    key={`${section.title}-${item.name}-${item.href}`}
-                    href={item.href}
-                    title={`${item.name} · ${item.href}`}
-                    className="group flex items-center gap-3 rounded-2xl bg-white/45 px-3 py-3 transition hover:bg-white/70"
-                  >
-                    <div
-                      className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#EEF1F5] text-sm font-semibold text-ink-secondary transition-transform duration-150 group-hover:-translate-y-0.5"
-                      style={{ boxShadow: raisedShadow }}
-                    >
-                      <span
-                        className="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
-                        style={{ opacity: item.icon ? 0 : 1 }}
+              {openFriendSections[section.title] ? (
+                <div id={`${friendLinkSectionId(index)}-panel`} className="border-t border-white/55 px-1 pb-1 pt-3">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {section.items.map((item) => (
+                      <ExternalLink
+                        key={`${section.title}-${item.name}-${item.href}`}
+                        href={item.href}
+                        title={`${item.name} · ${item.href}`}
+                        className="group flex items-center gap-3 rounded-2xl bg-white/45 px-3 py-3 transition hover:bg-white/70"
                       >
-                        {friendLinkInitial(item.name)}
-                      </span>
-                      <img
-                        src={item.icon}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        className="relative h-full w-full object-cover"
-                        onError={(event) => {
-                          event.currentTarget.style.opacity = "0";
-                          const fallback = event.currentTarget.parentElement?.querySelector("span");
-                          if (fallback instanceof HTMLElement) {
-                            fallback.style.opacity = "1";
-                          }
-                        }}
-                      />
-                    </div>
-                    <span className="min-w-0 text-sm leading-5 text-ink-primary group-hover:text-apple-blue group-hover:underline">
-                      {item.name}
-                    </span>
-                  </ExternalLink>
-                ))}
-              </div>
+                        <div
+                          className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#EEF1F5] text-sm font-semibold text-ink-secondary transition-transform duration-150 group-hover:-translate-y-0.5"
+                          style={{ boxShadow: raisedShadow }}
+                        >
+                          <span
+                            className="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
+                            style={{ opacity: item.icon ? 0 : 1 }}
+                          >
+                            {friendLinkInitial(item.name)}
+                          </span>
+                          <img
+                            src={item.icon}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="relative h-full w-full object-cover"
+                            onError={(event) => {
+                              event.currentTarget.style.opacity = "0";
+                              const fallback = event.currentTarget.parentElement?.querySelector("span");
+                              if (fallback instanceof HTMLElement) {
+                                fallback.style.opacity = "1";
+                              }
+                            }}
+                          />
+                        </div>
+                        <span className="min-w-0 text-sm leading-5 text-ink-primary group-hover:text-apple-blue group-hover:underline">
+                          {item.name}
+                        </span>
+                      </ExternalLink>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </section>
           ))}
         </div>
