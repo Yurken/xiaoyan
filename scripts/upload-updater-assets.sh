@@ -12,8 +12,8 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 INPUT_DIR="$(cd "$INPUT_DIR" && pwd)"
-BASE_URL="${UPDATE_BASE_URL:-http://111.231.56.208/research-copilot-updates}"
-SERVER_HOST="${UPDATE_SERVER_HOST:-111.231.56.208}"
+BASE_URL="${UPDATE_BASE_URL:-http://66.42.97.41/research-copilot-updates}"
+SERVER_HOST="${UPDATE_SERVER_HOST:-66.42.97.41}"
 SERVER_PORT="${UPDATE_SERVER_PORT:-22}"
 SERVER_USER="${UPDATE_SERVER_USER:-root}"
 SERVER_PATH="${UPDATE_SERVER_PATH:-/var/www/html/research-copilot-updates}"
