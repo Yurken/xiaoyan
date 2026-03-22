@@ -1052,4 +1052,4 @@ export const YANWEB_FRIEND_LINK_SECTIONS: YanwebFriendLinkSection[] = [
   }
 ];
 
-export const YANWEB_FRIEND_LINK_TOTAL = 186;
+export const YANWEB_FRIEND_LINK_TOTAL = 187;
