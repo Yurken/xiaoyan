@@ -797,6 +797,38 @@ pub async fn knowledge_update_note(
 }
 
 #[tauri::command]
+pub async fn knowledge_move_note(
+    state: State<'_, AppState>,
+    id: String,
+    research_interest_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let normalized_interest_id = research_interest_id.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() { None } else { Some(trimmed) }
+    });
+
+    sqlx::query("UPDATE knowledge_notes SET research_interest_id = ?, updated_at = ? WHERE id = ?")
+        .bind(&normalized_interest_id)
+        .bind(&now)
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let row = sqlx::query(
+        "SELECT id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at FROM knowledge_notes WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("Note not found")?;
+
+    Ok(note_row_to_json(&row))
+}
+
+#[tauri::command]
 pub async fn knowledge_delete_note(
     state: State<'_, AppState>,
     id: String,

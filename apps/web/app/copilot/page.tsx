@@ -371,7 +371,7 @@ function CopilotContent() {
         <div className="border-b border-slate-200 p-4">
           <Button onClick={handleNewChat} className="w-full justify-center">
             <Plus className="h-4 w-4" />
-            新建多 Agent 对话
+            新建对话
           </Button>
         </div>
         <div className="space-y-2 p-3">

@@ -22,14 +22,14 @@ use commands::{
     ccf::ccf_lookup,
     chat::{
         chat_delete_session, chat_get_session, chat_list_agent_runs, chat_list_sessions,
-        chat_stream,
+        chat_stream, chat_update_session_context,
     },
     journal::journal_lookup,
     knowledge::{
         knowledge_create_interest, knowledge_create_note, knowledge_delete_interest_bundle,
         knowledge_delete_interest_only, knowledge_delete_note, knowledge_generate_interest_hints,
         knowledge_generate_plan, knowledge_list_interests, knowledge_list_notes, knowledge_search,
-        knowledge_update_interest_folder, knowledge_update_note,
+        knowledge_move_note, knowledge_update_interest_folder, knowledge_update_note,
     },
     misc::{planner_generate, survey_generate, survey_search},
     papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_reproduce, papers_update, papers_upload},
@@ -153,12 +153,14 @@ pub fn run() {
             knowledge_list_notes,
             knowledge_create_note,
             knowledge_update_note,
+            knowledge_move_note,
             knowledge_delete_note,
             knowledge_search,
             // Chat
             chat_list_sessions,
             chat_get_session,
             chat_delete_session,
+            chat_update_session_context,
             chat_list_agent_runs,
             chat_stream,
             // Misc
