@@ -277,8 +277,26 @@ export const plannerApi = {
 // ── Survey ────────────────────────────────────────────────────────
 
 export const surveyApi = {
-  generate: (query: string, maxPapers = 20): Promise<void> =>
-    invoke("survey_generate", { query, maxPapers }),
+  generate: (
+    query: string,
+    maxPapers = 20,
+    timeFrom?: number,
+    timeTo?: number,
+    litTypes?: string[],
+    databases?: string[],
+    citationFormat?: string,
+    language?: string,
+  ): Promise<void> =>
+    invoke("survey_generate", {
+      query,
+      maxPapers,
+      timeFrom: timeFrom ?? null,
+      timeTo: timeTo ?? null,
+      litTypes: litTypes ?? null,
+      databases: databases ?? null,
+      citationFormat: citationFormat ?? null,
+      language: language ?? null,
+    }),
   search: (query: string, limit = 20): Promise<unknown[]> =>
     invoke("survey_search", { query, limit }),
 };
