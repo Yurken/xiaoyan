@@ -34,18 +34,18 @@ export default function CollapsibleGroup({
       variant={compact ? "flat" : "raised"}
       className={clsx("space-y-0 border border-nm-dark/10 bg-white/30", compact && "rounded-[24px] p-3", className)}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={() => setOpen((prev) => !prev)}
-          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
           <span
             className={clsx(
-              "mt-0.5 flex flex-shrink-0 items-center justify-center rounded-xl text-ink-tertiary transition-colors",
+              "flex flex-shrink-0 items-center justify-center rounded-xl text-ink-tertiary transition-colors",
               compact ? "h-7 w-7" : "h-8 w-8"
             )}
-            style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+            style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
           >
             {open ? <ChevronUp className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} /> : <ChevronDown className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />}
           </span>

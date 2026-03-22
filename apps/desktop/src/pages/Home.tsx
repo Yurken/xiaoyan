@@ -162,7 +162,7 @@ export default function Home() {
               <p className="text-lg font-semibold text-ink-primary">下一步建议</p>
               <p className="mt-1 text-xs text-ink-tertiary">优先把已有能力串成闭环，而不是继续分散入口。</p>
             </div>
-            <Badge variant="info">高优先级</Badge>
+            {/* <Badge variant="info">高优先级</Badge> */}
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             {quickActions.map(({ to, icon: Icon, title, description }) => (
@@ -234,7 +234,7 @@ export default function Home() {
             <div className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
               <div className="mb-2 flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-[#34C759]" />
-                <p className="text-sm font-semibold text-ink-primary">最近 Copilot 会话</p>
+                <p className="text-sm font-semibold text-ink-primary">最近会话</p>
               </div>
               {state.sessions.length === 0 ? (
                 <p className="text-xs text-ink-tertiary">还没有会话，适合围绕论文或研究方向发起上下文问答。</p>

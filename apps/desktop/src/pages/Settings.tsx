@@ -1,4 +1,5 @@
 import { useEffect, useState, type ComponentType } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import {
   AlertCircle,
   Bot,
@@ -919,6 +920,7 @@ export default function Settings() {
   const [updateState, setUpdateState] = useState<UpdateState>("idle");
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [updateMsg, setUpdateMsg] = useState("");
+  const [appVersion, setAppVersion] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>("connection");
 
@@ -959,9 +961,13 @@ export default function Settings() {
       setLoadError("");
 
       try {
-        const data = await apiClient.settings.get();
+        const [data, version] = await Promise.all([
+          apiClient.settings.get(),
+          getVersion(),
+        ]);
         if (!cancelled) {
           setForm({ ...DEFAULT_SETTINGS, ...data });
+          setAppVersion(version);
         }
       } catch (error) {
         if (!cancelled) {
@@ -1739,7 +1745,7 @@ export default function Settings() {
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
                     <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-tertiary">当前版本</p>
-                    <p className="mt-1 text-sm font-semibold text-ink-primary">{updateInfo?.current_version ?? "待检查"}</p>
+                    <p className="mt-1 text-sm font-semibold text-ink-primary">{appVersion || updateInfo?.current_version || "—"}</p>
                   </div>
                   <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
                     <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-tertiary">最新版本</p>
