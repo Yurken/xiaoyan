@@ -78,14 +78,20 @@ jobs:
             platform: macos-latest
             args: "--target aarch64-apple-darwin"
             rust_target: aarch64-apple-darwin
+            build_target_dir: aarch64-apple-darwin/release
+            updater_target: darwin-aarch64
           - label: macOS Intel
             platform: macos-latest
             args: "--target x86_64-apple-darwin"
             rust_target: x86_64-apple-darwin
+            build_target_dir: x86_64-apple-darwin/release
+            updater_target: darwin-x86_64
           - label: Windows x64
             platform: windows-latest
             args: ""
             rust_target: ""
+            build_target_dir: release
+            updater_target: windows-x86_64
 
     runs-on: ${{ matrix.platform }}
 
@@ -134,6 +140,33 @@ jobs:
           tagName: ${{ github.ref_name }}
           args: ${{ matrix.args }}
 
+      - name: Collect updater bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_root="apps/desktop/src-tauri/target/${{ matrix.build_target_dir }}/bundle"
+          output_dir=".updater-artifacts/updater-${{ matrix.updater_target }}"
+          mkdir -p "$output_dir"
+          find "$bundle_root" -type f \
+            \( \
+              -name '*.app.tar.gz' -o \
+              -name '*.app.tar.gz.sig' -o \
+              -name '*.nsis.zip' -o \
+              -name '*.nsis.zip.sig' -o \
+              -name '*.msi.zip' -o \
+              -name '*.msi.zip.sig' \
+            \) \
+            -exec cp '{}' "$output_dir/" ';'
+          test -n "$(find "$output_dir" -type f | head -n 1)"
+          ls -l "$output_dir"
+
+      - name: Upload updater bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.updater_target }}
+          path: .updater-artifacts/updater-${{ matrix.updater_target }}
+          if-no-files-found: error
+
   publish-updater:
     name: Publish Updater Assets
     needs: [create-release, build]
@@ -147,22 +180,22 @@ jobs:
         with:
           node-version: 20
 
-      - name: Download release assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p .updater-assets
-          gh release download "${{ github.ref_name }}" \
-            --repo "${{ github.repository }}" \
-            --dir .updater-assets
+      - name: Download updater artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: updater-*
+          path: .updater-assets
+          merge-multiple: false
 
       - name: Prepare updater manifest
         env:
           UPDATE_BASE_URL: http://66.42.97.41/research-copilot-updates
         run: |
-          node scripts/prepare-updater-assets.mjs \
+          node scripts/generate-updater-manifest.mjs \
             --input-dir .updater-assets \
             --base-url "${UPDATE_BASE_URL%/}/${{ github.ref_name }}" \
+            --version "${{ github.ref_name }}" \
+            --pub-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --output .updater-assets/latest.json
 
       - name: Setup SSH
