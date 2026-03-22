@@ -425,8 +425,7 @@ export default function InterestsPanel() {
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="info">主题文件夹</Badge>
-                      <p className="text-base font-semibold text-ink-primary">{folderName}</p>
+                      <p className="text-sm font-semibold text-ink-primary">{folderName}</p>
                       <StatusBadge status={interest.status} />
                     </div>
                     <p className="mt-1 text-xs text-ink-tertiary">
