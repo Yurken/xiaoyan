@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, ChevronDown, ChevronUp, GitBranch, Loader2, Plus, Sparkles } from "lucide-react";
-import { Badge, Button, Card } from "@research-copilot/ui";
+import { AlertCircle, ChevronDown, ChevronUp, GitBranch, Loader2, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Badge, Button, Card, Input } from "@research-copilot/ui";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
@@ -188,6 +188,10 @@ function summarizeProfile(interest: ResearchInterest) {
   return highlights;
 }
 
+function interestFolderName(interest: ResearchInterest) {
+  return interest.folder_name?.trim() || interest.topic;
+}
+
 export default function InterestsPanel() {
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [agentsByInterest, setAgentsByInterest] = useState<Record<string, InterestAgentState[]>>({});
@@ -195,6 +199,10 @@ export default function InterestsPanel() {
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [folderDraft, setFolderDraft] = useState("");
+  const [savingFolderId, setSavingFolderId] = useState<string | null>(null);
+  const [deletingInterestId, setDeletingInterestId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,6 +294,57 @@ export default function InterestsPanel() {
     }
   };
 
+  const handleStartEditFolder = (interest: ResearchInterest) => {
+    setEditingFolderId(interest.id);
+    setFolderDraft(interestFolderName(interest));
+  };
+
+  const handleSaveFolder = async (interestId: string) => {
+    const trimmed = folderDraft.trim();
+    if (!trimmed) {
+      setError("文件夹名称不能为空");
+      return;
+    }
+
+    try {
+      setSavingFolderId(interestId);
+      const updated = await apiClient.knowledge.updateInterestFolder(interestId, trimmed);
+      setInterests((prev) => prev.map((item) => (item.id === interestId ? updated : item)));
+      setEditingFolderId(null);
+      setFolderDraft("");
+      setError("");
+    } catch (nextError) {
+      setError(formatErrorMessage(nextError));
+    } finally {
+      setSavingFolderId(null);
+    }
+  };
+
+  const handleDeleteAll = async (interest: ResearchInterest) => {
+    const folderName = interestFolderName(interest);
+    const confirmed = window.confirm(`删除主题“${folderName}”及其关联的论文、笔记和对话？此操作不可撤销。`);
+    if (!confirmed) return;
+
+    try {
+      setDeletingInterestId(interest.id);
+      await apiClient.knowledge.deleteInterestBundle(interest.id);
+      setInterests((prev) => prev.filter((item) => item.id !== interest.id));
+      setAgentsByInterest((prev) => {
+        const next = { ...prev };
+        delete next[interest.id];
+        return next;
+      });
+      setExpanded((prev) => (prev === interest.id ? null : prev));
+      setEditingFolderId((prev) => (prev === interest.id ? null : prev));
+      setFolderDraft("");
+      setError("");
+    } catch (nextError) {
+      setError(formatErrorMessage(nextError));
+    } finally {
+      setDeletingInterestId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -358,15 +417,22 @@ export default function InterestsPanel() {
             const profileHighlights = summarizeProfile(interest);
             const agents = agentsByInterest[interest.id] || [];
             const hasRunningAgent = agents.some((agent) => agent.status === "running");
+            const folderName = interestFolderName(interest);
+            const folderEdited = folderName !== interest.topic;
 
             return (
               <Card key={interest.id} padding="sm" className="space-y-0">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-semibold text-ink-primary">{interest.topic}</p>
+                      <Badge variant="info">主题文件夹</Badge>
+                      <p className="text-base font-semibold text-ink-primary">{folderName}</p>
                       <StatusBadge status={interest.status} />
                     </div>
+                    <p className="mt-1 text-xs text-ink-tertiary">
+                      研究主题：{interest.topic}
+                      {folderEdited ? " · 文件夹名已自定义" : ""}
+                    </p>
                     {interest.keywords && interest.keywords.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {interest.keywords.map((keyword) => (
@@ -412,6 +478,10 @@ export default function InterestsPanel() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                    <Button size="sm" variant="secondary" onClick={() => handleStartEditFolder(interest)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                      文件夹名
+                    </Button>
                     {interest.status !== "planning" ? (
                       <Button size="sm" variant="secondary" onClick={() => void handleGeneratePlan(interest.id)}>
                         <Sparkles className="h-3.5 w-3.5" />
@@ -434,8 +504,43 @@ export default function InterestsPanel() {
                         {expanded === interest.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void handleDeleteAll(interest)}
+                      loading={deletingInterestId === interest.id}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      删除全部
+                    </Button>
                   </div>
                 </div>
+
+                {editingFolderId === interest.id && (
+                  <div className="mt-4 border-t border-nm-dark/10 pt-4">
+                    <div className="grid gap-3 rounded-2xl border border-nm-dark/10 bg-white/35 p-3 lg:grid-cols-[minmax(0,1fr),auto,auto]">
+                      <Input
+                        label="主题文件夹名称"
+                        value={folderDraft}
+                        onChange={(event) => setFolderDraft(event.target.value)}
+                        placeholder="输入文件夹名称"
+                      />
+                      <Button size="sm" onClick={() => void handleSaveFolder(interest.id)} loading={savingFolderId === interest.id}>
+                        保存
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingFolderId(null);
+                          setFolderDraft("");
+                        }}
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {agents.length > 0 && (
                   <div className="mt-4 border-t border-nm-dark/10 pt-4">

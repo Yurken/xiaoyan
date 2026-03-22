@@ -41,32 +41,13 @@ pub async fn knowledge_list_interests(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let rows = sqlx::query(
-        "SELECT id, topic, keywords, profile, learning_path, status, created_at FROM research_interests ORDER BY created_at DESC",
+        "SELECT id, topic, folder_name, keywords, profile, learning_path, status, created_at FROM research_interests ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
     .await
     .map_err(|e| e.to_string())?;
 
-    let list: Vec<serde_json::Value> = rows
-        .iter()
-        .map(|r| {
-            let kw: String = r.get::<Option<String>, _>("keywords").unwrap_or_else(|| "[]".into());
-            let profile_str: Option<String> = r.get::<Option<String>, _>("profile");
-            let lp_str: Option<String> = r.get::<Option<String>, _>("learning_path");
-            let learning_path = lp_str
-                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-                .map(enrich_learning_path_json);
-            json!({
-                "id": r.get::<String, _>("id"),
-                "topic": r.get::<String, _>("topic"),
-                "keywords": serde_json::from_str::<serde_json::Value>(&kw).unwrap_or(json!([])),
-                "profile": profile_str.and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok()),
-                "learning_path": learning_path,
-                "status": r.get::<String, _>("status"),
-                "created_at": r.get::<String, _>("created_at"),
-            })
-        })
-        .collect();
+    let list: Vec<serde_json::Value> = rows.iter().map(research_interest_row_to_json).collect();
     Ok(json!(list))
 }
 
@@ -77,17 +58,24 @@ pub async fn knowledge_create_interest(
     keywords: Vec<String>,
     profile: Option<ResearchInterestProfilePayload>,
 ) -> Result<serde_json::Value, String> {
+    let trimmed_topic = topic.trim();
+    if trimmed_topic.is_empty() {
+        return Err("研究方向不能为空".to_string());
+    }
+
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let kw_json = serde_json::to_string(&keywords).unwrap_or_else(|_| "[]".into());
     let profile_json = profile
         .as_ref()
         .and_then(|value| serde_json::to_string(value).ok());
+    let folder_name = default_interest_folder_name(trimmed_topic);
     sqlx::query(
-        "INSERT INTO research_interests (id, topic, keywords, profile, created_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO research_interests (id, topic, folder_name, keywords, profile, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
-    .bind(&topic)
+    .bind(trimmed_topic)
+    .bind(&folder_name)
     .bind(&kw_json)
     .bind(&profile_json)
     .bind(&now)
@@ -96,11 +84,96 @@ pub async fn knowledge_create_interest(
     .map_err(|e| e.to_string())?;
     Ok(json!({
         "id": id,
-        "topic": topic,
+        "topic": trimmed_topic,
+        "folder_name": folder_name,
         "keywords": keywords,
         "profile": profile,
         "status": "active",
         "created_at": now
+    }))
+}
+
+#[tauri::command]
+pub async fn knowledge_update_interest_folder(
+    state: State<'_, AppState>,
+    id: String,
+    folder_name: String,
+) -> Result<serde_json::Value, String> {
+    let trimmed_folder_name = folder_name.trim();
+    if trimmed_folder_name.is_empty() {
+        return Err("文件夹名称不能为空".to_string());
+    }
+
+    sqlx::query("UPDATE research_interests SET folder_name = ? WHERE id = ?")
+        .bind(trimmed_folder_name)
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let row = sqlx::query(
+        "SELECT id, topic, folder_name, keywords, profile, learning_path, status, created_at FROM research_interests WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("Research interest not found")?;
+
+    Ok(research_interest_row_to_json(&row))
+}
+
+#[tauri::command]
+pub async fn knowledge_delete_interest_bundle(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
+
+    let exists = sqlx::query("SELECT id FROM research_interests WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if exists.is_none() {
+        return Err("Research interest not found".to_string());
+    }
+
+    let deleted_sessions = sqlx::query("DELETE FROM chat_sessions WHERE context_type = 'interest' AND context_id = ?")
+        .bind(&id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected();
+
+    let deleted_notes = sqlx::query("DELETE FROM knowledge_notes WHERE research_interest_id = ?")
+        .bind(&id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected();
+
+    let deleted_papers = sqlx::query("DELETE FROM papers WHERE research_interest_id = ?")
+        .bind(&id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected();
+
+    sqlx::query("DELETE FROM research_interests WHERE id = ?")
+        .bind(&id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+
+    Ok(json!({
+        "deleted_interest_id": id,
+        "deleted_sessions": deleted_sessions,
+        "deleted_notes": deleted_notes,
+        "deleted_papers": deleted_papers,
     }))
 }
 
@@ -710,4 +783,35 @@ fn note_row_to_json(r: &sqlx::sqlite::SqliteRow) -> serde_json::Value {
         "created_at": r.get::<String, _>("created_at"),
         "updated_at": r.get::<String, _>("updated_at"),
     })
+}
+
+fn research_interest_row_to_json(r: &sqlx::sqlite::SqliteRow) -> serde_json::Value {
+    let keywords: String = r
+        .get::<Option<String>, _>("keywords")
+        .unwrap_or_else(|| "[]".into());
+    let profile_str: Option<String> = r.get::<Option<String>, _>("profile");
+    let learning_path = r
+        .get::<Option<String>, _>("learning_path")
+        .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+        .map(enrich_learning_path_json);
+
+    json!({
+        "id": r.get::<String, _>("id"),
+        "topic": r.get::<String, _>("topic"),
+        "folder_name": r.get::<Option<String>, _>("folder_name"),
+        "keywords": serde_json::from_str::<serde_json::Value>(&keywords).unwrap_or(json!([])),
+        "profile": profile_str.and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok()),
+        "learning_path": learning_path,
+        "status": r.get::<String, _>("status"),
+        "created_at": r.get::<String, _>("created_at"),
+    })
+}
+
+fn default_interest_folder_name(topic: &str) -> String {
+    let trimmed = topic.trim();
+    if trimmed.is_empty() {
+        "未命名主题".to_string()
+    } else {
+        trimmed.to_string()
+    }
 }

@@ -62,6 +62,7 @@ export interface ReproductionGuide {
 export interface ResearchInterest {
   id: string;
   topic: string;
+  folder_name?: string;
   keywords?: string[];
   profile?: ResearchInterestProfile;
   learning_path?: LearningPath;

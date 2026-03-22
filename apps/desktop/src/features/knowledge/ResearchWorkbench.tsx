@@ -36,6 +36,10 @@ function runStatusBadge(status?: AgentRun["status"]) {
   return <Badge variant="default">等待中</Badge>;
 }
 
+function interestFolderName(interest: ResearchInterest) {
+  return interest.folder_name?.trim() || interest.topic;
+}
+
 export default function ResearchWorkbench({ interest }: ResearchWorkbenchProps) {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [notes, setNotes] = useState<KnowledgeNote[]>([]);
@@ -374,7 +378,10 @@ export default function ResearchWorkbench({ interest }: ResearchWorkbenchProps) 
               <BookOpenCheck className="h-3.5 w-3.5" />
               路线工作台
             </div>
-            <p className="mt-3 text-sm font-semibold text-ink-primary">{interest.topic}</p>
+            <p className="mt-3 text-sm font-semibold text-ink-primary">{interestFolderName(interest)}</p>
+            {interestFolderName(interest) !== interest.topic ? (
+              <p className="mt-1 text-[11px] text-ink-tertiary">研究主题：{interest.topic}</p>
+            ) : null}
             <p className="mt-1 text-xs leading-5 text-ink-tertiary">
               规划完成后，继续在同一个研究上下文里上传论文、发起 Copilot 对话并沉淀笔记。
             </p>

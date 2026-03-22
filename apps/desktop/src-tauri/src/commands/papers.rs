@@ -171,6 +171,7 @@ pub async fn papers_update(
     venue: Option<String>,
     year: Option<i64>,
     doi: Option<String>,
+    research_interest_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -223,6 +224,17 @@ pub async fn papers_update(
     if let Some(value) = doi {
         let next = value.trim();
         sqlx::query("UPDATE papers SET doi = ?, updated_at = ? WHERE id = ?")
+            .bind(if next.is_empty() { None::<String> } else { Some(next.to_string()) })
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if let Some(value) = research_interest_id {
+        let next = value.trim();
+        sqlx::query("UPDATE papers SET research_interest_id = ?, updated_at = ? WHERE id = ?")
             .bind(if next.is_empty() { None::<String> } else { Some(next.to_string()) })
             .bind(&now)
             .bind(&id)

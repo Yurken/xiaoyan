@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS reproduction_guides (
 CREATE TABLE IF NOT EXISTS research_interests (
     id            TEXT PRIMARY KEY,
     topic         TEXT NOT NULL,
+    folder_name   TEXT,
     keywords      TEXT NOT NULL DEFAULT '[]',
     profile       TEXT,
     learning_path TEXT,
@@ -152,6 +153,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     // Run schema – SQLite handles multiple statements via raw_sql
     sqlx::raw_sql(SCHEMA).execute(&pool).await?;
     ensure_research_interest_profile_column(&pool).await?;
+    ensure_research_interest_folder_name_column(&pool).await?;
     ensure_papers_research_interest_column(&pool).await?;
 
     Ok(pool)
@@ -191,6 +193,28 @@ async fn ensure_papers_research_interest_column(pool: &SqlitePool) -> Result<()>
             .execute(pool)
             .await?;
     }
+
+    Ok(())
+}
+
+async fn ensure_research_interest_folder_name_column(pool: &SqlitePool) -> Result<()> {
+    let columns = sqlx::query("PRAGMA table_info(research_interests)")
+        .fetch_all(pool)
+        .await?;
+
+    let has_folder_name = columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == "folder_name"
+    });
+
+    if !has_folder_name {
+        sqlx::query("ALTER TABLE research_interests ADD COLUMN folder_name TEXT")
+            .execute(pool)
+            .await?;
+    }
+    sqlx::query("UPDATE research_interests SET folder_name = topic WHERE folder_name IS NULL OR TRIM(folder_name) = ''")
+        .execute(pool)
+        .await?;
 
     Ok(())
 }

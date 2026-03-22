@@ -6,6 +6,7 @@ import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { buildPaperSearchUrl, openLink } from "../../lib/links";
 import { listen } from "@tauri-apps/api/event";
+import type { ResearchInterest } from "@research-copilot/types";
 
 type SurveyAgentStatus = "running" | "done" | "failed";
 
@@ -52,7 +53,13 @@ interface StructuredSurveyResult {
   }>;
 }
 
+function interestFolderName(interest: ResearchInterest) {
+  return interest.folder_name?.trim() || interest.topic;
+}
+
 export default function SurveyPanel() {
+  const [interests, setInterests] = useState<ResearchInterest[]>([]);
+  const [selectedInterestId, setSelectedInterestId] = useState("");
   const [query, setQuery] = useState("");
   const [generating, setGenerating] = useState(false);
   const [content, setContent] = useState("");
@@ -71,6 +78,27 @@ export default function SurveyPanel() {
     }
     return requestIdRef.current === requestId;
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    apiClient.knowledge
+      .listInterests()
+      .then((data) => {
+        if (!cancelled) {
+          setInterests(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInterests([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -195,6 +223,40 @@ export default function SurveyPanel() {
             </Button>
           </div>
         </div>
+
+        {interests.length > 0 && (
+          <div className="rounded-2xl border border-nm-dark/10 bg-white/30 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">主题分组</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedInterestId("")}
+                className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
+                  selectedInterestId ? "bg-white/55 text-ink-secondary hover:text-ink-primary" : "bg-apple-blue/10 text-apple-blue"
+                }`}
+              >
+                自由检索
+              </button>
+              {interests.map((interest) => (
+                <button
+                  key={interest.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedInterestId(interest.id);
+                    setQuery(interest.topic);
+                  }}
+                  className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
+                    selectedInterestId === interest.id
+                      ? "bg-apple-blue/10 text-apple-blue"
+                      : "bg-white/55 text-ink-secondary hover:text-ink-primary"
+                  }`}
+                >
+                  {interestFolderName(interest)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">

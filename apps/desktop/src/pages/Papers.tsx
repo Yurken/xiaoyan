@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle,
@@ -12,14 +12,19 @@ import {
 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { Badge, Button, Card, Input } from "@research-copilot/ui";
-import type { Paper } from "@research-copilot/types";
+import type { Paper, ResearchInterest } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, VenueTypeBadge, WosIndexBadge } from "../components/CcfBadges";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, parsePaperTagVisibility } from "../lib/paperTags";
 
+function interestFolderName(interest: ResearchInterest) {
+  return interest.folder_name?.trim() || interest.topic;
+}
+
 export default function Papers() {
   const [papers, setPapers] = useState<Paper[]>([]);
+  const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -28,12 +33,14 @@ export default function Papers() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [visiblePaperTags, setVisiblePaperTags] = useState(() => parsePaperTagVisibility(DEFAULT_PAPER_TAG_VISIBILITY_VALUE));
+  const [selectedInterestId, setSelectedInterestId] = useState("");
   const [editDraft, setEditDraft] = useState({
     title: "",
     authors: "",
     venue: "",
     year: "",
     doi: "",
+    research_interest_id: "",
   });
 
   useEffect(() => {
@@ -69,6 +76,27 @@ export default function Papers() {
   useEffect(() => {
     let cancelled = false;
 
+    apiClient.knowledge
+      .listInterests()
+      .then((data) => {
+        if (!cancelled) {
+          setInterests(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInterests([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
     apiClient.settings
       .get()
       .then((settings) => {
@@ -86,6 +114,35 @@ export default function Papers() {
       cancelled = true;
     };
   }, []);
+
+  const interestMap = useMemo(
+    () => Object.fromEntries(interests.map((item) => [item.id, item])),
+    [interests]
+  );
+
+  const paperGroups = useMemo(() => {
+    const grouped = interests.map((interest) => ({
+      key: interest.id,
+      title: interestFolderName(interest),
+      subtitle: interest.topic,
+      papers: papers.filter((paper) => paper.research_interest_id === interest.id),
+    }));
+
+    const ungrouped = papers.filter((paper) => {
+      if (!paper.research_interest_id) return true;
+      return !(paper.research_interest_id in interestMap);
+    });
+
+    return [
+      ...grouped,
+      {
+        key: "__ungrouped__",
+        title: "未归档",
+        subtitle: "尚未关联研究方向",
+        papers: ungrouped,
+      },
+    ];
+  }, [interestMap, interests, papers]);
 
   const handleUpload = async () => {
     try {
@@ -109,7 +166,7 @@ export default function Papers() {
       }
 
       setUploading(true);
-      await apiClient.papers.upload(selectedPath);
+      await apiClient.papers.upload(selectedPath, selectedInterestId || undefined);
       const updated = await apiClient.papers.list();
       setPapers(updated);
     } catch (error) {
@@ -161,6 +218,7 @@ export default function Papers() {
       venue: paper.venue || "",
       year: paper.year ? String(paper.year) : "",
       doi: paper.doi || "",
+      research_interest_id: paper.research_interest_id || "",
     });
   };
 
@@ -185,6 +243,7 @@ export default function Papers() {
         venue: editDraft.venue.trim(),
         year: nextYear,
         doi: editDraft.doi.trim(),
+        research_interest_id: editDraft.research_interest_id,
       });
       setPapers((prev) => prev.map((paper) => (paper.id === id ? updated : paper)));
       setEditingId(null);
@@ -219,15 +278,35 @@ export default function Papers() {
 
   return (
     <div className="h-full overflow-y-auto p-6 space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-ink-primary">论文库</h1>
-          <p className="mt-0.5 text-sm text-ink-tertiary">共 {papers.length} 篇论文</p>
+          <p className="mt-0.5 text-sm text-ink-tertiary">
+            {`共 ${papers.length} 篇论文 · ${interests.length} 个主题分组`}
+          </p>
         </div>
-        <Button onClick={handleUpload} loading={uploading} size="md">
-          <Upload className="w-4 h-4" />
-          导入 PDF
-        </Button>
+        <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:items-center">
+          <div className="min-w-[220px]">
+            <label className="mb-1 ml-1 block text-xs font-medium text-ink-tertiary">导入到主题文件夹</label>
+            <select
+              value={selectedInterestId}
+              onChange={(event) => setSelectedInterestId(event.target.value)}
+              className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary outline-none"
+              style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+            >
+              <option value="">未归档</option>
+              {interests.map((interest) => (
+                <option key={interest.id} value={interest.id}>
+                  {interestFolderName(interest)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button onClick={handleUpload} loading={uploading} size="md">
+            <Upload className="w-4 h-4" />
+            导入 PDF
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -253,7 +332,7 @@ export default function Papers() {
             <p className="mt-1 break-all text-sm text-apple-red">{loadError}</p>
           </div>
         </Card>
-      ) : papers.length === 0 ? (
+      ) : papers.length === 0 && interests.length === 0 ? (
         <Card className="flex flex-col items-center gap-4 py-20 text-center">
           <div
             className="flex h-16 w-16 items-center justify-center rounded-3xl"
@@ -268,8 +347,23 @@ export default function Papers() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {papers.map((paper) => (
-            <Card key={paper.id} padding="sm" className="space-y-0">
+          {paperGroups.map((group) => (
+            <section key={group.key} className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-ink-primary">{group.title}</p>
+                <Badge variant="default">{`${group.papers.length} 篇`}</Badge>
+                {group.subtitle !== group.title ? (
+                  <span className="text-xs text-ink-tertiary">{`研究主题：${group.subtitle}`}</span>
+                ) : null}
+              </div>
+
+              {group.papers.length === 0 ? (
+                <Card padding="sm" className="border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
+                  该主题下还没有论文。
+                </Card>
+              ) : (
+                group.papers.map((paper) => (
+                  <Card key={paper.id} padding="sm" className="space-y-0">
               <div className="flex items-start gap-4">
                 <div
                   className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl"
@@ -388,6 +482,22 @@ export default function Papers() {
                     onChange={(event) => setEditDraft((prev) => ({ ...prev, year: event.target.value }))}
                     placeholder="例如：2024"
                   />
+                  <div className="space-y-1">
+                    <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
+                    <select
+                      value={editDraft.research_interest_id}
+                      onChange={(event) => setEditDraft((prev) => ({ ...prev, research_interest_id: event.target.value }))}
+                      className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary outline-none"
+                      style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                    >
+                      <option value="">未归档</option>
+                      {interests.map((interest) => (
+                        <option key={interest.id} value={interest.id}>
+                          {interestFolderName(interest)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="md:col-span-2">
                     <Input
                       label="DOI"
@@ -452,7 +562,10 @@ export default function Papers() {
                     ))}
                 </div>
               )}
-            </Card>
+                  </Card>
+                ))
+              )}
+            </section>
           ))}
         </div>
       )}
