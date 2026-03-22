@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { AlertCircle, CalendarDays, ChevronDown, ChevronUp, FileSearch, Globe2, Search, Sparkles } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
-import type { ArxivRankingMode, ArxivSearchResponse, SourceLookupSection } from "@research-copilot/types";
+import type { ArxivRankingMode, ArxivSearchRequest, ArxivSearchResponse, SourceLookupSection } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, WosIndexBadge, VenueTypeBadge } from "../components/CcfBadges";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
@@ -22,6 +22,48 @@ const ARXIV_MODE_OPTIONS: Array<{ value: ArxivRankingMode; label: string; descri
     description: "优先找摘要信息密度、实验信号和潜在影响更强的论文。",
   },
 ];
+
+function splitStructuredInput(value: string) {
+  const seen = new Set<string>();
+  return value
+    .split(/[，,；;\n]/)
+    .map((item) => item.trim().replace(/\s+/g, " "))
+    .filter((item) => {
+      if (!item) return false;
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function hasStructuredArxivTerms(request: ArxivSearchRequest) {
+  return Boolean(
+    request.all_terms?.length ||
+      request.title_terms?.length ||
+      request.abstract_terms?.length ||
+      request.authors?.length ||
+      request.categories?.length ||
+      request.comments_terms?.length ||
+      request.journal_ref_terms?.length
+  );
+}
+
+function buildAppliedFilterEntries(filters?: ArxivSearchRequest | null) {
+  if (!filters) return [];
+
+  return [
+    { label: "研究主题", values: filters.topic?.trim() ? [filters.topic.trim()] : [] },
+    { label: "通用词(all)", values: filters.all_terms ?? [] },
+    { label: "标题词(ti)", values: filters.title_terms ?? [] },
+    { label: "摘要词(abs)", values: filters.abstract_terms ?? [] },
+    { label: "作者(au)", values: filters.authors ?? [] },
+    { label: "分类(cat)", values: filters.categories ?? [] },
+    { label: "备注(co)", values: filters.comments_terms ?? [] },
+    { label: "期刊/jr", values: filters.journal_ref_terms ?? [] },
+    { label: "排除词", values: filters.exclude_terms ?? [] },
+  ].filter((entry) => entry.values.length > 0);
+}
 
 function formatDate(value?: string) {
   if (!value) return "";
@@ -62,7 +104,15 @@ export default function Tools() {
   const [sourceError, setSourceError] = useState("");
   const [sourceSearched, setSourceSearched] = useState(false);
 
-  const [arxivQuery, setArxivQuery] = useState("");
+  const [arxivTopic, setArxivTopic] = useState("");
+  const [arxivAllTerms, setArxivAllTerms] = useState("");
+  const [arxivTitleTerms, setArxivTitleTerms] = useState("");
+  const [arxivAbstractTerms, setArxivAbstractTerms] = useState("");
+  const [arxivAuthors, setArxivAuthors] = useState("");
+  const [arxivCategories, setArxivCategories] = useState("");
+  const [arxivCommentsTerms, setArxivCommentsTerms] = useState("");
+  const [arxivJournalTerms, setArxivJournalTerms] = useState("");
+  const [arxivExcludeTerms, setArxivExcludeTerms] = useState("");
   const [arxivDays, setArxivDays] = useState("14");
   const [arxivLimit, setArxivLimit] = useState("6");
   const [arxivMode, setArxivMode] = useState<ArxivRankingMode>("relevance");
@@ -80,6 +130,32 @@ export default function Tools() {
     () => ARXIV_MODE_OPTIONS.find((item) => item.value === arxivMode) ?? ARXIV_MODE_OPTIONS[0],
     [arxivMode]
   );
+  const arxivRequest = useMemo<ArxivSearchRequest>(
+    () => ({
+      topic: arxivTopic.trim(),
+      all_terms: splitStructuredInput(arxivAllTerms),
+      title_terms: splitStructuredInput(arxivTitleTerms),
+      abstract_terms: splitStructuredInput(arxivAbstractTerms),
+      authors: splitStructuredInput(arxivAuthors),
+      categories: splitStructuredInput(arxivCategories),
+      comments_terms: splitStructuredInput(arxivCommentsTerms),
+      journal_ref_terms: splitStructuredInput(arxivJournalTerms),
+      exclude_terms: splitStructuredInput(arxivExcludeTerms),
+    }),
+    [
+      arxivAbstractTerms,
+      arxivAllTerms,
+      arxivAuthors,
+      arxivCategories,
+      arxivCommentsTerms,
+      arxivExcludeTerms,
+      arxivJournalTerms,
+      arxivTitleTerms,
+      arxivTopic,
+    ]
+  );
+  const arxivHasSearchTerms = useMemo(() => hasStructuredArxivTerms(arxivRequest), [arxivRequest]);
+  const arxivAppliedFilters = useMemo(() => buildAppliedFilterEntries(arxivResult?.applied_filters), [arxivResult]);
   const journalSection = useMemo(
     () => sourceSections.find((section) => section.key === "journal_partition"),
     [sourceSections]
@@ -112,8 +188,14 @@ export default function Tools() {
     });
   };
 
+  const handleArxivKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      void handleArxivSearch();
+    }
+  };
+
   const handleArxivSearch = async () => {
-    if (!arxivQuery.trim() || arxivLoading) return;
+    if (!arxivHasSearchTerms || arxivLoading) return;
     const now = Date.now();
     if (now - arxivLastSearchAt.current < 3000) return;
     arxivLastSearchAt.current = now;
@@ -126,7 +208,7 @@ export default function Tools() {
       setArxivError("");
       setArxivSearched(true);
       const result = await apiClient.arxiv.search(
-        arxivQuery.trim(),
+        arxivRequest,
         Number.isFinite(days) ? days : 14,
         Number.isFinite(limit) ? limit : 6,
         arxivMode
@@ -175,23 +257,88 @@ export default function Tools() {
           <div className="space-y-1">
             <p className="text-sm font-semibold text-ink-primary">arXiv 智能检索</p>
             <p className="text-xs leading-5 text-ink-tertiary">
-              输入关键词、最近时间窗口和返回篇数，自动从 arXiv 抓取候选论文，并按“最相关”或“质量预测”筛出前几篇。
+              输入会按 arXiv 官方字段拆分：同一字段内多个值按 OR 合并，不同字段之间按 AND 组合，排除词走 ANDNOT。
             </p>
           </div>
         </div>
 
         <Textarea
-          value={arxivQuery}
-          onChange={(event) => setArxivQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-              void handleArxivSearch();
-            }
-          }}
-          rows={3}
-          placeholder={"例如：agent memory, tool use, planning\n支持逗号、分号或换行分隔多个关键词"}
-          label="关键词"
+          value={arxivTopic}
+          onChange={(event) => setArxivTopic(event.target.value)}
+          onKeyDown={handleArxivKeyDown}
+          rows={2}
+          placeholder="例如：想找最近两周里，tool-using LLM agents 中关于 memory / planning 的代表性新文"
+          label="研究主题说明（可选，仅用于 LLM 重排理解需求）"
         />
+
+        <div className="grid gap-3 xl:grid-cols-2">
+          <Textarea
+            value={arxivAllTerms}
+            onChange={(event) => setArxivAllTerms(event.target.value)}
+            onKeyDown={handleArxivKeyDown}
+            rows={2}
+            placeholder={"例如：agent memory, tool use\n支持逗号、分号或换行分隔"}
+            label="通用关键词（all）"
+          />
+          <Textarea
+            value={arxivTitleTerms}
+            onChange={(event) => setArxivTitleTerms(event.target.value)}
+            onKeyDown={handleArxivKeyDown}
+            rows={2}
+            placeholder="例如：planning, memory editing"
+            label="标题关键词（ti）"
+          />
+          <Textarea
+            value={arxivAbstractTerms}
+            onChange={(event) => setArxivAbstractTerms(event.target.value)}
+            onKeyDown={handleArxivKeyDown}
+            rows={2}
+            placeholder="例如：benchmark, long-term memory"
+            label="摘要关键词（abs）"
+          />
+          <Input
+            value={arxivAuthors}
+            onChange={(event) => setArxivAuthors(event.target.value)}
+            onKeyDown={handleArxivKeyDown}
+            placeholder="例如：Geoffrey Hinton, Percy Liang"
+            label="作者（au）"
+          />
+          <Input
+            value={arxivCategories}
+            onChange={(event) => setArxivCategories(event.target.value)}
+            onKeyDown={handleArxivKeyDown}
+            placeholder="例如：cs.AI, cs.LG, cs.CL"
+            label="arXiv 分类（cat）"
+          />
+          <Input
+            value={arxivCommentsTerms}
+            onChange={(event) => setArxivCommentsTerms(event.target.value)}
+            onKeyDown={handleArxivKeyDown}
+            placeholder="例如：code, benchmark, workshop"
+            label="备注关键词（co）"
+          />
+          <Input
+            value={arxivJournalTerms}
+            onChange={(event) => setArxivJournalTerms(event.target.value)}
+            onKeyDown={handleArxivKeyDown}
+            placeholder="例如：ICLR, ACL, NeurIPS"
+            label="期刊/会议信息（jr）"
+          />
+          <Input
+            value={arxivExcludeTerms}
+            onChange={(event) => setArxivExcludeTerms(event.target.value)}
+            onKeyDown={handleArxivKeyDown}
+            placeholder="例如：robotics, medical imaging"
+            label="排除词（ANDNOT）"
+          />
+        </div>
+
+        <p className="text-xs leading-5 text-ink-tertiary">
+          分类请填写 arXiv category id，例如 <span className="font-medium text-ink-secondary">cs.AI</span>、
+          <span className="font-medium text-ink-secondary">cs.LG</span>、
+          <span className="font-medium text-ink-secondary">stat.ML</span>。检索时会自动加入最近时间窗口的
+          <span className="font-medium text-ink-secondary">submittedDate</span> 条件。
+        </p>
 
         <div className="grid gap-3 md:grid-cols-3">
           <Input
@@ -234,7 +381,7 @@ export default function Tools() {
             当前模式：<span className="font-medium text-ink-secondary">{currentMode.label}</span>
             {`，${currentMode.description}`}
           </p>
-          <Button onClick={() => void handleArxivSearch()} loading={arxivLoading} disabled={!arxivQuery.trim()}>
+          <Button onClick={() => void handleArxivSearch()} loading={arxivLoading} disabled={!arxivHasSearchTerms}>
             <FileSearch className="h-4 w-4" />
             检索 arXiv
           </Button>
@@ -265,6 +412,25 @@ export default function Tools() {
               <p className="text-sm leading-6 text-ink-secondary">{arxivResult.ranking_note}</p>
               <p className="text-xs leading-5 text-ink-tertiary">{arxivResult.disclaimer}</p>
             </div>
+
+            {arxivAppliedFilters.length > 0 ? (
+              <div className="space-y-2 rounded-2xl bg-white/40 px-3 py-3">
+                <p className="text-xs font-semibold text-ink-secondary">本次检索条件</p>
+                <div className="flex flex-wrap gap-2">
+                  {arxivAppliedFilters.flatMap((entry) =>
+                    entry.values.map((value) => (
+                      <Badge key={`${entry.label}-${value}`} variant="default">
+                        {`${entry.label}：${value}`}
+                      </Badge>
+                    ))
+                  )}
+                </div>
+                <p className="text-[11px] leading-5 text-ink-tertiary">官方 arXiv 查询式</p>
+                <p className="break-all rounded-2xl bg-white/55 px-3 py-2 font-mono text-[11px] leading-5 text-ink-tertiary">
+                  {arxivResult.search_expression}
+                </p>
+              </div>
+            ) : null}
           </Card>
 
           {arxivResult.papers.length > 0 ? (
@@ -338,7 +504,7 @@ export default function Tools() {
               <div>
                 <p className="font-medium text-ink-secondary">当前条件下没有匹配论文</p>
                 <p className="mt-1 text-sm text-ink-tertiary">
-                  建议增加最近天数，或改用更具体的研究主题关键词。
+                  建议增加最近天数，或放宽标题词、摘要词和分类条件。
                 </p>
               </div>
             </Card>
@@ -349,7 +515,7 @@ export default function Tools() {
           <Search className="h-8 w-8 text-ink-tertiary" />
           <div>
             <p className="font-medium text-ink-secondary">还没有结果</p>
-            <p className="mt-1 text-sm text-ink-tertiary">检查关键词和时间窗口后重试。</p>
+            <p className="mt-1 text-sm text-ink-tertiary">检查检索字段和时间窗口后重试。</p>
           </div>
         </Card>
       ) : null}
@@ -360,8 +526,8 @@ export default function Tools() {
             <FileSearch className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-ink-primary">来源查询</p>
-            <p className="mt-1 text-xs text-ink-tertiary">统一查询入口。输入一次，同时返回期刊分区和 CCF 评级；后续新增来源也会继续并入这里。</p>
+            <p className="text-sm font-semibold text-ink-primary">刊会查询</p>
+            <p className="mt-1 text-xs text-ink-tertiary">输入期刊/会议名称返回分区和 CCF 评级。</p>
           </div>
         </div>
 
@@ -380,7 +546,7 @@ export default function Tools() {
           </div>
           <Button onClick={() => void handleSourceLookup()} loading={sourceLoading} disabled={!sourceQuery.trim()}>
             <Search className="h-4 w-4" />
-            查询来源
+            查询
           </Button>
         </div>
 

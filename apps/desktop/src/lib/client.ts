@@ -7,6 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   ArxivRankingMode,
+  ArxivSearchRequest,
   ArxivSearchResponse,
   CcfLookupResponse,
   JournalLookupResponse,
@@ -91,12 +92,12 @@ export const sourceApi = {
 
 export const arxivApi = {
   search: (
-    query: string,
+    request: ArxivSearchRequest,
     days = 14,
     limit = 5,
     ranking_mode: ArxivRankingMode = "relevance"
   ): Promise<ArxivSearchResponse> =>
-    invoke("arxiv_search", { query, days, limit, rankingMode: ranking_mode }),
+    invoke("arxiv_search", { request, days, limit, rankingMode: ranking_mode }),
 };
 
 // ── Knowledge ─────────────────────────────────────────────────────

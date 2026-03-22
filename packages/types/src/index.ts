@@ -223,6 +223,18 @@ export interface AppUpdateInfo {
 
 export type ArxivRankingMode = "relevance" | "quality";
 
+export interface ArxivSearchRequest {
+  topic?: string;
+  all_terms?: string[];
+  title_terms?: string[];
+  abstract_terms?: string[];
+  authors?: string[];
+  categories?: string[];
+  comments_terms?: string[];
+  journal_ref_terms?: string[];
+  exclude_terms?: string[];
+}
+
 export interface ArxivRecommendation {
   arxiv_id: string;
   title: string;
@@ -243,6 +255,8 @@ export interface ArxivRecommendation {
 export interface ArxivSearchResponse {
   query: string;
   keywords: string[];
+  applied_filters: ArxivSearchRequest;
+  search_expression: string;
   days: number;
   limit: number;
   ranking_mode: ArxivRankingMode;

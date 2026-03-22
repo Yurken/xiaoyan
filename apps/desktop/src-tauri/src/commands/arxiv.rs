@@ -18,11 +18,27 @@ struct ArxivPaper {
     title: String,
     authors: String,
     category: String,
+    comment: String,
+    journal_ref: String,
     published_at: String,
     updated_at: String,
     abstract_text: String,
     abs_url: String,
     pdf_url: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case", default)]
+pub struct ArxivSearchRequest {
+    topic: String,
+    all_terms: Vec<String>,
+    title_terms: Vec<String>,
+    abstract_terms: Vec<String>,
+    authors: Vec<String>,
+    categories: Vec<String>,
+    comments_terms: Vec<String>,
+    journal_ref_terms: Vec<String>,
+    exclude_terms: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -49,6 +65,8 @@ struct ArxivRecommendation {
 struct ArxivSearchResponse {
     query: String,
     keywords: Vec<String>,
+    applied_filters: ArxivSearchRequest,
+    search_expression: String,
     days: i64,
     limit: usize,
     ranking_mode: String,
@@ -102,30 +120,53 @@ impl RankingMode {
 
 }
 
+impl ArxivSearchRequest {
+    fn normalize(mut self) -> Self {
+        self.topic = clean_whitespace(&self.topic);
+        self.all_terms = normalize_term_list(self.all_terms);
+        self.title_terms = normalize_term_list(self.title_terms);
+        self.abstract_terms = normalize_term_list(self.abstract_terms);
+        self.authors = normalize_term_list(self.authors);
+        self.categories = normalize_category_list(self.categories);
+        self.comments_terms = normalize_term_list(self.comments_terms);
+        self.journal_ref_terms = normalize_term_list(self.journal_ref_terms);
+        self.exclude_terms = normalize_term_list(self.exclude_terms);
+        self
+    }
+
+    fn has_search_terms(&self) -> bool {
+        !self.all_terms.is_empty()
+            || !self.title_terms.is_empty()
+            || !self.abstract_terms.is_empty()
+            || !self.authors.is_empty()
+            || !self.categories.is_empty()
+            || !self.comments_terms.is_empty()
+            || !self.journal_ref_terms.is_empty()
+    }
+}
+
 #[tauri::command]
 pub async fn arxiv_search(
     state: State<'_, AppState>,
-    query: String,
+    request: ArxivSearchRequest,
     days: Option<i64>,
     limit: Option<i32>,
     ranking_mode: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let query = query.trim().to_string();
-    if query.is_empty() {
-        return Err("请输入关键词".into());
-    }
-
-    let keywords = parse_keywords(&query);
-    if keywords.is_empty() {
-        return Err("请输入至少一个有效关键词".into());
+    let request = request.normalize();
+    if !request.has_search_terms() {
+        return Err("请至少填写一个检索条件".into());
     }
 
     let day_window = days.unwrap_or(14).clamp(1, 365);
     let result_limit = limit.unwrap_or(5).clamp(1, 20) as usize;
     let mode = RankingMode::from_value(ranking_mode.as_deref());
     let settings = state.settings.read().await.clone();
+    let query = describe_request(&request);
+    let keywords = collect_keywords(&request);
+    let search_expression = build_search_query(&request, day_window);
 
-    let candidates = fetch_arxiv_candidates(&keywords, day_window, candidate_pool_size(result_limit))
+    let candidates = fetch_arxiv_candidates(&search_expression, day_window, candidate_pool_size(result_limit))
         .await
         .map_err(|error| error.to_string())?;
 
@@ -133,22 +174,24 @@ pub async fn arxiv_search(
         let empty = ArxivSearchResponse {
             query,
             keywords,
+            applied_filters: request.clone(),
+            search_expression,
             days: day_window,
             limit: result_limit,
             ranking_mode: mode.as_str().to_string(),
             candidate_count: 0,
             llm_used: false,
             ranking_note: "当前时间窗口内没有找到匹配论文。".into(),
-            overall_summary: "可以扩大最近天数，或改用更具体的关键词重试。".into(),
+            overall_summary: "可以扩大最近天数，或放宽标题词、摘要词和分类条件后重试。".into(),
             disclaimer: disclaimer_for_mode(mode).into(),
             papers: Vec::new(),
         };
         return Ok(json!(empty));
     }
 
-    let heuristic = heuristic_rank_papers(&candidates, &keywords, mode, result_limit);
+    let heuristic = heuristic_rank_papers(&candidates, &request, mode, result_limit);
     let (llm_used, ranking_note, overall_summary, papers) =
-        match rerank_with_llm(&settings, &query, &keywords, mode, result_limit, &candidates).await {
+        match rerank_with_llm(&settings, &query, &request, mode, result_limit, &candidates).await {
             Ok(Some((note, summary, ranked))) => (true, note, summary, ranked),
             Ok(None) | Err(_) => (
                 false,
@@ -161,6 +204,8 @@ pub async fn arxiv_search(
     let response = ArxivSearchResponse {
         query,
         keywords,
+        applied_filters: request,
+        search_expression,
         days: day_window,
         limit: result_limit,
         ranking_mode: mode.as_str().to_string(),
@@ -176,14 +221,13 @@ pub async fn arxiv_search(
 }
 
 async fn fetch_arxiv_candidates(
-    keywords: &[String],
+    search_query: &str,
     days: i64,
     max_results: usize,
 ) -> anyhow::Result<Vec<ArxivPaper>> {
-    let search_query = build_search_query(keywords);
     let client = reqwest::Client::new();
     let params = [
-        ("search_query", search_query),
+        ("search_query", search_query.to_string()),
         ("start", "0".to_string()),
         ("max_results", max_results.to_string()),
         ("sortBy", "submittedDate".to_string()),
@@ -230,6 +274,8 @@ fn parse_arxiv_feed(xml: &str) -> anyhow::Result<Vec<ArxivPaper>> {
 
         let title = clean_whitespace(&child_text(entry, "title"));
         let abstract_text = clean_whitespace(&child_text(entry, "summary"));
+        let comment = clean_whitespace(&child_text(entry, "comment"));
+        let journal_ref = clean_whitespace(&child_text(entry, "journal_ref"));
         let published_at = child_text(entry, "published");
         let updated_at = child_text(entry, "updated");
         let authors = entry
@@ -276,6 +322,8 @@ fn parse_arxiv_feed(xml: &str) -> anyhow::Result<Vec<ArxivPaper>> {
             title,
             authors,
             category,
+            comment,
+            journal_ref,
             published_at,
             updated_at,
             abstract_text,
@@ -303,7 +351,7 @@ fn filter_recent_papers(papers: Vec<ArxivPaper>, days: i64) -> Vec<ArxivPaper> {
 async fn rerank_with_llm(
     settings: &HashMap<String, String>,
     query: &str,
-    keywords: &[String],
+    request: &ArxivSearchRequest,
     mode: RankingMode,
     limit: usize,
     candidates: &[ArxivPaper],
@@ -323,19 +371,23 @@ async fn rerank_with_llm(
                 "title": paper.title,
                 "authors": paper.authors,
                 "category": paper.category,
+                "comment": truncate_chars(&paper.comment, 240),
+                "journal_ref": truncate_chars(&paper.journal_ref, 240),
                 "published_at": paper.published_at,
                 "abstract_text": truncate_chars(&paper.abstract_text, 900),
             })
         })
         .collect::<Vec<_>>();
 
+    let filter_summary = structured_filter_summary(request);
+
     let prompt = format!(
         "请从给定的 arXiv 候选论文中，筛选出最适合用户需求的前 {limit} 篇论文。\n\
 用户查询：{query}\n\
-关键词：{keywords}\n\
+结构化检索条件：\n{filter_summary}\n\
 筛选目标：{goal}\n\n\
 限制条件：\n\
-1. 只能基于标题、作者、类别、发布时间和摘要判断，不能编造不存在的信息。\n\
+1. 只能基于标题、作者、类别、备注、期刊/会议信息、发布时间和摘要判断，不能编造不存在的信息。\n\
 2. 只返回候选列表里已有的 arxiv_id。\n\
 3. score 为 0-100 的整数。\n\
 4. title_zh、tldr_zh、reason 必须使用简体中文。\n\
@@ -357,7 +409,7 @@ async fn rerank_with_llm(
   ]\n\
 }}\n\n\
 候选论文：\n{candidate_json}",
-        keywords = keywords.join("、"),
+        filter_summary = filter_summary,
         goal = mode_prompt(mode),
         candidate_json = serde_json::to_string_pretty(&candidate_json)?,
     );
@@ -413,7 +465,7 @@ async fn rerank_with_llm(
         return Ok(None);
     }
 
-    let fallback = heuristic_rank_papers(candidates, keywords, mode, limit);
+    let fallback = heuristic_rank_papers(candidates, request, mode, limit);
     for paper in fallback {
         if ranked.len() >= limit {
             break;
@@ -438,21 +490,21 @@ async fn rerank_with_llm(
 
 fn heuristic_rank_papers(
     candidates: &[ArxivPaper],
-    keywords: &[String],
+    request: &ArxivSearchRequest,
     mode: RankingMode,
     limit: usize,
 ) -> Vec<ArxivRecommendation> {
     let mut ranked = candidates
         .iter()
         .map(|paper| {
-            let score = heuristic_score(paper, keywords, mode);
-            let reason = heuristic_reason(paper, keywords, mode);
+            let score = heuristic_score(paper, request, mode);
+            let reason = heuristic_reason(paper, request, mode);
             let title_zh = None;
             let tldr_zh = Some(match mode {
-                RankingMode::Relevance => "按关键词命中度和时间新近度排序。".to_string(),
-                RankingMode::Quality => "按摘要信息密度和实验信号做启发式质量预测。".to_string(),
+                RankingMode::Relevance => "按字段级关键词命中度和时间新近度排序。".to_string(),
+                RankingMode::Quality => "按字段命中、摘要信息密度和实验信号做启发式质量预测。".to_string(),
             });
-            let tags = heuristic_tags(paper, keywords, mode);
+            let tags = heuristic_tags(paper, request, mode);
 
             ArxivRecommendation {
                 arxiv_id: paper.arxiv_id.clone(),
@@ -478,20 +530,28 @@ fn heuristic_rank_papers(
     ranked
 }
 
-fn heuristic_score(paper: &ArxivPaper, keywords: &[String], mode: RankingMode) -> i32 {
+fn heuristic_score(paper: &ArxivPaper, request: &ArxivSearchRequest, mode: RankingMode) -> i32 {
     let title = paper.title.to_lowercase();
     let abstract_text = paper.abstract_text.to_lowercase();
-    let title_hits = keywords
-        .iter()
-        .filter(|keyword| title.contains(&keyword.to_lowercase()))
-        .count() as i32;
-    let abstract_hits = keywords
-        .iter()
-        .filter(|keyword| abstract_text.contains(&keyword.to_lowercase()))
-        .count() as i32;
+    let authors = paper.authors.to_lowercase();
+    let comment = paper.comment.to_lowercase();
+    let journal_ref = paper.journal_ref.to_lowercase();
     let recency_score = recency_score(&paper.published_at);
 
-    let mut score = 40 + title_hits * 15 + abstract_hits * 8 + recency_score;
+    let mut score = 36 + recency_score;
+    score += weighted_term_hits(&title, &request.title_terms, 18, 3);
+    score += weighted_term_hits(&abstract_text, &request.title_terms, 5, 3);
+    score += weighted_term_hits(&abstract_text, &request.abstract_terms, 16, 3);
+    score += weighted_term_hits(&title, &request.abstract_terms, 4, 3);
+    score += weighted_term_hits(&title, &request.all_terms, 12, 4);
+    score += weighted_term_hits(&abstract_text, &request.all_terms, 9, 4);
+    score += weighted_term_hits(&authors, &request.authors, 18, 3);
+    score += matched_categories(&paper.category, &request.categories).len() as i32 * 18;
+    score += weighted_term_hits(&comment, &request.comments_terms, 10, 2);
+    score += weighted_term_hits(&journal_ref, &request.journal_ref_terms, 10, 2);
+    if has_excluded_match(paper, &request.exclude_terms) {
+        score -= 40;
+    }
     if mode == RankingMode::Quality {
         score += signal_score(
             &abstract_text,
@@ -518,21 +578,41 @@ fn heuristic_score(paper: &ArxivPaper, keywords: &[String], mode: RankingMode) -
     score.clamp(1, 100)
 }
 
-fn heuristic_reason(paper: &ArxivPaper, keywords: &[String], mode: RankingMode) -> String {
+fn heuristic_reason(paper: &ArxivPaper, request: &ArxivSearchRequest, mode: RankingMode) -> String {
     let title = paper.title.to_lowercase();
     let abstract_text = paper.abstract_text.to_lowercase();
-    let matched = keywords
-        .iter()
-        .filter(|keyword| {
-            let lowered = keyword.to_lowercase();
-            title.contains(&lowered) || abstract_text.contains(&lowered)
-        })
-        .cloned()
-        .collect::<Vec<_>>();
+    let authors = paper.authors.to_lowercase();
+    let comment = paper.comment.to_lowercase();
+    let journal_ref = paper.journal_ref.to_lowercase();
+    let title_hits = match_terms(&title, &request.title_terms);
+    let abstract_hits = match_terms(&abstract_text, &request.abstract_terms);
+    let general_hits = match_terms(&format!("{title} {abstract_text}"), &request.all_terms);
+    let author_hits = match_terms(&authors, &request.authors);
+    let category_hits = matched_categories(&paper.category, &request.categories);
+    let comment_hits = match_terms(&comment, &request.comments_terms);
+    let journal_hits = match_terms(&journal_ref, &request.journal_ref_terms);
 
     let mut signals = Vec::new();
-    if !matched.is_empty() {
-        signals.push(format!("关键词匹配到 {}", matched.join("、")));
+    if !title_hits.is_empty() {
+        signals.push(format!("标题命中 {}", title_hits.join("、")));
+    }
+    if !abstract_hits.is_empty() {
+        signals.push(format!("摘要命中 {}", abstract_hits.join("、")));
+    }
+    if !general_hits.is_empty() {
+        signals.push(format!("通用词命中 {}", general_hits.join("、")));
+    }
+    if !author_hits.is_empty() {
+        signals.push(format!("作者命中 {}", author_hits.join("、")));
+    }
+    if !category_hits.is_empty() {
+        signals.push(format!("分类匹配 {}", category_hits.join("、")));
+    }
+    if !comment_hits.is_empty() {
+        signals.push(format!("备注命中 {}", comment_hits.join("、")));
+    }
+    if !journal_hits.is_empty() {
+        signals.push(format!("期刊/会议信息命中 {}", journal_hits.join("、")));
     }
     if recency_score(&paper.published_at) >= 12 {
         signals.push("发布时间较新".into());
@@ -544,27 +624,35 @@ fn heuristic_reason(paper: &ArxivPaper, keywords: &[String], mode: RankingMode) 
         }
     }
     if signals.is_empty() {
-        signals.push("与查询主题存在一定相关性".into());
+        signals.push("满足部分结构化检索条件".into());
     }
 
     let suffix = if mode == RankingMode::Quality {
         "这属于基于标题和摘要的质量预测，不等同于真实引用或录用情况。"
     } else {
-        "适合作为当前关键词的优先阅读入口。"
+        "适合作为当前检索条件下的优先阅读入口。"
     };
-    format!("{}。{}", signals.join("，"), suffix)
+    format!(
+        "{}。{}",
+        signals.into_iter().take(3).collect::<Vec<_>>().join("，"),
+        suffix
+    )
 }
 
-fn heuristic_tags(paper: &ArxivPaper, keywords: &[String], mode: RankingMode) -> Vec<String> {
+fn heuristic_tags(paper: &ArxivPaper, request: &ArxivSearchRequest, mode: RankingMode) -> Vec<String> {
     let mut tags = Vec::new();
+    let title = paper.title.to_lowercase();
     let abstract_text = paper.abstract_text.to_lowercase();
+    let comment = paper.comment.to_lowercase();
+    let journal_ref = paper.journal_ref.to_lowercase();
 
     if mode == RankingMode::Relevance {
-        for keyword in keywords.iter().take(3) {
-            if abstract_text.contains(&keyword.to_lowercase()) || paper.title.to_lowercase().contains(&keyword.to_lowercase()) {
-                tags.push(keyword.clone());
-            }
-        }
+        push_unique_values(&mut tags, &match_terms(&title, &request.title_terms));
+        push_unique_values(&mut tags, &match_terms(&abstract_text, &request.abstract_terms));
+        push_unique_values(&mut tags, &match_terms(&format!("{title} {abstract_text}"), &request.all_terms));
+        push_unique_values(&mut tags, &matched_categories(&paper.category, &request.categories));
+        push_unique_values(&mut tags, &match_terms(&comment, &request.comments_terms));
+        push_unique_values(&mut tags, &match_terms(&journal_ref, &request.journal_ref_terms));
     } else {
         tags.extend(collect_quality_signals(&abstract_text));
     }
@@ -618,29 +706,272 @@ fn signal_score(text: &str, needles: &[&str], cap: i32) -> i32 {
     raw.min(cap)
 }
 
-fn parse_keywords(query: &str) -> Vec<String> {
-    let splitters = [',', '，', ';', '；', '\n'];
-    let mut keywords = query
-        .split(|ch| splitters.contains(&ch))
-        .map(str::trim)
-        .filter(|part| !part.is_empty())
-        .map(ToString::to_string)
-        .collect::<Vec<_>>();
-
-    if keywords.is_empty() && !query.trim().is_empty() {
-        keywords.push(query.trim().to_string());
+fn describe_request(request: &ArxivSearchRequest) -> String {
+    let mut sections = Vec::new();
+    if !request.topic.is_empty() {
+        sections.push(format!("研究主题：{}", request.topic));
     }
+    if !request.all_terms.is_empty() {
+        sections.push(format!("通用关键词：{}", request.all_terms.join("、")));
+    }
+    if !request.title_terms.is_empty() {
+        sections.push(format!("标题关键词：{}", request.title_terms.join("、")));
+    }
+    if !request.abstract_terms.is_empty() {
+        sections.push(format!("摘要关键词：{}", request.abstract_terms.join("、")));
+    }
+    if !request.authors.is_empty() {
+        sections.push(format!("作者：{}", request.authors.join("、")));
+    }
+    if !request.categories.is_empty() {
+        sections.push(format!("分类：{}", request.categories.join("、")));
+    }
+    if !request.comments_terms.is_empty() {
+        sections.push(format!("备注关键词：{}", request.comments_terms.join("、")));
+    }
+    if !request.journal_ref_terms.is_empty() {
+        sections.push(format!("期刊/会议信息：{}", request.journal_ref_terms.join("、")));
+    }
+    if !request.exclude_terms.is_empty() {
+        sections.push(format!("排除词：{}", request.exclude_terms.join("、")));
+    }
+    sections.join("；")
+}
 
-    keywords.dedup();
+fn structured_filter_summary(request: &ArxivSearchRequest) -> String {
+    let mut lines = Vec::new();
+    lines.push(if request.topic.is_empty() {
+        "- 研究主题：未填写".to_string()
+    } else {
+        format!("- 研究主题：{}", request.topic)
+    });
+    if !request.all_terms.is_empty() {
+        lines.push(format!("- 通用关键词(all)：{}", request.all_terms.join("、")));
+    }
+    if !request.title_terms.is_empty() {
+        lines.push(format!("- 标题关键词(ti)：{}", request.title_terms.join("、")));
+    }
+    if !request.abstract_terms.is_empty() {
+        lines.push(format!("- 摘要关键词(abs)：{}", request.abstract_terms.join("、")));
+    }
+    if !request.authors.is_empty() {
+        lines.push(format!("- 作者(au)：{}", request.authors.join("、")));
+    }
+    if !request.categories.is_empty() {
+        lines.push(format!("- 分类(cat)：{}", request.categories.join("、")));
+    }
+    if !request.comments_terms.is_empty() {
+        lines.push(format!("- 备注(co)：{}", request.comments_terms.join("、")));
+    }
+    if !request.journal_ref_terms.is_empty() {
+        lines.push(format!("- 期刊/会议信息(jr)：{}", request.journal_ref_terms.join("、")));
+    }
+    if !request.exclude_terms.is_empty() {
+        lines.push(format!("- 排除词(ANDNOT)：{}", request.exclude_terms.join("、")));
+    }
+    lines.join("\n")
+}
+
+fn collect_keywords(request: &ArxivSearchRequest) -> Vec<String> {
+    let mut keywords = Vec::new();
+    for values in [
+        &request.all_terms,
+        &request.title_terms,
+        &request.abstract_terms,
+        &request.authors,
+        &request.categories,
+        &request.comments_terms,
+        &request.journal_ref_terms,
+    ] {
+        push_unique_values(&mut keywords, values);
+    }
     keywords
 }
 
-fn build_search_query(keywords: &[String]) -> String {
-    keywords
+fn weighted_term_hits(text: &str, terms: &[String], weight: i32, cap: usize) -> i32 {
+    let hits = terms
         .iter()
-        .map(|keyword| format!("all:\"{}\"", keyword.replace('"', " ").trim()))
-        .collect::<Vec<_>>()
-        .join(" OR ")
+        .filter(|term| text.contains(&term.to_lowercase()))
+        .count()
+        .min(cap) as i32;
+    hits * weight
+}
+
+fn match_terms(text: &str, terms: &[String]) -> Vec<String> {
+    terms
+        .iter()
+        .filter(|term| text.contains(&term.to_lowercase()))
+        .cloned()
+        .collect()
+}
+
+fn matched_categories(category: &str, filters: &[String]) -> Vec<String> {
+    let normalized = category.trim().to_lowercase();
+    filters
+        .iter()
+        .filter(|filter| filter.to_lowercase() == normalized)
+        .cloned()
+        .collect()
+}
+
+fn has_excluded_match(paper: &ArxivPaper, exclude_terms: &[String]) -> bool {
+    if exclude_terms.is_empty() {
+        return false;
+    }
+    let haystack = format!(
+        "{} {} {} {} {}",
+        paper.title, paper.abstract_text, paper.authors, paper.comment, paper.journal_ref
+    )
+    .to_lowercase();
+    exclude_terms
+        .iter()
+        .any(|term| haystack.contains(&term.to_lowercase()))
+}
+
+fn push_unique_values(target: &mut Vec<String>, values: &[String]) {
+    for value in values {
+        if !target.iter().any(|existing| existing.eq_ignore_ascii_case(value)) {
+            target.push(value.clone());
+        }
+    }
+}
+
+fn normalize_term_list(values: Vec<String>) -> Vec<String> {
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+    for value in values {
+        for part in parse_multi_value_input(&value) {
+            let key = part.to_lowercase();
+            if seen.insert(key) {
+                normalized.push(part);
+            }
+        }
+    }
+    normalized
+}
+
+fn normalize_category_list(values: Vec<String>) -> Vec<String> {
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+    for value in values {
+        for part in parse_multi_value_input(&value) {
+            let category = normalize_category(&part);
+            if category.is_empty() {
+                continue;
+            }
+            let key = category.to_lowercase();
+            if seen.insert(key) {
+                normalized.push(category);
+            }
+        }
+    }
+    normalized
+}
+
+fn parse_multi_value_input(value: &str) -> Vec<String> {
+    let splitters = [',', '，', ';', '；', '\n'];
+    value
+        .split(|ch| splitters.contains(&ch))
+        .map(clean_whitespace)
+        .filter(|part| !part.is_empty())
+        .collect()
+}
+
+fn normalize_category(value: &str) -> String {
+    let compact = clean_whitespace(value).replace(' ', "");
+    if compact.is_empty() {
+        return String::new();
+    }
+    match compact.split_once('.') {
+        Some((prefix, suffix)) => format!("{}.{}", prefix.to_lowercase(), suffix.to_uppercase()),
+        None => compact.to_lowercase(),
+    }
+}
+
+fn build_search_query(request: &ArxivSearchRequest, days: i64) -> String {
+    build_search_query_with_now(request, days, Utc::now())
+}
+
+fn build_search_query_with_now(
+    request: &ArxivSearchRequest,
+    days: i64,
+    now: DateTime<Utc>,
+) -> String {
+    let mut clauses = Vec::new();
+
+    if let Some(clause) = build_or_field_clause("all", &request.all_terms, true) {
+        clauses.push(clause);
+    }
+    if let Some(clause) = build_or_field_clause("ti", &request.title_terms, true) {
+        clauses.push(clause);
+    }
+    if let Some(clause) = build_or_field_clause("abs", &request.abstract_terms, true) {
+        clauses.push(clause);
+    }
+    if let Some(clause) = build_or_field_clause("au", &request.authors, true) {
+        clauses.push(clause);
+    }
+    if let Some(clause) = build_or_field_clause("cat", &request.categories, false) {
+        clauses.push(clause);
+    }
+    if let Some(clause) = build_or_field_clause("co", &request.comments_terms, true) {
+        clauses.push(clause);
+    }
+    if let Some(clause) = build_or_field_clause("jr", &request.journal_ref_terms, true) {
+        clauses.push(clause);
+    }
+    clauses.push(submitted_date_clause(days, now));
+
+    let mut query = clauses.join(" AND ");
+    if let Some(exclude_clause) = build_or_field_clause("all", &request.exclude_terms, true) {
+        query.push_str(" ANDNOT ");
+        query.push_str(&exclude_clause);
+    }
+
+    query
+}
+
+fn submitted_date_clause(days: i64, now: DateTime<Utc>) -> String {
+    let start = now - Duration::days(days.max(1));
+    format!(
+        "submittedDate:[{}+TO+{}]",
+        start.format("%Y%m%d%H%M"),
+        now.format("%Y%m%d%H%M")
+    )
+}
+
+fn build_or_field_clause(prefix: &str, terms: &[String], quote_terms: bool) -> Option<String> {
+    let values = terms
+        .iter()
+        .map(|term| format_field_term(prefix, term, quote_terms))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+
+    if values.is_empty() {
+        None
+    } else if values.len() == 1 {
+        values.into_iter().next()
+    } else {
+        Some(format!("({})", values.join(" OR ")))
+    }
+}
+
+fn format_field_term(prefix: &str, term: &str, quote_terms: bool) -> String {
+    if quote_terms {
+        let sanitized = clean_whitespace(&term.replace('"', " "));
+        if sanitized.is_empty() {
+            String::new()
+        } else {
+            format!("{prefix}:\"{sanitized}\"")
+        }
+    } else {
+        let sanitized = term.replace('"', "").replace(' ', "");
+        if sanitized.is_empty() {
+            String::new()
+        } else {
+            format!("{prefix}:{sanitized}")
+        }
+    }
 }
 
 fn candidate_pool_size(limit: usize) -> usize {
@@ -692,8 +1023,8 @@ fn mode_prompt(mode: RankingMode) -> &'static str {
 
 fn fallback_ranking_note(mode: RankingMode) -> &'static str {
     match mode {
-        RankingMode::Relevance => "当前按关键词匹配度与发布时间进行启发式排序。",
-        RankingMode::Quality => "当前按摘要信息密度、实验信号与发布时间进行启发式质量预测排序。",
+        RankingMode::Relevance => "当前按字段匹配度与发布时间进行启发式排序。",
+        RankingMode::Quality => "当前按字段匹配、摘要信息密度、实验信号与发布时间进行启发式质量预测排序。",
     }
 }
 
@@ -743,20 +1074,37 @@ fn truncate_chars(value: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_search_query, candidate_pool_size, normalize_arxiv_id, parse_arxiv_feed,
-        parse_keywords, RankingMode,
+        build_search_query_with_now, candidate_pool_size, normalize_arxiv_id, parse_arxiv_feed,
+        parse_multi_value_input, ArxivSearchRequest, RankingMode,
     };
+    use chrono::{DateTime, Utc};
 
     #[test]
-    fn parse_keywords_supports_multiple_separators() {
-        let keywords = parse_keywords("agent memory，rag\nplanning; benchmark");
+    fn parse_multi_value_input_supports_multiple_separators() {
+        let keywords = parse_multi_value_input("agent memory，rag\nplanning; benchmark");
         assert_eq!(keywords, vec!["agent memory", "rag", "planning", "benchmark"]);
     }
 
     #[test]
-    fn build_search_query_wraps_keywords() {
-        let query = build_search_query(&["agent memory".into(), "tool use".into()]);
-        assert_eq!(query, "all:\"agent memory\" OR all:\"tool use\"");
+    fn build_search_query_uses_structured_fields() {
+        let request = ArxivSearchRequest {
+            all_terms: vec!["agent memory".into(), "tool use".into()],
+            title_terms: vec!["planning".into()],
+            authors: vec!["Alice Smith".into()],
+            categories: vec!["cs.lg".into(), "stat.ml".into()],
+            exclude_terms: vec!["robotics".into()],
+            ..ArxivSearchRequest::default()
+        }
+        .normalize();
+        let now = DateTime::parse_from_rfc3339("2026-03-22T12:00:00Z")
+            .expect("datetime should parse")
+            .with_timezone(&Utc);
+
+        let query = build_search_query_with_now(&request, 14, now);
+        assert_eq!(
+            query,
+            "(all:\"agent memory\" OR all:\"tool use\") AND ti:\"planning\" AND au:\"Alice Smith\" AND (cat:cs.LG OR cat:stat.ML) AND submittedDate:[202603081200+TO+202603221200] ANDNOT all:\"robotics\""
+        );
     }
 
     #[test]
@@ -780,6 +1128,8 @@ mod tests {
     <published>2026-03-19T09:00:00Z</published>
     <title>  Tool-Using Agents for Planning </title>
     <summary> A paper about tool use and planning. </summary>
+    <arxiv:comment>Accepted to Demo Track</arxiv:comment>
+    <arxiv:journal_ref>ACL 2026 Findings</arxiv:journal_ref>
     <author><name>Alice</name></author>
     <author><name>Bob</name></author>
     <arxiv:primary_category term="cs.AI" />
@@ -794,6 +1144,8 @@ mod tests {
         assert_eq!(papers[0].title, "Tool-Using Agents for Planning");
         assert_eq!(papers[0].authors, "Alice, Bob");
         assert_eq!(papers[0].category, "cs.AI");
+        assert_eq!(papers[0].comment, "Accepted to Demo Track");
+        assert_eq!(papers[0].journal_ref, "ACL 2026 Findings");
     }
 
     #[test]
