@@ -205,6 +205,24 @@ pnpm tauri build
 | `llm` | 由调度模型实时选择 Agent | 对开放式复杂任务更灵活 |
 | `hybrid` | 规则初选 + 调度模型修正 | 默认推荐，大多数情况更稳妥 |
 
+## 版本号管理
+
+修改版本号时，在仓库根目录执行：
+
+```bash
+node scripts/sync-version.mjs --version 1.2.3
+# 或带 v 前缀
+node scripts/sync-version.mjs --tag v1.2.3
+```
+
+脚本会同步更新以下文件，重复执行幂等：
+
+- `apps/desktop/package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`
+- `apps/desktop/src-tauri/src/commands/arxiv.rs`（User-Agent 常量）
+- `apps/mobile/package.json` / `app.json`
+- `apps/web/package.json` / `package-lock.json`
+- `packages/*/package.json` 及根 `package.json`
+
 ## 发布
 
 推送 `v*` tag 后触发 GitHub Release 流水线：
