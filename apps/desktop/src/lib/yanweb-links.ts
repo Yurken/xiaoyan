@@ -38,7 +38,11 @@ export const YANWEB_FRIEND_LINK_SECTIONS: YanwebFriendLinkSection[] = [
         "href": "https://grok.com/",
         "icon": "/friend-link-icons/grok.com.png"
       },
-      
+      {
+        "name": "豆包",
+        "href": "https://www.doubao.com/chat/",
+        "icon": "/friend-link-icons/doubao.png"
+      },
       {
         "name": "DeepSeek",
         "href": "https://chat.deepseek.com/",
