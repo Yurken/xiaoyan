@@ -112,6 +112,7 @@ pub async fn settings_update(
 
     if !to_save.is_empty() {
         let now = chrono::Utc::now().to_rfc3339();
+        let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
         for (key, value) in &to_save {
             sqlx::query(
                 "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
@@ -120,10 +121,11 @@ pub async fn settings_update(
             .bind(key)
             .bind(value)
             .bind(&now)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await
             .map_err(|e| e.to_string())?;
         }
+        tx.commit().await.map_err(|e| e.to_string())?;
         let mut cache = state.settings.write().await;
         for (k, v) in &to_save {
             cache.insert(k.clone(), v.clone());

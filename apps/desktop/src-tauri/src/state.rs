@@ -14,7 +14,7 @@ pub const SENSITIVE_KEYS: &[&str] = &[
 /// All settings keys exposed through the API, with their default values.
 pub fn default_settings() -> HashMap<String, String> {
     let mut m = HashMap::new();
-    m.insert("llm_provider".into(), "openai".into());
+    m.insert("llm_provider".into(), "openai_compatible".into());
     m.insert("openai_api_key".into(), "".into());
     m.insert("openai_base_url".into(), "https://api.openai.com/v1".into());
     m.insert("openai_chat_model".into(), "gpt-4o-mini".into());
