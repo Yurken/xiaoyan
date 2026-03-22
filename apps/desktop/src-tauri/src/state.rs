@@ -98,12 +98,4 @@ impl AppState {
         }
     }
 
-    /// Read a setting value, falling back to defaults.
-    pub async fn get_setting(&self, key: &str) -> String {
-        let cache = self.settings.read().await;
-        cache
-            .get(key)
-            .cloned()
-            .unwrap_or_else(|| default_settings().get(key).cloned().unwrap_or_default())
-    }
 }

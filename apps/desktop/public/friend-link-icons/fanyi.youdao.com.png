@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="" class="light">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="keywords" content="在线即时翻译、免费AI翻译、文档文本翻译、人工翻译、网页翻译">
+  <meta name="description"
+    content="有道翻译提供即时免费的中文、英语、日语、韩语、法语、德语、俄语、西班牙语、葡萄牙语、越南语、印尼语、意大利语、荷兰语、泰语全文翻译、网页翻译、文档翻译、PDF翻译、DOC翻译、PPT翻译、人工翻译、同传等服务。">
+  <link rel="icon" href="https://ydlunacommon-cdn.nosdn.127.net/31cf4b56e6c0b3af668aa079de1a898c.png">
+  <title>有道翻译_文本、文档、网页、在线即时翻译</title>
+</head>
+
+<body>
+  <noscript>
+    <strong>We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled.
+      Please enable it to continue.</strong>
+  </noscript>
+  <div id="app" class="index">
+    <div class="content">
+      <img src='https://luna-dict-community.nosdn.127.net/6f7e1478f4f92d4852759d8aacf646e3.png' class="feed">
+      <a href="https://fanyi.youdao.com" class="return"></a>
+    </div>
+  </div>
+</body>
+
+</html>
+<style type="text/css">
+  html,
+  body,
+  div,
+  img {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font: inherit;
+    vertical-align: baseline;
+    height: 100%;
+  }
+
+  .index {
+    width: 100%;
+    height: 100%;
+    /* 加载背景图 */
+    background: url("https://ydlunacommon-cdn.nosdn.127.net/15dab0042cf3fe2e02744fb58bbe1ad4.png") no-repeat;
+    background-size: 100%, 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .content {
+    width: 406px;
+    height: 361px;
+    display: block;
+    position: relative;
+  }
+
+  .return {
+    width: 100%;
+    height: 44px;
+    display: block;
+    position: absolute;
+    bottom: 0;
+  }
+</style>
