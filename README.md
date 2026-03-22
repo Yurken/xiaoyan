@@ -242,7 +242,7 @@ node scripts/sync-version.mjs --tag v1.2.3
 
 桌面端升级使用 Tauri v2 官方 updater。当前默认更新源固定为：
 
-- `http://111.231.56.208/research-copilot-updates/latest.json`
+- `http://66.42.97.41/research-copilot-updates/latest.json`
 
 客户端不会直接访问私有 GitHub Release，而是从这台服务器读取公开的 `latest.json` 和安装包。
 

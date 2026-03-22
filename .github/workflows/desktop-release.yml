@@ -158,7 +158,7 @@ jobs:
 
       - name: Prepare updater manifest
         env:
-          UPDATE_BASE_URL: http://111.231.56.208/research-copilot-updates
+          UPDATE_BASE_URL: http://66.42.97.41/research-copilot-updates
         run: |
           node scripts/prepare-updater-assets.mjs \
             --input-dir .updater-assets \
@@ -172,7 +172,7 @@ jobs:
 
       - name: Upload updater assets to server
         env:
-          UPDATE_SERVER_HOST: 111.231.56.208
+          UPDATE_SERVER_HOST: 66.42.97.41
           UPDATE_SERVER_PORT: 22
           UPDATE_SERVER_USER: root
           UPDATE_SERVER_PATH: /var/www/html/research-copilot-updates
@@ -183,14 +183,17 @@ jobs:
           remote_tag_dir="${remote_root}/${{ github.ref_name }}"
           ssh -p "$UPDATE_SERVER_PORT" "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST" "mkdir -p '$remote_tag_dir'"
           rsync -av \
-            --chown=root:root \
             --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
             -e "ssh -p $UPDATE_SERVER_PORT" \
             .updater-assets/ \
             "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST:$remote_tag_dir/"
+          ssh -p "$UPDATE_SERVER_PORT" "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST" \
+            "chown -R root:root '$remote_tag_dir' && chmod -R a+rX '$remote_tag_dir'"
           scp -P "$UPDATE_SERVER_PORT" \
             .updater-assets/latest.json \
             "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST:$remote_root/latest.json"
+          ssh -p "$UPDATE_SERVER_PORT" "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST" \
+            "chown root:root '$remote_root/latest.json' && chmod a+r '$remote_root/latest.json'"
 
   # ── Stage 3: Publish release after all builds succeed ─────────
   publish-release:
