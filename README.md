@@ -1,12 +1,6 @@
-# 智研 Copilot v0.2.3
+# 智研 Copilot
 
 面向科研学习与论文工作的桌面端 AI Copilot。采用 Supervisor 驱动的多 Agent 编排，覆盖研究方向规划、文献调研、论文精读、复现建议、知识库沉淀和带引用的对话问答，并支持按用途自定义大模型分工。
-
-> **v0.2.3 更新**：研究方向规划与文献综述已支持多 Agent 协作流程可视化，用户可实时查看各 Agent 的职责、状态与阶段性产物。
->
-> **设置中心更新**：模型设置已改为“默认简单，高级可展开”。默认只需配置主模型与 4 组常用模型分工：快速模型、深度分析模型、写作整合模型、代码复现模型；如需更细控制，再展开高级设置配置逐项场景和单个 Agent。
->
-> **v0.2.0 重大变更**：桌面端已完全去除 Python 后端依赖，改为纯 Rust Tauri Commands + 本地 SQLite，开箱即用，无需 Docker / PostgreSQL / Python 环境。
 
 ## 功能概览
 
@@ -14,10 +8,11 @@
 - **可观测 Copilot**：实时展示计划步骤、Agent 执行轨迹与来源（Mission Control 面板）。
 - **协作式研究规划**：研究方向规划支持 Agent 协作流程可视化，可查看 Topic Analyst / Paper Scout / Learning Path Designer 的执行过程。
 - **协作式文献综述**：文献综述支持 Intent Planner / Literature Retriever / Survey Writer 协作流程可视化，并输出结构化综述与候选论文。
-- **论文库**：上传 PDF，自动提取全文、分块向量化，支持语义检索与论文精读分析。
+- **论文库**：上传 PDF，自动提取全文、分块向量化，支持语义检索与论文精读分析。导入时可开启 AI 自动重命名，按自定义模板（作者、标题、年份等）就地改名原文件。
 - **知识卡片**：创建笔记，自动生成 Embedding，支持语义搜索。
 - **研究规划**：输入研究方向，AI 生成系统化学习路线（前置知识、阶段、经典论文、开放问题）。
 - **文献综述**：基于知识库 RAG + LLM 流式生成结构化综述。
+- **实用工具**：内置 arXiv 智能检索（关键词 + 时间窗口 + LLM 重排）、期刊分区查询（WoS / JCR / 中科院）、CCF 等级查询，以及按分类整理的科研友链。
 - **按用途选模**：可为方向提示、深度规划、综述写作、论文精读、复现指导、多 Agent 调度与整合分别指定模型。
 - **设置中心**：默认展示少量常用模型分工，高级设置中再展开逐项场景和单个 Agent 的覆盖参数。
 
@@ -31,9 +26,10 @@
 | `/papers` | 论文库与 PDF 分析 |
 | `/knowledge` | 知识卡片与语义检索 |
 | `/copilot` | 多 Agent Copilot 工作台 |
+| `/tools` | arXiv 检索、期刊分区查询、CCF 查询、科研友链 |
 | `/settings` | Provider、常用模型分工、多 Agent 与运行设置 |
 
-## 架构（v0.2.3）
+## 架构
 
 桌面端为完全自包含的 Tauri v2 应用，所有逻辑在 Rust 进程内运行：
 
@@ -41,16 +37,20 @@
 前端 (React + Vite)
     ↕  Tauri invoke() / listen()
 Rust 后端 (Tauri Commands)
-    ├── llm.rs        LLM 客户端（OpenAI / Anthropic / 兼容接口，SSE 流式）
-    ├── rag.rs        文本分块 + 余弦相似度向量检索
-    ├── db.rs         SQLite 初始化与 Schema 迁移
-    ├── state.rs      AppState（线程安全 Arc<RwLock>）
+    ├── llm.rs                LLM 客户端（OpenAI / Anthropic / 兼容接口，SSE 流式）
+    ├── rag.rs                文本分块 + 余弦相似度向量检索
+    ├── ccf.rs                CCF 目录索引与查询
+    ├── journal_partitions.rs 期刊分区索引与查询（WoS / JCR / 中科院）
+    ├── db.rs                 SQLite 初始化与 Schema 迁移
+    ├── state.rs              AppState（线程安全 Arc<RwLock>）
     └── commands/
-        ├── settings  设置读写
-        ├── papers    PDF 上传、解析、分析、复现
-        ├── knowledge 研究方向 + 知识笔记
-        ├── chat      多 Agent 编排与流式对话
-        └── misc      规划器、综述生成、搜索
+        ├── settings   设置读写（事务）
+        ├── papers     PDF 上传、解析、分析、复现、AI 重命名
+        ├── knowledge  研究方向 + 知识笔记
+        ├── chat       多 Agent 编排与流式对话
+        ├── arxiv      arXiv 检索与 LLM 重排
+        ├── journal    期刊分区查询
+        └── misc       规划器、综述生成、搜索
 SQLite（本地嵌入式，无需独立服务）
 ```
 
@@ -68,7 +68,7 @@ SQLite（本地嵌入式，无需独立服务）
 
 设置保存在 SQLite 的 `settings` 表（`key TEXT PRIMARY KEY, value TEXT`）：
 
-- **写入**：点击「保存所有设置」后，Tauri Command `settings_update` 对每个键执行 `INSERT ... ON CONFLICT DO UPDATE`（upsert），同步更新内存缓存
+- **写入**：点击「保存所有设置」后，Tauri Command `settings_update` 在事务内对每个键执行 `INSERT ... ON CONFLICT DO UPDATE`（upsert），全部成功后同步更新内存缓存
 - **读取**：每次启动时从数据库加载全部键值并合并进内存缓存（默认值兜底）
 - **敏感字段**（API Key 等）：读取时返回 `***` 占位，保存时跳过 `***` 值（保留已存储内容）
 - **持久性**：数据库文件在卸载/重装 App 时保留于 Application Support 目录，不会随 App 本体删除
@@ -159,7 +159,7 @@ pnpm tauri build
 | API Key | `sk-ant-...` |
 | 对话模型 | `claude-3-5-haiku-20241022` |
 
-> Anthropic 不提供 Embedding API，选择 Anthropic 作为对话 Provider 时，Embedding 需额外配置 OpenAI 兼容接口或保持空（RAG 功能不可用）。
+> Anthropic 不提供 Embedding API，选择 Anthropic 作为对话 Provider 时，Embedding 需额外配置独立向量接口，否则 RAG 功能不可用。
 
 ### 2. 再配置常用模型分工
 
@@ -182,7 +182,7 @@ pnpm tauri build
 
 高级设置中可以继续微调：
 
-- 逐项场景模型：例如单独给“方向提示”或“轻量 Copilot 对话”指定模型
+- 逐项场景模型：例如单独给"方向提示"或"轻量 Copilot 对话"指定模型
 - 多 Agent 细项：调度模型、默认执行模型、最终整合模型
 - 单个 Agent 覆盖：例如只让文献侦察走快模型，只让论文解析走旗舰模型
 
@@ -205,9 +205,7 @@ pnpm tauri build
 | `llm` | 由调度模型实时选择 Agent | 对开放式复杂任务更灵活 |
 | `hybrid` | 规则初选 + 调度模型修正 | 默认推荐，大多数情况更稳妥 |
 
-## 发布说明
-
-### 桌面端
+## 发布
 
 推送 `v*` tag 后触发 GitHub Release 流水线：
 
@@ -230,7 +228,9 @@ pnpm tauri build
 │   │   ├── src/               # React 前端
 │   │   └── src-tauri/
 │   │       └── src/
-│   │           ├── commands/  # Tauri Commands（settings/papers/knowledge/chat/misc）
+│   │           ├── commands/  # Tauri Commands（settings/papers/knowledge/chat/arxiv/journal/misc）
+│   │           ├── ccf.rs     # CCF 目录
+│   │           ├── journal_partitions.rs  # 期刊分区
 │   │           ├── db.rs      # SQLite 初始化
 │   │           ├── llm.rs     # LLM 客户端
 │   │           ├── rag.rs     # 向量检索
@@ -263,7 +263,7 @@ pnpm tauri build
 
 **Q: PDF 上传到哪里？**
 
-PDF 文件保留在原始位置，不会被复制。数据库只存储提取出的文本内容、分块向量和文件路径引用。
+PDF 文件保留在原始位置，不会被复制。数据库只存储提取出的文本内容、分块向量和文件路径引用。开启自动重命名后，文件会在原目录就地改名。
 
 **Q: macOS 提示"已损坏"无法打开怎么办？**
 
