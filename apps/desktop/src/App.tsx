@@ -19,6 +19,8 @@ import Settings from "./pages/Settings";
 import Tools from "./pages/Tools";
 import FocusApp from "./pages/FocusLayout";
 import { getLayoutMode } from "./lib/layoutMode";
+import { useAutoUpdate } from "./lib/useAutoUpdate";
+import UpdateNotification from "./components/UpdateNotification";
 
 const layoutMode = getLayoutMode();
 
@@ -34,8 +36,15 @@ const navItems = [
 ];
 
 export default function App() {
+  const autoUpdate = useAutoUpdate();
+
   if (layoutMode === "focus") {
-    return <FocusApp />;
+    return (
+      <>
+        <FocusApp />
+        <UpdateNotification {...autoUpdate} />
+      </>
+    );
   }
 
   return (
@@ -125,6 +134,7 @@ export default function App() {
           <Route path="/settings"   element={<Settings />} />
         </Routes>
       </main>
+      <UpdateNotification {...autoUpdate} />
     </div>
   );
 }
