@@ -3,12 +3,11 @@
 import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const BUNDLE_SUFFIXES = [
-  ".app.tar.gz",
-  ".nsis.zip",
-  ".msi.zip",
-  ".AppImage.tar.gz",
-];
+const PLATFORM_BUNDLE_PREFERENCES = {
+  darwin: [".app.tar.gz"],
+  windows: [".msi", ".exe", ".msi.zip", ".nsis.zip"],
+  linux: [".AppImage", ".AppImage.tar.gz"],
+};
 
 function getArg(flag) {
   const index = process.argv.indexOf(flag);
@@ -30,8 +29,26 @@ function trimTrailingSlash(value) {
   return value.replace(/\/+$/, "");
 }
 
-function isBundleFile(name) {
-  return BUNDLE_SUFFIXES.some((suffix) => name.endsWith(suffix));
+function getOs(platformKey) {
+  return platformKey.split("-", 1)[0] || "";
+}
+
+function pickBundleName(names, platformKey) {
+  const os = getOs(platformKey);
+  const preferences = PLATFORM_BUNDLE_PREFERENCES[os];
+
+  if (!preferences) {
+    throw new Error(`Unsupported updater platform: ${platformKey}`);
+  }
+
+  for (const suffix of preferences) {
+    const match = names.find((name) => name.endsWith(suffix));
+    if (match) {
+      return match;
+    }
+  }
+
+  return "";
 }
 
 function getPlatformKey(entry) {
@@ -84,7 +101,7 @@ async function buildManifest(inputDir, baseUrl, version, notes, pubDate) {
 
   for (const platform of platformDirs) {
     const names = await readdir(platform.dirPath);
-    const bundleName = names.find((name) => isBundleFile(name));
+    const bundleName = pickBundleName(names, platform.platformKey);
     if (!bundleName) {
       throw new Error(`No updater bundle found in ${platform.dirPath}`);
     }

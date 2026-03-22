@@ -151,6 +151,10 @@ jobs:
             \( \
               -name '*.app.tar.gz' -o \
               -name '*.app.tar.gz.sig' -o \
+              -name '*.exe' -o \
+              -name '*.exe.sig' -o \
+              -name '*.msi' -o \
+              -name '*.msi.sig' -o \
               -name '*.nsis.zip' -o \
               -name '*.nsis.zip.sig' -o \
               -name '*.msi.zip' -o \
