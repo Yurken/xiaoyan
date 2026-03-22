@@ -1,13 +1,14 @@
 import { useMemo, useRef, useState } from "react";
-import { AlertCircle, CalendarDays, FileSearch, Globe2, Search, Sparkles, Wrench } from "lucide-react";
+import { AlertCircle, CalendarDays, FileSearch, Globe2, Search, Sparkles } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
-import type { ArxivRankingMode, ArxivSearchResponse, CcfEntry, JournalPartitionEntry } from "@research-copilot/types";
+import type { ArxivRankingMode, ArxivSearchResponse, SourceLookupSection } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, WosIndexBadge, VenueTypeBadge } from "../components/CcfBadges";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { YANWEB_FRIEND_LINK_SECTIONS, YANWEB_FRIEND_LINK_TOTAL } from "../lib/yanweb-links";
 
 const insetShadow = "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF";
+const raisedShadow = "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF";
 
 const ARXIV_MODE_OPTIONS: Array<{ value: ArxivRankingMode; label: string; description: string }> = [
   {
@@ -55,17 +56,11 @@ function friendLinkInitial(value: string) {
 }
 
 export default function Tools() {
-  const [query, setQuery] = useState("");
-  const [matches, setMatches] = useState<CcfEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [searched, setSearched] = useState(false);
-
-  const [journalQuery, setJournalQuery] = useState("");
-  const [journalMatches, setJournalMatches] = useState<JournalPartitionEntry[]>([]);
-  const [journalLoading, setJournalLoading] = useState(false);
-  const [journalError, setJournalError] = useState("");
-  const [journalSearched, setJournalSearched] = useState(false);
+  const [sourceQuery, setSourceQuery] = useState("");
+  const [sourceSections, setSourceSections] = useState<SourceLookupSection[]>([]);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceError, setSourceError] = useState("");
+  const [sourceSearched, setSourceSearched] = useState(false);
 
   const [arxivQuery, setArxivQuery] = useState("");
   const [arxivDays, setArxivDays] = useState("14");
@@ -81,23 +76,14 @@ export default function Tools() {
     () => ARXIV_MODE_OPTIONS.find((item) => item.value === arxivMode) ?? ARXIV_MODE_OPTIONS[0],
     [arxivMode]
   );
-
-  const handleLookup = async () => {
-    if (!query.trim() || loading) return;
-
-    try {
-      setLoading(true);
-      setError("");
-      setSearched(true);
-      const result = await apiClient.ccf.lookup(query.trim(), 10);
-      setMatches(result.matches ?? []);
-    } catch (nextError) {
-      setMatches([]);
-      setError(formatErrorMessage(nextError));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const journalSection = useMemo(
+    () => sourceSections.find((section) => section.key === "journal_partition"),
+    [sourceSections]
+  );
+  const ccfSection = useMemo(
+    () => sourceSections.find((section) => section.key === "ccf"),
+    [sourceSections]
+  );
 
   const handleArxivSearch = async () => {
     if (!arxivQuery.trim() || arxivLoading) return;
@@ -127,20 +113,21 @@ export default function Tools() {
     }
   };
 
-  const handleJournalLookup = async () => {
-    if (!journalQuery.trim() || journalLoading) return;
+  const handleSourceLookup = async () => {
+    const trimmed = sourceQuery.trim();
+    if (!trimmed || sourceLoading) return;
 
     try {
-      setJournalLoading(true);
-      setJournalError("");
-      setJournalSearched(true);
-      const result = await apiClient.journals.lookup(journalQuery.trim(), 10);
-      setJournalMatches(result.matches ?? []);
+      setSourceLoading(true);
+      setSourceSearched(true);
+      setSourceError("");
+      const result = await apiClient.sources.lookup(trimmed, 10);
+      setSourceSections(result.sections ?? []);
     } catch (nextError) {
-      setJournalMatches([]);
-      setJournalError(formatErrorMessage(nextError));
+      setSourceSections([]);
+      setSourceError(formatErrorMessage(nextError));
     } finally {
-      setJournalLoading(false);
+      setSourceLoading(false);
     }
   };
 
@@ -346,67 +333,71 @@ export default function Tools() {
             <FileSearch className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-ink-primary">期刊分区查询</p>
-            <p className="mt-1 text-xs text-ink-tertiary">支持期刊名或 ISSN，返回 WoS 收录、JCR 分区和中科院分区。</p>
+            <p className="text-sm font-semibold text-ink-primary">来源查询</p>
+            <p className="mt-1 text-xs text-ink-tertiary">统一查询入口。输入一次，同时返回期刊分区和 CCF 评级；后续新增来源也会继续并入这里。</p>
           </div>
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row">
           <div className="flex-1">
             <Input
-              value={journalQuery}
-              onChange={(event) => setJournalQuery(event.target.value)}
+              value={sourceQuery}
+              onChange={(event) => setSourceQuery(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
-                  void handleJournalLookup();
+                  void handleSourceLookup();
                 }
               }}
-              placeholder="输入期刊名或 ISSN"
+              placeholder="输入会议、期刊名称或 ISSN"
             />
           </div>
-          <Button onClick={() => void handleJournalLookup()} loading={journalLoading} disabled={!journalQuery.trim()}>
-            <FileSearch className="h-4 w-4" />
-            查询分区
+          <Button onClick={() => void handleSourceLookup()} loading={sourceLoading} disabled={!sourceQuery.trim()}>
+            <Search className="h-4 w-4" />
+            查询来源
           </Button>
         </div>
 
-        {journalError && (
+        {sourceError ? (
           <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>{journalError}</span>
+            <span>{sourceError}</span>
           </div>
-        )}
+        ) : null}
       </Card>
 
-      {journalMatches.length > 0 ? (
+      {journalSection && journalSection.items.length > 0 ? (
         <div className="space-y-3">
-          {journalMatches.map((match, index) => (
-            <Card key={`${match.title}-${match.issn}-${index}`} padding="sm" className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Badge variant="info">{journalSection.title}</Badge>
+            <p className="text-sm font-semibold text-ink-primary">WoS / JCR / 中科院</p>
+          </div>
+          {journalSection.items.map((item, index) => (
+            <Card key={`${item.source}-${item.name}-${item.issn}-${index}`} padding="sm" className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-ink-primary">{match.title}</p>
-                {match.indexes.map((item) => (
-                  <WosIndexBadge key={`${match.title}-${item}`} index={item} />
+                <p className="text-sm font-semibold text-ink-primary">{item.name}</p>
+                {item.indexes.map((indexName) => (
+                  <WosIndexBadge key={`${item.name}-${indexName}`} index={indexName} />
                 ))}
-                <JcrQuartileBadge quartile={match.jcr_quartile} />
-                <CasQuartileBadge quartile={match.cas_quartile} />
-                <CasTopBadge top={match.cas_top} />
-                {match.open_access ? <Badge variant="success">OA</Badge> : null}
+                <JcrQuartileBadge quartile={item.jcr_quartile} />
+                <CasQuartileBadge quartile={item.cas_quartile} />
+                <CasTopBadge top={item.cas_top} />
+                {item.open_access ? <Badge variant="success">OA</Badge> : null}
               </div>
               <p className="text-xs leading-5 text-ink-secondary">
-                {[match.publisher, match.issn ? `ISSN ${match.issn}` : "", match.eissn ? `eISSN ${match.eissn}` : ""]
+                {[item.publisher, item.issn ? `ISSN ${item.issn}` : "", item.eissn ? `eISSN ${item.eissn}` : ""]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
               <p className="text-xs leading-5 text-ink-tertiary">
-                {[match.jcr_category, match.jif ? `JIF ${match.jif}` : "", match.jif_rank ? `排名 ${match.jif_rank}` : ""]
+                {[item.jcr_category, item.jif ? `JIF ${item.jif}` : "", item.jif_rank ? `排名 ${item.jif_rank}` : ""]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
-              {match.wos_categories.length > 0 ? (
+              {item.wos_categories.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {match.wos_categories.slice(0, 6).map((item) => (
-                    <Badge key={`${match.title}-${item}`} variant="default">
-                      {item}
+                  {item.wos_categories.slice(0, 6).map((category) => (
+                    <Badge key={`${item.name}-${category}`} variant="default">
+                      {category}
                     </Badge>
                   ))}
                 </div>
@@ -414,82 +405,42 @@ export default function Tools() {
             </Card>
           ))}
         </div>
-      ) : journalSearched && !journalLoading && !journalError ? (
-        <Card className="flex flex-col items-center gap-3 py-16 text-center">
-          <Search className="h-8 w-8 text-ink-tertiary" />
-          <div>
-            <p className="font-medium text-ink-secondary">没有匹配的期刊分区</p>
-            <p className="mt-1 text-sm text-ink-tertiary">建议改用更完整的期刊名或 ISSN 重试。</p>
-          </div>
-        </Card>
       ) : null}
 
-      <Card padding="md" className="space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
-            <Wrench className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-ink-primary">CCF 评级查询</p>
-            <p className="mt-1 text-xs text-ink-tertiary">支持示例：`CVPR`、`TKDE`、`ACM SIGMOD Conference`。</p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <div className="flex-1">
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  void handleLookup();
-                }
-              }}
-              placeholder="输入会议或期刊名称"
-            />
-          </div>
-          <Button onClick={() => void handleLookup()} loading={loading} disabled={!query.trim()}>
-            <Search className="h-4 w-4" />
-            查询 CCF
-          </Button>
-        </div>
-
-        {error && (
-          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-      </Card>
-
-      {matches.length > 0 ? (
+      {ccfSection && ccfSection.items.length > 0 ? (
         <div className="space-y-3">
-          {matches.map((match, index) => (
-            <Card key={`${match.full_name}-${index}`} padding="sm" className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Badge variant="info">{ccfSection.title}</Badge>
+            <p className="text-sm font-semibold text-ink-primary">会议 / 期刊推荐级别</p>
+          </div>
+          {ccfSection.items.map((item, index) => (
+            <Card key={`${item.source}-${item.name}-${index}`} padding="sm" className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <ExternalLink
-                  href={match.url}
+                  href={item.url}
                   className="text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
                 >
-                  {match.full_name}
+                  {item.name}
                 </ExternalLink>
-                <CcfRatingBadge rating={match.rating} />
-                <VenueTypeBadge type={match.kind} />
-                {match.label && <Badge variant="default">{match.label}</Badge>}
+                <CcfRatingBadge rating={item.rating} />
+                <VenueTypeBadge type={item.entity_type} />
+                {item.label && <Badge variant="default">{item.label}</Badge>}
               </div>
               <p className="text-xs leading-5 text-ink-secondary">
-                {match.area}
-                {match.publisher ? ` · ${match.publisher}` : ""}
+                {item.area}
+                {item.publisher ? ` · ${item.publisher}` : ""}
               </p>
             </Card>
           ))}
         </div>
-      ) : searched && !loading && !error ? (
+      ) : null}
+
+      {sourceSearched && !sourceLoading && !sourceError && sourceSections.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
           <Search className="h-8 w-8 text-ink-tertiary" />
           <div>
             <p className="font-medium text-ink-secondary">没有匹配结果</p>
-            <p className="mt-1 text-sm text-ink-tertiary">建议改用官方简称或更完整的全称重试。</p>
+            <p className="mt-1 text-sm text-ink-tertiary">建议改用更完整的期刊名、会议全称或 ISSN 重试。</p>
           </div>
         </Card>
       ) : null}
@@ -535,10 +486,13 @@ export default function Tools() {
                     className="group flex items-center gap-3 rounded-2xl bg-white/45 px-3 py-3 transition hover:bg-white/70"
                   >
                     <div
-                      className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#E8ECF0] text-sm font-semibold text-ink-secondary"
-                      style={{ boxShadow: insetShadow }}
+                      className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#EEF1F5] text-sm font-semibold text-ink-secondary transition-transform duration-150 group-hover:-translate-y-0.5"
+                      style={{ boxShadow: raisedShadow }}
                     >
-                      <span className="absolute inset-0 flex items-center justify-center">
+                      <span
+                        className="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
+                        style={{ opacity: item.icon ? 0 : 1 }}
+                      >
                         {friendLinkInitial(item.name)}
                       </span>
                       <img
@@ -549,6 +503,10 @@ export default function Tools() {
                         className="relative h-full w-full object-cover"
                         onError={(event) => {
                           event.currentTarget.style.opacity = "0";
+                          const fallback = event.currentTarget.parentElement?.querySelector("span");
+                          if (fallback instanceof HTMLElement) {
+                            fallback.style.opacity = "1";
+                          }
                         }}
                       />
                     </div>

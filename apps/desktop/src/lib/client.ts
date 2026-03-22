@@ -10,6 +10,7 @@ import type {
   ArxivSearchResponse,
   CcfLookupResponse,
   JournalLookupResponse,
+  SourceLookupResponse,
   Paper,
   ChatSession,
   ChatMessage,
@@ -74,6 +75,11 @@ export const ccfApi = {
 export const journalApi = {
   lookup: (query: string, limit = 8): Promise<JournalLookupResponse> =>
     invoke("journal_lookup", { query, limit }),
+};
+
+export const sourceApi = {
+  lookup: (query: string, limit = 8): Promise<SourceLookupResponse> =>
+    invoke("source_lookup", { query, limit }),
 };
 
 export const arxivApi = {
@@ -259,6 +265,7 @@ export const apiClient = {
   arxiv: arxivApi,
   ccf: ccfApi,
   journals: journalApi,
+  sources: sourceApi,
   settings: settingsApi,
   papers: papersApi,
   knowledge: knowledgeApi,

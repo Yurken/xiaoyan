@@ -34,6 +34,7 @@ use commands::{
     misc::{planner_generate, survey_generate, survey_search},
     papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_reproduce, papers_update, papers_upload},
     settings::{settings_get, settings_test, settings_update},
+    source::source_lookup,
 };
 use state::{default_settings, AppState};
 
@@ -130,6 +131,8 @@ pub fn run() {
             ccf_lookup,
             // Journal partitions
             journal_lookup,
+            // Unified source lookup
+            source_lookup,
             // arXiv
             arxiv_search,
             // Knowledge

@@ -126,7 +126,7 @@ export const YANWEB_FRIEND_LINK_SECTIONS: YanwebFriendLinkSection[] = [
       {
         "name": "CNKI AI",
         "href": "https://ai.cnki.net/chat",
-        "icon": "/friend-link-icons/img_6943962a7a097.png"
+        "icon": "/friend-link-icons/cnki.png"
       }
     ]
   },
@@ -141,7 +141,7 @@ export const YANWEB_FRIEND_LINK_SECTIONS: YanwebFriendLinkSection[] = [
       {
         "name": "知网",
         "href": "https://www.cnki.net/",
-        "icon": "/friend-link-icons/img_69425900da582.png"
+        "icon": "/friend-link-icons/zhiwang.png"
       },
       {
         "name": "维普期刊",

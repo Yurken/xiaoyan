@@ -1,6 +1,7 @@
 import type {
   CcfLookupResponse,
   JournalLookupResponse,
+  SourceLookupResponse,
   Paper,
   ChatSession,
   ChatMessage,
@@ -231,6 +232,11 @@ export function createClient(config: ClientConfig) {
     journals: {
       lookup: (query: string, limit = 8) =>
         r<JournalLookupResponse>(`/api/journals/lookup?query=${encodeURIComponent(query)}&limit=${limit}`),
+    },
+
+    sources: {
+      lookup: (query: string, limit = 8) =>
+        r<SourceLookupResponse>(`/api/sources/lookup?query=${encodeURIComponent(query)}&limit=${limit}`),
     },
   };
 }
