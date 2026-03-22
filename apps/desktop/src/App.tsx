@@ -17,6 +17,10 @@ import Copilot from "./pages/Copilot";
 import Knowledge from "./pages/Knowledge";
 import Settings from "./pages/Settings";
 import Tools from "./pages/Tools";
+import FocusApp from "./pages/FocusLayout";
+import { getLayoutMode } from "./lib/layoutMode";
+
+const layoutMode = getLayoutMode();
 
 const navItems = [
   { to: "/",          icon: LayoutDashboard, label: "工作台" },
@@ -30,6 +34,10 @@ const navItems = [
 ];
 
 export default function App() {
+  if (layoutMode === "focus") {
+    return <FocusApp />;
+  }
+
   return (
     <div className="flex h-full bg-nm-bg">
       {/* Sidebar */}

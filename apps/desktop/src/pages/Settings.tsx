@@ -15,6 +15,7 @@ import {
   FileSearch,
   Hammer,
   Info,
+  LayoutDashboard,
   Loader2,
   Layers3,
   MessageSquare,
@@ -27,6 +28,7 @@ import {
 import { Card } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, PAPER_TAG_OPTIONS, parsePaperTagVisibility, togglePaperTagVisibility } from "../lib/paperTags";
+import { getLayoutMode, setLayoutMode, type LayoutMode } from "../lib/layoutMode";
 import type { AppSettings, AppUpdateInfo, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
 
 function SettingInput({
@@ -213,7 +215,7 @@ function ToggleRow({
   );
 }
 
-type SettingsSectionKey = "connection" | "paper_tags" | "roles" | "agents" | "about";
+type SettingsSectionKey = "connection" | "paper_tags" | "roles" | "agents" | "about" | "layout";
 
 const SETTINGS_SECTIONS: Array<{
   key: SettingsSectionKey;
@@ -249,6 +251,13 @@ const SETTINGS_SECTIONS: Array<{
     description: "编排模式、覆盖和高级设置",
     icon: Bot,
     color: "#34C759",
+  },
+  {
+    key: "layout",
+    label: "布局",
+    description: "界面模式，重启后生效",
+    icon: LayoutDashboard,
+    color: "#30B0C7",
   },
   {
     key: "about",
@@ -923,6 +932,7 @@ export default function Settings() {
   const [appVersion, setAppVersion] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>("connection");
+  const [pendingLayout, setPendingLayout] = useState<LayoutMode>(getLayoutMode());
 
   const set = (key: keyof AppSettings) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -1727,6 +1737,76 @@ export default function Settings() {
                 </div>
               </div>
             ) : null}
+          </Card>
+        ) : null}
+
+        {activeSection === "layout" ? (
+          <Card padding="md" className="space-y-5">
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={LayoutDashboard} color="#30B0C7" />
+              <div>
+                <h2 className="text-sm font-semibold text-ink-primary">界面布局模式</h2>
+                <p className="text-xs text-ink-tertiary mt-0.5">选择后重启软件生效</p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {([
+                {
+                  mode: "landscape" as LayoutMode,
+                  label: "纵横",
+                  description: "经典侧边栏导航，所有模块平铺展示，适合多任务并行。",
+                },
+                {
+                  mode: "focus" as LayoutMode,
+                  label: "专注",
+                  description: "以研究主题为入口，生成后进入专属工作台，保持研究聚焦。",
+                },
+              ] as const).map(({ mode, label, description }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => {
+                    setPendingLayout(mode);
+                    setLayoutMode(mode);
+                  }}
+                  className="rounded-[24px] p-4 text-left transition-all duration-150"
+                  style={
+                    pendingLayout === mode
+                      ? {
+                          background: "linear-gradient(145deg, rgba(26,138,255,0.12), rgba(255,255,255,0.92))",
+                          boxShadow: "6px 6px 16px rgba(183,190,199,0.8), -6px -6px 16px rgba(255,255,255,0.95)",
+                        }
+                      : {
+                          background: "#EEF1F5",
+                          boxShadow: "5px 5px 14px #CBD0D7, -5px -5px 14px #FFFFFF",
+                        }
+                  }
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <p className="text-sm font-semibold text-ink-primary">{label}</p>
+                    {pendingLayout === mode && (
+                      <span
+                        className="w-4 h-4 rounded-full flex items-center justify-center"
+                        style={{ background: "#007AFF" }}
+                      >
+                        <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                          <path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs leading-5 text-ink-secondary">{description}</p>
+                </button>
+              ))}
+            </div>
+
+            <div
+              className="rounded-2xl px-4 py-3 text-xs leading-5 text-amber-700"
+              style={{ background: "rgba(255,159,10,0.1)", border: "1px solid rgba(255,159,10,0.25)" }}
+            >
+              布局设置已保存，下次重启软件后生效。
+            </div>
           </Card>
         ) : null}
 
