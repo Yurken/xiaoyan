@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Bot, FileSearch, GitBranch, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  Bot,
+  ChevronDown,
+  ChevronUp,
+  FileSearch,
+  GitBranch,
+  Loader2,
+  SlidersHorizontal,
+} from "lucide-react";
 import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
@@ -23,6 +32,12 @@ interface StructuredSurveyResult {
   query: string;
   report: {
     background?: string;
+    development_timeline?: Array<{
+      period?: string;
+      milestone?: string;
+      key_works?: string[];
+      significance?: string;
+    }>;
     major_methods?: Array<{
       name?: string;
       description?: string;
@@ -30,10 +45,25 @@ interface StructuredSurveyResult {
       pros?: string;
       cons?: string;
     }>;
+    schools_of_thought?: Array<{
+      name?: string;
+      description?: string;
+      representatives?: string[];
+    }>;
+    methodology_summary?: {
+      mainstream?: string;
+      emerging?: string;
+      comparison?: string;
+    };
     research_trends?: Array<{ trend?: string; signal?: string }>;
+    controversies?: Array<{ topic?: string; positions?: string[] }>;
     challenges?: string[];
+    research_gaps?: string[];
+    future_directions?: string[];
     recommended_topics?: Array<{ topic?: string; why?: string; first_step?: string }>;
     overall_summary?: string;
+    current_frontier?: string;
+    earliest_period?: string;
   };
   papers: Array<{
     id: string;
@@ -51,16 +81,83 @@ interface StructuredSurveyResult {
     paper_url?: string;
     venue_url?: string;
   }>;
+  formatted_citations?: string[];
+  citation_format?: string;
+  meta?: {
+    time_range?: string;
+    lit_types?: string;
+    databases?: string;
+    language?: string;
+  };
 }
+
+const LIT_TYPE_OPTIONS = [
+  { value: "期刊论文", label: "期刊论文" },
+  { value: "会议论文", label: "会议论文" },
+  { value: "学位论文", label: "学位论文" },
+  { value: "预印本", label: "预印本" },
+  { value: "专著", label: "专著" },
+];
+
+const DATABASE_OPTIONS = [
+  "CNKI", "万方", "PubMed", "Web of Science", "Scopus", "IEEE Xplore", "arXiv", "ACM DL",
+];
+
+const CITATION_FORMATS = [
+  { value: "gbt7714", label: "GB/T 7714（国标）" },
+  { value: "apa", label: "APA" },
+  { value: "mla", label: "MLA" },
+  { value: "ieee", label: "IEEE" },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: "both", label: "中英文均可" },
+  { value: "zh", label: "仅中文" },
+  { value: "en", label: "仅英文" },
+];
 
 function interestFolderName(interest: ResearchInterest) {
   return interest.folder_name?.trim() || interest.topic;
+}
+
+function ToggleChip({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+        selected
+          ? "border-apple-blue bg-apple-blue/10 text-apple-blue"
+          : "border-nm-dark/15 bg-white/40 text-ink-secondary hover:text-ink-primary"
+      }`}
+    >
+      {label}
+    </button>
+  );
 }
 
 export default function SurveyPanel() {
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [selectedInterestId, setSelectedInterestId] = useState("");
   const [query, setQuery] = useState("");
+
+  // Advanced options
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [timeFrom, setTimeFrom] = useState("");
+  const [timeTo, setTimeTo] = useState("");
+  const [litTypes, setLitTypes] = useState<string[]>([]);
+  const [databases, setDatabases] = useState<string[]>([]);
+  const [citationFormat, setCitationFormat] = useState("gbt7714");
+  const [language, setLanguage] = useState("both");
+
   const [generating, setGenerating] = useState(false);
   const [content, setContent] = useState("");
   const [agents, setAgents] = useState<SurveyAgentState[]>([]);
@@ -81,30 +178,25 @@ export default function SurveyPanel() {
 
   useEffect(() => {
     let cancelled = false;
-
-    apiClient.knowledge
-      .listInterests()
-      .then((data) => {
-        if (!cancelled) {
-          setInterests(data);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setInterests([]);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    apiClient.knowledge.listInterests().then((data) => {
+      if (!cancelled) setInterests(data);
+    }).catch(() => {
+      if (!cancelled) setInterests([]);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
-    return () => {
-      unlistenersRef.current.forEach((cleanup) => cleanup());
-    };
+    return () => { unlistenersRef.current.forEach((cleanup) => cleanup()); };
   }, []);
+
+  const toggleLitType = (val: string) => {
+    setLitTypes((prev) => prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]);
+  };
+
+  const toggleDatabase = (val: string) => {
+    setDatabases((prev) => prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]);
+  };
 
   const handleGenerate = async () => {
     if (!query.trim() || generating) return;
@@ -139,12 +231,18 @@ export default function SurveyPanel() {
         query: string;
         report: StructuredSurveyResult["report"];
         papers: StructuredSurveyResult["papers"];
+        formatted_citations?: string[];
+        citation_format?: string;
+        meta?: StructuredSurveyResult["meta"];
       }>("survey:structured", (event) => {
         if (!acceptRequest(event.payload.request_id)) return;
         setStructured({
           query: event.payload.query,
           report: event.payload.report,
           papers: event.payload.papers,
+          formatted_citations: event.payload.formatted_citations,
+          citation_format: event.payload.citation_format,
+          meta: event.payload.meta,
         });
       }),
       listen<{ request_id?: string; agent: SurveyAgentState }>("survey:agent_start", (event) => {
@@ -152,9 +250,7 @@ export default function SurveyPanel() {
         const nextAgent = event.payload.agent;
         setAgents((prev) => {
           const exists = prev.some((item) => item.id === nextAgent.id);
-          if (exists) {
-            return prev.map((item) => (item.id === nextAgent.id ? { ...item, ...nextAgent } : item));
-          }
+          if (exists) return prev.map((item) => (item.id === nextAgent.id ? { ...item, ...nextAgent } : item));
           return [...prev, nextAgent];
         });
       }),
@@ -176,43 +272,46 @@ export default function SurveyPanel() {
     ]);
 
     unlistenersRef.current = [
-      unlistenDelta,
-      unlistenDone,
-      unlistenError,
-      unlistenStructured,
-      unlistenAgentStart,
-      unlistenAgentComplete,
-      unlistenAgentError,
+      unlistenDelta, unlistenDone, unlistenError, unlistenStructured,
+      unlistenAgentStart, unlistenAgentComplete, unlistenAgentError,
     ];
 
     try {
-      await apiClient.survey.generate(query.trim());
+      await apiClient.survey.generate(
+        query.trim(),
+        20,
+        timeFrom ? parseInt(timeFrom) : undefined,
+        timeTo ? parseInt(timeTo) : undefined,
+        litTypes.length > 0 ? litTypes : undefined,
+        databases.length > 0 ? databases : undefined,
+        citationFormat,
+        language,
+      );
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
       setGenerating(false);
     }
   };
 
+  const citationFormatLabel = CITATION_FORMATS.find((f) => f.value === citationFormat)?.label ?? "GB/T 7714（国标）";
+
   return (
     <div className="space-y-4">
+      {/* ── Input Card ── */}
       <Card padding="sm" className="space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-semibold text-ink-primary">结构化文献综述生成</p>
             <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-              自动规划检索范围、检索候选论文，并输出结构化综述与可切入研究主题。
+              多 Agent 协作规划检索范围、梳理发展脉络，并输出带参考文献格式的全面综述。
             </p>
           </div>
-          <div className="flex w-full flex-col gap-2 lg:w-[520px] lg:flex-row">
+          <div className="flex w-full flex-col gap-2 lg:w-[540px] lg:flex-row">
             <div className="flex-1">
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    void handleGenerate();
-                  }
-                }}
+                onKeyDown={(event) => { if (event.key === "Enter") void handleGenerate(); }}
                 placeholder="输入研究问题，如 Transformer attention 机制的发展"
                 disabled={generating}
               />
@@ -224,6 +323,7 @@ export default function SurveyPanel() {
           </div>
         </div>
 
+        {/* Interest quick-select */}
         {interests.length > 0 && (
           <div className="flex flex-wrap gap-2 rounded-3xl border border-nm-dark/10 bg-white/25 p-3">
             <button
@@ -255,6 +355,130 @@ export default function SurveyPanel() {
           </div>
         )}
 
+        {/* Advanced options toggle */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-xs text-ink-tertiary hover:text-ink-secondary"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            高级选项
+            {advancedOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+
+          {advancedOpen && (
+            <div className="mt-3 space-y-4 rounded-2xl border border-nm-dark/10 bg-white/25 p-4">
+              {/* Time range */}
+              <div>
+                <p className="mb-2 text-xs font-medium text-ink-secondary">时间范围</p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={timeFrom}
+                    onChange={(e) => setTimeFrom(e.target.value)}
+                    placeholder="起始年份，如 2015"
+                    disabled={generating}
+                    className="w-36"
+                  />
+                  <span className="text-xs text-ink-tertiary">至</span>
+                  <Input
+                    value={timeTo}
+                    onChange={(e) => setTimeTo(e.target.value)}
+                    placeholder="截止年份，如 2024"
+                    disabled={generating}
+                    className="w-36"
+                  />
+                  {(timeFrom || timeTo) && (
+                    <button
+                      type="button"
+                      onClick={() => { setTimeFrom(""); setTimeTo(""); }}
+                      className="text-xs text-ink-tertiary hover:text-ink-secondary"
+                    >
+                      清除
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Literature types */}
+              <div>
+                <p className="mb-2 text-xs font-medium text-ink-secondary">文献类型</p>
+                <div className="flex flex-wrap gap-2">
+                  {LIT_TYPE_OPTIONS.map((opt) => (
+                    <ToggleChip
+                      key={opt.value}
+                      label={opt.label}
+                      selected={litTypes.includes(opt.value)}
+                      onClick={() => toggleLitType(opt.value)}
+                    />
+                  ))}
+                </div>
+                {litTypes.length === 0 && (
+                  <p className="mt-1 text-[11px] text-ink-tertiary">未选择则不限类型</p>
+                )}
+              </div>
+
+              {/* Databases */}
+              <div>
+                <p className="mb-2 text-xs font-medium text-ink-secondary">检索数据库偏好</p>
+                <div className="flex flex-wrap gap-2">
+                  {DATABASE_OPTIONS.map((db) => (
+                    <ToggleChip
+                      key={db}
+                      label={db}
+                      selected={databases.includes(db)}
+                      onClick={() => toggleDatabase(db)}
+                    />
+                  ))}
+                </div>
+                {databases.length === 0 && (
+                  <p className="mt-1 text-[11px] text-ink-tertiary">未选择则不限数据库</p>
+                )}
+              </div>
+
+              {/* Citation format + language */}
+              <div className="flex flex-wrap gap-6">
+                <div>
+                  <p className="mb-2 text-xs font-medium text-ink-secondary">参考文献格式</p>
+                  <div className="flex flex-wrap gap-2">
+                    {CITATION_FORMATS.map((f) => (
+                      <ToggleChip
+                        key={f.value}
+                        label={f.label}
+                        selected={citationFormat === f.value}
+                        onClick={() => setCitationFormat(f.value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-medium text-ink-secondary">语言范围</p>
+                  <div className="flex flex-wrap gap-2">
+                    {LANGUAGE_OPTIONS.map((l) => (
+                      <ToggleChip
+                        key={l.value}
+                        label={l.label}
+                        selected={language === l.value}
+                        onClick={() => setLanguage(l.value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary of selections */}
+              {(timeFrom || timeTo || litTypes.length > 0 || databases.length > 0) && (
+                <div className="rounded-xl border border-nm-dark/10 bg-white/40 px-3 py-2 text-[11px] text-ink-tertiary">
+                  {timeFrom || timeTo ? <span>时间：{timeFrom || "不限"} — {timeTo || "至今"}　</span> : null}
+                  {litTypes.length > 0 ? <span>类型：{litTypes.join("、")}　</span> : null}
+                  {databases.length > 0 ? <span>数据库：{databases.join("、")}　</span> : null}
+                  <span>引用格式：{citationFormatLabel}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {error && (
           <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
@@ -263,17 +487,18 @@ export default function SurveyPanel() {
         )}
       </Card>
 
+      {/* ── Results ── */}
       {(agents.length > 0 || structured || content) ? (
         <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+          {/* Left: Agent flow + papers */}
           <div className="space-y-4">
             <Card padding="sm" className="space-y-3">
               <div className="flex items-center gap-2">
                 <GitBranch className="h-4 w-4 text-apple-blue" />
                 <p className="text-sm font-semibold text-ink-primary">多 Agent 协作流程</p>
               </div>
-
               {agents.length === 0 ? (
-                <p className="text-sm leading-6 text-ink-tertiary">等待 planner 和 retriever 开始执行。</p>
+                <p className="text-sm leading-6 text-ink-tertiary">等待 Agent 开始执行。</p>
               ) : (
                 <div className="space-y-2">
                   {agents.map((agent) => (
@@ -305,6 +530,26 @@ export default function SurveyPanel() {
               )}
             </Card>
 
+            {/* Meta info */}
+            {structured?.meta && (
+              <Card padding="sm" className="space-y-1.5">
+                <p className="text-xs font-semibold text-ink-secondary">检索配置</p>
+                {structured.meta.time_range && structured.meta.time_range !== "不限" && (
+                  <p className="text-xs text-ink-tertiary">时间范围：{structured.meta.time_range}</p>
+                )}
+                {structured.meta.lit_types && structured.meta.lit_types !== "不限" && (
+                  <p className="text-xs text-ink-tertiary">文献类型：{structured.meta.lit_types}</p>
+                )}
+                {structured.meta.databases && structured.meta.databases !== "不限" && (
+                  <p className="text-xs text-ink-tertiary">数据库：{structured.meta.databases}</p>
+                )}
+                <p className="text-xs text-ink-tertiary">
+                  引用格式：{CITATION_FORMATS.find((f) => f.value === structured.citation_format)?.label ?? citationFormatLabel}
+                </p>
+              </Card>
+            )}
+
+            {/* Candidate papers */}
             {structured?.papers?.length ? (
               <Card padding="sm" className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
@@ -312,7 +557,7 @@ export default function SurveyPanel() {
                   <Badge variant="default">{structured.papers.length} 篇</Badge>
                 </div>
                 <div className="space-y-2">
-                  {structured.papers.slice(0, 6).map((paper, index) => (
+                  {structured.papers.map((paper, index) => (
                     <div key={paper.id || `${paper.title}-${index}`} className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <ExternalLink
@@ -329,15 +574,20 @@ export default function SurveyPanel() {
                         {paper.year ? ` · ${paper.year}` : ""}
                         {paper.venue ? " · " : ""}
                         {paper.venue ? (
-                          <ExternalLink
-                            href={paper.venue_url}
-                            className="text-xs text-ink-tertiary hover:text-apple-blue hover:underline"
-                          >
+                          <ExternalLink href={paper.venue_url} className="text-xs text-ink-tertiary hover:text-apple-blue hover:underline">
                             {paper.venue}
                           </ExternalLink>
                         ) : null}
                         {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
                       </p>
+                      {paper.doi && (
+                        <p className="mt-1 text-[11px] text-ink-tertiary">
+                          DOI:{" "}
+                          <ExternalLink href={`https://doi.org/${paper.doi}`} className="hover:text-apple-blue hover:underline">
+                            {paper.doi}
+                          </ExternalLink>
+                        </p>
+                      )}
                       {paper.abstract && (
                         <p className="mt-2 line-clamp-3 text-xs leading-5 text-ink-secondary">{paper.abstract}</p>
                       )}
@@ -348,6 +598,7 @@ export default function SurveyPanel() {
             ) : null}
           </div>
 
+          {/* Right: Structured report */}
           <div className="space-y-4">
             {structured && (
               <Card padding="sm" className="space-y-5">
@@ -356,6 +607,7 @@ export default function SurveyPanel() {
                   <p className="mt-1 text-xs text-ink-tertiary">研究问题：{structured.query}</p>
                 </div>
 
+                {/* Background */}
                 {structured.report.background && (
                   <div>
                     <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">研究背景</p>
@@ -363,6 +615,48 @@ export default function SurveyPanel() {
                   </div>
                 )}
 
+                {/* Development Timeline */}
+                {structured.report.development_timeline && structured.report.development_timeline.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">发展脉络</p>
+                    {structured.report.earliest_period && (
+                      <p className="mb-2 text-xs text-ink-tertiary italic">{structured.report.earliest_period}</p>
+                    )}
+                    <div className="space-y-2">
+                      {structured.report.development_timeline.map((stage, index) => (
+                        <div key={`${stage.period}-${index}`} className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
+                          <p className="text-sm font-semibold text-apple-blue">{stage.period}</p>
+                          <p className="mt-1 text-sm text-ink-primary">{stage.milestone}</p>
+                          {stage.key_works && stage.key_works.length > 0 && (
+                            <p className="mt-1.5 text-[11px] text-ink-tertiary">
+                              代表工作：{stage.key_works.map((title, i) => (
+                                <span key={`${title}-${i}`}>
+                                  {i > 0 ? "；" : ""}
+                                  <ExternalLink
+                                    href={buildPaperSearchUrl(title)}
+                                    className="text-[11px] text-ink-tertiary hover:text-apple-blue hover:underline"
+                                  >
+                                    {title}
+                                  </ExternalLink>
+                                </span>
+                              ))}
+                            </p>
+                          )}
+                          {stage.significance && (
+                            <p className="mt-1 text-[11px] text-ink-tertiary">{stage.significance}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {structured.report.current_frontier && (
+                      <p className="mt-2 rounded-xl border border-apple-blue/20 bg-apple-blue/5 px-3 py-2 text-xs text-apple-blue">
+                        当前前沿：{structured.report.current_frontier}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Major Methods */}
                 {structured.report.major_methods && structured.report.major_methods.length > 0 && (
                   <div>
                     <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">主要方法</p>
@@ -370,9 +664,7 @@ export default function SurveyPanel() {
                       {structured.report.major_methods.map((method, index) => (
                         <div key={`${method.name}-${index}`} className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
                           <p className="text-sm font-medium text-ink-primary">{method.name || `方法 ${index + 1}`}</p>
-                          {method.description && (
-                            <p className="mt-1 text-xs leading-5 text-ink-secondary">{method.description}</p>
-                          )}
+                          {method.description && <p className="mt-1 text-xs leading-5 text-ink-secondary">{method.description}</p>}
                           {(method.pros || method.cons) && (
                             <p className="mt-2 text-[11px] text-ink-tertiary">
                               优势：{method.pros || "-"}；局限：{method.cons || "-"}
@@ -380,11 +672,9 @@ export default function SurveyPanel() {
                           )}
                           {method.representative_papers && method.representative_papers.length > 0 && (
                             <p className="mt-2 text-[11px] text-ink-tertiary">
-                              代表论文：
-                              {" "}
-                              {method.representative_papers.map((title, titleIndex) => (
-                                <span key={`${title}-${titleIndex}`}>
-                                  {titleIndex > 0 ? " · " : ""}
+                              代表论文：{method.representative_papers.map((title, i) => (
+                                <span key={`${title}-${i}`}>
+                                  {i > 0 ? "；" : ""}
                                   <ExternalLink
                                     href={buildPaperSearchUrl(title)}
                                     className="text-[11px] text-ink-tertiary hover:text-apple-blue hover:underline"
@@ -401,6 +691,43 @@ export default function SurveyPanel() {
                   </div>
                 )}
 
+                {/* Schools of Thought */}
+                {structured.report.schools_of_thought && structured.report.schools_of_thought.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">主要学派与流派</p>
+                    <div className="space-y-2">
+                      {structured.report.schools_of_thought.map((school, index) => (
+                        <div key={`${school.name}-${index}`} className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
+                          <p className="text-sm font-medium text-ink-primary">{school.name}</p>
+                          {school.description && <p className="mt-1 text-xs leading-5 text-ink-secondary">{school.description}</p>}
+                          {school.representatives && school.representatives.length > 0 && (
+                            <p className="mt-1.5 text-[11px] text-ink-tertiary">代表：{school.representatives.join("、")}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Methodology Summary */}
+                {structured.report.methodology_summary && (
+                  <div>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">研究方法总结</p>
+                    <div className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3 space-y-1.5">
+                      {structured.report.methodology_summary.mainstream && (
+                        <p className="text-xs text-ink-secondary"><span className="font-medium text-ink-primary">主流：</span>{structured.report.methodology_summary.mainstream}</p>
+                      )}
+                      {structured.report.methodology_summary.emerging && (
+                        <p className="text-xs text-ink-secondary"><span className="font-medium text-ink-primary">新兴：</span>{structured.report.methodology_summary.emerging}</p>
+                      )}
+                      {structured.report.methodology_summary.comparison && (
+                        <p className="text-xs text-ink-secondary"><span className="font-medium text-ink-primary">对比：</span>{structured.report.methodology_summary.comparison}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Research Trends */}
                 {structured.report.research_trends && structured.report.research_trends.length > 0 && (
                   <div>
                     <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">研究趋势</p>
@@ -415,6 +742,28 @@ export default function SurveyPanel() {
                   </div>
                 )}
 
+                {/* Controversies */}
+                {structured.report.controversies && structured.report.controversies.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">研究争议</p>
+                    <div className="space-y-2">
+                      {structured.report.controversies.map((c, index) => (
+                        <div key={`${c.topic}-${index}`} className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
+                          <p className="text-sm font-medium text-ink-primary">{c.topic}</p>
+                          {c.positions && c.positions.length > 0 && (
+                            <ul className="mt-1.5 space-y-0.5 pl-3">
+                              {c.positions.map((pos, pi) => (
+                                <li key={pi} className="list-disc text-xs leading-5 text-ink-secondary">{pos}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Challenges */}
                 {structured.report.challenges && structured.report.challenges.length > 0 && (
                   <div>
                     <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">关键挑战</p>
@@ -426,6 +775,34 @@ export default function SurveyPanel() {
                   </div>
                 )}
 
+                {/* Research Gaps */}
+                {structured.report.research_gaps && structured.report.research_gaps.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">研究缺口</p>
+                    <div className="space-y-1.5">
+                      {structured.report.research_gaps.map((gap, index) => (
+                        <div key={`${gap}-${index}`} className="flex items-start gap-2 rounded-xl border border-apple-orange/20 bg-apple-orange/5 px-3 py-2">
+                          <span className="mt-0.5 flex-shrink-0 rounded-full bg-apple-orange/20 px-1.5 text-[10px] font-bold text-apple-orange">{index + 1}</span>
+                          <p className="text-xs leading-5 text-ink-secondary">{gap}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Future Directions */}
+                {structured.report.future_directions && structured.report.future_directions.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">未来研究方向</p>
+                    <ul className="space-y-1.5 pl-4 text-sm leading-6 text-ink-secondary">
+                      {structured.report.future_directions.map((dir, index) => (
+                        <li key={`${dir}-${index}`} className="list-disc">{dir}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Recommended Topics */}
                 {structured.report.recommended_topics && structured.report.recommended_topics.length > 0 && (
                   <div>
                     <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">建议研究主题</p>
@@ -441,10 +818,25 @@ export default function SurveyPanel() {
                   </div>
                 )}
 
+                {/* Overall Summary */}
                 {structured.report.overall_summary && (
                   <div>
                     <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">总结建议</p>
                     <p className="text-sm leading-relaxed text-ink-secondary">{structured.report.overall_summary}</p>
+                  </div>
+                )}
+
+                {/* Formatted Citations */}
+                {structured.formatted_citations && structured.formatted_citations.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">
+                      参考文献（{CITATION_FORMATS.find((f) => f.value === structured.citation_format)?.label ?? citationFormatLabel} 格式）
+                    </p>
+                    <div className="rounded-2xl border border-nm-dark/10 bg-white/30 p-3 space-y-1.5">
+                      {structured.formatted_citations.map((cite, index) => (
+                        <p key={index} className="text-[11px] leading-5 text-ink-secondary">{cite}</p>
+                      ))}
+                    </div>
                   </div>
                 )}
               </Card>
@@ -480,7 +872,7 @@ export default function SurveyPanel() {
           </div>
           <div>
             <p className="font-medium text-ink-secondary">输入研究问题</p>
-            <p className="mt-1 text-sm text-ink-tertiary">系统会自动规划检索范围，并生成结构化综述。</p>
+            <p className="mt-1 text-sm text-ink-tertiary">可展开高级选项指定时间范围、文献类型与引用格式。</p>
           </div>
         </Card>
       )}
