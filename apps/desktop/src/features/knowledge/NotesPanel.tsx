@@ -11,6 +11,10 @@ function sourceLabel(sourceType: string) {
   return sourceType || "未知来源";
 }
 
+function interestFolderName(interest: ResearchInterest) {
+  return interest.folder_name?.trim() || interest.topic;
+}
+
 export default function NotesPanel() {
   const [notes, setNotes] = useState<KnowledgeNote[]>([]);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
@@ -65,9 +69,31 @@ export default function NotesPanel() {
   }, [search]);
 
   const interestMap = useMemo(
-    () => Object.fromEntries(interests.map((item) => [item.id, item.topic])),
+    () => Object.fromEntries(interests.map((item) => [item.id, item])),
     [interests]
   );
+  const noteGroups = useMemo(() => {
+    const grouped = interests.map((interest) => ({
+      key: interest.id,
+      title: interestFolderName(interest),
+      subtitle: interest.topic,
+      notes: notes.filter((note) => note.research_interest_id === interest.id),
+    }));
+    const ungrouped = notes.filter((note) => {
+      if (!note.research_interest_id) return true;
+      return !(note.research_interest_id in interestMap);
+    });
+
+    return [
+      ...grouped,
+      {
+        key: "__ungrouped__",
+        title: "未归档",
+        subtitle: "尚未关联研究方向",
+        notes: ungrouped,
+      },
+    ];
+  }, [interestMap, interests, notes]);
 
   const resetDraft = () => {
     setNoteTitle("");
@@ -172,7 +198,7 @@ export default function NotesPanel() {
                 <option value="">不关联</option>
                 {interests.map((interest) => (
                   <option key={interest.id} value={interest.id}>
-                    {interest.topic}
+                    {interestFolderName(interest)}
                   </option>
                 ))}
               </select>
@@ -212,7 +238,7 @@ export default function NotesPanel() {
         <div className="flex justify-center py-16">
           <Loader2 className="h-7 w-7 animate-spin text-apple-blue" />
         </div>
-      ) : notes.length === 0 ? (
+      ) : notes.length === 0 && interests.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
           <div
             className="flex h-14 w-14 items-center justify-center rounded-3xl"
@@ -228,43 +254,65 @@ export default function NotesPanel() {
           </div>
         </Card>
       ) : (
-        <div className="grid gap-3 xl:grid-cols-3 md:grid-cols-2">
-          {notes.map((note) => (
-            <Card key={note.id} padding="sm" className="group relative flex flex-col gap-3">
-              <div className="pr-7">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="line-clamp-2 text-sm font-semibold text-ink-primary">{note.title}</p>
-                  <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
-                </div>
-                {note.research_interest_id && interestMap[note.research_interest_id] && (
-                  <p className="mt-2 text-[11px] text-apple-blue">关联方向：{interestMap[note.research_interest_id]}</p>
-                )}
+        <div className="space-y-4">
+          {noteGroups.map((group) => (
+            <section key={group.key} className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-ink-primary">{group.title}</p>
+                <Badge variant="default">{`${group.notes.length} 条`}</Badge>
+                {group.subtitle !== group.title ? (
+                  <span className="text-xs text-ink-tertiary">{`研究主题：${group.subtitle}`}</span>
+                ) : null}
               </div>
 
-              <p className="line-clamp-5 text-xs leading-relaxed text-ink-secondary">{note.content}</p>
+              {group.notes.length === 0 ? (
+                <Card padding="sm" className="border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
+                  该主题下还没有知识卡片。
+                </Card>
+              ) : (
+                <div className="grid gap-3 xl:grid-cols-3 md:grid-cols-2">
+                  {group.notes.map((note) => (
+                    <Card key={note.id} padding="sm" className="group relative flex flex-col gap-3">
+                      <div className="pr-7">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="line-clamp-2 text-sm font-semibold text-ink-primary">{note.title}</p>
+                          <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
+                        </div>
+                        {note.research_interest_id && interestMap[note.research_interest_id] && (
+                          <p className="mt-2 text-[11px] text-apple-blue">
+                            关联方向：{interestFolderName(interestMap[note.research_interest_id])}
+                          </p>
+                        )}
+                      </div>
 
-              {note.tags && note.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {note.tags.map((tag, index) => (
-                    <span key={`${note.id}-${tag}-${index}`} className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue">
-                      {tag}
-                    </span>
+                      <p className="line-clamp-5 text-xs leading-relaxed text-ink-secondary">{note.content}</p>
+
+                      {note.tags && note.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {note.tags.map((tag, index) => (
+                            <span key={`${note.id}-${tag}-${index}`} className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="mt-auto pt-1 text-xs text-ink-tertiary">
+                        {new Date(note.created_at).toLocaleDateString("zh-CN")}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(note.id)}
+                        className="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100 text-ink-tertiary hover:text-apple-red"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </Card>
                   ))}
                 </div>
               )}
-
-              <p className="mt-auto pt-1 text-xs text-ink-tertiary">
-                {new Date(note.created_at).toLocaleDateString("zh-CN")}
-              </p>
-
-              <button
-                type="button"
-                onClick={() => void handleDelete(note.id)}
-                className="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100 text-ink-tertiary hover:text-apple-red"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </Card>
+            </section>
           ))}
         </div>
       )}

@@ -26,10 +26,10 @@ use commands::{
     },
     journal::journal_lookup,
     knowledge::{
-        knowledge_create_interest, knowledge_create_note, knowledge_delete_note,
-        knowledge_generate_interest_hints, knowledge_generate_plan,
+        knowledge_create_interest, knowledge_create_note, knowledge_delete_interest_bundle,
+        knowledge_delete_note, knowledge_generate_interest_hints, knowledge_generate_plan,
         knowledge_list_interests, knowledge_list_notes, knowledge_search,
-        knowledge_update_note,
+        knowledge_update_interest_folder, knowledge_update_note,
     },
     misc::{planner_generate, survey_generate, survey_search},
     papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_reproduce, papers_update, papers_upload},
@@ -145,6 +145,8 @@ pub fn run() {
             // Knowledge
             knowledge_list_interests,
             knowledge_create_interest,
+            knowledge_update_interest_folder,
+            knowledge_delete_interest_bundle,
             knowledge_generate_interest_hints,
             knowledge_generate_plan,
             knowledge_list_notes,

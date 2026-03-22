@@ -56,7 +56,7 @@ export const papersApi = {
     invoke("papers_get", { id }),
   upload: (filePath: string, research_interest_id?: string): Promise<{ paper_id: string; title: string }> =>
     invoke("papers_upload", { filePath, researchInterestId: research_interest_id ?? null }),
-  update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string }): Promise<Paper> =>
+  update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string; research_interest_id?: string }): Promise<Paper> =>
     invoke("papers_update", {
       id,
       title: data.title ?? null,
@@ -64,6 +64,7 @@ export const papersApi = {
       venue: data.venue ?? null,
       year: data.year ?? null,
       doi: data.doi ?? null,
+      researchInterestId: data.research_interest_id ?? null,
     }),
   delete: (id: string): Promise<void> =>
     invoke("papers_delete", { id }),
@@ -109,6 +110,10 @@ export const knowledgeApi = {
     profile?: ResearchInterestProfile
   ): Promise<ResearchInterest> =>
     invoke("knowledge_create_interest", { topic, keywords, profile: profile ?? null }),
+  updateInterestFolder: (id: string, folder_name: string): Promise<ResearchInterest> =>
+    invoke("knowledge_update_interest_folder", { id, folderName: folder_name }),
+  deleteInterestBundle: (id: string): Promise<{ deleted_interest_id: string; deleted_sessions: number; deleted_notes: number; deleted_papers: number }> =>
+    invoke("knowledge_delete_interest_bundle", { id }),
   generateInterestHints: (data: ResearchInterestHintRequest): Promise<ResearchInterestHintResponse> =>
     invoke("knowledge_generate_interest_hints", {
       topic: data.topic,
