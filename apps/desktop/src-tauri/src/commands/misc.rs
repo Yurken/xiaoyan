@@ -167,6 +167,7 @@ pub async fn survey_generate(
     databases: Option<Vec<String>>,
     citation_format: Option<String>,
     language: Option<String>,
+    paper_ids: Option<Vec<String>>,
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
@@ -271,37 +272,70 @@ pub async fn survey_generate(
         }));
 
         let paper_limit = i64::from(max_papers.unwrap_or(20).max(1));
-        let papers = match retrieve_papers(&db, &query, &search_queries, paper_limit, time_from, time_to).await {
-            Ok(list) => {
-                let filter_desc = if time_from.is_some() || time_to.is_some() {
-                    format!("（时间范围：{}）", time_range_str)
-                } else {
-                    String::new()
-                };
-                let _ = app.emit("survey:agent_complete", json!({
-                    "request_id": request_id,
-                    "agent": {
-                        "id": retrieval_agent_id,
-                        "name": "Literature Retriever",
-                        "role": "检索候选文献",
-                        "status": "done",
-                        "summary": format!("已检索到 {} 篇候选文献{}", list.len(), filter_desc)
-                    }
-                }));
-                list
+        let pinned_ids = paper_ids.as_ref().map(|v| v.iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>()).unwrap_or_default();
+        let papers = if !pinned_ids.is_empty() {
+            // 用户已从论文库中手动选择论文，直接按 ID 加载，跳过文本检索
+            match fetch_papers_by_ids(&db, &pinned_ids).await {
+                Ok(list) => {
+                    let _ = app.emit("survey:agent_complete", json!({
+                        "request_id": request_id,
+                        "agent": {
+                            "id": retrieval_agent_id,
+                            "name": "Literature Retriever",
+                            "role": "检索候选文献",
+                            "status": "done",
+                            "summary": format!("已加载论文库中选定的 {} 篇论文", list.len())
+                        }
+                    }));
+                    list
+                }
+                Err(e) => {
+                    let _ = app.emit("survey:agent_error", json!({
+                        "request_id": request_id,
+                        "agent": {
+                            "id": retrieval_agent_id,
+                            "name": "Literature Retriever",
+                            "role": "检索候选文献",
+                            "status": "failed",
+                            "error": e.clone()
+                        }
+                    }));
+                    Vec::new()
+                }
             }
-            Err(e) => {
-                let _ = app.emit("survey:agent_error", json!({
-                    "request_id": request_id,
-                    "agent": {
-                        "id": retrieval_agent_id,
-                        "name": "Literature Retriever",
-                        "role": "检索候选文献",
-                        "status": "failed",
-                        "error": e.clone()
-                    }
-                }));
-                Vec::new()
+        } else {
+            match retrieve_papers(&db, &query, &search_queries, paper_limit, time_from, time_to).await {
+                Ok(list) => {
+                    let filter_desc = if time_from.is_some() || time_to.is_some() {
+                        format!("（时间范围：{}）", time_range_str)
+                    } else {
+                        String::new()
+                    };
+                    let _ = app.emit("survey:agent_complete", json!({
+                        "request_id": request_id,
+                        "agent": {
+                            "id": retrieval_agent_id,
+                            "name": "Literature Retriever",
+                            "role": "检索候选文献",
+                            "status": "done",
+                            "summary": format!("已检索到 {} 篇候选文献{}", list.len(), filter_desc)
+                        }
+                    }));
+                    list
+                }
+                Err(e) => {
+                    let _ = app.emit("survey:agent_error", json!({
+                        "request_id": request_id,
+                        "agent": {
+                            "id": retrieval_agent_id,
+                            "name": "Literature Retriever",
+                            "role": "检索候选文献",
+                            "status": "failed",
+                            "error": e.clone()
+                        }
+                    }));
+                    Vec::new()
+                }
             }
         };
 
@@ -588,6 +622,56 @@ fn build_timeline_text(timeline_json: &serde_json::Value) -> String {
         out.push_str(&format!("\n当前前沿：{}", frontier));
     }
     out
+}
+
+async fn fetch_papers_by_ids(
+    db: &sqlx::SqlitePool,
+    ids: &[String],
+) -> Result<Vec<serde_json::Value>, String> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+    let sql = format!(
+        "SELECT id, title, authors, abstract, year, venue, doi, file_path, status FROM papers WHERE id IN ({})",
+        placeholders
+    );
+    let mut query = sqlx::query(&sql);
+    for id in ids {
+        query = query.bind(id);
+    }
+    let rows = query.fetch_all(db).await.map_err(|e| e.to_string())?;
+
+    let mut papers = Vec::new();
+    for row in rows {
+        let mut paper = json!({
+            "id": row.get::<String, _>("id"),
+            "title": row.get::<String, _>("title"),
+            "authors": row.get::<Option<String>, _>("authors").unwrap_or_default(),
+            "abstract": row.get::<Option<String>, _>("abstract").unwrap_or_default(),
+            "year": row.get::<Option<i64>, _>("year"),
+            "venue": row.get::<Option<String>, _>("venue").unwrap_or_default(),
+            "doi": row.get::<Option<String>, _>("doi").unwrap_or_default(),
+            "paper_url": paper_reference_url(
+                row.get::<Option<String>, _>("title").as_deref(),
+                row.get::<Option<String>, _>("doi").as_deref(),
+                row.get::<Option<String>, _>("file_path").as_deref(),
+            ),
+            "status": row.get::<String, _>("status"),
+        });
+        if let Some(venue) = paper.get("venue").and_then(|v| v.as_str()) {
+            if let Some(tag) = match_venue(venue) {
+                paper["ccf_rating"] = json!(tag.rating);
+                paper["ccf_area"] = json!(tag.area);
+                paper["ccf_type"] = json!(tag.kind);
+                paper["ccf_label"] = json!(tag.label);
+                paper["ccf_publisher"] = json!(tag.publisher);
+                paper["venue_url"] = json!(tag.url);
+            }
+        }
+        papers.push(paper);
+    }
+    Ok(papers)
 }
 
 async fn retrieve_papers(

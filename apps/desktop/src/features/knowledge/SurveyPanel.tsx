@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   Bot,
-  ChevronDown,
-  ChevronUp,
   FileSearch,
+  Folder,
   GitBranch,
   Loader2,
-  SlidersHorizontal,
+  Search,
+  Settings2,
 } from "lucide-react";
 import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
@@ -15,7 +15,7 @@ import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { buildPaperSearchUrl, openLink } from "../../lib/links";
 import { listen } from "@tauri-apps/api/event";
-import type { ResearchInterest } from "@research-copilot/types";
+import type { Paper, ResearchInterest } from "@research-copilot/types";
 
 type SurveyAgentStatus = "running" | "done" | "failed";
 
@@ -147,6 +147,9 @@ function ToggleChip({
 export default function SurveyPanel() {
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [selectedInterestId, setSelectedInterestId] = useState("");
+  const [interestPapers, setInterestPapers] = useState<Paper[]>([]);
+  const [loadingPapers, setLoadingPapers] = useState(false);
+  const [selectedPaperIds, setSelectedPaperIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
 
   // Advanced options
@@ -186,9 +189,45 @@ export default function SurveyPanel() {
     return () => { cancelled = true; };
   }, []);
 
+  // 加载选中方向的论文列表
+  useEffect(() => {
+    if (!selectedInterestId) {
+      setInterestPapers([]);
+      setSelectedPaperIds([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingPapers(true);
+    apiClient.papers.list(0, 200, selectedInterestId).then((data) => {
+      if (!cancelled) {
+        setInterestPapers(data);
+        setSelectedPaperIds(data.map((p) => p.id));
+        setLoadingPapers(false);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setInterestPapers([]);
+        setSelectedPaperIds([]);
+        setLoadingPapers(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [selectedInterestId]);
+
   useEffect(() => {
     return () => { unlistenersRef.current.forEach((cleanup) => cleanup()); };
   }, []);
+
+  const togglePaper = (id: string) => {
+    setSelectedPaperIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+  const toggleAllPapers = () => {
+    setSelectedPaperIds((prev) =>
+      prev.length === interestPapers.length ? [] : interestPapers.map((p) => p.id)
+    );
+  };
 
   const toggleLitType = (val: string) => {
     setLitTypes((prev) => prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]);
@@ -286,6 +325,7 @@ export default function SurveyPanel() {
         databases.length > 0 ? databases : undefined,
         citationFormat,
         language,
+        selectedPaperIds.length > 0 ? selectedPaperIds : undefined,
       );
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
@@ -294,191 +334,193 @@ export default function SurveyPanel() {
   };
 
   const citationFormatLabel = CITATION_FORMATS.find((f) => f.value === citationFormat)?.label ?? "GB/T 7714（国标）";
+  const hasAdvancedSettings = !!(timeFrom || timeTo || litTypes.length > 0 || databases.length > 0);
 
-  return (
-    <div className="space-y-4">
-      {/* ── Input Card ── */}
-      <Card padding="sm" className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-ink-primary">结构化文献综述生成</p>
-            <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-              多 Agent 协作规划检索范围、梳理发展脉络，并输出带参考文献格式的全面综述。
-            </p>
-          </div>
-          <div className="flex w-full flex-col gap-2 lg:w-[540px] lg:flex-row">
-            <div className="flex-1">
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => { if (event.key === "Enter") void handleGenerate(); }}
-                placeholder="输入研究问题，如 Transformer attention 机制的发展"
-                disabled={generating}
-              />
-            </div>
-            <Button onClick={() => void handleGenerate()} loading={generating} disabled={!query.trim()}>
-              <FileSearch className="h-4 w-4" />
-              生成综述
-            </Button>
-          </div>
-        </div>
+  const allPapersSelected = interestPapers.length > 0 && selectedPaperIds.length === interestPapers.length;
+  const somePapersSelected = selectedPaperIds.length > 0 && selectedPaperIds.length < interestPapers.length;
 
-        {/* Interest quick-select */}
-        {interests.length > 0 && (
-          <div className="flex flex-wrap gap-2 rounded-3xl border border-nm-dark/10 bg-white/25 p-3">
+  // 兴趣面板列表（抽出以复用）
+  const interestPanel = interests.length > 0 && (
+    <Card padding="sm" className="space-y-0 overflow-hidden">
+      <p className="px-1 pb-2 text-xs font-semibold text-ink-tertiary">研究方向</p>
+      <div className="overflow-hidden rounded-xl border border-nm-dark/10">
+        {/* 自由检索 */}
+        <button
+          type="button"
+          onClick={() => setSelectedInterestId("")}
+          className={`flex w-full items-center gap-2.5 border-b border-nm-dark/8 px-3 py-2.5 text-left transition-colors ${
+            !selectedInterestId ? "bg-apple-blue/8" : "hover:bg-white/50"
+          }`}
+        >
+          <span
+            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg"
+            style={
+              !selectedInterestId
+                ? { background: "rgba(0,122,255,0.15)", color: "rgb(0,122,255)" }
+                : { background: "#E8ECF0", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF", color: "var(--color-ink-tertiary)" }
+            }
+          >
+            <Search className="h-3 w-3" />
+          </span>
+          <p className={`text-sm font-medium ${!selectedInterestId ? "text-apple-blue" : "text-ink-secondary"}`}>
+            自由检索
+          </p>
+        </button>
+
+        {interests.map((interest, index) => {
+          const isSelected = selectedInterestId === interest.id;
+          const isLast = index === interests.length - 1;
+          const folderName = interestFolderName(interest);
+          const showTopic = interest.folder_name?.trim() && interest.folder_name.trim() !== interest.topic;
+          return (
             <button
+              key={interest.id}
               type="button"
-              onClick={() => setSelectedInterestId("")}
-              className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
-                selectedInterestId ? "bg-white/55 text-ink-secondary hover:text-ink-primary" : "bg-apple-blue/10 text-apple-blue"
-              }`}
+              onClick={() => {
+                setSelectedInterestId(interest.id);
+                setQuery(interest.topic);
+              }}
+              className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
+                isLast ? "" : "border-b border-nm-dark/8"
+              } ${isSelected ? "bg-apple-blue/8" : "hover:bg-white/50"}`}
             >
-              自由检索
-            </button>
-            {interests.map((interest) => (
-              <button
-                key={interest.id}
-                type="button"
-                onClick={() => {
-                  setSelectedInterestId(interest.id);
-                  setQuery(interest.topic);
-                }}
-                className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
-                  selectedInterestId === interest.id
-                    ? "bg-apple-blue/10 text-apple-blue"
-                    : "bg-white/55 text-ink-secondary hover:text-ink-primary"
-                }`}
+              <span
+                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg"
+                style={
+                  isSelected
+                    ? { background: "rgba(0,122,255,0.15)", color: "rgb(0,122,255)" }
+                    : { background: "#E8ECF0", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF", color: "var(--color-ink-tertiary)" }
+                }
               >
-                {interestFolderName(interest)}
-              </button>
-            ))}
-          </div>
-        )}
+                <Folder className="h-3 w-3" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className={`truncate text-sm font-medium ${isSelected ? "text-apple-blue" : "text-ink-primary"}`}>
+                  {folderName}
+                </p>
+                {showTopic && (
+                  <p className="truncate text-xs text-ink-tertiary">{interest.topic}</p>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Advanced options toggle */}
+      {/* 论文选择区 —— 仅当选中某个研究方向时显示 */}
+      {selectedInterestId && (
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <p className="text-xs font-semibold text-ink-tertiary">
+              论文库
+              {interestPapers.length > 0 && (
+                <span className="ml-1 font-normal text-ink-tertiary/70">
+                  （{selectedPaperIds.length}/{interestPapers.length}）
+                </span>
+              )}
+            </p>
+            {interestPapers.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleAllPapers}
+                className="text-[11px] text-apple-blue hover:underline"
+              >
+                {allPapersSelected ? "取消全选" : "全选"}
+              </button>
+            )}
+          </div>
+
+          {loadingPapers ? (
+            <div className="flex items-center gap-1.5 px-1 py-2 text-xs text-ink-tertiary">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              加载中…
+            </div>
+          ) : interestPapers.length === 0 ? (
+            <p className="px-1 text-xs text-ink-tertiary">该方向暂无论文</p>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-nm-dark/10">
+              {interestPapers.map((paper, index) => {
+                const checked = selectedPaperIds.includes(paper.id);
+                const isLast = index === interestPapers.length - 1;
+                return (
+                  <label
+                    key={paper.id}
+                    className={`flex cursor-pointer items-start gap-2.5 px-3 py-2 transition-colors ${
+                      isLast ? "" : "border-b border-nm-dark/8"
+                    } ${checked ? "bg-apple-blue/5" : "hover:bg-white/50"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => togglePaper(paper.id)}
+                      className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 accent-apple-blue"
+                    />
+                    <div className="min-w-0">
+                      <p className="line-clamp-2 text-xs leading-4 text-ink-primary">{paper.title}</p>
+                      {(paper.year || paper.venue) && (
+                        <p className="mt-0.5 truncate text-[11px] text-ink-tertiary">
+                          {[paper.year, paper.venue].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          {somePapersSelected && (
+            <p className="px-1 text-[11px] text-ink-tertiary">
+              仅使用已勾选的 {selectedPaperIds.length} 篇论文生成综述
+            </p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+
+  // 生成区内容（输入 + 参数 + 结果）
+  const generationArea = (
+    <div className="min-w-0 flex-1 space-y-3">
+      {/* ── 综述生成 Card ── */}
+      <Card padding="sm" className="space-y-3">
         <div>
+          <p className="text-sm font-semibold text-ink-primary">结构化文献综述生成</p>
+          <p className="mt-1 text-xs leading-5 text-ink-tertiary">
+            多 Agent 协作规划检索范围、梳理发展脉络，并输出带参考文献格式的全面综述。
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Enter") void handleGenerate(); }}
+              placeholder="输入研究问题，如 Transformer attention 机制的发展"
+              disabled={generating}
+            />
+          </div>
           <button
             type="button"
             onClick={() => setAdvancedOpen((v) => !v)}
-            className="flex items-center gap-1.5 text-xs text-ink-tertiary hover:text-ink-secondary"
+            disabled={generating}
+            className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-xs transition-colors disabled:opacity-50 ${
+              advancedOpen
+                ? "border-apple-blue/30 bg-apple-blue/10 text-apple-blue"
+                : "border-nm-dark/15 bg-white/40 text-ink-secondary hover:text-ink-primary"
+            }`}
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            高级选项
-            {advancedOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            <Settings2 className="h-3.5 w-3.5" />
+            生成参数
+            {hasAdvancedSettings && !advancedOpen && (
+              <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-apple-blue" />
+            )}
           </button>
-
-          {advancedOpen && (
-            <div className="mt-3 space-y-4 rounded-2xl border border-nm-dark/10 bg-white/25 p-4">
-              {/* Time range */}
-              <div>
-                <p className="mb-2 text-xs font-medium text-ink-secondary">时间范围</p>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={timeFrom}
-                    onChange={(e) => setTimeFrom(e.target.value)}
-                    placeholder="起始年份，如 2015"
-                    disabled={generating}
-                    className="w-36"
-                  />
-                  <span className="text-xs text-ink-tertiary">至</span>
-                  <Input
-                    value={timeTo}
-                    onChange={(e) => setTimeTo(e.target.value)}
-                    placeholder="截止年份，如 2024"
-                    disabled={generating}
-                    className="w-36"
-                  />
-                  {(timeFrom || timeTo) && (
-                    <button
-                      type="button"
-                      onClick={() => { setTimeFrom(""); setTimeTo(""); }}
-                      className="text-xs text-ink-tertiary hover:text-ink-secondary"
-                    >
-                      清除
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Literature types */}
-              <div>
-                <p className="mb-2 text-xs font-medium text-ink-secondary">文献类型</p>
-                <div className="flex flex-wrap gap-2">
-                  {LIT_TYPE_OPTIONS.map((opt) => (
-                    <ToggleChip
-                      key={opt.value}
-                      label={opt.label}
-                      selected={litTypes.includes(opt.value)}
-                      onClick={() => toggleLitType(opt.value)}
-                    />
-                  ))}
-                </div>
-                {litTypes.length === 0 && (
-                  <p className="mt-1 text-[11px] text-ink-tertiary">未选择则不限类型</p>
-                )}
-              </div>
-
-              {/* Databases */}
-              <div>
-                <p className="mb-2 text-xs font-medium text-ink-secondary">检索数据库偏好</p>
-                <div className="flex flex-wrap gap-2">
-                  {DATABASE_OPTIONS.map((db) => (
-                    <ToggleChip
-                      key={db}
-                      label={db}
-                      selected={databases.includes(db)}
-                      onClick={() => toggleDatabase(db)}
-                    />
-                  ))}
-                </div>
-                {databases.length === 0 && (
-                  <p className="mt-1 text-[11px] text-ink-tertiary">未选择则不限数据库</p>
-                )}
-              </div>
-
-              {/* Citation format + language */}
-              <div className="flex flex-wrap gap-6">
-                <div>
-                  <p className="mb-2 text-xs font-medium text-ink-secondary">参考文献格式</p>
-                  <div className="flex flex-wrap gap-2">
-                    {CITATION_FORMATS.map((f) => (
-                      <ToggleChip
-                        key={f.value}
-                        label={f.label}
-                        selected={citationFormat === f.value}
-                        onClick={() => setCitationFormat(f.value)}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-2 text-xs font-medium text-ink-secondary">语言范围</p>
-                  <div className="flex flex-wrap gap-2">
-                    {LANGUAGE_OPTIONS.map((l) => (
-                      <ToggleChip
-                        key={l.value}
-                        label={l.label}
-                        selected={language === l.value}
-                        onClick={() => setLanguage(l.value)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Summary of selections */}
-              {(timeFrom || timeTo || litTypes.length > 0 || databases.length > 0) && (
-                <div className="rounded-xl border border-nm-dark/10 bg-white/40 px-3 py-2 text-[11px] text-ink-tertiary">
-                  {timeFrom || timeTo ? <span>时间：{timeFrom || "不限"} — {timeTo || "至今"}　</span> : null}
-                  {litTypes.length > 0 ? <span>类型：{litTypes.join("、")}　</span> : null}
-                  {databases.length > 0 ? <span>数据库：{databases.join("、")}　</span> : null}
-                  <span>引用格式：{citationFormatLabel}</span>
-                </div>
-              )}
-            </div>
-          )}
+          <Button onClick={() => void handleGenerate()} loading={generating} disabled={!query.trim()}>
+            <FileSearch className="h-4 w-4" />
+            生成综述
+          </Button>
         </div>
-
         {error && (
           <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
@@ -487,9 +529,127 @@ export default function SurveyPanel() {
         )}
       </Card>
 
+      {/* ── 生成参数配置 Card ── */}
+      {advancedOpen && (
+        <Card padding="sm" className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4 text-apple-blue" />
+            <p className="text-sm font-semibold text-ink-primary">综述生成参数</p>
+            <p className="ml-1 text-xs text-ink-tertiary">以下参数将在点击「生成综述」时生效</p>
+          </div>
+
+          {/* Time range */}
+          <div>
+            <p className="mb-2 text-xs font-medium text-ink-secondary">文献时间范围</p>
+            <div className="flex items-center gap-2">
+              <Input
+                value={timeFrom}
+                onChange={(e) => setTimeFrom(e.target.value)}
+                placeholder="起始年份，如 2015"
+                disabled={generating}
+                className="w-36"
+              />
+              <span className="text-xs text-ink-tertiary">至</span>
+              <Input
+                value={timeTo}
+                onChange={(e) => setTimeTo(e.target.value)}
+                placeholder="截止年份，如 2024"
+                disabled={generating}
+                className="w-36"
+              />
+              {(timeFrom || timeTo) && (
+                <button
+                  type="button"
+                  onClick={() => { setTimeFrom(""); setTimeTo(""); }}
+                  className="text-xs text-ink-tertiary hover:text-ink-secondary"
+                >
+                  清除
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Literature types */}
+          <div>
+            <p className="mb-2 text-xs font-medium text-ink-secondary">文献类型</p>
+            <div className="flex flex-wrap gap-2">
+              {LIT_TYPE_OPTIONS.map((opt) => (
+                <ToggleChip
+                  key={opt.value}
+                  label={opt.label}
+                  selected={litTypes.includes(opt.value)}
+                  onClick={() => toggleLitType(opt.value)}
+                />
+              ))}
+            </div>
+            {litTypes.length === 0 && (
+              <p className="mt-1 text-[11px] text-ink-tertiary">未选择则不限类型</p>
+            )}
+          </div>
+
+          {/* Databases */}
+          <div>
+            <p className="mb-2 text-xs font-medium text-ink-secondary">检索数据库偏好</p>
+            <div className="flex flex-wrap gap-2">
+              {DATABASE_OPTIONS.map((db) => (
+                <ToggleChip
+                  key={db}
+                  label={db}
+                  selected={databases.includes(db)}
+                  onClick={() => toggleDatabase(db)}
+                />
+              ))}
+            </div>
+            {databases.length === 0 && (
+              <p className="mt-1 text-[11px] text-ink-tertiary">未选择则不限数据库</p>
+            )}
+          </div>
+
+          {/* Citation format + language */}
+          <div className="flex flex-wrap gap-x-8 gap-y-4">
+            <div>
+              <p className="mb-2 text-xs font-medium text-ink-secondary">参考文献格式</p>
+              <div className="flex flex-wrap gap-2">
+                {CITATION_FORMATS.map((f) => (
+                  <ToggleChip
+                    key={f.value}
+                    label={f.label}
+                    selected={citationFormat === f.value}
+                    onClick={() => setCitationFormat(f.value)}
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-medium text-ink-secondary">语言范围</p>
+              <div className="flex flex-wrap gap-2">
+                {LANGUAGE_OPTIONS.map((l) => (
+                  <ToggleChip
+                    key={l.value}
+                    label={l.label}
+                    selected={language === l.value}
+                    onClick={() => setLanguage(l.value)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Active settings summary */}
+          {hasAdvancedSettings && (
+            <div className="rounded-xl border border-nm-dark/10 bg-white/40 px-3 py-2 text-[11px] text-ink-tertiary">
+              {timeFrom || timeTo ? <span>时间：{timeFrom || "不限"} — {timeTo || "至今"}　</span> : null}
+              {litTypes.length > 0 ? <span>类型：{litTypes.join("、")}　</span> : null}
+              {databases.length > 0 ? <span>数据库：{databases.join("、")}　</span> : null}
+              <span>引用格式：{citationFormatLabel}</span>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* ── Results ── */}
       {(agents.length > 0 || structured || content) ? (
-        <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="grid gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
           {/* Left: Agent flow + papers */}
           <div className="space-y-4">
             <Card padding="sm" className="space-y-3">
@@ -872,10 +1032,20 @@ export default function SurveyPanel() {
           </div>
           <div>
             <p className="font-medium text-ink-secondary">输入研究问题</p>
-            <p className="mt-1 text-sm text-ink-tertiary">可展开高级选项指定时间范围、文献类型与引用格式。</p>
+            <p className="mt-1 text-sm text-ink-tertiary">可展开「生成参数」指定时间范围、文献类型与引用格式。</p>
           </div>
         </Card>
       )}
     </div>
+  );
+
+  // ── 最终布局：左侧研究方向面板 + 右侧生成区 ──
+  return interests.length > 0 ? (
+    <div className="flex gap-3 items-start">
+      <div className="w-48 flex-shrink-0 lg:w-56">{interestPanel}</div>
+      {generationArea}
+    </div>
+  ) : (
+    generationArea
   );
 }

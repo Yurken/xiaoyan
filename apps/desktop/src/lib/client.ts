@@ -286,6 +286,7 @@ export const surveyApi = {
     databases?: string[],
     citationFormat?: string,
     language?: string,
+    paperIds?: string[],
   ): Promise<void> =>
     invoke("survey_generate", {
       query,
@@ -296,6 +297,7 @@ export const surveyApi = {
       databases: databases ?? null,
       citationFormat: citationFormat ?? null,
       language: language ?? null,
+      paperIds: paperIds ?? null,
     }),
   search: (query: string, limit = 20): Promise<unknown[]> =>
     invoke("survey_search", { query, limit }),

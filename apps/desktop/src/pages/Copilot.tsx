@@ -90,6 +90,7 @@ export default function Copilot() {
   const [updatingSessionContext, setUpdatingSessionContext] = useState(false);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; session: ChatSession } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -153,6 +154,26 @@ export default function Copilot() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [contextMenu]);
+
+  const handleMoveSession = async (session: ChatSession, interestId: string) => {
+    setContextMenu(null);
+    try {
+      const updated = await apiClient.chat.updateSessionContext(session.id, interestId || undefined);
+      syncSession(updated);
+      if (currentSession?.id === session.id) {
+        setSelectedInterestId(interestId);
+      }
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+    }
+  };
 
   const loadSession = async (session: ChatSession) => {
     try {
@@ -366,6 +387,7 @@ export default function Copilot() {
     <div
       key={session.id}
       className="group flex items-start gap-2 rounded-2xl px-3 py-2.5 text-xs transition-all duration-150"
+      onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, session }); }}
       style={
         currentSession?.id === session.id
           ? {
@@ -392,6 +414,7 @@ export default function Copilot() {
   );
 
   return (
+    <>
     <div className="flex h-full" style={{ background: "linear-gradient(180deg, #F3F6FA 0%, #E8ECF0 100%)" }}>
       <div
         className="w-56 flex-shrink-0 flex flex-col"
@@ -437,67 +460,84 @@ export default function Copilot() {
               <p className="text-xs text-ink-tertiary">暂无对话记录</p>
             </div>
           )}
-          {sessionGroups.filter((group) => group.sessions.length > 0).map((group) => (
-            <CollapsibleGroup
-              key={group.key}
-              compact
-              title={group.title}
-              subtitle={group.subtitle}
-              countLabel={`${group.sessions.length} 条`}
-              defaultOpen={group.sessions.length > 0}
-              bodyClassName="space-y-1"
-              actions={
-                confirmDeleteGroupId === group.key ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={deletingGroupId === group.key}
-                      onClick={() => void handleDeleteInterestGroup(group.key, false)}
-                      className="rounded-lg px-1.5 py-0.5 text-[10px] text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary disabled:opacity-50"
-                    >
-                      未归档
-                    </button>
-                    <button
-                      type="button"
-                      disabled={deletingGroupId === group.key}
-                      onClick={() => void handleDeleteInterestGroup(group.key, true)}
-                      className="rounded-lg px-1.5 py-0.5 text-[10px] text-apple-red transition-colors hover:bg-apple-red/10 disabled:opacity-50"
-                    >
-                      删除全部
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteGroupId(null)}
-                      className="text-ink-tertiary hover:text-ink-primary"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteGroupId(group.key)}
-                    className="text-ink-tertiary/30 transition-colors hover:text-apple-red"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                )
-              }
-            >
-              {group.sessions.map(renderSessionItem)}
-            </CollapsibleGroup>
-          ))}
 
-          {ungroupedSessions.length > 0 && (
-            <div className="px-2 pt-2">
-              <div className="px-2 pb-2">
-                <p className="text-[11px] font-semibold text-ink-tertiary">未归档</p>
-                <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">打开会话后可在顶部调整所属主题。</p>
-              </div>
-              <div className="space-y-1">
-                {ungroupedSessions.map(renderSessionItem)}
-              </div>
-            </div>
+          {selectedInterestId ? (
+            // 已选主题：只展示该主题下的会话
+            (() => {
+              const group = sessionGroups.find((g) => g.key === selectedInterestId);
+              const groupSessions = group?.sessions ?? [];
+              return groupSessions.length === 0 ? (
+                <div className="px-3 py-6 text-center text-xs text-ink-tertiary">该主题下暂无会话</div>
+              ) : (
+                <div className="space-y-1">{groupSessions.map(renderSessionItem)}</div>
+              );
+            })()
+          ) : (
+            // 未选主题：展示所有分组 + 未归档
+            <>
+              {sessionGroups.filter((group) => group.sessions.length > 0).map((group) => (
+                <CollapsibleGroup
+                  key={group.key}
+                  compact
+                  title={group.title}
+                  subtitle={group.subtitle}
+                  countLabel={`${group.sessions.length} 条`}
+                  defaultOpen={group.sessions.length > 0}
+                  bodyClassName="space-y-1"
+                  actions={
+                    confirmDeleteGroupId === group.key ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={deletingGroupId === group.key}
+                          onClick={() => void handleDeleteInterestGroup(group.key, false)}
+                          className="rounded-lg px-1.5 py-0.5 text-[10px] text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary disabled:opacity-50"
+                        >
+                          未归档
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletingGroupId === group.key}
+                          onClick={() => void handleDeleteInterestGroup(group.key, true)}
+                          className="rounded-lg px-1.5 py-0.5 text-[10px] text-apple-red transition-colors hover:bg-apple-red/10 disabled:opacity-50"
+                        >
+                          删除全部
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteGroupId(null)}
+                          className="text-ink-tertiary hover:text-ink-primary"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteGroupId(group.key)}
+                        className="text-ink-tertiary/30 transition-colors hover:text-apple-red"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )
+                  }
+                >
+                  {group.sessions.map(renderSessionItem)}
+                </CollapsibleGroup>
+              ))}
+
+              {ungroupedSessions.length > 0 && (
+                <div className="px-2 pt-2">
+                  <div className="px-2 pb-2">
+                    <p className="text-[11px] font-semibold text-ink-tertiary">未归档</p>
+                    <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">打开会话后可在顶部调整所属主题。</p>
+                  </div>
+                  <div className="space-y-1">
+                    {ungroupedSessions.map(renderSessionItem)}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -906,5 +946,46 @@ export default function Copilot() {
         </div>
       </div>
     </div>
+
+    {/* 会话右键菜单 */}
+    {contextMenu && (
+      <div
+        className="fixed z-50 min-w-[160px] overflow-hidden rounded-2xl py-1.5 text-xs"
+        style={{
+          left: contextMenu.x,
+          top: contextMenu.y,
+          background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
+          boxShadow: "6px 6px 16px #C8CDD3, -4px -4px 12px #FFFFFF",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-tertiary">
+          移动到主题
+        </div>
+        <button
+          className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
+          onClick={() => void handleMoveSession(contextMenu.session, "")}
+        >
+          未归档
+        </button>
+        {interests.map((interest) => (
+          <button
+            key={interest.id}
+            className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
+            onClick={() => void handleMoveSession(contextMenu.session, interest.id)}
+          >
+            {interestFolderName(interest)}
+          </button>
+        ))}
+        <div className="my-1 border-t border-nm-dark/10" />
+        <button
+          className="w-full px-3 py-1.5 text-left text-apple-red transition-colors hover:bg-apple-red/8"
+          onClick={() => { void handleDeleteSession(contextMenu.session.id); setContextMenu(null); }}
+        >
+          删除会话
+        </button>
+      </div>
+    )}
+    </>
   );
 }
