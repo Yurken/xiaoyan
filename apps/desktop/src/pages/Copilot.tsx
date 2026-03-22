@@ -11,6 +11,7 @@ import {
   Sparkles,
   Trash2,
   User,
+  X,
   XCircle,
 } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
@@ -85,6 +86,8 @@ export default function Copilot() {
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [selectedInterestId, setSelectedInterestId] = useState("");
+  const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -193,6 +196,36 @@ export default function Copilot() {
       }
     } catch (error) {
       setLoadError(formatErrorMessage(error));
+    }
+  };
+
+  const handleDeleteInterestGroup = async (interestId: string, deleteAll: boolean) => {
+    try {
+      setDeletingGroupId(interestId);
+      if (deleteAll) {
+        await apiClient.knowledge.deleteInterestBundle(interestId);
+        setSessions((prev) =>
+          prev.filter((s) => !(s.context_type === "interest" && s.context_id === interestId))
+        );
+        if (currentSession?.context_type === "interest" && currentSession.context_id === interestId) {
+          handleNewChat();
+        }
+      } else {
+        await apiClient.knowledge.deleteInterestOnly(interestId);
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.context_type === "interest" && s.context_id === interestId
+              ? { ...s, context_type: "general", context_id: undefined }
+              : s
+          )
+        );
+      }
+      setInterests((prev) => prev.filter((item) => item.id !== interestId));
+      setConfirmDeleteGroupId(null);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+    } finally {
+      setDeletingGroupId(null);
     }
   };
 
@@ -349,7 +382,46 @@ export default function Copilot() {
           )}
           {sessionGroups.filter((group) => group.key === "__general__" || group.sessions.length > 0).map((group) => (
             <div key={group.key} className="space-y-1">
-              <div className="px-3 pt-2 text-[11px] font-semibold text-ink-tertiary">{group.title}</div>
+              <div className="flex items-center gap-1 px-3 pt-2">
+                <span className="text-[11px] font-semibold text-ink-tertiary">{group.title}</span>
+                {group.key !== "__general__" && (
+                  confirmDeleteGroupId === group.key ? (
+                    <div className="ml-auto flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={deletingGroupId === group.key}
+                        onClick={() => void handleDeleteInterestGroup(group.key, false)}
+                        className="rounded-lg px-1.5 py-0.5 text-[10px] text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary disabled:opacity-50"
+                      >
+                        未归档
+                      </button>
+                      <button
+                        type="button"
+                        disabled={deletingGroupId === group.key}
+                        onClick={() => void handleDeleteInterestGroup(group.key, true)}
+                        className="rounded-lg px-1.5 py-0.5 text-[10px] text-apple-red transition-colors hover:bg-apple-red/10 disabled:opacity-50"
+                      >
+                        删除全部
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteGroupId(null)}
+                        className="text-ink-tertiary hover:text-ink-primary"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteGroupId(group.key)}
+                      className="ml-auto text-ink-tertiary/30 transition-colors hover:text-apple-red"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )
+                )}
+              </div>
               {group.sessions.length === 0 ? (
                 <div className="px-3 py-1.5 text-[11px] text-ink-tertiary/80">暂无会话</div>
               ) : (

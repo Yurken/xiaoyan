@@ -63,7 +63,12 @@ function LearningPathView({ path }: { path: LearningPath }) {
                       预计时长 · {stage.duration}
                     </p>
                   </div>
-                  <Badge variant="info">{stage.topics.length} 个主题</Badge>
+                  {stage.topics.length > 0 && (
+                    <Badge variant="info" className="max-w-[15rem] truncate">
+                      {stage.topics.slice(0, 2).join(" · ")}
+                      {stage.topics.length > 2 ? ` +${stage.topics.length - 2}` : ""}
+                    </Badge>
+                  )}
                 </div>
                 {stage.goals.length > 0 && (
                   <ul className="mt-3 space-y-1.5 pl-4 text-xs leading-5 text-ink-secondary">
@@ -73,6 +78,21 @@ function LearningPathView({ path }: { path: LearningPath }) {
                       </li>
                     ))}
                   </ul>
+                )}
+                {stage.topics.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">涵盖主题</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {stage.topics.map((topic, index) => (
+                        <span
+                          key={`${stage.stage}-topic-${index}`}
+                          className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue"
+                        >
+                          {topic}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 )}
                 {stage.resources.length > 0 && (
                   <p className="mt-3 text-[11px] text-ink-tertiary">资源：{stage.resources.join(" · ")}</p>
@@ -197,11 +217,13 @@ export default function InterestsPanel() {
   const [agentsByInterest, setAgentsByInterest] = useState<Record<string, InterestAgentState[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [folderDraft, setFolderDraft] = useState("");
   const [savingFolderId, setSavingFolderId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingInterestId, setDeletingInterestId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -288,6 +310,7 @@ export default function InterestsPanel() {
     try {
       await apiClient.knowledge.generatePlan(id);
       setError("");
+      setNotice("");
     } catch (nextError) {
       setInterests((prev) => prev.map((item) => (item.id === id ? { ...item, status: "active" } : item)));
       setError(formatErrorMessage(nextError));
@@ -313,6 +336,7 @@ export default function InterestsPanel() {
       setEditingFolderId(null);
       setFolderDraft("");
       setError("");
+      setNotice("");
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
     } finally {
@@ -320,24 +344,22 @@ export default function InterestsPanel() {
     }
   };
 
-  const handleDeleteAll = async (interest: ResearchInterest) => {
-    const folderName = interestFolderName(interest);
-    const confirmed = window.confirm(`删除主题“${folderName}”及其关联的论文、笔记和对话？此操作不可撤销。`);
-    if (!confirmed) return;
-
+  const handleDeleteInterest = async (id: string) => {
     try {
-      setDeletingInterestId(interest.id);
-      await apiClient.knowledge.deleteInterestBundle(interest.id);
-      setInterests((prev) => prev.filter((item) => item.id !== interest.id));
+      setDeletingInterestId(id);
+      await apiClient.knowledge.deleteInterestOnly(id);
+      setInterests((prev) => prev.filter((item) => item.id !== id));
       setAgentsByInterest((prev) => {
         const next = { ...prev };
-        delete next[interest.id];
+        delete next[id];
         return next;
       });
-      setExpanded((prev) => (prev === interest.id ? null : prev));
-      setEditingFolderId((prev) => (prev === interest.id ? null : prev));
+      setExpanded((prev) => (prev === id ? null : prev));
+      setEditingFolderId((prev) => (prev === id ? null : prev));
       setFolderDraft("");
+      setConfirmDeleteId(null);
       setError("");
+      setNotice("");
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
     } finally {
@@ -382,12 +404,31 @@ export default function InterestsPanel() {
         {creating && (
           <PlannerComposer
             onCancel={() => setCreating(false)}
-            onCreated={(nextInterest) => {
+            onCreated={(nextInterest, meta) => {
               setInterests((prev) => [nextInterest, ...prev]);
               setCreating(false);
+              if (meta?.failedUploads.length) {
+                const uploadedSummary = meta.uploadedReferences > 0 ? `已导入 ${meta.uploadedReferences} 篇，` : "";
+                setError(`研究方向已创建，${uploadedSummary}${meta.failedUploads.length} 篇参考文献导入失败：${meta.failedUploads.join("；")}`);
+                setNotice("");
+                return;
+              }
+
               setError("");
+              setNotice(
+                meta?.uploadedReferences
+                  ? `研究方向已创建，并导入 ${meta.uploadedReferences} 篇参考文献。后续修改主题文件夹名不会影响论文归属。`
+                  : ""
+              );
             }}
           />
+        )}
+
+        {notice && (
+          <div className="flex items-start gap-2 rounded-2xl border border-apple-blue/15 bg-[#EEF6FF] px-3 py-2 text-sm text-[#0A5BD6]">
+            <Sparkles className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span className="break-all">{notice}</span>
+          </div>
         )}
 
         {error && interests.length > 0 && (
@@ -503,15 +544,31 @@ export default function InterestsPanel() {
                         {expanded === interest.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </button>
                     )}
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => void handleDeleteAll(interest)}
-                      loading={deletingInterestId === interest.id}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      删除全部
-                    </Button>
+                    {confirmDeleteId === interest.id ? (
+                      <div className="flex items-center gap-2 rounded-2xl border border-apple-red/20 bg-[#FEF0EE] px-3 py-1.5">
+                        <span className="text-xs text-apple-red">确认删除研究方向？论文和笔记将置为未归档。</span>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => void handleDeleteInterest(interest.id)}
+                          loading={deletingInterestId === interest.id}
+                        >
+                          确认
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => setConfirmDeleteId(null)}>
+                          取消
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setConfirmDeleteId(interest.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        删除
+                      </Button>
+                    )}
                   </div>
                 </div>
 
