@@ -8,7 +8,9 @@ import {
   FlaskConical,
   Loader2,
   Pencil,
+  Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { Badge, Button, Card, Input } from "@research-copilot/ui";
@@ -34,6 +36,8 @@ export default function Papers() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [visiblePaperTags, setVisiblePaperTags] = useState(() => parsePaperTagVisibility(DEFAULT_PAPER_TAG_VISIBILITY_VALUE));
   const [selectedInterestId, setSelectedInterestId] = useState("");
+  const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({
     title: "",
     authors: "",
@@ -254,6 +258,25 @@ export default function Papers() {
     }
   };
 
+  const handleDeleteInterestGroup = async (interestId: string, deleteAll: boolean) => {
+    try {
+      setDeletingGroupId(interestId);
+      setLoadError("");
+      if (deleteAll) {
+        await apiClient.knowledge.deleteInterestBundle(interestId);
+        setPapers((prev) => prev.filter((p) => p.research_interest_id !== interestId));
+      } else {
+        await apiClient.knowledge.deleteInterestOnly(interestId);
+      }
+      setInterests((prev) => prev.filter((item) => item.id !== interestId));
+      setConfirmDeleteGroupId(null);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+    } finally {
+      setDeletingGroupId(null);
+    }
+  };
+
   const statusBadge = (status: string) => {
     if (status === "analyzed") return <Badge variant="success">已分析</Badge>;
     if (status === "reproduced") return <Badge variant="success">已复现</Badge>;
@@ -355,6 +378,44 @@ export default function Papers() {
                 {group.subtitle !== group.title ? (
                   <span className="text-xs text-ink-tertiary">{`研究主题：${group.subtitle}`}</span>
                 ) : null}
+                {group.key !== "__ungrouped__" && (
+                  confirmDeleteGroupId === group.key ? (
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-ink-tertiary">删除文件夹：</span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={deletingGroupId === group.key}
+                        onClick={() => void handleDeleteInterestGroup(group.key, false)}
+                      >
+                        置为未归档
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={deletingGroupId === group.key}
+                        onClick={() => void handleDeleteInterestGroup(group.key, true)}
+                      >
+                        删除全部
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteGroupId(null)}
+                        className="text-ink-tertiary hover:text-ink-primary"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteGroupId(group.key)}
+                      className="ml-auto text-ink-tertiary/40 transition-colors hover:text-apple-red"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )
+                )}
               </div>
 
               {group.papers.length === 0 ? (

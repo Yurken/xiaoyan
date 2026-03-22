@@ -1,5 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Clock3, Compass, Lightbulb, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { ArrowRight, Clock3, Compass, FileText, Lightbulb, Loader2, Sparkles, Upload, Wand2, X } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type {
@@ -20,7 +20,10 @@ import {
 
 interface PlannerComposerProps {
   onCancel: () => void;
-  onCreated: (interest: ResearchInterest) => void;
+  onCreated: (
+    interest: ResearchInterest,
+    meta?: { uploadedReferences: number; failedUploads: string[] }
+  ) => void;
 }
 
 interface PlannerFormState {
@@ -47,6 +50,11 @@ const INITIAL_STATE: PlannerFormState = {
 
 const AI_DEBOUNCE_MS = 700;
 
+interface PendingReference {
+  path: string;
+  name: string;
+}
+
 function fieldTone(active: boolean) {
   if (!active) return "border-nm-dark/10 bg-white/30";
   return "border-apple-blue/30 bg-apple-blue/5";
@@ -67,6 +75,21 @@ function completedCount(state: PlannerFormState) {
 
 function isAiConfigError(message: string) {
   return /not configured|api key/i.test(message);
+}
+
+function referenceNameFromPath(path: string) {
+  const normalized = path.replace(/\\/g, "/");
+  return normalized.split("/").pop() || path;
+}
+
+function normalizeSelectedPaths(selected: unknown): string[] {
+  if (!selected) return [];
+  if (typeof selected === "string") return [selected];
+  if (Array.isArray(selected)) return selected.flatMap((item) => normalizeSelectedPaths(item));
+  if (typeof selected === "object" && selected !== null && "path" in selected) {
+    return [String((selected as { path: unknown }).path)];
+  }
+  return [];
 }
 
 function mapAiSuggestion(response: ResearchInterestHintResponse): PlannerSuggestionState {
@@ -90,7 +113,9 @@ function mapAiSuggestion(response: ResearchInterestHintResponse): PlannerSuggest
 export default function PlannerComposer({ onCancel, onCreated }: PlannerComposerProps) {
   const [form, setForm] = useState(INITIAL_STATE);
   const [saving, setSaving] = useState(false);
+  const [submitPhase, setSubmitPhase] = useState<"idle" | "creating" | "uploading">("idle");
   const [error, setError] = useState("");
+  const [pendingReferences, setPendingReferences] = useState<PendingReference[]>([]);
   const [aiSuggestions, setAiSuggestions] = useState<PlannerSuggestionState | null>(null);
   const [hintStatus, setHintStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
   const [hintMessage, setHintMessage] = useState("");
@@ -228,6 +253,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
     }
 
     setSaving(true);
+    setSubmitPhase("creating");
     setError("");
 
     try {
@@ -236,19 +262,76 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
         keywords,
         hasProfile ? profile : undefined
       );
-      onCreated(interest);
+      const failedUploads: string[] = [];
+      let uploadedReferences = 0;
+
+      if (pendingReferences.length > 0) {
+        setSubmitPhase("uploading");
+
+        for (const reference of pendingReferences) {
+          try {
+            await apiClient.papers.upload(reference.path, interest.id);
+            uploadedReferences += 1;
+          } catch (uploadError) {
+            failedUploads.push(`${reference.name}：${formatErrorMessage(uploadError)}`);
+          }
+        }
+      }
+
       setForm(INITIAL_STATE);
+      setPendingReferences([]);
       setAiSuggestions(null);
       setHintStatus("idle");
       setHintMessage("");
+      setSaving(false);
+      setSubmitPhase("idle");
+      onCreated(interest, { uploadedReferences, failedUploads });
+      return;
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
-    } finally {
       setSaving(false);
+      setSubmitPhase("idle");
     }
   };
 
+  const handlePickReferences = async () => {
+    if (saving) return;
+
+    try {
+      setError("");
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({
+        multiple: true,
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      });
+      const nextPaths = normalizeSelectedPaths(selected);
+      if (nextPaths.length === 0) return;
+
+      setPendingReferences((prev) => {
+        const seen = new Set(prev.map((item) => item.path));
+        const merged = [...prev];
+        for (const path of nextPaths) {
+          if (seen.has(path)) continue;
+          merged.push({ path, name: referenceNameFromPath(path) });
+          seen.add(path);
+        }
+        return merged;
+      });
+    } catch (nextError) {
+      setError(formatErrorMessage(nextError));
+    }
+  };
+
+  const removePendingReference = (path: string) => {
+    setPendingReferences((prev) => prev.filter((item) => item.path !== path));
+  };
+
   const progress = completedCount(form);
+  const createButtonLabel = submitPhase === "uploading"
+    ? "导入参考文献…"
+    : pendingReferences.length > 0
+      ? "创建研究方向并导入参考文献"
+      : "创建研究方向";
 
   return (
     <Card padding="md" className="space-y-4">
@@ -261,6 +344,9 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="info">已补充 {progress}/8</Badge>
+          <Badge variant={pendingReferences.length > 0 ? "success" : "default"}>
+            参考文献 {pendingReferences.length} 篇
+          </Badge>
           <Button size="sm" variant="secondary" onClick={onCancel}>
             收起
           </Button>
@@ -490,6 +576,57 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
               )}
             </div>
           )}
+
+          {form.topic.trim() && (
+            <div className="rounded-3xl border border-nm-dark/10 bg-white/30 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Upload className="h-4 w-4 text-[#0A84C1]" />
+                  <p className="text-sm font-semibold text-ink-primary">9. 参考文献（可选）</p>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => void handlePickReferences()}>
+                  <Upload className="h-3.5 w-3.5" />
+                  选择 PDF
+                </Button>
+              </div>
+
+              <p className="text-xs leading-5 text-ink-tertiary">
+                这里选中的 PDF 会在创建研究方向后自动导入到该主题文件夹，并绑定到稳定的研究方向 ID。
+                后续修改主题文件夹名，不会影响这些参考文献的归属。
+              </p>
+
+              {pendingReferences.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {pendingReferences.map((reference) => (
+                    <div
+                      key={reference.path}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-nm-dark/10 bg-white/55 px-3 py-2"
+                    >
+                      <div className="min-w-0 flex items-center gap-2">
+                        <FileText className="h-4 w-4 flex-shrink-0 text-apple-blue" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-ink-primary">{reference.name}</p>
+                          <p className="truncate text-[11px] text-ink-tertiary">{reference.path}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removePendingReference(reference.path)}
+                        className="rounded-full p-1 text-ink-tertiary transition-colors hover:bg-white/60 hover:text-ink-primary"
+                        aria-label={`移除 ${reference.name}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-2xl border border-dashed border-nm-dark/10 bg-white/25 px-4 py-5 text-center text-xs text-ink-tertiary">
+                  先跳过也可以。后续仍可在路线工作台里继续上传论文。
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -549,6 +686,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
                 <li className="list-disc">目标 + 基础决定学习路线深度，不然规划容易空泛。</li>
                 <li className="list-disc">时间预算 + 约束决定推荐资源和任务粒度。</li>
                 <li className="list-disc">已知论文/方法 + 期望输出决定最后生成物更像综述还是实验路线。</li>
+                <li className="list-disc">参考文献会在建好主题后自动归档进去，后续规划会优先参考当前主题下的论文。</li>
               </ul>
             </div>
           </Card>
@@ -564,7 +702,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
               取消
             </Button>
             <Button loading={saving} onClick={() => void handleCreate()}>
-              创建研究方向
+              {createButtonLabel}
             </Button>
           </div>
         </div>

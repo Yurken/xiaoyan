@@ -177,6 +177,34 @@ pub async fn knowledge_delete_interest_bundle(
     }))
 }
 
+/// Deletes only the research interest record.
+/// Papers and notes lose their association (ON DELETE SET NULL).
+/// Chat sessions are moved back to the general context rather than deleted.
+#[tauri::command]
+pub async fn knowledge_delete_interest_only(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    // Detach sessions from the interest (move to general)
+    sqlx::query(
+        "UPDATE chat_sessions SET context_type = 'general', context_id = NULL \
+         WHERE context_type = 'interest' AND context_id = ?",
+    )
+    .bind(&id)
+    .execute(&state.db)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // Delete the interest — ON DELETE SET NULL handles papers and notes automatically
+    sqlx::query("DELETE FROM research_interests WHERE id = ?")
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(json!({ "deleted_interest_id": id }))
+}
+
 const PLANNER_SYSTEM: &str = "你是一位顶尖的学术导师，擅长为学生设计系统化的研究学习路线。";
 const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{keywords}）设计系统化学习路线，以 JSON 格式返回：
 {{"overview":"...","prerequisites":[{{"name":"...","description":"...","resources":["..."]}}],"learning_stages":[{{"stage":1,"title":"...","duration":"...","goals":["..."],"topics":["..."],"resources":["..."]}}],"classic_papers":[{{"title":"...","authors":"...","year":2020,"venue":"会议/期刊名称","reason":"..."}}],"research_directions":[{{"direction":"...","description":"...","open_problems":["..."]}}],"tools_and_frameworks":["..."],"communities":["..."]}}"#;
@@ -184,16 +212,16 @@ const PLANNER_ANALYST_SYSTEM: &str = "你是研究方向分析 Agent，负责把
 const PLANNER_ANALYST_PROMPT: &str = r#"请分析研究方向「{topic}」（关键词：{keywords}），仅返回 JSON：
 {"scope":"一句话定义范围","focus_topics":["核心主题"],"skill_targets":["需要掌握的能力"],"risk_points":["新手常见误区"]}"#;
 const INTEREST_HINT_SYSTEM: &str = "你是研究规划表单里的实时 AI 助手。你的职责不是生成完整路线，而是根据用户当前已填写的部分内容，判断下一步该补什么，并提供可点击的候选短语。";
-const INTEREST_HINT_PROMPT: &str = r#"请根据下面这个“正在填写中的研究规划表单”，给出实时补全建议。
+const INTEREST_HINT_PROMPT: &str = r#"请根据下面这个"正在填写中的研究规划表单"，给出实时补全建议。
 
 目标：
 1. 用 1-2 句中文总结你当前理解的研究方向，避免空泛。
-2. 判断“现在最值得继续填写的字段” next_field。只能从 topic, keywords, goal, background, time_budget, constraints, known_context, preferred_output 中选择一个。
+2. 判断"现在最值得继续填写的字段" next_field。只能从 topic, keywords, goal, background, time_budget, constraints, known_context, preferred_output 中选择一个。
 3. 给出各字段的候选建议，供界面做点击补全。建议应补充用户输入，而不是重复原文。
 4. 每个数组最多 6 项，尽量短、可直接点击、避免长句。
 5. 若研究主题与大模型/LLM 相关，关键词建议通常要优先覆盖 LLM、Deep Learning、Transformer、Alignment、RLHF、RAG、Reasoning、Evaluation 中合适的项，但仍然要结合用户已经填写的内容过滤不合适项。
 6. 在信息不足时，优先顺序通常是：topic -> keywords -> goal -> background -> time_budget -> constraints -> known_context -> preferred_output；但如果你认为某个后续字段更关键，可以调整。
-7. background_prompts 只能写“当前基础可补充的信息”或“可直接填写的短语模板”，例如“学过深度学习与 PyTorch”“做过时序预测 benchmark 复现”。不要写成问句，不要写数据集选择、baseline 比较、实验设计、评价指标等内容。
+7. background_prompts 只能写"当前基础可补充的信息"或"可直接填写的短语模板"，例如"学过深度学习与 PyTorch""做过时序预测 benchmark 复现"。不要写成问句，不要写数据集选择、baseline 比较、实验设计、评价指标等内容。
 8. constraint_suggestions 才适合出现算力、公开数据、中文资料优先等限制；known_context_suggestions 才适合出现论文、模型、baseline 名称。
 
 只返回合法 JSON，不要包含 markdown、解释或代码块：
@@ -305,27 +333,57 @@ pub async fn knowledge_generate_plan(
         }));
 
         let mut paper_hints: Vec<String> = Vec::new();
-        let mut terms = vec![topic.clone()];
-        terms.extend(keywords.clone());
-        for term in terms.into_iter().take(6) {
-            let like = format!("%{}%", term);
-            let rows = sqlx::query("SELECT title, year FROM papers WHERE title LIKE ? OR abstract LIKE ? LIMIT 3")
+        let mut seen_titles = HashSet::new();
+        let associated_rows = sqlx::query(
+            "SELECT title, year FROM papers WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 8",
+        )
+        .bind(&rid)
+        .fetch_all(&db)
+        .await
+        .unwrap_or_default();
+
+        for row in associated_rows {
+            let title: String = row.get("title");
+            let normalized_title = title.trim().to_lowercase();
+            if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
+                continue;
+            }
+            let year: Option<i64> = row.get("year");
+            paper_hints.push(format!("{}{}", title, year.map(|y| format!(" ({})", y)).unwrap_or_default()));
+        }
+
+        let direct_paper_count = paper_hints.len();
+        if paper_hints.len() < 8 {
+            let mut terms = vec![topic.clone()];
+            terms.extend(keywords.clone());
+            for term in terms.into_iter().take(6) {
+                let like = format!("%{}%", term);
+                let rows = sqlx::query(
+                    "SELECT title, year FROM papers WHERE (title LIKE ? OR abstract LIKE ?) AND (research_interest_id IS NULL OR research_interest_id != ?) LIMIT 3",
+                )
                 .bind(&like)
                 .bind(&like)
+                .bind(&rid)
                 .fetch_all(&db)
                 .await
                 .unwrap_or_default();
-            for row in rows {
-                let title: String = row.get("title");
-                let year: Option<i64> = row.get("year");
-                paper_hints.push(format!("{}{}", title, year.map(|y| format!(" ({})", y)).unwrap_or_default()));
-            }
-            if paper_hints.len() >= 8 {
-                break;
+                for row in rows {
+                    let title: String = row.get("title");
+                    let normalized_title = title.trim().to_lowercase();
+                    if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
+                        continue;
+                    }
+                    let year: Option<i64> = row.get("year");
+                    paper_hints.push(format!("{}{}", title, year.map(|y| format!(" ({})", y)).unwrap_or_default()));
+                    if paper_hints.len() >= 8 {
+                        break;
+                    }
+                }
+                if paper_hints.len() >= 8 {
+                    break;
+                }
             }
         }
-        paper_hints.sort();
-        paper_hints.dedup();
         let _ = app.emit("interest:agent_complete", json!({
             "id": rid,
             "agent": {
@@ -333,7 +391,11 @@ pub async fn knowledge_generate_plan(
                 "name": "Paper Scout",
                 "role": "从本地论文库筛选参考论文",
                 "status": "done",
-                "summary": format!("已找到 {} 篇候选参考论文", paper_hints.len())
+                "summary": if direct_paper_count > 0 {
+                    format!("已找到 {} 篇候选参考论文，其中 {} 篇来自当前主题文件夹", paper_hints.len(), direct_paper_count)
+                } else {
+                    format!("已找到 {} 篇候选参考论文", paper_hints.len())
+                }
             }
         }));
 

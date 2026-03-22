@@ -27,8 +27,8 @@ use commands::{
     journal::journal_lookup,
     knowledge::{
         knowledge_create_interest, knowledge_create_note, knowledge_delete_interest_bundle,
-        knowledge_delete_note, knowledge_generate_interest_hints, knowledge_generate_plan,
-        knowledge_list_interests, knowledge_list_notes, knowledge_search,
+        knowledge_delete_interest_only, knowledge_delete_note, knowledge_generate_interest_hints,
+        knowledge_generate_plan, knowledge_list_interests, knowledge_list_notes, knowledge_search,
         knowledge_update_interest_folder, knowledge_update_note,
     },
     misc::{planner_generate, survey_generate, survey_search},
@@ -147,6 +147,7 @@ pub fn run() {
             knowledge_create_interest,
             knowledge_update_interest_folder,
             knowledge_delete_interest_bundle,
+            knowledge_delete_interest_only,
             knowledge_generate_interest_hints,
             knowledge_generate_plan,
             knowledge_list_notes,

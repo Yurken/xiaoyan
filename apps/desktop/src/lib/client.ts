@@ -114,6 +114,8 @@ export const knowledgeApi = {
     invoke("knowledge_update_interest_folder", { id, folderName: folder_name }),
   deleteInterestBundle: (id: string): Promise<{ deleted_interest_id: string; deleted_sessions: number; deleted_notes: number; deleted_papers: number }> =>
     invoke("knowledge_delete_interest_bundle", { id }),
+  deleteInterestOnly: (id: string): Promise<{ deleted_interest_id: string }> =>
+    invoke("knowledge_delete_interest_only", { id }),
   generateInterestHints: (data: ResearchInterestHintRequest): Promise<ResearchInterestHintResponse> =>
     invoke("knowledge_generate_interest_hints", {
       topic: data.topic,

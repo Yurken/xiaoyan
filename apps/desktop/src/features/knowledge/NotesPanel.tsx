@@ -22,6 +22,8 @@ export default function NotesPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
   const [noteTagsRaw, setNoteTagsRaw] = useState("");
@@ -133,6 +135,25 @@ export default function NotesPanel() {
       setNotes((prev) => prev.filter((item) => item.id !== id));
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
+    }
+  };
+
+  const handleDeleteInterestGroup = async (interestId: string, deleteAll: boolean) => {
+    try {
+      setDeletingGroupId(interestId);
+      if (deleteAll) {
+        await apiClient.knowledge.deleteInterestBundle(interestId);
+        setNotes((prev) => prev.filter((n) => n.research_interest_id !== interestId));
+      } else {
+        await apiClient.knowledge.deleteInterestOnly(interestId);
+      }
+      setInterests((prev) => prev.filter((item) => item.id !== interestId));
+      setConfirmDeleteGroupId(null);
+      setError("");
+    } catch (nextError) {
+      setError(formatErrorMessage(nextError));
+    } finally {
+      setDeletingGroupId(null);
     }
   };
 
@@ -263,6 +284,44 @@ export default function NotesPanel() {
                 {group.subtitle !== group.title ? (
                   <span className="text-xs text-ink-tertiary">{`研究主题：${group.subtitle}`}</span>
                 ) : null}
+                {group.key !== "__ungrouped__" && (
+                  confirmDeleteGroupId === group.key ? (
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-ink-tertiary">删除文件夹：</span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={deletingGroupId === group.key}
+                        onClick={() => void handleDeleteInterestGroup(group.key, false)}
+                      >
+                        置为未归档
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={deletingGroupId === group.key}
+                        onClick={() => void handleDeleteInterestGroup(group.key, true)}
+                      >
+                        删除全部
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteGroupId(null)}
+                        className="text-ink-tertiary hover:text-ink-primary"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteGroupId(group.key)}
+                      className="ml-auto text-ink-tertiary/40 transition-colors hover:text-apple-red"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )
+                )}
               </div>
 
               {group.notes.length === 0 ? (
