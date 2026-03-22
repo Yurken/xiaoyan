@@ -96,7 +96,7 @@ pub async fn settings_update(
     state: State<'_, AppState>,
     data: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let map = data.as_object().ok_or("Expected object")?;
+    let map = data.as_object().ok_or("请求参数格式不正确。")?;
     let mut to_save: HashMap<String, String> = HashMap::new();
 
     for (key, raw) in map {

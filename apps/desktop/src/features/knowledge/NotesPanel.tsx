@@ -314,7 +314,7 @@ export default function NotesPanel() {
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="搜索笔记、术语、方法…"
+                placeholder="请输入关键词搜索笔记、术语或方法"
                 className="pl-10"
               />
             </div>
@@ -465,7 +465,7 @@ export default function NotesPanel() {
             >
               {group.notes.length === 0 ? (
                 <Card padding="sm" className="border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
-                  该主题下还没有知识卡片。
+                  该主题下暂无知识卡片。
                 </Card>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

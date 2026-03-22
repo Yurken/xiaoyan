@@ -305,7 +305,7 @@ export default function SurveyPanel() {
         if (!acceptRequest(event.payload.request_id)) return;
         const nextAgent = event.payload.agent;
         setAgents((prev) => prev.map((item) => (item.id === nextAgent.id ? { ...item, ...nextAgent, status: "failed" } : item)));
-        setError(nextAgent.error || "生成失败，请重试");
+        setError(nextAgent.error || "生成未完成，请稍后重试。");
         setGenerating(false);
       }),
     ]);
@@ -433,10 +433,10 @@ export default function SurveyPanel() {
           {loadingPapers ? (
             <div className="flex items-center gap-1.5 px-1 py-2 text-xs text-ink-tertiary">
               <Loader2 className="h-3 w-3 animate-spin" />
-              加载中…
+              正在加载…
             </div>
           ) : interestPapers.length === 0 ? (
-            <p className="px-1 text-xs text-ink-tertiary">该方向暂无论文</p>
+            <p className="px-1 text-xs text-ink-tertiary">该研究方向下暂无论文</p>
           ) : (
             <div className="overflow-hidden rounded-xl border border-nm-dark/10">
               {interestPapers.map((paper, index) => {
@@ -471,7 +471,7 @@ export default function SurveyPanel() {
 
           {somePapersSelected && (
             <p className="px-1 text-[11px] text-ink-tertiary">
-              仅使用已勾选的 {selectedPaperIds.length} 篇论文生成综述
+              当前仅使用已勾选的 {selectedPaperIds.length} 篇论文生成综述
             </p>
           )}
         </div>
@@ -487,7 +487,7 @@ export default function SurveyPanel() {
         <div>
           <p className="text-sm font-semibold text-ink-primary">结构化文献综述生成</p>
           <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-            多 Agent 协作规划检索范围、梳理发展脉络，并输出带参考文献格式的全面综述。
+            多 Agent 协作完成范围规划、发展脉络梳理与综述生成，并输出带参考文献格式的结构化结果。
           </p>
         </div>
         <div className="flex gap-2">
@@ -496,7 +496,7 @@ export default function SurveyPanel() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") void handleGenerate(); }}
-              placeholder="输入研究问题，如 Transformer attention 机制的发展"
+              placeholder="请输入研究问题，例如：Transformer attention 机制的发展"
               disabled={generating}
             />
           </div>
@@ -535,7 +535,7 @@ export default function SurveyPanel() {
           <div className="flex items-center gap-2">
             <Settings2 className="h-4 w-4 text-apple-blue" />
             <p className="text-sm font-semibold text-ink-primary">综述生成参数</p>
-            <p className="ml-1 text-xs text-ink-tertiary">以下参数将在点击「生成综述」时生效</p>
+            <p className="ml-1 text-xs text-ink-tertiary">以下参数会在点击“生成综述”后生效</p>
           </div>
 
           {/* Time range */}
@@ -658,7 +658,7 @@ export default function SurveyPanel() {
                 <p className="text-sm font-semibold text-ink-primary">多 Agent 协作流程</p>
               </div>
               {agents.length === 0 ? (
-                <p className="text-sm leading-6 text-ink-tertiary">等待 Agent 开始执行。</p>
+                <p className="text-sm leading-6 text-ink-tertiary">等待 Agent 开始执行任务。</p>
               ) : (
                 <div className="space-y-2">
                   {agents.map((agent) => (
@@ -676,7 +676,7 @@ export default function SurveyPanel() {
                           <p className="mt-1 truncate text-xs text-ink-tertiary">{agent.role}</p>
                         </div>
                         <Badge variant={agent.status === "done" ? "success" : agent.status === "failed" ? "danger" : "info"}>
-                          {agent.status === "done" ? "完成" : agent.status === "failed" ? "失败" : "运行中"}
+                          {agent.status === "done" ? "已完成" : agent.status === "failed" ? "失败" : "处理中"}
                         </Badge>
                       </div>
                       {(agent.summary || agent.error) && (
@@ -1017,7 +1017,7 @@ export default function SurveyPanel() {
             {!content && !structured && generating && (
               <Card className="flex flex-col items-center gap-3 py-16 text-center">
                 <Loader2 className="h-8 w-8 animate-spin text-apple-blue" />
-                <p className="text-sm text-ink-tertiary">正在检索与生成综述…</p>
+                <p className="text-sm text-ink-tertiary">正在检索文献并生成综述…</p>
               </Card>
             )}
           </div>
@@ -1031,7 +1031,7 @@ export default function SurveyPanel() {
             <FileSearch className="h-7 w-7 text-ink-tertiary" />
           </div>
           <div>
-            <p className="font-medium text-ink-secondary">输入研究问题</p>
+            <p className="font-medium text-ink-secondary">请先输入研究问题</p>
             <p className="mt-1 text-sm text-ink-tertiary">可展开「生成参数」指定时间范围、文献类型与引用格式。</p>
           </div>
         </Card>

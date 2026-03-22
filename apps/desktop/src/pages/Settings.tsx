@@ -247,7 +247,7 @@ const SETTINGS_SECTIONS: Array<{
   },
   {
     key: "agents",
-    label: "多 agent",
+    label: "多 Agent",
     description: "编排模式、覆盖和高级设置",
     icon: Bot,
     color: "#34C759",
@@ -581,18 +581,18 @@ const AGENT_OPTIONS = [
 const ROUTING_MODE_COPY: Record<MultiAgentRoutingMode, { label: string; description: string; note: string }> = {
   rule: {
     label: "规则判断",
-    description: "根据关键词和上下文类型固定选 agent，最稳定，也最容易复现。",
+    description: "根据关键词和上下文类型固定选择 Agent，最稳定，也最容易复现。",
     note: "这一模式不会调用调度模型，适合你想严格控制成本和行为边界时使用。",
   },
   llm: {
     label: "模型判断",
-    description: "由调度模型实时决定该启用哪些 agent，更灵活，也更依赖模型本身。",
+    description: "由调度模型实时决定该启用哪些 Agent，更灵活，也更依赖模型本身。",
     note: "适合复杂提问和开放式任务。建议给调度模型配置快一些、判断力强一些的模型。",
   },
   hybrid: {
     label: "混合判断",
     description: "先用规则确定基础班底，再由调度模型补充和重排，兼顾稳定性和灵活性。",
-    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键 agent，再由模型补充额外角色。",
+    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键 Agent，再由模型补充额外角色。",
   },
 };
 
@@ -603,7 +603,7 @@ const AGENT_GUIDES = [
   { key: "survey", label: "综述组织", description: "把线索整理成结构化综述和趋势判断。" },
   { key: "paper_analyst", label: "论文解析", description: "聚焦单篇论文的方法、实验和局限。" },
   { key: "reproduction", label: "复现建议", description: "聚焦实现细节、实验配置和复现风险。" },
-  { key: "synthesis", label: "最终整合", description: "把各专项 agent 的结果整合成最终回答。" },
+  { key: "synthesis", label: "最终整合", description: "把各专项 Agent 的结果整合成最终回答。" },
 ];
 
 const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
@@ -693,7 +693,7 @@ const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
   },
   {
     title: "轻量 Copilot 对话",
-    description: "用于关闭多 agent 后的普通对话，或处理日常轻量问题。",
+    description: "用于关闭多 Agent 后的普通对话，或处理日常轻量问题。",
     recommendation: "优先低成本、低延迟模型。复杂任务可改用旗舰模型。",
     fallback: "留空则沿用当前主对话模型。",
     icon: Bot,
@@ -710,7 +710,7 @@ const GROUPED_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "快速模型",
     description: "优先响应速度，适合实时提示、调度判断、文献侦察和轻量对话。",
     recommendation: "多数情况下选低延迟模型即可；若服务商支持联网或搜索，也优先放在这一组。",
-    affectedScopes: "方向提示、综述检索规划、多 agent 调度、文献侦察、轻量 Copilot 对话",
+    affectedScopes: "方向提示、综述检索规划、多 Agent 调度、文献侦察、轻量 Copilot 对话",
     icon: Sparkles,
     iconColor: "#0A84FF",
     modelKeys: [
@@ -734,7 +734,7 @@ const GROUPED_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "深度分析模型",
     description: "优先理解深度，适合研究规划、论文精读和较复杂的分析任务。",
     recommendation: "这里更适合旗舰模型或推理能力强的模型，不必一味追求速度。",
-    affectedScopes: "深度规划分析、规划结果生成、论文精读、多 agent 研究规划、多 agent 论文解析",
+    affectedScopes: "深度规划分析、规划结果生成、论文精读、多 Agent 研究规划、多 Agent 论文解析",
     icon: Brain,
     iconColor: "#AF52DE",
     modelKeys: [
@@ -758,7 +758,7 @@ const GROUPED_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "写作整合模型",
     description: "优先结构化表达和长输出质量，适合正式综述和最终整合。",
     recommendation: "适合长上下文、写作品质稳的模型。预算有限时可选均衡型模型。",
-    affectedScopes: "综述写作、多 agent 综述 agent、最终整合回答",
+    affectedScopes: "综述写作、多 Agent 综述 Agent、最终整合回答",
     icon: MessageSquare,
     iconColor: "#FF9F0A",
     modelKeys: [
@@ -778,7 +778,7 @@ const GROUPED_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "代码复现模型",
     description: "优先代码与工程理解，适合复现建议、训练配置和实现排查。",
     recommendation: "这组通常建议更低温度，减少拍脑袋式推断。",
-    affectedScopes: "复现指导、多 agent 复现 agent",
+    affectedScopes: "复现指导、多 Agent 复现 Agent",
     icon: Hammer,
     iconColor: "#FF3B30",
     modelKeys: [
@@ -797,7 +797,7 @@ const GROUPED_MODEL_CARDS: GroupedModelDefinition[] = [
 const ORCHESTRATION_MODEL_CARDS: ModelRoleDefinition[] = [
   {
     title: "调度模型",
-    description: "只负责判断该启用哪些 agent，不负责生成最终答案。",
+    description: "只负责判断该启用哪些 Agent，不负责生成最终答案。",
     recommendation: "优先反应快、判断稳定的模型。调度阶段通常不需要最贵的旗舰模型。",
     fallback: "仅在模型判断或混合判断模式下生效。留空则沿用主对话模型。",
     icon: Brain,
@@ -809,9 +809,9 @@ const ORCHESTRATION_MODEL_CARDS: ModelRoleDefinition[] = [
   },
   {
     title: "默认执行模型",
-    description: "作为多 agent 中各专项 agent 的统一默认模型。",
+    description: "作为多 Agent 中各专项 Agent 的统一默认模型。",
     recommendation: "优先均衡型模型，兼顾成本、速度和学术理解能力。",
-    fallback: "各专项 agent 可单独覆盖；留空则沿用主对话模型。",
+    fallback: "各专项 Agent 可单独覆盖；留空则沿用主对话模型。",
     icon: Bot,
     iconColor: "#34C759",
     modelKey: "multi_agent_worker_model",
@@ -821,7 +821,7 @@ const ORCHESTRATION_MODEL_CARDS: ModelRoleDefinition[] = [
   },
   {
     title: "最终整合模型",
-    description: "负责把多个 agent 的中间结果整理成最终中文答复。",
+    description: "负责把多个 Agent 的中间结果整理成最终中文答复。",
     recommendation: "优先长输出质量好、整合能力强的模型，必要时可以用旗舰模型。",
     fallback: "留空则沿用主对话模型。",
     icon: Sparkles,
@@ -835,8 +835,8 @@ const ORCHESTRATION_MODEL_CARDS: ModelRoleDefinition[] = [
 
 const SPECIALIST_OVERRIDE_CARDS: ModelRoleDefinition[] = [
   {
-    title: "研究规划 agent",
-    description: "多 agent 对话里负责拆解研究路线、学习路径和行动建议。",
+    title: "研究规划 Agent",
+    description: "多 Agent 对话里负责拆解研究路线、学习路径和行动建议。",
     recommendation: "如果你希望规划类问题明显更强，可在这里单独指定更强的模型。",
     fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
     icon: Route,
@@ -847,7 +847,7 @@ const SPECIALIST_OVERRIDE_CARDS: ModelRoleDefinition[] = [
     temperaturePlaceholder: "留空继承",
   },
   {
-    title: "文献侦察 agent",
+    title: "文献侦察 Agent",
     description: "负责快速找论文线索、核心工作和调研入口。",
     recommendation: "若服务商支持联网或搜索，这里最适合分配快且能检索外部信息的模型。",
     fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
@@ -859,7 +859,7 @@ const SPECIALIST_OVERRIDE_CARDS: ModelRoleDefinition[] = [
     temperaturePlaceholder: "留空继承",
   },
   {
-    title: "综述 agent",
+    title: "综述 Agent",
     description: "负责把文献线索整理成结构化领域综述。",
     recommendation: "适合分配长上下文和写作质量更稳定的模型。",
     fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
@@ -871,7 +871,7 @@ const SPECIALIST_OVERRIDE_CARDS: ModelRoleDefinition[] = [
     temperaturePlaceholder: "留空继承",
   },
   {
-    title: "论文解析 agent",
+    title: "论文解析 Agent",
     description: "负责单篇论文理解、方法拆解和实验解读。",
     recommendation: "适合分配更擅长学术分析和细节理解的模型。",
     fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
@@ -883,7 +883,7 @@ const SPECIALIST_OVERRIDE_CARDS: ModelRoleDefinition[] = [
     temperaturePlaceholder: "留空继承",
   },
   {
-    title: "复现 agent",
+    title: "复现 Agent",
     description: "负责实现路径、训练配置、复现实验和工程风险。",
     recommendation: "适合分配代码能力更强、温度更低的模型。",
     fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
@@ -1090,7 +1090,7 @@ export default function Settings() {
       >
         <div>
           <h1 className="text-lg font-bold text-ink-primary leading-tight">设置</h1>
-          <p className="text-xs text-ink-tertiary">按用途配置模型、检索和多 agent 协作策略</p>
+          <p className="text-xs text-ink-tertiary">按用途配置模型、检索和多 Agent 协作策略</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -1509,7 +1509,7 @@ export default function Settings() {
             <RecommendationList
               items={[
                 "如果你不想配太多模型，通常只需要主模型、快速模型、深度分析模型和写作整合模型。",
-                "这 4 组模型会自动覆盖对应功能和多 agent 场景；你只有在想精细控制时，才需要展开高级设置。",
+                "这 4 组模型会自动覆盖对应功能和多 Agent 场景；你只有在想精细控制时，才需要展开高级设置。",
                 "所有分组都支持留空继承，所以完全可以只填其中一两项。",
                 "如果你已经在高级设置里做过细分，这里会提醒“已细分配置”；重新填写会统一覆盖这一组。",
               ]}
@@ -1544,16 +1544,16 @@ export default function Settings() {
             <div className="flex items-center gap-3">
               <SectionIcon icon={Bot} color="#34C759" />
               <div>
-                <h2 className="text-sm font-semibold text-ink-primary">多 agent 编排</h2>
+                <h2 className="text-sm font-semibold text-ink-primary">多 Agent 编排</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">
-                  默认会继承上面的常用模型分工。只有你想精细控制每个 agent 时，才需要展开高级设置。
+                  默认会继承上面的常用模型分工。只有你想精细控制每个 Agent 时，才需要展开高级设置。
                 </p>
               </div>
             </div>
 
             <ToggleRow
-              title="启用多 agent 编排"
-              description="关闭后只使用轻量 Copilot 对话模型，不再拆分任务，也不展示中间 agent 过程。"
+              title="启用多 Agent 编排"
+              description="关闭后只使用轻量 Copilot 对话模型，不再拆分任务，也不展示中间 Agent 过程。"
               checked={form.multi_agent_enabled === "true"}
               onToggle={() =>
                 set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")
@@ -1585,10 +1585,10 @@ export default function Settings() {
 
             <RecommendationList
               items={[
-                "推荐直接用混合判断。多数用户不需要手动调整到每个 agent 的模型级别。",
-                "默认继承关系是：专项 agent 覆盖值 -> 常用模型分工 -> 默认执行模型 -> 主模型。",
+                "推荐直接用混合判断。多数用户不需要手动调整到每个 Agent 的模型级别。",
+                "默认继承关系是：专项 Agent 覆盖值 -> 常用模型分工 -> 默认执行模型 -> 主模型。",
                 "如果你只是想让文献侦察用快模型、论文解析用强模型，通常只改上面的常用模型分工就够了。",
-                "只有在做成本压缩、AB 测试或特定 agent 调优时，才建议展开高级设置。",
+                "只有在做成本压缩、AB 测试或特定 Agent 调优时，才建议展开高级设置。",
               ]}
             />
 
@@ -1597,7 +1597,7 @@ export default function Settings() {
                 <div>
                   <p className="text-sm font-semibold text-ink-primary">高级设置</p>
                   <p className="text-xs text-ink-tertiary mt-1 leading-5">
-                    这里包含逐个场景模型、默认执行模型、专项 agent 覆盖、agent 开关和步数限制。
+                    这里包含逐个场景模型、默认执行模型、专项 Agent 覆盖、Agent 开关和步数限制。
                   </p>
                 </div>
                 <button
@@ -1650,10 +1650,10 @@ export default function Settings() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Route className="w-4 h-4 text-[#1A8AFF]" />
-                    <p className="text-sm font-semibold text-ink-primary">多 agent 细项</p>
+                    <p className="text-sm font-semibold text-ink-primary">多 Agent 细项</p>
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-xs font-medium text-ink-tertiary ml-1">启用的专项 agent</label>
+                    <label className="block text-xs font-medium text-ink-tertiary ml-1">启用的专项 Agent</label>
                     <div className="flex gap-2 flex-wrap">
                       {AGENT_OPTIONS.map(([value, label]) => (
                         <AgentChip
@@ -1676,7 +1676,7 @@ export default function Settings() {
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <SettingInput
-                      label="单次最多调用的专项 agent 数"
+                      label="单次最多调用的专项 Agent 数"
                       value={form.multi_agent_max_steps}
                       onChange={set("multi_agent_max_steps")}
                       placeholder="6"
@@ -1710,9 +1710,9 @@ export default function Settings() {
                   </div>
 
                   <div className="space-y-3">
-                    <p className="text-sm font-semibold text-ink-primary">专项 agent 覆盖</p>
+                    <p className="text-sm font-semibold text-ink-primary">专项 Agent 覆盖</p>
                     <p className="text-xs text-ink-tertiary leading-5">
-                      只在你明确知道某个 agent 需要不同模型时填写，比如让文献侦察走快模型、论文解析走旗舰模型。
+                      只在你明确知道某个 Agent 需要不同模型时填写，比如让文献侦察走快模型、论文解析走旗舰模型。
                     </p>
                     <div className="grid gap-4 xl:grid-cols-2">
                       {SPECIALIST_OVERRIDE_CARDS.map((item) => (
@@ -1910,7 +1910,7 @@ export default function Settings() {
                 {[
                   "主模型连接是最后的兜底值。没有单独指定的场景，最终都会回退到这里。",
                   "按场景选模用于独立功能，比如规划提示、综述写作、论文精读和复现指导。",
-                  "多 agent 的专项覆盖只影响多 agent 对话流程，不影响独立功能页的模型选择。",
+                  "多 Agent 的专项覆盖只影响多 Agent 对话流程，不影响独立功能页的模型选择。",
                   "如果你刚开始配置，建议先填主对话模型、方向提示模型和最终整合模型，其他项之后再细化。",
                 ].map((item) => (
                   <div key={item} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">

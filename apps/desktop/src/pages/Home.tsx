@@ -35,7 +35,7 @@ const quickActions = [
     to: "/copilot",
     icon: MessageSquare,
     title: "进入 Copilot",
-    description: "查看 agent 链路，围绕论文或研究问题继续追问。",
+    description: "查看 Agent 执行链路，围绕论文或研究问题继续追问。",
   },
   {
     to: "/tools",
@@ -143,7 +143,7 @@ export default function Home() {
               { label: "论文库", value: state.papers.length, note: `${analyzedCount} 篇已生成分析` },
               { label: "研究方向", value: state.interests.length, note: `${plannedCount} 条已形成路线` },
               { label: "知识笔记", value: state.notes.length, note: "支持语义检索" },
-              { label: "Copilot 会话", value: state.sessions.length, note: "可回溯 agent 执行过程" },
+              { label: "Copilot 会话", value: state.sessions.length, note: "可回溯 Agent 执行过程" },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl bg-white/35 p-4" style={{ boxShadow: "inset 2px 2px 5px #D0D6DC, inset -2px -2px 5px #FFFFFF" }}>
                 <p className="text-xs uppercase tracking-wide text-ink-tertiary">{item.label}</p>
@@ -197,14 +197,14 @@ export default function Home() {
                 <p className="text-sm font-semibold text-ink-primary">最近研究方向</p>
               </div>
               {state.interests.length === 0 ? (
-                <p className="text-xs text-ink-tertiary">还没有研究方向，建议先去规划页创建。</p>
+                <p className="text-xs text-ink-tertiary">暂无研究方向，建议先前往规划页创建。</p>
               ) : (
                 <div className="space-y-2">
                   {state.interests.slice(0, 3).map((interest) => (
                     <div key={interest.id} className="flex items-center justify-between gap-3">
                       <span className="truncate text-sm text-ink-secondary">{interest.topic}</span>
                       <Badge variant={interest.status === "planned" ? "success" : interest.status === "planning" ? "info" : "default"}>
-                        {interest.status === "planned" ? "已规划" : interest.status === "planning" ? "生成中" : "待处理"}
+                        {interest.status === "planned" ? "已规划" : interest.status === "planning" ? "处理中" : "待处理"}
                       </Badge>
                     </div>
                   ))}
@@ -218,7 +218,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-ink-primary">最近知识卡片</p>
               </div>
               {state.notes.length === 0 ? (
-                <p className="text-xs text-ink-tertiary">还没有笔记，建议把综述和论文分析逐步沉淀为知识卡片。</p>
+                <p className="text-xs text-ink-tertiary">暂无笔记，建议将综述与论文分析逐步沉淀为知识卡片。</p>
               ) : (
                 <div className="space-y-2">
                   {state.notes.slice(0, 3).map((note) => (
@@ -237,12 +237,12 @@ export default function Home() {
                 <p className="text-sm font-semibold text-ink-primary">最近会话</p>
               </div>
               {state.sessions.length === 0 ? (
-                <p className="text-xs text-ink-tertiary">还没有会话，适合围绕论文或研究方向发起上下文问答。</p>
+                <p className="text-xs text-ink-tertiary">暂无会话，建议围绕论文或研究方向发起上下文问答。</p>
               ) : (
                 <div className="space-y-2">
                   {state.sessions.slice(0, 3).map((session) => (
                     <div key={session.id}>
-                      <p className="truncate text-sm font-medium text-ink-primary">{session.title || "新会话"}</p>
+                      <p className="truncate text-sm font-medium text-ink-primary">{session.title || "新建会话"}</p>
                       <p className="mt-1 text-xs text-ink-tertiary">
                         {new Date(session.updated_at || session.created_at).toLocaleDateString("zh-CN")}
                       </p>

@@ -74,7 +74,7 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
       const data = await papersApi.get(id) as Paper;
       setPaper(data);
     } catch {
-      setError("论文不存在或加载失败");
+      setError("论文不存在或加载未完成。");
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,7 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
       await papersApi.analyze(id);
       await fetchPaper();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "分析失败");
+      setError(e instanceof Error ? e.message : "分析未完成，请稍后重试。");
     } finally {
       setAnalyzing(false);
     }
@@ -103,13 +103,13 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
       await fetchPaper();
       setActiveTab("reproduction");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "生成复现指导失败");
+      setError(e instanceof Error ? e.message : "复现指导生成未完成，请稍后重试。");
     } finally {
       setReproducing(false);
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-400">加载中...</div>;
+  if (loading) return <div className="p-8 text-center text-gray-400">正在加载...</div>;
   if (!paper) return <div className="p-8 text-center text-red-500">{error}</div>;
 
   return (
@@ -152,12 +152,12 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
         <Card className="mb-5 bg-brand-50 border-brand-200">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium text-brand-900">还没有 AI 精读分析</div>
-              <div className="text-sm text-brand-700 mt-0.5">点击按钮，AI 自动提取研究问题、方法、创新点等结构化信息</div>
+              <div className="font-medium text-brand-900">暂无论文精读分析</div>
+              <div className="text-sm text-brand-700 mt-0.5">请启动论文精读，系统将自动提取研究问题、方法与创新点等结构化信息。</div>
             </div>
             <Button onClick={handleAnalyze} loading={analyzing}>
               <Sparkles className="w-4 h-4" />
-              {analyzing ? "分析中..." : "开始精读"}
+              {analyzing ? "处理中..." : "开始精读分析"}
             </Button>
           </div>
         </Card>
@@ -167,13 +167,13 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
         <Card className="mb-5 bg-violet-50 border-violet-200">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium text-violet-900">还没有复现指导</div>
-              <div className="text-sm text-violet-700 mt-0.5">基于论文内容生成详细的实验复现流程</div>
+              <div className="font-medium text-violet-900">暂无复现指导</div>
+              <div className="text-sm text-violet-700 mt-0.5">可基于论文内容生成结构化实验复现流程。</div>
             </div>
             <Button onClick={handleReproduce} loading={reproducing}
               className="bg-violet-600 hover:bg-violet-700 text-white">
               <FlaskConical className="w-4 h-4" />
-              {reproducing ? "生成中..." : "生成复现指导"}
+              {reproducing ? "正在生成..." : "生成复现指导"}
             </Button>
           </div>
         </Card>
@@ -289,7 +289,7 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
           {activeTab === "reproduction" && !paper.reproduction_guide && (
             <div className="text-center py-12 text-gray-400">
               <FlaskConical className="w-10 h-10 mx-auto mb-3 opacity-40" />
-              <p>还没有生成复现指导</p>
+              <p>暂无复现指导内容</p>
             </div>
           )}
         </>

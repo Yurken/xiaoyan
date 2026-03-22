@@ -274,7 +274,7 @@ export default function Papers() {
     if (status === "analyzed") return <Badge variant="success">已分析</Badge>;
     if (status === "reproduced") return <Badge variant="success">已复现</Badge>;
     if (status === "failed" || status === "error") return <Badge variant="danger">失败</Badge>;
-    if (status === "analyzing") return <Badge variant="info">分析中</Badge>;
+    if (status === "analyzing") return <Badge variant="info">处理中</Badge>;
     if (status === "parsed") return <Badge variant="info">已解析</Badge>;
     return <Badge variant="default">已上传</Badge>;
   };
@@ -560,8 +560,8 @@ export default function Papers() {
             <FileText className="h-8 w-8 text-ink-tertiary" />
           </div>
           <div>
-            <p className="font-medium text-ink-secondary">还没有论文</p>
-            <p className="mt-1 text-sm text-ink-tertiary">点击「导入 PDF」开始</p>
+            <p className="font-medium text-ink-secondary">暂无论文</p>
+            <p className="mt-1 text-sm text-ink-tertiary">请先导入 PDF 文件。</p>
           </div>
         </Card>
       ) : (
@@ -615,7 +615,7 @@ export default function Papers() {
             >
               {group.papers.length === 0 ? (
                 <Card padding="sm" className="border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
-                  该主题下还没有论文。
+                  该主题下暂无论文。
                 </Card>
               ) : (
                 group.papers.map(renderPaperCard)

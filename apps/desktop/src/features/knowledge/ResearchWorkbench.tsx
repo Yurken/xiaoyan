@@ -34,10 +34,10 @@ function paperStatusBadge(status: string) {
 }
 
 function runStatusBadge(status?: AgentRun["status"]) {
-  if (status === "done") return <Badge variant="success">完成</Badge>;
+  if (status === "done") return <Badge variant="success">已完成</Badge>;
   if (status === "failed") return <Badge variant="danger">失败</Badge>;
-  if (status === "running") return <Badge variant="info">运行中</Badge>;
-  return <Badge variant="default">等待中</Badge>;
+  if (status === "running") return <Badge variant="info">处理中</Badge>;
+  return <Badge variant="default">待处理</Badge>;
 }
 
 export default function ResearchWorkbench({ interest, activeTab = "papers", onStats }: ResearchWorkbenchProps) {
@@ -277,7 +277,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
           setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, sources: chunk.value } : m));
         }
         if (chunk.type === "error") {
-          const nextError = chunk.value || "请求失败";
+          const nextError = chunk.value || "请求未完成，请稍后重试。";
           setError(nextError);
           setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: nextError } : m));
         }
@@ -293,7 +293,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
         setAgentRuns(runs);
       }
     } catch (nextError) {
-      const message = `请求失败：${formatErrorMessage(nextError)}`;
+      const message = `请求未完成：${formatErrorMessage(nextError)}`;
       setError(message);
       setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: message } : m));
     } finally {
@@ -305,7 +305,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
     return (
       <div className="flex h-full items-center justify-center gap-2 text-ink-tertiary">
         <Loader2 className="h-5 w-5 animate-spin" />
-        <span className="text-sm">加载工作台…</span>
+        <span className="text-sm">正在加载工作台…</span>
       </div>
     );
   }
@@ -352,7 +352,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
 
           {papers.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-nm-dark/10 bg-white/25 px-4 py-10 text-center text-xs text-ink-tertiary">
-              还没有关联论文，适合先导入一篇与你当前路线最贴近的 PDF。
+              暂无关联论文。建议先导入一篇与你当前研究路线最相关的 PDF。
             </div>
           ) : (
             <div className="space-y-3">
@@ -406,7 +406,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
           <div className="flex items-center justify-between gap-3 flex-shrink-0">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-[#34C759]" />
-              <p className="text-xs text-ink-tertiary">围绕这条路线继续追问下一步、论文优先级和实验推进。</p>
+              <p className="text-xs text-ink-tertiary">可继续围绕当前研究路线提问，例如下一步安排、论文优先级或实验推进建议。</p>
             </div>
             <div className="flex items-center gap-2">
               {sessions.length > 0 && (
@@ -416,13 +416,13 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
                   className="max-w-[200px] rounded-2xl border-0 px-3 py-2 text-xs text-ink-primary outline-none"
                   style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
                 >
-                  <option value="">新会话</option>
+                  <option value="">新建会话</option>
                   {sessions.map((s) => (
-                    <option key={s.id} value={s.id}>{s.title || "新会话"}</option>
+                    <option key={s.id} value={s.id}>{s.title || "新建会话"}</option>
                   ))}
                 </select>
               )}
-              <Button size="sm" variant="secondary" onClick={handleNewSession}>新会话</Button>
+              <Button size="sm" variant="secondary" onClick={handleNewSession}>新建会话</Button>
             </div>
           </div>
 
@@ -455,7 +455,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <p className="text-sm font-medium text-ink-primary">从当前路线继续推进</p>
                 <p className="mt-2 max-w-md text-xs leading-6 text-ink-tertiary">
-                  例如：下一阶段先读哪些论文？上传这篇 PDF 后该怎么安排复现？结合当前基础，路线要怎么收紧？
+                  例如：下一阶段应优先阅读哪些论文？导入这篇 PDF 后如何安排复现？结合当前基础，研究路线应如何收敛？
                 </p>
               </div>
             ) : (
@@ -492,7 +492,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
-              placeholder="继续围绕这条路线提问…"
+              placeholder="请输入问题，继续围绕当前研究路线推进"
             />
             <Button onClick={() => void handleSend()} loading={sending}>
               <Send className="h-4 w-4" />
@@ -539,7 +539,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
 
           {notes.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-nm-dark/10 bg-white/25 px-4 py-8 text-center text-xs text-ink-tertiary">
-              还没有路线笔记，适合把对话结论或论文观察先记下来。
+              暂无路线笔记。建议及时记录对话结论、论文观察或后续行动项。
             </div>
           ) : (
             <div className="space-y-3">

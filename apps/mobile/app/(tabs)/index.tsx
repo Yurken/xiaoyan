@@ -11,7 +11,7 @@ import type { Paper } from "@research-copilot/types";
 
 const STATUS_CONFIG = {
   analyzed:  { icon: "checkmark-circle" as const, color: "#34C759", label: "已分析" },
-  analyzing: { icon: "hourglass"         as const, color: "#007AFF", label: "分析中" },
+  analyzing: { icon: "hourglass"         as const, color: "#007AFF", label: "处理中" },
   failed:    { icon: "close-circle"      as const, color: "#FF3B30", label: "失败"   },
   pending:   { icon: "ellipse-outline"   as const, color: "#8E8E93", label: "待分析" },
 };
@@ -98,7 +98,7 @@ export default function PapersScreen() {
           <View style={styles.emptyIcon}>
             <Ionicons name="document-text-outline" size={40} color="#8E8E93" />
           </View>
-          <Text style={styles.emptyTitle}>还没有论文</Text>
+          <Text style={styles.emptyTitle}>暂无论文</Text>
           <Text style={styles.emptyText}>在桌面端导入 PDF 后即可在此浏览</Text>
         </View>
       ) : (

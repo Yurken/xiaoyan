@@ -248,7 +248,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
 
   const handleCreate = async () => {
     if (!form.topic.trim()) {
-      setError("请先输入研究主题。");
+      setError("请先填写研究主题。");
       return;
     }
 
@@ -328,7 +328,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
 
   const progress = completedCount(form);
   const createButtonLabel = submitPhase === "uploading"
-    ? "导入参考文献…"
+    ? "正在导入参考文献…"
     : pendingReferences.length > 0
       ? "创建研究方向并导入参考文献"
       : "创建研究方向";
@@ -339,7 +339,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
         <div>
           <p className="text-sm font-semibold text-ink-primary">研究画像输入</p>
           <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-            输入越多，系统越能收紧学习路线、资源推荐和候选研究切口。
+            输入信息越完整，系统生成的学习路线、资源推荐和候选研究切口就越准确。
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -387,7 +387,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
                 <Input
                   value={form.keywordsRaw}
                   onChange={(event) => set("keywordsRaw", event.target.value)}
-                  placeholder="逗号分隔，例如 LLM, Deep Learning, Alignment"
+                  placeholder="例如：LLM, Deep Learning, Alignment"
                 />
                 {suggestions.keywordSuggestions.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -449,7 +449,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
                 />
                 {suggestions.backgroundPrompts.length > 0 && (
                   <div className="mt-3 space-y-2">
-                    <p className="text-[11px] leading-5 text-ink-tertiary">可补充这些基础信息：</p>
+                    <p className="text-[11px] leading-5 text-ink-tertiary">建议补充以下基础信息：</p>
                     {suggestions.backgroundPrompts.slice(0, 2).map((prompt) => (
                       <button
                         key={prompt}
@@ -591,7 +591,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
               </div>
 
               <p className="text-xs leading-5 text-ink-tertiary">
-                这里选中的 PDF 会在创建研究方向后自动导入到该主题文件夹，并绑定到稳定的研究方向 ID。
+                当前选中的 PDF 会在创建研究方向后自动导入对应主题文件夹，并绑定到稳定的研究方向 ID。
                 后续修改主题文件夹名，不会影响这些参考文献的归属。
               </p>
 
@@ -622,7 +622,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
                 </div>
               ) : (
                 <div className="mt-3 rounded-2xl border border-dashed border-nm-dark/10 bg-white/25 px-4 py-5 text-center text-xs text-ink-tertiary">
-                  先跳过也可以。后续仍可在路线工作台里继续上传论文。
+                  当前也可先跳过，后续仍可在研究路线工作台中继续上传论文。
                 </div>
               )}
             </div>
@@ -637,7 +637,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
                 <p className="text-sm font-semibold text-ink-primary">智能提示</p>
               </div>
               <Badge variant={hintStatus === "fallback" ? "default" : "info"}>
-                {hintStatus === "loading" ? "AI 分析中" : hintStatus === "ready" ? "AI 实时反馈" : hintStatus === "fallback" ? "本地兜底" : "等待输入"}
+                {hintStatus === "loading" ? "AI 处理中" : hintStatus === "ready" ? "AI 实时建议" : hintStatus === "fallback" ? "本地兜底" : "待输入"}
               </Badge>
             </div>
 
@@ -647,7 +647,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
                 {hintStatus === "loading" && <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-apple-blue" />}
                 <p className="text-sm leading-6 text-ink-secondary">
                   {hintStatus === "loading"
-                    ? "AI 正在结合你刚刚输入的内容更新建议。当前先显示最近一次结果。"
+                    ? "AI 正在根据你刚刚输入的内容更新建议，当前先显示最近一次结果。"
                     : suggestions.summary}
                 </p>
               </div>
@@ -657,13 +657,13 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
               <p className="text-[11px] uppercase tracking-wide text-ink-tertiary">建议下一步</p>
               <p className="mt-2 text-base font-semibold text-ink-primary">{suggestions.nextFieldLabel}</p>
               <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-                前面的信息已经足够触发这一项的更精准建议，继续补充后，规划 prompt 会明显更聚焦。
+                当前信息已足以触发这一项的更精准建议；继续补充后，整体规划会明显更聚焦。
               </p>
             </div>
 
             {hintStatus === "fallback" && hintMessage && (
               <div className="rounded-2xl border border-[#E7D7AA] bg-[#FBF6E7] p-3">
-                <p className="text-[11px] uppercase tracking-wide text-[#9A6A00]">AI 提示暂不可用</p>
+                <p className="text-[11px] uppercase tracking-wide text-[#9A6A00]">AI 建议暂不可用</p>
                 <p className="mt-2 text-xs leading-5 text-[#7D5A00]">
                   当前显示本地兜底建议。原因：{hintMessage}
                 </p>
@@ -675,7 +675,7 @@ export default function PlannerComposer({ onCancel, onCreated }: PlannerComposer
               <div className="mt-2 flex flex-wrap gap-2">
                 {suggestions.matchedDomains.length > 0 ? suggestions.matchedDomains.map((item) => (
                   <Badge key={item} variant="info">{item}</Badge>
-                )) : <span className="text-xs text-ink-tertiary">等待主题输入</span>}
+                )) : <span className="text-xs text-ink-tertiary">请先填写研究主题</span>}
               </div>
             </div>
 

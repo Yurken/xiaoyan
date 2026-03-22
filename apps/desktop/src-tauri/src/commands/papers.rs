@@ -107,7 +107,7 @@ pub async fn papers_get(
     .fetch_optional(&state.db)
     .await
     .map_err(|e| e.to_string())?
-    .ok_or_else(|| "Paper not found".to_string())?;
+    .ok_or_else(|| "未找到对应论文。".to_string())?;
 
     let analysis = sqlx::query(
         "SELECT id, research_question, core_method, experiment_design, innovations, limitations, key_conclusions, created_at
@@ -272,8 +272,8 @@ struct ImportRenameMetadata {
     doi: Option<String>,
 }
 
-const IMPORT_RENAME_SYSTEM: &str = "你是一个专门负责识别学术论文元数据的助手。";
-const IMPORT_RENAME_PROMPT: &str = r#"请根据用户提供的 PDF 文件名和正文前段，识别论文元数据，只返回合法 JSON：
+const IMPORT_RENAME_SYSTEM: &str = "你是论文元数据识别助手，负责从文件名和正文片段中提取稳定、可信的论文元数据。输出必须严格、克制、可直接用于归档。";
+const IMPORT_RENAME_PROMPT: &str = r#"请根据用户提供的 PDF 文件名和正文前段识别论文元数据，仅返回合法 JSON：
 {"title":"...","authors":"作者1, 作者2","year":2024,"venue":"期刊或会议名称","doi":"10.1234/abcd"}
 
 要求：
@@ -313,7 +313,7 @@ pub async fn papers_upload(
         .replace(['_', '-'], " ");
 
     let full_text = pdf_extract::extract_text(&path)
-        .map_err(|e| format!("PDF extraction failed: {e}"))?;
+        .map_err(|e| format!("PDF 解析失败：{e}"))?;
     let settings = state.settings.read().await.clone();
     let inferred_venue = infer_from_text(&full_text).map(|tag| tag.full_name);
     let auto_rename_enabled = settings
@@ -424,8 +424,8 @@ pub async fn papers_upload(
 
 // ── Analyze ──────────────────────────────────────────────────────
 
-const ANALYZE_SYSTEM: &str = "你是一位资深学术研究员，专注于论文精读与分析。";
-const ANALYZE_PROMPT: &str = r#"请对以下论文进行精读分析，以严格的 JSON 格式返回（不要输出 JSON 以外的内容）：
+const ANALYZE_SYSTEM: &str = "你是论文精读分析助手，负责基于论文内容输出客观、结构化、可追溯的分析结论。不得编造论文中未出现的信息。";
+const ANALYZE_PROMPT: &str = r#"请对以下论文进行精读分析，仅返回严格合法的 JSON，不要输出 JSON 以外的内容：
 
 {text}
 
@@ -443,7 +443,7 @@ pub async fn papers_analyze(
         .fetch_optional(&state.db)
         .await
         .map_err(|e| e.to_string())?
-        .ok_or("Paper not found")?;
+        .ok_or("未找到对应论文。")?;
     let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
     let text_preview = safe_text_preview(&full_text, 12000);
     let settings = state.settings.read().await.clone();
@@ -506,8 +506,8 @@ pub async fn papers_analyze(
 
 // ── Reproduce ────────────────────────────────────────────────────
 
-const REPRODUCE_SYSTEM: &str = "你是一位经验丰富的 ML 工程师，专注于论文复现。";
-const REPRODUCE_PROMPT: &str = r#"请根据以下论文内容生成复现指南，以严格的 JSON 格式返回：
+const REPRODUCE_SYSTEM: &str = "你是论文复现助手，负责基于论文内容输出可执行、可验证、风险可控的复现指南。不得编造论文中未提供的实验细节。";
+const REPRODUCE_PROMPT: &str = r#"请根据以下论文内容生成复现指南，仅返回严格合法的 JSON：
 
 {text}
 
@@ -525,7 +525,7 @@ pub async fn papers_reproduce(
         .fetch_optional(&state.db)
         .await
         .map_err(|e| e.to_string())?
-        .ok_or("Paper not found")?;
+        .ok_or("未找到对应论文。")?;
     let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
     let text_preview = safe_text_preview(&full_text, 12000);
     let settings = state.settings.read().await.clone();
@@ -744,7 +744,7 @@ fn maybe_rename_imported_pdf(path: &Path, desired_stem: &str) -> Result<PathBuf,
     }
 
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("pdf");
-    let parent = path.parent().ok_or_else(|| "无法确定 PDF 所在目录".to_string())?;
+    let parent = path.parent().ok_or_else(|| "无法确定 PDF 文件所在目录。".to_string())?;
     let mut candidate = parent.join(format!("{next_stem}.{extension}"));
     if candidate == path {
         return Ok(path.to_path_buf());
@@ -761,7 +761,7 @@ fn maybe_rename_imported_pdf(path: &Path, desired_stem: &str) -> Result<PathBuf,
             }
         }
         if !found {
-            return Err("重命名失败：目标目录中同名文件过多".to_string());
+            return Err("文件重命名未完成：目标目录中存在过多同名文件。".to_string());
         }
     }
 

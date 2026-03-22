@@ -231,11 +231,11 @@ export default function SettingsPage() {
           <div>
             <Badge variant="info" className="mb-3 bg-white/80 text-slate-700">
               <Sparkles className="mr-1 h-3.5 w-3.5" />
-              Multi-Agent 控制台
+              多 Agent 控制台
             </Badge>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-950">设置中心</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              把模型、RAG、supervisor 路由和 specialist agent 行为统一收拢到这里。Web 端默认走同源代理，不需要单独配置 API 地址。
+              把模型、RAG、调度器路由和专项 Agent 行为统一收拢到这里。Web 端默认走同源代理，无需单独配置 API 地址。
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -404,15 +404,15 @@ export default function SettingsPage() {
               <SettingSection
                 icon={Bot}
                 title="多 Agent 编排"
-                description="决定 supervisor 是否开启、如何路由，以及每类 specialist 的模型与温度。"
+                description="决定调度器是否开启、如何路由，以及各专项 Agent 的模型与温度。"
               >
                 <div className="space-y-5">
                   <div className="rounded-3xl border border-slate-200 bg-white/70 p-4">
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">启用 Multi-Agent</div>
+                        <div className="text-sm font-semibold text-slate-900">启用多 Agent</div>
                         <div className="mt-1 text-xs leading-5 text-slate-500">
-                          关闭后仍然会保留最终回答能力，但不会走 supervisor 拆解。
+                          关闭后仍保留最终答复能力，但不再经过调度器拆解。
                         </div>
                       </div>
                       <button
@@ -437,26 +437,26 @@ export default function SettingsPage() {
                       <ModeChip
                         active={routingMode === "rule"}
                         onClick={() => setField("multi_agent_routing_mode", "rule")}
-                        label="Rule"
+                        label="规则"
                         description="稳定、可预期，全部由规则判断。"
                       />
                       <ModeChip
                         active={routingMode === "llm"}
                         onClick={() => setField("multi_agent_routing_mode", "llm")}
-                        label="LLM"
-                        description="完全交给 supervisor 模型规划。"
+                        label="模型"
+                        description="完全交由调度器模型规划。"
                       />
                       <ModeChip
                         active={routingMode === "hybrid"}
                         onClick={() => setField("multi_agent_routing_mode", "hybrid")}
-                        label="Hybrid"
-                        description="规则兜底，优先用 supervisor 精修。"
+                        label="混合"
+                        description="规则兜底，优先由调度器精修。"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <div className="mb-3 text-sm font-semibold text-slate-900">启用的 specialist</div>
+                    <div className="mb-3 text-sm font-semibold text-slate-900">启用的专项 Agent</div>
                     <div className="flex flex-wrap gap-2">
                       {AGENT_OPTIONS.map(([value, label]) => (
                         <AgentToggle
@@ -471,7 +471,7 @@ export default function SettingsPage() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <Input
-                      label="最大 specialist 步数"
+                      label="单次最多执行的专项 Agent 步数"
                       value={form.multi_agent_max_steps}
                       onChange={(event) => setField("multi_agent_max_steps", event.target.value)}
                       placeholder="4"
@@ -483,37 +483,37 @@ export default function SettingsPage() {
                       placeholder="8"
                     />
                     <Input
-                      label="Supervisor 模型"
+                      label="调度器模型"
                       value={form.multi_agent_supervisor_model}
                       onChange={(event) => setField("multi_agent_supervisor_model", event.target.value)}
                       placeholder="留空则沿用主对话模型"
                     />
                     <Input
-                      label="Supervisor Temperature"
+                      label="调度器 Temperature"
                       value={form.multi_agent_supervisor_temperature}
                       onChange={(event) => setField("multi_agent_supervisor_temperature", event.target.value)}
                       placeholder="0.1"
                     />
                     <Input
-                      label="Worker 模型"
+                      label="默认执行模型"
                       value={form.multi_agent_worker_model}
                       onChange={(event) => setField("multi_agent_worker_model", event.target.value)}
                       placeholder="留空则沿用主对话模型"
                     />
                     <Input
-                      label="Worker Temperature"
+                      label="默认执行 Temperature"
                       value={form.multi_agent_worker_temperature}
                       onChange={(event) => setField("multi_agent_worker_temperature", event.target.value)}
                       placeholder="0.3"
                     />
                     <Input
-                      label="Synthesis 模型"
+                      label="整合模型"
                       value={form.multi_agent_synthesis_model}
                       onChange={(event) => setField("multi_agent_synthesis_model", event.target.value)}
                       placeholder="留空则沿用主对话模型"
                     />
                     <Input
-                      label="Synthesis Temperature"
+                      label="整合 Temperature"
                       value={form.multi_agent_synthesis_temperature}
                       onChange={(event) => setField("multi_agent_synthesis_temperature", event.target.value)}
                       placeholder="0.4"
@@ -546,8 +546,8 @@ export default function SettingsPage() {
                   <div>
                     <div className="text-lg font-semibold text-slate-900">当前启用摘要</div>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Badge variant="success">Routing: {routingMode}</Badge>
-                      <Badge variant="info">Agents: {enabledAgents.length}</Badge>
+                      <Badge variant="success">路由模式: {routingMode}</Badge>
+                      <Badge variant="info">Agent 数: {enabledAgents.length}</Badge>
                       <Badge variant="default">Top-K: {form.multi_agent_search_limit}</Badge>
                     </div>
                   </div>
