@@ -23,12 +23,17 @@ const VALID_KEYS = new Set<PaperTagVisibilityKey>(DEFAULT_PAPER_TAG_VISIBILITY);
 export const DEFAULT_PAPER_TAG_VISIBILITY_VALUE = DEFAULT_PAPER_TAG_VISIBILITY.join(",");
 
 export function parsePaperTagVisibility(raw?: string | null): Set<PaperTagVisibilityKey> {
-  const selected = (raw || "")
+  // null / undefined → never configured, fall back to full defaults
+  if (raw == null) {
+    return new Set(DEFAULT_PAPER_TAG_VISIBILITY);
+  }
+  // explicit empty string → user cleared all tags; respect that choice
+  const selected = raw
     .split(",")
     .map((item) => item.trim())
     .filter((item): item is PaperTagVisibilityKey => VALID_KEYS.has(item as PaperTagVisibilityKey));
 
-  return new Set(selected.length > 0 ? selected : DEFAULT_PAPER_TAG_VISIBILITY);
+  return new Set(selected);
 }
 
 export function serializePaperTagVisibility(selected: Iterable<PaperTagVisibilityKey>): string {

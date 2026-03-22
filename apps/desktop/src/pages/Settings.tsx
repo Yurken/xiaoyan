@@ -962,9 +962,9 @@ export default function Settings() {
       setSaveState("saved");
       window.setTimeout(() => setSaveState("idle"), 2500);
     } catch (error) {
-      setLoadError(formatErrorMessage(error));
       setSaveState("error");
       window.setTimeout(() => setSaveState("idle"), 3000);
+      console.error("save settings failed:", error);
     }
   };
 
