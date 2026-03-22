@@ -13,6 +13,18 @@ export interface Paper {
   ccf_type?: string;
   ccf_label?: string;
   ccf_publisher?: string;
+  wos_indexes?: string[];
+  wos_categories?: string[];
+  jcr_quartile?: string;
+  jcr_category?: string;
+  jif?: string;
+  jif_rank?: string;
+  cas_quartile?: string;
+  cas_top?: boolean;
+  open_access?: boolean;
+  journal_issn?: string;
+  journal_eissn?: string;
+  journal_publisher?: string;
   paper_url?: string;
   venue_url?: string;
   status: string;
@@ -143,6 +155,27 @@ export interface CcfEntry {
 export interface CcfLookupResponse {
   query: string;
   matches: CcfEntry[];
+}
+
+export interface JournalPartitionEntry {
+  title: string;
+  issn?: string;
+  eissn?: string;
+  publisher?: string;
+  indexes: string[];
+  wos_categories: string[];
+  jcr_quartile?: string;
+  jcr_category?: string;
+  jif?: string;
+  jif_rank?: string;
+  cas_quartile?: string;
+  cas_top?: boolean;
+  open_access?: boolean;
+}
+
+export interface JournalLookupResponse {
+  query: string;
+  matches: JournalPartitionEntry[];
 }
 
 export type ArxivRankingMode = "relevance" | "quality";
@@ -331,6 +364,7 @@ export interface AppSettings {
   multi_agent_reproduction_temperature: string;
   multi_agent_synthesis_model: string;
   multi_agent_synthesis_temperature: string;
+  paper_visible_venue_tags: string;
 }
 
 export interface Job {

@@ -1,4 +1,5 @@
 use crate::ccf::{infer_from_text, match_venue};
+use crate::journal_partitions::match_journal;
 use crate::links::paper_reference_url;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{chunk_text, serialize_embedding};
@@ -545,7 +546,12 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
     ) {
         obj["paper_url"] = json!(url);
     }
-    if let Some(venue) = obj.get("venue").and_then(|value| value.as_str()) {
+    let venue_name = obj
+        .get("venue")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+
+    if let Some(venue) = venue_name.as_deref() {
         if let Some(tag) = match_venue(venue) {
             obj["ccf_rating"] = json!(tag.rating);
             obj["ccf_area"] = json!(tag.area);
@@ -553,6 +559,21 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
             obj["ccf_label"] = json!(tag.label);
             obj["ccf_publisher"] = json!(tag.publisher);
             obj["venue_url"] = json!(tag.url);
+        }
+
+        if let Some(tag) = match_journal(venue) {
+            obj["wos_indexes"] = json!(tag.indexes);
+            obj["wos_categories"] = json!(tag.wos_categories);
+            obj["jcr_quartile"] = json!(tag.jcr_quartile);
+            obj["jcr_category"] = json!(tag.jcr_category);
+            obj["jif"] = json!(tag.jif);
+            obj["jif_rank"] = json!(tag.jif_rank);
+            obj["cas_quartile"] = json!(tag.cas_quartile);
+            obj["cas_top"] = json!(tag.cas_top);
+            obj["open_access"] = json!(tag.open_access);
+            obj["journal_issn"] = json!(tag.issn);
+            obj["journal_eissn"] = json!(tag.eissn);
+            obj["journal_publisher"] = json!(tag.publisher);
         }
     }
     obj

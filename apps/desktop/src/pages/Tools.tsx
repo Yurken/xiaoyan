@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { AlertCircle, CalendarDays, FileSearch, Globe2, Search, Sparkles, Wrench } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
-import type { ArxivRankingMode, ArxivSearchResponse, CcfEntry } from "@research-copilot/types";
-import { CcfRatingBadge, VenueTypeBadge } from "../components/CcfBadges";
+import type { ArxivRankingMode, ArxivSearchResponse, CcfEntry, JournalPartitionEntry } from "@research-copilot/types";
+import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, WosIndexBadge, VenueTypeBadge } from "../components/CcfBadges";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { YANWEB_FRIEND_LINK_SECTIONS, YANWEB_FRIEND_LINK_TOTAL } from "../lib/yanweb-links";
@@ -61,6 +61,12 @@ export default function Tools() {
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
 
+  const [journalQuery, setJournalQuery] = useState("");
+  const [journalMatches, setJournalMatches] = useState<JournalPartitionEntry[]>([]);
+  const [journalLoading, setJournalLoading] = useState(false);
+  const [journalError, setJournalError] = useState("");
+  const [journalSearched, setJournalSearched] = useState(false);
+
   const [arxivQuery, setArxivQuery] = useState("");
   const [arxivDays, setArxivDays] = useState("14");
   const [arxivLimit, setArxivLimit] = useState("6");
@@ -117,12 +123,29 @@ export default function Tools() {
     }
   };
 
+  const handleJournalLookup = async () => {
+    if (!journalQuery.trim() || journalLoading) return;
+
+    try {
+      setJournalLoading(true);
+      setJournalError("");
+      setJournalSearched(true);
+      const result = await apiClient.journals.lookup(journalQuery.trim(), 10);
+      setJournalMatches(result.matches ?? []);
+    } catch (nextError) {
+      setJournalMatches([]);
+      setJournalError(formatErrorMessage(nextError));
+    } finally {
+      setJournalLoading(false);
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto p-6 space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-ink-primary">实用工具</h1>
         <p className="mt-1 text-sm text-ink-tertiary">
-          内置 CCF 目录查询、arXiv 智能检索，并补充一组按分类整理的科研友链。arXiv 结果会优先使用你当前项目里的模型设置做分析与重排。
+          内置期刊分区查询、CCF 目录查询、arXiv 智能检索，并补充一组按分类整理的科研友链。arXiv 结果会优先使用你当前项目里的模型设置做分析与重排。
         </p>
       </div>
 
@@ -309,6 +332,90 @@ export default function Tools() {
           <div>
             <p className="font-medium text-ink-secondary">还没有结果</p>
             <p className="mt-1 text-sm text-ink-tertiary">检查关键词和时间窗口后重试。</p>
+          </div>
+        </Card>
+      ) : null}
+
+      <Card padding="md" className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
+            <FileSearch className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-ink-primary">期刊分区查询</p>
+            <p className="mt-1 text-xs text-ink-tertiary">支持期刊名或 ISSN，返回 WoS 收录、JCR 分区和中科院分区。</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row">
+          <div className="flex-1">
+            <Input
+              value={journalQuery}
+              onChange={(event) => setJournalQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void handleJournalLookup();
+                }
+              }}
+              placeholder="输入期刊名或 ISSN"
+            />
+          </div>
+          <Button onClick={() => void handleJournalLookup()} loading={journalLoading} disabled={!journalQuery.trim()}>
+            <FileSearch className="h-4 w-4" />
+            查询分区
+          </Button>
+        </div>
+
+        {journalError && (
+          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{journalError}</span>
+          </div>
+        )}
+      </Card>
+
+      {journalMatches.length > 0 ? (
+        <div className="space-y-3">
+          {journalMatches.map((match, index) => (
+            <Card key={`${match.title}-${match.issn}-${index}`} padding="sm" className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-ink-primary">{match.title}</p>
+                {match.indexes.map((item) => (
+                  <WosIndexBadge key={`${match.title}-${item}`} index={item} />
+                ))}
+                <JcrQuartileBadge quartile={match.jcr_quartile} />
+                <CasQuartileBadge quartile={match.cas_quartile} />
+                <CasTopBadge top={match.cas_top} />
+                {match.open_access ? <Badge variant="success">OA</Badge> : null}
+              </div>
+              <p className="text-xs leading-5 text-ink-secondary">
+                {[match.publisher, match.issn ? `ISSN ${match.issn}` : "", match.eissn ? `eISSN ${match.eissn}` : ""]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              <p className="text-xs leading-5 text-ink-tertiary">
+                {[match.jcr_category, match.jif ? `JIF ${match.jif}` : "", match.jif_rank ? `排名 ${match.jif_rank}` : ""]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              {match.wos_categories.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {match.wos_categories.slice(0, 6).map((item) => (
+                    <Badge key={`${match.title}-${item}`} variant="default">
+                      {item}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
+            </Card>
+          ))}
+        </div>
+      ) : journalSearched && !journalLoading && !journalError ? (
+        <Card className="flex flex-col items-center gap-3 py-16 text-center">
+          <Search className="h-8 w-8 text-ink-tertiary" />
+          <div>
+            <p className="font-medium text-ink-secondary">没有匹配的期刊分区</p>
+            <p className="mt-1 text-sm text-ink-tertiary">建议改用更完整的期刊名或 ISSN 重试。</p>
           </div>
         </Card>
       ) : null}

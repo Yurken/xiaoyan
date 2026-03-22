@@ -72,6 +72,10 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("multi_agent_reproduction_temperature".into(), "".into());
     m.insert("multi_agent_synthesis_model".into(), "".into());
     m.insert("multi_agent_synthesis_temperature".into(), "0.4".into());
+    m.insert(
+        "paper_visible_venue_tags".into(),
+        "ccf_rating,ccf_type,wos_indexes,jcr_quartile,cas_quartile,cas_top".into(),
+    );
     m
 }
 
