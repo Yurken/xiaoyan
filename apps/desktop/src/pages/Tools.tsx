@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AlertCircle, CalendarDays, FileSearch, Globe2, Search, Sparkles, Wrench } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode, ArxivSearchResponse, CcfEntry, JournalPartitionEntry } from "@research-copilot/types";
@@ -75,6 +75,7 @@ export default function Tools() {
   const [arxivError, setArxivError] = useState("");
   const [arxivSearched, setArxivSearched] = useState(false);
   const [arxivResult, setArxivResult] = useState<ArxivSearchResponse | null>(null);
+  const arxivLastSearchAt = useRef<number>(0);
 
   const currentMode = useMemo(
     () => ARXIV_MODE_OPTIONS.find((item) => item.value === arxivMode) ?? ARXIV_MODE_OPTIONS[0],
@@ -100,6 +101,9 @@ export default function Tools() {
 
   const handleArxivSearch = async () => {
     if (!arxivQuery.trim() || arxivLoading) return;
+    const now = Date.now();
+    if (now - arxivLastSearchAt.current < 3000) return;
+    arxivLastSearchAt.current = now;
 
     const days = Number(arxivDays);
     const limit = Number(arxivLimit);
