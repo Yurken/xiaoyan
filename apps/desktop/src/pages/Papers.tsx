@@ -16,6 +16,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Badge, Button, Card, Input } from "@research-copilot/ui";
 import type { Paper, ResearchInterest } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, VenueTypeBadge, WosIndexBadge } from "../components/CcfBadges";
+import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, parsePaperTagVisibility } from "../lib/paperTags";
@@ -125,28 +126,20 @@ export default function Papers() {
   );
 
   const paperGroups = useMemo(() => {
-    const grouped = interests.map((interest) => ({
+    return interests.map((interest) => ({
       key: interest.id,
       title: interestFolderName(interest),
       subtitle: interest.topic,
       papers: papers.filter((paper) => paper.research_interest_id === interest.id),
     }));
+  }, [interests, papers]);
 
-    const ungrouped = papers.filter((paper) => {
+  const ungroupedPapers = useMemo(() => (
+    papers.filter((paper) => {
       if (!paper.research_interest_id) return true;
       return !(paper.research_interest_id in interestMap);
-    });
-
-    return [
-      ...grouped,
-      {
-        key: "__ungrouped__",
-        title: "未归档",
-        subtitle: "尚未关联研究方向",
-        papers: ungrouped,
-      },
-    ];
-  }, [interestMap, interests, papers]);
+    })
+  ), [interestMap, papers]);
 
   const handleUpload = async () => {
     try {
@@ -299,6 +292,209 @@ export default function Papers() {
     return <FileText className="w-5 h-5 text-ink-tertiary" />;
   };
 
+  const renderPaperCard = (paper: Paper) => (
+    <Card key={paper.id} padding="sm" className="space-y-0">
+      <div className="flex items-start gap-4">
+        <div
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl"
+          style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+        >
+          {statusIcon(paper.status)}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <ExternalLink
+              href={paper.paper_url}
+              className="truncate text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
+            >
+              {paper.title}
+            </ExternalLink>
+            {statusBadge(paper.status)}
+            {visiblePaperTags.has("ccf_rating") ? <CcfRatingBadge rating={paper.ccf_rating} /> : null}
+            {visiblePaperTags.has("ccf_type") ? <VenueTypeBadge type={paper.ccf_type} /> : null}
+            {visiblePaperTags.has("wos_indexes")
+              ? paper.wos_indexes?.map((index) => (
+                  <WosIndexBadge key={`${paper.id}-${index}`} index={index} />
+                ))
+              : null}
+            {visiblePaperTags.has("jcr_quartile") ? <JcrQuartileBadge quartile={paper.jcr_quartile} /> : null}
+            {visiblePaperTags.has("cas_quartile") ? <CasQuartileBadge quartile={paper.cas_quartile} /> : null}
+            {visiblePaperTags.has("cas_top") ? <CasTopBadge top={paper.cas_top} /> : null}
+          </div>
+          <p className="mt-0.5 text-xs text-ink-tertiary">
+            {new Date(paper.created_at).toLocaleDateString("zh-CN")}
+          </p>
+          {(paper.venue || paper.ccf_area || paper.ccf_publisher || paper.journal_publisher) && (
+            <p className="mt-1 text-xs leading-5 text-ink-secondary">
+              {paper.venue ? (
+                <ExternalLink
+                  href={paper.venue_url}
+                  className="text-xs text-ink-secondary hover:text-apple-blue hover:underline"
+                >
+                  {paper.venue}
+                </ExternalLink>
+              ) : "未识别来源"}
+              {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
+              {paper.ccf_publisher ? ` · ${paper.ccf_publisher}` : ""}
+              {!paper.ccf_publisher && paper.journal_publisher ? ` · ${paper.journal_publisher}` : ""}
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button size="sm" variant="secondary" onClick={() => openEditor(paper)}>
+            <Pencil className="h-3.5 w-3.5" />
+            编辑
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void handleAnalyze(paper.id)}
+            disabled={paper.status === "analyzing"}
+          >
+            {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            {paper.status === "analyzing" ? "处理中…" : "AI 分析"}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void handleReproduce(paper.id)}
+            disabled={paper.status === "analyzing"}
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+            复现指南
+          </Button>
+          {paper.analysis && (
+            <button
+              onClick={() => setExpanded(expanded === paper.id ? null : paper.id)}
+              className="rounded-xl p-1.5 text-ink-tertiary transition-colors hover:text-ink-primary"
+              style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
+            >
+              {expanded === paper.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          )}
+          {paper.reproduction_guide && (
+            <button
+              onClick={() => setExpandedRepro(expandedRepro === paper.id ? null : paper.id)}
+              className="rounded-xl p-1.5 text-ink-tertiary transition-colors hover:text-ink-primary"
+              style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
+            >
+              <FlaskConical className={`h-4 w-4 ${expandedRepro === paper.id ? "text-apple-blue" : ""}`} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {editingId === paper.id && (
+        <div className="mt-3 grid gap-3 border-t border-nm-dark/10 pt-3 md:grid-cols-2">
+          <Input
+            label="标题"
+            value={editDraft.title}
+            onChange={(event) => setEditDraft((prev) => ({ ...prev, title: event.target.value }))}
+            placeholder="论文标题"
+          />
+          <Input
+            label="作者"
+            value={editDraft.authors}
+            onChange={(event) => setEditDraft((prev) => ({ ...prev, authors: event.target.value }))}
+            placeholder="作者列表"
+          />
+          <Input
+            label="来源/会议/期刊"
+            value={editDraft.venue}
+            onChange={(event) => setEditDraft((prev) => ({ ...prev, venue: event.target.value }))}
+            placeholder="例如：CVPR / IEEE Transactions on Knowledge and Data Engineering"
+          />
+          <Input
+            label="年份"
+            value={editDraft.year}
+            onChange={(event) => setEditDraft((prev) => ({ ...prev, year: event.target.value }))}
+            placeholder="例如：2024"
+          />
+          <div className="space-y-1">
+            <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
+            <select
+              value={editDraft.research_interest_id}
+              onChange={(event) => setEditDraft((prev) => ({ ...prev, research_interest_id: event.target.value }))}
+              className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary outline-none"
+              style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+            >
+              <option value="">未归档</option>
+              {interests.map((interest) => (
+                <option key={interest.id} value={interest.id}>
+                  {interestFolderName(interest)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <Input
+              label="DOI"
+              value={editDraft.doi}
+              onChange={(event) => setEditDraft((prev) => ({ ...prev, doi: event.target.value }))}
+              placeholder="例如：10.1145/xxxx"
+            />
+          </div>
+          <div className="flex justify-end gap-2 md:col-span-2">
+            <Button size="sm" variant="secondary" onClick={() => setEditingId(null)}>
+              取消
+            </Button>
+            <Button size="sm" onClick={() => void handleSaveEdit(paper.id)} loading={savingEdit}>
+              保存
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {expanded === paper.id && paper.analysis && (
+        <div className="mt-3 space-y-2 border-t border-nm-dark/10 pt-3">
+          {(
+            [
+              ["研究问题", paper.analysis.research_question],
+              ["核心方法", paper.analysis.core_method],
+              ["实验设计", paper.analysis.experiment_design],
+              ["创新点", paper.analysis.innovations],
+              ["局限性", paper.analysis.limitations],
+              ["关键结论", paper.analysis.key_conclusions],
+            ] as [string, string | undefined][]
+          )
+            .filter(([, value]) => value)
+            .map(([label, value]) => (
+              <div key={label}>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">{label}</span>
+                <p className="mt-0.5 text-xs leading-5 text-ink-secondary">{value}</p>
+              </div>
+            ))}
+        </div>
+      )}
+
+      {expandedRepro === paper.id && paper.reproduction_guide && (
+        <div className="mt-3 space-y-2 border-t border-nm-dark/10 pt-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-apple-blue">复现指南</p>
+          {(
+            [
+              ["环境配置", paper.reproduction_guide.environment_setup],
+              ["依赖安装", paper.reproduction_guide.dependencies],
+              ["数据准备", paper.reproduction_guide.dataset_preparation],
+              ["训练流程", paper.reproduction_guide.training_process],
+              ["推理流程", paper.reproduction_guide.inference_process],
+              ["评估指标", paper.reproduction_guide.evaluation_metrics],
+              ["风险与注意事项", paper.reproduction_guide.risks_and_notes],
+            ] as [string, string | undefined][]
+          )
+            .filter(([, value]) => value)
+            .map(([label, value]) => (
+              <div key={label}>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">{label}</span>
+                <p className="mt-0.5 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">{value}</p>
+              </div>
+            ))}
+        </div>
+      )}
+    </Card>
+  );
+
   return (
     <div className="h-full overflow-y-auto p-6 space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -371,263 +567,71 @@ export default function Papers() {
       ) : (
         <div className="space-y-3">
           {paperGroups.map((group) => (
-            <section key={group.key} className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-ink-primary">{group.title}</p>
-                <Badge variant="default">{`${group.papers.length} 篇`}</Badge>
-                {group.subtitle !== group.title ? (
-                  <span className="text-xs text-ink-tertiary">{`研究主题：${group.subtitle}`}</span>
-                ) : null}
-                {group.key !== "__ungrouped__" && (
-                  confirmDeleteGroupId === group.key ? (
-                    <div className="ml-auto flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-ink-tertiary">删除文件夹：</span>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        loading={deletingGroupId === group.key}
-                        onClick={() => void handleDeleteInterestGroup(group.key, false)}
-                      >
-                        置为未归档
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        loading={deletingGroupId === group.key}
-                        onClick={() => void handleDeleteInterestGroup(group.key, true)}
-                      >
-                        删除全部
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteGroupId(null)}
-                        className="text-ink-tertiary hover:text-ink-primary"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ) : (
+            <CollapsibleGroup
+              key={group.key}
+              title={group.title}
+              subtitle={group.subtitle !== group.title ? `研究主题：${group.subtitle}` : undefined}
+              countLabel={`${group.papers.length} 篇`}
+              defaultOpen={group.papers.length > 0}
+              bodyClassName="space-y-3"
+              actions={
+                confirmDeleteGroupId === group.key ? (
+                  <>
+                    <span className="text-xs text-ink-tertiary">删除文件夹：</span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={deletingGroupId === group.key}
+                      onClick={() => void handleDeleteInterestGroup(group.key, false)}
+                    >
+                      置为未归档
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={deletingGroupId === group.key}
+                      onClick={() => void handleDeleteInterestGroup(group.key, true)}
+                    >
+                      删除全部
+                    </Button>
                     <button
                       type="button"
-                      onClick={() => setConfirmDeleteGroupId(group.key)}
-                      className="ml-auto text-ink-tertiary/40 transition-colors hover:text-apple-red"
+                      onClick={() => setConfirmDeleteGroupId(null)}
+                      className="text-ink-tertiary hover:text-ink-primary"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
-                  )
-                )}
-              </div>
-
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteGroupId(group.key)}
+                    className="text-ink-tertiary/40 transition-colors hover:text-apple-red"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )
+              }
+            >
               {group.papers.length === 0 ? (
                 <Card padding="sm" className="border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
                   该主题下还没有论文。
                 </Card>
               ) : (
-                group.papers.map((paper) => (
-                  <Card key={paper.id} padding="sm" className="space-y-0">
-              <div className="flex items-start gap-4">
-                <div
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl"
-                  style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
-                >
-                  {statusIcon(paper.status)}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <ExternalLink
-                      href={paper.paper_url}
-                      className="truncate text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
-                    >
-                      {paper.title}
-                    </ExternalLink>
-                    {statusBadge(paper.status)}
-                    {visiblePaperTags.has("ccf_rating") ? <CcfRatingBadge rating={paper.ccf_rating} /> : null}
-                    {visiblePaperTags.has("ccf_type") ? <VenueTypeBadge type={paper.ccf_type} /> : null}
-                    {visiblePaperTags.has("wos_indexes")
-                      ? paper.wos_indexes?.map((index) => (
-                          <WosIndexBadge key={`${paper.id}-${index}`} index={index} />
-                        ))
-                      : null}
-                    {visiblePaperTags.has("jcr_quartile") ? <JcrQuartileBadge quartile={paper.jcr_quartile} /> : null}
-                    {visiblePaperTags.has("cas_quartile") ? <CasQuartileBadge quartile={paper.cas_quartile} /> : null}
-                    {visiblePaperTags.has("cas_top") ? <CasTopBadge top={paper.cas_top} /> : null}
-                  </div>
-                  <p className="mt-0.5 text-xs text-ink-tertiary">
-                    {new Date(paper.created_at).toLocaleDateString("zh-CN")}
-                  </p>
-                  {(paper.venue || paper.ccf_area || paper.ccf_publisher || paper.journal_publisher) && (
-                    <p className="mt-1 text-xs leading-5 text-ink-secondary">
-                      {paper.venue ? (
-                        <ExternalLink
-                          href={paper.venue_url}
-                          className="text-xs text-ink-secondary hover:text-apple-blue hover:underline"
-                        >
-                          {paper.venue}
-                        </ExternalLink>
-                      ) : "未识别来源"}
-                      {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
-                      {paper.ccf_publisher ? ` · ${paper.ccf_publisher}` : ""}
-                      {!paper.ccf_publisher && paper.journal_publisher ? ` · ${paper.journal_publisher}` : ""}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => openEditor(paper)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                    编辑
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void handleAnalyze(paper.id)}
-                    disabled={paper.status === "analyzing"}
-                  >
-                    {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                    {paper.status === "analyzing" ? "处理中…" : "AI 分析"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void handleReproduce(paper.id)}
-                    disabled={paper.status === "analyzing"}
-                  >
-                    <FlaskConical className="h-3.5 w-3.5" />
-                    复现指南
-                  </Button>
-                  {paper.analysis && (
-                    <button
-                      onClick={() => setExpanded(expanded === paper.id ? null : paper.id)}
-                      className="rounded-xl p-1.5 text-ink-tertiary transition-colors hover:text-ink-primary"
-                      style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
-                    >
-                      {expanded === paper.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
-                  )}
-                  {paper.reproduction_guide && (
-                    <button
-                      onClick={() => setExpandedRepro(expandedRepro === paper.id ? null : paper.id)}
-                      className="rounded-xl p-1.5 text-ink-tertiary transition-colors hover:text-ink-primary"
-                      style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
-                    >
-                      <FlaskConical className={`h-4 w-4 ${expandedRepro === paper.id ? "text-apple-blue" : ""}`} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {editingId === paper.id && (
-                <div className="mt-3 grid gap-3 border-t border-nm-dark/10 pt-3 md:grid-cols-2">
-                  <Input
-                    label="标题"
-                    value={editDraft.title}
-                    onChange={(event) => setEditDraft((prev) => ({ ...prev, title: event.target.value }))}
-                    placeholder="论文标题"
-                  />
-                  <Input
-                    label="作者"
-                    value={editDraft.authors}
-                    onChange={(event) => setEditDraft((prev) => ({ ...prev, authors: event.target.value }))}
-                    placeholder="作者列表"
-                  />
-                  <Input
-                    label="来源/会议/期刊"
-                    value={editDraft.venue}
-                    onChange={(event) => setEditDraft((prev) => ({ ...prev, venue: event.target.value }))}
-                    placeholder="例如：CVPR / IEEE Transactions on Knowledge and Data Engineering"
-                  />
-                  <Input
-                    label="年份"
-                    value={editDraft.year}
-                    onChange={(event) => setEditDraft((prev) => ({ ...prev, year: event.target.value }))}
-                    placeholder="例如：2024"
-                  />
-                  <div className="space-y-1">
-                    <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
-                    <select
-                      value={editDraft.research_interest_id}
-                      onChange={(event) => setEditDraft((prev) => ({ ...prev, research_interest_id: event.target.value }))}
-                      className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary outline-none"
-                      style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
-                    >
-                      <option value="">未归档</option>
-                      {interests.map((interest) => (
-                        <option key={interest.id} value={interest.id}>
-                          {interestFolderName(interest)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <Input
-                      label="DOI"
-                      value={editDraft.doi}
-                      onChange={(event) => setEditDraft((prev) => ({ ...prev, doi: event.target.value }))}
-                      placeholder="例如：10.1145/xxxx"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 md:col-span-2">
-                    <Button size="sm" variant="secondary" onClick={() => setEditingId(null)}>
-                      取消
-                    </Button>
-                    <Button size="sm" onClick={() => void handleSaveEdit(paper.id)} loading={savingEdit}>
-                      保存
-                    </Button>
-                  </div>
-                </div>
+                group.papers.map(renderPaperCard)
               )}
-
-              {expanded === paper.id && paper.analysis && (
-                <div className="mt-3 space-y-2 border-t border-nm-dark/10 pt-3">
-                  {(
-                    [
-                      ["研究问题", paper.analysis.research_question],
-                      ["核心方法", paper.analysis.core_method],
-                      ["实验设计", paper.analysis.experiment_design],
-                      ["创新点", paper.analysis.innovations],
-                      ["局限性", paper.analysis.limitations],
-                      ["关键结论", paper.analysis.key_conclusions],
-                    ] as [string, string | undefined][]
-                  )
-                    .filter(([, value]) => value)
-                    .map(([label, value]) => (
-                      <div key={label}>
-                        <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">{label}</span>
-                        <p className="mt-0.5 text-xs leading-5 text-ink-secondary">{value}</p>
-                      </div>
-                    ))}
-                </div>
-              )}
-
-              {expandedRepro === paper.id && paper.reproduction_guide && (
-                <div className="mt-3 space-y-2 border-t border-nm-dark/10 pt-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-apple-blue">复现指南</p>
-                  {(
-                    [
-                      ["环境配置", paper.reproduction_guide.environment_setup],
-                      ["依赖安装", paper.reproduction_guide.dependencies],
-                      ["数据准备", paper.reproduction_guide.dataset_preparation],
-                      ["训练流程", paper.reproduction_guide.training_process],
-                      ["推理流程", paper.reproduction_guide.inference_process],
-                      ["评估指标", paper.reproduction_guide.evaluation_metrics],
-                      ["风险与注意事项", paper.reproduction_guide.risks_and_notes],
-                    ] as [string, string | undefined][]
-                  )
-                    .filter(([, value]) => value)
-                    .map(([label, value]) => (
-                      <div key={label}>
-                        <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">{label}</span>
-                        <p className="mt-0.5 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">{value}</p>
-                      </div>
-                    ))}
-                </div>
-              )}
-                  </Card>
-                ))
-              )}
-            </section>
+            </CollapsibleGroup>
           ))}
+
+          {ungroupedPapers.length > 0 && (
+            <section className="space-y-3">
+              <div className="px-1">
+                <p className="text-sm font-semibold text-ink-primary">未归档论文</p>
+                <p className="mt-1 text-xs text-ink-tertiary">这些论文暂未绑定主题，可直接编辑后移动到主题文件夹。</p>
+              </div>
+              {ungroupedPapers.map(renderPaperCard)}
+            </section>
+          )}
         </div>
       )}
     </div>

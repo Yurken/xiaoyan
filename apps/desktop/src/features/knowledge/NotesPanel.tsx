@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Loader2, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
+import { AlertCircle, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
+import CollapsibleGroup from "../../components/CollapsibleGroup";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 
@@ -13,6 +14,10 @@ function sourceLabel(sourceType: string) {
 
 function interestFolderName(interest: ResearchInterest) {
   return interest.folder_name?.trim() || interest.topic;
+}
+
+function parseNoteTags(raw: string) {
+  return raw.split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean);
 }
 
 export default function NotesPanel() {
@@ -29,6 +34,14 @@ export default function NotesPanel() {
   const [noteTagsRaw, setNoteTagsRaw] = useState("");
   const [selectedInterestId, setSelectedInterestId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [savingEditNoteId, setSavingEditNoteId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({
+    title: "",
+    content: "",
+    tagsRaw: "",
+    research_interest_id: "",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -75,27 +88,19 @@ export default function NotesPanel() {
     [interests]
   );
   const noteGroups = useMemo(() => {
-    const grouped = interests.map((interest) => ({
+    return interests.map((interest) => ({
       key: interest.id,
       title: interestFolderName(interest),
       subtitle: interest.topic,
       notes: notes.filter((note) => note.research_interest_id === interest.id),
     }));
-    const ungrouped = notes.filter((note) => {
+  }, [interests, notes]);
+  const ungroupedNotes = useMemo(() => (
+    notes.filter((note) => {
       if (!note.research_interest_id) return true;
       return !(note.research_interest_id in interestMap);
-    });
-
-    return [
-      ...grouped,
-      {
-        key: "__ungrouped__",
-        title: "未归档",
-        subtitle: "尚未关联研究方向",
-        notes: ungrouped,
-      },
-    ];
-  }, [interestMap, interests, notes]);
+    })
+  ), [interestMap, notes]);
 
   const resetDraft = () => {
     setNoteTitle("");
@@ -104,13 +109,24 @@ export default function NotesPanel() {
     setSelectedInterestId("");
   };
 
+  const openEditNote = (note: KnowledgeNote) => {
+    setEditingNoteId(note.id);
+    setEditDraft({
+      title: note.title,
+      content: note.content,
+      tagsRaw: (note.tags || []).join(", "),
+      research_interest_id: note.research_interest_id || "",
+    });
+    setError("");
+  };
+
   const handleCreateNote = async () => {
     if (!noteTitle.trim() || !noteContent.trim()) return;
 
     setSaving(true);
 
     try {
-      const tags = noteTagsRaw.split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean);
+      const tags = parseNoteTags(noteTagsRaw);
       const note = await apiClient.knowledge.createNote({
         title: noteTitle.trim(),
         content: noteContent.trim(),
@@ -126,6 +142,32 @@ export default function NotesPanel() {
       setError(formatErrorMessage(nextError));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveEditNote = async (id: string) => {
+    const title = editDraft.title.trim();
+    const content = editDraft.content.trim();
+    if (!title || !content) {
+      setError("标题和内容不能为空");
+      return;
+    }
+
+    try {
+      setSavingEditNoteId(id);
+      setError("");
+      await apiClient.knowledge.updateNote(id, {
+        title,
+        content,
+        tags: parseNoteTags(editDraft.tagsRaw),
+      });
+      const moved = await apiClient.knowledge.moveNote(id, editDraft.research_interest_id || undefined);
+      setNotes((prev) => prev.map((note) => (note.id === id ? moved : note)));
+      setEditingNoteId(null);
+    } catch (nextError) {
+      setError(formatErrorMessage(nextError));
+    } finally {
+      setSavingEditNoteId(null);
     }
   };
 
@@ -156,6 +198,105 @@ export default function NotesPanel() {
       setDeletingGroupId(null);
     }
   };
+
+  const renderNoteCard = (note: KnowledgeNote) => (
+    <Card key={note.id} padding="sm" className="group relative flex flex-col gap-3">
+      <div className="pr-12">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="line-clamp-2 text-sm font-semibold text-ink-primary">{note.title}</p>
+          <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
+        </div>
+        {note.research_interest_id && interestMap[note.research_interest_id] && (
+          <p className="mt-2 text-[11px] text-apple-blue">
+            关联方向：{interestFolderName(interestMap[note.research_interest_id])}
+          </p>
+        )}
+      </div>
+
+      <p className="line-clamp-5 text-xs leading-relaxed text-ink-secondary">{note.content}</p>
+
+      {note.tags && note.tags.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {note.tags.map((tag, index) => (
+            <span key={`${note.id}-${tag}-${index}`} className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <p className="mt-auto pt-1 text-xs text-ink-tertiary">
+        {new Date(note.created_at).toLocaleDateString("zh-CN")}
+      </p>
+
+      <div className="absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          type="button"
+          onClick={() => openEditNote(note)}
+          className="text-ink-tertiary hover:text-ink-primary"
+          aria-label={`编辑 ${note.title}`}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleDelete(note.id)}
+          className="text-ink-tertiary hover:text-apple-red"
+          aria-label={`删除 ${note.title}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {editingNoteId === note.id && (
+        <div className="mt-1 grid gap-3 border-t border-nm-dark/10 pt-3">
+          <Input
+            label="标题"
+            value={editDraft.title}
+            onChange={(event) => setEditDraft((prev) => ({ ...prev, title: event.target.value }))}
+            placeholder="知识卡片标题"
+          />
+          <Input
+            label="标签"
+            value={editDraft.tagsRaw}
+            onChange={(event) => setEditDraft((prev) => ({ ...prev, tagsRaw: event.target.value }))}
+            placeholder="逗号分隔，如 对齐, RLHF"
+          />
+          <div className="space-y-1">
+            <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
+            <select
+              value={editDraft.research_interest_id}
+              onChange={(event) => setEditDraft((prev) => ({ ...prev, research_interest_id: event.target.value }))}
+              className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary outline-none"
+              style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+            >
+              <option value="">未归档</option>
+              {interests.map((interest) => (
+                <option key={interest.id} value={interest.id}>
+                  {interestFolderName(interest)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Textarea
+            label="内容"
+            value={editDraft.content}
+            onChange={(event) => setEditDraft((prev) => ({ ...prev, content: event.target.value }))}
+            rows={5}
+            placeholder="补充关键结论、方法差异或后续问题。"
+          />
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setEditingNoteId(null)}>
+              取消
+            </Button>
+            <Button size="sm" loading={savingEditNoteId === note.id} onClick={() => void handleSaveEditNote(note.id)}>
+              保存
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
 
   return (
     <div className="space-y-4">
@@ -277,102 +418,74 @@ export default function NotesPanel() {
       ) : (
         <div className="space-y-4">
           {noteGroups.map((group) => (
-            <section key={group.key} className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-ink-primary">{group.title}</p>
-                <Badge variant="default">{`${group.notes.length} 条`}</Badge>
-                {group.subtitle !== group.title ? (
-                  <span className="text-xs text-ink-tertiary">{`研究主题：${group.subtitle}`}</span>
-                ) : null}
-                {group.key !== "__ungrouped__" && (
-                  confirmDeleteGroupId === group.key ? (
-                    <div className="ml-auto flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-ink-tertiary">删除文件夹：</span>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        loading={deletingGroupId === group.key}
-                        onClick={() => void handleDeleteInterestGroup(group.key, false)}
-                      >
-                        置为未归档
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        loading={deletingGroupId === group.key}
-                        onClick={() => void handleDeleteInterestGroup(group.key, true)}
-                      >
-                        删除全部
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteGroupId(null)}
-                        className="text-ink-tertiary hover:text-ink-primary"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ) : (
+            <CollapsibleGroup
+              key={group.key}
+              title={group.title}
+              subtitle={group.subtitle !== group.title ? `研究主题：${group.subtitle}` : undefined}
+              countLabel={`${group.notes.length} 条`}
+              defaultOpen={group.notes.length > 0}
+              actions={
+                confirmDeleteGroupId === group.key ? (
+                  <>
+                    <span className="text-xs text-ink-tertiary">删除文件夹：</span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={deletingGroupId === group.key}
+                      onClick={() => void handleDeleteInterestGroup(group.key, false)}
+                    >
+                      置为未归档
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={deletingGroupId === group.key}
+                      onClick={() => void handleDeleteInterestGroup(group.key, true)}
+                    >
+                      删除全部
+                    </Button>
                     <button
                       type="button"
-                      onClick={() => setConfirmDeleteGroupId(group.key)}
-                      className="ml-auto text-ink-tertiary/40 transition-colors hover:text-apple-red"
+                      onClick={() => setConfirmDeleteGroupId(null)}
+                      className="text-ink-tertiary hover:text-ink-primary"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
-                  )
-                )}
-              </div>
-
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteGroupId(group.key)}
+                    className="text-ink-tertiary/40 transition-colors hover:text-apple-red"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )
+              }
+            >
               {group.notes.length === 0 ? (
                 <Card padding="sm" className="border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
                   该主题下还没有知识卡片。
                 </Card>
               ) : (
-                <div className="grid gap-3 xl:grid-cols-3 md:grid-cols-2">
-                  {group.notes.map((note) => (
-                    <Card key={note.id} padding="sm" className="group relative flex flex-col gap-3">
-                      <div className="pr-7">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="line-clamp-2 text-sm font-semibold text-ink-primary">{note.title}</p>
-                          <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
-                        </div>
-                        {note.research_interest_id && interestMap[note.research_interest_id] && (
-                          <p className="mt-2 text-[11px] text-apple-blue">
-                            关联方向：{interestFolderName(interestMap[note.research_interest_id])}
-                          </p>
-                        )}
-                      </div>
-
-                      <p className="line-clamp-5 text-xs leading-relaxed text-ink-secondary">{note.content}</p>
-
-                      {note.tags && note.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {note.tags.map((tag, index) => (
-                            <span key={`${note.id}-${tag}-${index}`} className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      <p className="mt-auto pt-1 text-xs text-ink-tertiary">
-                        {new Date(note.created_at).toLocaleDateString("zh-CN")}
-                      </p>
-
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(note.id)}
-                        className="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100 text-ink-tertiary hover:text-apple-red"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </Card>
-                  ))}
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {group.notes.map(renderNoteCard)}
                 </div>
               )}
-            </section>
+            </CollapsibleGroup>
           ))}
+
+          {ungroupedNotes.length > 0 && (
+            <section className="space-y-3">
+              <div className="px-1">
+                <p className="text-sm font-semibold text-ink-primary">未归档笔记</p>
+                <p className="mt-1 text-xs text-ink-tertiary">这些笔记暂未绑定主题，可直接编辑并移动到主题文件夹。</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {ungroupedNotes.map(renderNoteCard)}
+              </div>
+            </section>
+          )}
         </div>
       )}
     </div>

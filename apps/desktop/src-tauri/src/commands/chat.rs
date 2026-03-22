@@ -94,6 +94,54 @@ pub async fn chat_delete_session(
 }
 
 #[tauri::command]
+pub async fn chat_update_session_context(
+    state: State<'_, AppState>,
+    id: String,
+    context_type: String,
+    context_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let normalized_context_id = context_id.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() { None } else { Some(trimmed) }
+    });
+    let normalized_context_type = if context_type == "interest" && normalized_context_id.is_some() {
+        "interest".to_string()
+    } else {
+        "general".to_string()
+    };
+
+    sqlx::query(
+        "UPDATE chat_sessions SET context_type = ?, context_id = ?, updated_at = ? WHERE id = ?",
+    )
+    .bind(&normalized_context_type)
+    .bind(&normalized_context_id)
+    .bind(&now)
+    .bind(&id)
+    .execute(&state.db)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let row = sqlx::query(
+        "SELECT id, title, context_type, context_id, created_at, updated_at FROM chat_sessions WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("Session not found")?;
+
+    Ok(json!({
+        "id": row.get::<String, _>("id"),
+        "title": row.get::<String, _>("title"),
+        "context_type": row.get::<String, _>("context_type"),
+        "context_id": row.get::<Option<String>, _>("context_id"),
+        "created_at": row.get::<String, _>("created_at"),
+        "updated_at": row.get::<Option<String>, _>("updated_at"),
+    }))
+}
+
+#[tauri::command]
 pub async fn chat_list_agent_runs(
     state: State<'_, AppState>,
     session_id: String,
@@ -163,11 +211,26 @@ pub async fn chat_stream(
 ) -> Result<serde_json::Value, String> {
     let request_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
-    let ctx_type = context_type.unwrap_or_else(|| "general".into());
+    let normalized_context_id = context_id.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() { None } else { Some(trimmed) }
+    });
+    let ctx_type = if context_type.as_deref() == Some("interest") && normalized_context_id.is_some() {
+        "interest".to_string()
+    } else {
+        "general".to_string()
+    };
 
     let sid = if let Some(id) = session_id {
-        let _ = sqlx::query("UPDATE chat_sessions SET updated_at = ? WHERE id = ?")
-            .bind(&now).bind(&id).execute(&state.db).await;
+        let _ = sqlx::query(
+            "UPDATE chat_sessions SET context_type = ?, context_id = ?, updated_at = ? WHERE id = ?",
+        )
+            .bind(&ctx_type)
+            .bind(&normalized_context_id)
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await;
         id
     } else {
         let id = Uuid::new_v4().to_string();
@@ -176,7 +239,7 @@ pub async fn chat_stream(
         sqlx::query(
             "INSERT INTO chat_sessions (id, title, context_type, context_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
         )
-        .bind(&id).bind(&title).bind(&ctx_type).bind(&context_id).bind(&now).bind(&now)
+        .bind(&id).bind(&title).bind(&ctx_type).bind(&normalized_context_id).bind(&now).bind(&now)
         .execute(&state.db).await.map_err(|e| e.to_string())?;
         id
     };
@@ -194,7 +257,7 @@ pub async fn chat_stream(
     let sid_clone = sid.clone();
 
     tokio::spawn(async move {
-        match run_chat(&app, &db, &settings, &rid, &sid_clone, &message, &ctx_type, &context_id, history).await {
+        match run_chat(&app, &db, &settings, &rid, &sid_clone, &message, &ctx_type, &normalized_context_id, history).await {
             Ok(()) => {}
             Err(e) => { let _ = app.emit("chat:error", json!({ "request_id": rid, "error": e.to_string() })); }
         }

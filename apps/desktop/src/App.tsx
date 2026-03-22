@@ -23,9 +23,9 @@ const navItems = [
   { to: "/planner",   icon: Map,             label: "规划" },
   { to: "/survey",    icon: BookOpen,        label: "综述" },
   { to: "/papers",    icon: FileText,        label: "论文" },
-  { to: "/tools",     icon: Wrench,          label: "工具" },
   { to: "/knowledge", icon: Library,         label: "知识" },
   { to: "/copilot",   icon: MessageSquare,   label: "Copilot" },
+  { to: "/tools",     icon: Wrench,          label: "工具" },
   { to: "/settings",  icon: SettingsIcon,    label: "设置" },
 ];
 

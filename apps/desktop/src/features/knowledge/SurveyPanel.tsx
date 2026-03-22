@@ -225,36 +225,33 @@ export default function SurveyPanel() {
         </div>
 
         {interests.length > 0 && (
-          <div className="rounded-2xl border border-nm-dark/10 bg-white/30 p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">主题分组</p>
-            <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 rounded-3xl border border-nm-dark/10 bg-white/25 p-3">
+            <button
+              type="button"
+              onClick={() => setSelectedInterestId("")}
+              className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
+                selectedInterestId ? "bg-white/55 text-ink-secondary hover:text-ink-primary" : "bg-apple-blue/10 text-apple-blue"
+              }`}
+            >
+              自由检索
+            </button>
+            {interests.map((interest) => (
               <button
+                key={interest.id}
                 type="button"
-                onClick={() => setSelectedInterestId("")}
+                onClick={() => {
+                  setSelectedInterestId(interest.id);
+                  setQuery(interest.topic);
+                }}
                 className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
-                  selectedInterestId ? "bg-white/55 text-ink-secondary hover:text-ink-primary" : "bg-apple-blue/10 text-apple-blue"
+                  selectedInterestId === interest.id
+                    ? "bg-apple-blue/10 text-apple-blue"
+                    : "bg-white/55 text-ink-secondary hover:text-ink-primary"
                 }`}
               >
-                自由检索
+                {interestFolderName(interest)}
               </button>
-              {interests.map((interest) => (
-                <button
-                  key={interest.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedInterestId(interest.id);
-                    setQuery(interest.topic);
-                  }}
-                  className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
-                    selectedInterestId === interest.id
-                      ? "bg-apple-blue/10 text-apple-blue"
-                      : "bg-white/55 text-ink-secondary hover:text-ink-primary"
-                  }`}
-                >
-                  {interestFolderName(interest)}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
         )}
 

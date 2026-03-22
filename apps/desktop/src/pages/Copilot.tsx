@@ -15,6 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
+import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
@@ -86,6 +87,7 @@ export default function Copilot() {
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [selectedInterestId, setSelectedInterestId] = useState("");
+  const [updatingSessionContext, setUpdatingSessionContext] = useState(false);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -135,22 +137,18 @@ export default function Copilot() {
   }, []);
 
   const sessionGroups = useMemo(() => {
-    const grouped = interests.map((interest) => ({
+    return interests.map((interest) => ({
       key: interest.id,
       title: interestFolderName(interest),
+      subtitle: interestFolderName(interest) !== interest.topic ? `研究主题：${interest.topic}` : undefined,
       sessions: sessions.filter((session) => session.context_type === "interest" && session.context_id === interest.id),
     }));
-    const generalSessions = sessions.filter((session) => session.context_type !== "interest" || !session.context_id);
-
-    return [
-      {
-        key: "__general__",
-        title: "未归档对话",
-        sessions: generalSessions,
-      },
-      ...grouped,
-    ];
   }, [interests, sessions]);
+
+  const ungroupedSessions = useMemo(
+    () => sessions.filter((session) => session.context_type !== "interest" || !session.context_id),
+    [sessions]
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -177,6 +175,11 @@ export default function Copilot() {
     }
   };
 
+  const syncSession = (updatedSession: ChatSession) => {
+    setSessions((prev) => [updatedSession, ...prev.filter((session) => session.id !== updatedSession.id)]);
+    setCurrentSession((prev) => (prev?.id === updatedSession.id ? updatedSession : prev));
+  };
+
   const handleNewChat = () => {
     setCurrentSession(null);
     setMessages([]);
@@ -185,6 +188,27 @@ export default function Copilot() {
     setRequestId(undefined);
     setLoadError("");
     setActiveAssistantId(null);
+  };
+
+  const handleSessionInterestChange = async (nextInterestId: string) => {
+    const previousInterestId = selectedInterestId;
+    setSelectedInterestId(nextInterestId);
+
+    if (!currentSession) {
+      return;
+    }
+
+    try {
+      setUpdatingSessionContext(true);
+      setLoadError("");
+      const updatedSession = await apiClient.chat.updateSessionContext(currentSession.id, nextInterestId || undefined);
+      syncSession(updatedSession);
+    } catch (error) {
+      setSelectedInterestId(previousInterestId);
+      setLoadError(formatErrorMessage(error));
+    } finally {
+      setUpdatingSessionContext(false);
+    }
   };
 
   const handleDeleteSession = async (sessionId: string) => {
@@ -219,6 +243,10 @@ export default function Copilot() {
               : s
           )
         );
+        if (currentSession?.context_type === "interest" && currentSession.context_id === interestId) {
+          setCurrentSession((prev) => prev ? { ...prev, context_type: "general", context_id: undefined } : prev);
+          setSelectedInterestId("");
+        }
       }
       setInterests((prev) => prev.filter((item) => item.id !== interestId));
       setConfirmDeleteGroupId(null);
@@ -262,8 +290,8 @@ export default function Copilot() {
       for await (const chunk of apiClient.chat.stream({
         session_id: currentSession?.id,
         message: text,
-        context_type: currentSession?.id ? undefined : (selectedInterestId ? "interest" : undefined),
-        context_id: currentSession?.id ? undefined : (selectedInterestId || undefined),
+        context_type: selectedInterestId ? "interest" : "general",
+        context_id: selectedInterestId || undefined,
       })) {
         if (chunk.type === "session_id") {
           sessionId = chunk.value;
@@ -334,6 +362,35 @@ export default function Copilot() {
 
   const artifacts = displayedRuns.flatMap((run) => run.artifacts ?? []);
 
+  const renderSessionItem = (session: ChatSession) => (
+    <div
+      key={session.id}
+      className="group flex items-start gap-2 rounded-2xl px-3 py-2.5 text-xs transition-all duration-150"
+      style={
+        currentSession?.id === session.id
+          ? {
+              background: "#E8ECF0",
+              boxShadow: "inset 3px 3px 6px #C8CDD3, inset -3px -3px 6px #FFFFFF",
+              color: "#007AFF",
+            }
+          : { color: "#3C3C43" }
+      }
+    >
+      <button className="min-w-0 flex-1 text-left" onClick={() => void loadSession(session)}>
+        <div className="truncate font-medium">{session.title || "新对话"}</div>
+        <div className="mt-1 text-[11px] opacity-70">
+          {new Date(session.updated_at || session.created_at).toLocaleDateString("zh-CN")}
+        </div>
+      </button>
+      <button
+        onClick={() => void handleDeleteSession(session.id)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-ink-tertiary hover:text-apple-red"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex h-full" style={{ background: "linear-gradient(180deg, #F3F6FA 0%, #E8ECF0 100%)" }}>
       <div
@@ -353,7 +410,7 @@ export default function Copilot() {
             }}
           >
             <Plus className="w-4 h-4" />
-            新建多 agent 对话
+            新建对话
           </button>
           <div className="mt-2">
             <label className="mb-1 ml-1 block text-[11px] font-medium text-ink-tertiary">新对话主题文件夹</label>
@@ -380,82 +437,68 @@ export default function Copilot() {
               <p className="text-xs text-ink-tertiary">暂无对话记录</p>
             </div>
           )}
-          {sessionGroups.filter((group) => group.key === "__general__" || group.sessions.length > 0).map((group) => (
-            <div key={group.key} className="space-y-1">
-              <div className="flex items-center gap-1 px-3 pt-2">
-                <span className="text-[11px] font-semibold text-ink-tertiary">{group.title}</span>
-                {group.key !== "__general__" && (
-                  confirmDeleteGroupId === group.key ? (
-                    <div className="ml-auto flex items-center gap-1">
-                      <button
-                        type="button"
-                        disabled={deletingGroupId === group.key}
-                        onClick={() => void handleDeleteInterestGroup(group.key, false)}
-                        className="rounded-lg px-1.5 py-0.5 text-[10px] text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary disabled:opacity-50"
-                      >
-                        未归档
-                      </button>
-                      <button
-                        type="button"
-                        disabled={deletingGroupId === group.key}
-                        onClick={() => void handleDeleteInterestGroup(group.key, true)}
-                        className="rounded-lg px-1.5 py-0.5 text-[10px] text-apple-red transition-colors hover:bg-apple-red/10 disabled:opacity-50"
-                      >
-                        删除全部
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteGroupId(null)}
-                        className="text-ink-tertiary hover:text-ink-primary"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ) : (
+          {sessionGroups.filter((group) => group.sessions.length > 0).map((group) => (
+            <CollapsibleGroup
+              key={group.key}
+              compact
+              title={group.title}
+              subtitle={group.subtitle}
+              countLabel={`${group.sessions.length} 条`}
+              defaultOpen={group.sessions.length > 0}
+              bodyClassName="space-y-1"
+              actions={
+                confirmDeleteGroupId === group.key ? (
+                  <>
                     <button
                       type="button"
-                      onClick={() => setConfirmDeleteGroupId(group.key)}
-                      className="ml-auto text-ink-tertiary/30 transition-colors hover:text-apple-red"
+                      disabled={deletingGroupId === group.key}
+                      onClick={() => void handleDeleteInterestGroup(group.key, false)}
+                      className="rounded-lg px-1.5 py-0.5 text-[10px] text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary disabled:opacity-50"
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )
-                )}
-              </div>
-              {group.sessions.length === 0 ? (
-                <div className="px-3 py-1.5 text-[11px] text-ink-tertiary/80">暂无会话</div>
-              ) : (
-                group.sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className="group flex items-start gap-2 rounded-2xl px-3 py-2.5 text-xs transition-all duration-150"
-                    style={
-                      currentSession?.id === session.id
-                        ? {
-                            background: "#E8ECF0",
-                            boxShadow: "inset 3px 3px 6px #C8CDD3, inset -3px -3px 6px #FFFFFF",
-                            color: "#007AFF",
-                          }
-                        : { color: "#3C3C43" }
-                    }
-                  >
-                    <button className="min-w-0 flex-1 text-left" onClick={() => void loadSession(session)}>
-                      <div className="truncate font-medium">{session.title || "新对话"}</div>
-                      <div className="mt-1 text-[11px] opacity-70">
-                        {new Date(session.updated_at || session.created_at).toLocaleDateString("zh-CN")}
-                      </div>
+                      未归档
                     </button>
                     <button
-                      onClick={() => void handleDeleteSession(session.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-ink-tertiary hover:text-apple-red"
+                      type="button"
+                      disabled={deletingGroupId === group.key}
+                      onClick={() => void handleDeleteInterestGroup(group.key, true)}
+                      className="rounded-lg px-1.5 py-0.5 text-[10px] text-apple-red transition-colors hover:bg-apple-red/10 disabled:opacity-50"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      删除全部
                     </button>
-                  </div>
-                ))
-              )}
-            </div>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteGroupId(null)}
+                      className="text-ink-tertiary hover:text-ink-primary"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteGroupId(group.key)}
+                    className="text-ink-tertiary/30 transition-colors hover:text-apple-red"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )
+              }
+            >
+              {group.sessions.map(renderSessionItem)}
+            </CollapsibleGroup>
           ))}
+
+          {ungroupedSessions.length > 0 && (
+            <div className="px-2 pt-2">
+              <div className="px-2 pb-2">
+                <p className="text-[11px] font-semibold text-ink-tertiary">未归档</p>
+                <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">打开会话后可在顶部调整所属主题。</p>
+              </div>
+              <div className="space-y-1">
+                {ungroupedSessions.map(renderSessionItem)}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -483,15 +526,36 @@ export default function Copilot() {
                 <p className="text-xs text-ink-tertiary mt-0.5">调度 agent 与专项 agent 协同工作</p>
               </div>
             </div>
-            <div
-              className="px-3 py-1.5 rounded-full text-xs font-medium"
-              style={{
-                background: "#E8ECF0",
-                color: sending ? "#FF9500" : "#34C759",
-                boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
-              }}
-            >
-              {sending ? "运行中" : "就绪"}
+            <div className="flex items-center gap-3">
+              {currentSession && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-ink-tertiary">所属主题</span>
+                  <select
+                    value={selectedInterestId}
+                    onChange={(event) => void handleSessionInterestChange(event.target.value)}
+                    disabled={updatingSessionContext}
+                    className="min-w-[180px] rounded-2xl border-0 px-3 py-2 text-xs text-ink-primary outline-none disabled:opacity-60"
+                    style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                  >
+                    <option value="">未归档</option>
+                    {interests.map((interest) => (
+                      <option key={interest.id} value={interest.id}>
+                        {interestFolderName(interest)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div
+                className="px-3 py-1.5 rounded-full text-xs font-medium"
+                style={{
+                  background: "#E8ECF0",
+                  color: updatingSessionContext ? "#007AFF" : sending ? "#FF9500" : "#34C759",
+                  boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                }}
+              >
+                {updatingSessionContext ? "更新主题中" : sending ? "运行中" : "就绪"}
+              </div>
             </div>
           </div>
 

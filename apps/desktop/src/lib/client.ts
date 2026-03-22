@@ -150,6 +150,11 @@ export const knowledgeApi = {
       content: data.content ?? null,
       tags: data.tags ?? null,
     }),
+  moveNote: (id: string, research_interest_id?: string): Promise<KnowledgeNote> =>
+    invoke("knowledge_move_note", {
+      id,
+      researchInterestId: research_interest_id ?? null,
+    }),
   deleteNote: (id: string): Promise<void> =>
     invoke("knowledge_delete_note", { id }),
   search: (q: string, topK = 5): Promise<{ id: string; content: string; source: string; score: number }[]> =>
@@ -251,6 +256,12 @@ export const chatApi = {
   listSessions: (): Promise<ChatSession[]> => invoke("chat_list_sessions"),
   getSession: (id: string): Promise<ChatSession> => invoke("chat_get_session", { id }),
   deleteSession: (id: string): Promise<void> => invoke("chat_delete_session", { id }),
+  updateSessionContext: (id: string, interestId?: string): Promise<ChatSession> =>
+    invoke("chat_update_session_context", {
+      id,
+      contextType: interestId ? "interest" : "general",
+      contextId: interestId ?? null,
+    }),
   listAgentRuns: (sessionId: string, requestId?: string): Promise<AgentRun[]> =>
     invoke("chat_list_agent_runs", { sessionId, requestId: requestId ?? null }),
   stream: streamChat,
