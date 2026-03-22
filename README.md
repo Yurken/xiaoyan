@@ -228,14 +228,43 @@ node scripts/sync-version.mjs --tag v1.2.3
 推送 `v*` tag 后触发 GitHub Release 流水线：
 
 1. **create-release**：创建草稿 Release
-2. **build**（矩阵并行）：`macos-latest` / `ubuntu-latest` / `windows-latest` 分别编译并上传产物
-3. **publish-release**：所有构建完成后正式发布
+2. **build**（矩阵并行）：`macos-latest` / `windows-latest` 分别编译并上传产物
+3. **publish-updater**：下载 updater 产物，重写 `latest.json` 中的下载地址，并同步到自有更新服务器
+4. **publish-release**：所有构建完成后正式发布
 
 > **macOS 首次打开**：发布的 `.dmg` 使用 ad-hoc 签名，未经 Apple 公证。执行以下命令后重新打开：
 > ```bash
 > xattr -cr /Applications/ResearchCopilot.app
 > ```
 > 或在「系统设置 → 隐私与安全性」中选择「仍要打开」。
+
+### 桌面端升级检测
+
+桌面端升级使用 Tauri v2 官方 updater。当前默认更新源固定为：
+
+- `http://111.231.56.208/research-copilot-updates/latest.json`
+
+客户端不会直接访问私有 GitHub Release，而是从这台服务器读取公开的 `latest.json` 和安装包。
+
+需要在 GitHub Actions 中配置这些 Secrets：
+
+- `TAURI_SIGNING_PRIVATE_KEY`
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：当前这把 key 没有密码，留空或不设置即可
+- `UPDATE_SERVER_SSH_PRIVATE_KEY`
+
+建议的服务器目录结构：
+
+- `/var/www/html/research-copilot-updates/latest.json`
+- `/var/www/html/research-copilot-updates/v1.2.3/*`
+- `/var/www/html/research-copilot-updates/v1.2.4/*`
+
+注意：
+
+- 当前配置显式启用了 `dangerousInsecureTransportProtocol`，因此允许使用 HTTP 更新源。这是为了先跑通基于 IP 的自动更新，不是长期最优方案。
+- 真正长期可维护的做法仍然是给更新服务器配 HTTPS 域名，再去掉这个危险开关。
+- 本机已经生成一套 updater 签名密钥：`~/.tauri/research-copilot-updater.key` / `~/.tauri/research-copilot-updater.key.pub`。
+- 本机到服务器的部署 SSH key 在 `~/.ssh/research-copilot-update-server`，公钥已写入服务器 `root` 的 `authorized_keys`。
+- 如果你是手工发布，也可以直接用 `scripts/upload-updater-assets.sh <dir> <tag>` 上传已经生成好的 updater 资产目录。
 
 ## 项目结构
 

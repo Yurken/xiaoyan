@@ -21,6 +21,7 @@ import type {
   ResearchInterestHintResponse,
   KnowledgeNote,
   AppSettings,
+  AppUpdateInfo,
   AgentRun,
 } from "@research-copilot/types";
 
@@ -39,6 +40,11 @@ export const settingsApi = {
     invoke("settings_update", { data }),
   test: (data: Partial<AppSettings>): Promise<string> =>
     invoke("settings_test", { data }),
+};
+
+export const updatesApi = {
+  check: (): Promise<AppUpdateInfo> => invoke("update_check"),
+  install: (): Promise<void> => invoke("update_install"),
 };
 
 // ── Papers ───────────────────────────────────────────────────────
@@ -267,6 +273,7 @@ export const apiClient = {
   journals: journalApi,
   sources: sourceApi,
   settings: settingsApi,
+  updates: updatesApi,
   papers: papersApi,
   knowledge: knowledgeApi,
   chat: chatApi,

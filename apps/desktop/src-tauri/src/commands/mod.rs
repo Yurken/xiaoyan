@@ -7,3 +7,4 @@ pub mod misc;
 pub mod papers;
 pub mod settings;
 pub mod source;
+pub mod update;

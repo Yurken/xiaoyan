@@ -35,6 +35,7 @@ use commands::{
     papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_reproduce, papers_update, papers_upload},
     settings::{settings_get, settings_test, settings_update},
     source::source_lookup,
+    update::{update_check, update_install, PendingUpdate},
 };
 use state::{default_settings, AppState};
 
@@ -70,6 +71,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            app.manage(PendingUpdate::default());
+
             let app_data_dir = app
                 .path()
                 .app_data_dir()
@@ -119,6 +124,8 @@ pub fn run() {
             settings_get,
             settings_update,
             settings_test,
+            update_check,
+            update_install,
             // Papers
             papers_list,
             papers_get,
