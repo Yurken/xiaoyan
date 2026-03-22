@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
-      - name: Create or update draft release
+      - name: Recreate draft release
         id: release
         uses: actions/github-script@v7.0.1
         env:
@@ -41,35 +41,28 @@ jobs:
             > 首次安装 macOS 版本如提示"无法验证"，请前往系统设置 -> 隐私与安全性 -> 仍要打开。`;
             const prerelease = tag.includes('-');
 
-            let release;
             try {
               const existing = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              release = (
-                await github.rest.repos.updateRelease({
-                  owner,
-                  repo,
-                  release_id: existing.data.id,
-                  tag_name: tag,
-                  name: releaseName,
-                  body,
-                  draft: true,
-                  prerelease,
-                })
-              ).data;
+              await github.rest.repos.deleteRelease({
+                owner,
+                repo,
+                release_id: existing.data.id,
+              });
             } catch (error) {
               if (error.status !== 404) throw error;
-              release = (
-                await github.rest.repos.createRelease({
-                  owner,
-                  repo,
-                  tag_name: tag,
-                  name: releaseName,
-                  body,
-                  draft: true,
-                  prerelease,
-                })
-              ).data;
             }
+
+            const release = (
+              await github.rest.repos.createRelease({
+                owner,
+                repo,
+                tag_name: tag,
+                name: releaseName,
+                body,
+                draft: true,
+                prerelease,
+              })
+            ).data;
 
             core.setOutput('release_id', String(release.id));
 
