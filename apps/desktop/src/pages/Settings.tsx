@@ -1166,7 +1166,7 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           {SETTINGS_SECTIONS.map((item) => (
             <SettingsSectionTab
               key={item.key}
