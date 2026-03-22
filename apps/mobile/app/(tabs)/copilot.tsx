@@ -95,7 +95,7 @@ export default function CopilotScreen() {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: "请求失败，请检查网络连接。" }
+            ? { ...m, content: "请求未完成，请检查网络连接后重试。" }
             : m
         )
       );
@@ -135,7 +135,7 @@ export default function CopilotScreen() {
             </View>
             <Text style={styles.welcomeTitle}>智研 Copilot</Text>
             <Text style={styles.welcomeText}>
-              你的 AI 科研助手，随时为你解答论文问题
+              企业级 AI 科研助手，支持围绕论文与研究问题持续对话
             </Text>
           </View>
         ) : (
@@ -159,7 +159,7 @@ export default function CopilotScreen() {
             style={styles.textInput}
             value={input}
             onChangeText={setInput}
-            placeholder="输入问题…"
+            placeholder="请输入研究问题"
             placeholderTextColor="#8E8E93"
             multiline
             maxLength={2000}

@@ -19,17 +19,17 @@ interface PlannerAgentStep {
 
 function defaultPlannerWorkflow(): PlannerAgentStep[] {
   return [
-    { id: "analyst", name: "Topic Analyst", role: "拆解研究主题与能力目标", status: "pending" },
-    { id: "scout", name: "Paper Scout", role: "筛选候选经典论文", status: "pending" },
-    { id: "designer", name: "Learning Path Designer", role: "生成结构化学习路径", status: "pending" },
+    { id: "analyst", name: "主题分析 Agent", role: "拆解研究主题与能力目标", status: "pending" },
+    { id: "scout", name: "参考文献筛选 Agent", role: "筛选候选经典论文", status: "pending" },
+    { id: "designer", name: "学习路径规划 Agent", role: "生成结构化学习路径", status: "pending" },
   ];
 }
 
 function plannerStatusLabel(status: PlannerAgentStatus) {
-  if (status === "done") return "完成";
+  if (status === "done") return "已完成";
   if (status === "failed") return "失败";
-  if (status === "running") return "运行中";
-  return "等待中";
+  if (status === "running") return "处理中";
+  return "待处理";
 }
 
 function plannerStatusIcon(status: PlannerAgentStatus) {
@@ -100,21 +100,21 @@ export default function PlannerPage() {
         setWorkflow([
           {
             id: "analyst",
-            name: "Topic Analyst",
+            name: "主题分析 Agent",
             role: "拆解研究主题与能力目标",
             status: "done",
             summary: `完成「${topic.trim()}」的学习能力拆解`,
           },
           {
             id: "scout",
-            name: "Paper Scout",
+            name: "参考文献筛选 Agent",
             role: "筛选候选经典论文",
             status: "done",
             summary: `已完成候选文献推荐（${normalized.path?.classic_papers?.length || 0} 篇）`,
           },
           {
             id: "designer",
-            name: "Learning Path Designer",
+            name: "学习路径规划 Agent",
             role: "生成结构化学习路径",
             status: "done",
             summary: `路径已生成（${normalized.path?.learning_stages?.length || 0} 个阶段）`,
@@ -129,11 +129,11 @@ export default function PlannerPage() {
         base[target] = {
           ...base[target],
           status: "failed",
-          error: e instanceof Error ? e.message : "生成失败",
+          error: e instanceof Error ? e.message : "生成未完成",
         };
         return base;
       });
-      setError(e instanceof Error ? e.message : "生成失败，请重试");
+      setError(e instanceof Error ? e.message : "生成未完成，请稍后重试。");
     } finally {
       setLoading(false);
     }
@@ -147,7 +147,7 @@ export default function PlannerPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">研究方向规划</h1>
-          <p className="text-sm text-gray-500">输入你的研究方向，AI 为你生成系统化学习路径</p>
+          <p className="text-sm text-gray-500">请输入研究方向，系统会为你生成结构化学习路径</p>
         </div>
       </div>
 
@@ -155,7 +155,7 @@ export default function PlannerPage() {
         <div className="space-y-4">
           <Input
             label="研究方向"
-            placeholder="例如：大语言模型的对齐技术、联邦学习隐私保护..."
+            placeholder="请输入研究方向，例如：大语言模型的对齐技术、联邦学习隐私保护"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
@@ -168,7 +168,7 @@ export default function PlannerPage() {
           />
           <Button onClick={handleGenerate} loading={loading} size="lg" className="w-full">
             <Sparkles className="w-4 h-4" />
-            {loading ? "AI 生成中..." : "生成学习路径"}
+            {loading ? "正在生成..." : "生成学习路径"}
           </Button>
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>

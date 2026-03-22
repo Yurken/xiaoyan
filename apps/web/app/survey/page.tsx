@@ -61,19 +61,19 @@ function getDefaultWorkflow(): AgentStep[] {
   return [
     {
       id: "planner",
-      name: "Intent Planner",
+      name: "检索规划 Agent",
       role: "规划研究范围与检索策略",
       status: "pending",
     },
     {
       id: "retriever",
-      name: "Literature Retriever",
+      name: "文献检索 Agent",
       role: "自动检索相关文献",
       status: "pending",
     },
     {
       id: "writer",
-      name: "Survey Writer",
+      name: "综述写作 Agent",
       role: "生成结构化文献综述",
       status: "pending",
     },
@@ -200,21 +200,21 @@ function normalizeWorkflow(raw: Record<string, unknown>, normalized: SurveyData)
   return [
     {
       id: "planner",
-      name: "Intent Planner",
+      name: "检索规划 Agent",
       role: "规划研究范围与检索策略",
       status: "done",
       summary: `已完成「${normalized.query}」的综述范围拆解`,
     },
     {
       id: "retriever",
-      name: "Literature Retriever",
+      name: "文献检索 Agent",
       role: "自动检索相关文献",
       status: "done",
       summary: `已检索到 ${normalized.papers.length} 篇候选论文`,
     },
     {
       id: "writer",
-      name: "Survey Writer",
+      name: "综述写作 Agent",
       role: "生成结构化文献综述",
       status: "done",
       summary: "已输出研究背景、方法、趋势与建议研究方向",
@@ -230,10 +230,10 @@ function statusBadgeTone(status: AgentStatus) {
 }
 
 function statusLabel(status: AgentStatus) {
-  if (status === "done") return "完成";
+  if (status === "done") return "已完成";
   if (status === "failed") return "失败";
-  if (status === "running") return "运行中";
-  return "等待中";
+  if (status === "running") return "处理中";
+  return "待处理";
 }
 
 function statusIcon(status: AgentStatus) {
@@ -312,11 +312,11 @@ export default function SurveyPage() {
         cloned[index] = {
           ...cloned[index],
           status: "failed",
-          error: e instanceof Error ? e.message : "生成失败",
+          error: e instanceof Error ? e.message : "生成未完成",
         };
         return cloned;
       });
-      setError(e instanceof Error ? e.message : "生成失败，请重试");
+      setError(e instanceof Error ? e.message : "生成未完成，请稍后重试。");
     } finally {
       clearFlowTimers();
       setLoading(false);
@@ -331,14 +331,14 @@ export default function SurveyPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">文献调研与综述</h1>
-          <p className="text-sm text-gray-500">输入研究关键词，自动检索论文并生成结构化综述</p>
+          <p className="text-sm text-gray-500">请输入研究关键词，系统会自动检索论文并生成结构化综述</p>
         </div>
       </div>
 
       <Card className="mb-6">
         <div className="flex gap-3">
           <Input
-            placeholder="例如：graph neural network for drug discovery..."
+            placeholder="请输入研究关键词，例如：graph neural network for drug discovery"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
@@ -346,7 +346,7 @@ export default function SurveyPage() {
           />
           <Button onClick={handleGenerate} loading={loading} size="md">
             <Sparkles className="w-4 h-4" />
-            {loading ? "调研中..." : "生成综述"}
+            {loading ? "正在生成..." : "生成综述"}
           </Button>
         </div>
         {error && <p className="text-sm text-red-600 mt-2">{error}</p>}

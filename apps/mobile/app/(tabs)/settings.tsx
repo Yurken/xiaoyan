@@ -34,7 +34,7 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>设置</Text>
-          <Text style={styles.subtitle}>配置应用偏好</Text>
+          <Text style={styles.subtitle}>管理应用连接与基础信息</Text>
         </View>
 
         {/* Backend */}
@@ -51,7 +51,7 @@ export default function SettingsScreen() {
             style={styles.input}
             value={apiUrl}
             onChangeText={setApiUrlState}
-            placeholder="http://localhost:8008"
+            placeholder="请输入 API 地址，例如：http://localhost:8008"
             placeholderTextColor="#8E8E93"
             autoCapitalize="none"
             keyboardType="url"

@@ -29,8 +29,25 @@ import type {
 // ── Helpers ──────────────────────────────────────────────────────
 
 export function formatErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = raw.trim();
+
+  if (!normalized) return "操作未完成，请稍后重试。";
+
+  const directMap: Record<string, string> = {
+    "Session not found": "未找到对应会话。",
+    "Research interest not found": "未找到对应研究方向。",
+    "Interest not found": "未找到对应研究方向。",
+    "Note not found": "未找到对应笔记。",
+    "Paper not found": "未找到对应论文。",
+    "Expected object": "请求参数格式不正确。",
+  };
+
+  if (directMap[normalized]) return directMap[normalized];
+
+  return normalized
+    .replace(/^PDF extraction failed:/i, "PDF 解析失败：")
+    .replace(/^error:\s*/i, "");
 }
 
 // ── Settings ─────────────────────────────────────────────────────

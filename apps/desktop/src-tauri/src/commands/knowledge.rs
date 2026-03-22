@@ -118,7 +118,7 @@ pub async fn knowledge_update_interest_folder(
     .fetch_optional(&state.db)
     .await
     .map_err(|e| e.to_string())?
-    .ok_or("Research interest not found")?;
+    .ok_or("未找到对应研究方向。")?;
 
     Ok(research_interest_row_to_json(&row))
 }
@@ -137,7 +137,7 @@ pub async fn knowledge_delete_interest_bundle(
         .map_err(|e| e.to_string())?;
 
     if exists.is_none() {
-        return Err("Research interest not found".to_string());
+        return Err("未找到对应研究方向。".to_string());
     }
 
     let deleted_sessions = sqlx::query("DELETE FROM chat_sessions WHERE context_type = 'interest' AND context_id = ?")
@@ -205,13 +205,13 @@ pub async fn knowledge_delete_interest_only(
     Ok(json!({ "deleted_interest_id": id }))
 }
 
-const PLANNER_SYSTEM: &str = "你是一位顶尖的学术导师，擅长为学生设计系统化的研究学习路线。";
-const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{keywords}）设计系统化学习路线，以 JSON 格式返回：
+const PLANNER_SYSTEM: &str = "你是企业级科研规划助手，负责为研究者设计结构化、可执行、可落地的研究学习路线。输出必须专业、克制、可操作。";
+const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{keywords}）设计系统化学习路线，仅返回合法 JSON：
 {{"overview":"...","prerequisites":[{{"name":"...","description":"...","resources":["..."]}}],"learning_stages":[{{"stage":1,"title":"...","duration":"...","goals":["..."],"topics":["..."],"resources":["..."]}}],"classic_papers":[{{"title":"...","authors":"...","year":2020,"venue":"会议/期刊名称","reason":"..."}}],"research_directions":[{{"direction":"...","description":"...","open_problems":["..."]}}],"tools_and_frameworks":["..."],"communities":["..."]}}"#;
-const PLANNER_ANALYST_SYSTEM: &str = "你是研究方向分析 Agent，负责把研究主题拆解为学习重点和能力目标。";
-const PLANNER_ANALYST_PROMPT: &str = r#"请分析研究方向「{topic}」（关键词：{keywords}），仅返回 JSON：
+const PLANNER_ANALYST_SYSTEM: &str = "你是研究方向分析 Agent，负责把研究主题拆解为清晰的学习重点、能力目标和风险点。输出必须准确、简洁、可执行。";
+const PLANNER_ANALYST_PROMPT: &str = r#"请分析研究方向「{topic}」（关键词：{keywords}），仅返回合法 JSON：
 {"scope":"一句话定义范围","focus_topics":["核心主题"],"skill_targets":["需要掌握的能力"],"risk_points":["新手常见误区"]}"#;
-const INTEREST_HINT_SYSTEM: &str = "你是研究规划表单里的实时 AI 助手。你的职责不是生成完整路线，而是根据用户当前已填写的部分内容，判断下一步该补什么，并提供可点击的候选短语。";
+const INTEREST_HINT_SYSTEM: &str = "你是研究规划表单中的实时 AI 助手。你的职责不是直接生成完整路线，而是基于用户已填写的信息，判断下一步最值得补充的字段，并给出可直接点击的候选短语。输出必须稳定、克制、可执行。";
 const INTEREST_HINT_PROMPT: &str = r#"请根据下面这个"正在填写中的研究规划表单"，给出实时补全建议。
 
 目标：
@@ -253,7 +253,7 @@ pub async fn knowledge_generate_plan(
         .fetch_optional(&state.db)
         .await
         .map_err(|e| e.to_string())?
-        .ok_or("Interest not found")?;
+        .ok_or("未找到对应研究方向。")?;
 
     let topic: String = row.get("topic");
     let kw_str: String = row.get::<Option<String>, _>("keywords").unwrap_or_else(|| "[]".into());
@@ -277,7 +277,7 @@ pub async fn knowledge_generate_plan(
             "id": rid,
             "agent": {
                 "id": analyst_id,
-                "name": "Topic Analyst",
+                "name": "主题分析 Agent",
                 "role": "拆解研究主题与能力目标",
                 "status": "running"
             }
@@ -298,7 +298,7 @@ pub async fn knowledge_generate_plan(
                     "id": rid,
                     "agent": {
                         "id": analyst_id,
-                        "name": "Topic Analyst",
+                        "name": "主题分析 Agent",
                         "role": "拆解研究主题与能力目标",
                         "status": "done",
                         "summary": parsed.get("scope").and_then(|v| v.as_str()).unwrap_or("已完成主题拆解")
@@ -311,7 +311,7 @@ pub async fn knowledge_generate_plan(
                     "id": rid,
                     "agent": {
                         "id": analyst_id,
-                        "name": "Topic Analyst",
+                        "name": "主题分析 Agent",
                         "role": "拆解研究主题与能力目标",
                         "status": "failed",
                         "error": e.to_string()
@@ -326,7 +326,7 @@ pub async fn knowledge_generate_plan(
             "id": rid,
             "agent": {
                 "id": scout_id,
-                "name": "Paper Scout",
+                "name": "参考文献筛选 Agent",
                 "role": "从本地论文库筛选参考论文",
                 "status": "running"
             }
@@ -388,7 +388,7 @@ pub async fn knowledge_generate_plan(
             "id": rid,
             "agent": {
                 "id": scout_id,
-                "name": "Paper Scout",
+                "name": "参考文献筛选 Agent",
                 "role": "从本地论文库筛选参考论文",
                 "status": "done",
                 "summary": if direct_paper_count > 0 {
@@ -404,7 +404,7 @@ pub async fn knowledge_generate_plan(
             "id": rid,
             "agent": {
                 "id": designer_id,
-                "name": "Learning Path Designer",
+                "name": "学习路径规划 Agent",
                 "role": "生成结构化学习路线",
                 "status": "running"
             }
@@ -449,7 +449,7 @@ pub async fn knowledge_generate_plan(
                     "id": rid,
                     "agent": {
                         "id": designer_id,
-                        "name": "Learning Path Designer",
+                        "name": "学习路径规划 Agent",
                         "role": "生成结构化学习路线",
                         "status": "done",
                         "summary": format!("学习路线生成完成，共 {} 个阶段", stage_count)
@@ -462,7 +462,7 @@ pub async fn knowledge_generate_plan(
                     "id": rid,
                     "agent": {
                         "id": designer_id,
-                        "name": "Learning Path Designer",
+                        "name": "学习路径规划 Agent",
                         "role": "生成结构化学习路线",
                         "status": "failed",
                         "error": e.to_string()
@@ -792,7 +792,7 @@ pub async fn knowledge_update_note(
     .fetch_optional(&state.db)
     .await
     .map_err(|e| e.to_string())?
-    .ok_or("Note not found")?;
+    .ok_or("未找到对应笔记。")?;
     Ok(note_row_to_json(&row))
 }
 
@@ -823,7 +823,7 @@ pub async fn knowledge_move_note(
     .fetch_optional(&state.db)
     .await
     .map_err(|e| e.to_string())?
-    .ok_or("Note not found")?;
+    .ok_or("未找到对应笔记。")?;
 
     Ok(note_row_to_json(&row))
 }

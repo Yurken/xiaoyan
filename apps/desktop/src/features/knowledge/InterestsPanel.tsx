@@ -579,7 +579,7 @@ export default function InterestsPanel() {
                         label="主题文件夹名称"
                         value={folderDraft}
                         onChange={(event) => setFolderDraft(event.target.value)}
-                        placeholder="输入文件夹名称"
+                        placeholder="请输入文件夹名称"
                       />
                       <Button size="sm" onClick={() => void handleSaveFolder(interest.id)} loading={savingFolderId === interest.id}>
                         保存
@@ -608,7 +608,7 @@ export default function InterestsPanel() {
                             <p className="text-xs font-semibold text-ink-primary">规划 Agent 协作流程</p>
                           </div>
                           <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">
-                            实时展示主题分析、文献侦察与路线生成的接力状态。
+                            实时展示主题分析、参考文献筛选与学习路径规划的协作状态。
                           </p>
                         </div>
                         <span className="text-[11px] text-ink-tertiary">
@@ -639,12 +639,12 @@ export default function InterestsPanel() {
                                 <p className="mt-1 truncate text-[11px] text-ink-tertiary">{agent.role}</p>
                               </div>
                               <Badge variant={agent.status === "done" ? "success" : agent.status === "failed" ? "danger" : "info"}>
-                                {agent.status === "done" ? "完成" : agent.status === "failed" ? "失败" : "运行中"}
+                                {agent.status === "done" ? "已完成" : agent.status === "failed" ? "失败" : "处理中"}
                               </Badge>
                             </div>
 
                             <p className={`mt-3 text-[11px] leading-5 ${agent.error ? "text-apple-red" : "text-ink-secondary"}`}>
-                              {agent.error || agent.summary || "等待该 Agent 输出阶段性结论。"}
+                              {agent.error || agent.summary || "等待该 Agent 输出阶段性结果。"}
                             </p>
 
                             <div className="agent-flow-progress" aria-hidden="true">

@@ -514,7 +514,7 @@ export default function Tools() {
         <Card className="flex flex-col items-center gap-3 py-12 text-center">
           <Search className="h-8 w-8 text-ink-tertiary" />
           <div>
-            <p className="font-medium text-ink-secondary">还没有结果</p>
+            <p className="font-medium text-ink-secondary">暂无结果</p>
             <p className="mt-1 text-sm text-ink-tertiary">检查检索字段和时间窗口后重试。</p>
           </div>
         </Card>
@@ -527,7 +527,7 @@ export default function Tools() {
           </div>
           <div>
             <p className="text-sm font-semibold text-ink-primary">刊会查询</p>
-            <p className="mt-1 text-xs text-ink-tertiary">输入期刊/会议名称返回分区和 CCF 评级。</p>
+            <p className="mt-1 text-xs text-ink-tertiary">请输入期刊、会议名称或 ISSN，系统将返回分区与 CCF 评级。</p>
           </div>
         </div>
 
@@ -541,7 +541,7 @@ export default function Tools() {
                   void handleSourceLookup();
                 }
               }}
-              placeholder="输入会议、期刊名称或 ISSN"
+              placeholder="请输入会议、期刊名称或 ISSN"
             />
           </div>
           <Button onClick={() => void handleSourceLookup()} loading={sourceLoading} disabled={!sourceQuery.trim()}>

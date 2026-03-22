@@ -66,7 +66,7 @@ function runTone(status: AgentRun["status"]) {
     color: "#FF9500",
     background: "rgba(255,149,0,0.12)",
     icon: <Clock3 className="w-3.5 h-3.5" />,
-    label: status === "running" ? "执行中" : "等待中",
+    label: status === "running" ? "处理中" : "待处理",
   };
 }
 
@@ -345,7 +345,7 @@ export default function Copilot() {
           );
         }
         if (chunk.type === "error") {
-          const errorText = chunk.value || "请求失败";
+          const errorText = chunk.value || "请求未完成，请稍后重试。";
           setLoadError(errorText);
           setMessages((prev) =>
             prev.map((message) =>
@@ -361,7 +361,7 @@ export default function Copilot() {
         setCurrentSession(updated.find((session) => session.id === sessionId) ?? null);
       }
     } catch (error) {
-      const message = `请求失败：${formatErrorMessage(error)}`;
+      const message = `请求未完成：${formatErrorMessage(error)}`;
       setLoadError(message);
       setMessages((prev) =>
         prev.map((item) =>
@@ -563,13 +563,13 @@ export default function Copilot() {
               </div>
               <div>
                 <span className="font-semibold text-sm text-ink-primary">Copilot 协同台</span>
-                <p className="text-xs text-ink-tertiary mt-0.5">调度 agent 与专项 agent 协同工作</p>
+                <p className="text-xs text-ink-tertiary mt-0.5">调度 Agent 与专项 Agent 协同工作</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               {currentSession && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-ink-tertiary">所属主题</span>
+                  <span className="text-xs text-ink-tertiary">所属研究方向</span>
                   <select
                     value={selectedInterestId}
                     onChange={(event) => void handleSessionInterestChange(event.target.value)}
@@ -594,7 +594,7 @@ export default function Copilot() {
                   boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
                 }}
               >
-                {updatingSessionContext ? "更新主题中" : sending ? "运行中" : "就绪"}
+                {updatingSessionContext ? "正在更新归属" : sending ? "处理中" : "就绪"}
               </div>
             </div>
           </div>
@@ -627,9 +627,9 @@ export default function Copilot() {
                   <Sparkles className="w-9 h-9 text-white" />
                 </div>
                 <div className="text-center max-w-md">
-                  <p className="font-semibold text-ink-primary">多 agent 研究助手</p>
+                  <p className="font-semibold text-ink-primary">多 Agent 研究助手</p>
                   <p className="text-sm text-ink-tertiary mt-2 leading-6">
-                    发送问题后，系统会自动拆解为检索、规划、综述、论文解析和复现等链路，并把每一步显示在右侧。
+                    请输入研究问题。系统会自动拆解为检索、规划、综述、论文解析和复现等链路，并在右侧实时展示执行过程。
                   </p>
                 </div>
               </div>
@@ -678,7 +678,7 @@ export default function Copilot() {
                           >
                             {parsed.thought && (
                               <details open>
-                                <summary className="cursor-pointer text-xs font-semibold text-[#9A6A00]">模型思考过程</summary>
+                                <summary className="cursor-pointer text-xs font-semibold text-[#9A6A00]">模型推理过程</summary>
                                 <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#5A4A2F]">
                                   {parsed.thought}
                                 </div>
@@ -687,7 +687,7 @@ export default function Copilot() {
 
                             {planForBubble.length > 0 && (
                               <div className={parsed.thought ? "mt-3" : ""}>
-                                <div className="mb-2 text-xs font-semibold text-ink-secondary">拆解步骤</div>
+                                <div className="mb-2 text-xs font-semibold text-ink-secondary">执行步骤</div>
                                 <div className="space-y-2">
                                   {planForBubble.map((step, index) => {
                                     const run = [...runsForBubble]
@@ -729,7 +729,7 @@ export default function Copilot() {
                           }}
                         >
                           <MarkdownRenderer
-                            content={parsed.answer || (sending && isActiveAssistant ? "正在整理最终回答..." : "…")}
+                            content={parsed.answer || (sending && isActiveAssistant ? "正在整理最终答复..." : "…")}
                             onLinkClick={openLink}
                           />
                         </div>
@@ -789,7 +789,7 @@ export default function Copilot() {
                     void handleSend();
                   }
                 }}
-                placeholder="输入问题… 系统会自动选择合适的 agent 链路"
+                placeholder="请输入研究问题，系统会自动选择合适的 Agent 链路"
                 className="w-full rounded-3xl px-5 py-3 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none transition-shadow duration-150"
                 style={{
                   background: "#E8ECF0",
@@ -847,7 +847,7 @@ export default function Copilot() {
             <div className="text-sm font-semibold text-ink-primary mb-3">计划分解</div>
             <div className="space-y-3">
               {plan.length === 0 ? (
-                <p className="text-xs text-ink-tertiary leading-5">发送问题后，调度 agent 会在这里显示拆解步骤。</p>
+                <p className="text-xs text-ink-tertiary leading-5">提交问题后，调度 Agent 会在这里展示任务拆解与执行状态。</p>
               ) : (
                 plan.map((step, index) => (
                   <div
@@ -877,7 +877,7 @@ export default function Copilot() {
             <div className="text-sm font-semibold text-ink-primary mb-3">执行时间线</div>
             <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
               {displayedRuns.length === 0 ? (
-                <p className="text-xs text-ink-tertiary leading-5">还没有 agent 运行记录。</p>
+                <p className="text-xs text-ink-tertiary leading-5">暂无 Agent 运行记录。</p>
               ) : (
                 displayedRuns.map((run) => {
                   const tone = runTone(run.status);

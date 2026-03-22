@@ -68,7 +68,7 @@ export default function PapersPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">论文库</h1>
-            <p className="text-sm text-gray-500">上传 PDF，AI 精读分析 + 复现指导</p>
+            <p className="text-sm text-gray-500">上传 PDF，生成论文精读分析与复现指导</p>
           </div>
         </div>
         <div>
@@ -85,14 +85,14 @@ export default function PapersPage() {
       )}
 
       {loading ? (
-        <div className="text-center py-16 text-gray-400">加载中...</div>
+        <div className="text-center py-16 text-gray-400">正在加载...</div>
       ) : papers.length === 0 ? (
         <Card className="text-center py-16">
           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <FileText className="w-7 h-7 text-gray-400" />
           </div>
-          <h3 className="font-semibold text-gray-700 mb-2">还没有上传论文</h3>
-          <p className="text-sm text-gray-500 mb-4">上传 PDF，AI 自动提取关键信息并生成复现指导</p>
+          <h3 className="font-semibold text-gray-700 mb-2">暂无论文</h3>
+          <p className="text-sm text-gray-500 mb-4">请先上传 PDF，系统将自动提取关键信息并生成复现指导</p>
           <Button onClick={() => fileRef.current?.click()} variant="secondary">
             <Plus className="w-4 h-4" />
             上传第一篇

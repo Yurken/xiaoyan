@@ -47,8 +47,8 @@ function splitThoughtFromContent(content: string) {
 function runStatusLabel(status: AgentRun["status"]) {
   if (status === "done") return "已完成";
   if (status === "failed") return "失败";
-  if (status === "running") return "执行中";
-  return "等待中";
+  if (status === "running") return "处理中";
+  return "待处理";
 }
 
 function runStatusTone(status: AgentRun["status"]) {
@@ -85,15 +85,15 @@ function MissionControl({
     <div className="border-t border-slate-200/80 bg-white/70 p-4 xl:w-[360px] xl:flex-shrink-0 xl:border-l xl:border-t-0 xl:p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Mission Control</div>
-          <div className="mt-1 text-lg font-semibold text-slate-950">Supervisor 视图</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">执行总览</div>
+          <div className="mt-1 text-lg font-semibold text-slate-950">调度视图</div>
         </div>
-        <Badge variant={sending ? "warning" : "success"}>{sending ? "运行中" : "空闲"}</Badge>
+        <Badge variant={sending ? "warning" : "success"}>{sending ? "处理中" : "就绪"}</Badge>
       </div>
 
       {requestId && (
         <div className="mb-4 rounded-2xl bg-slate-950 px-4 py-3 text-xs text-slate-300">
-          Request ID
+          请求 ID
           <div className="mt-1 truncate font-mono text-[11px] text-white">{requestId}</div>
         </div>
       )}
@@ -105,7 +105,7 @@ function MissionControl({
             <h3 className="text-sm font-semibold text-slate-900">计划分解</h3>
           </div>
           {plan.length === 0 ? (
-            <p className="text-sm leading-6 text-slate-500">尚未启动拆解。发送问题后，supervisor 会在这里展示当前链路。</p>
+            <p className="text-sm leading-6 text-slate-500">尚未启动任务拆解。发送问题后，调度器会在此展示当前执行链路。</p>
           ) : (
             <div className="space-y-3">
               {plan.map((step, index) => (
@@ -124,10 +124,10 @@ function MissionControl({
         <Card variant="flat" className="border border-white/80">
           <div className="mb-3 flex items-center gap-2">
             <BrainCircuit className="h-4 w-4 text-amber-600" />
-            <h3 className="text-sm font-semibold text-slate-900">Agent 时间线</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Agent 执行时间线</h3>
           </div>
           {orderedRuns.length === 0 ? (
-            <p className="text-sm leading-6 text-slate-500">暂无 agent 运行记录。</p>
+            <p className="text-sm leading-6 text-slate-500">暂无 Agent 运行记录。</p>
           ) : (
             <div className="space-y-3">
               {orderedRuns.map((run) => (
@@ -154,10 +154,10 @@ function MissionControl({
         <Card variant="flat" className="border border-white/80">
           <div className="mb-3 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-violet-600" />
-            <h3 className="text-sm font-semibold text-slate-900">Artifacts</h3>
+            <h3 className="text-sm font-semibold text-slate-900">结构化产物</h3>
           </div>
           {artifacts.length === 0 ? (
-            <p className="text-sm leading-6 text-slate-500">当前对话还没有结构化产物。</p>
+            <p className="text-sm leading-6 text-slate-500">当前对话暂无结构化产物。</p>
           ) : (
             <div className="space-y-3">
               {artifacts.slice(0, 4).map((artifact) => (
@@ -324,7 +324,7 @@ function CopilotContent() {
           setMessages((prev) =>
             prev.map((message) =>
               message.id === assistantId
-                ? { ...message, content: chunk.value || "请求失败" }
+                ? { ...message, content: chunk.value || "请求未完成，请稍后重试。" }
                 : message
             )
           );
@@ -341,7 +341,7 @@ function CopilotContent() {
       setMessages((prev) =>
         prev.map((message) =>
           message.id === assistantId
-            ? { ...message, content: `抱歉，发生了错误：${text}` }
+            ? { ...message, content: `请求未完成：${text}` }
             : message
         )
       );
@@ -425,8 +425,8 @@ function CopilotContent() {
                     <BrainCircuit className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="text-lg font-semibold text-slate-950">Copilot Mission Room</div>
-                    <div className="mt-1 text-sm text-slate-500">Supervisor 负责拆解，specialist 负责执行，右侧实时显示链路。</div>
+                    <div className="text-lg font-semibold text-slate-950">Copilot 调度面板</div>
+                    <div className="mt-1 text-sm text-slate-500">调度模型负责拆解任务，专项 Agent 负责执行，右侧实时显示执行链路。</div>
                   </div>
                 </div>
               </div>
@@ -457,7 +457,7 @@ function CopilotContent() {
                     <div>
                       <div className="text-xl font-semibold text-slate-950">多 Agent Copilot</div>
                       <div className="mt-1 text-sm text-slate-500">
-                        输入问题后，系统会自动拆解为检索、规划、综述、论文解析或复现等链路。
+                        请输入研究问题。系统会自动拆解为检索、规划、综述、论文解析或复现等链路。
                       </div>
                     </div>
                   </div>
@@ -507,7 +507,7 @@ function CopilotContent() {
                             {parsed.thought && (
                               <details open className="group">
                                 <summary className="cursor-pointer list-none text-xs font-semibold tracking-wide text-amber-700">
-                                  模型思考过程
+                                  模型推理过程
                                 </summary>
                                 <div className="mt-2 whitespace-pre-wrap text-xs leading-6 text-amber-900/90">
                                   {parsed.thought}
@@ -517,7 +517,7 @@ function CopilotContent() {
 
                             {planForBubble.length > 0 && (
                               <div className={`${parsed.thought ? "mt-3" : ""}`}>
-                                <div className="mb-2 text-xs font-semibold tracking-wide text-slate-700">Agent 规划步骤</div>
+                                <div className="mb-2 text-xs font-semibold tracking-wide text-slate-700">Agent 执行步骤</div>
                                 <div className="space-y-2">
                                   {planForBubble.map((step, index) => {
                                     const run = [...runsForBubble]
@@ -546,7 +546,7 @@ function CopilotContent() {
                         <div
                           className="rounded-[28px] border border-white/70 bg-white/85 px-5 py-4 text-slate-900 shadow-[0_20px_45px_rgba(15,23,42,0.08)]"
                         >
-                          <MarkdownRenderer content={parsed.answer || (sending && isActiveAssistant ? "正在整理最终回答..." : "…")} />
+                          <MarkdownRenderer content={parsed.answer || (sending && isActiveAssistant ? "正在整理最终答复..." : "…")} />
                         </div>
                       </>
                     );
@@ -586,7 +586,7 @@ function CopilotContent() {
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="输入你的研究问题，系统会自动选择合适的 agent 链路…"
+                placeholder="请输入研究问题，系统会自动选择合适的 Agent 链路"
                 className="min-h-[84px] flex-1 resize-none rounded-[24px] border-0 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-900 outline-none"
               />
               <Button onClick={handleSend} disabled={!input.trim() || sending} className="h-12 px-5">

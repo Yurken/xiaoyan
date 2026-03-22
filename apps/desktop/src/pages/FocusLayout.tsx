@@ -251,9 +251,9 @@ function FocusHome() {
                 }}
               >
                 <Microscope className="w-10 h-10 text-ink-tertiary mx-auto mb-3" />
-                <p className="text-sm font-semibold text-ink-primary">还没有研究主题</p>
+                <p className="text-sm font-semibold text-ink-primary">暂无研究主题</p>
                 <p className="text-xs text-ink-tertiary mt-2 leading-5">
-                  点击「新建主题」输入你的研究方向，生成后即可进入专属工作台。
+                  请先新建研究方向，生成后即可进入专属工作台。
                 </p>
               </div>
             ) : (

@@ -147,7 +147,7 @@ export default function KnowledgePage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">个人知识库</h1>
-            <p className="text-sm text-gray-500">归档研究笔记，支持语义搜索与问答</p>
+            <p className="text-sm text-gray-500">统一归档研究笔记，支持语义搜索与问答</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -167,9 +167,9 @@ export default function KnowledgePage() {
         <Card className="mb-5">
           <CardHeader><CardTitle>新增笔记</CardTitle></CardHeader>
           <div className="space-y-3">
-            <Input placeholder="标题" value={newNote.title} onChange={(e) => setNewNote({ ...newNote, title: e.target.value })} />
-            <Textarea rows={5} placeholder="内容（支持 Markdown）" value={newNote.content} onChange={(e) => setNewNote({ ...newNote, content: e.target.value })} />
-            <Input placeholder="标签（用逗号分隔）" value={newNote.tags} onChange={(e) => setNewNote({ ...newNote, tags: e.target.value })} />
+            <Input placeholder="请输入笔记标题" value={newNote.title} onChange={(e) => setNewNote({ ...newNote, title: e.target.value })} />
+            <Textarea rows={5} placeholder="请输入笔记内容（支持 Markdown）" value={newNote.content} onChange={(e) => setNewNote({ ...newNote, content: e.target.value })} />
+            <Input placeholder="请输入标签，多个标签用逗号分隔" value={newNote.tags} onChange={(e) => setNewNote({ ...newNote, tags: e.target.value })} />
             <div className="flex gap-2">
               <Button onClick={handleAddNote} loading={saving} size="sm">保存</Button>
               <Button variant="ghost" size="sm" onClick={() => setShowAddNote(false)}>取消</Button>
@@ -182,8 +182,8 @@ export default function KnowledgePage() {
         <Card className="mb-5">
           <CardHeader><CardTitle>新增研究方向</CardTitle></CardHeader>
           <div className="space-y-3">
-            <Input placeholder="研究方向主题" value={newInterest.topic} onChange={(e) => setNewInterest({ ...newInterest, topic: e.target.value })} />
-            <Input placeholder="关键词（用逗号分隔）" value={newInterest.keywords} onChange={(e) => setNewInterest({ ...newInterest, keywords: e.target.value })} />
+            <Input placeholder="请输入研究方向" value={newInterest.topic} onChange={(e) => setNewInterest({ ...newInterest, topic: e.target.value })} />
+            <Input placeholder="请输入关键词，多个关键词用逗号分隔" value={newInterest.keywords} onChange={(e) => setNewInterest({ ...newInterest, keywords: e.target.value })} />
             <div className="flex gap-2">
               <Button onClick={handleAddInterest} loading={saving} size="sm">保存</Button>
               <Button variant="ghost" size="sm" onClick={() => setShowAddInterest(false)}>取消</Button>
@@ -195,7 +195,7 @@ export default function KnowledgePage() {
       {/* Search */}
       <div className="flex gap-2 mb-5">
         <Input
-          placeholder="语义搜索知识库..."
+          placeholder="请输入关键词搜索知识库"
           value={search}
           onChange={(e) => { setSearch(e.target.value); if (!e.target.value) setSearchResults(null); }}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -225,13 +225,13 @@ export default function KnowledgePage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">加载中...</div>
+        <div className="text-center py-12 text-gray-400">正在加载...</div>
       ) : activeTab === "notes" ? (
         <div className="space-y-3">
           {displayedNotes.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Library className="w-10 h-10 mx-auto mb-2 opacity-30" />
-              {searchResults !== null ? "没有找到相关笔记" : "知识库还是空的，上传论文或创建笔记后会自动归档"}
+              {searchResults !== null ? "未找到相关笔记" : "暂无笔记，导入论文或新建笔记后会自动归档"}
             </div>
           ) : (
             displayedNotes.map((note) => (
@@ -272,7 +272,7 @@ export default function KnowledgePage() {
           {interests.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Map className="w-10 h-10 mx-auto mb-2 opacity-30" />
-              还没有研究方向，点击「新增方向」开始
+              暂无研究方向，请先新建研究方向。
             </div>
           ) : (
             interests.map((interest) => (

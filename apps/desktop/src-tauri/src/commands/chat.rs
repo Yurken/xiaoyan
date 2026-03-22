@@ -48,7 +48,7 @@ pub async fn chat_get_session(
     .fetch_optional(&state.db)
     .await
     .map_err(|e| e.to_string())?
-    .ok_or("Session not found")?;
+    .ok_or("未找到对应会话。")?;
 
     let msgs = sqlx::query(
         "SELECT id, role, content, sources, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
@@ -129,7 +129,7 @@ pub async fn chat_update_session_context(
     .fetch_optional(&state.db)
     .await
     .map_err(|e| e.to_string())?
-    .ok_or("Session not found")?;
+    .ok_or("未找到对应会话。")?;
 
     Ok(json!({
         "id": row.get::<String, _>("id"),
@@ -364,10 +364,10 @@ async fn run_simple(
     history: &[LlmMessage],
 ) -> anyhow::Result<String> {
     let system_prompt = if context_summary.trim().is_empty() {
-        "你是智研 Copilot，一个专注于学术研究的 AI 助手。请用中文回答。".to_string()
+        "你是智研 Copilot 的科研助手，负责提供准确、结构化、可执行的中文回答。".to_string()
     } else {
         format!(
-            "你是智研 Copilot，一个专注于学术研究的 AI 助手。请用中文回答。\n\n当前研究工作台上下文：\n{}",
+            "你是智研 Copilot 的科研助手，负责提供准确、结构化、可执行的中文回答。\n\n当前研究工作台上下文：\n{}",
             context_summary
         )
     };
@@ -500,11 +500,11 @@ async fn run_agentic(
     let synthesis_prompt = if ctx.is_empty() {
         message.to_string()
     } else {
-        format!("以下是各 agent 的分析结果：\n\n{}\n\n---\n\n请综合上述内容，给出针对问题「{}」的完整、结构化回答：", ctx, message)
+        format!("以下是各个 Agent 的分析结果：\n\n{}\n\n---\n\n请综合上述内容，给出针对问题「{}」的完整、结构化回答。", ctx, message)
     };
 
     let mut synthesis_msgs = vec![LlmMessage::system(
-        "你是智研 Copilot 的综合分析员。请整合各 agent 产出，给出权威、结构化的最终答复，使用中文。",
+        "你是智研 Copilot 的综合分析助手。请整合各个 Agent 的产出，形成可信、完整、结构化的中文最终答复。",
     )];
     synthesis_msgs.extend_from_slice(history);
     synthesis_msgs.push(LlmMessage::user(&synthesis_prompt));
@@ -555,21 +555,21 @@ async fn execute_agent(
         "paper_analyst" => {
             let text = paper_text(db, context_id).await;
             let preview = if text.len() > 6000 { &text[..6000] } else { &text };
-            let prompt = format!("请分析以下论文内容，回答问题：「{}」\n\n论文内容：\n{}", message, preview);
-            let msgs = vec![LlmMessage::system("你是一位资深论文分析专家。"), LlmMessage::user(&prompt)];
+            let prompt = format!("请基于以下论文内容回答用户问题，结论应客观、准确、可追溯。\n\n用户问题：{}\n\n论文内容：\n{}", message, preview);
+            let msgs = vec![LlmMessage::system("你是论文分析助手，负责基于论文内容输出准确、结构化的分析结果。"), LlmMessage::user(&prompt)];
             client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "planner" => {
             let prompt = if context_type == "interest" && !prior_context.is_empty() {
                 format!(
-                    "你正在一个已规划的研究工作台中继续推进路线。\n\n当前上下文：\n{}\n\n请围绕用户问题给出下一步学习安排、实验推进建议或路线修订意见。\n用户问题：{}",
+                    "你正在一个已规划的研究工作台中继续推进研究路线。\n\n当前上下文：\n{}\n\n请围绕用户问题给出下一步学习安排、实验推进建议或路线修订意见。\n用户问题：{}",
                     prior_context.join("\n\n"),
                     message,
                 )
             } else {
-                format!("请为研究方向「{}」设计学习路径。背景：{}", message, prior_context.join("; "))
+                format!("请为研究方向「{}」设计学习路径。补充背景：{}", message, prior_context.join("; "))
             };
-            let msgs = vec![LlmMessage::system("你是一位学术导师。"), LlmMessage::user(&prompt)];
+            let msgs = vec![LlmMessage::system("你是研究规划助手，负责输出分阶段、可执行的学习与研究推进建议。"), LlmMessage::user(&prompt)];
             client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "literature_scout" => {
@@ -580,9 +580,9 @@ async fn execute_agent(
                     message,
                 )
             } else {
-                format!("请列出与「{}」最相关的核心论文（标题、作者、年份、核心贡献）。", message)
+                format!("请列出与「{}」最相关的核心论文，并说明标题、作者、年份和核心贡献。", message)
             };
-            let msgs = vec![LlmMessage::system("你是一位文献调研专家。"), LlmMessage::user(&prompt)];
+            let msgs = vec![LlmMessage::system("你是文献调研助手，负责推荐与当前问题最相关、最值得优先阅读的论文。"), LlmMessage::user(&prompt)];
             client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "survey" => {
@@ -598,14 +598,14 @@ async fn execute_agent(
                     message, prior_context.join("\n\n")
                 )
             };
-            let msgs = vec![LlmMessage::system("你是一位综述写作专家。"), LlmMessage::user(&prompt)];
+            let msgs = vec![LlmMessage::system("你是综述写作助手，负责输出结构化、客观、可用于研究推进的相关工作总结。"), LlmMessage::user(&prompt)];
             client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         "reproduction" => {
             let text = paper_text(db, context_id).await;
             let preview = if text.len() > 6000 { &text[..6000] } else { &text };
-            let prompt = format!("请给出论文复现指南，重点回答：「{}」\n\n论文内容：{}", message, preview);
-            let msgs = vec![LlmMessage::system("你是一位 ML 工程师，专注于论文复现。"), LlmMessage::user(&prompt)];
+            let prompt = format!("请给出论文复现指南，并重点回答以下问题：{}\n\n论文内容：{}", message, preview);
+            let msgs = vec![LlmMessage::system("你是论文复现助手，负责输出可执行、风险明确的复现建议。"), LlmMessage::user(&prompt)];
             client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
         }
         _ => Ok(String::new()),
@@ -963,26 +963,26 @@ async fn select_agents_by_llm(
     };
 
     let prompt = format!(
-        "请为一次科研 Copilot 对话选择最合适的专项 agent。\n\
+        "请为一次科研 Copilot 对话选择最合适的专项 Agent。\n\
 用户问题：{message}\n\
 上下文类型：{context_type}\n\
-可选 agent：{candidates}\n\
+可选 Agent：{candidates}\n\
 最多选择：{max_steps}\n\
 规则模式建议：{rule_hint}\n\n\
 选择原则：\n\
-1. 不要机械地追求最少 agent，而是要覆盖完成任务所需的关键分工。\n\
+1. 不要机械地追求最少 Agent，而是要覆盖完成任务所需的关键分工。\n\
 2. 对单点问题可以精简；对研究规划、路线推进、选题调研这类复合任务，通常应覆盖 4 个左右 worker。\n\
 3. 如果问题需要证据、论文来源或已有上下文支持，通常应包含 retrieval。\n\
 4. context_type 为 interest 时，planner 通常应该参与；若涉及论文线索、路线推进或领域现状，通常还应包含 literature_scout 与 survey。\n\
 5. 只有在 context_type 为 paper 或用户明确要求精读单篇论文时，才选择 paper_analyst。\n\
 6. 只有在 context_type 为 paper 且涉及实现、训练、实验配置或复现时，才选择 reproduction。\n\
-7. 如果规则模式建议已经覆盖关键分工，除非明显多余，不要删掉这些关键 agent。\n\n\
+7. 如果规则模式建议已经覆盖关键分工，除非明显多余，不要删掉这些关键 Agent。\n\n\
 请只返回 JSON，对象格式必须为 {{\"agents\": [\"agent_name\"]}}。",
         candidates = candidates.join(", "),
     );
 
     let messages = vec![
-        LlmMessage::system("你是多 agent 科研助手的调度模型。你的职责是覆盖完成任务所需的专项 agent。对复合型科研任务，不是越少越好，关键角色不能缺席。"),
+        LlmMessage::system("你是多 Agent 科研助手的调度模型。你的职责是覆盖完成任务所需的关键专项 Agent。对于复合型科研任务，关键角色不能缺席。"),
         LlmMessage::user(prompt),
     ];
     let response = client.chat(&messages, model.as_deref(), temperature).await?;
@@ -1155,7 +1155,7 @@ fn agent_goal(name: &str) -> &str {
         "survey" => "把检索到的论文整理成结构化领域概览",
         "paper_analyst" => "提炼研究问题、方法、实验与局限",
         "reproduction" => "围绕当前论文给出复现链路和风险提示",
-        "synthesis" => "汇总各 agent 结果并组织为用户可直接使用的答复",
+        "synthesis" => "汇总各 Agent 结果并组织为用户可直接使用的答复",
         _ => "处理任务",
     }
 }
