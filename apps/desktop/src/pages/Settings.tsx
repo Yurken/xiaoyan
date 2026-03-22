@@ -210,6 +210,95 @@ function ToggleRow({
   );
 }
 
+type SettingsSectionKey = "connection" | "paper_tags" | "roles" | "agents" | "about";
+
+const SETTINGS_SECTIONS: Array<{
+  key: SettingsSectionKey;
+  label: string;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+  color: string;
+}> = [
+  {
+    key: "connection",
+    label: "连接与检索",
+    description: "服务商、主模型、向量化与 RAG",
+    icon: Brain,
+    color: "#AF52DE",
+  },
+  {
+    key: "paper_tags",
+    label: "论文库",
+    description: "标签显示与导入命名",
+    icon: Layers3,
+    color: "#FF9F0A",
+  },
+  {
+    key: "roles",
+    label: "模型分工",
+    description: "按常用场景统一配置模型",
+    icon: Sparkles,
+    color: "#0A84FF",
+  },
+  {
+    key: "agents",
+    label: "多 agent",
+    description: "编排模式、覆盖和高级设置",
+    icon: Bot,
+    color: "#34C759",
+  },
+  {
+    key: "about",
+    label: "说明",
+    description: "查看继承规则和配置提示",
+    icon: Info,
+    color: "#5AC8FA",
+  },
+];
+
+function SettingsSectionTab({
+  icon: Icon,
+  color,
+  label,
+  description,
+  active,
+  onClick,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  color: string;
+  label: string;
+  description: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-[28px] p-4 text-left transition-all duration-150"
+      style={
+        active
+          ? {
+              background: "linear-gradient(145deg, rgba(26,138,255,0.12), rgba(255,255,255,0.92))",
+              boxShadow: "6px 6px 16px rgba(183,190,199,0.8), -6px -6px 16px rgba(255,255,255,0.95)",
+            }
+          : {
+              background: "#EEF1F5",
+              boxShadow: "5px 5px 14px #CBD0D7, -5px -5px 14px #FFFFFF",
+            }
+      }
+    >
+      <div className="flex items-start gap-3">
+        <SectionIcon icon={Icon} color={color} />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-ink-primary">{label}</p>
+          <p className="mt-1 text-xs leading-5 text-ink-tertiary">{description}</p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function RecommendationList({ items }: { items: string[] }) {
   return (
     <div
@@ -463,6 +552,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   multi_agent_synthesis_model: "",
   multi_agent_synthesis_temperature: "0.4",
   paper_visible_venue_tags: DEFAULT_PAPER_TAG_VISIBILITY_VALUE,
+  paper_auto_rename_on_import: "false",
+  paper_auto_rename_rule: "{first_author} - {title} ({year})",
 };
 
 const AGENT_OPTIONS = [
@@ -804,6 +895,7 @@ export default function Settings() {
   const [testState, setTestState] = useState<TestState>("idle");
   const [testMsg, setTestMsg] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [activeSection, setActiveSection] = useState<SettingsSectionKey>("connection");
 
   const set = (key: keyof AppSettings) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -911,6 +1003,7 @@ export default function Settings() {
   };
 
   const contentUnavailable = loading || Boolean(loadError);
+  const activeSectionMeta = SETTINGS_SECTIONS.find((item) => item.key === activeSection) ?? SETTINGS_SECTIONS[0];
 
   return (
     <div className="h-full flex flex-col">
@@ -996,147 +1089,177 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        <Card padding="md" className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {SETTINGS_SECTIONS.map((item) => (
+            <SettingsSectionTab
+              key={item.key}
+              icon={item.icon}
+              color={item.color}
+              label={item.label}
+              description={item.description}
+              active={activeSection === item.key}
+              onClick={() => setActiveSection(item.key)}
+            />
+          ))}
+        </div>
+
+        <Card padding="md" className="space-y-3">
           <div className="flex items-center gap-3">
-            <SectionIcon icon={Brain} color="#AF52DE" />
+            <SectionIcon icon={activeSectionMeta.icon} color={activeSectionMeta.color} />
             <div>
-              <h2 className="text-sm font-semibold text-ink-primary">主模型连接</h2>
-              <p className="text-xs text-ink-tertiary mt-0.5">
-                这里配置默认对话模型。下面各个场景如果留空，会按继承规则回退到这里。
-              </p>
+              <h2 className="text-sm font-semibold text-ink-primary">{activeSectionMeta.label}</h2>
+              <p className="text-xs text-ink-tertiary mt-0.5">{activeSectionMeta.description}</p>
             </div>
           </div>
-
-          {loading ? (
-            <div className="flex items-center gap-2 py-4 text-sm text-ink-tertiary">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              从后端加载配置…
-            </div>
-          ) : loadError ? (
-            <div className="flex items-center gap-2 py-4 text-sm text-apple-red">
-              <AlertCircle className="w-4 h-4" />
-              {loadError}
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <label className="block text-xs font-medium text-ink-tertiary ml-1">模型服务商</label>
-                <div className="flex gap-2 flex-wrap">
-                  {(["openai_compatible", "openai", "anthropic"] as LlmProvider[]).map((item) => (
-                    <ProviderTab
-                      key={item}
-                      label={
-                        item === "openai_compatible"
-                          ? "兼容接口"
-                          : item === "openai"
-                            ? "OpenAI"
-                            : "Anthropic"
-                      }
-                      active={provider === item}
-                      onClick={() => set("llm_provider")(item)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {provider === "openai_compatible" ? (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <SettingInput
-                    label="接口地址"
-                    value={form.openai_compatible_base_url}
-                    onChange={set("openai_compatible_base_url")}
-                    placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
-                    hint="阿里云、硅基流动、DeepSeek、Moonshot 等兼容接口都可以接在这里。"
-                  />
-                  <SettingInput
-                    label="接口密钥"
-                    value={form.openai_compatible_api_key}
-                    onChange={set("openai_compatible_api_key")}
-                    placeholder="sk-..."
-                    sensitive
-                    hint={`留空或输入 ${MASK} 表示不更改`}
-                  />
-                  <SettingInput
-                    label="默认对话模型"
-                    value={form.openai_compatible_chat_model}
-                    onChange={set("openai_compatible_chat_model")}
-                    placeholder="qwen-plus / deepseek-chat"
-                  />
-                  <SettingInput
-                    label="默认向量模型"
-                    value={form.openai_compatible_embedding_model}
-                    onChange={set("openai_compatible_embedding_model")}
-                    placeholder="BAAI/bge-m3"
-                  />
-                </div>
-              ) : null}
-
-              {provider === "openai" ? (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <SettingInput
-                    label="接口地址"
-                    value={form.openai_base_url}
-                    onChange={set("openai_base_url")}
-                    placeholder="https://api.openai.com/v1"
-                  />
-                  <SettingInput
-                    label="接口密钥"
-                    value={form.openai_api_key}
-                    onChange={set("openai_api_key")}
-                    placeholder="sk-..."
-                    sensitive
-                    hint={`留空或输入 ${MASK} 表示不更改`}
-                  />
-                  <SettingInput
-                    label="默认对话模型"
-                    value={form.openai_chat_model}
-                    onChange={set("openai_chat_model")}
-                    placeholder="gpt-4o-mini"
-                  />
-                  <SettingInput
-                    label="默认向量模型"
-                    value={form.openai_embedding_model}
-                    onChange={set("openai_embedding_model")}
-                    placeholder="text-embedding-3-small"
-                  />
-                </div>
-              ) : null}
-
-              {provider === "anthropic" ? (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <SettingInput
-                    label="接口密钥"
-                    value={form.anthropic_api_key}
-                    onChange={set("anthropic_api_key")}
-                    placeholder="sk-ant-..."
-                    sensitive
-                    hint={`留空或输入 ${MASK} 表示不更改`}
-                  />
-                  <SettingInput
-                    label="默认对话模型"
-                    value={form.anthropic_chat_model}
-                    onChange={set("anthropic_chat_model")}
-                    placeholder="claude-3-5-haiku-20241022"
-                  />
-                </div>
-              ) : null}
-
-              <div className="space-y-3 pt-1 border-t border-nm-dark/10">
-                <p className="text-xs font-medium text-ink-tertiary">外部学术服务</p>
-                <SettingInput
-                  label="Semantic Scholar 接口密钥"
-                  value={form.semantic_scholar_api_key}
-                  onChange={set("semantic_scholar_api_key")}
-                  placeholder="留空使用免费限速额度"
-                  sensitive
-                  hint={`留空或输入 ${MASK} 表示不更改`}
-                />
-              </div>
-            </>
-          )}
         </Card>
 
-        {!contentUnavailable ? (
+        {loading ? (
+          <Card padding="md" className="flex items-center gap-2 text-sm text-ink-tertiary">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            从后端加载配置…
+          </Card>
+        ) : null}
+
+        {loadError ? (
+          <Card padding="md" className="flex items-center gap-2 text-sm text-apple-red">
+            <AlertCircle className="w-4 h-4" />
+            {loadError}
+          </Card>
+        ) : null}
+
+        {activeSection === "connection" ? (
+          <Card padding="md" className="space-y-4">
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={Brain} color="#AF52DE" />
+              <div>
+                <h2 className="text-sm font-semibold text-ink-primary">主模型连接</h2>
+                <p className="text-xs text-ink-tertiary mt-0.5">
+                  这里配置默认对话模型。下面各个场景如果留空，会按继承规则回退到这里。
+                </p>
+              </div>
+            </div>
+
+            {!contentUnavailable ? (
+              <>
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-ink-tertiary ml-1">模型服务商</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {(["openai_compatible", "openai", "anthropic"] as LlmProvider[]).map((item) => (
+                      <ProviderTab
+                        key={item}
+                        label={
+                          item === "openai_compatible"
+                            ? "兼容接口"
+                            : item === "openai"
+                              ? "OpenAI"
+                              : "Anthropic"
+                        }
+                        active={provider === item}
+                        onClick={() => set("llm_provider")(item)}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {provider === "openai_compatible" ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <SettingInput
+                      label="接口地址"
+                      value={form.openai_compatible_base_url}
+                      onChange={set("openai_compatible_base_url")}
+                      placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
+                      hint="阿里云、硅基流动、DeepSeek、Moonshot 等兼容接口都可以接在这里。"
+                    />
+                    <SettingInput
+                      label="接口密钥"
+                      value={form.openai_compatible_api_key}
+                      onChange={set("openai_compatible_api_key")}
+                      placeholder="sk-..."
+                      sensitive
+                      hint={`留空或输入 ${MASK} 表示不更改`}
+                    />
+                    <SettingInput
+                      label="默认对话模型"
+                      value={form.openai_compatible_chat_model}
+                      onChange={set("openai_compatible_chat_model")}
+                      placeholder="qwen-plus / deepseek-chat"
+                    />
+                    <SettingInput
+                      label="默认向量模型"
+                      value={form.openai_compatible_embedding_model}
+                      onChange={set("openai_compatible_embedding_model")}
+                      placeholder="BAAI/bge-m3"
+                    />
+                  </div>
+                ) : null}
+
+                {provider === "openai" ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <SettingInput
+                      label="接口地址"
+                      value={form.openai_base_url}
+                      onChange={set("openai_base_url")}
+                      placeholder="https://api.openai.com/v1"
+                    />
+                    <SettingInput
+                      label="接口密钥"
+                      value={form.openai_api_key}
+                      onChange={set("openai_api_key")}
+                      placeholder="sk-..."
+                      sensitive
+                      hint={`留空或输入 ${MASK} 表示不更改`}
+                    />
+                    <SettingInput
+                      label="默认对话模型"
+                      value={form.openai_chat_model}
+                      onChange={set("openai_chat_model")}
+                      placeholder="gpt-4o-mini"
+                    />
+                    <SettingInput
+                      label="默认向量模型"
+                      value={form.openai_embedding_model}
+                      onChange={set("openai_embedding_model")}
+                      placeholder="text-embedding-3-small"
+                    />
+                  </div>
+                ) : null}
+
+                {provider === "anthropic" ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <SettingInput
+                      label="接口密钥"
+                      value={form.anthropic_api_key}
+                      onChange={set("anthropic_api_key")}
+                      placeholder="sk-ant-..."
+                      sensitive
+                      hint={`留空或输入 ${MASK} 表示不更改`}
+                    />
+                    <SettingInput
+                      label="默认对话模型"
+                      value={form.anthropic_chat_model}
+                      onChange={set("anthropic_chat_model")}
+                      placeholder="claude-3-5-haiku-20241022"
+                    />
+                  </div>
+                ) : null}
+
+                <div className="space-y-3 pt-1 border-t border-nm-dark/10">
+                  <p className="text-xs font-medium text-ink-tertiary">外部学术服务</p>
+                  <SettingInput
+                    label="Semantic Scholar 接口密钥"
+                    value={form.semantic_scholar_api_key}
+                    onChange={set("semantic_scholar_api_key")}
+                    placeholder="留空使用免费限速额度"
+                    sensitive
+                    hint={`留空或输入 ${MASK} 表示不更改`}
+                  />
+                </div>
+              </>
+            ) : null}
+          </Card>
+        ) : null}
+
+        {activeSection === "connection" && !contentUnavailable ? (
           <Card padding="md" className="space-y-4">
             <div className="flex items-center gap-3">
               <SectionIcon icon={Database} color="#5856D6" />
@@ -1203,41 +1326,95 @@ export default function Settings() {
           </Card>
         ) : null}
 
-        {!contentUnavailable ? (
-          <Card padding="md" className="space-y-4">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Layers3} color="#FF9F0A" />
-              <div>
-                <h2 className="text-sm font-semibold text-ink-primary">论文标签显示</h2>
-                <p className="text-xs text-ink-tertiary mt-0.5">
-                  控制论文库卡片上展示哪些来源标签。关闭后不会影响后端识别，只是不显示在卡片上。
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-3xl px-4 py-4 space-y-3" style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}>
-              <div className="flex flex-wrap gap-2">
-                {PAPER_TAG_OPTIONS.map((item) => (
-                  <AgentChip
-                    key={item.key}
-                    label={item.label}
-                    active={visiblePaperTags.has(item.key)}
-                    onClick={() => togglePaperTag(item.key)}
-                  />
-                ))}
-              </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                {PAPER_TAG_OPTIONS.map((item) => (
-                  <p key={item.key} className="text-xs leading-5 text-ink-secondary">
-                    {item.label}：{item.description}
+        {activeSection === "paper_tags" && !contentUnavailable ? (
+          <div className="space-y-4">
+            <Card padding="md" className="space-y-4">
+              <div className="flex items-center gap-3">
+                <SectionIcon icon={Layers3} color="#FF9F0A" />
+                <div>
+                  <h2 className="text-sm font-semibold text-ink-primary">论文标签显示</h2>
+                  <p className="text-xs text-ink-tertiary mt-0.5">
+                    控制论文库卡片上展示哪些来源标签。关闭后不会影响后端识别，只是不显示在卡片上。
                   </p>
-                ))}
+                </div>
               </div>
-            </div>
-          </Card>
+
+              <div className="rounded-3xl px-4 py-4 space-y-3" style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}>
+                <div className="flex flex-wrap gap-2">
+                  {PAPER_TAG_OPTIONS.map((item) => (
+                    <AgentChip
+                      key={item.key}
+                      label={item.label}
+                      active={visiblePaperTags.has(item.key)}
+                      onClick={() => togglePaperTag(item.key)}
+                    />
+                  ))}
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {PAPER_TAG_OPTIONS.map((item) => (
+                    <p key={item.key} className="text-xs leading-5 text-ink-secondary">
+                      {item.label}：{item.description}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </Card>
+
+            <Card padding="md" className="space-y-4">
+              <div className="flex items-center gap-3">
+                <SectionIcon icon={FileSearch} color="#0A84FF" />
+                <div>
+                  <h2 className="text-sm font-semibold text-ink-primary">导入 PDF 自动重命名</h2>
+                  <p className="text-xs text-ink-tertiary mt-0.5">
+                    导入时用 AI 识别标题、作者、年份等元数据，并按规则直接重命名原 PDF 文件，效果接近 Zotero 的重命名模板。
+                  </p>
+                </div>
+              </div>
+
+              <ToggleRow
+                title="导入后自动重命名 PDF"
+                description="开启后会在原目录就地改名。模型优先使用“方向提示模型（planner_hint_model）”，若未单独配置则回退到当前默认对话模型。"
+                checked={form.paper_auto_rename_on_import === "true"}
+                onToggle={() =>
+                  set("paper_auto_rename_on_import")(form.paper_auto_rename_on_import === "true" ? "false" : "true")
+                }
+              />
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <SettingInput
+                  label="命名规则"
+                  value={form.paper_auto_rename_rule}
+                  onChange={set("paper_auto_rename_rule")}
+                  placeholder="{first_author} - {title} ({year})"
+                  hint="支持 {title}、{authors}、{first_author}、{year}、{venue}、{doi}、{original_name}。缺失字段会自动留空并尽量清理多余符号。"
+                />
+                <div
+                  className="rounded-3xl px-4 py-4 space-y-3"
+                  style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                >
+                  <p className="text-xs font-semibold text-ink-primary">可用占位符</p>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {[
+                      "{title}：论文标题",
+                      "{authors}：作者列表",
+                      "{first_author}：第一作者",
+                      "{year}：年份",
+                      "{venue}：期刊或会议",
+                      "{doi}：DOI",
+                      "{original_name}：原始文件名",
+                    ].map((item) => (
+                      <p key={item} className="text-xs leading-5 text-ink-secondary">
+                        {item}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
         ) : null}
 
-        {!contentUnavailable ? (
+        {activeSection === "roles" && !contentUnavailable ? (
           <Card padding="md" className="space-y-4">
             <div className="flex items-center gap-3">
               <SectionIcon icon={Layers3} color="#0A84FF" />
@@ -1282,7 +1459,7 @@ export default function Settings() {
           </Card>
         ) : null}
 
-        {!contentUnavailable ? (
+        {activeSection === "agents" && !contentUnavailable ? (
           <Card padding="md" className="space-y-4">
             <div className="flex items-center gap-3">
               <SectionIcon icon={Bot} color="#34C759" />
@@ -1483,27 +1660,29 @@ export default function Settings() {
           </Card>
         ) : null}
 
-        <Card padding="md" className="space-y-3">
-          <div className="flex items-center gap-3">
-            <SectionIcon icon={Info} color="#5AC8FA" />
-            <div>
-              <h2 className="text-sm font-semibold text-ink-primary">说明</h2>
-              <p className="text-xs text-ink-tertiary mt-0.5">几条最容易混淆的配置规则</p>
-            </div>
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
-            {[
-              "主模型连接是最后的兜底值。没有单独指定的场景，最终都会回退到这里。",
-              "按场景选模用于独立功能，比如规划提示、综述写作、论文精读和复现指导。",
-              "多 agent 的专项覆盖只影响多 agent 对话流程，不影响独立功能页的模型选择。",
-              "如果你刚开始配置，建议先填主对话模型、方向提示模型和最终整合模型，其他项之后再细化。",
-            ].map((item) => (
-              <div key={item} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-                <p className="text-xs leading-5 text-ink-secondary">{item}</p>
+        {activeSection === "about" ? (
+          <Card padding="md" className="space-y-3">
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={Info} color="#5AC8FA" />
+              <div>
+                <h2 className="text-sm font-semibold text-ink-primary">说明</h2>
+                <p className="text-xs text-ink-tertiary mt-0.5">几条最容易混淆的配置规则</p>
               </div>
-            ))}
-          </div>
-        </Card>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {[
+                "主模型连接是最后的兜底值。没有单独指定的场景，最终都会回退到这里。",
+                "按场景选模用于独立功能，比如规划提示、综述写作、论文精读和复现指导。",
+                "多 agent 的专项覆盖只影响多 agent 对话流程，不影响独立功能页的模型选择。",
+                "如果你刚开始配置，建议先填主对话模型、方向提示模型和最终整合模型，其他项之后再细化。",
+              ].map((item) => (
+                <div key={item} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
+                  <p className="text-xs leading-5 text-ink-secondary">{item}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : null}
       </div>
     </div>
   );

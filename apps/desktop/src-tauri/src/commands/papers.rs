@@ -4,8 +4,10 @@ use crate::links::paper_reference_url;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{chunk_text, serialize_embedding};
 use crate::state::AppState;
+use serde::Deserialize;
 use serde_json::json;
 use sqlx::Row;
+use std::path::{Path, PathBuf};
 use tauri::{Emitter, State};
 use uuid::Uuid;
 
@@ -249,6 +251,33 @@ pub async fn papers_delete(
 
 // ── Upload ───────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, Deserialize, Default)]
+struct ImportRenameMetadata {
+    title: Option<String>,
+    authors: Option<String>,
+    year: Option<i64>,
+    venue: Option<String>,
+    doi: Option<String>,
+}
+
+const IMPORT_RENAME_SYSTEM: &str = "你是一个专门负责识别学术论文元数据的助手。";
+const IMPORT_RENAME_PROMPT: &str = r#"请根据用户提供的 PDF 文件名和正文前段，识别论文元数据，只返回合法 JSON：
+{"title":"...","authors":"作者1, 作者2","year":2024,"venue":"期刊或会议名称","doi":"10.1234/abcd"}
+
+要求：
+1. title 尽量使用论文首页中的正式标题，不要保留文件名噪声。
+2. authors 返回单行作者列表，使用英文逗号分隔。
+3. year 无法确认时返回 0。
+4. venue 无法确认时返回空字符串。
+5. doi 仅返回 DOI 本身；没有就返回空字符串。
+6. 不要输出 markdown、解释或额外文本。
+
+文件名：{file_name}
+当前标题猜测：{title_guess}
+正文前段：
+{text}
+"#;
+
 #[tauri::command]
 pub async fn papers_upload(
     app: tauri::AppHandle,
@@ -257,11 +286,15 @@ pub async fn papers_upload(
     research_interest_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let path = file_path.into_path().map_err(|e| e.to_string())?;
-    let file_path_str = path.to_string_lossy().to_string();
     let file_name = path
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("unknown.pdf");
+    let original_stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("unknown")
+        .to_string();
     let title_guess = file_name
         .strip_suffix(".pdf")
         .unwrap_or(file_name)
@@ -269,18 +302,61 @@ pub async fn papers_upload(
 
     let full_text = pdf_extract::extract_text(&path)
         .map_err(|e| format!("PDF extraction failed: {e}"))?;
+    let settings = state.settings.read().await.clone();
     let inferred_venue = infer_from_text(&full_text).map(|tag| tag.full_name);
+    let auto_rename_enabled = settings
+        .get("paper_auto_rename_on_import")
+        .map(|value| value.trim().eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    let mut detected_title = title_guess.clone();
+    let mut detected_authors: Option<String> = None;
+    let mut detected_year: Option<i64> = None;
+    let mut detected_venue = inferred_venue;
+    let mut detected_doi: Option<String> = None;
+    let mut final_path = path.clone();
+
+    if auto_rename_enabled {
+        if let Some(metadata) = extract_import_rename_metadata(&settings, file_name, &title_guess, &full_text).await {
+            let rename_rule = settings
+                .get("paper_auto_rename_rule")
+                .map(|value| value.as_str())
+                .unwrap_or("{first_author} - {title} ({year})");
+            let rename_stem = render_import_file_stem(
+                rename_rule,
+                &metadata,
+                &title_guess,
+                &original_stem,
+            );
+
+            if let Some(value) = clean_optional_text(metadata.title) {
+                detected_title = value;
+            }
+            detected_authors = clean_optional_text(metadata.authors);
+            detected_year = metadata.year.filter(|value| *value > 0);
+            detected_venue = clean_optional_text(metadata.venue).or(detected_venue);
+            detected_doi = clean_optional_text(metadata.doi);
+            if let Ok(next_path) = maybe_rename_imported_pdf(&path, &rename_stem) {
+                final_path = next_path;
+            }
+        }
+    }
+
+    let file_path_str = final_path.to_string_lossy().to_string();
 
     let paper_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO papers (id, title, venue, file_path, full_text, research_interest_id, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'parsed', ?, ?)",
+        "INSERT INTO papers (id, title, authors, year, venue, doi, file_path, full_text, research_interest_id, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'parsed', ?, ?)",
     )
     .bind(&paper_id)
-    .bind(&title_guess)
-    .bind(&inferred_venue)
+    .bind(&detected_title)
+    .bind(&detected_authors)
+    .bind(detected_year)
+    .bind(&detected_venue)
+    .bind(&detected_doi)
     .bind(&file_path_str)
     .bind(&full_text)
     .bind(&research_interest_id)
@@ -292,7 +368,6 @@ pub async fn papers_upload(
 
     // Background: chunk + embed
     let db = state.db.clone();
-    let settings = state.settings.read().await.clone();
     let pid = paper_id.clone();
     let text = full_text.clone();
     let chunk_size: usize = settings.get("chunk_size").and_then(|v| v.parse().ok()).unwrap_or(800);
@@ -332,7 +407,7 @@ pub async fn papers_upload(
         let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "parsed" }));
     });
 
-    Ok(json!({ "paper_id": paper_id, "title": title_guess }))
+    Ok(json!({ "paper_id": paper_id, "title": detected_title }))
 }
 
 // ── Analyze ──────────────────────────────────────────────────────
@@ -517,6 +592,155 @@ pub(crate) fn extract_json(s: &str) -> String {
     s[start..end].to_string()
 }
 
+async fn extract_import_rename_metadata(
+    settings: &std::collections::HashMap<String, String>,
+    file_name: &str,
+    title_guess: &str,
+    full_text: &str,
+) -> Option<ImportRenameMetadata> {
+    let client = LlmClient::from_settings(settings).ok()?;
+    let text_preview = if full_text.len() > 12000 { &full_text[..12000] } else { full_text };
+    let prompt = IMPORT_RENAME_PROMPT
+        .replace("{file_name}", file_name)
+        .replace("{title_guess}", title_guess)
+        .replace("{text}", text_preview);
+    let messages = vec![
+        LlmMessage::system(IMPORT_RENAME_SYSTEM),
+        LlmMessage::user(prompt),
+    ];
+    let model = resolve_model(settings, &["planner_hint_model"]);
+    let temperature = resolve_temperature(settings, "planner_hint_temperature", 0.2);
+    let response = client.chat(&messages, model.as_deref(), temperature).await.ok()?;
+    let clean = extract_json(&response);
+    serde_json::from_str::<ImportRenameMetadata>(&clean).ok()
+}
+
+fn render_import_file_stem(
+    rule: &str,
+    metadata: &ImportRenameMetadata,
+    fallback_title: &str,
+    original_stem: &str,
+) -> String {
+    if rule.trim().is_empty() {
+        return sanitize_file_stem(original_stem);
+    }
+
+    let title = clean_optional_text(metadata.title.clone()).unwrap_or_else(|| fallback_title.trim().to_string());
+    let authors = clean_optional_text(metadata.authors.clone()).unwrap_or_default();
+    let first_author = extract_first_author(&authors);
+    let year = metadata.year.filter(|value| *value > 0).map(|value| value.to_string()).unwrap_or_default();
+    let venue = clean_optional_text(metadata.venue.clone()).unwrap_or_default();
+    let doi = clean_optional_text(metadata.doi.clone()).unwrap_or_default();
+
+    let mut rendered = rule.to_string();
+    for (token, value) in [
+        ("{title}", title.as_str()),
+        ("{authors}", authors.as_str()),
+        ("{first_author}", first_author.as_str()),
+        ("{year}", year.as_str()),
+        ("{venue}", venue.as_str()),
+        ("{doi}", doi.as_str()),
+        ("{original_name}", original_stem),
+    ] {
+        rendered = rendered.replace(token, value);
+    }
+
+    sanitize_file_stem(&strip_placeholder_braces(&rendered))
+}
+
+fn clean_optional_text(value: Option<String>) -> Option<String> {
+    value
+        .map(|item| item.replace('\n', " ").trim().to_string())
+        .filter(|item| !item.is_empty())
+}
+
+fn extract_first_author(authors: &str) -> String {
+    authors
+        .split(',')
+        .next()
+        .map(|item| item.trim())
+        .filter(|item| !item.is_empty())
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn strip_placeholder_braces(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut brace_depth = 0usize;
+
+    for ch in input.chars() {
+        match ch {
+            '{' => brace_depth += 1,
+            '}' if brace_depth > 0 => brace_depth -= 1,
+            _ if brace_depth == 0 => out.push(ch),
+            _ => {}
+        }
+    }
+
+    out
+}
+
+fn sanitize_file_stem(input: &str) -> String {
+    let mut cleaned = String::with_capacity(input.len());
+
+    for ch in input.chars() {
+        if ch.is_control() {
+            continue;
+        }
+        match ch {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => cleaned.push(' '),
+            _ => cleaned.push(ch),
+        }
+    }
+
+    let mut normalized = cleaned
+        .replace("()", " ")
+        .replace("[]", " ")
+        .replace("{}", " ")
+        .replace("（）", " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    normalized = normalized
+        .trim_matches(|ch: char| matches!(ch, ' ' | '-' | '_' | '.'))
+        .to_string();
+
+    if normalized.is_empty() {
+        "untitled-paper".to_string()
+    } else {
+        normalized
+    }
+}
+
+fn maybe_rename_imported_pdf(path: &Path, desired_stem: &str) -> Result<PathBuf, String> {
+    let next_stem = sanitize_file_stem(desired_stem);
+    let current_stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or_default();
+    if next_stem.eq_ignore_ascii_case(current_stem) {
+        return Ok(path.to_path_buf());
+    }
+
+    let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("pdf");
+    let parent = path.parent().ok_or_else(|| "无法确定 PDF 所在目录".to_string())?;
+    let mut candidate = parent.join(format!("{next_stem}.{extension}"));
+    if candidate == path {
+        return Ok(path.to_path_buf());
+    }
+
+    if candidate.exists() {
+        for index in 2..1000 {
+            let maybe = parent.join(format!("{next_stem} ({index}).{extension}"));
+            if !maybe.exists() {
+                candidate = maybe;
+                break;
+            }
+        }
+    }
+
+    std::fs::rename(path, &candidate).map_err(|e| e.to_string())?;
+    Ok(candidate)
+}
+
 fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> serde_json::Value {
     let tags_str: String = r.get::<Option<String>, _>("tags").unwrap_or_else(|| "[]".into());
     // "abstract" is a Rust reserved keyword; fetch into a variable first
@@ -577,4 +801,50 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
         }
     }
     obj
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{extract_first_author, render_import_file_stem, ImportRenameMetadata};
+
+    #[test]
+    fn render_import_file_stem_uses_rule_tokens() {
+        let metadata = ImportRenameMetadata {
+            title: Some("Attention Is All You Need".into()),
+            authors: Some("Ashish Vaswani, Noam Shazeer".into()),
+            year: Some(2017),
+            venue: Some("NeurIPS".into()),
+            doi: Some("10.5555/demo".into()),
+        };
+        let rendered = render_import_file_stem(
+            "{first_author} - {title} ({year})",
+            &metadata,
+            "fallback",
+            "old-name",
+        );
+        assert_eq!(rendered, "Ashish Vaswani - Attention Is All You Need (2017)");
+    }
+
+    #[test]
+    fn render_import_file_stem_cleans_missing_tokens() {
+        let metadata = ImportRenameMetadata {
+            title: Some("Paper Title".into()),
+            authors: None,
+            year: Some(0),
+            venue: None,
+            doi: None,
+        };
+        let rendered = render_import_file_stem(
+            "{first_author} - {title} ({year})",
+            &metadata,
+            "fallback",
+            "old-name",
+        );
+        assert_eq!(rendered, "Paper Title");
+    }
+
+    #[test]
+    fn extract_first_author_prefers_first_comma_separated_name() {
+        assert_eq!(extract_first_author("Jane Doe, John Smith"), "Jane Doe");
+    }
 }

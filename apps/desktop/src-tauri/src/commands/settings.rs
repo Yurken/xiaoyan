@@ -60,6 +60,8 @@ const EXPOSED_KEYS: &[&str] = &[
     "multi_agent_synthesis_model",
     "multi_agent_synthesis_temperature",
     "paper_visible_venue_tags",
+    "paper_auto_rename_on_import",
+    "paper_auto_rename_rule",
 ];
 
 const MASK: &str = "***";
