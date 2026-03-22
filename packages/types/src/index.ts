@@ -365,6 +365,8 @@ export interface AppSettings {
   multi_agent_synthesis_model: string;
   multi_agent_synthesis_temperature: string;
   paper_visible_venue_tags: string;
+  paper_auto_rename_on_import: string;
+  paper_auto_rename_rule: string;
 }
 
 export interface Job {

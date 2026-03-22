@@ -65,6 +65,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   multi_agent_synthesis_model: "",
   multi_agent_synthesis_temperature: "0.4",
   paper_visible_venue_tags: "ccf_rating,ccf_type,wos_indexes,jcr_quartile,cas_quartile,cas_top",
+  paper_auto_rename_on_import: "false",
+  paper_auto_rename_rule: "{first_author} - {title} ({year})",
 };
 
 const AGENT_OPTIONS = [
