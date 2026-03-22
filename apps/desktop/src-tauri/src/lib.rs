@@ -9,6 +9,7 @@ use std::{
 mod ccf;
 mod commands;
 mod db;
+mod journal_partitions;
 mod llm;
 mod links;
 mod rag;
@@ -23,6 +24,7 @@ use commands::{
         chat_delete_session, chat_get_session, chat_list_agent_runs, chat_list_sessions,
         chat_stream,
     },
+    journal::journal_lookup,
     knowledge::{
         knowledge_create_interest, knowledge_create_note, knowledge_delete_note,
         knowledge_generate_interest_hints, knowledge_generate_plan,
@@ -126,6 +128,8 @@ pub fn run() {
             papers_reproduce,
             // CCF
             ccf_lookup,
+            // Journal partitions
+            journal_lookup,
             // arXiv
             arxiv_search,
             // Knowledge

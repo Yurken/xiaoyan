@@ -9,6 +9,7 @@ import type {
   ArxivRankingMode,
   ArxivSearchResponse,
   CcfLookupResponse,
+  JournalLookupResponse,
   Paper,
   ChatSession,
   ChatMessage,
@@ -68,6 +69,11 @@ export const papersApi = {
 export const ccfApi = {
   lookup: (query: string, limit = 8): Promise<CcfLookupResponse> =>
     invoke("ccf_lookup", { query, limit }),
+};
+
+export const journalApi = {
+  lookup: (query: string, limit = 8): Promise<JournalLookupResponse> =>
+    invoke("journal_lookup", { query, limit }),
 };
 
 export const arxivApi = {
@@ -252,6 +258,7 @@ export const surveyApi = {
 export const apiClient = {
   arxiv: arxivApi,
   ccf: ccfApi,
+  journals: journalApi,
   settings: settingsApi,
   papers: papersApi,
   knowledge: knowledgeApi,

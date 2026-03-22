@@ -13,9 +13,10 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { Badge, Button, Card, Input } from "@research-copilot/ui";
 import type { Paper } from "@research-copilot/types";
-import { CcfRatingBadge, VenueTypeBadge } from "../components/CcfBadges";
+import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, VenueTypeBadge, WosIndexBadge } from "../components/CcfBadges";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
+import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, parsePaperTagVisibility } from "../lib/paperTags";
 
 export default function Papers() {
   const [papers, setPapers] = useState<Paper[]>([]);
@@ -26,6 +27,7 @@ export default function Papers() {
   const [expandedRepro, setExpandedRepro] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [visiblePaperTags, setVisiblePaperTags] = useState(() => parsePaperTagVisibility(DEFAULT_PAPER_TAG_VISIBILITY_VALUE));
   const [editDraft, setEditDraft] = useState({
     title: "",
     authors: "",
@@ -56,6 +58,27 @@ export default function Papers() {
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    apiClient.settings
+      .get()
+      .then((settings) => {
+        if (!cancelled) {
+          setVisiblePaperTags(parsePaperTagVisibility(settings.paper_visible_venue_tags));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVisiblePaperTags(parsePaperTagVisibility(DEFAULT_PAPER_TAG_VISIBILITY_VALUE));
         }
       });
 
@@ -264,13 +287,21 @@ export default function Papers() {
                       {paper.title}
                     </ExternalLink>
                     {statusBadge(paper.status)}
-                    <CcfRatingBadge rating={paper.ccf_rating} />
-                    <VenueTypeBadge type={paper.ccf_type} />
+                    {visiblePaperTags.has("ccf_rating") ? <CcfRatingBadge rating={paper.ccf_rating} /> : null}
+                    {visiblePaperTags.has("ccf_type") ? <VenueTypeBadge type={paper.ccf_type} /> : null}
+                    {visiblePaperTags.has("wos_indexes")
+                      ? paper.wos_indexes?.map((index) => (
+                          <WosIndexBadge key={`${paper.id}-${index}`} index={index} />
+                        ))
+                      : null}
+                    {visiblePaperTags.has("jcr_quartile") ? <JcrQuartileBadge quartile={paper.jcr_quartile} /> : null}
+                    {visiblePaperTags.has("cas_quartile") ? <CasQuartileBadge quartile={paper.cas_quartile} /> : null}
+                    {visiblePaperTags.has("cas_top") ? <CasTopBadge top={paper.cas_top} /> : null}
                   </div>
                   <p className="mt-0.5 text-xs text-ink-tertiary">
                     {new Date(paper.created_at).toLocaleDateString("zh-CN")}
                   </p>
-                  {(paper.venue || paper.ccf_area || paper.ccf_publisher) && (
+                  {(paper.venue || paper.ccf_area || paper.ccf_publisher || paper.journal_publisher) && (
                     <p className="mt-1 text-xs leading-5 text-ink-secondary">
                       {paper.venue ? (
                         <ExternalLink
@@ -282,6 +313,7 @@ export default function Papers() {
                       ) : "未识别来源"}
                       {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
                       {paper.ccf_publisher ? ` · ${paper.ccf_publisher}` : ""}
+                      {!paper.ccf_publisher && paper.journal_publisher ? ` · ${paper.journal_publisher}` : ""}
                     </p>
                   )}
                 </div>

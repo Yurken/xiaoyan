@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../lib/client";
+import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, PAPER_TAG_OPTIONS, parsePaperTagVisibility, togglePaperTagVisibility } from "../lib/paperTags";
 import type { AppSettings, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
 
 function SettingInput({
@@ -461,6 +462,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   multi_agent_reproduction_temperature: "",
   multi_agent_synthesis_model: "",
   multi_agent_synthesis_temperature: "0.4",
+  paper_visible_venue_tags: DEFAULT_PAPER_TAG_VISIBILITY_VALUE,
 };
 
 const AGENT_OPTIONS = [
@@ -895,12 +897,17 @@ export default function Settings() {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+  const visiblePaperTags = parsePaperTagVisibility(form.paper_visible_venue_tags);
 
   const toggleAgent = (agentName: string) => {
     const next = enabledAgents.includes(agentName)
       ? enabledAgents.filter((item) => item !== agentName)
       : [...enabledAgents, agentName];
     set("multi_agent_enabled_agents")(next.join(","));
+  };
+
+  const togglePaperTag = (key: (typeof PAPER_TAG_OPTIONS)[number]["key"]) => {
+    set("paper_visible_venue_tags")(togglePaperTagVisibility(form.paper_visible_venue_tags, key));
   };
 
   const contentUnavailable = loading || Boolean(loadError);
@@ -1191,6 +1198,40 @@ export default function Settings() {
                   onChange={set("rag_top_k")}
                   placeholder="5"
                 />
+              </div>
+            </div>
+          </Card>
+        ) : null}
+
+        {!contentUnavailable ? (
+          <Card padding="md" className="space-y-4">
+            <div className="flex items-center gap-3">
+              <SectionIcon icon={Layers3} color="#FF9F0A" />
+              <div>
+                <h2 className="text-sm font-semibold text-ink-primary">论文标签显示</h2>
+                <p className="text-xs text-ink-tertiary mt-0.5">
+                  控制论文库卡片上展示哪些来源标签。关闭后不会影响后端识别，只是不显示在卡片上。
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-3xl px-4 py-4 space-y-3" style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}>
+              <div className="flex flex-wrap gap-2">
+                {PAPER_TAG_OPTIONS.map((item) => (
+                  <AgentChip
+                    key={item.key}
+                    label={item.label}
+                    active={visiblePaperTags.has(item.key)}
+                    onClick={() => togglePaperTag(item.key)}
+                  />
+                ))}
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {PAPER_TAG_OPTIONS.map((item) => (
+                  <p key={item.key} className="text-xs leading-5 text-ink-secondary">
+                    {item.label}：{item.description}
+                  </p>
+                ))}
               </div>
             </div>
           </Card>

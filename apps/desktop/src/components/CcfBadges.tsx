@@ -23,3 +23,23 @@ export function VenueTypeBadge({ type }: { type?: string }) {
   if (!label) return null;
   return <Badge variant="default">{label}</Badge>;
 }
+
+export function WosIndexBadge({ index }: { index?: string }) {
+  if (!index) return null;
+  return <Badge variant="default">{index}</Badge>;
+}
+
+export function JcrQuartileBadge({ quartile }: { quartile?: string }) {
+  if (!quartile) return null;
+  return <Badge variant="info">{`JCR ${quartile}`}</Badge>;
+}
+
+export function CasQuartileBadge({ quartile }: { quartile?: string }) {
+  if (!quartile) return null;
+  return <Badge variant="warning">{`中科院 ${quartile}区`}</Badge>;
+}
+
+export function CasTopBadge({ top }: { top?: boolean }) {
+  if (!top) return null;
+  return <Badge variant="success">Top</Badge>;
+}

@@ -1,6 +1,5 @@
 use crate::llm::{LlmClient, LlmMessage};
 use crate::state::{AppState, SENSITIVE_KEYS};
-use sqlx::Row;
 use std::collections::HashMap;
 use tauri::State;
 
@@ -60,6 +59,7 @@ const EXPOSED_KEYS: &[&str] = &[
     "multi_agent_reproduction_temperature",
     "multi_agent_synthesis_model",
     "multi_agent_synthesis_temperature",
+    "paper_visible_venue_tags",
 ];
 
 const MASK: &str = "***";

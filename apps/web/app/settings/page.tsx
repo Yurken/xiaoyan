@@ -64,6 +64,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   multi_agent_reproduction_temperature: "",
   multi_agent_synthesis_model: "",
   multi_agent_synthesis_temperature: "0.4",
+  paper_visible_venue_tags: "ccf_rating,ccf_type,wos_indexes,jcr_quartile,cas_quartile,cas_top",
 };
 
 const AGENT_OPTIONS = [
