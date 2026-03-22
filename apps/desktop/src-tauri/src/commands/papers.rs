@@ -433,7 +433,7 @@ pub async fn papers_analyze(
         .map_err(|e| e.to_string())?
         .ok_or("Paper not found")?;
     let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
-    let text_preview = if full_text.len() > 12000 { &full_text[..12000] } else { &full_text };
+    let text_preview = safe_text_preview(&full_text, 12000);
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
     let pid = id.clone();
@@ -515,7 +515,7 @@ pub async fn papers_reproduce(
         .map_err(|e| e.to_string())?
         .ok_or("Paper not found")?;
     let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
-    let text_preview = if full_text.len() > 12000 { &full_text[..12000] } else { &full_text };
+    let text_preview = safe_text_preview(&full_text, 12000);
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
     let pid = id.clone();
@@ -575,6 +575,17 @@ pub async fn papers_reproduce(
 
 // ── Helpers ──────────────────────────────────────────────────────
 
+fn safe_text_preview(text: &str, max_bytes: usize) -> &str {
+    if text.len() <= max_bytes {
+        return text;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
+}
+
 pub fn extract_json_pub(s: &str) -> String {
     extract_json(s)
 }
@@ -599,7 +610,7 @@ async fn extract_import_rename_metadata(
     full_text: &str,
 ) -> Option<ImportRenameMetadata> {
     let client = LlmClient::from_settings(settings).ok()?;
-    let text_preview = if full_text.len() > 12000 { &full_text[..12000] } else { full_text };
+    let text_preview = safe_text_preview(full_text, 12000);
     let prompt = IMPORT_RENAME_PROMPT
         .replace("{file_name}", file_name)
         .replace("{title_guess}", title_guess)
@@ -728,12 +739,17 @@ fn maybe_rename_imported_pdf(path: &Path, desired_stem: &str) -> Result<PathBuf,
     }
 
     if candidate.exists() {
+        let mut found = false;
         for index in 2..1000 {
             let maybe = parent.join(format!("{next_stem} ({index}).{extension}"));
             if !maybe.exists() {
                 candidate = maybe;
+                found = true;
                 break;
             }
+        }
+        if !found {
+            return Err("重命名失败：目标目录中同名文件过多".to_string());
         }
     }
 
