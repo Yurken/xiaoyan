@@ -499,15 +499,9 @@ export default function Tools() {
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
             <Globe2 className="h-5 w-5" />
           </div>
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-ink-primary">科研友链</p>
-              <Badge variant="default">{`${YANWEB_FRIEND_LINK_TOTAL} 条`}</Badge>
-              <Badge variant="default">{`${YANWEB_FRIEND_LINK_SECTIONS.length} 个分类`}</Badge>
-            </div>
-            <p className="text-xs leading-5 text-ink-tertiary">
-              基于 `yanweb.top` 当前页面整理的外部友链快照，只保留图标和超链接，点击后会直接在系统浏览器打开。
-            </p>
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-ink-primary">科研友链</p>
+            <p className="text-xs text-ink-tertiary">{`共 ${YANWEB_FRIEND_LINK_TOTAL} 条 · ${YANWEB_FRIEND_LINK_SECTIONS.length} 个分类`}</p>
           </div>
         </div>
 

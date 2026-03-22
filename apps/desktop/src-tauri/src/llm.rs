@@ -16,9 +16,6 @@ impl LlmMessage {
     pub fn user(content: impl Into<String>) -> Self {
         Self { role: "user".into(), content: content.into() }
     }
-    pub fn assistant(content: impl Into<String>) -> Self {
-        Self { role: "assistant".into(), content: content.into() }
-    }
 }
 
 #[derive(Clone)]
@@ -124,22 +121,6 @@ impl LlmClient {
             })
         } else {
             Self::from_settings(s)
-        }
-    }
-
-    pub fn model_for_role(&self, role_key: &str, s: &HashMap<String, String>) -> String {
-        if let Some(m) = s.get(role_key) {
-            if !m.is_empty() {
-                return m.clone();
-            }
-        }
-        self.default_model()
-    }
-
-    pub fn default_model(&self) -> String {
-        match self {
-            LlmClient::OpenAI { chat_model, .. } => chat_model.clone(),
-            LlmClient::Anthropic { chat_model, .. } => chat_model.clone(),
         }
     }
 
