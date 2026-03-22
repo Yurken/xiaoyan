@@ -94,6 +94,12 @@ updateText("apps/desktop/src-tauri/Cargo.toml", (text) => {
   return text.replace(/^version = ".*"$/m, `version = "${version}"`);
 }, touched);
 
+updateText("apps/desktop/src-tauri/src/commands/arxiv.rs", (text) => {
+  return text.replace(
+    /^(const ARXIV_USER_AGENT: &str = "research-copilot-desktop\/)[\d.]+(")/m,
+    `$1${version}$2`,
+  );
+}, touched);
 
 if (touched.length === 0) {
   console.log(`Version already synced: ${version}`);
