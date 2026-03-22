@@ -18,6 +18,7 @@ import Knowledge from "./pages/Knowledge";
 import Settings from "./pages/Settings";
 import Tools from "./pages/Tools";
 import FocusApp from "./pages/FocusLayout";
+import hitLogo from "./assets/hit-logo.svg";
 import { getLayoutMode } from "./lib/layoutMode";
 import { useAutoUpdate } from "./lib/useAutoUpdate";
 import UpdateNotification from "./components/UpdateNotification";
@@ -59,14 +60,8 @@ export default function App() {
       >
         {/* Logo */}
         <NavLink to="/" title="工作台" className="mb-4">
-          <div
-            className="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-base font-bold"
-            style={{
-              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-              boxShadow: "5px 5px 12px rgba(0,62,204,0.4), -3px -3px 8px rgba(58,155,255,0.25)",
-            }}
-          >
-            智
+          <div className="w-11 h-11 flex items-center justify-center">
+            <img src={hitLogo} alt="HIT" className="w-11 h-11 object-contain" />
           </div>
         </NavLink>
 

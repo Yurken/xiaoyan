@@ -19,6 +19,7 @@ import { apiClient, formatErrorMessage } from "../lib/client";
 import type { ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
 import PlannerComposer from "../features/knowledge/PlannerComposer";
+import hitLogo from "../assets/hit-logo.svg";
 import ResearchWorkbench, { type InterestTab } from "../features/knowledge/ResearchWorkbench";
 import Planner from "./Planner";
 import Survey from "./Survey";
@@ -65,7 +66,21 @@ function InterestCard({
             {interest.folder_name?.trim() || interest.topic}
           </p>
         </div>
-        <p className="text-xs text-ink-tertiary truncate pl-6">{interest.topic}</p>
+        {interest.keywords && interest.keywords.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5 pl-6 mt-1.5">
+            {interest.keywords.slice(0, 6).map((kw) => (
+              <span
+                key={kw}
+                className="rounded-full px-2 py-0.5 text-[11px] text-apple-blue"
+                style={{ background: "rgba(0,122,255,0.08)" }}
+              >
+                {kw}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-ink-tertiary truncate pl-6 mt-0.5">{interest.topic}</p>
+        )}
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
         <Badge variant={statusVariant}>{statusLabel}</Badge>
@@ -161,14 +176,8 @@ function FocusHome() {
         }}
       >
         <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold"
-            style={{
-              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-              boxShadow: "3px 3px 8px rgba(0,62,204,0.4), -2px -2px 6px rgba(58,155,255,0.25)",
-            }}
-          >
-            智
+          <div className="w-9 h-9 flex items-center justify-center">
+            <img src={hitLogo} alt="HIT" className="w-9 h-9 object-contain" />
           </div>
           <p className="text-base font-bold text-ink-primary">智研 Copilot</p>
         </div>
