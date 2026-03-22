@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { AlertCircle, CalendarDays, FileSearch, Search, Sparkles, Wrench } from "lucide-react";
+import { AlertCircle, CalendarDays, FileSearch, Globe2, Search, Sparkles, Wrench } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode, ArxivSearchResponse, CcfEntry } from "@research-copilot/types";
 import { CcfRatingBadge, VenueTypeBadge } from "../components/CcfBadges";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
+import { YANWEB_FRIEND_LINK_SECTIONS, YANWEB_FRIEND_LINK_TOTAL } from "../lib/yanweb-links";
 
 const insetShadow = "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF";
 
@@ -43,6 +44,14 @@ function scoreVariant(score: number) {
   if (score >= 70) return "info" as const;
   if (score >= 55) return "warning" as const;
   return "default" as const;
+}
+
+function friendLinkSectionId(index: number) {
+  return `yanweb-friend-links-${index + 1}`;
+}
+
+function friendLinkInitial(value: string) {
+  return value.trim().slice(0, 1) || "?";
 }
 
 export default function Tools() {
@@ -113,7 +122,7 @@ export default function Tools() {
       <div>
         <h1 className="text-2xl font-bold text-ink-primary">实用工具</h1>
         <p className="mt-1 text-sm text-ink-tertiary">
-          内置 CCF 目录查询和 arXiv 智能检索。arXiv 结果会优先使用你当前项目里的模型设置做分析与重排。
+          内置 CCF 目录查询、arXiv 智能检索，并补充一组按分类整理的科研友链。arXiv 结果会优先使用你当前项目里的模型设置做分析与重排。
         </p>
       </div>
 
@@ -373,6 +382,81 @@ export default function Tools() {
           </div>
         </Card>
       ) : null}
+
+      <Card padding="md" className="space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
+            <Globe2 className="h-5 w-5" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-ink-primary">科研友链</p>
+              <Badge variant="default">{`${YANWEB_FRIEND_LINK_TOTAL} 条`}</Badge>
+              <Badge variant="default">{`${YANWEB_FRIEND_LINK_SECTIONS.length} 个分类`}</Badge>
+            </div>
+            <p className="text-xs leading-5 text-ink-tertiary">
+              基于 `yanweb.top` 当前页面整理的外部友链快照，只保留图标和超链接，点击后会直接在系统浏览器打开。
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => (
+            <a
+              key={section.title}
+              href={`#${friendLinkSectionId(index)}`}
+              className="inline-flex items-center gap-2 rounded-full bg-white/45 px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
+            >
+              <span>{section.title}</span>
+              <span className="text-ink-tertiary">{section.items.length}</span>
+            </a>
+          ))}
+        </div>
+
+        <div className="space-y-6">
+          {YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => (
+            <section key={section.title} id={friendLinkSectionId(index)} className="space-y-3 scroll-mt-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-ink-primary">{section.title}</p>
+                <Badge variant="default">{`${section.items.length} 条`}</Badge>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {section.items.map((item) => (
+                  <ExternalLink
+                    key={`${section.title}-${item.name}-${item.href}`}
+                    href={item.href}
+                    title={`${item.name} · ${item.href}`}
+                    className="group flex items-center gap-3 rounded-2xl bg-white/45 px-3 py-3 transition hover:bg-white/70"
+                  >
+                    <div
+                      className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#E8ECF0] text-sm font-semibold text-ink-secondary"
+                      style={{ boxShadow: insetShadow }}
+                    >
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        {friendLinkInitial(item.name)}
+                      </span>
+                      <img
+                        src={item.icon}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="relative h-full w-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.style.opacity = "0";
+                        }}
+                      />
+                    </div>
+                    <span className="min-w-0 text-sm leading-5 text-ink-primary group-hover:text-apple-blue group-hover:underline">
+                      {item.name}
+                    </span>
+                  </ExternalLink>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }
