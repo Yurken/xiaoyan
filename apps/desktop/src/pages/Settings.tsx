@@ -261,7 +261,7 @@ const SETTINGS_SECTIONS: Array<{
   },
   {
     key: "about",
-    label: "说明",
+    label: "更多",
     description: "查看继承规则、版本和升级",
     icon: Info,
     color: "#5AC8FA",
@@ -941,7 +941,7 @@ export default function Settings() {
     setForm((current) => {
       const next = { ...current };
       keys.forEach((key) => {
-        next[key] = value;
+        (next as Record<keyof AppSettings, string>)[key] = value;
       });
       return next;
     });
@@ -1759,7 +1759,7 @@ export default function Settings() {
                 },
                 {
                   mode: "focus" as LayoutMode,
-                  label: "专注",
+                  label: "聚焦",
                   description: "以研究主题为入口，生成后进入专属工作台，保持研究聚焦。",
                 },
               ] as const).map(({ mode, label, description }) => (
