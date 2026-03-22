@@ -19,7 +19,7 @@ import { apiClient, formatErrorMessage } from "../lib/client";
 import type { ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
 import PlannerComposer from "../features/knowledge/PlannerComposer";
-import ResearchWorkbench from "../features/knowledge/ResearchWorkbench";
+import ResearchWorkbench, { type InterestTab } from "../features/knowledge/ResearchWorkbench";
 import Planner from "./Planner";
 import Survey from "./Survey";
 import Papers from "./Papers";
@@ -274,19 +274,73 @@ function FocusHome() {
 
 // ─── Focus Workbench ─────────────────────────────────────────────────────────
 
-type WorkbenchTab = "planner" | "survey" | "papers" | "knowledge" | "copilot" | "tools";
+type FreeTab = "planner" | "survey" | "papers" | "knowledge" | "copilot" | "tools";
 
-const WORKBENCH_TABS: Array<{ key: WorkbenchTab; label: string; icon: typeof Sparkles }> = [
+const FREE_TABS: Array<{ key: FreeTab; label: string; icon: typeof Sparkles }> = [
   { key: "planner",   label: "规划",    icon: Sparkles },
   { key: "survey",    label: "综述",    icon: BookOpen },
   { key: "papers",    label: "论文",    icon: FileText },
   { key: "knowledge", label: "知识",    icon: Library },
-  { key: "copilot",   label: "Copilot", icon: MessageSquare },
+  { key: "copilot",   label: "对话",    icon: MessageSquare },
   { key: "tools",     label: "工具",    icon: Wrench },
 ];
 
-function isWorkbenchTab(value?: string): value is WorkbenchTab {
-  return WORKBENCH_TABS.some((item) => item.key === value);
+function isFreeTab(value?: string): value is FreeTab {
+  return FREE_TABS.some((item) => item.key === value);
+}
+
+const BASE_INTEREST_TABS: Array<{ key: InterestTab; label: string; icon: typeof Sparkles }> = [
+  { key: "papers",  label: "论文", icon: FileText },
+  { key: "copilot", label: "对话", icon: MessageSquare },
+  { key: "notes",   label: "笔记", icon: Library },
+  { key: "tools",   label: "工具", icon: Wrench },
+];
+
+const PLANNER_TAB: { key: InterestTab; label: string; icon: typeof Sparkles } =
+  { key: "planner", label: "规划", icon: Sparkles };
+
+function TabButton({
+  active,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: typeof Sparkles;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
+      style={
+        active
+          ? {
+              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+              color: "#FFFFFF",
+              boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
+            }
+          : { background: "transparent", color: "#8E8E93" }
+      }
+    >
+      <Icon className="w-3.5 h-3.5" />
+      {label}
+    </button>
+  );
+}
+
+function StatChip({ label, value }: { label: string; value: number }) {
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs"
+      style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF" }}
+    >
+      <span className="text-ink-tertiary">{label}</span>
+      <span className="font-semibold text-ink-primary">{value}</span>
+    </div>
+  );
 }
 
 function FocusWorkbench() {
@@ -295,8 +349,14 @@ function FocusWorkbench() {
   const [interest, setInterest] = useState<ResearchInterest | null>(null);
   const [loadingInterest, setLoadingInterest] = useState(false);
   const [interestError, setInterestError] = useState("");
+  const [interestTab, setInterestTab] = useState<InterestTab>("papers");
+  const [stats, setStats] = useState({ papers: 0, sessions: 0, notes: 0 });
   const isFree = interestId === "free";
-  const activeTab = isWorkbenchTab(tab) ? tab : "planner";
+  const freeTab = isFreeTab(tab) ? tab : "planner";
+
+  const interestTabs = interest?.status === "planned"
+    ? [PLANNER_TAB, ...BASE_INTEREST_TABS]
+    : BASE_INTEREST_TABS;
 
   useEffect(() => {
     if (isFree) {
@@ -305,10 +365,7 @@ function FocusWorkbench() {
       setInterestError("");
       return;
     }
-
-    if (!interestId) {
-      return;
-    }
+    if (!interestId) return;
 
     let cancelled = false;
     setLoadingInterest(true);
@@ -321,32 +378,23 @@ function FocusWorkbench() {
         const found = list.find((item) => item.id === interestId);
         if (found) {
           setInterest(found);
+          setInterestTab(found.status === "planned" ? "planner" : "papers");
           return;
         }
         setInterestError("未找到该研究主题，可能已被删除。");
       })
-      .catch((error) => {
-        if (!cancelled) {
-          setInterestError(formatErrorMessage(error));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoadingInterest(false);
-        }
-      });
+      .catch((error) => { if (!cancelled) setInterestError(formatErrorMessage(error)); })
+      .finally(() => { if (!cancelled) setLoadingInterest(false); });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [interestId, isFree]);
 
   const title = isFree
     ? "自由主题"
     : interest?.folder_name?.trim() || interest?.topic || "研究主题";
 
-  const ActivePage = (() => {
-    switch (activeTab) {
+  const FreePage = (() => {
+    switch (freeTab) {
       case "planner":   return <Planner />;
       case "survey":    return <Survey />;
       case "papers":    return <Papers />;
@@ -358,75 +406,82 @@ function FocusWorkbench() {
 
   return (
     <div className="flex flex-col h-full bg-nm-bg">
-      {/* Workbench header */}
+      {/* ── 合并头部 ── */}
       <div
-        className="flex-shrink-0 flex items-center gap-3 px-4 h-12"
+        className="flex-shrink-0 flex items-center gap-2 px-4 h-12"
         style={{
           background: "linear-gradient(180deg, #F0F4F8 0%, #E8ECF0 100%)",
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
         }}
       >
+        {/* 返回 */}
         <button
           type="button"
           onClick={() => navigate("/")}
-          className="w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150"
-          style={{
-            background: "#E8ECF0",
-            boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
-            color: "#007AFF",
-          }}
+          className="w-8 h-8 flex-shrink-0 rounded-xl flex items-center justify-center"
+          style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF", color: "#007AFF" }}
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-ink-primary truncate">{title}</p>
-        </div>
+
+        {/* 标题 */}
+        <p className="text-sm font-semibold text-ink-primary truncate flex-shrink min-w-0 max-w-[200px]">{title}</p>
+
+        {/* 统计（仅具体主题） */}
+        {!isFree && interest && (
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <StatChip label="论文" value={stats.papers} />
+            <StatChip label="会话" value={stats.sessions} />
+            <StatChip label="笔记" value={stats.notes} />
+          </div>
+        )}
+
+        <div className="flex-1" />
+
+        {/* 标签切换 */}
         {isFree ? (
-          <div className="flex items-center gap-1">
-            {WORKBENCH_TABS.map(({ key, label, icon: Icon }) => (
-              <button
+          <div className="flex items-center gap-0.5">
+            {FREE_TABS.map(({ key, label, icon }) => (
+              <TabButton
                 key={key}
-                type="button"
+                active={freeTab === key}
+                icon={icon}
+                label={label}
                 onClick={() => navigate(`/workbench/free/${key}`)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
-                style={
-                  activeTab === key
-                    ? {
-                        background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                        color: "#FFFFFF",
-                        boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
-                      }
-                    : {
-                        background: "transparent",
-                        color: "#8E8E93",
-                      }
-                }
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </button>
+              />
             ))}
           </div>
         ) : (
+          <div className="flex items-center gap-0.5">
+            {interestTabs.map(({ key, label, icon }) => (
+              <TabButton
+                key={key}
+                active={interestTab === key}
+                icon={icon}
+                label={label}
+                onClick={() => setInterestTab(key)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* 自由主题入口（仅具体主题工作台显示） */}
+        {!isFree && (
           <button
             type="button"
             onClick={() => navigate("/workbench/free/planner")}
-            className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
-            style={{
-              background: "#E8ECF0",
-              color: "#3C3C43",
-              boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
-            }}
+            className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium ml-1"
+            style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
           >
             自由主题
           </button>
         )}
       </div>
 
-      {/* Tab content */}
+      {/* ── 内容区 ── */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {isFree ? (
-          ActivePage
+          FreePage
         ) : loadingInterest ? (
           <div className="flex h-full items-center justify-center gap-2 text-ink-tertiary">
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -436,22 +491,19 @@ function FocusWorkbench() {
           <div className="flex h-full items-center justify-center p-6">
             <div
               className="w-full max-w-md rounded-[28px] p-6 text-center"
-              style={{
-                background: "#EEF1F5",
-                boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF",
-              }}
+              style={{ background: "#EEF1F5", boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF" }}
             >
               <p className="text-sm font-semibold text-ink-primary">无法打开主题工作台</p>
               <p className="mt-2 text-xs leading-6 text-apple-red break-all">{interestError}</p>
-              <Button className="mt-4" onClick={() => navigate("/")}>
-                返回主题列表
-              </Button>
+              <Button className="mt-4" onClick={() => navigate("/")}>返回主题列表</Button>
             </div>
           </div>
         ) : interest ? (
-          <div className="h-full overflow-y-auto p-6">
-            <ResearchWorkbench interest={interest} />
-          </div>
+          <ResearchWorkbench
+            interest={interest}
+            activeTab={interestTab}
+            onStats={(p, s, n) => setStats({ papers: p, sessions: s, notes: n })}
+          />
         ) : null}
       </div>
     </div>

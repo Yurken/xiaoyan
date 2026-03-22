@@ -24,7 +24,7 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant="default">待规划</Badge>;
 }
 
-function LearningPathView({ path }: { path: LearningPath }) {
+export function LearningPathView({ path }: { path: LearningPath }) {
   return (
     <div className="space-y-5 text-xs text-ink-secondary">
       {path.overview && (

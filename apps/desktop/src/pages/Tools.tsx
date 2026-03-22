@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { AlertCircle, CalendarDays, ChevronDown, FileSearch, Globe2, Search, Sparkles } from "lucide-react";
+import { AlertCircle, CalendarDays, ChevronDown, ChevronUp, FileSearch, Globe2, Search, Sparkles } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode, ArxivSearchResponse, SourceLookupSection } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, WosIndexBadge, VenueTypeBadge } from "../components/CcfBadges";
@@ -71,6 +71,7 @@ export default function Tools() {
   const [arxivSearched, setArxivSearched] = useState(false);
   const [arxivResult, setArxivResult] = useState<ArxivSearchResponse | null>(null);
   const arxivLastSearchAt = useRef<number>(0);
+  const [friendLinkPanelOpen, setFriendLinkPanelOpen] = useState(false);
   const [openFriendSections, setOpenFriendSections] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => [section.title, index === 0]))
   );
@@ -472,24 +473,37 @@ export default function Tools() {
       ) : null}
 
       <Card padding="md" className="space-y-5">
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
             <Globe2 className="h-5 w-5" />
           </div>
-          <div className="space-y-0.5 flex-1">
+          <div className="space-y-0.5 flex-1 min-w-0">
             <p className="text-sm font-semibold text-ink-primary">科研友链</p>
             <p className="text-xs text-ink-tertiary">{`共 ${YANWEB_FRIEND_LINK_TOTAL} 条 · ${YANWEB_FRIEND_LINK_SECTIONS.length} 个分类`}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setAllFriendSections(!allFriendSectionsExpanded)}
-            className="inline-flex items-center rounded-full bg-white/45 px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
-            aria-label={allFriendSectionsExpanded ? "收起全部友链分类" : "展开全部友链分类"}
-          >
-            {allFriendSectionsExpanded ? "收起全部" : "展开全部"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFriendLinkPanelOpen((v) => !v)}
+              className="inline-flex items-center rounded-full bg-white/45 px-2.5 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
+              aria-label={friendLinkPanelOpen ? "收起科研友链" : "展开科研友链"}
+            >
+              {friendLinkPanelOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+            {friendLinkPanelOpen && (
+              <button
+                type="button"
+                onClick={() => setAllFriendSections(!allFriendSectionsExpanded)}
+                className="inline-flex items-center rounded-full bg-white/45 px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
+                aria-label={allFriendSectionsExpanded ? "收起全部友链分类" : "展开全部友链分类"}
+              >
+                {allFriendSectionsExpanded ? "收起全部" : "展开全部"}
+              </button>
+            )}
+          </div>
         </div>
 
+        {friendLinkPanelOpen && <>
         <div className="flex flex-wrap gap-2">
           {YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => (
             <button
@@ -581,6 +595,7 @@ export default function Tools() {
             </section>
           ))}
         </div>
+        </>}
       </Card>
     </div>
   );
