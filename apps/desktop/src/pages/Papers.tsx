@@ -33,6 +33,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [loadError, setLoadError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -186,36 +187,54 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [interestMap, papers, sortKeys]);
 
+  const toFilePath = (item: unknown): string => {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object" && "path" in item) return String((item as { path: unknown }).path);
+    return "";
+  };
+
   const handleUpload = async () => {
     try {
       setLoadError("");
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selected = await open({
-        multiple: false,
+        multiple: true,
         filters: [{ name: "PDF", extensions: ["pdf"] }],
       });
       if (!selected) return;
 
-      const selectedPath =
-        typeof selected === "string"
-          ? selected
-          : typeof selected === "object" && selected !== null && "path" in selected
-            ? String((selected as { path: unknown }).path)
-            : "";
+      const paths = (Array.isArray(selected) ? selected : [selected])
+        .map(toFilePath)
+        .filter(Boolean);
 
-      if (!selectedPath) {
-        throw new Error("未识别的文件路径，请重新选择 PDF 文件");
-      }
+      if (paths.length === 0) return;
 
       setUploading(true);
-      await apiClient.papers.upload(selectedPath, selectedInterestId || undefined);
+      setBatchProgress({ done: 0, total: paths.length });
+
+      const failures: string[] = [];
+      for (let i = 0; i < paths.length; i++) {
+        try {
+          await apiClient.papers.upload(paths[i], selectedInterestId || undefined);
+        } catch (err) {
+          const name = paths[i].split("/").pop() ?? paths[i];
+          failures.push(`${name}：${formatErrorMessage(err)}`);
+        }
+        setBatchProgress({ done: i + 1, total: paths.length });
+      }
+
       const updated = await apiClient.papers.list();
       setPapers(updated);
+
+      if (failures.length > 0) {
+        setLoadError(failures.join("\n"));
+      }
     } catch (error) {
       console.error(error);
       setLoadError(formatErrorMessage(error));
     } finally {
       setUploading(false);
+      setBatchProgress(null);
     }
   };
 
@@ -939,7 +958,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           </div>}
           <Button onClick={handleUpload} loading={uploading} size="md">
             <Upload className="w-4 h-4" />
-            导入 PDF
+            {batchProgress ? `导入中 (${batchProgress.done}/${batchProgress.total})` : "导入 PDF"}
           </Button>
         </div>
       </div>
