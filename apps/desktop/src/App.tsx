@@ -32,7 +32,7 @@ const navItems = [
   { to: "/survey",    icon: BookOpen,        label: "综述" },
   { to: "/papers",    icon: FileText,        label: "论文" },
   { to: "/knowledge", icon: Library,         label: "知识" },
-  { to: "/copilot",   icon: MessageSquare,   label: "对话" },
+  { to: "/copilot",   icon: MessageSquare,   label: "小妍" },
   { to: "/tools",     icon: Wrench,          label: "工具" },
   { to: "/settings",  icon: SettingsIcon,    label: "设置" },
 ];

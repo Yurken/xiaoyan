@@ -15,14 +15,15 @@ export default function MarkdownRenderer({ content, className, onLinkClick }: Ma
     <div
       className={clsx(
         "prose prose-sm max-w-none",
-        "prose-headings:font-semibold prose-headings:text-gray-800",
-        "prose-p:text-gray-700 prose-p:leading-relaxed",
-        "prose-strong:text-gray-900 prose-strong:font-semibold",
+        "prose-headings:font-semibold prose-headings:text-ink-primary",
+        "prose-p:text-ink-secondary prose-p:leading-relaxed",
+        "prose-strong:text-ink-primary prose-strong:font-semibold",
         "prose-code:before:content-none prose-code:after:content-none",
         "prose-pre:my-4 prose-pre:overflow-x-auto prose-pre:rounded-xl prose-pre:border prose-pre:border-slate-700 prose-pre:bg-slate-950 prose-pre:p-0",
-        "prose-ul:text-gray-700 prose-ol:text-gray-700",
-        "prose-blockquote:border-l-brand-400 prose-blockquote:text-gray-600",
-        "prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline",
+        "prose-ul:text-ink-secondary prose-ol:text-ink-secondary",
+        "prose-li:text-ink-secondary",
+        "prose-blockquote:border-l-apple-blue prose-blockquote:text-ink-tertiary",
+        "prose-a:text-apple-blue prose-a:no-underline hover:prose-a:underline",
         "prose-img:rounded-xl",
         className
       )}
