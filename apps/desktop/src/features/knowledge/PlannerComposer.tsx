@@ -24,6 +24,7 @@ interface PlannerComposerProps {
     interest: ResearchInterest,
     meta?: { uploadedReferences: number; failedUploads: string[] }
   ) => void;
+  initialTopic?: string;
 }
 
 interface PlannerFormState {
@@ -110,8 +111,8 @@ function mapAiSuggestion(response: ResearchInterestHintResponse): PlannerSuggest
   };
 }
 
-export default function PlannerComposer({ onCancel, onCreated }: PlannerComposerProps) {
-  const [form, setForm] = useState(INITIAL_STATE);
+export default function PlannerComposer({ onCancel, onCreated, initialTopic }: PlannerComposerProps) {
+  const [form, setForm] = useState(() => initialTopic ? { ...INITIAL_STATE, topic: initialTopic } : INITIAL_STATE);
   const [saving, setSaving] = useState(false);
   const [submitPhase, setSubmitPhase] = useState<"idle" | "creating" | "uploading">("idle");
   const [error, setError] = useState("");

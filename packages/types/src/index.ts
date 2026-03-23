@@ -41,6 +41,9 @@ export interface Paper {
   journal_publisher?: string;
   paper_url?: string;
   venue_url?: string;
+  importance_color?: string;
+  notes?: string;
+  file_path?: string;
   status: string;
   created_at: string;
   updated_at: string;

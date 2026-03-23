@@ -9,7 +9,8 @@ use serde::Deserialize;
 use serde_json::json;
 use sqlx::Row;
 use std::path::{Path, PathBuf};
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
+use tauri_plugin_shell::ShellExt;
 use uuid::Uuid;
 
 // ── List ────────────────────────────────────────────────────────
@@ -25,7 +26,7 @@ pub async fn papers_list(
     let limit = limit.unwrap_or(20);
     let rows = if let Some(interest_id) = research_interest_id.filter(|value| !value.trim().is_empty()) {
         sqlx::query(
-            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.research_interest_id, p.status, p.created_at, p.updated_at,
+            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.importance_color, p.notes, p.research_interest_id, p.status, p.created_at, p.updated_at,
                     a.research_question, a.core_method, a.experiment_design, a.experiment_results, a.innovations, a.limitations, a.key_conclusions,
                     rg.code_repository, rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
                     rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
@@ -43,7 +44,7 @@ pub async fn papers_list(
         .map_err(|e| e.to_string())?
     } else {
         sqlx::query(
-            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.research_interest_id, p.status, p.created_at, p.updated_at,
+            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.importance_color, p.notes, p.research_interest_id, p.status, p.created_at, p.updated_at,
                     a.research_question, a.core_method, a.experiment_design, a.experiment_results, a.innovations, a.limitations, a.key_conclusions,
                     rg.code_repository, rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
                     rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
@@ -103,7 +104,7 @@ pub async fn papers_get(
     id: String,
 ) -> Result<serde_json::Value, String> {
     let row = sqlx::query(
-        "SELECT id, title, authors, abstract, year, venue, doi, file_path, tags, research_interest_id, status, created_at, updated_at
+        "SELECT id, title, authors, abstract, year, venue, doi, file_path, tags, importance_color, notes, research_interest_id, status, created_at, updated_at
          FROM papers WHERE id = ?",
     )
     .bind(&id)
@@ -177,6 +178,8 @@ pub async fn papers_update(
     year: Option<i64>,
     doi: Option<String>,
     research_interest_id: Option<String>,
+    importance_color: Option<String>,
+    notes: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -248,6 +251,26 @@ pub async fn papers_update(
             .map_err(|e| e.to_string())?;
     }
 
+    if let Some(value) = importance_color {
+        sqlx::query("UPDATE papers SET importance_color = ?, updated_at = ? WHERE id = ?")
+            .bind(value.trim())
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if let Some(value) = notes {
+        sqlx::query("UPDATE papers SET notes = ?, updated_at = ? WHERE id = ?")
+            .bind(if value.trim().is_empty() { None::<String> } else { Some(value.trim().to_string()) })
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
     papers_get(state, id).await
 }
 
@@ -255,15 +278,61 @@ pub async fn papers_update(
 
 #[tauri::command]
 pub async fn papers_delete(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
+    // Fetch file path before deletion so we can clean up the managed file
+    let file_path_str: Option<String> = sqlx::query("SELECT file_path FROM papers WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|row| row.try_get::<Option<String>, _>("file_path").ok().flatten());
+
     sqlx::query("DELETE FROM papers WHERE id = ?")
         .bind(&id)
         .execute(&state.db)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Delete the managed copy if it lives inside the app's papers directory
+    if let Some(fp) = file_path_str {
+        let file_path = PathBuf::from(&fp);
+        if let Ok(papers_dir) = managed_papers_dir(&app) {
+            if file_path.starts_with(&papers_dir) {
+                let _ = std::fs::remove_file(&file_path);
+            }
+        }
+    }
+
     Ok(())
+}
+
+// ── Open PDF ─────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn papers_open_pdf(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let file_path_str: Option<String> = sqlx::query("SELECT file_path FROM papers WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|row| row.try_get::<Option<String>, _>("file_path").ok().flatten());
+
+    let path = file_path_str
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| "该论文没有关联的本地文件".to_string())?;
+
+    app.shell()
+        .open(&path, None)
+        .map_err(|e| e.to_string())
 }
 
 // ── Upload ───────────────────────────────────────────────────────
@@ -331,14 +400,14 @@ pub async fn papers_upload(
     let auto_rename_enabled = settings
         .get("paper_auto_rename_on_import")
         .map(|value| value.trim().eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
+        .unwrap_or(true);
 
     let mut detected_title = title_guess.clone();
     let mut detected_authors: Option<String> = None;
     let mut detected_year: Option<i64> = None;
     let mut detected_venue = inferred_venue;
     let mut detected_doi: Option<String> = None;
-    let mut final_path = path.clone();
+    let mut copy_stem = original_stem.clone();
 
     if auto_rename_enabled {
         if let Some(metadata) = extract_import_rename_metadata(&settings, file_name, &title_guess, &full_text).await {
@@ -346,12 +415,7 @@ pub async fn papers_upload(
                 .get("paper_auto_rename_rule")
                 .map(|value| value.as_str())
                 .unwrap_or("{first_author} - {title} ({year})");
-            let rename_stem = render_import_file_stem(
-                rename_rule,
-                &metadata,
-                &title_guess,
-                &original_stem,
-            );
+            copy_stem = render_import_file_stem(rename_rule, &metadata, &title_guess, &original_stem);
 
             if let Some(value) = clean_optional_text(metadata.title) {
                 detected_title = value;
@@ -360,12 +424,13 @@ pub async fn papers_upload(
             detected_year = metadata.year.filter(|value| *value > 0);
             detected_venue = clean_optional_text(metadata.venue).or(detected_venue);
             detected_doi = clean_optional_text(metadata.doi);
-            if let Ok(next_path) = maybe_rename_imported_pdf(&path, &rename_stem) {
-                final_path = next_path;
-            }
         }
     }
 
+    // Always copy into the app-managed papers directory so the file survives
+    // even if the user deletes or moves the original in Finder.
+    let final_path = copy_to_managed_papers_dir(&app, &path, &copy_stem)
+        .unwrap_or_else(|_| path.clone());
     let file_path_str = final_path.to_string_lossy().to_string();
 
     let paper_id = Uuid::new_v4().to_string();
@@ -775,24 +840,22 @@ fn sanitize_file_stem(input: &str) -> String {
     }
 }
 
-fn maybe_rename_imported_pdf(path: &Path, desired_stem: &str) -> Result<PathBuf, String> {
-    let next_stem = sanitize_file_stem(desired_stem);
-    let current_stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or_default();
-    if next_stem.eq_ignore_ascii_case(current_stem) {
-        return Ok(path.to_path_buf());
-    }
+fn managed_papers_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let papers_dir = data_dir.join("papers");
+    std::fs::create_dir_all(&papers_dir).map_err(|e| format!("无法创建 PDF 存储目录：{e}"))?;
+    Ok(papers_dir)
+}
 
-    let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("pdf");
-    let parent = path.parent().ok_or_else(|| "无法确定 PDF 文件所在目录。".to_string())?;
-    let mut candidate = parent.join(format!("{next_stem}.{extension}"));
-    if candidate == path {
-        return Ok(path.to_path_buf());
-    }
-
+fn copy_to_managed_papers_dir(app: &tauri::AppHandle, src: &Path, desired_stem: &str) -> Result<PathBuf, String> {
+    let papers_dir = managed_papers_dir(app)?;
+    let stem = sanitize_file_stem(desired_stem);
+    let extension = src.extension().and_then(|v| v.to_str()).unwrap_or("pdf");
+    let mut candidate = papers_dir.join(format!("{stem}.{extension}"));
     if candidate.exists() {
         let mut found = false;
         for index in 2..1000 {
-            let maybe = parent.join(format!("{next_stem} ({index}).{extension}"));
+            let maybe = papers_dir.join(format!("{stem} ({index}).{extension}"));
             if !maybe.exists() {
                 candidate = maybe;
                 found = true;
@@ -800,11 +863,10 @@ fn maybe_rename_imported_pdf(path: &Path, desired_stem: &str) -> Result<PathBuf,
             }
         }
         if !found {
-            return Err("文件重命名未完成：目标目录中存在过多同名文件。".to_string());
+            return Err("目标目录中存在过多同名文件，无法完成复制。".to_string());
         }
     }
-
-    std::fs::rename(path, &candidate).map_err(|e| e.to_string())?;
+    std::fs::copy(src, &candidate).map_err(|e| format!("复制 PDF 到工作目录失败：{e}"))?;
     Ok(candidate)
 }
 
@@ -825,6 +887,9 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
         "doi": paper_doi,
         "tags": serde_json::from_str::<serde_json::Value>(&tags_str).unwrap_or(json!([])),
         "research_interest_id": r.get::<Option<String>, _>("research_interest_id"),
+        "importance_color": r.get::<Option<String>, _>("importance_color").unwrap_or_default(),
+        "notes": r.get::<Option<String>, _>("notes"),
+        "file_path": paper_file_path,
         "status": r.get::<String, _>("status"),
         "created_at": r.get::<String, _>("created_at"),
         "updated_at": r.get::<String, _>("updated_at"),

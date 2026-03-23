@@ -8,6 +8,7 @@ import type { LearningPath, ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
 import PlannerComposer from "./PlannerComposer";
 import ResearchWorkbench from "./ResearchWorkbench";
+import TopicDiscoveryWizard from "./TopicDiscoveryWizard";
 
 interface InterestAgentState {
   id: string;
@@ -220,6 +221,8 @@ export default function InterestsPanel() {
   const [notice, setNotice] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [wizardTopic, setWizardTopic] = useState("");
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [folderDraft, setFolderDraft] = useState("");
   const [savingFolderId, setSavingFolderId] = useState<string | null>(null);
@@ -395,18 +398,51 @@ export default function InterestsPanel() {
               把研究主题转成阶段化学习路线、经典论文和潜在切入方向。
             </p>
           </div>
-          <Button size="sm" onClick={() => setCreating((prev) => !prev)}>
-            <Plus className="h-4 w-4" />
-            {creating ? "收起表单" : "添加研究方向"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDiscovering((prev) => !prev);
+                setCreating(false);
+              }}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-ink-secondary transition-all duration-150 hover:text-apple-blue"
+              style={{
+                background: "#E8ECF0",
+                boxShadow: discovering
+                  ? "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF"
+                  : "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF",
+                color: discovering ? "#007AFF" : undefined,
+              }}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              没想好要做什么？
+            </button>
+            <Button size="sm" onClick={() => { setCreating((prev) => !prev); setDiscovering(false); }}>
+              <Plus className="h-4 w-4" />
+              {creating ? "收起表单" : "添加研究方向"}
+            </Button>
+          </div>
         </div>
+
+        {discovering && (
+          <TopicDiscoveryWizard
+            onSelect={(topic) => {
+              setWizardTopic(topic);
+              setDiscovering(false);
+              setCreating(true);
+            }}
+            onClose={() => setDiscovering(false)}
+          />
+        )}
 
         {creating && (
           <PlannerComposer
-            onCancel={() => setCreating(false)}
+            initialTopic={wizardTopic}
+            onCancel={() => { setCreating(false); setWizardTopic(""); }}
             onCreated={(nextInterest, meta) => {
               setInterests((prev) => [nextInterest, ...prev]);
               setCreating(false);
+              setWizardTopic("");
               if (meta?.failedUploads.length) {
                 const uploadedSummary = meta.uploadedReferences > 0 ? `已导入 ${meta.uploadedReferences} 篇，` : "";
                 setError(`研究方向已创建，${uploadedSummary}${meta.failedUploads.length} 篇参考文献导入失败：${meta.failedUploads.join("；")}`);

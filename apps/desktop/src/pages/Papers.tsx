@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle,
@@ -25,6 +25,10 @@ function interestFolderName(interest: ResearchInterest) {
 }
 
 export default function Papers() {
+  // Tracks papers where BOTH analyze + reproduce are in-flight.
+  // Only when both events arrive do we fetch and surface results.
+  const pendingPairs = useRef(new Map<string, Set<"analyzed" | "reproduced">>());
+
   const [papers, setPapers] = useState<Paper[]>([]);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,8 +44,23 @@ export default function Papers() {
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [editFolderPickerOpen, setEditFolderPickerOpen] = useState(false);
   const [autoRename, setAutoRename] = useState(true);
+
+  const handleToggleAutoRename = async () => {
+    const next = !autoRename;
+    setAutoRename(next);
+    try {
+      await apiClient.settings.update({ paper_auto_rename_on_import: next ? "true" : "false" });
+    } catch {
+      setAutoRename(!next); // rollback on error
+    }
+  };
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  type SortKey = "created_at" | "title" | "importance";
+  const [sortKeys, setSortKeys] = useState<Record<string, SortKey>>({});
+  const getSortKey = (groupId: string): SortKey => sortKeys[groupId] ?? "created_at";
+  const setSortKey = (groupId: string, key: SortKey) =>
+    setSortKeys((prev) => ({ ...prev, [groupId]: key }));
   const [editDraft, setEditDraft] = useState({
     title: "",
     authors: "",
@@ -49,6 +68,8 @@ export default function Papers() {
     year: "",
     doi: "",
     research_interest_id: "",
+    importance_color: "",
+    notes: "",
   });
 
   useEffect(() => {
@@ -110,6 +131,7 @@ export default function Papers() {
       .then((settings) => {
         if (!cancelled) {
           setVisiblePaperTags(parsePaperTagVisibility(settings.paper_visible_venue_tags));
+          setAutoRename(settings.paper_auto_rename_on_import !== "false");
         }
       })
       .catch(() => {
@@ -128,21 +150,41 @@ export default function Papers() {
     [interests]
   );
 
+  const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
+
+  const sortPapers = (ps: Paper[], key: SortKey): Paper[] => {
+    if (key === "title") return [...ps].sort((a, b) => a.title.localeCompare(b.title, "zh"));
+    if (key === "importance") return [...ps].sort((a, b) => {
+      const ai = a.importance_color ? COLOR_PRIORITY.indexOf(a.importance_color) : COLOR_PRIORITY.length;
+      const bi = b.importance_color ? COLOR_PRIORITY.indexOf(b.importance_color) : COLOR_PRIORITY.length;
+      return (ai === -1 ? COLOR_PRIORITY.length : ai) - (bi === -1 ? COLOR_PRIORITY.length : bi);
+    });
+    return [...ps].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  };
+
   const paperGroups = useMemo(() => {
     return interests.map((interest) => ({
       key: interest.id,
       title: interestFolderName(interest),
       subtitle: interest.topic,
-      papers: papers.filter((paper) => paper.research_interest_id === interest.id),
+      papers: sortPapers(
+        papers.filter((paper) => paper.research_interest_id === interest.id),
+        getSortKey(interest.id),
+      ),
     }));
-  }, [interests, papers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interests, papers, sortKeys]);
 
   const ungroupedPapers = useMemo(() => (
-    papers.filter((paper) => {
-      if (!paper.research_interest_id) return true;
-      return !(paper.research_interest_id in interestMap);
-    })
-  ), [interestMap, papers]);
+    sortPapers(
+      papers.filter((paper) => {
+        if (!paper.research_interest_id) return true;
+        return !(paper.research_interest_id in interestMap);
+      }),
+      getSortKey("ungrouped"),
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [interestMap, papers, sortKeys]);
 
   const handleUpload = async () => {
     try {
@@ -178,9 +220,53 @@ export default function Papers() {
   };
 
   useEffect(() => {
-    const unlisten = listen<{ paper_id: string; status: string }>("paper:status", (event) => {
-      const { paper_id, status } = event.payload;
-      setPapers((prev) => prev.map((paper) => (paper.id === paper_id ? { ...paper, status } : paper)));
+    const doFetch = (paper_id: string, finalStatus: string) => {
+      void apiClient.papers
+        .get(paper_id)
+        .then((latest) => {
+          setPapers((prev) => prev.map((p) => (p.id === paper_id ? latest : p)));
+        })
+        .catch((fetchError) => {
+          setLoadError(formatErrorMessage(fetchError));
+        });
+      // Update status locally immediately so the badge reflects completion
+      setPapers((prev) => prev.map((p) => (p.id === paper_id ? { ...p, status: finalStatus } : p)));
+    };
+
+    const unlisten = listen<{ paper_id: string; status: string; error?: string }>("paper:status", (event) => {
+      const { paper_id, status, error } = event.payload;
+
+      if (status === "analyzed" || status === "reproduced") {
+        const pending = pendingPairs.current.get(paper_id);
+        if (pending) {
+          // We initiated this pair — wait until both arrive before surfacing results
+          pending.delete(status as "analyzed" | "reproduced");
+          if (pending.size === 0) {
+            pendingPairs.current.delete(paper_id);
+            doFetch(paper_id, status);
+          }
+          // While still waiting for the partner event, keep status as "analyzing" (no state update)
+          return;
+        }
+        // Single-task completion (e.g. loaded from a previous session's background task)
+        doFetch(paper_id, status);
+        return;
+      }
+
+      if (status === "parsed") {
+        doFetch(paper_id, status);
+        return;
+      }
+
+      if (status === "error" || status === "failed") {
+        pendingPairs.current.delete(paper_id);
+        setPapers((prev) => prev.map((p) => (p.id === paper_id ? { ...p, status } : p)));
+        if (error) setLoadError(error);
+        return;
+      }
+
+      // Any other status update (e.g. "analyzing" from backend)
+      setPapers((prev) => prev.map((p) => (p.id === paper_id ? { ...p, status } : p)));
     });
 
     return () => {
@@ -192,12 +278,15 @@ export default function Papers() {
     try {
       setLoadError("");
       setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "analyzing" } : paper)));
+      // Register both expected completion events before firing requests
+      pendingPairs.current.set(id, new Set(["analyzed", "reproduced"]));
       await Promise.all([
         apiClient.papers.analyze(id),
         apiClient.papers.reproduce(id),
       ]);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
+      pendingPairs.current.delete(id);
       setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "failed" } : paper)));
     }
   };
@@ -211,6 +300,8 @@ export default function Papers() {
       year: paper.year ? String(paper.year) : "",
       doi: paper.doi || "",
       research_interest_id: paper.research_interest_id || "",
+      importance_color: paper.importance_color || "",
+      notes: paper.notes || "",
     });
   };
 
@@ -236,8 +327,10 @@ export default function Papers() {
         year: nextYear,
         doi: editDraft.doi.trim(),
         research_interest_id: editDraft.research_interest_id,
+        importance_color: editDraft.importance_color,
+        notes: editDraft.notes,
       });
-      setPapers((prev) => prev.map((paper) => (paper.id === id ? updated : paper)));
+      setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, ...updated } : paper)));
       setEditingId(null);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
@@ -280,8 +373,7 @@ export default function Papers() {
   };
 
   const statusBadge = (status: string) => {
-    if (status === "analyzed") return <Badge variant="success">已分析</Badge>;
-    if (status === "reproduced") return <Badge variant="success">已复现</Badge>;
+    if (status === "analyzed" || status === "reproduced") return <Badge variant="success">已解读</Badge>;
     if (status === "failed" || status === "error") return <Badge variant="danger">失败</Badge>;
     if (status === "analyzing") return <Badge variant="info">分析中</Badge>;
     if (status === "parsed") return <Badge variant="info">已解析</Badge>;
@@ -311,8 +403,34 @@ export default function Papers() {
     return <FileText className="w-5 h-5 text-ink-tertiary" />;
   };
 
+  const SORT_LABELS: Record<SortKey, string> = { created_at: "时间", title: "名称", importance: "重要性" };
+
+  const renderSortControl = (groupId: string) => (
+    <div className="flex items-center gap-1">
+      {(["created_at", "title", "importance"] as SortKey[]).map((key) => {
+        const active = getSortKey(groupId) === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setSortKey(groupId, key); }}
+            className="rounded-lg px-2 py-0.5 text-[10px] transition-all"
+            style={{
+              background: active ? "#007AFF" : "#E8ECF0",
+              color: active ? "#fff" : "#999",
+              boxShadow: active ? "inset 1px 1px 2px rgba(0,0,0,0.2)" : "1px 1px 3px #C8CDD3, -1px -1px 3px #FFFFFF",
+              fontWeight: active ? 600 : 400,
+            }}
+          >
+            {SORT_LABELS[key]}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   const renderPaperCard = (paper: Paper) => (
-    <Card key={paper.id} padding="sm" className="space-y-0" style={{ background: "rgba(255,255,255,0.82)" }}>
+    <Card key={paper.id} padding="sm" className="space-y-0 overflow-hidden" style={{ background: "rgba(255,255,255,0.82)", borderTop: paper.importance_color ? `3px solid ${paper.importance_color}` : undefined }}>
       <div className="flex items-start gap-3">
         {/* 状态图标 */}
         <div
@@ -325,12 +443,23 @@ export default function Papers() {
         {/* 主信息 */}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <ExternalLink
-              href={paper.paper_url}
-              className="text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
-            >
-              {paper.title}
-            </ExternalLink>
+            {paper.file_path ? (
+              <button
+                type="button"
+                className="text-left text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
+                title="使用默认应用打开 PDF"
+                onClick={() => void apiClient.papers.openFile(paper.id)}
+              >
+                {paper.title}
+              </button>
+            ) : (
+              <ExternalLink
+                href={paper.paper_url}
+                className="text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
+              >
+                {paper.title}
+              </ExternalLink>
+            )}
             {statusBadge(paper.status)}
           </div>
           {/* 来源行 */}
@@ -350,8 +479,13 @@ export default function Papers() {
             </p>
           )}
           {/* 评级标签行 */}
-          {(visiblePaperTags.has("ccf_rating") || visiblePaperTags.has("ccf_type") || visiblePaperTags.has("wos_indexes") || visiblePaperTags.has("jcr_quartile") || visiblePaperTags.has("cas_quartile") || visiblePaperTags.has("cas_top")) && (
+          {(paper.year || visiblePaperTags.has("ccf_rating") || visiblePaperTags.has("ccf_type") || visiblePaperTags.has("wos_indexes") || visiblePaperTags.has("jcr_quartile") || visiblePaperTags.has("cas_quartile") || visiblePaperTags.has("cas_top")) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              {paper.year && (
+                <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium" style={{ background: "rgba(0,0,0,0.06)", color: "#888" }}>
+                  {paper.year}
+                </span>
+              )}
               {visiblePaperTags.has("ccf_rating") ? <CcfRatingBadge rating={paper.ccf_rating} /> : null}
               {visiblePaperTags.has("ccf_type") ? <VenueTypeBadge type={paper.ccf_type} /> : null}
               {visiblePaperTags.has("wos_indexes")
@@ -364,13 +498,11 @@ export default function Papers() {
               {visiblePaperTags.has("cas_top") ? <CasTopBadge top={paper.cas_top} /> : null}
             </div>
           )}
-          <p className="mt-1 text-[11px] text-ink-tertiary">
-            {new Date(paper.created_at).toLocaleDateString("zh-CN")}
-          </p>
         </div>
 
         {/* 操作区：图标工具 + 主要 CTA */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
           {/* 次要操作：图标按钮 */}
           <button
             type="button"
@@ -435,6 +567,10 @@ export default function Papers() {
               {expanded === paper.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
           )}
+          </div>
+          <p className="text-[11px] text-ink-tertiary">
+            {new Date(paper.created_at).toLocaleDateString("zh-CN")}
+          </p>
         </div>
       </div>
 
@@ -560,6 +696,54 @@ export default function Papers() {
               placeholder="例如：10.1145/xxxx"
             />
           </div>
+          {/* 重要性颜色 */}
+          <div className="md:col-span-2 space-y-1">
+            <label className="ml-1 block text-xs font-medium text-ink-tertiary">重要性标记</label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { color: "", label: "无" },
+                { color: "#FF3B30", label: "极其重要" },
+                { color: "#FF9500", label: "非常重要" },
+                { color: "#FFCC00", label: "重要" },
+                { color: "#34C759", label: "较重要" },
+                { color: "#007AFF", label: "一般" },
+                { color: "#AF52DE", label: "不重要" },
+              ].map(({ color, label }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setEditDraft((prev) => ({ ...prev, importance_color: color }))}
+                  className="flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs transition-all"
+                  style={{
+                    background: editDraft.importance_color === color ? (color || "rgba(0,0,0,0.08)") : "#E8ECF0",
+                    color: editDraft.importance_color === color && color ? "#fff" : "#666",
+                    boxShadow: editDraft.importance_color === color
+                      ? "inset 1px 1px 3px rgba(0,0,0,0.2)"
+                      : "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF",
+                    fontWeight: editDraft.importance_color === color ? 600 : 400,
+                  }}
+                >
+                  {color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />}
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* 备注 */}
+          <div className="md:col-span-2 space-y-1">
+            <label className="ml-1 block text-xs font-medium text-ink-tertiary">备注</label>
+            <textarea
+              value={editDraft.notes}
+              onChange={(e) => setEditDraft((prev) => ({ ...prev, notes: e.target.value }))}
+              placeholder="添加备注，将显示在论文卡片底部"
+              rows={2}
+              className="w-full resize-none rounded-2xl px-4 py-2.5 text-sm text-ink-primary outline-none transition-all duration-150"
+              style={{
+                background: "#E8ECF0",
+                boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+              }}
+            />
+          </div>
           <div className="flex justify-end gap-2 md:col-span-2">
             <Button size="sm" variant="secondary" onClick={() => setEditingId(null)}>
               取消
@@ -569,6 +753,10 @@ export default function Papers() {
             </Button>
           </div>
         </div>
+      )}
+
+      {paper.notes && editingId !== paper.id && (
+        <p className="mt-2 border-t border-black/5 pt-2 text-[11px] leading-relaxed text-ink-tertiary/80">{paper.notes}</p>
       )}
 
       {expanded === paper.id && (paper.analysis || paper.reproduction_guide) && (
@@ -658,7 +846,7 @@ export default function Papers() {
           {/* 自动更名开关 */}
           <button
             type="button"
-            onClick={() => setAutoRename((v) => !v)}
+            onClick={() => void handleToggleAutoRename()}
             className="flex items-center gap-2 rounded-2xl px-3 py-2 transition-all duration-150 flex-shrink-0"
             style={{
               background: "#E8ECF0",
@@ -829,13 +1017,16 @@ export default function Papers() {
                     </button>
                   </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteGroupId(group.key)}
-                    className="text-ink-tertiary/40 transition-colors hover:text-apple-red"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  <>
+                    {renderSortControl(group.key)}
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteGroupId(group.key)}
+                      className="text-ink-tertiary/40 transition-colors hover:text-apple-red"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
                 )
               }
             >
@@ -851,9 +1042,12 @@ export default function Papers() {
 
           {ungroupedPapers.length > 0 && (
             <section className="space-y-3">
-              <div className="px-1">
-                <p className="text-sm font-semibold text-ink-primary">未归档论文</p>
-                <p className="mt-1 text-xs text-ink-tertiary">这些论文暂未绑定主题，可直接编辑后移动到主题文件夹。</p>
+              <div className="flex items-center justify-between gap-2 px-1">
+                <div>
+                  <p className="text-sm font-semibold text-ink-primary">未归档论文</p>
+                  <p className="mt-0.5 text-xs text-ink-tertiary">这些论文暂未绑定主题，可直接编辑后移动到主题文件夹。</p>
+                </div>
+                {renderSortControl("ungrouped")}
               </div>
               {ungroupedPapers.map(renderPaperCard)}
             </section>

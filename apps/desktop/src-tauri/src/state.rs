@@ -76,7 +76,7 @@ pub fn default_settings() -> HashMap<String, String> {
         "paper_visible_venue_tags".into(),
         "ccf_rating,ccf_type,wos_indexes,jcr_quartile,cas_quartile,cas_top".into(),
     );
-    m.insert("paper_auto_rename_on_import".into(), "false".into());
+    m.insert("paper_auto_rename_on_import".into(), "true".into());
     m.insert(
         "paper_auto_rename_rule".into(),
         "{first_author} - {title} ({year})".into(),
