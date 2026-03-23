@@ -692,7 +692,7 @@ const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
     temperaturePlaceholder: "0.25",
   },
   {
-    title: "轻量 Copilot 对话",
+    title: "小妍轻量对话",
     description: "用于关闭多 Agent 后的普通对话，或处理日常轻量问题。",
     recommendation: "优先低成本、低延迟模型。复杂任务可改用旗舰模型。",
     fallback: "留空则沿用当前主对话模型。",
@@ -710,7 +710,7 @@ const GROUPED_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "快速模型",
     description: "优先响应速度，适合实时提示、调度判断、文献侦察和轻量对话。",
     recommendation: "多数情况下选低延迟模型即可；若服务商支持联网或搜索，也优先放在这一组。",
-    affectedScopes: "方向提示、综述检索规划、多 Agent 调度、文献侦察、轻量 Copilot 对话",
+    affectedScopes: "方向提示、综述检索规划、多 Agent 调度、文献侦察、小妍轻量对话",
     icon: Sparkles,
     iconColor: "#0A84FF",
     modelKeys: [
@@ -1212,9 +1212,9 @@ export default function Settings() {
             <div className="flex items-center gap-3">
               <SectionIcon icon={Brain} color="#AF52DE" />
               <div>
-                <h2 className="text-sm font-semibold text-ink-primary">主模型连接</h2>
+                <h2 className="text-sm font-semibold text-ink-primary">小妍</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">
-                  这里配置默认对话模型。下面各个场景如果留空，会按继承规则回退到这里。
+                  这里配置默认对话模型小妍。下面各个场景如果留空，会按继承规则回退到这里。
                 </p>
               </div>
             </div>
@@ -1553,7 +1553,7 @@ export default function Settings() {
 
             <ToggleRow
               title="启用多 Agent 编排"
-              description="关闭后只使用轻量 Copilot 对话模型，不再拆分任务，也不展示中间 Agent 过程。"
+              description="关闭后只使用小妍轻量对话模型，不再拆分任务，也不展示中间 Agent 过程。"
               checked={form.multi_agent_enabled === "true"}
               onToggle={() =>
                 set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")

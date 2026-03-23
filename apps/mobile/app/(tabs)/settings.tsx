@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { MAIN_ASSISTANT_NAME, PRODUCT_NAME } from "@research-copilot/types";
 import { NmCard } from "../../components/NmCard";
 import { getApiBaseUrl, setApiBaseUrl } from "../../lib/client";
 
@@ -76,7 +77,9 @@ export default function SettingsScreen() {
             <Text style={styles.sectionTitle}>关于</Text>
           </View>
 
-          <InfoRow label="应用名称" value="智研 Copilot" />
+          <InfoRow label="应用名称" value={PRODUCT_NAME} />
+          <View style={styles.divider} />
+          <InfoRow label="主 AI" value={MAIN_ASSISTANT_NAME} />
           <View style={styles.divider} />
           <InfoRow label="版本" value="0.1.4 (4)" />
           <View style={styles.divider} />

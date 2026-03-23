@@ -1,3 +1,17 @@
+export const PRODUCT_NAME = "智研 Copilot";
+export const MAIN_ASSISTANT_NAME = "小妍";
+export const MAIN_ASSISTANT_ROLE = `${PRODUCT_NAME} 主 AI`;
+export const MAIN_ASSISTANT_WORKSPACE_NAME = "小妍协同台";
+export const MAIN_ASSISTANT_PANEL_TITLE = "小妍调度面板";
+export const MAIN_ASSISTANT_BADGE = "主 AI：小妍";
+export const MAIN_ASSISTANT_WELCOME_TITLE = "你好，我是小妍";
+export const MAIN_ASSISTANT_WELCOME_DESCRIPTION =
+  "我会先理解你的研究目标，再协调检索、规划、综述、论文解析与复现能力，给出可信、结构化、可执行的答复。";
+export const MAIN_ASSISTANT_STATUS_DESCRIPTION =
+  "小妍负责理解问题、调度专项 Agent，并整合成最终答复。";
+export const MAIN_ASSISTANT_INPUT_PLACEHOLDER =
+  "向小妍描述你的研究问题，我会先帮你拆解再推进下一步";
+
 export interface Paper {
   id: string;
   title: string;
@@ -39,6 +53,7 @@ export interface PaperAnalysis {
   research_question?: string;
   core_method?: string;
   experiment_design?: string;
+  experiment_results?: string;
   innovations?: string;
   limitations?: string;
   key_conclusions?: string;
@@ -48,6 +63,7 @@ export interface PaperAnalysis {
 
 export interface ReproductionGuide {
   id: string;
+  code_repository?: string;
   environment_setup?: string;
   dependencies?: string;
   dataset_preparation?: string;

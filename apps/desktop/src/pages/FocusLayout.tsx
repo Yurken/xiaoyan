@@ -15,6 +15,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { Badge, Button } from "@research-copilot/ui";
+import { MAIN_ASSISTANT_NAME, PRODUCT_NAME } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
@@ -179,7 +180,7 @@ function FocusHome() {
           <div className="w-9 h-9 flex items-center justify-center">
             <img src={hitLogo} alt="HIT" className="w-9 h-9 object-contain" />
           </div>
-          <p className="text-base font-bold text-ink-primary">智研 Copilot</p>
+          <p className="text-base font-bold text-ink-primary">{PRODUCT_NAME} · {MAIN_ASSISTANT_NAME}</p>
         </div>
         <Link to="/settings">
           <button
@@ -212,8 +213,8 @@ function FocusHome() {
                 <p className="text-lg font-bold text-ink-primary">研究主题</p>
                 <p className="text-xs text-ink-tertiary mt-0.5">
                   {interests.length === 0
-                    ? "先生成研究主题，再进入对应工作台"
-                    : `${interests.length} 个主题，选择后进入专属工作台`}
+                    ? "新建一个研究主题，开始你的研究"
+                    : `共 ${interests.length} 个主题`}
                 </p>
               </div>
               {!creating && (
@@ -251,9 +252,9 @@ function FocusHome() {
                 }}
               >
                 <Microscope className="w-10 h-10 text-ink-tertiary mx-auto mb-3" />
-                <p className="text-sm font-semibold text-ink-primary">暂无研究主题</p>
+                <p className="text-sm font-semibold text-ink-primary">还没有研究主题</p>
                 <p className="text-xs text-ink-tertiary mt-2 leading-5">
-                  请先新建研究方向，生成后即可进入专属工作台。
+                  新建一个方向，小妍帮你整理路线和文献。
                 </p>
               </div>
             ) : (

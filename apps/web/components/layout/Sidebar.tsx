@@ -13,6 +13,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { MAIN_ASSISTANT_NAME, PRODUCT_NAME } from "@research-copilot/types";
 
 const navItems = [
   { href: "/", icon: LayoutDashboard, label: "工作台" },
@@ -20,7 +21,7 @@ const navItems = [
   { href: "/survey", icon: BookOpen, label: "文献调研" },
   { href: "/papers", icon: FileText, label: "论文库" },
   { href: "/knowledge", icon: Library, label: "知识库" },
-  { href: "/copilot", icon: MessageSquare, label: "Copilot" },
+  { href: "/copilot", icon: MessageSquare, label: MAIN_ASSISTANT_NAME },
   { href: "/settings", icon: SlidersHorizontal, label: "设置中心" },
 ];
 
@@ -32,7 +33,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center px-5 border-b border-gray-200">
         <Microscope className="w-6 h-6 text-brand-600 mr-2" />
-        <span className="font-bold text-gray-900 text-base">智研 Copilot</span>
+        <span className="font-bold text-gray-900 text-base">{PRODUCT_NAME}</span>
       </div>
 
       {/* Nav */}
@@ -59,7 +60,8 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-gray-200">
-        <p className="text-xs text-gray-400">智研 Copilot v0.1.4</p>
+        <p className="text-xs text-gray-400">{PRODUCT_NAME} v0.1.4</p>
+        <p className="mt-1 text-xs text-gray-400">主 AI：{MAIN_ASSISTANT_NAME}</p>
       </div>
     </aside>
   );

@@ -298,7 +298,7 @@ export default function Tools() {
       <div>
         <h1 className="text-2xl font-bold text-ink-primary">实用工具</h1>
         <p className="mt-1 text-sm text-ink-tertiary">
-          内置期刊分区查询、CCF 目录查询、arXiv 智能检索，并补充一组按分类整理的科研友链。arXiv 结果会优先使用你当前项目里的模型设置做分析与重排。
+          查期刊分区、查 CCF 等级、搜 arXiv 新论文，还有一批常用科研网站。
         </p>
       </div>
 

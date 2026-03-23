@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Platform, StyleSheet } from "react-native";
+import { MAIN_ASSISTANT_NAME } from "@research-copilot/types";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
@@ -12,7 +13,7 @@ const tabs: {
   activeIcon: IconName;
 }[] = [
   { name: "index",     title: "论文库",    icon: "document-text-outline",    activeIcon: "document-text" },
-  { name: "copilot",   title: "Copilot",   icon: "chatbubble-ellipses-outline", activeIcon: "chatbubble-ellipses" },
+  { name: "copilot",   title: MAIN_ASSISTANT_NAME, icon: "chatbubble-ellipses-outline", activeIcon: "chatbubble-ellipses" },
   { name: "knowledge", title: "知识库",    icon: "book-outline",              activeIcon: "book" },
   { name: "settings",  title: "设置",      icon: "settings-outline",          activeIcon: "settings" },
 ];

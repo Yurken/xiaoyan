@@ -6,6 +6,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  MAIN_ASSISTANT_INPUT_PLACEHOLDER,
+  MAIN_ASSISTANT_NAME,
+  MAIN_ASSISTANT_ROLE,
+  MAIN_ASSISTANT_WELCOME_DESCRIPTION,
+  MAIN_ASSISTANT_WELCOME_TITLE,
+} from "@research-copilot/types";
 import { apiClient } from "../../lib/client";
 import type { ChatMessage } from "@research-copilot/types";
 
@@ -114,8 +121,8 @@ export default function CopilotScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Copilot</Text>
-          <Text style={styles.subtitle}>AI 科研助手</Text>
+          <Text style={styles.title}>{MAIN_ASSISTANT_NAME}</Text>
+          <Text style={styles.subtitle}>{MAIN_ASSISTANT_ROLE}</Text>
         </View>
         <TouchableOpacity style={styles.newBtn} onPress={handleNewChat}>
           <Ionicons name="add" size={22} color="#007AFF" />
@@ -133,10 +140,8 @@ export default function CopilotScreen() {
             <View style={styles.welcomeIcon}>
               <Ionicons name="sparkles" size={36} color="#007AFF" />
             </View>
-            <Text style={styles.welcomeTitle}>智研 Copilot</Text>
-            <Text style={styles.welcomeText}>
-              企业级 AI 科研助手，支持围绕论文与研究问题持续对话
-            </Text>
+            <Text style={styles.welcomeTitle}>{MAIN_ASSISTANT_WELCOME_TITLE}</Text>
+            <Text style={styles.welcomeText}>{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</Text>
           </View>
         ) : (
           <View style={styles.messageList}>
@@ -159,7 +164,7 @@ export default function CopilotScreen() {
             style={styles.textInput}
             value={input}
             onChangeText={setInput}
-            placeholder="请输入研究问题"
+            placeholder={MAIN_ASSISTANT_INPUT_PLACEHOLDER}
             placeholderTextColor="#8E8E93"
             multiline
             maxLength={2000}

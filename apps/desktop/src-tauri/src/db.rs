@@ -42,19 +42,21 @@ CREATE TABLE IF NOT EXISTS paper_chunks (
 CREATE TABLE IF NOT EXISTS paper_analyses (
     id                TEXT PRIMARY KEY,
     paper_id          TEXT NOT NULL UNIQUE REFERENCES papers(id) ON DELETE CASCADE,
-    research_question TEXT,
-    core_method       TEXT,
-    experiment_design TEXT,
-    innovations       TEXT,
-    limitations       TEXT,
-    key_conclusions   TEXT,
-    raw_analysis      TEXT,
+    research_question  TEXT,
+    core_method        TEXT,
+    experiment_design  TEXT,
+    experiment_results TEXT,
+    innovations        TEXT,
+    limitations        TEXT,
+    key_conclusions    TEXT,
+    raw_analysis       TEXT,
     created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS reproduction_guides (
     id                  TEXT PRIMARY KEY,
     paper_id            TEXT NOT NULL UNIQUE REFERENCES papers(id) ON DELETE CASCADE,
+    code_repository     TEXT,
     environment_setup   TEXT,
     dependencies        TEXT,
     dataset_preparation TEXT,
@@ -155,8 +157,48 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_research_interest_profile_column(&pool).await?;
     ensure_research_interest_folder_name_column(&pool).await?;
     ensure_papers_research_interest_column(&pool).await?;
+    ensure_paper_analyses_experiment_results_column(&pool).await?;
+    ensure_reproduction_guides_code_repository_column(&pool).await?;
 
     Ok(pool)
+}
+
+async fn ensure_reproduction_guides_code_repository_column(pool: &SqlitePool) -> Result<()> {
+    let columns = sqlx::query("PRAGMA table_info(reproduction_guides)")
+        .fetch_all(pool)
+        .await?;
+
+    let has_col = columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == "code_repository"
+    });
+
+    if !has_col {
+        sqlx::query("ALTER TABLE reproduction_guides ADD COLUMN code_repository TEXT")
+            .execute(pool)
+            .await?;
+    }
+
+    Ok(())
+}
+
+async fn ensure_paper_analyses_experiment_results_column(pool: &SqlitePool) -> Result<()> {
+    let columns = sqlx::query("PRAGMA table_info(paper_analyses)")
+        .fetch_all(pool)
+        .await?;
+
+    let has_col = columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == "experiment_results"
+    });
+
+    if !has_col {
+        sqlx::query("ALTER TABLE paper_analyses ADD COLUMN experiment_results TEXT")
+            .execute(pool)
+            .await?;
+    }
+
+    Ok(())
 }
 
 async fn ensure_research_interest_profile_column(pool: &SqlitePool) -> Result<()> {
