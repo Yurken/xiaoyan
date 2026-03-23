@@ -560,6 +560,50 @@ pub async fn knowledge_generate_interest_hints(
     Ok(json!(result))
 }
 
+// ── Topic Discovery ──────────────────────────────────────────────
+
+const TOPIC_SUGGEST_PROMPT: &str = r#"你是一位资深研究导师，请根据学生情况给出 4~5 个具体、可执行的研究课题方向。
+
+学生情况：
+- 感兴趣的研究领域：{field}
+- 希望做的研究类型：{goal_type}
+- 个人背景：{background}
+
+要求：
+- 每个课题必须具体可执行，避免宽泛的领域名词（例如"机器学习"太宽，"基于对比学习的低资源医学图像分割"才是合格的课题）
+- 课题名称 10~30 字，使用中文
+- 体现近两年学术前沿或有实际落地价值
+- 仅返回合法 JSON 数组，不要输出任何其他文本：["课题方向1", "课题方向2", ...]"#;
+
+#[tauri::command]
+pub async fn knowledge_suggest_topics(
+    state: State<'_, AppState>,
+    field: String,
+    goal_type: String,
+    background: String,
+) -> Result<Vec<String>, String> {
+    let settings = state.settings.read().await.clone();
+    let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
+
+    let bg = if background.trim().is_empty() { "未提供".to_string() } else { background.trim().to_string() };
+    let prompt = TOPIC_SUGGEST_PROMPT
+        .replace("{field}", field.trim())
+        .replace("{goal_type}", goal_type.trim())
+        .replace("{background}", &bg);
+
+    let messages = vec![
+        LlmMessage::system("你是一位资深学术导师，擅长帮助研究生找到有价值的研究切入点。"),
+        LlmMessage::user(prompt),
+    ];
+    let model = resolve_model(&settings, &["planner_hint_model"]);
+    let temperature = resolve_temperature(&settings, "planner_hint_temperature", 0.7);
+    let response = client.chat(&messages, model.as_deref(), temperature).await.map_err(|e| e.to_string())?;
+    let clean = crate::commands::papers::extract_json_pub(&response);
+    let topics: Vec<String> = serde_json::from_str(&clean)
+        .map_err(|e| format!("课题建议解析失败：{e}"))?;
+    Ok(topics)
+}
+
 fn profile_to_analysis_context(profile: &ResearchInterestProfilePayload) -> String {
     let mut lines = Vec::new();
 

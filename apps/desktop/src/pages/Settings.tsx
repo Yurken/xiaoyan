@@ -1444,7 +1444,7 @@ export default function Settings() {
               <div className="flex items-center gap-3">
                 <SectionIcon icon={FileSearch} color="#0A84FF" />
                 <div>
-                  <h2 className="text-sm font-semibold text-ink-primary">导入 PDF 自动重命名</h2>
+                  <h2 className="text-sm font-semibold text-ink-primary">导入论文自动重命名</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">
                     导入时用 AI 识别标题、作者、年份等元数据，并按规则直接重命名原 PDF 文件，效果接近 Zotero 的重命名模板。
                   </p>

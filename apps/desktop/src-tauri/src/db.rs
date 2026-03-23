@@ -23,8 +23,10 @@ CREATE TABLE IF NOT EXISTS papers (
     file_path  TEXT,
     full_text  TEXT,
     research_interest_id TEXT REFERENCES research_interests(id) ON DELETE SET NULL,
-    tags       TEXT NOT NULL DEFAULT '[]',
-    status     TEXT NOT NULL DEFAULT 'uploaded',
+    tags               TEXT NOT NULL DEFAULT '[]',
+    importance_color   TEXT NOT NULL DEFAULT '',
+    notes              TEXT,
+    status             TEXT NOT NULL DEFAULT 'uploaded',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -159,8 +161,28 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_papers_research_interest_column(&pool).await?;
     ensure_paper_analyses_experiment_results_column(&pool).await?;
     ensure_reproduction_guides_code_repository_column(&pool).await?;
+    ensure_papers_importance_color_column(&pool).await?;
+    ensure_papers_notes_column(&pool).await?;
 
     Ok(pool)
+}
+
+async fn ensure_papers_importance_color_column(pool: &SqlitePool) -> Result<()> {
+    let columns = sqlx::query("PRAGMA table_info(papers)").fetch_all(pool).await?;
+    let has = columns.iter().any(|row| { let name: String = sqlx::Row::get(row, "name"); name == "importance_color" });
+    if !has {
+        sqlx::query("ALTER TABLE papers ADD COLUMN importance_color TEXT NOT NULL DEFAULT ''").execute(pool).await?;
+    }
+    Ok(())
+}
+
+async fn ensure_papers_notes_column(pool: &SqlitePool) -> Result<()> {
+    let columns = sqlx::query("PRAGMA table_info(papers)").fetch_all(pool).await?;
+    let has = columns.iter().any(|row| { let name: String = sqlx::Row::get(row, "name"); name == "notes" });
+    if !has {
+        sqlx::query("ALTER TABLE papers ADD COLUMN notes TEXT").execute(pool).await?;
+    }
+    Ok(())
 }
 
 async fn ensure_reproduction_guides_code_repository_column(pool: &SqlitePool) -> Result<()> {

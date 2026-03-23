@@ -74,7 +74,7 @@ export const papersApi = {
     invoke("papers_get", { id }),
   upload: (filePath: string, research_interest_id?: string): Promise<{ paper_id: string; title: string }> =>
     invoke("papers_upload", { filePath, researchInterestId: research_interest_id ?? null }),
-  update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string; research_interest_id?: string }): Promise<Paper> =>
+  update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string; research_interest_id?: string; importance_color?: string; notes?: string }): Promise<Paper> =>
     invoke("papers_update", {
       id,
       title: data.title ?? null,
@@ -83,9 +83,13 @@ export const papersApi = {
       year: data.year ?? null,
       doi: data.doi ?? null,
       researchInterestId: data.research_interest_id ?? null,
+      importanceColor: data.importance_color ?? null,
+      notes: data.notes ?? null,
     }),
   delete: (id: string): Promise<void> =>
     invoke("papers_delete", { id }),
+  openFile: (id: string): Promise<void> =>
+    invoke("papers_open_pdf", { id }),
   analyze: (id: string): Promise<void> =>
     invoke("papers_analyze", { id }),
   reproduce: (id: string): Promise<void> =>
@@ -145,6 +149,8 @@ export const knowledgeApi = {
       knownContext: data.known_context ?? null,
       preferredOutput: data.preferred_output ?? null,
     }),
+  suggestTopics: (field: string, goalType: string, background: string): Promise<string[]> =>
+    invoke("knowledge_suggest_topics", { field, goalType: goalType, background }),
   generatePlan: (id: string): Promise<void> =>
     invoke("knowledge_generate_plan", { id }),
   listNotes: (search?: string): Promise<KnowledgeNote[]> =>
