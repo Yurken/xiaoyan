@@ -416,7 +416,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       <button className="min-w-0 flex-1 text-left" onClick={() => void loadSession(session)}>
         <div className="truncate font-medium">{session.title || "新对话"}</div>
         <div className="mt-1 text-[11px] opacity-70">
-          {new Date(session.updated_at || session.created_at).toLocaleDateString("zh-CN")}
+          {new Date(session.updated_at || session.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
         </div>
       </button>
       <button

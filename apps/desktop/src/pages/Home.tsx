@@ -260,7 +260,7 @@ export default function Home() {
                     <div key={session.id}>
                       <p className="truncate text-sm font-medium text-ink-primary">{session.title || "新建会话"}</p>
                       <p className="mt-1 text-xs text-ink-tertiary">
-                        {new Date(session.updated_at || session.created_at).toLocaleDateString("zh-CN")}
+                        {new Date(session.updated_at || session.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                       </p>
                     </div>
                   ))}

@@ -274,7 +274,7 @@ function NoteDetailModal({
                   </span>
                 )}
                 <span className="ml-auto text-xs text-ink-tertiary">
-                  {new Date(note.created_at).toLocaleDateString("zh-CN")}
+                  {new Date(note.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                 </span>
               </div>
 
@@ -569,7 +569,7 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
       )}
 
       <p className="mt-auto pt-1 text-xs text-ink-tertiary">
-        {new Date(note.created_at).toLocaleDateString("zh-CN")}
+        {new Date(note.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
       </p>
 
       <div className="absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">

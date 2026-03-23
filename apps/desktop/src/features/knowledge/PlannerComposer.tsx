@@ -650,7 +650,7 @@ export default function PlannerComposer({ onCancel, onCreated, initialTopic }: P
                 {hintStatus === "loading" && <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-apple-blue" />}
                 <p className="text-sm leading-6 text-ink-secondary">
                   {hintStatus === "loading"
-                    ? "AI 正在根据你刚刚输入的内容更新建议，当前先显示最近一次结果。"
+                    ? "小妍正在根据你刚刚输入的内容更新建议，当前先显示最近一次结果。"
                     : suggestions.summary}
                 </p>
               </div>

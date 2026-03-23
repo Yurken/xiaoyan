@@ -2014,7 +2014,7 @@ export default function Settings() {
                 {
                   mode: "focus" as LayoutMode,
                   label: "聚焦",
-                  description: "以研究主题为入口，生成后进入专属工作台，保持研究聚焦。",
+                  description: "以研究主题为入口，生成后进入专属工作台，保持研究专注。",
                 },
               ] as const).map(({ mode, label, description }) => (
                 <button

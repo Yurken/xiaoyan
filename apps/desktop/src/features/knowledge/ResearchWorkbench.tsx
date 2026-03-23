@@ -368,7 +368,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
                         <VenueTypeBadge type={paper.ccf_type} />
                       </div>
                       <p className="mt-1 text-[11px] text-ink-tertiary">
-                        {new Date(paper.updated_at || paper.created_at).toLocaleDateString("zh-CN")}
+                        {new Date(paper.updated_at || paper.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                       </p>
                       {(paper.venue || paper.ccf_area) && (
                         <p className="mt-1 text-[11px] leading-5 text-ink-secondary">
@@ -548,7 +548,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
                   <p className="text-sm font-semibold text-ink-primary">{note.title}</p>
                   <p className="mt-2 line-clamp-4 text-xs leading-6 text-ink-secondary">{note.content}</p>
                   <p className="mt-3 text-[11px] text-ink-tertiary">
-                    {new Date(note.updated_at || note.created_at).toLocaleDateString("zh-CN")}
+                    {new Date(note.updated_at || note.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                   </p>
                 </div>
               ))}
