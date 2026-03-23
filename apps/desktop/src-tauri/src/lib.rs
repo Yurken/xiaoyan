@@ -120,6 +120,13 @@ pub fn run() {
                 handle.manage(app_state);
             });
 
+            // 确保 macOS Dock 图标与窗口图标一致
+            if let Some(window) = app.get_webview_window("main") {
+                if let Some(icon) = app.default_window_icon() {
+                    let _ = window.set_icon(icon.clone());
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
