@@ -1104,7 +1104,7 @@ fn sanitize_file_stem(input: &str) -> String {
 
 /// Scan the first ~4000 chars of extracted PDF text for a "Keywords:" section.
 /// Returns up to 10 cleaned keyword strings, or an empty vec if not found.
-fn extract_keywords_from_text(full_text: &str) -> Vec<String> {
+pub(crate) fn extract_keywords_from_text(full_text: &str) -> Vec<String> {
     let search_area = if full_text.len() > 4000 { &full_text[..4000] } else { full_text };
     let lower = search_area.to_lowercase();
 

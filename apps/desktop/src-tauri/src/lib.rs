@@ -116,8 +116,32 @@ pub fn run() {
                     }
                 }
 
-                let app_state = AppState::new(pool, settings);
+                let app_state = AppState::new(pool.clone(), settings);
                 handle.manage(app_state);
+
+                // Backfill keywords for existing papers that have full_text but empty tags
+                tauri::async_runtime::spawn(async move {
+                    use sqlx::Row;
+                    use commands::papers::extract_keywords_from_text;
+                    let rows = sqlx::query(
+                        "SELECT id, full_text FROM papers WHERE (tags IS NULL OR tags = '[]') AND full_text IS NOT NULL AND full_text != ''",
+                    )
+                    .fetch_all(&pool)
+                    .await
+                    .unwrap_or_default();
+                    for row in rows {
+                        let id: String = row.get("id");
+                        let full_text: String = row.get("full_text");
+                        let keywords = extract_keywords_from_text(&full_text);
+                        if keywords.is_empty() { continue; }
+                        let tags_json = serde_json::to_string(&keywords).unwrap_or_else(|_| "[]".to_string());
+                        let _ = sqlx::query("UPDATE papers SET tags = ? WHERE id = ?")
+                            .bind(&tags_json)
+                            .bind(&id)
+                            .execute(&pool)
+                            .await;
+                    }
+                });
             });
 
             // 确保 macOS Dock 图标与窗口图标一致
