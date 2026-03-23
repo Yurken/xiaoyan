@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Eye, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Eye, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
 import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import { apiClient, formatErrorMessage } from "../../lib/client";
@@ -91,7 +91,10 @@ function MarkdownEditor({
     <div className="space-y-1">
       {label && (
         <div className="flex items-center justify-between ml-1">
-          <span className="text-xs font-medium text-ink-tertiary">{label}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-ink-tertiary">{label}</span>
+            <span className="text-[10px] text-ink-tertiary/60 font-normal">支持 Markdown</span>
+          </div>
           <div className="flex gap-1">
             {(["edit", "preview"] as const).map((t) => (
               <button
@@ -152,6 +155,195 @@ function parseNoteTags(raw: string) {
   return raw.split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean);
 }
 
+function NoteDetailModal({
+  note,
+  interests,
+  interestMap,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  note: KnowledgeNote;
+  interests: ResearchInterest[];
+  interestMap: Record<string, ResearchInterest>;
+  onClose: () => void;
+  onSave: (id: string, draft: { title: string; content: string; tagsRaw: string; research_interest_id: string }) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [mode, setMode] = useState<"read" | "edit">("read");
+  const [draft, setDraft] = useState({
+    title: note.title,
+    content: note.content,
+    tagsRaw: (note.tags || []).join(", "),
+    research_interest_id: note.research_interest_id || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    requestAnimationFrame(() => setVisible(true));
+  }, []);
+
+  const handleClose = () => {
+    setVisible(false);
+    setTimeout(onClose, 280);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(note.id, draft);
+      setMode("read");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    await onDelete(note.id);
+    handleClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex justify-end"
+      style={{ background: visible ? "rgba(0,0,0,0.18)" : "rgba(0,0,0,0)", transition: "background 0.28s ease" }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+    >
+      <div
+        className="relative flex h-full w-full max-w-2xl flex-col overflow-hidden"
+        style={{
+          background: "linear-gradient(160deg, #F3F6FA 0%, #E8ECF0 100%)",
+          boxShadow: "-8px 0 32px rgba(0,0,0,0.1)",
+          transform: visible ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
+      >
+        {/* Header */}
+        <div
+          className="flex flex-shrink-0 items-center justify-between px-6 py-4"
+          style={{ background: "linear-gradient(180deg, #F0F4F8, #E8ECF0)", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
+        >
+          <button
+            type="button"
+            onClick={handleClose}
+            className="flex items-center gap-1.5 text-sm text-ink-tertiary transition-colors hover:text-ink-primary"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            返回
+          </button>
+          <div className="flex items-center gap-2">
+            {mode === "read" ? (
+              <>
+                <Button size="sm" variant="secondary" onClick={() => setMode("edit")}>
+                  <Pencil className="h-3.5 w-3.5" />
+                  编辑
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium text-apple-red transition-colors hover:bg-apple-red/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  删除
+                </button>
+              </>
+            ) : (
+              <>
+                <Button size="sm" variant="secondary" onClick={() => setMode("read")}>
+                  取消
+                </Button>
+                <Button size="sm" loading={saving} onClick={() => void handleSave()}>
+                  保存
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {mode === "read" ? (
+            <>
+              {/* Meta row */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
+                {note.research_interest_id && interestMap[note.research_interest_id] && (
+                  <span className="rounded-full bg-apple-blue/10 px-2.5 py-0.5 text-[11px] text-apple-blue">
+                    {interestFolderName(interestMap[note.research_interest_id])}
+                  </span>
+                )}
+                <span className="ml-auto text-xs text-ink-tertiary">
+                  {new Date(note.created_at).toLocaleDateString("zh-CN")}
+                </span>
+              </div>
+
+              {/* Title */}
+              <h1 className="text-xl font-bold text-ink-primary leading-snug">{note.title}</h1>
+
+              {/* Tags */}
+              {note.tags && note.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {note.tags.map((tag, i) => (
+                    <span key={`${note.id}-${tag}-${i}`} className="rounded-full bg-apple-blue/10 px-2.5 py-1 text-[11px] text-apple-blue">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Content */}
+              <div
+                className="rounded-3xl px-5 py-4 text-sm leading-relaxed"
+                style={{ background: "#E8ECF0", boxShadow: "inset 3px 3px 7px #C8CDD3, inset -3px -3px 7px #FFFFFF" }}
+              >
+                {note.content.trim() ? (
+                  <MarkdownRenderer content={note.content} />
+                ) : (
+                  <p className="text-ink-tertiary">暂无内容</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              <Input
+                label="标题"
+                value={draft.title}
+                onChange={(e) => setDraft((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="知识卡片标题"
+              />
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input
+                  label="标签"
+                  value={draft.tagsRaw}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, tagsRaw: e.target.value }))}
+                  placeholder="逗号分隔，如 对齐, RLHF"
+                />
+                <div className="space-y-1">
+                  <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
+                  <InterestPicker
+                    interests={interests}
+                    value={draft.research_interest_id}
+                    onChange={(id) => setDraft((prev) => ({ ...prev, research_interest_id: id }))}
+                    placeholder="未归档"
+                  />
+                </div>
+              </div>
+              <MarkdownEditor
+                label="内容"
+                value={draft.content}
+                onChange={(v) => setDraft((prev) => ({ ...prev, content: v }))}
+                placeholder="补充关键结论、方法差异或后续问题。"
+                rows={14}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function NotesPanel({ hideFolders = false }: { hideFolders?: boolean }) {
   const [notes, setNotes] = useState<KnowledgeNote[]>([]);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
@@ -174,6 +366,7 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
     tagsRaw: "",
     research_interest_id: "",
   });
+  const [viewingNote, setViewingNote] = useState<KnowledgeNote | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -312,6 +505,18 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
     }
   };
 
+  const handleModalSave = async (
+    id: string,
+    draft: { title: string; content: string; tagsRaw: string; research_interest_id: string },
+  ) => {
+    const title = draft.title.trim();
+    const content = draft.content.trim();
+    await apiClient.knowledge.updateNote(id, { title, content, tags: parseNoteTags(draft.tagsRaw) });
+    const moved = await apiClient.knowledge.moveNote(id, draft.research_interest_id || undefined);
+    setNotes((prev) => prev.map((note) => (note.id === id ? moved : note)));
+    setViewingNote(moved);
+  };
+
   const handleDeleteInterestGroup = async (interestId: string, deleteAll: boolean) => {
     try {
       setDeletingGroupId(interestId);
@@ -333,24 +538,30 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
 
   const renderNoteCard = (note: KnowledgeNote) => (
     <Card key={note.id} padding="sm" className="group relative flex flex-col gap-3">
-      <div className="pr-12">
+      <div className="pr-10">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="line-clamp-2 text-sm font-semibold text-ink-primary">{note.title}</p>
+          <button
+            type="button"
+            onClick={() => setViewingNote(note)}
+            className="line-clamp-2 text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
+          >
+            {note.title}
+          </button>
           <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
         </div>
         {note.research_interest_id && interestMap[note.research_interest_id] && (
-          <p className="mt-2 text-[11px] text-apple-blue">
-            关联方向：{interestFolderName(interestMap[note.research_interest_id])}
+          <p className="mt-1.5 text-[11px] text-apple-blue">
+            {interestFolderName(interestMap[note.research_interest_id])}
           </p>
         )}
       </div>
 
-      <p className="line-clamp-5 text-xs leading-relaxed text-ink-secondary">{note.content}</p>
+      <p className="line-clamp-4 text-xs leading-relaxed text-ink-secondary">{note.content}</p>
 
       {note.tags && note.tags.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {note.tags.map((tag, index) => (
-            <span key={`${note.id}-${tag}-${index}`} className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue">
+            <span key={`${note.id}-${tag}-${index}`} className="rounded-full bg-apple-blue/10 px-2 py-0.5 text-[11px] text-apple-blue">
               {tag}
             </span>
           ))}
@@ -364,7 +575,7 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
       <div className="absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           type="button"
-          onClick={() => openEditNote(note)}
+          onClick={() => setViewingNote(note)}
           className="text-ink-tertiary hover:text-ink-primary"
           aria-label={`编辑 ${note.title}`}
         >
@@ -379,51 +590,11 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-
-      {editingNoteId === note.id && (
-        <div className="mt-1 grid gap-3 border-t border-nm-dark/10 pt-3">
-          <Input
-            label="标题"
-            value={editDraft.title}
-            onChange={(event) => setEditDraft((prev) => ({ ...prev, title: event.target.value }))}
-            placeholder="知识卡片标题"
-          />
-          <Input
-            label="标签"
-            value={editDraft.tagsRaw}
-            onChange={(event) => setEditDraft((prev) => ({ ...prev, tagsRaw: event.target.value }))}
-            placeholder="逗号分隔，如 对齐, RLHF"
-          />
-          <div className="space-y-1">
-            <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
-            <InterestPicker
-              interests={interests}
-              value={editDraft.research_interest_id}
-              onChange={(id) => setEditDraft((prev) => ({ ...prev, research_interest_id: id }))}
-              placeholder="未归档"
-            />
-          </div>
-          <MarkdownEditor
-            label="内容"
-            value={editDraft.content}
-            onChange={(v) => setEditDraft((prev) => ({ ...prev, content: v }))}
-            placeholder="补充关键结论、方法差异或后续问题。"
-            rows={5}
-          />
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setEditingNoteId(null)}>
-              取消
-            </Button>
-            <Button size="sm" loading={savingEditNoteId === note.id} onClick={() => void handleSaveEditNote(note.id)}>
-              保存
-            </Button>
-          </div>
-        </div>
-      )}
     </Card>
   );
 
   return (
+    <>
     <div className="space-y-4">
       <Card padding="sm" className="space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -459,29 +630,29 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
               </button>
             </div>
 
+            <Input
+              label="标题"
+              value={noteTitle}
+              onChange={(event) => setNoteTitle(event.target.value)}
+              placeholder="如：RLHF 中 reward model 的作用"
+            />
+
             <div className="grid gap-3 lg:grid-cols-2">
-              <Input
-                label="标题"
-                value={noteTitle}
-                onChange={(event) => setNoteTitle(event.target.value)}
-                placeholder="如：RLHF 中 reward model 的作用"
-              />
               <Input
                 label="标签"
                 value={noteTagsRaw}
                 onChange={(event) => setNoteTagsRaw(event.target.value)}
                 placeholder="逗号分隔，如 对齐, RLHF, 奖励模型"
               />
-            </div>
-
-            <div className="space-y-1">
-              <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究方向</label>
-              <InterestPicker
-                interests={interests}
-                value={selectedInterestId}
-                onChange={setSelectedInterestId}
-                placeholder="不关联"
-              />
+              <div className="space-y-1">
+                <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究方向</label>
+                <InterestPicker
+                  interests={interests}
+                  value={selectedInterestId}
+                  onChange={setSelectedInterestId}
+                  placeholder="不关联"
+                />
+              </div>
             </div>
 
             <MarkdownEditor
@@ -611,5 +782,17 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
         </div>
       )}
     </div>
+
+    {viewingNote && (
+      <NoteDetailModal
+        note={viewingNote}
+        interests={interests}
+        interestMap={interestMap}
+        onClose={() => setViewingNote(null)}
+        onSave={handleModalSave}
+        onDelete={handleDelete}
+      />
+    )}
+    </>
   );
 }
