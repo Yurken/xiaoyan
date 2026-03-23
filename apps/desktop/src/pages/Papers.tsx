@@ -39,6 +39,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [confirmDeletePaperId, setConfirmDeletePaperId] = useState<string | null>(null);
+  const [confirmReanalyzePaperId, setConfirmReanalyzePaperId] = useState<string | null>(null);
   const [deletingPaperId, setDeletingPaperId] = useState<string | null>(null);
   const [visiblePaperTags, setVisiblePaperTags] = useState(() => parsePaperTagVisibility(DEFAULT_PAPER_TAG_VISIBILITY_VALUE));
   const [selectedInterestId, setSelectedInterestId] = useState("");
@@ -323,6 +324,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
 
   const handleAnalyze = async (id: string) => {
     try {
+      setConfirmReanalyzePaperId(null);
       setLoadError("");
       setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "analyzing" } : paper)));
       // Register both expected completion events before firing requests
@@ -337,6 +339,8 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "failed" } : paper)));
     }
   };
+
+  const requiresReanalyzeConfirm = (paper: Paper) => paper.status === "analyzed" || paper.status === "reproduced";
 
   const openEditor = (paper: Paper) => {
     setEditingId(paper.id);
@@ -662,7 +666,13 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           {/* 主要 CTA */}
           <Button
             size="sm"
-            onClick={() => void handleAnalyze(paper.id)}
+            onClick={() => {
+              if (requiresReanalyzeConfirm(paper)) {
+                setConfirmReanalyzePaperId((prev) => (prev === paper.id ? null : paper.id));
+                return;
+              }
+              void handleAnalyze(paper.id);
+            }}
             disabled={!canStartAnalyze(paper.status)}
           >
             {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -706,6 +716,28 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             >
               {deletingPaperId === paper.id && <Loader2 className="h-3 w-3 animate-spin" />}
               删除
+            </button>
+          </div>
+        </div>
+      )}
+
+      {confirmReanalyzePaperId === paper.id && (
+        <div
+          className="mt-2 flex items-center justify-between gap-2 rounded-xl px-3 py-2"
+          style={{ background: "rgba(0,122,255,0.08)" }}
+        >
+          <span className="text-xs text-[#0A62D0]">该论文已有解读结果，确认要重新解读并覆盖最新结果吗？</span>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Button size="sm" variant="secondary" onClick={() => setConfirmReanalyzePaperId(null)}>
+              取消
+            </Button>
+            <button
+              type="button"
+              onClick={() => void handleAnalyze(paper.id)}
+              className="inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium text-white transition-colors"
+              style={{ background: "#007AFF" }}
+            >
+              确认重新解读
             </button>
           </div>
         </div>

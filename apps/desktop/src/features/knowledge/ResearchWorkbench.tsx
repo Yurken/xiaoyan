@@ -57,6 +57,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
   const [loading, setLoading] = useState(true);
   const [refreshingSession, setRefreshingSession] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [confirmReanalyzePaperId, setConfirmReanalyzePaperId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [chatInput, setChatInput] = useState("");
@@ -196,6 +197,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
 
   const handleAnalyze = async (paperId: string) => {
     try {
+      setConfirmReanalyzePaperId(null);
       setError("");
       setPapers((prev) => prev.map((p) => p.id === paperId ? { ...p, status: "analyzing" } : p));
       await apiClient.papers.analyze(paperId);
@@ -215,6 +217,8 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
       setPapers((prev) => prev.map((p) => p.id === paperId ? { ...p, status: "failed" } : p));
     }
   };
+
+  const requiresReanalyzeConfirm = (paper: Paper) => paper.status === "analyzed" || paper.status === "reproduced";
 
   const handleNewSession = () => {
     setSelectedSessionId(null);
@@ -366,7 +370,18 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
                     {paperStatusBadge(paper.status)}
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => void handleAnalyze(paper.id)} disabled={!canRunPaperTask(paper.status)}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        if (requiresReanalyzeConfirm(paper)) {
+                          setConfirmReanalyzePaperId((prev) => (prev === paper.id ? null : paper.id));
+                          return;
+                        }
+                        void handleAnalyze(paper.id);
+                      }}
+                      disabled={!canRunPaperTask(paper.status)}
+                    >
                       {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                       {paper.status === "parsing" ? "解析中" : paper.status === "uploaded" ? "待解析" : "分析"}
                     </Button>
@@ -375,6 +390,23 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
                       复现
                     </Button>
                   </div>
+                  {confirmReanalyzePaperId === paper.id && (
+                    <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-[rgba(0,122,255,0.08)] px-3 py-2">
+                      <span className="text-xs text-[#0A62D0]">该论文已有分析结果，确认要重新分析并覆盖现有结果吗？</span>
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" variant="secondary" onClick={() => setConfirmReanalyzePaperId(null)}>
+                          取消
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => void handleAnalyze(paper.id)}
+                          className="inline-flex items-center gap-1 rounded-xl bg-[#007AFF] px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                        >
+                          确认重跑
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
