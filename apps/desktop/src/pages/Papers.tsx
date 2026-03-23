@@ -24,7 +24,7 @@ function interestFolderName(interest: ResearchInterest) {
   return interest.folder_name?.trim() || interest.topic;
 }
 
-export default function Papers() {
+export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
   // Tracks papers where BOTH analyze + reproduce are in-flight.
   // Only when both events arrive do we fetch and surface results.
   const pendingPairs = useRef(new Map<string, Set<"analyzed" | "reproduced">>());
@@ -871,7 +871,7 @@ export default function Papers() {
             </div>
           </button>
 
-          <div
+          {!hideFolders && <div
             className="relative min-w-[200px]"
             onBlur={(e) => {
               if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -934,7 +934,7 @@ export default function Papers() {
                 ))}
               </div>
             )}
-          </div>
+          </div>}
           <Button onClick={handleUpload} loading={uploading} size="md">
             <Upload className="w-4 h-4" />
             导入 PDF
@@ -978,6 +978,10 @@ export default function Papers() {
             <p className="mt-1 text-sm text-ink-tertiary">上传 PDF，开始精读和分析。</p>
           </div>
         </Card>
+      ) : hideFolders ? (
+        <div className="space-y-3">
+          {sortPapers(papers, getSortKey("all")).map(renderPaperCard)}
+        </div>
       ) : (
         <div className="space-y-3">
           {paperGroups.map((group) => (

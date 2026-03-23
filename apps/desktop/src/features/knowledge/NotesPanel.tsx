@@ -20,7 +20,7 @@ function parseNoteTags(raw: string) {
   return raw.split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean);
 }
 
-export default function NotesPanel() {
+export default function NotesPanel({ hideFolders = false }: { hideFolders?: boolean }) {
   const [notes, setNotes] = useState<KnowledgeNote[]>([]);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [search, setSearch] = useState("");
@@ -415,6 +415,10 @@ export default function NotesPanel() {
             </p>
           </div>
         </Card>
+      ) : hideFolders ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {notes.map(renderNoteCard)}
+        </div>
       ) : (
         <div className="space-y-4">
           {noteGroups.map((group) => (

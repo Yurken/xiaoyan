@@ -134,7 +134,7 @@ export default function Home() {
             <div>
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-bold tracking-tight text-ink-primary">{PRODUCT_NAME}</h1>
-                <Badge variant="info">{MAIN_ASSISTANT_BADGE}</Badge>
+                {/* <Badge variant="info">{MAIN_ASSISTANT_BADGE}</Badge> */}
               </div>
               <p className="mt-2 text-sm leading-6 text-ink-secondary">
                 选题、读文献、整理笔记——{MAIN_ASSISTANT_NAME}帮你把研究的每一步都连起来，进展自然就看得见。

@@ -1,6 +1,6 @@
 import NotesPanel from "../features/knowledge/NotesPanel";
 
-export default function Knowledge() {
+export default function Knowledge({ hideFolders = false }: { hideFolders?: boolean }) {
   return (
     <div className="h-full overflow-y-auto p-6 space-y-5">
       <div>
@@ -10,7 +10,7 @@ export default function Knowledge() {
         </p>
       </div>
 
-      <NotesPanel />
+      <NotesPanel hideFolders={hideFolders} />
     </div>
   );
 }

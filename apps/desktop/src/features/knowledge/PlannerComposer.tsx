@@ -19,7 +19,7 @@ import {
 } from "./plannerSuggestions";
 
 interface PlannerComposerProps {
-  onCancel: () => void;
+  onCancel?: () => void;
   onCreated: (
     interest: ResearchInterest,
     meta?: { uploadedReferences: number; failedUploads: string[] }
@@ -348,9 +348,11 @@ export default function PlannerComposer({ onCancel, onCreated, initialTopic }: P
           <Badge variant={pendingReferences.length > 0 ? "success" : "default"}>
             参考文献 {pendingReferences.length} 篇
           </Badge>
-          <Button size="sm" variant="secondary" onClick={onCancel}>
-            收起
-          </Button>
+          {onCancel && (
+            <Button size="sm" variant="secondary" onClick={onCancel}>
+              收起
+            </Button>
+          )}
         </div>
       </div>
 
@@ -699,9 +701,11 @@ export default function PlannerComposer({ onCancel, onCreated, initialTopic }: P
           )}
 
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={onCancel}>
-              取消
-            </Button>
+            {onCancel && (
+              <Button variant="secondary" onClick={onCancel}>
+                取消
+              </Button>
+            )}
             <Button loading={saving} onClick={() => void handleCreate()}>
               {createButtonLabel}
             </Button>
