@@ -508,6 +508,117 @@ function GroupedModelCard({
 
 const MASK = "***";
 
+const PROVIDER_PRESETS = [
+  {
+    id: "openai",
+    label: "OpenAI",
+    emoji: "🔮",
+    providerType: "openai" as LlmProvider,
+    baseUrl: undefined as string | undefined,
+    defaultChatModel: "",
+    defaultEmbedModel: "",
+    apiKeyPlaceholder: "sk-...",
+    note: "需要梯子或转发",
+  },
+  {
+    id: "anthropic",
+    label: "Anthropic",
+    emoji: "🌀",
+    providerType: "anthropic" as LlmProvider,
+    baseUrl: undefined as string | undefined,
+    defaultChatModel: "",
+    defaultEmbedModel: "",
+    apiKeyPlaceholder: "sk-ant-...",
+    note: "需要梯子或转发",
+  },
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    emoji: "🐳",
+    providerType: "openai_compatible" as LlmProvider,
+    baseUrl: "https://api.deepseek.com/v1",
+    defaultChatModel: "deepseek-chat",
+    defaultEmbedModel: "",
+    apiKeyPlaceholder: "sk-...",
+  },
+  {
+    id: "qwen",
+    label: "通义千问",
+    emoji: "🌊",
+    providerType: "openai_compatible" as LlmProvider,
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    defaultChatModel: "qwen-plus",
+    defaultEmbedModel: "text-embedding-v3",
+    apiKeyPlaceholder: "sk-...",
+  },
+  {
+    id: "siliconflow",
+    label: "硅基流动",
+    emoji: "💎",
+    providerType: "openai_compatible" as LlmProvider,
+    baseUrl: "https://api.siliconflow.cn/v1",
+    defaultChatModel: "Qwen/Qwen2.5-72B-Instruct",
+    defaultEmbedModel: "BAAI/bge-m3",
+    apiKeyPlaceholder: "sk-...",
+  },
+  {
+    id: "moonshot",
+    label: "Moonshot",
+    emoji: "🌙",
+    providerType: "openai_compatible" as LlmProvider,
+    baseUrl: "https://api.moonshot.cn/v1",
+    defaultChatModel: "moonshot-v1-8k",
+    defaultEmbedModel: "",
+    apiKeyPlaceholder: "sk-...",
+  },
+  {
+    id: "gemini",
+    label: "Gemini",
+    emoji: "✨",
+    providerType: "openai_compatible" as LlmProvider,
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    defaultChatModel: "gemini-2.0-flash",
+    defaultEmbedModel: "",
+    apiKeyPlaceholder: "AIza...",
+  },
+  {
+    id: "ollama",
+    label: "Ollama",
+    emoji: "🦙",
+    providerType: "openai_compatible" as LlmProvider,
+    baseUrl: "http://localhost:11434/v1",
+    defaultChatModel: "qwen2.5:7b",
+    defaultEmbedModel: "nomic-embed-text",
+    apiKeyPlaceholder: "ollama",
+    note: "本地部署，无需 Key",
+  },
+  {
+    id: "custom",
+    label: "自定义",
+    emoji: "⚙️",
+    providerType: "openai_compatible" as LlmProvider,
+    baseUrl: "",
+    defaultChatModel: "",
+    defaultEmbedModel: "",
+    apiKeyPlaceholder: "sk-...",
+  },
+] as const;
+
+type ProviderPresetId = (typeof PROVIDER_PRESETS)[number]["id"];
+
+function detectPreset(form: AppSettings): ProviderPresetId {
+  if (form.llm_provider === "openai") return "openai";
+  if (form.llm_provider === "anthropic") return "anthropic";
+  const url = form.openai_compatible_base_url.trim();
+  if (url.includes("deepseek.com")) return "deepseek";
+  if (url.includes("dashscope.aliyuncs.com")) return "qwen";
+  if (url.includes("siliconflow.cn")) return "siliconflow";
+  if (url.includes("moonshot.cn")) return "moonshot";
+  if (url.includes("generativelanguage.googleapis.com")) return "gemini";
+  if (url.includes("localhost:11434") || url.includes("127.0.0.1:11434")) return "ollama";
+  return "custom";
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
   llm_provider: "openai_compatible",
   openai_api_key: "",
@@ -1062,6 +1173,24 @@ export default function Settings() {
   };
 
   const provider = form.llm_provider as LlmProvider;
+  const activePreset = detectPreset(form);
+
+  const applyPreset = (presetId: ProviderPresetId) => {
+    const preset = PROVIDER_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setForm((cur) => ({
+      ...cur,
+      llm_provider: preset.providerType,
+      ...(preset.providerType === "openai_compatible"
+        ? {
+            openai_compatible_base_url: preset.baseUrl ?? cur.openai_compatible_base_url,
+            openai_compatible_chat_model: preset.defaultChatModel || cur.openai_compatible_chat_model,
+            openai_compatible_embedding_model: preset.defaultEmbedModel || cur.openai_compatible_embedding_model,
+          }
+        : {}),
+    }));
+  };
+
   const routingMode = form.multi_agent_routing_mode as MultiAgentRoutingMode;
   const enabledAgents = form.multi_agent_enabled_agents
     .split(",")
@@ -1224,52 +1353,90 @@ export default function Settings() {
               <>
                 <div className="space-y-2">
                   <label className="block text-xs font-medium text-ink-tertiary ml-1">模型服务商</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {(["openai_compatible", "openai", "anthropic"] as LlmProvider[]).map((item) => (
-                      <ProviderTab
-                        key={item}
-                        label={
-                          item === "openai_compatible"
-                            ? "兼容接口"
-                            : item === "openai"
-                              ? "OpenAI"
-                              : "Anthropic"
-                        }
-                        active={provider === item}
-                        onClick={() => set("llm_provider")(item)}
-                      />
-                    ))}
+                  <div className="flex flex-wrap gap-1.5">
+                    {PROVIDER_PRESETS.map((preset) => {
+                      const isActive = activePreset === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => applyPreset(preset.id)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
+                          style={
+                            isActive
+                              ? {
+                                  background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                                  color: "#FFFFFF",
+                                  boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
+                                }
+                              : {
+                                  background: "#E8ECF0",
+                                  color: "#3C3C43",
+                                  boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+                                }
+                          }
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 {provider === "openai_compatible" ? (
                   <div className="grid gap-3 md:grid-cols-2">
+                    {activePreset === "ollama" && (
+                      <div className="md:col-span-2 rounded-2xl border border-green-200 bg-green-50/80 px-4 py-3">
+                        <p className="text-xs leading-5 text-green-800">
+                          Ollama 本地运行时默认不需要 API Key，接口地址默认为 <code className="font-mono">http://localhost:11434/v1</code>。接口密钥可填写任意字符（如 <code className="font-mono">ollama</code>）或留空。
+                        </p>
+                      </div>
+                    )}
                     <SettingInput
                       label="接口地址"
                       value={form.openai_compatible_base_url}
                       onChange={set("openai_compatible_base_url")}
-                      placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
-                      hint="阿里云、硅基流动、DeepSeek、Moonshot 等兼容接口都可以接在这里。"
+                      placeholder={
+                        activePreset === "ollama"
+                          ? "http://localhost:11434/v1"
+                          : "https://api.deepseek.com/v1"
+                      }
+                      hint={
+                        activePreset === "custom"
+                          ? "任何兼容 OpenAI 接口格式的服务商都可以接在这里。"
+                          : undefined
+                      }
                     />
                     <SettingInput
                       label="接口密钥"
                       value={form.openai_compatible_api_key}
                       onChange={set("openai_compatible_api_key")}
-                      placeholder="sk-..."
+                      placeholder={
+                        PROVIDER_PRESETS.find((p) => p.id === activePreset)?.apiKeyPlaceholder ?? "sk-..."
+                      }
                       sensitive
-                      hint={`留空或输入 ${MASK} 表示不更改`}
+                      hint={activePreset === "ollama" ? "本地 Ollama 可填任意字符或留空" : `留空或输入 ${MASK} 表示不更改`}
                     />
                     <SettingInput
                       label="默认对话模型"
                       value={form.openai_compatible_chat_model}
                       onChange={set("openai_compatible_chat_model")}
-                      placeholder="qwen-plus / deepseek-chat"
+                      placeholder={
+                        PROVIDER_PRESETS.find((p) => p.id === activePreset)?.defaultChatModel || "模型名称"
+                      }
                     />
                     <SettingInput
                       label="默认向量模型"
                       value={form.openai_compatible_embedding_model}
                       onChange={set("openai_compatible_embedding_model")}
-                      placeholder="BAAI/bge-m3"
+                      placeholder={
+                        PROVIDER_PRESETS.find((p) => p.id === activePreset)?.defaultEmbedModel || "BAAI/bge-m3"
+                      }
+                      hint={
+                        activePreset === "moonshot" || activePreset === "gemini"
+                          ? "该服务商暂不提供向量接口，建议在下方独立配置向量接口。"
+                          : undefined
+                      }
                     />
                   </div>
                 ) : null}
