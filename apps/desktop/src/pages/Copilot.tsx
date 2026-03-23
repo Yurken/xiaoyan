@@ -537,7 +537,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               const group = sessionGroups.find((g) => g.key === selectedInterestId);
               const groupSessions = group?.sessions ?? [];
               return groupSessions.length === 0 ? (
-                <div className="px-3 py-6 text-center text-xs text-ink-tertiary">该主题下暂无会话</div>
+                <div className="px-3 py-6 text-center text-xs text-ink-tertiary">该主题下暂无对话</div>
               ) : (
                 <div className="space-y-1.5">{groupSessions.map(renderSessionItem)}</div>
               );
@@ -1100,7 +1100,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           className="w-full px-3 py-1.5 text-left text-apple-red transition-colors hover:bg-apple-red/8"
           onClick={() => { void handleDeleteSession(contextMenu.session.id); setContextMenu(null); }}
         >
-          删除会话
+          删除对话
         </button>
       </div>
     )}

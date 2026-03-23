@@ -780,34 +780,46 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
 
       {expanded === paper.id && (paper.analysis || paper.reproduction_guide) && (
         <div className="mt-3 border-t border-nm-dark/10 pt-3 space-y-5">
-          {paper.analysis && (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold text-ink-secondary tracking-wide">论文分析</p>
-              {(
-                [
-                  ["研究问题", paper.analysis.research_question],
-                  ["核心方法", paper.analysis.core_method],
-                  ["实验设计", paper.analysis.experiment_design],
-                  ["实验结果", paper.analysis.experiment_results],
-                  ["创新点", paper.analysis.innovations],
-                  ["局限性", paper.analysis.limitations],
-                  ["关键结论", paper.analysis.key_conclusions],
-                ] as [string, string | undefined][]
-              )
-                .filter(([, value]) => value)
-                .map(([label, value]) => (
-                  <div key={label} className="rounded-xl px-3 py-2" style={{ background: "rgba(0,0,0,0.025)" }}>
-                    <span className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider">{label}</span>
-                    <div className="mt-1 text-xs leading-[1.7] text-ink-secondary prose-sm">
-                      <MarkdownRenderer content={value ?? ""} />
+          {paper.analysis && (() => {
+            const SECTIONS: Array<{ key: keyof typeof paper.analysis; label: string; color: string; bg: string }> = [
+              { key: "research_question", label: "研究问题", color: "#007AFF", bg: "rgba(0,122,255,0.05)" },
+              { key: "core_method",       label: "核心方法", color: "#AF52DE", bg: "rgba(175,82,222,0.05)" },
+              { key: "experiment_design", label: "实验设计", color: "#5856D6", bg: "rgba(88,86,214,0.05)" },
+              { key: "experiment_results",label: "实验结果", color: "#34C759", bg: "rgba(52,199,89,0.05)" },
+              { key: "innovations",       label: "创新点",   color: "#FF9500", bg: "rgba(255,149,0,0.05)" },
+              { key: "limitations",       label: "局限性",   color: "#FF3B30", bg: "rgba(255,59,48,0.05)" },
+              { key: "key_conclusions",   label: "关键结论", color: "#00C7BE", bg: "rgba(0,199,190,0.05)" },
+            ];
+            const filled = SECTIONS.filter(({ key }) => paper.analysis![key]);
+            if (filled.length === 0) return null;
+            return (
+              <div className="space-y-2.5">
+                <p className="text-[11px] font-semibold text-ink-tertiary tracking-widest uppercase pl-0.5">小妍解读</p>
+                {filled.map(({ key, label, color, bg }) => (
+                  <div
+                    key={key}
+                    className="rounded-2xl overflow-hidden"
+                    style={{ background: bg, borderLeft: `3px solid ${color}` }}
+                  >
+                    <div className="px-3 pt-2.5 pb-0.5">
+                      <span
+                        className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{ background: `${color}18`, color }}
+                      >
+                        {label}
+                      </span>
+                    </div>
+                    <div className="px-3 pt-1 pb-3">
+                      <MarkdownRenderer content={String(paper.analysis![key] ?? "")} />
                     </div>
                   </div>
                 ))}
-            </div>
-          )}
+              </div>
+            );
+          })()}
           {paper.reproduction_guide && (
             <div className="space-y-3">
-              <p className="text-xs font-semibold text-apple-blue tracking-wide">复现指南</p>
+              <p className="text-[11px] font-semibold text-ink-tertiary tracking-widest uppercase pl-0.5">复现指南</p>
               {(
                 [
                   ["代码仓库", paper.reproduction_guide.code_repository],
@@ -822,23 +834,13 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               )
                 .filter(([, value]) => value && value !== "暂无")
                 .map(([label, value]) => (
-                  <div key={label} className="rounded-xl px-3 py-2" style={{ background: "rgba(0,122,255,0.04)" }}>
-                    <span className="text-[11px] font-semibold text-apple-blue/70 uppercase tracking-wider">{label}</span>
-                    {label === "代码仓库" ? (
-                      <div className="mt-1 flex flex-col gap-0.5">
-                        {value!.split("\n").filter(Boolean).map((url) => (
-                          <ExternalLink
-                            key={url}
-                            href={url.trim()}
-                            className="text-xs text-apple-blue hover:underline break-all"
-                          >
-                            {url.trim()}
-                          </ExternalLink>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-1 whitespace-pre-wrap text-xs leading-[1.7] text-ink-secondary">{value}</p>
-                    )}
+                  <div key={label} className="rounded-2xl overflow-hidden" style={{ background: "rgba(0,122,255,0.04)", borderLeft: "3px solid rgba(0,122,255,0.4)" }}>
+                    <div className="px-3 pt-2.5 pb-0.5">
+                      <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}>{label}</span>
+                    </div>
+                    <div className="px-3 pt-1 pb-3">
+                      <MarkdownRenderer content={value ?? ""} />
+                    </div>
                   </div>
                 ))}
             </div>

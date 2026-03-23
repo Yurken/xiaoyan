@@ -158,7 +158,7 @@ export default function Home() {
               { label: "论文库",       value: state.papers.length,    note: `${analyzedCount} 篇已分析`,  color: "#007AFF" },
               { label: "研究方向",     value: state.interests.length, note: `${plannedCount} 条已成路线`, color: "#AF52DE" },
               { label: "知识笔记",     value: state.notes.length,     note: "支持语义检索",              color: "#FF9500" },
-              { label: `${MAIN_ASSISTANT_NAME}会话`, value: state.sessions.length,  note: "历史对话随时翻", color: "#34C759" },
+              { label: "小妍对话", value: state.sessions.length,  note: "历史对话随时翻", color: "#34C759" },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl p-4 relative overflow-hidden" style={{ background: "rgba(255,255,255,0.5)", boxShadow: "inset 2px 2px 5px #D0D6DC, inset -2px -2px 5px #FFFFFF" }}>
                 <div className="absolute top-0 left-4 right-4 h-[2px] rounded-full" style={{ background: item.color, opacity: 0.55 }} />
@@ -250,7 +250,7 @@ export default function Home() {
             <div className="rounded-2xl bg-white/50 p-3 overflow-hidden" style={{ border: "1px solid rgba(52,199,89,0.15)", borderLeftWidth: "3px", borderLeftColor: "#34C759" }}>
               <div className="mb-2 flex items-center gap-2">
                 <MessageSquare className="h-3.5 w-3.5 text-[#34C759]" />
-                <p className="text-sm font-semibold text-ink-primary">最近会话</p>
+                <p className="text-sm font-semibold text-ink-primary">最近对话</p>
               </div>
               {state.sessions.length === 0 ? (
                 <p className="text-xs text-ink-tertiary">有问题直接去 Copilot 问，带着论文一起读也行。</p>
@@ -258,7 +258,7 @@ export default function Home() {
                 <div className="space-y-2">
                   {state.sessions.slice(0, 3).map((session) => (
                     <div key={session.id}>
-                      <p className="truncate text-sm font-medium text-ink-primary">{session.title || "新建会话"}</p>
+                      <p className="truncate text-sm font-medium text-ink-primary">{session.title || "新对话"}</p>
                       <p className="mt-1 text-xs text-ink-tertiary">
                         {new Date(session.updated_at || session.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                       </p>
