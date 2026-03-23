@@ -1,9 +1,141 @@
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
-import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Eye, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
+import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
+
+function InterestPicker({
+  interests,
+  value,
+  onChange,
+  placeholder = "不关联",
+}: {
+  interests: ResearchInterest[];
+  value: string;
+  onChange: (id: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = interests.find((i) => i.id === value);
+  const label = selected ? (selected.folder_name?.trim() || selected.topic) : placeholder;
+
+  return (
+    <div
+      ref={ref}
+      className="relative"
+      onBlur={(e) => {
+        if (!ref.current?.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl text-sm text-ink-primary transition-all duration-150"
+        style={{
+          background: "#E8ECF0",
+          boxShadow: open
+            ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
+            : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+        }}
+      >
+        <span className={selected ? "text-ink-primary" : "text-ink-tertiary"}>{label}</span>
+        <svg className="h-3.5 w-3.5 flex-shrink-0 text-ink-tertiary transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }} viewBox="0 0 12 12" fill="none">
+          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 right-0 top-full mt-1 z-20 rounded-2xl py-1 overflow-hidden max-h-48 overflow-y-auto"
+          style={{ background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)", boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF" }}
+        >
+          {[{ id: "", label: placeholder }].concat(interests.map((i) => ({ id: i.id, label: i.folder_name?.trim() || i.topic }))).map(({ id, label: optLabel }) => (
+            <button
+              key={id}
+              type="button"
+              tabIndex={0}
+              onClick={() => { onChange(id); setOpen(false); }}
+              className="w-full text-left px-4 py-2 text-sm transition-colors"
+              style={{
+                color: value === id ? "#007AFF" : "#1C1C1E",
+                background: value === id ? "rgba(0,122,255,0.08)" : "transparent",
+                fontWeight: value === id ? 600 : 400,
+              }}
+            >
+              {optLabel}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MarkdownEditor({
+  label,
+  value,
+  onChange,
+  placeholder,
+  rows = 6,
+}: {
+  label?: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  rows?: number;
+}) {
+  const [tab, setTab] = useState<"edit" | "preview">("edit");
+
+  return (
+    <div className="space-y-1">
+      {label && (
+        <div className="flex items-center justify-between ml-1">
+          <span className="text-xs font-medium text-ink-tertiary">{label}</span>
+          <div className="flex gap-1">
+            {(["edit", "preview"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium transition-all duration-100"
+                style={
+                  tab === t
+                    ? { background: "#E8ECF0", boxShadow: "inset 1px 1px 3px #C8CDD3, inset -1px -1px 3px #FFFFFF", color: "#1C1C1E" }
+                    : { color: "#8E8E93" }
+                }
+              >
+                {t === "edit" ? <Pencil className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                {t === "edit" ? "编辑" : "预览"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {tab === "edit" ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={rows}
+          placeholder={placeholder}
+          className="w-full resize-none rounded-2xl px-4 py-3 text-sm text-ink-primary outline-none placeholder:text-ink-tertiary/60 leading-relaxed"
+          style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF", fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: "12px" }}
+        />
+      ) : (
+        <div
+          className="min-h-[120px] rounded-2xl px-4 py-3 text-sm"
+          style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+        >
+          {value.trim() ? (
+            <MarkdownRenderer content={value} />
+          ) : (
+            <p className="text-ink-tertiary/60 text-xs">{placeholder}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function sourceLabel(sourceType: string) {
   if (sourceType === "manual") return "手动";
@@ -264,26 +396,19 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
           />
           <div className="space-y-1">
             <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
-            <select
+            <InterestPicker
+              interests={interests}
               value={editDraft.research_interest_id}
-              onChange={(event) => setEditDraft((prev) => ({ ...prev, research_interest_id: event.target.value }))}
-              className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary outline-none"
-              style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
-            >
-              <option value="">未归档</option>
-              {interests.map((interest) => (
-                <option key={interest.id} value={interest.id}>
-                  {interestFolderName(interest)}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => setEditDraft((prev) => ({ ...prev, research_interest_id: id }))}
+              placeholder="未归档"
+            />
           </div>
-          <Textarea
+          <MarkdownEditor
             label="内容"
             value={editDraft.content}
-            onChange={(event) => setEditDraft((prev) => ({ ...prev, content: event.target.value }))}
-            rows={5}
+            onChange={(v) => setEditDraft((prev) => ({ ...prev, content: v }))}
             placeholder="补充关键结论、方法差异或后续问题。"
+            rows={5}
           />
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="secondary" onClick={() => setEditingNoteId(null)}>
@@ -351,27 +476,20 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
 
             <div className="space-y-1">
               <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究方向</label>
-              <select
+              <InterestPicker
+                interests={interests}
                 value={selectedInterestId}
-                onChange={(event) => setSelectedInterestId(event.target.value)}
-                className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary outline-none"
-                style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
-              >
-                <option value="">不关联</option>
-                {interests.map((interest) => (
-                  <option key={interest.id} value={interest.id}>
-                    {interestFolderName(interest)}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedInterestId}
+                placeholder="不关联"
+              />
             </div>
 
-            <Textarea
+            <MarkdownEditor
               label="内容"
               value={noteContent}
-              onChange={(event) => setNoteContent(event.target.value)}
+              onChange={setNoteContent}
               placeholder="记录关键结论、方法差异、实验观察或待验证的问题。"
-              rows={5}
+              rows={6}
             />
 
             <div className="flex justify-end gap-2">

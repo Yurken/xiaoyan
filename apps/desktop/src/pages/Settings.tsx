@@ -1256,12 +1256,8 @@ export default function Settings() {
                     ? "连接失败"
                     : "测试连接"}
             </button>
-            {testMsg ? (
-              <span
-                className={`absolute top-full left-0 mt-0.5 text-xs whitespace-nowrap ${
-                  testState === "error" ? "text-red-500" : "text-green-600"
-                }`}
-              >
+            {testState === "error" && testMsg ? (
+              <span className="absolute top-full left-0 mt-0.5 text-xs whitespace-nowrap text-red-500">
                 {testMsg.slice(0, 30)}
               </span>
             ) : null}
