@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
-import { Badge, Button, Card, Input } from "@research-copilot/ui";
+import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
 import type { Paper, ResearchInterest } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, VenueTypeBadge, WosIndexBadge } from "../components/CcfBadges";
 import CollapsibleGroup from "../components/CollapsibleGroup";
@@ -779,7 +779,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                 .map(([label, value]) => (
                   <div key={label} className="rounded-xl px-3 py-2" style={{ background: "rgba(0,0,0,0.025)" }}>
                     <span className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider">{label}</span>
-                    <p className="mt-1 whitespace-pre-wrap text-xs leading-[1.7] text-ink-secondary">{value}</p>
+                    <div className="mt-1 text-xs leading-[1.7] text-ink-secondary prose-sm">
+                      <MarkdownRenderer content={value ?? ""} />
+                    </div>
                   </div>
                 ))}
             </div>

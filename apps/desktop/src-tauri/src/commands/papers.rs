@@ -499,25 +499,105 @@ pub async fn papers_upload(
     Ok(json!({ "paper_id": paper_id, "title": detected_title }))
 }
 
-// ── Analyze ──────────────────────────────────────────────────────
+// ── Analyze (Multi-Agent Deep Analysis) ─────────────────────────
 
-const ANALYZE_PROMPT: &str = r#"请对以下论文进行精读分析，仅返回严格合法的 JSON，不要输出 JSON 以外的内容。
+// Agent 1 — 研究问题与背景深度分析（读引言区段）
+const AGENT1_PROMPT: &str = r#"请对以下论文内容进行深度问题背景分析，仅返回严格合法的 JSON，不输出任何其他内容。
 
-要求：
-- 所有字段内容必须使用中文
-- 如有多条并列内容或带序号的条目，在 JSON 字符串中用 \n 分隔每一条（例如："1. xxx\n2. yyy\n3. zzz"）
-- 每个字段限 150 字以内，保持简洁
-
+论文文本（引言/相关工作区段）：
 {text}
 
-返回格式：
-{{"research_question":"...","core_method":"...","experiment_design":"...","experiment_results":"...","innovations":"...","limitations":"...","key_conclusions":"..."}}"#;
+输出要求：
+- research_question 字段值使用中文富文本，段落间用 \n\n 分隔，段内换行用 \n
+- 每个分析维度必须结合论文实际内容，严禁空泛或复制摘要，每维度至少 3-5 句实质性分析
+- 字段值以加粗标题（**标题**）组织，标题后紧接换行再写内容
 
-fn analyze_system() -> String {
+返回格式（严格 JSON，不得有多余字符）：
+{"research_question": "**一、核心研究问题**\n（精确描述：本文究竟要解决什么技术/科学问题？给出精确定义而非模糊表述）\n\n**二、问题重要性与动机**\n（为什么这个问题重要？有什么实际应用价值或科学意义？是否有现实中已知的失败场景？）\n\n**三、现有方法的具体不足**\n（引用文中提到的具体方法或工作，分别说明它们失败在哪里：计算代价？泛化性？准确性？理论缺陷？）\n\n**四、本文填补的研究空白**\n（在整个领域坐标系里，这篇文章填补了哪个具体位置？是方法突破、理论建立、还是系统工程上的创新？）\n\n**五、核心假设与适用边界**\n（本文依赖的前提假设是什么？方法在什么场景下成立，在什么场景下可能失效或不适用？）"}"#;
+
+// Agent 2 — 方法深度解析（读方法区段 + A1 上下文）
+const AGENT2_PROMPT: &str = r#"请对以下论文内容进行深度方法分析，仅返回严格合法的 JSON，不输出任何其他内容。
+
+前置分析（研究问题概述，供参考）：
+{problem_summary}
+
+论文文本（方法核心区段）：
+{text}
+
+输出要求：
+- core_method 字段值使用中文富文本，公式名称/变量名保持英文
+- 必须解释"为什么这样做有效"，而不只是描述"做了什么"
+- 每个维度至少 3-5 句实质性内容，以加粗标题组织
+
+返回格式：
+{"core_method": "**一、核心技术思路与直觉**\n（最关键的洞察是什么？为什么这个思路能解决前述问题？背后的数学直觉或工程洞见是什么？）\n\n**二、关键技术细节**\n（算法步骤、网络结构、损失函数、关键公式——尽可能具体，引用公式编号或名称，说明各模块的作用）\n\n**三、与现有方法的本质区别**\n（与最相关基线相比，本文方法的核心差异在哪一步？为什么这个差异是关键的？）\n\n**四、关键设计选择与权衡**\n（作者做了哪些重要设计决策？这些选择带来了什么好处，又付出了什么代价或限制？）\n\n**五、理论保证**\n（是否有收敛性证明、复杂度分析、误差界？若无理论保证，说明方法在何种意义上属于启发式，以及作者如何用实验弥补）"}"#;
+
+// Agent 3 — 实验证据深度分析（读实验区段 + A2 上下文）
+const AGENT3_PROMPT: &str = r#"请对以下论文实验部分进行深度分析，仅返回严格合法的 JSON，不输出任何其他内容。
+
+前置分析（方法概述，供参考）：
+{method_summary}
+
+论文文本（实验/结果区段）：
+{text}
+
+输出要求：
+- 两个字段均使用中文富文本，以加粗标题组织
+- 要有批判性视角，不只是复述数字
+- 每个维度至少 2-4 句实质性分析
+
+返回格式：
+{"experiment_design": "**一、数据集与评估协议**\n（用了哪些数据集？选择理由是什么？评估指标是否合理覆盖了论文声称的贡献？是否存在数据选择偏差风险？）\n\n**二、基线方法选择与公平性**\n（与哪些方法对比？这些基线是否代表当时最强水平？比较是否公平（相同计算预算/数据量/预训练资源）？有无刻意回避某些强基线？）\n\n**三、核心实验设置**\n（关键超参数、训练细节、随机种子处理——对可复现性重要的细节是否充分披露？）\n\n**四、消融实验设计**\n（消融了哪些组件？实验设计是否充分验证了作者声称的每个贡献？是否存在遗漏的重要消融组合？）", "experiment_results": "**一、主要定量结果**\n（核心指标上的具体数字，提升幅度，是否报告了标准差或置信区间？）\n\n**二、消融实验揭示了什么**\n（哪个组件贡献最大？去掉哪个组件性能下降最多？这与作者的贡献声称是否一致，是否有意外发现？）\n\n**三、定性分析与案例**\n（如果有可视化或案例分析，说明其支持了什么结论，或是否暴露了方法的边界）\n\n**四、结果的边界与例外**\n（在哪些情况下方法表现不佳？有没有失败案例被报告？作者是否回避了某些不利结果？）\n\n**五、结果与贡献声称的一致性**\n（实验结果是否充分支持引言中的全部贡献声称？有无夸大或未完全验证的部分？）"}"#;
+
+// Agent 4 — 综合评审（基于 A1+A2+A3 摘要，无原始论文文本）
+const AGENT4_PROMPT: &str = r#"基于对一篇论文多阶段精读的结果，请从资深同行评审员视角做最终综合评价，仅返回严格合法的 JSON，不输出任何其他内容。
+
+研究问题分析：
+{problem_summary}
+
+方法分析：
+{method_summary}
+
+实验分析：
+{experiment_summary}
+
+输出要求：
+- 三个字段均使用中文富文本，以加粗标题组织
+- 区分"作者自我宣称的贡献"与"真正有价值的贡献"，保持独立判断
+- 局限性不只复述作者承认的，还要从评审视角独立识别
+
+返回格式：
+{"innovations": "**真正新颖的技术贡献**\n（逐条列出，区分「真正新颖」「工程改进」「组合式创新」，说明每个贡献在领域中的位置，避免简单照搬摘要）\n\n**核心洞察的价值**\n（这篇文章最核心的一个 insight 是什么？为什么这个 insight 有独立的学术或工程价值？）\n\n**对后续工作的影响预测**\n（这个贡献可能打开哪些新方向？还是会很快被更强的方法取代？影响力可能主要在哪个社区？）", "limitations": "**方法层面的实质性局限**\n（独立分析：假设是否过强？适用场景是否受限？有没有作者未承认但显而易见的瓶颈？）\n\n**实验层面的潜在问题**\n（数据集多样性是否足够？有无可能对特定 benchmark 过拟合？有无重要缺失对比或不公平比较？）\n\n**可复现性与工程可行性**\n（复现难度评估：开源情况、计算资源要求、工程实现复杂度、对超参数的敏感度）", "key_conclusions": "**最值得记住的核心结论**\n（用 1-2 句话说清楚：读完这篇文章，你最应该记住什么？）\n\n**适合哪类读者优先阅读**\n（从事该方向的研究者？工程实践者？想了解该领域的外部研究者？各自应重点关注什么章节？）\n\n**三个最直接的后续研究切入点**\n（如果基于这篇文章做后续工作，最自然的三个延伸方向是什么？各自的技术难点在哪里？）\n\n**综合评分（供参考）**\n技术新颖性 X/5 · 实验充分性 X/5 · 实用性 X/5 · 论文清晰度 X/5\n（一句话说明评分依据，尤其是最低分项的理由）"}"#;
+
+fn agent1_system() -> String {
     specialist_system(
-        "论文精读分析助手",
-        "基于论文内容输出客观、结构化、可追溯的分析结论。",
-        Some("不得编造论文中未出现的信息。"),
+        "论文精读 · 问题背景分析专家",
+        "基于论文开头部分，深度解析研究问题的本质、动机与现有方法的具体不足。",
+        Some("不得编造，不得空泛，每个方面必须结合论文原文给出具体信息。"),
+    )
+}
+
+fn agent2_system() -> String {
+    specialist_system(
+        "论文精读 · 方法深度解析专家",
+        "基于论文方法部分，深度解析技术贡献的核心思路、关键设计决策与技术细节。",
+        Some("必须说清楚为什么这个方法有效，而不只是描述它做了什么。"),
+    )
+}
+
+fn agent3_system() -> String {
+    specialist_system(
+        "论文精读 · 实验证据分析专家",
+        "基于论文实验部分，深度分析实验设计的合理性、结果的可信度与边界。",
+        Some("要有批判性视角，不只是复述结果数字。"),
+    )
+}
+
+fn agent4_system() -> String {
+    specialist_system(
+        "论文精读 · 综合评审专家",
+        "基于对论文的多阶段精读，从同行评审视角综合评价真正的创新点、实质性局限和核心结论。",
+        Some("区分作者自我宣称的贡献与真正有价值的贡献，保持独立判断。"),
     )
 }
 
@@ -534,13 +614,18 @@ pub async fn papers_analyze(
         .map_err(|e| e.to_string())?
         .ok_or("未找到对应论文。")?;
     let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
-    let text_preview = safe_text_preview(&full_text, 12000);
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
     let pid = id.clone();
-    let prompt = ANALYZE_PROMPT.replace("{text}", text_preview);
 
-    // Mark as analyzing immediately so the UI can react
+    // Slice the paper into three overlapping windows for different agents.
+    // Each window covers a different region so together they span the full paper.
+    const CHUNK: usize = 18_000;
+    let text_len = full_text.len();
+    let intro_text    = safe_text_slice(&full_text, 0,                           CHUNK).to_string();
+    let method_text   = safe_text_slice(&full_text, text_len / 4,                CHUNK).to_string();
+    let experiment_text = safe_text_slice(&full_text, text_len.saturating_sub(CHUNK), CHUNK).to_string();
+
     let now_pre = chrono::Utc::now().to_rfc3339();
     let _ = sqlx::query("UPDATE papers SET status = 'analyzing', updated_at = ? WHERE id = ?")
         .bind(&now_pre)
@@ -558,37 +643,102 @@ pub async fn papers_analyze(
         };
         let model = resolve_model(&settings, &["paper_analysis_model", "multi_agent_paper_analyst_model", "multi_agent_worker_model"]);
         let temperature = resolve_temperature(&settings, "paper_analysis_temperature", 0.3);
-        let msgs = vec![LlmMessage::system(analyze_system()), LlmMessage::user(&prompt)];
 
-        match client.chat(&msgs, model.as_deref(), temperature).await {
-            Ok(response) => {
-                let v: serde_json::Value = serde_json::from_str(&extract_json(&response)).unwrap_or_default();
-                let analysis_id = Uuid::new_v4().to_string();
-                let now = chrono::Utc::now().to_rfc3339();
-                let raw = serde_json::to_string(&v).unwrap_or_default();
-                let _ = sqlx::query(
-                    "INSERT INTO paper_analyses (id, paper_id, research_question, core_method, experiment_design, experiment_results, innovations, limitations, key_conclusions, raw_analysis, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                     ON CONFLICT(paper_id) DO UPDATE SET
-                       research_question = excluded.research_question, core_method = excluded.core_method,
-                       experiment_design = excluded.experiment_design, experiment_results = excluded.experiment_results,
-                       innovations = excluded.innovations, limitations = excluded.limitations,
-                       key_conclusions = excluded.key_conclusions, raw_analysis = excluded.raw_analysis",
+        // ── Agent 1: Problem & Background ────────────────────────
+        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "问题背景分析中（1/4）…" }));
+        let prompt1 = AGENT1_PROMPT.replace("{text}", &intro_text);
+        let msgs1 = vec![LlmMessage::system(agent1_system()), LlmMessage::user(&prompt1)];
+        let research_question = match client.chat(&msgs1, model.as_deref(), temperature).await {
+            Ok(resp) => {
+                let v: serde_json::Value = serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
+                v["research_question"].as_str().unwrap_or("").to_string()
+            }
+            Err(_) => String::new(),
+        };
+
+        // ── Agent 2: Method Deep-Dive ─────────────────────────────
+        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "方法深度解析中（2/4）…" }));
+        let prompt2 = AGENT2_PROMPT
+            .replace("{problem_summary}", &research_question)
+            .replace("{text}", &method_text);
+        let msgs2 = vec![LlmMessage::system(agent2_system()), LlmMessage::user(&prompt2)];
+        let core_method = match client.chat(&msgs2, model.as_deref(), temperature).await {
+            Ok(resp) => {
+                let v: serde_json::Value = serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
+                v["core_method"].as_str().unwrap_or("").to_string()
+            }
+            Err(_) => String::new(),
+        };
+
+        // ── Agent 3: Experiment Analysis ──────────────────────────
+        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "实验结果分析中（3/4）…" }));
+        let prompt3 = AGENT3_PROMPT
+            .replace("{method_summary}", &core_method)
+            .replace("{text}", &experiment_text);
+        let msgs3 = vec![LlmMessage::system(agent3_system()), LlmMessage::user(&prompt3)];
+        let (experiment_design, experiment_results) = match client.chat(&msgs3, model.as_deref(), temperature).await {
+            Ok(resp) => {
+                let v: serde_json::Value = serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
+                (
+                    v["experiment_design"].as_str().unwrap_or("").to_string(),
+                    v["experiment_results"].as_str().unwrap_or("").to_string(),
                 )
-                .bind(&analysis_id).bind(&pid)
-                .bind(v["research_question"].as_str()).bind(v["core_method"].as_str())
-                .bind(v["experiment_design"].as_str()).bind(v["experiment_results"].as_str())
-                .bind(v["innovations"].as_str()).bind(v["limitations"].as_str())
-                .bind(v["key_conclusions"].as_str()).bind(&raw).bind(&now)
-                .execute(&db).await;
-                let _ = sqlx::query("UPDATE papers SET status = 'analyzed', updated_at = ? WHERE id = ?")
-                    .bind(&now).bind(&pid).execute(&db).await;
-                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzed" }));
             }
-            Err(e) => {
-                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "error", "error": e.to_string() }));
+            Err(_) => (String::new(), String::new()),
+        };
+
+        // ── Agent 4: Synthesis & Critique ─────────────────────────
+        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "综合评审中（4/4）…" }));
+        let experiment_summary = format!("{}\n\n{}", experiment_design, experiment_results);
+        let prompt4 = AGENT4_PROMPT
+            .replace("{problem_summary}", &research_question)
+            .replace("{method_summary}", &core_method)
+            .replace("{experiment_summary}", &experiment_summary);
+        let msgs4 = vec![LlmMessage::system(agent4_system()), LlmMessage::user(&prompt4)];
+        let (innovations, limitations, key_conclusions) = match client.chat(&msgs4, model.as_deref(), temperature).await {
+            Ok(resp) => {
+                let v: serde_json::Value = serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
+                (
+                    v["innovations"].as_str().unwrap_or("").to_string(),
+                    v["limitations"].as_str().unwrap_or("").to_string(),
+                    v["key_conclusions"].as_str().unwrap_or("").to_string(),
+                )
             }
-        }
+            Err(_) => (String::new(), String::new(), String::new()),
+        };
+
+        // ── Persist ───────────────────────────────────────────────
+        let analysis_id = Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        let raw = serde_json::to_string(&json!({
+            "research_question": research_question,
+            "core_method": core_method,
+            "experiment_design": experiment_design,
+            "experiment_results": experiment_results,
+            "innovations": innovations,
+            "limitations": limitations,
+            "key_conclusions": key_conclusions,
+        })).unwrap_or_default();
+
+        let _ = sqlx::query(
+            "INSERT INTO paper_analyses (id, paper_id, research_question, core_method, experiment_design, experiment_results, innovations, limitations, key_conclusions, raw_analysis, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(paper_id) DO UPDATE SET
+               research_question = excluded.research_question, core_method = excluded.core_method,
+               experiment_design = excluded.experiment_design, experiment_results = excluded.experiment_results,
+               innovations = excluded.innovations, limitations = excluded.limitations,
+               key_conclusions = excluded.key_conclusions, raw_analysis = excluded.raw_analysis",
+        )
+        .bind(&analysis_id).bind(&pid)
+        .bind(&research_question).bind(&core_method)
+        .bind(&experiment_design).bind(&experiment_results)
+        .bind(&innovations).bind(&limitations)
+        .bind(&key_conclusions).bind(&raw).bind(&now)
+        .execute(&db).await;
+
+        let _ = sqlx::query("UPDATE papers SET status = 'analyzed', updated_at = ? WHERE id = ?")
+            .bind(&now).bind(&pid).execute(&db).await;
+        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzed" }));
     });
     Ok(())
 }
@@ -700,6 +850,25 @@ fn safe_text_preview(text: &str, max_bytes: usize) -> &str {
         end -= 1;
     }
     &text[..end]
+}
+
+/// Return a slice of `text` starting at `start_bytes`, up to `max_bytes` long.
+/// Always returns a valid UTF-8 slice by snapping to char boundaries.
+fn safe_text_slice(text: &str, start_bytes: usize, max_bytes: usize) -> &str {
+    let len = text.len();
+    if start_bytes >= len {
+        return safe_text_preview(text, max_bytes);
+    }
+    let mut start = start_bytes;
+    while start > 0 && !text.is_char_boundary(start) {
+        start -= 1;
+    }
+    let raw_end = (start + max_bytes).min(len);
+    let mut end = raw_end;
+    while end > start && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[start..end]
 }
 
 pub fn extract_json_pub(s: &str) -> String {
