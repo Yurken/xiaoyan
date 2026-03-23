@@ -29,9 +29,14 @@ function paperStatusBadge(status: string) {
   if (status === "analyzed") return <Badge variant="success">已分析</Badge>;
   if (status === "reproduced") return <Badge variant="success">已复现</Badge>;
   if (status === "analyzing") return <Badge variant="info">处理中</Badge>;
+  if (status === "parsing") return <Badge variant="info">解析中</Badge>;
   if (status === "failed" || status === "error") return <Badge variant="danger">失败</Badge>;
   if (status === "parsed") return <Badge variant="info">已解析</Badge>;
   return <Badge variant="default">已上传</Badge>;
+}
+
+function canRunPaperTask(status: string) {
+  return !["uploaded", "parsing", "analyzing"].includes(status);
 }
 
 function runStatusBadge(status?: AgentRun["status"]) {
@@ -361,11 +366,11 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
                     {paperStatusBadge(paper.status)}
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => void handleAnalyze(paper.id)} disabled={paper.status === "analyzing"}>
+                    <Button size="sm" variant="secondary" onClick={() => void handleAnalyze(paper.id)} disabled={!canRunPaperTask(paper.status)}>
                       {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                      分析
+                      {paper.status === "parsing" ? "解析中" : paper.status === "uploaded" ? "待解析" : "分析"}
                     </Button>
-                    <Button size="sm" variant="secondary" onClick={() => void handleReproduce(paper.id)} disabled={paper.status === "analyzing"}>
+                    <Button size="sm" variant="secondary" onClick={() => void handleReproduce(paper.id)} disabled={!canRunPaperTask(paper.status)}>
                       <FlaskConical className="h-3.5 w-3.5" />
                       复现
                     </Button>

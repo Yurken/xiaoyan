@@ -146,6 +146,12 @@ CREATE TABLE IF NOT EXISTS paper_figures (
     file_path  TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_papers_created_at ON papers(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_papers_status ON papers(status);
+CREATE INDEX IF NOT EXISTS idx_papers_research_interest_created_at ON papers(research_interest_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_paper_chunks_paper_id_chunk_index ON paper_chunks(paper_id, chunk_index);
+CREATE INDEX IF NOT EXISTS idx_paper_figures_paper_id_fig_index ON paper_figures(paper_id, fig_index);
 "#;
 
 pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
@@ -173,6 +179,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_papers_importance_color_column(&pool).await?;
     ensure_papers_notes_column(&pool).await?;
     ensure_paper_figures_table(&pool).await?;
+    ensure_performance_indexes(&pool).await?;
 
     Ok(pool)
 }
@@ -187,6 +194,19 @@ async fn ensure_paper_figures_table(pool: &SqlitePool) -> Result<()> {
             file_path  TEXT NOT NULL,
             created_at TEXT NOT NULL
         );",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn ensure_performance_indexes(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE INDEX IF NOT EXISTS idx_papers_created_at ON papers(created_at DESC);
+         CREATE INDEX IF NOT EXISTS idx_papers_status ON papers(status);
+         CREATE INDEX IF NOT EXISTS idx_papers_research_interest_created_at ON papers(research_interest_id, created_at DESC);
+         CREATE INDEX IF NOT EXISTS idx_paper_chunks_paper_id_chunk_index ON paper_chunks(paper_id, chunk_index);
+         CREATE INDEX IF NOT EXISTS idx_paper_figures_paper_id_fig_index ON paper_figures(paper_id, fig_index);",
     )
     .execute(pool)
     .await?;

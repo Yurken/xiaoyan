@@ -423,7 +423,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     if (status === "analyzed" || status === "reproduced") return <Badge variant="success">已解读</Badge>;
     if (status === "failed" || status === "error") return <Badge variant="danger">失败</Badge>;
     if (status === "analyzing") return <Badge variant="info">分析中</Badge>;
+    if (status === "parsing") return <Badge variant="info">解析中</Badge>;
     if (status === "parsed") return <Badge variant="info">已解析</Badge>;
+    if (status === "uploaded") return <Badge variant="default">已上传</Badge>;
     return <Badge variant="default">待分析</Badge>;
   };
 
@@ -447,7 +449,19 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         </div>
       );
     }
+    if (status === "parsing" || status === "uploaded") {
+      return <Loader2 className="w-4 h-4 text-apple-blue animate-spin" />;
+    }
     return <FileText className="w-5 h-5 text-ink-tertiary" />;
+  };
+
+  const canStartAnalyze = (status: string) => !["analyzing", "parsing", "uploaded"].includes(status);
+
+  const analyzeButtonLabel = (status: string) => {
+    if (status === "analyzing") return "分析中…";
+    if (status === "parsing") return "解析中…";
+    if (status === "uploaded") return "排队解析…";
+    return "小妍解读";
   };
 
   const SORT_LABELS: Record<SortKey, string> = { created_at: "时间", title: "名称", importance: "重要性" };
@@ -649,10 +663,10 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           <Button
             size="sm"
             onClick={() => void handleAnalyze(paper.id)}
-            disabled={paper.status === "analyzing"}
+            disabled={!canStartAnalyze(paper.status)}
           >
             {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {paper.status === "analyzing" ? "分析中…" : "小妍解读"}
+            {analyzeButtonLabel(paper.status)}
           </Button>
 
           {/* 展开按钮 */}

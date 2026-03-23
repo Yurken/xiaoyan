@@ -399,10 +399,9 @@ pub async fn papers_upload(
         .unwrap_or(file_name)
         .replace(['_', '-'], " ");
 
-    let full_text = pdf_extract::extract_text(&path)
-        .map_err(|e| format!("PDF 解析失败：{e}"))?;
+    let preview_text = extract_pdf_preview_text(&path, 3, 12_000).unwrap_or_default();
     let settings = state.settings.read().await.clone();
-    let inferred_venue = infer_from_text(&full_text).map(|tag| tag.full_name);
+    let inferred_venue = infer_from_text(&preview_text).map(|tag| tag.full_name);
     let auto_rename_enabled = settings
         .get("paper_auto_rename_on_import")
         .map(|value| value.trim().eq_ignore_ascii_case("true"))
@@ -415,8 +414,8 @@ pub async fn papers_upload(
     let mut detected_doi: Option<String> = None;
     let mut copy_stem = original_stem.clone();
 
-    if auto_rename_enabled {
-        if let Some(metadata) = extract_import_rename_metadata(&settings, file_name, &title_guess, &full_text).await {
+    if auto_rename_enabled && !preview_text.is_empty() {
+        if let Some(metadata) = extract_import_rename_metadata(&settings, file_name, &title_guess, &preview_text).await {
             let rename_rule = settings
                 .get("paper_auto_rename_rule")
                 .map(|value| value.as_str())
@@ -442,12 +441,12 @@ pub async fn papers_upload(
     let paper_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
-    let keywords = extract_keywords_from_text(&full_text);
+    let keywords = extract_keywords_from_text(&preview_text);
     let tags_json = serde_json::to_string(&keywords).unwrap_or_else(|_| "[]".to_string());
 
     sqlx::query(
         "INSERT INTO papers (id, title, authors, year, venue, doi, file_path, full_text, research_interest_id, tags, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'parsed', ?, ?)",
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploaded', ?, ?)",
     )
     .bind(&paper_id)
     .bind(&detected_title)
@@ -456,7 +455,7 @@ pub async fn papers_upload(
     .bind(&detected_venue)
     .bind(&detected_doi)
     .bind(&file_path_str)
-    .bind(&full_text)
+    .bind(Option::<String>::None)
     .bind(&research_interest_id)
     .bind(&tags_json)
     .bind(&now)
@@ -465,71 +464,120 @@ pub async fn papers_upload(
     .await
     .map_err(|e| e.to_string())?;
 
-    // Background: figure extraction
-    {
-        let app2 = app.clone();
-        let pid2 = paper_id.clone();
-        let db2 = state.db.clone();
-        let path2 = final_path.clone();
-        let text2 = full_text.clone();
-        tokio::spawn(async move {
-            if let Ok(data_dir) = app2.path().app_data_dir() {
-                let figures_dir = data_dir.join("papers").join(&pid2).join("figures");
-                if std::fs::create_dir_all(&figures_dir).is_ok() {
-                    let captions = extract_figure_captions(&text2);
-                    let figures = extract_pdf_images(&path2, &figures_dir, &captions);
-                    let now = chrono::Utc::now().to_rfc3339();
-                    for (fig_idx, caption, fp) in figures {
-                        let fig_id = Uuid::new_v4().to_string();
-                        let _ = sqlx::query(
-                            "INSERT INTO paper_figures (id, paper_id, fig_index, caption, file_path, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        )
-                        .bind(&fig_id)
-                        .bind(&pid2)
-                        .bind(fig_idx as i64)
-                        .bind(&caption)
-                        .bind(fp.to_string_lossy().as_ref())
-                        .bind(&now)
-                        .execute(&db2)
-                        .await;
-                    }
-                }
-            }
-        });
-    }
-
     // Background: chunk + embed
     let db = state.db.clone();
     let pid = paper_id.clone();
-    let text = full_text.clone();
+    let path_for_parse = final_path.clone();
     let chunk_size: usize = settings.get("chunk_size").and_then(|v| v.parse().ok()).unwrap_or(800);
     let chunk_overlap: usize = settings.get("chunk_overlap").and_then(|v| v.parse().ok()).unwrap_or(150);
 
     tokio::spawn(async move {
+        let parsing_now = chrono::Utc::now().to_rfc3339();
+        let _ = sqlx::query("UPDATE papers SET status = 'parsing', updated_at = ? WHERE id = ?")
+            .bind(&parsing_now)
+            .bind(&pid)
+            .execute(&db)
+            .await;
+        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "parsing" }));
+
+        let text = match tokio::task::spawn_blocking(move || pdf_extract::extract_text(&path_for_parse)).await {
+            Ok(Ok(value)) => value,
+            Ok(Err(error)) => {
+                let now = chrono::Utc::now().to_rfc3339();
+                let _ = sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
+                    .bind(&now)
+                    .bind(&pid)
+                    .execute(&db)
+                    .await;
+                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 解析失败：{error}") }));
+                return;
+            }
+            Err(join_error) => {
+                let now = chrono::Utc::now().to_rfc3339();
+                let _ = sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
+                    .bind(&now)
+                    .bind(&pid)
+                    .execute(&db)
+                    .await;
+                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 后台解析任务失败：{join_error}") }));
+                return;
+            }
+        };
+
+        let refreshed_keywords = extract_keywords_from_text(&text);
+        let refreshed_tags = serde_json::to_string(&refreshed_keywords).unwrap_or_else(|_| "[]".to_string());
+        let parsed_now = chrono::Utc::now().to_rfc3339();
+        let _ = sqlx::query("UPDATE papers SET full_text = ?, tags = ?, updated_at = ? WHERE id = ?")
+            .bind(&text)
+            .bind(&refreshed_tags)
+            .bind(&parsed_now)
+            .bind(&pid)
+            .execute(&db)
+            .await;
+
         let chunks = chunk_text(&text, chunk_size, chunk_overlap);
         let contents: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+        let embedding_batch_size = settings
+            .get("embedding_batch_size")
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(48)
+            .clamp(8, 128);
         let embeddings: Option<Vec<Vec<f32>>> = if let Ok(client) = LlmClient::embed_client_from_settings(&settings) {
-            client.embed(&contents).await.ok()
+            embed_in_batches(&client, &contents, embedding_batch_size).await
         } else {
             None
         };
 
         let chunk_now = chrono::Utc::now().to_rfc3339();
-        for (i, chunk) in chunks.iter().enumerate() {
-            let chunk_id = Uuid::new_v4().to_string();
-            let emb_str: Option<String> = embeddings.as_ref().and_then(|v| v.get(i)).map(|e| serialize_embedding(e));
-            let idx = chunk.chunk_index as i64;
-            let _ = sqlx::query(
-                "INSERT INTO paper_chunks (id, paper_id, chunk_index, content, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            )
-            .bind(&chunk_id)
-            .bind(&pid)
-            .bind(idx)
-            .bind(&chunk.content)
-            .bind(&emb_str)
-            .bind(&chunk_now)
-            .execute(&db)
-            .await;
+        let mut inserted_with_tx = false;
+        if let Ok(mut tx) = db.begin().await {
+            let mut tx_failed = false;
+            for (i, chunk) in chunks.iter().enumerate() {
+                let chunk_id = Uuid::new_v4().to_string();
+                let emb_str: Option<String> = embeddings.as_ref().and_then(|v| v.get(i)).map(|e| serialize_embedding(e));
+                let idx = chunk.chunk_index as i64;
+                if sqlx::query(
+                    "INSERT INTO paper_chunks (id, paper_id, chunk_index, content, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                )
+                .bind(&chunk_id)
+                .bind(&pid)
+                .bind(idx)
+                .bind(&chunk.content)
+                .bind(&emb_str)
+                .bind(&chunk_now)
+                .execute(&mut *tx)
+                .await
+                .is_err()
+                {
+                    tx_failed = true;
+                    break;
+                }
+            }
+
+            if tx_failed {
+                let _ = tx.rollback().await;
+            } else if tx.commit().await.is_ok() {
+                inserted_with_tx = true;
+            }
+        }
+
+        if !inserted_with_tx {
+            for (i, chunk) in chunks.iter().enumerate() {
+                let chunk_id = Uuid::new_v4().to_string();
+                let emb_str: Option<String> = embeddings.as_ref().and_then(|v| v.get(i)).map(|e| serialize_embedding(e));
+                let idx = chunk.chunk_index as i64;
+                let _ = sqlx::query(
+                    "INSERT INTO paper_chunks (id, paper_id, chunk_index, content, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                )
+                .bind(&chunk_id)
+                .bind(&pid)
+                .bind(idx)
+                .bind(&chunk.content)
+                .bind(&emb_str)
+                .bind(&chunk_now)
+                .execute(&db)
+                .await;
+            }
         }
         let _ = sqlx::query("UPDATE papers SET status = 'parsed', updated_at = ? WHERE id = ?")
             .bind(&chunk_now)
@@ -661,6 +709,9 @@ pub async fn papers_analyze(
         .map_err(|e| e.to_string())?
         .ok_or("未找到对应论文。")?;
     let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
+    if full_text.trim().is_empty() {
+        return Err("论文仍在解析中，请稍后再试。".to_string());
+    }
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
     let pid = id.clone();
@@ -870,6 +921,9 @@ pub async fn papers_reproduce(
         .map_err(|e| e.to_string())?
         .ok_or("未找到对应论文。")?;
     let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
+    if full_text.trim().is_empty() {
+        return Err("论文仍在解析中，请稍后再试。".to_string());
+    }
     let text_preview = safe_text_preview(&full_text, 12000);
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
@@ -1184,6 +1238,7 @@ fn extract_pdf_images(
     };
     let mut results = Vec::new();
     let mut idx: u32 = 1;
+    let mut scanned_image_streams: u32 = 0;
     for (_oid, object) in &doc.objects {
         if let Object::Stream(stream) = object {
             let is_image = match stream.dict.get(b"Subtype") {
@@ -1191,6 +1246,8 @@ fn extract_pdf_images(
                 _ => false,
             };
             if !is_image { continue; }
+            scanned_image_streams += 1;
+            if scanned_image_streams > 400 { break; }
             let width: i64 = match stream.dict.get(b"Width") {
                 Ok(Object::Integer(n)) => *n,
                 _ => 0,
@@ -1224,16 +1281,106 @@ fn extract_pdf_images(
 
 #[tauri::command]
 pub async fn papers_list_figures(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     paper_id: String,
 ) -> Result<serde_json::Value, String> {
-    let rows = sqlx::query(
+    let paper_row = sqlx::query("SELECT file_path, full_text FROM papers WHERE id = ?")
+        .bind(&paper_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let (paper_file_path, paper_full_text) = if let Some(row) = paper_row {
+        (
+            row.try_get::<Option<String>, _>("file_path").ok().flatten(),
+            row.get::<Option<String>, _>("full_text").unwrap_or_default(),
+        )
+    } else {
+        (None, String::new())
+    };
+
+    let mut rows = sqlx::query(
         "SELECT id, paper_id, fig_index, caption, file_path FROM paper_figures WHERE paper_id = ? ORDER BY fig_index",
     )
     .bind(&paper_id)
     .fetch_all(&state.db)
     .await
     .map_err(|e| e.to_string())?;
+
+    if rows.is_empty() {
+        if let Some(file_path) = paper_file_path.clone().filter(|value| !value.trim().is_empty()) {
+            let pdf_path = PathBuf::from(file_path);
+            if pdf_path.exists() {
+                let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+                let figures_dir = data_dir.join("papers").join(&paper_id).join("figures");
+                std::fs::create_dir_all(&figures_dir)
+                    .map_err(|e| format!("创建图片目录失败：{e}"))?;
+
+                let captions = extract_figure_captions(&paper_full_text);
+                let figures = extract_pdf_images(&pdf_path, &figures_dir, &captions);
+                let now = chrono::Utc::now().to_rfc3339();
+                for (fig_idx, caption, fp) in figures {
+                    let fig_id = format!("{paper_id}-{fig_idx}");
+                    let _ = sqlx::query(
+                        "INSERT OR IGNORE INTO paper_figures (id, paper_id, fig_index, caption, file_path, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    )
+                    .bind(&fig_id)
+                    .bind(&paper_id)
+                    .bind(fig_idx as i64)
+                    .bind(&caption)
+                    .bind(fp.to_string_lossy().as_ref())
+                    .bind(&now)
+                    .execute(&state.db)
+                    .await;
+                }
+            }
+        }
+
+        rows = sqlx::query(
+            "SELECT id, paper_id, fig_index, caption, file_path FROM paper_figures WHERE paper_id = ? ORDER BY fig_index",
+        )
+        .bind(&paper_id)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+
+    if !rows.is_empty() && !paper_full_text.trim().is_empty() {
+        let captions = extract_figure_captions(&paper_full_text);
+        let mut caption_updated = false;
+        for row in &rows {
+            let current_caption: Option<String> = row.get("caption");
+            if current_caption.as_deref().map(|value| value.trim().is_empty()).unwrap_or(true) {
+                let fig_index: i64 = row.get("fig_index");
+                if let Some(next_caption) = captions.get(&(fig_index as u32)) {
+                    let figure_id: String = row.get("id");
+                    let updated = sqlx::query(
+                        "UPDATE paper_figures
+                         SET caption = ?
+                         WHERE id = ? AND (caption IS NULL OR TRIM(caption) = '')",
+                    )
+                    .bind(next_caption)
+                    .bind(&figure_id)
+                    .execute(&state.db)
+                    .await
+                    .map(|result| result.rows_affected() > 0)
+                    .unwrap_or(false);
+                    caption_updated = caption_updated || updated;
+                }
+            }
+        }
+
+        if caption_updated {
+            rows = sqlx::query(
+                "SELECT id, paper_id, fig_index, caption, file_path FROM paper_figures WHERE paper_id = ? ORDER BY fig_index",
+            )
+            .bind(&paper_id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+    }
 
     let figures: Vec<serde_json::Value> = rows
         .iter()
@@ -1284,6 +1431,47 @@ fn copy_to_managed_papers_dir(app: &tauri::AppHandle, src: &Path, desired_stem: 
     }
     std::fs::copy(src, &candidate).map_err(|e| format!("复制 PDF 到工作目录失败：{e}"))?;
     Ok(candidate)
+}
+
+fn extract_pdf_preview_text(path: &Path, max_pages: usize, max_chars: usize) -> Option<String> {
+    if max_pages == 0 || max_chars == 0 {
+        return None;
+    }
+
+    let doc = lopdf::Document::load(path).ok()?;
+    let mut page_numbers: Vec<u32> = doc.get_pages().keys().copied().collect();
+    if page_numbers.is_empty() {
+        return None;
+    }
+    page_numbers.sort_unstable();
+    page_numbers.truncate(max_pages);
+
+    let text = doc.extract_text(&page_numbers).ok()?;
+    let preview = safe_text_preview(&text, max_chars).trim().to_string();
+    if preview.is_empty() {
+        None
+    } else {
+        Some(preview)
+    }
+}
+
+async fn embed_in_batches(
+    client: &LlmClient,
+    texts: &[String],
+    batch_size: usize,
+) -> Option<Vec<Vec<f32>>> {
+    if texts.is_empty() {
+        return Some(Vec::new());
+    }
+
+    let mut all_embeddings = Vec::with_capacity(texts.len());
+    for batch in texts.chunks(batch_size.max(1)) {
+        match client.embed(batch).await {
+            Ok(mut embeddings) => all_embeddings.append(&mut embeddings),
+            Err(_) => return None,
+        }
+    }
+    Some(all_embeddings)
 }
 
 fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> serde_json::Value {
