@@ -31,7 +31,7 @@ const navItems = [
   { to: "/survey",    icon: BookOpen,        label: "综述" },
   { to: "/papers",    icon: FileText,        label: "论文" },
   { to: "/knowledge", icon: Library,         label: "知识" },
-  { to: "/copilot",   icon: MessageSquare,   label: "Copilot" },
+  { to: "/copilot",   icon: MessageSquare,   label: "对话" },
   { to: "/tools",     icon: Wrench,          label: "工具" },
   { to: "/settings",  icon: SettingsIcon,    label: "设置" },
 ];
@@ -52,18 +52,21 @@ export default function App() {
     <div className="flex h-full bg-nm-bg">
       {/* Sidebar */}
       <aside
-        className="w-[72px] flex-shrink-0 flex flex-col items-center py-5 gap-2"
+        className="w-[80px] flex-shrink-0 flex flex-col items-center py-4 gap-0.5"
         style={{
           background: "linear-gradient(180deg, #F0F4F8 0%, #E8ECF0 100%)",
-          boxShadow: "4px 0 12px rgba(0,0,0,0.06)",
+          boxShadow: "2px 0 0 rgba(200,205,211,0.6), 4px 0 16px rgba(0,0,0,0.04)",
         }}
       >
         {/* Logo */}
-        <NavLink to="/" title="工作台" className="mb-4">
-          <div className="w-11 h-11 flex items-center justify-center">
-            <img src={hitLogo} alt="HIT" className="w-11 h-11 object-contain" />
+        <NavLink to="/" className="mb-3 mt-1">
+          <div className="w-10 h-10 flex items-center justify-center">
+            <img src={hitLogo} alt="HIT" className="w-10 h-10 object-contain" />
           </div>
         </NavLink>
+
+        {/* Divider */}
+        <div className="w-8 h-px mb-2" style={{ background: "linear-gradient(90deg, transparent, #C8CDD3, transparent)" }} />
 
         {/* Nav items */}
         {navItems.map(({ to, icon: Icon, label }) => (
@@ -71,45 +74,27 @@ export default function App() {
             key={to}
             to={to}
             end={to === "/"}
-            title={label}
-            className={({ isActive }) =>
-              isActive
-                ? "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-150"
-                : "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-150"
-            }
+            className="w-full flex justify-center px-2"
           >
             {({ isActive }) => (
               <span
-                className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-150"
+                className={[
+                  "flex flex-col items-center gap-1 w-full py-2 rounded-2xl transition-all duration-150 cursor-pointer select-none",
+                  isActive
+                    ? "text-apple-blue"
+                    : "text-ink-tertiary hover:text-ink-secondary hover:shadow-nm-sm hover:bg-nm-bg",
+                ].join(" ")}
                 style={
                   isActive
                     ? {
                         background: "#E8ECF0",
                         boxShadow: "inset 3px 3px 7px #C8CDD3, inset -3px -3px 7px #FFFFFF",
-                        color: "#007AFF",
                       }
-                    : {
-                        background: "transparent",
-                        color: "#8E8E93",
-                      }
+                    : undefined
                 }
-                onMouseEnter={(e) => {
-                  if (!isActive) {
-                    (e.currentTarget as HTMLSpanElement).style.boxShadow =
-                      "4px 4px 8px #C8CDD3, -4px -4px 8px #FFFFFF";
-                    (e.currentTarget as HTMLSpanElement).style.background = "#E8ECF0";
-                    (e.currentTarget as HTMLSpanElement).style.color = "#3C3C43";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) {
-                    (e.currentTarget as HTMLSpanElement).style.boxShadow = "none";
-                    (e.currentTarget as HTMLSpanElement).style.background = "transparent";
-                    (e.currentTarget as HTMLSpanElement).style.color = "#8E8E93";
-                  }
-                }}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-[18px] h-[18px]" />
+                <span className="text-[10px] font-medium leading-none tracking-tight">{label}</span>
               </span>
             )}
           </NavLink>

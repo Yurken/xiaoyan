@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { AlertCircle, CalendarDays, ChevronDown, ChevronUp, FileSearch, Globe2, Search, Sparkles } from "lucide-react";
+import { AlertCircle, CalendarDays, ChevronDown, ChevronUp, FileSearch, Globe2, Plus, Search, Sparkles, X } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode, ArxivSearchRequest, ArxivSearchResponse, SourceLookupSection } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, WosIndexBadge, VenueTypeBadge } from "../components/CcfBadges";
@@ -9,6 +9,58 @@ import { YANWEB_FRIEND_LINK_SECTIONS, YANWEB_FRIEND_LINK_TOTAL } from "../lib/ya
 
 const insetShadow = "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF";
 const raisedShadow = "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF";
+
+const ARXIV_CATEGORIES: Array<{ domain: string; items: Array<{ id: string; zh: string }> }> = [
+  {
+    domain: "CS · 人工智能 & 机器学习",
+    items: [
+      { id: "cs.AI",  zh: "人工智能" },
+      { id: "cs.LG",  zh: "机器学习" },
+      { id: "cs.CL",  zh: "计算语言学" },
+      { id: "cs.CV",  zh: "计算机视觉" },
+      { id: "cs.NE",  zh: "神经与进化计算" },
+      { id: "cs.IR",  zh: "信息检索" },
+      { id: "cs.MA",  zh: "多智能体系统" },
+    ],
+  },
+  {
+    domain: "CS · 系统 & 工程",
+    items: [
+      { id: "cs.RO",  zh: "机器人学" },
+      { id: "cs.SE",  zh: "软件工程" },
+      { id: "cs.DB",  zh: "数据库" },
+      { id: "cs.DC",  zh: "分布式与并行计算" },
+      { id: "cs.CR",  zh: "密码学与安全" },
+      { id: "cs.NI",  zh: "网络与互联网" },
+      { id: "cs.HC",  zh: "人机交互" },
+      { id: "cs.SY",  zh: "系统与控制" },
+      { id: "cs.PL",  zh: "程序设计语言" },
+      { id: "cs.DS",  zh: "数据结构与算法" },
+    ],
+  },
+  {
+    domain: "Stat & Math",
+    items: [
+      { id: "stat.ML", zh: "统计机器学习" },
+      { id: "stat.AP", zh: "统计应用" },
+      { id: "stat.ME", zh: "统计方法论" },
+      { id: "math.OC", zh: "优化与控制" },
+      { id: "math.NA", zh: "数值分析" },
+      { id: "math.PR", zh: "概率论" },
+    ],
+  },
+  {
+    domain: "EESS & 其他",
+    items: [
+      { id: "eess.IV",         zh: "图像与视频处理" },
+      { id: "eess.SP",         zh: "信号处理" },
+      { id: "eess.AS",         zh: "音频与语音处理" },
+      { id: "eess.SY",         zh: "电气系统与控制" },
+      { id: "q-bio.NC",        zh: "神经元与认知" },
+      { id: "physics.comp-ph", zh: "计算物理" },
+    ],
+  },
+];
 
 const ARXIV_MODE_OPTIONS: Array<{ value: ArxivRankingMode; label: string; description: string }> = [
   {
@@ -109,7 +161,8 @@ export default function Tools() {
   const [arxivTitleTerms, setArxivTitleTerms] = useState("");
   const [arxivAbstractTerms, setArxivAbstractTerms] = useState("");
   const [arxivAuthors, setArxivAuthors] = useState("");
-  const [arxivCategories, setArxivCategories] = useState("");
+  const [arxivCategories, setArxivCategories] = useState<string[]>([]);
+  const [catPickerOpen, setCatPickerOpen] = useState(false);
   const [arxivCommentsTerms, setArxivCommentsTerms] = useState("");
   const [arxivJournalTerms, setArxivJournalTerms] = useState("");
   const [arxivExcludeTerms, setArxivExcludeTerms] = useState("");
@@ -137,7 +190,7 @@ export default function Tools() {
       title_terms: splitStructuredInput(arxivTitleTerms),
       abstract_terms: splitStructuredInput(arxivAbstractTerms),
       authors: splitStructuredInput(arxivAuthors),
-      categories: splitStructuredInput(arxivCategories),
+      categories: arxivCategories,
       comments_terms: splitStructuredInput(arxivCommentsTerms),
       journal_ref_terms: splitStructuredInput(arxivJournalTerms),
       exclude_terms: splitStructuredInput(arxivExcludeTerms),
@@ -271,31 +324,31 @@ export default function Tools() {
           label="研究主题说明（可选，仅用于 LLM 重排理解需求）"
         />
 
-        <div className="grid gap-3 xl:grid-cols-2">
-          <Textarea
+        <div className="grid grid-cols-3 gap-3">
+          <Input
             value={arxivAllTerms}
             onChange={(event) => setArxivAllTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
-            rows={2}
-            placeholder={"例如：agent memory, tool use\n支持逗号、分号或换行分隔"}
+            placeholder="例如：agent memory, tool use"
             label="通用关键词（all）"
           />
-          <Textarea
+          <Input
             value={arxivTitleTerms}
             onChange={(event) => setArxivTitleTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
-            rows={2}
-            placeholder="例如：planning, memory editing"
+            placeholder="例如：planning, memory"
             label="标题关键词（ti）"
           />
-          <Textarea
+          <Input
             value={arxivAbstractTerms}
             onChange={(event) => setArxivAbstractTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
-            rows={2}
-            placeholder="例如：benchmark, long-term memory"
+            placeholder="例如：benchmark, long-term"
             label="摘要关键词（abs）"
           />
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-2">
           <Input
             value={arxivAuthors}
             onChange={(event) => setArxivAuthors(event.target.value)}
@@ -303,13 +356,107 @@ export default function Tools() {
             placeholder="例如：Geoffrey Hinton, Percy Liang"
             label="作者（au）"
           />
-          <Input
-            value={arxivCategories}
-            onChange={(event) => setArxivCategories(event.target.value)}
-            onKeyDown={handleArxivKeyDown}
-            placeholder="例如：cs.AI, cs.LG, cs.CL"
-            label="arXiv 分类（cat）"
-          />
+          {/* arXiv 分类多选 */}
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-ink-tertiary ml-1">arXiv 分类（cat）</label>
+
+            {/* 已选芯片 */}
+            <div className="flex flex-wrap gap-1.5 min-h-[28px] items-center">
+              {arxivCategories.length === 0 ? (
+                <span className="text-xs text-ink-tertiary">未选择分类，检索时不限分类</span>
+              ) : (
+                arxivCategories.map((cat) => (
+                  <span
+                    key={cat}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-medium text-apple-blue"
+                    style={{ background: "rgba(0,122,255,0.1)" }}
+                  >
+                    {cat}
+                    <button
+                      type="button"
+                      onClick={() => setArxivCategories((prev) => prev.filter((c) => c !== cat))}
+                      className="hover:text-apple-red transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))
+              )}
+              {arxivCategories.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setArxivCategories([])}
+                  className="text-[11px] text-ink-tertiary hover:text-apple-red transition-colors ml-1"
+                >
+                  清空
+                </button>
+              )}
+            </div>
+
+            {/* 展开/收起面板按钮 */}
+            <button
+              type="button"
+              onClick={() => setCatPickerOpen((prev) => !prev)}
+              className="flex items-center gap-1 text-xs font-medium text-apple-blue hover:opacity-75 transition-opacity"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {catPickerOpen ? "收起分类面板" : "展开分类面板"}
+            </button>
+
+            {/* 分类面板 */}
+            {catPickerOpen && (
+              <div
+                className="rounded-2xl p-3 space-y-3"
+                style={{ background: "#EEF1F5", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+              >
+                {ARXIV_CATEGORIES.map((group) => (
+                  <div key={group.domain}>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary mb-1.5">
+                      {group.domain}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {group.items.map(({ id, zh }) => {
+                        const selected = arxivCategories.includes(id);
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() =>
+                              setArxivCategories((prev) =>
+                                selected ? prev.filter((c) => c !== id) : [...prev, id]
+                              )
+                            }
+                            className="flex flex-col items-start px-2.5 py-1.5 rounded-xl transition-all duration-100 active:scale-95"
+                            style={
+                              selected
+                                ? {
+                                    background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                                    color: "#FFFFFF",
+                                    boxShadow: "2px 2px 6px rgba(0,62,204,0.3), -1px -1px 4px rgba(58,155,255,0.2)",
+                                  }
+                                : {
+                                    background: "#E8ECF0",
+                                    color: "#3C3C43",
+                                    boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF",
+                                  }
+                            }
+                          >
+                            <span className="text-xs font-semibold leading-tight">{id}</span>
+                            <span
+                              className="text-[10px] leading-tight mt-0.5"
+                              style={{ opacity: selected ? 0.8 : 0.55 }}
+                            >
+                              {zh}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <Input
             value={arxivCommentsTerms}
             onChange={(event) => setArxivCommentsTerms(event.target.value)}
@@ -334,10 +481,7 @@ export default function Tools() {
         </div>
 
         <p className="text-xs leading-5 text-ink-tertiary">
-          分类请填写 arXiv category id，例如 <span className="font-medium text-ink-secondary">cs.AI</span>、
-          <span className="font-medium text-ink-secondary">cs.LG</span>、
-          <span className="font-medium text-ink-secondary">stat.ML</span>。检索时会自动加入最近时间窗口的
-          <span className="font-medium text-ink-secondary">submittedDate</span> 条件。
+          检索时会自动加入最近时间窗口的 <span className="font-medium text-ink-secondary">submittedDate</span> 条件，多个分类之间以 OR 合并。
         </p>
 
         <div className="grid gap-3 md:grid-cols-3">

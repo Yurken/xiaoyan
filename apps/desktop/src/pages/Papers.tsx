@@ -32,7 +32,6 @@ export default function Papers() {
   const [uploading, setUploading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [expandedRepro, setExpandedRepro] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [visiblePaperTags, setVisiblePaperTags] = useState(() => parsePaperTagVisibility(DEFAULT_PAPER_TAG_VISIBILITY_VALUE));
@@ -293,40 +292,30 @@ export default function Papers() {
   };
 
   const renderPaperCard = (paper: Paper) => (
-    <Card key={paper.id} padding="sm" className="space-y-0">
-      <div className="flex items-start gap-4">
+    <Card key={paper.id} padding="sm" className="space-y-0" style={{ background: "rgba(255,255,255,0.82)" }}>
+      <div className="flex items-start gap-3">
+        {/* 状态图标 */}
         <div
-          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl"
-          style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl mt-0.5"
+          style={{ background: "#F0F4F8", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF" }}
         >
           {statusIcon(paper.status)}
         </div>
 
+        {/* 主信息 */}
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <ExternalLink
               href={paper.paper_url}
-              className="truncate text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
+              className="text-sm font-semibold text-ink-primary hover:text-apple-blue hover:underline"
             >
               {paper.title}
             </ExternalLink>
             {statusBadge(paper.status)}
-            {visiblePaperTags.has("ccf_rating") ? <CcfRatingBadge rating={paper.ccf_rating} /> : null}
-            {visiblePaperTags.has("ccf_type") ? <VenueTypeBadge type={paper.ccf_type} /> : null}
-            {visiblePaperTags.has("wos_indexes")
-              ? paper.wos_indexes?.map((index) => (
-                  <WosIndexBadge key={`${paper.id}-${index}`} index={index} />
-                ))
-              : null}
-            {visiblePaperTags.has("jcr_quartile") ? <JcrQuartileBadge quartile={paper.jcr_quartile} /> : null}
-            {visiblePaperTags.has("cas_quartile") ? <CasQuartileBadge quartile={paper.cas_quartile} /> : null}
-            {visiblePaperTags.has("cas_top") ? <CasTopBadge top={paper.cas_top} /> : null}
           </div>
-          <p className="mt-0.5 text-xs text-ink-tertiary">
-            {new Date(paper.created_at).toLocaleDateString("zh-CN")}
-          </p>
+          {/* 来源行 */}
           {(paper.venue || paper.ccf_area || paper.ccf_publisher || paper.journal_publisher) && (
-            <p className="mt-1 text-xs leading-5 text-ink-secondary">
+            <p className="mt-0.5 text-xs leading-5 text-ink-secondary">
               {paper.venue ? (
                 <ExternalLink
                   href={paper.venue_url}
@@ -340,47 +329,72 @@ export default function Papers() {
               {!paper.ccf_publisher && paper.journal_publisher ? ` · ${paper.journal_publisher}` : ""}
             </p>
           )}
+          {/* 评级标签行 */}
+          {(visiblePaperTags.has("ccf_rating") || visiblePaperTags.has("ccf_type") || visiblePaperTags.has("wos_indexes") || visiblePaperTags.has("jcr_quartile") || visiblePaperTags.has("cas_quartile") || visiblePaperTags.has("cas_top")) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              {visiblePaperTags.has("ccf_rating") ? <CcfRatingBadge rating={paper.ccf_rating} /> : null}
+              {visiblePaperTags.has("ccf_type") ? <VenueTypeBadge type={paper.ccf_type} /> : null}
+              {visiblePaperTags.has("wos_indexes")
+                ? paper.wos_indexes?.map((index) => (
+                    <WosIndexBadge key={`${paper.id}-${index}`} index={index} />
+                  ))
+                : null}
+              {visiblePaperTags.has("jcr_quartile") ? <JcrQuartileBadge quartile={paper.jcr_quartile} /> : null}
+              {visiblePaperTags.has("cas_quartile") ? <CasQuartileBadge quartile={paper.cas_quartile} /> : null}
+              {visiblePaperTags.has("cas_top") ? <CasTopBadge top={paper.cas_top} /> : null}
+            </div>
+          )}
+          <p className="mt-1 text-[11px] text-ink-tertiary">
+            {new Date(paper.created_at).toLocaleDateString("zh-CN")}
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button size="sm" variant="secondary" onClick={() => openEditor(paper)}>
+        {/* 操作区：图标工具 + 主要 CTA */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* 次要操作：图标按钮 */}
+          <button
+            type="button"
+            onClick={() => openEditor(paper)}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-tertiary hover:text-ink-primary transition-colors"
+            style={{ background: "#EEF1F5", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
+            title="编辑信息"
+          >
             <Pencil className="h-3.5 w-3.5" />
-            编辑
-          </Button>
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleReproduce(paper.id)}
+            disabled={paper.status === "analyzing"}
+            className={[
+              "w-7 h-7 flex items-center justify-center rounded-lg transition-colors",
+              paper.reproduction_guide ? "text-apple-blue" : "text-ink-tertiary hover:text-ink-primary",
+              paper.status === "analyzing" ? "opacity-40 cursor-not-allowed" : "",
+            ].join(" ")}
+            style={{ background: "#EEF1F5", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
+            title="复现指南"
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+          </button>
+
+          {/* 主要 CTA */}
           <Button
             size="sm"
-            variant="secondary"
             onClick={() => void handleAnalyze(paper.id)}
             disabled={paper.status === "analyzing"}
           >
             {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {paper.status === "analyzing" ? "处理中…" : "AI 分析"}
+            {paper.status === "analyzing" ? "分析中…" : "AI 分析"}
           </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => void handleReproduce(paper.id)}
-            disabled={paper.status === "analyzing"}
-          >
-            <FlaskConical className="h-3.5 w-3.5" />
-            复现指南
-          </Button>
-          {paper.analysis && (
+
+          {/* 展开按钮 */}
+          {(paper.analysis || paper.reproduction_guide) && (
             <button
+              type="button"
               onClick={() => setExpanded(expanded === paper.id ? null : paper.id)}
-              className="rounded-xl p-1.5 text-ink-tertiary transition-colors hover:text-ink-primary"
-              style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-tertiary hover:text-ink-primary transition-colors"
+              style={{ background: "#EEF1F5", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
             >
               {expanded === paper.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-          )}
-          {paper.reproduction_guide && (
-            <button
-              onClick={() => setExpandedRepro(expandedRepro === paper.id ? null : paper.id)}
-              className="rounded-xl p-1.5 text-ink-tertiary transition-colors hover:text-ink-primary"
-              style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
-            >
-              <FlaskConical className={`h-4 w-4 ${expandedRepro === paper.id ? "text-apple-blue" : ""}`} />
             </button>
           )}
         </div>
@@ -447,49 +461,53 @@ export default function Papers() {
         </div>
       )}
 
-      {expanded === paper.id && paper.analysis && (
-        <div className="mt-3 space-y-2 border-t border-nm-dark/10 pt-3">
-          {(
-            [
-              ["研究问题", paper.analysis.research_question],
-              ["核心方法", paper.analysis.core_method],
-              ["实验设计", paper.analysis.experiment_design],
-              ["创新点", paper.analysis.innovations],
-              ["局限性", paper.analysis.limitations],
-              ["关键结论", paper.analysis.key_conclusions],
-            ] as [string, string | undefined][]
-          )
-            .filter(([, value]) => value)
-            .map(([label, value]) => (
-              <div key={label}>
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">{label}</span>
-                <p className="mt-0.5 text-xs leading-5 text-ink-secondary">{value}</p>
-              </div>
-            ))}
-        </div>
-      )}
-
-      {expandedRepro === paper.id && paper.reproduction_guide && (
-        <div className="mt-3 space-y-2 border-t border-nm-dark/10 pt-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-apple-blue">复现指南</p>
-          {(
-            [
-              ["环境配置", paper.reproduction_guide.environment_setup],
-              ["依赖安装", paper.reproduction_guide.dependencies],
-              ["数据准备", paper.reproduction_guide.dataset_preparation],
-              ["训练流程", paper.reproduction_guide.training_process],
-              ["推理流程", paper.reproduction_guide.inference_process],
-              ["评估指标", paper.reproduction_guide.evaluation_metrics],
-              ["风险与注意事项", paper.reproduction_guide.risks_and_notes],
-            ] as [string, string | undefined][]
-          )
-            .filter(([, value]) => value)
-            .map(([label, value]) => (
-              <div key={label}>
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">{label}</span>
-                <p className="mt-0.5 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">{value}</p>
-              </div>
-            ))}
+      {expanded === paper.id && (paper.analysis || paper.reproduction_guide) && (
+        <div className="mt-3 border-t border-nm-dark/10 pt-3 space-y-4">
+          {paper.analysis && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary">论文分析</p>
+              {(
+                [
+                  ["研究问题", paper.analysis.research_question],
+                  ["核心方法", paper.analysis.core_method],
+                  ["实验设计", paper.analysis.experiment_design],
+                  ["创新点", paper.analysis.innovations],
+                  ["局限性", paper.analysis.limitations],
+                  ["关键结论", paper.analysis.key_conclusions],
+                ] as [string, string | undefined][]
+              )
+                .filter(([, value]) => value)
+                .map(([label, value]) => (
+                  <div key={label}>
+                    <span className="text-[11px] font-medium text-ink-tertiary">{label}</span>
+                    <p className="mt-0.5 text-xs leading-5 text-ink-secondary">{value}</p>
+                  </div>
+                ))}
+            </div>
+          )}
+          {paper.reproduction_guide && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-apple-blue">复现指南</p>
+              {(
+                [
+                  ["环境配置", paper.reproduction_guide.environment_setup],
+                  ["依赖安装", paper.reproduction_guide.dependencies],
+                  ["数据准备", paper.reproduction_guide.dataset_preparation],
+                  ["训练流程", paper.reproduction_guide.training_process],
+                  ["推理流程", paper.reproduction_guide.inference_process],
+                  ["评估指标", paper.reproduction_guide.evaluation_metrics],
+                  ["风险与注意事项", paper.reproduction_guide.risks_and_notes],
+                ] as [string, string | undefined][]
+              )
+                .filter(([, value]) => value)
+                .map(([label, value]) => (
+                  <div key={label}>
+                    <span className="text-[11px] font-medium text-ink-tertiary">{label}</span>
+                    <p className="mt-0.5 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">{value}</p>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
     </Card>

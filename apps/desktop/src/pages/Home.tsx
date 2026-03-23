@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, BookOpen, FileText, Library, Loader2, MessageSquare, Microscope, Sparkles, Wrench } from "lucide-react";
+import { ArrowRight, BookOpen, FileText, Library, Loader2, MessageSquare, Sparkles, Wrench } from "lucide-react";
 import { Badge, Button, Card } from "@research-copilot/ui";
 import { Link } from "react-router-dom";
 import { apiClient, formatErrorMessage } from "../lib/client";
@@ -18,30 +18,40 @@ const quickActions = [
     icon: Sparkles,
     title: "规划研究方向",
     description: "从研究主题生成学习路线、经典论文和潜在研究切口。",
+    iconColor: "#AF52DE",
+    iconBg: "rgba(175,82,222,0.1)",
   },
   {
     to: "/survey",
     icon: BookOpen,
     title: "生成文献综述",
     description: "自动规划检索、整理候选论文并输出结构化综述。",
+    iconColor: "#007AFF",
+    iconBg: "rgba(0,122,255,0.1)",
   },
   {
     to: "/papers",
     icon: FileText,
     title: "导入论文",
     description: "上传 PDF 做论文精读、方法拆解和复现指南生成。",
+    iconColor: "#FF9500",
+    iconBg: "rgba(255,149,0,0.1)",
   },
   {
     to: "/copilot",
     icon: MessageSquare,
     title: "进入 Copilot",
     description: "查看 Agent 执行链路，围绕论文或研究问题继续追问。",
+    iconColor: "#34C759",
+    iconBg: "rgba(52,199,89,0.1)",
   },
   {
     to: "/tools",
     icon: Wrench,
     title: "查询 CCF",
     description: "输入期刊或会议名称，快速查看 CCF 评级与类别。",
+    iconColor: "#FF3B30",
+    iconBg: "rgba(255,59,48,0.1)",
   },
 ];
 
@@ -115,14 +125,10 @@ export default function Home() {
       <Card padding="lg" className="overflow-hidden">
         <div className="grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full bg-apple-blue/10 px-3 py-1 text-xs font-semibold text-apple-blue">
-              <Microscope className="h-4 w-4" />
-              科研工作台
-            </div>
             <div>
-              <h1 className="text-3xl font-bold text-ink-primary">智研 Copilot 桌面端</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-7 text-ink-secondary">
-                现在的重点不是再加孤立工具，而是把方向规划、文献综述、论文分析、知识沉淀和多 Agent 问答串成可持续推进的研究闭环。
+              <h1 className="text-3xl font-bold tracking-tight text-ink-primary">智研 Copilot</h1>
+              <p className="mt-2 text-sm leading-6 text-ink-secondary">
+                从研究规划到文献综述、论文精读、知识沉淀——串成持续推进的研究闭环。
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -140,15 +146,16 @@ export default function Home() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             {[
-              { label: "论文库", value: state.papers.length, note: `${analyzedCount} 篇已生成分析` },
-              { label: "研究方向", value: state.interests.length, note: `${plannedCount} 条已形成路线` },
-              { label: "知识笔记", value: state.notes.length, note: "支持语义检索" },
-              { label: "Copilot 会话", value: state.sessions.length, note: "可回溯 Agent 执行过程" },
+              { label: "论文库",       value: state.papers.length,    note: `${analyzedCount} 篇已分析`,  color: "#007AFF" },
+              { label: "研究方向",     value: state.interests.length, note: `${plannedCount} 条已成路线`, color: "#AF52DE" },
+              { label: "知识笔记",     value: state.notes.length,     note: "支持语义检索",              color: "#FF9500" },
+              { label: "Copilot 会话", value: state.sessions.length,  note: "可回溯执行过程",            color: "#34C759" },
             ].map((item) => (
-              <div key={item.label} className="rounded-3xl bg-white/35 p-4" style={{ boxShadow: "inset 2px 2px 5px #D0D6DC, inset -2px -2px 5px #FFFFFF" }}>
-                <p className="text-xs uppercase tracking-wide text-ink-tertiary">{item.label}</p>
-                <p className="mt-2 text-3xl font-bold text-ink-primary">{item.value}</p>
-                <p className="mt-1 text-xs text-ink-tertiary">{item.note}</p>
+              <div key={item.label} className="rounded-3xl p-4 relative overflow-hidden" style={{ background: "rgba(255,255,255,0.5)", boxShadow: "inset 2px 2px 5px #D0D6DC, inset -2px -2px 5px #FFFFFF" }}>
+                <div className="absolute top-0 left-4 right-4 h-[2px] rounded-full" style={{ background: item.color, opacity: 0.55 }} />
+                <p className="text-[11px] font-medium text-ink-tertiary mt-1">{item.label}</p>
+                <p className="mt-1.5 text-3xl font-bold tabular-nums" style={{ color: item.color }}>{item.value}</p>
+                <p className="mt-1 text-[11px] text-ink-tertiary">{item.note}</p>
               </div>
             ))}
           </div>
@@ -165,14 +172,14 @@ export default function Home() {
             {/* <Badge variant="info">高优先级</Badge> */}
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            {quickActions.map(({ to, icon: Icon, title, description }) => (
+            {quickActions.map(({ to, icon: Icon, title, description, iconColor, iconBg }) => (
               <Link key={to} to={to} className="group">
-                <div className="rounded-3xl border border-nm-dark/10 bg-white/40 p-4 transition-transform group-hover:-translate-y-[1px]">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
-                    <Icon className="h-5 w-5" />
+                <div className="rounded-3xl border border-nm-dark/8 bg-white/50 p-4 transition-all duration-150 group-hover:-translate-y-px group-hover:shadow-nm-sm">
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: iconBg, color: iconColor }}>
+                    <Icon className="h-4 w-4" />
                   </div>
                   <p className="text-sm font-semibold text-ink-primary">{title}</p>
-                  <p className="mt-2 text-xs leading-6 text-ink-secondary">{description}</p>
+                  <p className="mt-1.5 text-xs leading-5 text-ink-secondary">{description}</p>
                 </div>
               </Link>
             ))}
@@ -191,9 +198,9 @@ export default function Home() {
           </div>
 
           <div className="grid gap-3">
-            <div className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
+            <div className="rounded-2xl bg-white/50 p-3 overflow-hidden" style={{ borderLeft: "3px solid #AF52DE", border: "1px solid rgba(175,82,222,0.15)", borderLeftWidth: "3px" }}>
               <div className="mb-2 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-apple-blue" />
+                <Sparkles className="h-3.5 w-3.5" style={{ color: "#AF52DE" }} />
                 <p className="text-sm font-semibold text-ink-primary">最近研究方向</p>
               </div>
               {state.interests.length === 0 ? (
@@ -212,9 +219,9 @@ export default function Home() {
               )}
             </div>
 
-            <div className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
+            <div className="rounded-2xl bg-white/50 p-3 overflow-hidden" style={{ border: "1px solid rgba(255,149,0,0.15)", borderLeftWidth: "3px", borderLeftColor: "#FF9500" }}>
               <div className="mb-2 flex items-center gap-2">
-                <Library className="h-4 w-4 text-[#9A6A00]" />
+                <Library className="h-3.5 w-3.5 text-[#FF9500]" />
                 <p className="text-sm font-semibold text-ink-primary">最近知识卡片</p>
               </div>
               {state.notes.length === 0 ? (
@@ -231,9 +238,9 @@ export default function Home() {
               )}
             </div>
 
-            <div className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
+            <div className="rounded-2xl bg-white/50 p-3 overflow-hidden" style={{ border: "1px solid rgba(52,199,89,0.15)", borderLeftWidth: "3px", borderLeftColor: "#34C759" }}>
               <div className="mb-2 flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-[#34C759]" />
+                <MessageSquare className="h-3.5 w-3.5 text-[#34C759]" />
                 <p className="text-sm font-semibold text-ink-primary">最近会话</p>
               </div>
               {state.sessions.length === 0 ? (
