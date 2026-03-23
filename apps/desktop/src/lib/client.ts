@@ -94,6 +94,8 @@ export const papersApi = {
     invoke("papers_analyze", { id }),
   reproduce: (id: string): Promise<void> =>
     invoke("papers_reproduce", { id }),
+  listFigures: (paper_id: string): Promise<Array<{ id: string; paper_id: string; fig_index: number; caption: string | null; data_url: string }>> =>
+    invoke("papers_list_figures", { paperId: paper_id }),
 };
 
 export const ccfApi = {

@@ -5,6 +5,7 @@ use crate::links::paper_reference_url;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{chunk_text, serialize_embedding};
 use crate::state::AppState;
+use base64::{engine::general_purpose, Engine as _};
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::Row;
@@ -306,6 +307,11 @@ pub async fn papers_delete(
             }
         }
     }
+    // Delete per-paper figures directory
+    if let Ok(data_dir) = app.path().app_data_dir() {
+        let figures_dir = data_dir.join("papers").join(&id);
+        let _ = std::fs::remove_dir_all(&figures_dir);
+    }
 
     Ok(())
 }
@@ -454,6 +460,39 @@ pub async fn papers_upload(
     .execute(&state.db)
     .await
     .map_err(|e| e.to_string())?;
+
+    // Background: figure extraction
+    {
+        let app2 = app.clone();
+        let pid2 = paper_id.clone();
+        let db2 = state.db.clone();
+        let path2 = final_path.clone();
+        let text2 = full_text.clone();
+        tokio::spawn(async move {
+            if let Ok(data_dir) = app2.path().app_data_dir() {
+                let figures_dir = data_dir.join("papers").join(&pid2).join("figures");
+                if std::fs::create_dir_all(&figures_dir).is_ok() {
+                    let captions = extract_figure_captions(&text2);
+                    let figures = extract_pdf_images(&path2, &figures_dir, &captions);
+                    let now = chrono::Utc::now().to_rfc3339();
+                    for (fig_idx, caption, fp) in figures {
+                        let fig_id = Uuid::new_v4().to_string();
+                        let _ = sqlx::query(
+                            "INSERT INTO paper_figures (id, paper_id, fig_index, caption, file_path, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        )
+                        .bind(&fig_id)
+                        .bind(&pid2)
+                        .bind(fig_idx as i64)
+                        .bind(&caption)
+                        .bind(fp.to_string_lossy().as_ref())
+                        .bind(&now)
+                        .execute(&db2)
+                        .await;
+                    }
+                }
+            }
+        });
+    }
 
     // Background: chunk + embed
     let db = state.db.clone();
@@ -1055,6 +1094,121 @@ fn sanitize_file_stem(input: &str) -> String {
     } else {
         normalized
     }
+}
+
+// ── Figure extraction ─────────────────────────────────────────────
+
+/// Scan full text for figure/table captions, mapping figure number → caption line.
+fn extract_figure_captions(full_text: &str) -> std::collections::HashMap<u32, String> {
+    let mut captions = std::collections::HashMap::new();
+    for line in full_text.lines() {
+        let t = line.trim();
+        if t.len() < 5 || t.len() > 400 {
+            continue;
+        }
+        let lower = t.to_lowercase();
+        let num_start = if lower.starts_with("figure ") { Some(7) }
+            else if lower.starts_with("fig. ") { Some(5) }
+            else if lower.starts_with("fig ") { Some(4) }
+            else if lower.starts_with("table ") { Some(6) }
+            else { None };
+        if let Some(start) = num_start {
+            if start >= t.len() { continue; }
+            let digits: String = t[start..].chars().take_while(|c| c.is_ascii_digit()).collect();
+            if let Ok(n) = digits.parse::<u32>() {
+                if n > 0 && n <= 100 {
+                    captions.entry(n).or_insert_with(|| t.to_string());
+                }
+            }
+        }
+    }
+    captions
+}
+
+/// Extract JPEG image XObjects from a PDF file into `output_dir`.
+/// Returns a list of (sequential_index, caption, file_path).
+fn extract_pdf_images(
+    pdf_path: &Path,
+    output_dir: &Path,
+    captions: &std::collections::HashMap<u32, String>,
+) -> Vec<(u32, Option<String>, PathBuf)> {
+    use lopdf::Object;
+    let doc = match lopdf::Document::load(pdf_path) {
+        Ok(d) => d,
+        Err(_) => return Vec::new(),
+    };
+    let mut results = Vec::new();
+    let mut idx: u32 = 1;
+    for (_oid, object) in &doc.objects {
+        if let Object::Stream(stream) = object {
+            let is_image = match stream.dict.get(b"Subtype") {
+                Ok(Object::Name(n)) => n.as_slice() == b"Image",
+                _ => false,
+            };
+            if !is_image { continue; }
+            let width: i64 = match stream.dict.get(b"Width") {
+                Ok(Object::Integer(n)) => *n,
+                _ => 0,
+            };
+            let height: i64 = match stream.dict.get(b"Height") {
+                Ok(Object::Integer(n)) => *n,
+                _ => 0,
+            };
+            if width < 80 || height < 80 { continue; }
+            let is_jpeg = match stream.dict.get(b"Filter") {
+                Ok(Object::Name(n)) => n.as_slice() == b"DCTDecode",
+                Ok(Object::Array(arr)) => arr.iter().any(|o| {
+                    matches!(o, Object::Name(n) if n.as_slice() == b"DCTDecode")
+                }),
+                _ => false,
+            };
+            if !is_jpeg { continue; }
+            let file_path = output_dir.join(format!("fig_{idx}.jpg"));
+            if std::fs::write(&file_path, &stream.content).is_ok() {
+                let caption = captions.get(&idx).cloned();
+                results.push((idx, caption, file_path));
+                idx += 1;
+                if idx > 30 { break; }
+            }
+        }
+    }
+    results
+}
+
+// ── List figures ──────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn papers_list_figures(
+    state: State<'_, AppState>,
+    paper_id: String,
+) -> Result<serde_json::Value, String> {
+    let rows = sqlx::query(
+        "SELECT id, paper_id, fig_index, caption, file_path FROM paper_figures WHERE paper_id = ? ORDER BY fig_index",
+    )
+    .bind(&paper_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let figures: Vec<serde_json::Value> = rows
+        .iter()
+        .filter_map(|r| {
+            let file_path: String = r.get("file_path");
+            let data = std::fs::read(&file_path).ok()?;
+            let b64 = general_purpose::STANDARD.encode(&data);
+            let ext = Path::new(&file_path).extension().and_then(|e| e.to_str()).unwrap_or("jpg");
+            let mime = if ext == "png" { "image/png" } else { "image/jpeg" };
+            Some(json!({
+                "id": r.get::<String, _>("id"),
+                "paper_id": r.get::<String, _>("paper_id"),
+                "fig_index": r.get::<i64, _>("fig_index"),
+                "caption": r.get::<Option<String>, _>("caption"),
+                "data_url": format!("data:{mime};base64,{b64}"),
+            }))
+        })
+        .collect();
+
+    Ok(json!(figures))
 }
 
 fn managed_papers_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {

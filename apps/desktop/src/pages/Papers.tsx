@@ -45,6 +45,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [editFolderPickerOpen, setEditFolderPickerOpen] = useState(false);
   const [autoRename, setAutoRename] = useState(true);
+  const [paperFigures, setPaperFigures] = useState<Record<string, Array<{ id: string; fig_index: number; caption: string | null; data_url: string }>>>({});
 
   const handleToggleAutoRename = async () => {
     const next = !autoRename;
@@ -292,6 +293,16 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       void unlisten.then((cleanup) => cleanup());
     };
   }, []);
+
+  // Fetch figures when a paper is expanded for the first time
+  useEffect(() => {
+    if (!expanded || paperFigures[expanded] !== undefined) return;
+    void apiClient.papers.listFigures(expanded).then((figs) => {
+      setPaperFigures((prev) => ({ ...prev, [expanded]: figs }));
+    }).catch(() => {
+      setPaperFigures((prev) => ({ ...prev, [expanded]: [] }));
+    });
+  }, [expanded]);
 
   const handleAnalyze = async (id: string) => {
     try {
@@ -817,6 +828,27 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               </div>
             );
           })()}
+          {(paperFigures[paper.id]?.length ?? 0) > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-ink-tertiary tracking-widest uppercase pl-0.5 mb-2">论文图表</p>
+              <div className="flex flex-wrap gap-3">
+                {paperFigures[paper.id].map((fig) => (
+                  <div key={fig.id} className="flex flex-col items-center gap-1" style={{ maxWidth: 140 }}>
+                    <img
+                      src={fig.data_url}
+                      alt={fig.caption ?? `图 ${fig.fig_index}`}
+                      title={fig.caption ?? undefined}
+                      className="rounded-xl object-contain"
+                      style={{ maxWidth: 140, maxHeight: 110, background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.06)" }}
+                    />
+                    {fig.caption && (
+                      <span className="text-[9px] text-ink-tertiary text-center line-clamp-2 leading-tight">{fig.caption}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {paper.reproduction_guide && (
             <div className="space-y-3">
               <p className="text-[11px] font-semibold text-ink-tertiary tracking-widest uppercase pl-0.5">复现指南</p>

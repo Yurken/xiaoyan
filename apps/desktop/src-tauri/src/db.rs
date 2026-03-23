@@ -137,6 +137,15 @@ CREATE TABLE IF NOT EXISTS agent_artifacts (
     content       TEXT NOT NULL,
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS paper_figures (
+    id         TEXT PRIMARY KEY,
+    paper_id   TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+    fig_index  INTEGER NOT NULL,
+    caption    TEXT,
+    file_path  TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 "#;
 
 pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
@@ -163,8 +172,25 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_reproduction_guides_code_repository_column(&pool).await?;
     ensure_papers_importance_color_column(&pool).await?;
     ensure_papers_notes_column(&pool).await?;
+    ensure_paper_figures_table(&pool).await?;
 
     Ok(pool)
+}
+
+async fn ensure_paper_figures_table(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS paper_figures (
+            id         TEXT PRIMARY KEY,
+            paper_id   TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+            fig_index  INTEGER NOT NULL,
+            caption    TEXT,
+            file_path  TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 async fn ensure_papers_importance_color_column(pool: &SqlitePool) -> Result<()> {

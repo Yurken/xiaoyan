@@ -119,6 +119,31 @@ function parseChangelog(raw: string) {
   return versions;
 }
 
+function normalizeVersionTag(version?: string) {
+  return (version ?? "").trim().replace(/^v/i, "");
+}
+
+function getChangelogReleaseDate(raw: string, version?: string) {
+  const target = normalizeVersionTag(version);
+  if (!target) {
+    return "";
+  }
+
+  for (const line of raw.split("\n")) {
+    const match = line.match(/^## \[(.+?)\](?: - (\d{4}-\d{2}-\d{2}))?/);
+    if (!match) {
+      continue;
+    }
+
+    const changelogVersion = normalizeVersionTag(match[1]);
+    if (changelogVersion === target) {
+      return match[2] ?? "";
+    }
+  }
+
+  return "";
+}
+
 function ChangelogCard() {
   const versions = useMemo(() => parseChangelog(changelogRaw), []);
   const [expanded, setExpanded] = useState<string | null>(versions[0]?.version ?? null);
@@ -1107,6 +1132,10 @@ function formatUpdateDate(value?: string) {
     return "";
   }
 
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
@@ -1300,7 +1329,9 @@ export default function Settings() {
   };
 
   const contentUnavailable = loading || Boolean(loadError);
-  const updatePublishedAt = formatUpdateDate(updateInfo?.pub_date);
+  const displayVersion = updateInfo?.available ? updateInfo.version : appVersion || updateInfo?.current_version;
+  const changelogPublishedAt = getChangelogReleaseDate(changelogRaw, displayVersion);
+  const updatePublishedAt = formatUpdateDate(updateInfo?.pub_date || changelogPublishedAt);
 
   return (
     <div className="h-full flex flex-col">

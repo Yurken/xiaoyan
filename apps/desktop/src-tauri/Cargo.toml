@@ -35,3 +35,9 @@ anyhow = "1"
 # PDF text extraction
 pdf-extract = "0.7"
 roxmltree = "0.20"
+# PDF image extraction
+lopdf = "0.32"
+# Image encoding (PNG/JPEG)
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+# Base64 for figure data API
+base64 = "0.22"
