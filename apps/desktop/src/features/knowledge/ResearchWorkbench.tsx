@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, FileText, FlaskConical, Loader2, MessageSquare, Send, StickyNote, Upload, Wrench } from "lucide-react";
+import { AlertCircle, FileText, FlaskConical, Loader2, MessageSquare, Send, Upload, Wrench } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
-import { Badge, Button, Input, MarkdownRenderer, Textarea } from "@research-copilot/ui";
+import { Badge, Button, Input, MarkdownRenderer } from "@research-copilot/ui";
+import NotesPanel from "./NotesPanel";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
@@ -52,11 +53,8 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
   const [refreshingSession, setRefreshingSession] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [savingNote, setSavingNote] = useState(false);
   const [error, setError] = useState("");
   const [chatInput, setChatInput] = useState("");
-  const [noteTitle, setNoteTitle] = useState("");
-  const [noteContent, setNoteContent] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const activeRequestId = useMemo(() => {
@@ -210,27 +208,6 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
       setPapers((prev) => prev.map((p) => p.id === paperId ? { ...p, status: "failed" } : p));
-    }
-  };
-
-  const handleSaveNote = async () => {
-    if (!noteTitle.trim() || !noteContent.trim()) return;
-    try {
-      setSavingNote(true);
-      setError("");
-      const nextNote = await apiClient.knowledge.createNote({
-        title: noteTitle.trim(),
-        content: noteContent.trim(),
-        research_interest_id: interest.id,
-      });
-      setNotes((prev) => [nextNote, ...prev]);
-      setNoteTitle("");
-      setNoteContent("");
-      onStats?.(papers.length, sessions.length, notes.length + 1);
-    } catch (nextError) {
-      setError(formatErrorMessage(nextError));
-    } finally {
-      setSavingNote(false);
     }
   };
 
@@ -511,49 +488,8 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
 
       {/* ── 笔记 ── */}
       {activeTab === "notes" && (
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
-          <div className="flex items-center gap-2 mb-1">
-            <StickyNote className="h-4 w-4 text-[#9A6A00]" />
-            <p className="text-sm font-semibold text-ink-primary">路线笔记</p>
-            <p className="text-xs text-ink-tertiary">把对话结论、论文观察和待办沉淀到当前研究方向。</p>
-          </div>
-
-          <div className="grid gap-3 rounded-2xl border border-nm-dark/10 bg-white/30 p-4">
-            <Input
-              label="标题"
-              value={noteTitle}
-              onChange={(e) => setNoteTitle(e.target.value)}
-              placeholder="例如：下一阶段优先阅读列表"
-            />
-            <Textarea
-              label="内容"
-              value={noteContent}
-              onChange={(e) => setNoteContent(e.target.value)}
-              placeholder="记录这里的决策、观察、论文差异或下一步动作。"
-              rows={4}
-            />
-            <Button onClick={() => void handleSaveNote()} loading={savingNote}>
-              保存到当前路线
-            </Button>
-          </div>
-
-          {notes.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-nm-dark/10 bg-white/25 px-4 py-8 text-center text-xs text-ink-tertiary">
-              暂无路线笔记。建议及时记录对话结论、论文观察或后续行动项。
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {notes.map((note) => (
-                <div key={note.id} className="rounded-2xl border border-nm-dark/10 bg-white/35 p-3">
-                  <p className="text-sm font-semibold text-ink-primary">{note.title}</p>
-                  <p className="mt-2 line-clamp-4 text-xs leading-6 text-ink-secondary">{note.content}</p>
-                  <p className="mt-3 text-[11px] text-ink-tertiary">
-                    {new Date(note.updated_at || note.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="flex-1 min-h-0 overflow-y-auto p-5">
+          <NotesPanel hideFolders researchInterestId={interest.id} />
         </div>
       )}
     </div>

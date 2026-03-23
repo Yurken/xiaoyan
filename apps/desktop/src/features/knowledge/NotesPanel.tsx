@@ -167,14 +167,13 @@ function NoteDetailModal({
   interests: ResearchInterest[];
   interestMap: Record<string, ResearchInterest>;
   onClose: () => void;
-  onSave: (id: string, draft: { title: string; content: string; tagsRaw: string; research_interest_id: string }) => Promise<void>;
+  onSave: (id: string, draft: { title: string; content: string; research_interest_id: string }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
   const [mode, setMode] = useState<"read" | "edit">("read");
   const [draft, setDraft] = useState({
     title: note.title,
     content: note.content,
-    tagsRaw: (note.tags || []).join(", "),
     research_interest_id: note.research_interest_id || "",
   });
   const [saving, setSaving] = useState(false);
@@ -281,9 +280,10 @@ function NoteDetailModal({
               {/* Title */}
               <h1 className="text-xl font-bold text-ink-primary leading-snug">{note.title}</h1>
 
-              {/* Tags */}
-              {note.tags && note.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+              {/* Tags — AI only */}
+              {note.source_type !== "manual" && note.tags && note.tags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-500">小妍</span>
                   {note.tags.map((tag, i) => (
                     <span key={`${note.id}-${tag}-${i}`} className="rounded-full bg-apple-blue/10 px-2.5 py-1 text-[11px] text-apple-blue">
                       {tag}
@@ -312,22 +312,14 @@ function NoteDetailModal({
                 onChange={(e) => setDraft((prev) => ({ ...prev, title: e.target.value }))}
                 placeholder="知识卡片标题"
               />
-              <div className="grid gap-3 md:grid-cols-2">
-                <Input
-                  label="标签"
-                  value={draft.tagsRaw}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, tagsRaw: e.target.value }))}
-                  placeholder="逗号分隔，如 对齐, RLHF"
+              <div className="space-y-1">
+                <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
+                <InterestPicker
+                  interests={interests}
+                  value={draft.research_interest_id}
+                  onChange={(id) => setDraft((prev) => ({ ...prev, research_interest_id: id }))}
+                  placeholder="未归档"
                 />
-                <div className="space-y-1">
-                  <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
-                  <InterestPicker
-                    interests={interests}
-                    value={draft.research_interest_id}
-                    onChange={(id) => setDraft((prev) => ({ ...prev, research_interest_id: id }))}
-                    placeholder="未归档"
-                  />
-                </div>
               </div>
               <MarkdownEditor
                 label="内容"
@@ -344,7 +336,7 @@ function NoteDetailModal({
   );
 }
 
-export default function NotesPanel({ hideFolders = false }: { hideFolders?: boolean }) {
+export default function NotesPanel({ hideFolders = false, researchInterestId }: { hideFolders?: boolean; researchInterestId?: string }) {
   const [notes, setNotes] = useState<KnowledgeNote[]>([]);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [search, setSearch] = useState("");
@@ -355,8 +347,7 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
-  const [noteTagsRaw, setNoteTagsRaw] = useState("");
-  const [selectedInterestId, setSelectedInterestId] = useState("");
+  const [selectedInterestId, setSelectedInterestId] = useState(researchInterestId ?? "");
   const [saving, setSaving] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [savingEditNoteId, setSavingEditNoteId] = useState<string | null>(null);
@@ -426,12 +417,17 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
       return !(note.research_interest_id in interestMap);
     })
   ), [interestMap, notes]);
+  const displayNotes = useMemo(
+    () => researchInterestId != null
+      ? notes.filter((n) => n.research_interest_id === researchInterestId)
+      : notes,
+    [notes, researchInterestId],
+  );
 
   const resetDraft = () => {
     setNoteTitle("");
     setNoteContent("");
-    setNoteTagsRaw("");
-    setSelectedInterestId("");
+    setSelectedInterestId(researchInterestId ?? "");
   };
 
   const openEditNote = (note: KnowledgeNote) => {
@@ -451,11 +447,9 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
     setSaving(true);
 
     try {
-      const tags = parseNoteTags(noteTagsRaw);
       const note = await apiClient.knowledge.createNote({
         title: noteTitle.trim(),
         content: noteContent.trim(),
-        tags,
         research_interest_id: selectedInterestId || undefined,
       });
 
@@ -507,11 +501,11 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
 
   const handleModalSave = async (
     id: string,
-    draft: { title: string; content: string; tagsRaw: string; research_interest_id: string },
+    draft: { title: string; content: string; research_interest_id: string },
   ) => {
     const title = draft.title.trim();
     const content = draft.content.trim();
-    await apiClient.knowledge.updateNote(id, { title, content, tags: parseNoteTags(draft.tagsRaw) });
+    await apiClient.knowledge.updateNote(id, { title, content });
     const moved = await apiClient.knowledge.moveNote(id, draft.research_interest_id || undefined);
     setNotes((prev) => prev.map((note) => (note.id === id ? moved : note)));
     setViewingNote(moved);
@@ -558,8 +552,9 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
 
       <p className="line-clamp-4 text-xs leading-relaxed text-ink-secondary">{note.content}</p>
 
-      {note.tags && note.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+      {note.source_type !== "manual" && note.tags && note.tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-500">小妍</span>
           {note.tags.map((tag, index) => (
             <span key={`${note.id}-${tag}-${index}`} className="rounded-full bg-apple-blue/10 px-2 py-0.5 text-[11px] text-apple-blue">
               {tag}
@@ -637,13 +632,7 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
               placeholder="如：RLHF 中 reward model 的作用"
             />
 
-            <div className="grid gap-3 lg:grid-cols-2">
-              <Input
-                label="标签"
-                value={noteTagsRaw}
-                onChange={(event) => setNoteTagsRaw(event.target.value)}
-                placeholder="逗号分隔，如 对齐, RLHF, 奖励模型"
-              />
+            {!researchInterestId && (
               <div className="space-y-1">
                 <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究方向</label>
                 <InterestPicker
@@ -653,7 +642,7 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
                   placeholder="不关联"
                 />
               </div>
-            </div>
+            )}
 
             <MarkdownEditor
               label="内容"
@@ -689,7 +678,7 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
         <div className="flex justify-center py-16">
           <Loader2 className="h-7 w-7 animate-spin text-apple-blue" />
         </div>
-      ) : notes.length === 0 && interests.length === 0 ? (
+      ) : (researchInterestId != null ? displayNotes.length === 0 : notes.length === 0 && interests.length === 0) ? (
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
           <div
             className="flex h-14 w-14 items-center justify-center rounded-3xl"
@@ -706,7 +695,7 @@ export default function NotesPanel({ hideFolders = false }: { hideFolders?: bool
         </Card>
       ) : hideFolders ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {notes.map(renderNoteCard)}
+          {displayNotes.map(renderNoteCard)}
         </div>
       ) : (
         <div className="space-y-4">

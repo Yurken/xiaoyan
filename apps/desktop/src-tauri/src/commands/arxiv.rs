@@ -937,7 +937,7 @@ fn build_search_query_with_now(
 fn submitted_date_clause(days: i64, now: DateTime<Utc>) -> String {
     let start = now - Duration::days(days.max(1));
     format!(
-        "submittedDate:[{}+TO+{}]",
+        "submittedDate:[{} TO {}]",
         start.format("%Y%m%d%H%M"),
         now.format("%Y%m%d%H%M")
     )
@@ -1106,7 +1106,7 @@ mod tests {
         let query = build_search_query_with_now(&request, 14, now);
         assert_eq!(
             query,
-            "(all:\"agent memory\" OR all:\"tool use\") AND ti:\"planning\" AND au:\"Alice Smith\" AND (cat:cs.LG OR cat:stat.ML) AND submittedDate:[202603081200+TO+202603221200] ANDNOT all:\"robotics\""
+            "(all:\"agent memory\" OR all:\"tool use\") AND ti:\"planning\" AND au:\"Alice Smith\" AND (cat:cs.LG OR cat:stat.ML) AND submittedDate:[202603081200 TO 202603221200] ANDNOT all:\"robotics\""
         );
     }
 
