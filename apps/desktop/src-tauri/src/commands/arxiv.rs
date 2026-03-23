@@ -61,6 +61,16 @@ struct ArxivRecommendation {
     tags: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct RecentPaperHint {
+    pub title: String,
+    pub authors: String,
+    pub year: Option<i64>,
+    pub venue: String,
+    pub reason: String,
+    pub url: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
 struct ArxivSearchResponse {
@@ -219,6 +229,80 @@ pub async fn arxiv_search(
     };
 
     Ok(json!(response))
+}
+
+pub async fn search_recent_paper_hints(
+    settings: &HashMap<String, String>,
+    topic: &str,
+    keywords: &[String],
+    days: i64,
+    limit: usize,
+) -> anyhow::Result<Vec<RecentPaperHint>> {
+    let request = ArxivSearchRequest {
+        topic: topic.trim().to_string(),
+        all_terms: keywords.iter().take(8).cloned().collect(),
+        title_terms: keywords.iter().take(6).cloned().collect(),
+        abstract_terms: keywords.iter().take(8).cloned().collect(),
+        authors: Vec::new(),
+        categories: Vec::new(),
+        comments_terms: Vec::new(),
+        journal_ref_terms: Vec::new(),
+        exclude_terms: Vec::new(),
+    }
+    .normalize();
+
+    if !request.has_search_terms() {
+        return Ok(Vec::new());
+    }
+
+    let day_window = days.clamp(1, 365);
+    let result_limit = limit.clamp(1, 20);
+    let mode = RankingMode::Relevance;
+    let query = describe_request(&request);
+    let search_expression = build_search_query(&request, day_window);
+    let candidates = fetch_arxiv_candidates(
+        &search_expression,
+        day_window,
+        candidate_pool_size(result_limit),
+    )
+    .await?;
+
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let ranked = match rerank_with_llm(settings, &query, &request, mode, result_limit, &candidates).await
+    {
+        Ok(Some((_, _, papers))) => papers,
+        _ => heuristic_rank_papers(&candidates, &request, mode, result_limit),
+    };
+
+    let mut hints = Vec::new();
+    for paper in ranked.into_iter().take(result_limit) {
+        let year = paper
+            .published_at
+            .get(0..4)
+            .and_then(|value| value.parse::<i64>().ok());
+        let venue = if paper.category.trim().is_empty() {
+            "arXiv preprint".to_string()
+        } else {
+            format!("arXiv ({})", paper.category)
+        };
+        hints.push(RecentPaperHint {
+            title: paper.title,
+            authors: paper.authors,
+            year,
+            venue,
+            reason: paper.reason,
+            url: if paper.abs_url.trim().is_empty() {
+                format!("https://arxiv.org/abs/{}", paper.arxiv_id)
+            } else {
+                paper.abs_url
+            },
+        });
+    }
+
+    Ok(hints)
 }
 
 async fn fetch_arxiv_candidates(

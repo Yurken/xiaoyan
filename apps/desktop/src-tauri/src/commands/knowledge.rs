@@ -1,5 +1,6 @@
 use crate::assistant_prompts::specialist_system;
 use crate::ccf::match_venue;
+use crate::commands::arxiv::search_recent_paper_hints;
 use crate::links::paper_search_url;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{combined_search, serialize_embedding};
@@ -208,6 +209,7 @@ pub async fn knowledge_delete_interest_only(
 
 const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{keywords}）设计系统化学习路线，仅返回合法 JSON：
 {{"overview":"...","prerequisites":[{{"name":"...","description":"...","resources":["..."]}}],"learning_stages":[{{"stage":1,"title":"...","duration":"...","goals":["..."],"topics":["..."],"resources":["..."]}}],"classic_papers":[{{"title":"...","authors":"...","year":2020,"venue":"会议/期刊名称","reason":"..."}}],"research_directions":[{{"direction":"...","description":"...","open_problems":["..."]}}],"tools_and_frameworks":["..."],"communities":["..."]}}"#;
+const MIN_CLASSIC_PAPER_COUNT: usize = 10;
 const PLANNER_ANALYST_PROMPT: &str = r#"请分析研究方向「{topic}」（关键词：{keywords}），仅返回合法 JSON：
 {"scope":"一句话定义范围","focus_topics":["核心主题"],"skill_targets":["需要掌握的能力"],"risk_points":["新手常见误区"]}"#;
 const INTEREST_HINT_PROMPT: &str = r#"请根据下面这个"正在填写中的研究规划表单"，给出实时补全建议。
@@ -262,6 +264,16 @@ fn interest_hint_system() -> String {
         "基于用户已填写的信息，判断下一步最值得补充的字段，并给出可直接点击的候选短语。",
         Some("你的职责不是直接生成完整路线，输出必须稳定、克制、可执行。"),
     )
+}
+
+#[derive(Debug, Clone)]
+struct PlannerPaperHint {
+    title: String,
+    authors: Option<String>,
+    year: Option<i64>,
+    venue: Option<String>,
+    reason: String,
+    url: Option<String>,
 }
 
 #[tauri::command]
@@ -354,10 +366,10 @@ pub async fn knowledge_generate_plan(
             }
         }));
 
-        let mut paper_hints: Vec<String> = Vec::new();
+        let mut paper_hints: Vec<PlannerPaperHint> = Vec::new();
         let mut seen_titles = HashSet::new();
         let associated_rows = sqlx::query(
-            "SELECT title, year FROM papers WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 8",
+            "SELECT title, authors, year, venue, doi, file_path FROM papers WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 10",
         )
         .bind(&rid)
         .fetch_all(&db)
@@ -370,18 +382,30 @@ pub async fn knowledge_generate_plan(
             if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
                 continue;
             }
+            let authors: Option<String> = row.get("authors");
             let year: Option<i64> = row.get("year");
-            paper_hints.push(format!("{}{}", title, year.map(|y| format!(" ({})", y)).unwrap_or_default()));
+            let venue: Option<String> = row.get("venue");
+            let doi: Option<String> = row.get("doi");
+            let file_path: Option<String> = row.get("file_path");
+            let hint_title = title.clone();
+            paper_hints.push(PlannerPaperHint {
+                title,
+                authors,
+                year,
+                venue,
+                reason: "来自本地论文库（已关联当前研究方向）".to_string(),
+                url: file_path.or_else(|| doi.and_then(|_| paper_search_url(Some(&hint_title)))),
+            });
         }
 
         let direct_paper_count = paper_hints.len();
-        if paper_hints.len() < 8 {
+        if paper_hints.len() < MIN_CLASSIC_PAPER_COUNT {
             let mut terms = vec![topic.clone()];
             terms.extend(keywords.clone());
             for term in terms.into_iter().take(6) {
                 let like = format!("%{}%", term);
                 let rows = sqlx::query(
-                    "SELECT title, year FROM papers WHERE (title LIKE ? OR abstract LIKE ?) AND (research_interest_id IS NULL OR research_interest_id != ?) LIMIT 3",
+                    "SELECT title, authors, year, venue, doi, file_path FROM papers WHERE (title LIKE ? OR abstract LIKE ?) AND (research_interest_id IS NULL OR research_interest_id != ?) LIMIT 4",
                 )
                 .bind(&like)
                 .bind(&like)
@@ -395,14 +419,59 @@ pub async fn knowledge_generate_plan(
                     if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
                         continue;
                     }
+                    let authors: Option<String> = row.get("authors");
                     let year: Option<i64> = row.get("year");
-                    paper_hints.push(format!("{}{}", title, year.map(|y| format!(" ({})", y)).unwrap_or_default()));
-                    if paper_hints.len() >= 8 {
+                    let venue: Option<String> = row.get("venue");
+                    let doi: Option<String> = row.get("doi");
+                    let file_path: Option<String> = row.get("file_path");
+                    let hint_title = title.clone();
+                    paper_hints.push(PlannerPaperHint {
+                        title,
+                        authors,
+                        year,
+                        venue,
+                        reason: "来自本地论文库（关键词相关）".to_string(),
+                        url: file_path.or_else(|| doi.and_then(|_| paper_search_url(Some(&hint_title)))),
+                    });
+                    if paper_hints.len() >= MIN_CLASSIC_PAPER_COUNT {
                         break;
                     }
                 }
-                if paper_hints.len() >= 8 {
+                if paper_hints.len() >= MIN_CLASSIC_PAPER_COUNT {
                     break;
+                }
+            }
+        }
+
+        let mut online_paper_count = 0usize;
+        if paper_hints.len() < MIN_CLASSIC_PAPER_COUNT {
+            let needed = MIN_CLASSIC_PAPER_COUNT.saturating_sub(paper_hints.len());
+            if let Ok(recent_papers) = search_recent_paper_hints(
+                &settings,
+                &topic,
+                &keywords,
+                365,
+                needed.saturating_add(4),
+            )
+            .await
+            {
+                for paper in recent_papers {
+                    let normalized_title = paper.title.trim().to_lowercase();
+                    if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
+                        continue;
+                    }
+                    online_paper_count += 1;
+                    paper_hints.push(PlannerPaperHint {
+                        title: paper.title,
+                        authors: Some(paper.authors),
+                        year: paper.year,
+                        venue: Some(paper.venue),
+                        reason: format!("来自 arXiv 最近一年检索：{}", paper.reason),
+                        url: Some(paper.url),
+                    });
+                    if paper_hints.len() >= MIN_CLASSIC_PAPER_COUNT {
+                        break;
+                    }
                 }
             }
         }
@@ -414,9 +483,14 @@ pub async fn knowledge_generate_plan(
                 "role": "从本地论文库筛选参考论文",
                 "status": "done",
                 "summary": if direct_paper_count > 0 {
-                    format!("已找到 {} 篇候选参考论文，其中 {} 篇来自当前主题文件夹", paper_hints.len(), direct_paper_count)
+                    format!(
+                        "已找到 {} 篇候选参考论文，其中 {} 篇来自当前主题文件夹，{} 篇来自联网检索",
+                        paper_hints.len(),
+                        direct_paper_count,
+                        online_paper_count
+                    )
                 } else {
-                    format!("已找到 {} 篇候选参考论文", paper_hints.len())
+                    format!("已找到 {} 篇候选参考论文（联网检索补充 {} 篇）", paper_hints.len(), online_paper_count)
                 }
             }
         }));
@@ -443,14 +517,23 @@ pub async fn knowledge_generate_plan(
             .unwrap_or_default();
         let profile_context = profile_to_prompt_context(&profile);
         let prompt = format!(
-            "{}\n{}\n\n补充约束：\n- 方向范围：{}\n- 优先覆盖主题：{}\n- 本地候选论文：{}",
+            "{}\n{}\n\n补充约束：\n- 方向范围：{}\n- 优先覆盖主题：{}\n- classic_papers 至少输出 {} 篇，优先近三年论文，不足时再补经典论文。\n- 候选论文池：{}",
             PLANNER_PROMPT
                 .replace("{topic}", &topic)
                 .replace("{keywords}", &keywords.join(", ")),
             profile_context,
             analysis_scope,
             analysis_focus,
-            if paper_hints.is_empty() { "无".to_string() } else { paper_hints.join("；") }
+            MIN_CLASSIC_PAPER_COUNT,
+            if paper_hints.is_empty() {
+                "无".to_string()
+            } else {
+                paper_hints
+                    .iter()
+                    .map(format_paper_hint_for_prompt)
+                    .collect::<Vec<_>>()
+                    .join("；")
+            }
         );
         let designer_model = resolve_model(&settings, &["planner_generation_model"]);
         let designer_temperature = resolve_temperature(&settings, "planner_generation_temperature", 0.3);
@@ -458,7 +541,10 @@ pub async fn knowledge_generate_plan(
         match client.chat(&msgs, designer_model.as_deref(), designer_temperature).await {
             Ok(resp) => {
                 let clean = crate::commands::papers::extract_json_pub(&resp);
-                let v: serde_json::Value = enrich_learning_path_json(serde_json::from_str(&clean).unwrap_or_default());
+                let v: serde_json::Value = enrich_learning_path_json(
+                    serde_json::from_str(&clean).unwrap_or_default(),
+                    &paper_hints,
+                );
                 let path_str = serde_json::to_string(&v).unwrap_or_default();
                 let _ = sqlx::query("UPDATE research_interests SET learning_path = ?, status = 'planned' WHERE id = ?")
                     .bind(&path_str).bind(&rid).execute(&db).await;
@@ -703,7 +789,61 @@ fn extract_string_list(value: Option<&serde_json::Value>, limit: usize) -> Vec<S
         .collect()
 }
 
-fn enrich_learning_path_json(mut value: serde_json::Value) -> serde_json::Value {
+fn format_paper_hint_for_prompt(hint: &PlannerPaperHint) -> String {
+    let mut segments = vec![hint.title.clone()];
+
+    if let Some(year) = hint.year {
+        segments.push(format!("{}", year));
+    }
+    if let Some(venue) = hint.venue.as_ref().filter(|item| !item.trim().is_empty()) {
+        segments.push(venue.clone());
+    }
+    if let Some(authors) = hint.authors.as_ref().filter(|item| !item.trim().is_empty()) {
+        segments.push(format!("作者：{}", authors));
+    }
+    segments.push(hint.reason.clone());
+
+    segments.join(" | ")
+}
+
+fn ensure_minimum_classic_papers(value: &mut serde_json::Value, hints: &[PlannerPaperHint], min_count: usize) {
+    let Some(papers) = value
+        .get_mut("classic_papers")
+        .and_then(|item| item.as_array_mut())
+    else {
+        value["classic_papers"] = json!([]);
+        return ensure_minimum_classic_papers(value, hints, min_count);
+    };
+
+    let mut seen_titles: HashSet<String> = papers
+        .iter()
+        .filter_map(|paper| paper.get("title").and_then(|item| item.as_str()))
+        .map(|title| title.trim().to_lowercase())
+        .filter(|title| !title.is_empty())
+        .collect();
+
+    for hint in hints {
+        if papers.len() >= min_count {
+            break;
+        }
+        let key = hint.title.trim().to_lowercase();
+        if key.is_empty() || !seen_titles.insert(key) {
+            continue;
+        }
+        papers.push(json!({
+            "title": hint.title,
+            "authors": hint.authors.clone().unwrap_or_else(|| "".to_string()),
+            "year": hint.year,
+            "venue": hint.venue.clone().unwrap_or_else(|| "arXiv / Local".to_string()),
+            "reason": hint.reason,
+            "paper_url": hint.url.clone().unwrap_or_default(),
+        }));
+    }
+}
+
+fn enrich_learning_path_json(mut value: serde_json::Value, hints: &[PlannerPaperHint]) -> serde_json::Value {
+    ensure_minimum_classic_papers(&mut value, hints, MIN_CLASSIC_PAPER_COUNT);
+
     if let Some(papers) = value.get_mut("classic_papers").and_then(|item| item.as_array_mut()) {
         for paper in papers {
             if let Some(venue) = paper.get("venue").and_then(|item| item.as_str()) {
@@ -717,8 +857,15 @@ fn enrich_learning_path_json(mut value: serde_json::Value) -> serde_json::Value 
                 }
             }
             if let Some(title) = paper.get("title").and_then(|item| item.as_str()) {
-                if let Some(url) = paper_search_url(Some(title)) {
-                    paper["paper_url"] = json!(url);
+                let existing_url = paper
+                    .get("paper_url")
+                    .and_then(|item| item.as_str())
+                    .map(|value| value.trim().to_string())
+                    .unwrap_or_default();
+                if existing_url.is_empty() {
+                    if let Some(url) = paper_search_url(Some(title)) {
+                        paper["paper_url"] = json!(url);
+                    }
                 }
             }
         }
@@ -953,7 +1100,7 @@ fn research_interest_row_to_json(r: &sqlx::sqlite::SqliteRow) -> serde_json::Val
     let learning_path = r
         .get::<Option<String>, _>("learning_path")
         .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
-        .map(enrich_learning_path_json);
+        .map(|value| enrich_learning_path_json(value, &[]));
 
     json!({
         "id": r.get::<String, _>("id"),
