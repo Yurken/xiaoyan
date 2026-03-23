@@ -3609,7 +3609,7 @@ dependencies = [
 
 [[package]]
 name = "research-copilot-desktop"
-version = "0.2.5"
+version = "0.2.8"
 dependencies = [
  "anyhow",
  "chrono",

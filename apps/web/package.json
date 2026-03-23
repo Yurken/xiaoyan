@@ -1,6 +1,6 @@
 {
   "name": "@research-copilot/web",
-  "version": "0.2.5",
+  "version": "0.2.8",
   "private": true,
   "scripts": {
     "dev": "next dev",
