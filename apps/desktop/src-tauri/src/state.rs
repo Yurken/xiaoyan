@@ -9,6 +9,22 @@ pub const SENSITIVE_KEYS: &[&str] = &[
     "openai_compatible_api_key",
     "embedding_api_key",
     "semantic_scholar_api_key",
+    "planner_hint_api_key",
+    "planner_analysis_api_key",
+    "planner_generation_api_key",
+    "survey_planner_api_key",
+    "survey_writer_api_key",
+    "paper_analysis_api_key",
+    "paper_reproduction_api_key",
+    "copilot_simple_api_key",
+    "multi_agent_supervisor_api_key",
+    "multi_agent_worker_api_key",
+    "multi_agent_planner_api_key",
+    "multi_agent_literature_scout_api_key",
+    "multi_agent_survey_api_key",
+    "multi_agent_paper_analyst_api_key",
+    "multi_agent_reproduction_api_key",
+    "multi_agent_synthesis_api_key",
 ];
 
 /// All settings keys exposed through the API, with their default values.
@@ -33,21 +49,69 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("embedding_model".into(), "".into());
     m.insert("semantic_scholar_api_key".into(), "".into());
     m.insert("planner_hint_model".into(), "".into());
+    m.insert("planner_hint_base_url".into(), "".into());
+    m.insert("planner_hint_api_key".into(), "".into());
     m.insert("planner_hint_temperature".into(), "0.2".into());
+    m.insert("planner_hint_top_p".into(), "".into());
+    m.insert("planner_hint_max_tokens".into(), "".into());
+    m.insert("planner_hint_presence_penalty".into(), "".into());
+    m.insert("planner_hint_frequency_penalty".into(), "".into());
     m.insert("planner_analysis_model".into(), "".into());
+    m.insert("planner_analysis_base_url".into(), "".into());
+    m.insert("planner_analysis_api_key".into(), "".into());
     m.insert("planner_analysis_temperature".into(), "0.2".into());
+    m.insert("planner_analysis_top_p".into(), "".into());
+    m.insert("planner_analysis_max_tokens".into(), "".into());
+    m.insert("planner_analysis_presence_penalty".into(), "".into());
+    m.insert("planner_analysis_frequency_penalty".into(), "".into());
     m.insert("planner_generation_model".into(), "".into());
+    m.insert("planner_generation_base_url".into(), "".into());
+    m.insert("planner_generation_api_key".into(), "".into());
     m.insert("planner_generation_temperature".into(), "0.3".into());
+    m.insert("planner_generation_top_p".into(), "".into());
+    m.insert("planner_generation_max_tokens".into(), "".into());
+    m.insert("planner_generation_presence_penalty".into(), "".into());
+    m.insert("planner_generation_frequency_penalty".into(), "".into());
     m.insert("survey_planner_model".into(), "".into());
+    m.insert("survey_planner_base_url".into(), "".into());
+    m.insert("survey_planner_api_key".into(), "".into());
     m.insert("survey_planner_temperature".into(), "0.2".into());
+    m.insert("survey_planner_top_p".into(), "".into());
+    m.insert("survey_planner_max_tokens".into(), "".into());
+    m.insert("survey_planner_presence_penalty".into(), "".into());
+    m.insert("survey_planner_frequency_penalty".into(), "".into());
     m.insert("survey_writer_model".into(), "".into());
+    m.insert("survey_writer_base_url".into(), "".into());
+    m.insert("survey_writer_api_key".into(), "".into());
     m.insert("survey_writer_temperature".into(), "0.3".into());
+    m.insert("survey_writer_top_p".into(), "".into());
+    m.insert("survey_writer_max_tokens".into(), "".into());
+    m.insert("survey_writer_presence_penalty".into(), "".into());
+    m.insert("survey_writer_frequency_penalty".into(), "".into());
     m.insert("paper_analysis_model".into(), "".into());
+    m.insert("paper_analysis_base_url".into(), "".into());
+    m.insert("paper_analysis_api_key".into(), "".into());
     m.insert("paper_analysis_temperature".into(), "0.3".into());
+    m.insert("paper_analysis_top_p".into(), "".into());
+    m.insert("paper_analysis_max_tokens".into(), "".into());
+    m.insert("paper_analysis_presence_penalty".into(), "".into());
+    m.insert("paper_analysis_frequency_penalty".into(), "".into());
     m.insert("paper_reproduction_model".into(), "".into());
+    m.insert("paper_reproduction_base_url".into(), "".into());
+    m.insert("paper_reproduction_api_key".into(), "".into());
     m.insert("paper_reproduction_temperature".into(), "0.25".into());
+    m.insert("paper_reproduction_top_p".into(), "".into());
+    m.insert("paper_reproduction_max_tokens".into(), "".into());
+    m.insert("paper_reproduction_presence_penalty".into(), "".into());
+    m.insert("paper_reproduction_frequency_penalty".into(), "".into());
     m.insert("copilot_simple_model".into(), "".into());
+    m.insert("copilot_simple_base_url".into(), "".into());
+    m.insert("copilot_simple_api_key".into(), "".into());
     m.insert("copilot_simple_temperature".into(), "0.4".into());
+    m.insert("copilot_simple_top_p".into(), "".into());
+    m.insert("copilot_simple_max_tokens".into(), "".into());
+    m.insert("copilot_simple_presence_penalty".into(), "".into());
+    m.insert("copilot_simple_frequency_penalty".into(), "".into());
     m.insert("multi_agent_enabled".into(), "true".into());
     m.insert("multi_agent_routing_mode".into(), "hybrid".into());
     m.insert(
@@ -57,21 +121,69 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("multi_agent_max_steps".into(), "6".into());
     m.insert("multi_agent_search_limit".into(), "8".into());
     m.insert("multi_agent_supervisor_model".into(), "".into());
+    m.insert("multi_agent_supervisor_base_url".into(), "".into());
+    m.insert("multi_agent_supervisor_api_key".into(), "".into());
     m.insert("multi_agent_supervisor_temperature".into(), "0.1".into());
+    m.insert("multi_agent_supervisor_top_p".into(), "".into());
+    m.insert("multi_agent_supervisor_max_tokens".into(), "".into());
+    m.insert("multi_agent_supervisor_presence_penalty".into(), "".into());
+    m.insert("multi_agent_supervisor_frequency_penalty".into(), "".into());
     m.insert("multi_agent_worker_model".into(), "".into());
+    m.insert("multi_agent_worker_base_url".into(), "".into());
+    m.insert("multi_agent_worker_api_key".into(), "".into());
     m.insert("multi_agent_worker_temperature".into(), "0.3".into());
+    m.insert("multi_agent_worker_top_p".into(), "".into());
+    m.insert("multi_agent_worker_max_tokens".into(), "".into());
+    m.insert("multi_agent_worker_presence_penalty".into(), "".into());
+    m.insert("multi_agent_worker_frequency_penalty".into(), "".into());
     m.insert("multi_agent_planner_model".into(), "".into());
+    m.insert("multi_agent_planner_base_url".into(), "".into());
+    m.insert("multi_agent_planner_api_key".into(), "".into());
     m.insert("multi_agent_planner_temperature".into(), "".into());
+    m.insert("multi_agent_planner_top_p".into(), "".into());
+    m.insert("multi_agent_planner_max_tokens".into(), "".into());
+    m.insert("multi_agent_planner_presence_penalty".into(), "".into());
+    m.insert("multi_agent_planner_frequency_penalty".into(), "".into());
     m.insert("multi_agent_literature_scout_model".into(), "".into());
+    m.insert("multi_agent_literature_scout_base_url".into(), "".into());
+    m.insert("multi_agent_literature_scout_api_key".into(), "".into());
     m.insert("multi_agent_literature_scout_temperature".into(), "".into());
+    m.insert("multi_agent_literature_scout_top_p".into(), "".into());
+    m.insert("multi_agent_literature_scout_max_tokens".into(), "".into());
+    m.insert("multi_agent_literature_scout_presence_penalty".into(), "".into());
+    m.insert("multi_agent_literature_scout_frequency_penalty".into(), "".into());
     m.insert("multi_agent_survey_model".into(), "".into());
+    m.insert("multi_agent_survey_base_url".into(), "".into());
+    m.insert("multi_agent_survey_api_key".into(), "".into());
     m.insert("multi_agent_survey_temperature".into(), "".into());
+    m.insert("multi_agent_survey_top_p".into(), "".into());
+    m.insert("multi_agent_survey_max_tokens".into(), "".into());
+    m.insert("multi_agent_survey_presence_penalty".into(), "".into());
+    m.insert("multi_agent_survey_frequency_penalty".into(), "".into());
     m.insert("multi_agent_paper_analyst_model".into(), "".into());
+    m.insert("multi_agent_paper_analyst_base_url".into(), "".into());
+    m.insert("multi_agent_paper_analyst_api_key".into(), "".into());
     m.insert("multi_agent_paper_analyst_temperature".into(), "".into());
+    m.insert("multi_agent_paper_analyst_top_p".into(), "".into());
+    m.insert("multi_agent_paper_analyst_max_tokens".into(), "".into());
+    m.insert("multi_agent_paper_analyst_presence_penalty".into(), "".into());
+    m.insert("multi_agent_paper_analyst_frequency_penalty".into(), "".into());
     m.insert("multi_agent_reproduction_model".into(), "".into());
+    m.insert("multi_agent_reproduction_base_url".into(), "".into());
+    m.insert("multi_agent_reproduction_api_key".into(), "".into());
     m.insert("multi_agent_reproduction_temperature".into(), "".into());
+    m.insert("multi_agent_reproduction_top_p".into(), "".into());
+    m.insert("multi_agent_reproduction_max_tokens".into(), "".into());
+    m.insert("multi_agent_reproduction_presence_penalty".into(), "".into());
+    m.insert("multi_agent_reproduction_frequency_penalty".into(), "".into());
     m.insert("multi_agent_synthesis_model".into(), "".into());
+    m.insert("multi_agent_synthesis_base_url".into(), "".into());
+    m.insert("multi_agent_synthesis_api_key".into(), "".into());
     m.insert("multi_agent_synthesis_temperature".into(), "0.4".into());
+    m.insert("multi_agent_synthesis_top_p".into(), "".into());
+    m.insert("multi_agent_synthesis_max_tokens".into(), "".into());
+    m.insert("multi_agent_synthesis_presence_penalty".into(), "".into());
+    m.insert("multi_agent_synthesis_frequency_penalty".into(), "".into());
     m.insert(
         "paper_visible_venue_tags".into(),
         "ccf_rating,ccf_type,wos_indexes,jcr_quartile,cas_quartile,cas_top".into(),

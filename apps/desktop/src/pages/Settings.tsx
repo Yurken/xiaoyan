@@ -355,13 +355,6 @@ const SETTINGS_SECTIONS: Array<{
     color: "#FF9F0A",
   },
   {
-    key: "roles",
-    label: "模型分工",
-    description: "按常用场景统一配置模型",
-    icon: Sparkles,
-    color: "#0A84FF",
-  },
-  {
     key: "agents",
     label: "多 Agent",
     description: "编排模式、覆盖和高级设置",
@@ -464,6 +457,18 @@ function ModelRoleCard({
   temperatureValue,
   onTemperatureChange,
   temperaturePlaceholder,
+  baseUrlValue,
+  onBaseUrlChange,
+  apiKeyValue,
+  onApiKeyChange,
+  topPValue,
+  onTopPChange,
+  maxTokensValue,
+  onMaxTokensChange,
+  presencePenaltyValue,
+  onPresencePenaltyChange,
+  frequencyPenaltyValue,
+  onFrequencyPenaltyChange,
 }: {
   icon: ComponentType<{ className?: string }>;
   iconColor: string;
@@ -477,6 +482,18 @@ function ModelRoleCard({
   temperatureValue: string;
   onTemperatureChange: (value: string) => void;
   temperaturePlaceholder: string;
+  baseUrlValue?: string;
+  onBaseUrlChange?: (value: string) => void;
+  apiKeyValue?: string;
+  onApiKeyChange?: (value: string) => void;
+  topPValue?: string;
+  onTopPChange?: (value: string) => void;
+  maxTokensValue?: string;
+  onMaxTokensChange?: (value: string) => void;
+  presencePenaltyValue?: string;
+  onPresencePenaltyChange?: (value: string) => void;
+  frequencyPenaltyValue?: string;
+  onFrequencyPenaltyChange?: (value: string) => void;
 }) {
   return (
     <div
@@ -500,18 +517,68 @@ function ModelRoleCard({
       </div>
       <div className="grid gap-3">
         <SettingInput
-          label="模型名称"
+          label="model"
           value={modelValue}
           onChange={onModelChange}
           placeholder={modelPlaceholder}
         />
-        <SettingInput
-          label="温度"
-          value={temperatureValue}
-          onChange={onTemperatureChange}
-          placeholder={temperaturePlaceholder}
-          hint="一般建议 0.1 到 0.4。越低越稳定，越高越发散。"
-        />
+        {onBaseUrlChange !== undefined && (
+          <SettingInput
+            label="base_url"
+            value={baseUrlValue ?? ""}
+            onChange={onBaseUrlChange}
+            placeholder="留空则继承默认"
+          />
+        )}
+        {onApiKeyChange !== undefined && (
+          <SettingInput
+            label="api_key"
+            value={apiKeyValue ?? ""}
+            onChange={onApiKeyChange}
+            placeholder="留空则继承默认"
+            sensitive
+          />
+        )}
+        <div className="grid gap-3 grid-cols-2">
+          <SettingInput
+            label="temperature"
+            value={temperatureValue}
+            onChange={onTemperatureChange}
+            placeholder={temperaturePlaceholder}
+          />
+          {onTopPChange !== undefined && (
+            <SettingInput
+              label="top_p"
+              value={topPValue ?? ""}
+              onChange={onTopPChange}
+              placeholder="留空则不设置"
+            />
+          )}
+          {onMaxTokensChange !== undefined && (
+            <SettingInput
+              label="max_tokens"
+              value={maxTokensValue ?? ""}
+              onChange={onMaxTokensChange}
+              placeholder="留空则不设置"
+            />
+          )}
+          {onPresencePenaltyChange !== undefined && (
+            <SettingInput
+              label="presence_penalty"
+              value={presencePenaltyValue ?? ""}
+              onChange={onPresencePenaltyChange}
+              placeholder="留空则不设置"
+            />
+          )}
+          {onFrequencyPenaltyChange !== undefined && (
+            <SettingInput
+              label="frequency_penalty"
+              value={frequencyPenaltyValue ?? ""}
+              onChange={onFrequencyPenaltyChange}
+              placeholder="留空则不设置"
+            />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -528,6 +595,12 @@ type ModelRoleDefinition = {
   temperatureKey: keyof AppSettings;
   modelPlaceholder: string;
   temperaturePlaceholder: string;
+  baseUrlKey?: keyof AppSettings;
+  apiKeyKey?: keyof AppSettings;
+  topPKey?: keyof AppSettings;
+  maxTokensKey?: keyof AppSettings;
+  presencePenaltyKey?: keyof AppSettings;
+  frequencyPenaltyKey?: keyof AppSettings;
 };
 
 type GroupedModelDefinition = {
@@ -754,42 +827,138 @@ const DEFAULT_SETTINGS: AppSettings = {
   rag_top_k: "5",
   semantic_scholar_api_key: "",
   planner_hint_model: "",
+  planner_hint_base_url: "",
+  planner_hint_api_key: "",
   planner_hint_temperature: "0.2",
+  planner_hint_top_p: "",
+  planner_hint_max_tokens: "",
+  planner_hint_presence_penalty: "",
+  planner_hint_frequency_penalty: "",
   planner_analysis_model: "",
+  planner_analysis_base_url: "",
+  planner_analysis_api_key: "",
   planner_analysis_temperature: "0.2",
+  planner_analysis_top_p: "",
+  planner_analysis_max_tokens: "",
+  planner_analysis_presence_penalty: "",
+  planner_analysis_frequency_penalty: "",
   planner_generation_model: "",
+  planner_generation_base_url: "",
+  planner_generation_api_key: "",
   planner_generation_temperature: "0.3",
+  planner_generation_top_p: "",
+  planner_generation_max_tokens: "",
+  planner_generation_presence_penalty: "",
+  planner_generation_frequency_penalty: "",
   survey_planner_model: "",
+  survey_planner_base_url: "",
+  survey_planner_api_key: "",
   survey_planner_temperature: "0.2",
+  survey_planner_top_p: "",
+  survey_planner_max_tokens: "",
+  survey_planner_presence_penalty: "",
+  survey_planner_frequency_penalty: "",
   survey_writer_model: "",
+  survey_writer_base_url: "",
+  survey_writer_api_key: "",
   survey_writer_temperature: "0.3",
+  survey_writer_top_p: "",
+  survey_writer_max_tokens: "",
+  survey_writer_presence_penalty: "",
+  survey_writer_frequency_penalty: "",
   paper_analysis_model: "",
+  paper_analysis_base_url: "",
+  paper_analysis_api_key: "",
   paper_analysis_temperature: "0.3",
+  paper_analysis_top_p: "",
+  paper_analysis_max_tokens: "",
+  paper_analysis_presence_penalty: "",
+  paper_analysis_frequency_penalty: "",
   paper_reproduction_model: "",
+  paper_reproduction_base_url: "",
+  paper_reproduction_api_key: "",
   paper_reproduction_temperature: "0.25",
+  paper_reproduction_top_p: "",
+  paper_reproduction_max_tokens: "",
+  paper_reproduction_presence_penalty: "",
+  paper_reproduction_frequency_penalty: "",
   copilot_simple_model: "",
+  copilot_simple_base_url: "",
+  copilot_simple_api_key: "",
   copilot_simple_temperature: "0.4",
+  copilot_simple_top_p: "",
+  copilot_simple_max_tokens: "",
+  copilot_simple_presence_penalty: "",
+  copilot_simple_frequency_penalty: "",
   multi_agent_enabled: "true",
   multi_agent_routing_mode: "hybrid",
   multi_agent_enabled_agents: "retrieval,planner,literature_scout,survey,paper_analyst,reproduction,synthesis",
   multi_agent_max_steps: "6",
   multi_agent_search_limit: "8",
   multi_agent_supervisor_model: "",
+  multi_agent_supervisor_base_url: "",
+  multi_agent_supervisor_api_key: "",
   multi_agent_supervisor_temperature: "0.1",
+  multi_agent_supervisor_top_p: "",
+  multi_agent_supervisor_max_tokens: "",
+  multi_agent_supervisor_presence_penalty: "",
+  multi_agent_supervisor_frequency_penalty: "",
   multi_agent_worker_model: "",
+  multi_agent_worker_base_url: "",
+  multi_agent_worker_api_key: "",
   multi_agent_worker_temperature: "0.3",
+  multi_agent_worker_top_p: "",
+  multi_agent_worker_max_tokens: "",
+  multi_agent_worker_presence_penalty: "",
+  multi_agent_worker_frequency_penalty: "",
   multi_agent_planner_model: "",
+  multi_agent_planner_base_url: "",
+  multi_agent_planner_api_key: "",
   multi_agent_planner_temperature: "",
+  multi_agent_planner_top_p: "",
+  multi_agent_planner_max_tokens: "",
+  multi_agent_planner_presence_penalty: "",
+  multi_agent_planner_frequency_penalty: "",
   multi_agent_literature_scout_model: "",
+  multi_agent_literature_scout_base_url: "",
+  multi_agent_literature_scout_api_key: "",
   multi_agent_literature_scout_temperature: "",
+  multi_agent_literature_scout_top_p: "",
+  multi_agent_literature_scout_max_tokens: "",
+  multi_agent_literature_scout_presence_penalty: "",
+  multi_agent_literature_scout_frequency_penalty: "",
   multi_agent_survey_model: "",
+  multi_agent_survey_base_url: "",
+  multi_agent_survey_api_key: "",
   multi_agent_survey_temperature: "",
+  multi_agent_survey_top_p: "",
+  multi_agent_survey_max_tokens: "",
+  multi_agent_survey_presence_penalty: "",
+  multi_agent_survey_frequency_penalty: "",
   multi_agent_paper_analyst_model: "",
+  multi_agent_paper_analyst_base_url: "",
+  multi_agent_paper_analyst_api_key: "",
   multi_agent_paper_analyst_temperature: "",
+  multi_agent_paper_analyst_top_p: "",
+  multi_agent_paper_analyst_max_tokens: "",
+  multi_agent_paper_analyst_presence_penalty: "",
+  multi_agent_paper_analyst_frequency_penalty: "",
   multi_agent_reproduction_model: "",
+  multi_agent_reproduction_base_url: "",
+  multi_agent_reproduction_api_key: "",
   multi_agent_reproduction_temperature: "",
+  multi_agent_reproduction_top_p: "",
+  multi_agent_reproduction_max_tokens: "",
+  multi_agent_reproduction_presence_penalty: "",
+  multi_agent_reproduction_frequency_penalty: "",
   multi_agent_synthesis_model: "",
+  multi_agent_synthesis_base_url: "",
+  multi_agent_synthesis_api_key: "",
   multi_agent_synthesis_temperature: "0.4",
+  multi_agent_synthesis_top_p: "",
+  multi_agent_synthesis_max_tokens: "",
+  multi_agent_synthesis_presence_penalty: "",
+  multi_agent_synthesis_frequency_penalty: "",
   paper_visible_venue_tags: DEFAULT_PAPER_TAG_VISIBILITY_VALUE,
   paper_auto_rename_on_import: "false",
   paper_auto_rename_rule: "{first_author} - {title} ({year})",
@@ -842,7 +1011,13 @@ const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
     icon: Compass,
     iconColor: "#0A84FF",
     modelKey: "planner_hint_model",
+    baseUrlKey: "planner_hint_base_url",
+    apiKeyKey: "planner_hint_api_key",
     temperatureKey: "planner_hint_temperature",
+    topPKey: "planner_hint_top_p",
+    maxTokensKey: "planner_hint_max_tokens",
+    presencePenaltyKey: "planner_hint_presence_penalty",
+    frequencyPenaltyKey: "planner_hint_frequency_penalty",
     modelPlaceholder: "例如：qwen-turbo / gpt-4.1-mini / 可联网快模型",
     temperaturePlaceholder: "0.2",
   },
@@ -854,7 +1029,13 @@ const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
     icon: Brain,
     iconColor: "#AF52DE",
     modelKey: "planner_analysis_model",
+    baseUrlKey: "planner_analysis_base_url",
+    apiKeyKey: "planner_analysis_api_key",
     temperatureKey: "planner_analysis_temperature",
+    topPKey: "planner_analysis_top_p",
+    maxTokensKey: "planner_analysis_max_tokens",
+    presencePenaltyKey: "planner_analysis_presence_penalty",
+    frequencyPenaltyKey: "planner_analysis_frequency_penalty",
     modelPlaceholder: "例如：gpt-5 / claude-sonnet / deepseek-reasoner",
     temperaturePlaceholder: "0.2",
   },
@@ -866,7 +1047,13 @@ const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
     icon: Route,
     iconColor: "#30B0C7",
     modelKey: "planner_generation_model",
+    baseUrlKey: "planner_generation_base_url",
+    apiKeyKey: "planner_generation_api_key",
     temperatureKey: "planner_generation_temperature",
+    topPKey: "planner_generation_top_p",
+    maxTokensKey: "planner_generation_max_tokens",
+    presencePenaltyKey: "planner_generation_presence_penalty",
+    frequencyPenaltyKey: "planner_generation_frequency_penalty",
     modelPlaceholder: "例如：qwen-plus / claude-sonnet / gpt-4.1",
     temperaturePlaceholder: "0.3",
   },
@@ -878,7 +1065,13 @@ const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
     icon: Search,
     iconColor: "#34C759",
     modelKey: "survey_planner_model",
+    baseUrlKey: "survey_planner_base_url",
+    apiKeyKey: "survey_planner_api_key",
     temperatureKey: "survey_planner_temperature",
+    topPKey: "survey_planner_top_p",
+    maxTokensKey: "survey_planner_max_tokens",
+    presencePenaltyKey: "survey_planner_presence_penalty",
+    frequencyPenaltyKey: "survey_planner_frequency_penalty",
     modelPlaceholder: "例如：快模型 / 可联网模型",
     temperaturePlaceholder: "0.2",
   },
@@ -890,7 +1083,13 @@ const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
     icon: MessageSquare,
     iconColor: "#FF9F0A",
     modelKey: "survey_writer_model",
+    baseUrlKey: "survey_writer_base_url",
+    apiKeyKey: "survey_writer_api_key",
     temperatureKey: "survey_writer_temperature",
+    topPKey: "survey_writer_top_p",
+    maxTokensKey: "survey_writer_max_tokens",
+    presencePenaltyKey: "survey_writer_presence_penalty",
+    frequencyPenaltyKey: "survey_writer_frequency_penalty",
     modelPlaceholder: "例如：claude-sonnet / qwen-plus / gpt-4.1",
     temperaturePlaceholder: "0.3",
   },
@@ -902,7 +1101,13 @@ const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
     icon: FileSearch,
     iconColor: "#5856D6",
     modelKey: "paper_analysis_model",
+    baseUrlKey: "paper_analysis_base_url",
+    apiKeyKey: "paper_analysis_api_key",
     temperatureKey: "paper_analysis_temperature",
+    topPKey: "paper_analysis_top_p",
+    maxTokensKey: "paper_analysis_max_tokens",
+    presencePenaltyKey: "paper_analysis_presence_penalty",
+    frequencyPenaltyKey: "paper_analysis_frequency_penalty",
     modelPlaceholder: "例如：旗舰模型 / 长上下文模型",
     temperaturePlaceholder: "0.3",
   },
@@ -914,7 +1119,13 @@ const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
     icon: Hammer,
     iconColor: "#FF3B30",
     modelKey: "paper_reproduction_model",
+    baseUrlKey: "paper_reproduction_base_url",
+    apiKeyKey: "paper_reproduction_api_key",
     temperatureKey: "paper_reproduction_temperature",
+    topPKey: "paper_reproduction_top_p",
+    maxTokensKey: "paper_reproduction_max_tokens",
+    presencePenaltyKey: "paper_reproduction_presence_penalty",
+    frequencyPenaltyKey: "paper_reproduction_frequency_penalty",
     modelPlaceholder: "例如：代码能力强的模型",
     temperaturePlaceholder: "0.25",
   },
@@ -926,7 +1137,13 @@ const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
     icon: Bot,
     iconColor: "#5AC8FA",
     modelKey: "copilot_simple_model",
+    baseUrlKey: "copilot_simple_base_url",
+    apiKeyKey: "copilot_simple_api_key",
     temperatureKey: "copilot_simple_temperature",
+    topPKey: "copilot_simple_top_p",
+    maxTokensKey: "copilot_simple_max_tokens",
+    presencePenaltyKey: "copilot_simple_presence_penalty",
+    frequencyPenaltyKey: "copilot_simple_frequency_penalty",
     modelPlaceholder: "例如：gpt-4o-mini / qwen-turbo / haiku",
     temperaturePlaceholder: "0.4",
   },
@@ -1023,38 +1240,56 @@ const GROUPED_MODEL_CARDS: GroupedModelDefinition[] = [
 
 const ORCHESTRATION_MODEL_CARDS: ModelRoleDefinition[] = [
   {
-    title: "调度模型",
+    title: "supervisor · 调度",
     description: "只负责判断该启用哪些 Agent，不负责生成最终答案。",
     recommendation: "优先反应快、判断稳定的模型。调度阶段通常不需要最贵的旗舰模型。",
     fallback: "仅在模型判断或混合判断模式下生效。留空则沿用主对话模型。",
     icon: Brain,
     iconColor: "#AF52DE",
     modelKey: "multi_agent_supervisor_model",
+    baseUrlKey: "multi_agent_supervisor_base_url",
+    apiKeyKey: "multi_agent_supervisor_api_key",
     temperatureKey: "multi_agent_supervisor_temperature",
+    topPKey: "multi_agent_supervisor_top_p",
+    maxTokensKey: "multi_agent_supervisor_max_tokens",
+    presencePenaltyKey: "multi_agent_supervisor_presence_penalty",
+    frequencyPenaltyKey: "multi_agent_supervisor_frequency_penalty",
     modelPlaceholder: "例如：qwen-plus / gpt-4.1-mini",
     temperaturePlaceholder: "0.1",
   },
   {
-    title: "默认执行模型",
+    title: "worker · 默认执行",
     description: "作为多 Agent 中各专项 Agent 的统一默认模型。",
     recommendation: "优先均衡型模型，兼顾成本、速度和学术理解能力。",
     fallback: "各专项 Agent 可单独覆盖；留空则沿用主对话模型。",
     icon: Bot,
     iconColor: "#34C759",
     modelKey: "multi_agent_worker_model",
+    baseUrlKey: "multi_agent_worker_base_url",
+    apiKeyKey: "multi_agent_worker_api_key",
     temperatureKey: "multi_agent_worker_temperature",
+    topPKey: "multi_agent_worker_top_p",
+    maxTokensKey: "multi_agent_worker_max_tokens",
+    presencePenaltyKey: "multi_agent_worker_presence_penalty",
+    frequencyPenaltyKey: "multi_agent_worker_frequency_penalty",
     modelPlaceholder: "例如：qwen-plus / gpt-4.1 / claude-sonnet",
     temperaturePlaceholder: "0.3",
   },
   {
-    title: "最终整合模型",
+    title: "synthesis · 最终整合",
     description: "负责把多个 Agent 的中间结果整理成最终中文答复。",
     recommendation: "优先长输出质量好、整合能力强的模型，必要时可以用旗舰模型。",
     fallback: "留空则沿用主对话模型。",
     icon: Sparkles,
     iconColor: "#0A84FF",
     modelKey: "multi_agent_synthesis_model",
+    baseUrlKey: "multi_agent_synthesis_base_url",
+    apiKeyKey: "multi_agent_synthesis_api_key",
     temperatureKey: "multi_agent_synthesis_temperature",
+    topPKey: "multi_agent_synthesis_top_p",
+    maxTokensKey: "multi_agent_synthesis_max_tokens",
+    presencePenaltyKey: "multi_agent_synthesis_presence_penalty",
+    frequencyPenaltyKey: "multi_agent_synthesis_frequency_penalty",
     modelPlaceholder: "例如：旗舰模型 / 写作质量强的模型",
     temperaturePlaceholder: "0.4",
   },
@@ -1062,62 +1297,92 @@ const ORCHESTRATION_MODEL_CARDS: ModelRoleDefinition[] = [
 
 const SPECIALIST_OVERRIDE_CARDS: ModelRoleDefinition[] = [
   {
-    title: "研究规划 Agent",
+    title: "planner · 研究规划",
     description: "多 Agent 对话里负责拆解研究路线、学习路径和行动建议。",
     recommendation: "如果你希望规划类问题明显更强，可在这里单独指定更强的模型。",
     fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
     icon: Route,
     iconColor: "#30B0C7",
     modelKey: "multi_agent_planner_model",
+    baseUrlKey: "multi_agent_planner_base_url",
+    apiKeyKey: "multi_agent_planner_api_key",
     temperatureKey: "multi_agent_planner_temperature",
+    topPKey: "multi_agent_planner_top_p",
+    maxTokensKey: "multi_agent_planner_max_tokens",
+    presencePenaltyKey: "multi_agent_planner_presence_penalty",
+    frequencyPenaltyKey: "multi_agent_planner_frequency_penalty",
     modelPlaceholder: "例如：更强推理模型",
     temperaturePlaceholder: "留空继承",
   },
   {
-    title: "文献侦察 Agent",
+    title: "literature_scout · 文献侦察",
     description: "负责快速找论文线索、核心工作和调研入口。",
     recommendation: "若服务商支持联网或搜索，这里最适合分配快且能检索外部信息的模型。",
     fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
     icon: Search,
     iconColor: "#34C759",
     modelKey: "multi_agent_literature_scout_model",
+    baseUrlKey: "multi_agent_literature_scout_base_url",
+    apiKeyKey: "multi_agent_literature_scout_api_key",
     temperatureKey: "multi_agent_literature_scout_temperature",
+    topPKey: "multi_agent_literature_scout_top_p",
+    maxTokensKey: "multi_agent_literature_scout_max_tokens",
+    presencePenaltyKey: "multi_agent_literature_scout_presence_penalty",
+    frequencyPenaltyKey: "multi_agent_literature_scout_frequency_penalty",
     modelPlaceholder: "例如：可联网快模型",
     temperaturePlaceholder: "留空继承",
   },
   {
-    title: "综述 Agent",
+    title: "survey · 综述",
     description: "负责把文献线索整理成结构化领域综述。",
     recommendation: "适合分配长上下文和写作质量更稳定的模型。",
     fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
     icon: MessageSquare,
     iconColor: "#FF9F0A",
     modelKey: "multi_agent_survey_model",
+    baseUrlKey: "multi_agent_survey_base_url",
+    apiKeyKey: "multi_agent_survey_api_key",
     temperatureKey: "multi_agent_survey_temperature",
+    topPKey: "multi_agent_survey_top_p",
+    maxTokensKey: "multi_agent_survey_max_tokens",
+    presencePenaltyKey: "multi_agent_survey_presence_penalty",
+    frequencyPenaltyKey: "multi_agent_survey_frequency_penalty",
     modelPlaceholder: "例如：长上下文写作模型",
     temperaturePlaceholder: "留空继承",
   },
   {
-    title: "论文解析 Agent",
+    title: "paper_analyst · 论文解析",
     description: "负责单篇论文理解、方法拆解和实验解读。",
     recommendation: "适合分配更擅长学术分析和细节理解的模型。",
     fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
     icon: FileSearch,
     iconColor: "#5856D6",
     modelKey: "multi_agent_paper_analyst_model",
+    baseUrlKey: "multi_agent_paper_analyst_base_url",
+    apiKeyKey: "multi_agent_paper_analyst_api_key",
     temperatureKey: "multi_agent_paper_analyst_temperature",
+    topPKey: "multi_agent_paper_analyst_top_p",
+    maxTokensKey: "multi_agent_paper_analyst_max_tokens",
+    presencePenaltyKey: "multi_agent_paper_analyst_presence_penalty",
+    frequencyPenaltyKey: "multi_agent_paper_analyst_frequency_penalty",
     modelPlaceholder: "例如：旗舰模型 / 长上下文模型",
     temperaturePlaceholder: "留空继承",
   },
   {
-    title: "复现 Agent",
+    title: "reproduction · 复现",
     description: "负责实现路径、训练配置、复现实验和工程风险。",
     recommendation: "适合分配代码能力更强、温度更低的模型。",
     fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
     icon: Hammer,
     iconColor: "#FF3B30",
     modelKey: "multi_agent_reproduction_model",
+    baseUrlKey: "multi_agent_reproduction_base_url",
+    apiKeyKey: "multi_agent_reproduction_api_key",
     temperatureKey: "multi_agent_reproduction_temperature",
+    topPKey: "multi_agent_reproduction_top_p",
+    maxTokensKey: "multi_agent_reproduction_max_tokens",
+    presencePenaltyKey: "multi_agent_reproduction_presence_penalty",
+    frequencyPenaltyKey: "multi_agent_reproduction_frequency_penalty",
     modelPlaceholder: "例如：代码能力强的模型",
     temperaturePlaceholder: "留空继承",
   },
@@ -1413,7 +1678,7 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-5 gap-3">
           {SETTINGS_SECTIONS.map((item) => (
             <SettingsSectionTab
               key={item.key}
@@ -1927,6 +2192,18 @@ export default function Settings() {
                         temperatureValue={form[item.temperatureKey]}
                         onTemperatureChange={set(item.temperatureKey)}
                         temperaturePlaceholder={item.temperaturePlaceholder}
+                        baseUrlValue={item.baseUrlKey ? form[item.baseUrlKey] : undefined}
+                        onBaseUrlChange={item.baseUrlKey ? set(item.baseUrlKey) : undefined}
+                        apiKeyValue={item.apiKeyKey ? form[item.apiKeyKey] : undefined}
+                        onApiKeyChange={item.apiKeyKey ? set(item.apiKeyKey) : undefined}
+                        topPValue={item.topPKey ? form[item.topPKey] : undefined}
+                        onTopPChange={item.topPKey ? set(item.topPKey) : undefined}
+                        maxTokensValue={item.maxTokensKey ? form[item.maxTokensKey] : undefined}
+                        onMaxTokensChange={item.maxTokensKey ? set(item.maxTokensKey) : undefined}
+                        presencePenaltyValue={item.presencePenaltyKey ? form[item.presencePenaltyKey] : undefined}
+                        onPresencePenaltyChange={item.presencePenaltyKey ? set(item.presencePenaltyKey) : undefined}
+                        frequencyPenaltyValue={item.frequencyPenaltyKey ? form[item.frequencyPenaltyKey] : undefined}
+                        onFrequencyPenaltyChange={item.frequencyPenaltyKey ? set(item.frequencyPenaltyKey) : undefined}
                       />
                     ))}
                   </div>
@@ -1990,6 +2267,18 @@ export default function Settings() {
                         temperatureValue={form[item.temperatureKey]}
                         onTemperatureChange={set(item.temperatureKey)}
                         temperaturePlaceholder={item.temperaturePlaceholder}
+                        baseUrlValue={item.baseUrlKey ? form[item.baseUrlKey] : undefined}
+                        onBaseUrlChange={item.baseUrlKey ? set(item.baseUrlKey) : undefined}
+                        apiKeyValue={item.apiKeyKey ? form[item.apiKeyKey] : undefined}
+                        onApiKeyChange={item.apiKeyKey ? set(item.apiKeyKey) : undefined}
+                        topPValue={item.topPKey ? form[item.topPKey] : undefined}
+                        onTopPChange={item.topPKey ? set(item.topPKey) : undefined}
+                        maxTokensValue={item.maxTokensKey ? form[item.maxTokensKey] : undefined}
+                        onMaxTokensChange={item.maxTokensKey ? set(item.maxTokensKey) : undefined}
+                        presencePenaltyValue={item.presencePenaltyKey ? form[item.presencePenaltyKey] : undefined}
+                        onPresencePenaltyChange={item.presencePenaltyKey ? set(item.presencePenaltyKey) : undefined}
+                        frequencyPenaltyValue={item.frequencyPenaltyKey ? form[item.frequencyPenaltyKey] : undefined}
+                        onFrequencyPenaltyChange={item.frequencyPenaltyKey ? set(item.frequencyPenaltyKey) : undefined}
                       />
                     ))}
                   </div>
@@ -2015,6 +2304,18 @@ export default function Settings() {
                           temperatureValue={form[item.temperatureKey]}
                           onTemperatureChange={set(item.temperatureKey)}
                           temperaturePlaceholder={item.temperaturePlaceholder}
+                          baseUrlValue={item.baseUrlKey ? form[item.baseUrlKey] : undefined}
+                          onBaseUrlChange={item.baseUrlKey ? set(item.baseUrlKey) : undefined}
+                          apiKeyValue={item.apiKeyKey ? form[item.apiKeyKey] : undefined}
+                          onApiKeyChange={item.apiKeyKey ? set(item.apiKeyKey) : undefined}
+                          topPValue={item.topPKey ? form[item.topPKey] : undefined}
+                          onTopPChange={item.topPKey ? set(item.topPKey) : undefined}
+                          maxTokensValue={item.maxTokensKey ? form[item.maxTokensKey] : undefined}
+                          onMaxTokensChange={item.maxTokensKey ? set(item.maxTokensKey) : undefined}
+                          presencePenaltyValue={item.presencePenaltyKey ? form[item.presencePenaltyKey] : undefined}
+                          onPresencePenaltyChange={item.presencePenaltyKey ? set(item.presencePenaltyKey) : undefined}
+                          frequencyPenaltyValue={item.frequencyPenaltyKey ? form[item.frequencyPenaltyKey] : undefined}
+                          onFrequencyPenaltyChange={item.frequencyPenaltyKey ? set(item.frequencyPenaltyKey) : undefined}
                         />
                       ))}
                     </div>

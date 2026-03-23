@@ -2,9 +2,9 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Badge, Button, Card, Input } from "@research-copilot/ui";
-import { Bot, BrainCircuit, Database, KeyRound, Network, Settings2, Sparkles } from "lucide-react";
+import { Bot, BrainCircuit, ChevronDown, Database, Network, Settings2, Sparkles } from "lucide-react";
 import { apiClient } from "@/lib/client";
-import type { AppSettings, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
+import type { AppSettings, MultiAgentRoutingMode } from "@research-copilot/types";
 
 const MASK = "***";
 
@@ -49,21 +49,45 @@ const DEFAULT_SETTINGS: AppSettings = {
   multi_agent_max_steps: "4",
   multi_agent_search_limit: "8",
   multi_agent_supervisor_model: "",
+  multi_agent_supervisor_base_url: "",
+  multi_agent_supervisor_api_key: "",
   multi_agent_supervisor_temperature: "0.1",
+  multi_agent_supervisor_top_p: "",
   multi_agent_worker_model: "",
+  multi_agent_worker_base_url: "",
+  multi_agent_worker_api_key: "",
   multi_agent_worker_temperature: "0.3",
+  multi_agent_worker_top_p: "",
   multi_agent_planner_model: "",
+  multi_agent_planner_base_url: "",
+  multi_agent_planner_api_key: "",
   multi_agent_planner_temperature: "",
+  multi_agent_planner_top_p: "",
   multi_agent_literature_scout_model: "",
+  multi_agent_literature_scout_base_url: "",
+  multi_agent_literature_scout_api_key: "",
   multi_agent_literature_scout_temperature: "",
+  multi_agent_literature_scout_top_p: "",
   multi_agent_survey_model: "",
+  multi_agent_survey_base_url: "",
+  multi_agent_survey_api_key: "",
   multi_agent_survey_temperature: "",
+  multi_agent_survey_top_p: "",
   multi_agent_paper_analyst_model: "",
+  multi_agent_paper_analyst_base_url: "",
+  multi_agent_paper_analyst_api_key: "",
   multi_agent_paper_analyst_temperature: "",
+  multi_agent_paper_analyst_top_p: "",
   multi_agent_reproduction_model: "",
+  multi_agent_reproduction_base_url: "",
+  multi_agent_reproduction_api_key: "",
   multi_agent_reproduction_temperature: "",
+  multi_agent_reproduction_top_p: "",
   multi_agent_synthesis_model: "",
+  multi_agent_synthesis_base_url: "",
+  multi_agent_synthesis_api_key: "",
   multi_agent_synthesis_temperature: "0.4",
+  multi_agent_synthesis_top_p: "",
   paper_visible_venue_tags: "ccf_rating,ccf_type,wos_indexes,jcr_quartile,cas_quartile,cas_top",
   paper_auto_rename_on_import: "false",
   paper_auto_rename_rule: "{first_author} - {title} ({year})",
@@ -130,6 +154,82 @@ function ModeChip({
       <div className="text-sm font-semibold text-slate-900">{label}</div>
       <div className="mt-1 text-xs leading-5 text-slate-500">{description}</div>
     </button>
+  );
+}
+
+function AgentConfigPanel({
+  title,
+  subtitle,
+  agentKey,
+  form,
+  setField,
+}: {
+  title: string;
+  subtitle: string;
+  agentKey: string;
+  form: AppSettings;
+  setField: (key: keyof AppSettings, value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const k = (suffix: string) => `multi_agent_${agentKey}_${suffix}` as keyof AppSettings;
+  const hasValue = [k("model"), k("base_url"), k("api_key"), k("temperature"), k("top_p")].some(
+    (key) => form[key] !== "",
+  );
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/70">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-semibold text-slate-900">{title}</div>
+          {hasValue && (
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
+          )}
+          <div className="text-xs text-slate-400">{subtitle}</div>
+        </div>
+        <ChevronDown
+          className={`h-4 w-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="grid gap-3 px-4 pb-4 md:grid-cols-2">
+          <Input
+            label="model"
+            value={form[k("model")]}
+            onChange={(e) => setField(k("model"), e.target.value)}
+            placeholder="留空则继承默认"
+          />
+          <Input
+            label="base_url"
+            value={form[k("base_url")]}
+            onChange={(e) => setField(k("base_url"), e.target.value)}
+            placeholder="留空则继承默认"
+          />
+          <Input
+            label="api_key"
+            value={form[k("api_key")]}
+            onChange={(e) => setField(k("api_key"), e.target.value)}
+            placeholder="留空则继承默认"
+            type="password"
+          />
+          <Input
+            label="temperature"
+            value={form[k("temperature")]}
+            onChange={(e) => setField(k("temperature"), e.target.value)}
+            placeholder="留空则继承默认"
+          />
+          <Input
+            label="top_p"
+            value={form[k("top_p")]}
+            onChange={(e) => setField(k("top_p"), e.target.value)}
+            placeholder="留空则不设置"
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -206,7 +306,6 @@ export default function SettingsPage() {
     setField("multi_agent_enabled_agents", next.join(","));
   };
 
-  const provider = form.llm_provider as LlmProvider;
   const routingMode = form.multi_agent_routing_mode as MultiAgentRoutingMode;
 
   const save = async () => {
@@ -257,120 +356,7 @@ export default function SettingsPage() {
         ) : (
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
             <div className="space-y-6">
-              <SettingSection
-                icon={KeyRound}
-                title="模型服务"
-                description="主对话模型与 Embedding 基础配置。"
-              >
-                <div className="mb-5 flex flex-wrap gap-3">
-                  {([
-                    ["openai_compatible", "兼容接口"],
-                    ["openai", "OpenAI"],
-                    ["anthropic", "Anthropic"],
-                  ] as const).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setField("llm_provider", value)}
-                      className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                        provider === value
-                          ? "bg-brand-600 text-white shadow-[0_16px_35px_rgba(0,122,255,0.22)]"
-                          : "bg-white text-slate-600 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.28)]"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  {provider === "openai_compatible" && (
-                    <>
-                      <Input
-                        label="兼容 API Base URL"
-                        value={form.openai_compatible_base_url}
-                        onChange={(event) => setField("openai_compatible_base_url", event.target.value)}
-                        placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
-                      />
-                      <Input
-                        label="兼容 API Key"
-                        value={form.openai_compatible_api_key}
-                        onChange={(event) => setField("openai_compatible_api_key", event.target.value)}
-                        placeholder="sk-..."
-                        type="password"
-                      />
-                      <Input
-                        label="兼容对话模型"
-                        value={form.openai_compatible_chat_model}
-                        onChange={(event) => setField("openai_compatible_chat_model", event.target.value)}
-                        placeholder="deepseek-chat"
-                      />
-                      <Input
-                        label="兼容 Embedding 模型"
-                        value={form.openai_compatible_embedding_model}
-                        onChange={(event) => setField("openai_compatible_embedding_model", event.target.value)}
-                        placeholder="BAAI/bge-m3"
-                      />
-                    </>
-                  )}
-
-                  {provider === "openai" && (
-                    <>
-                      <Input
-                        label="OpenAI Base URL"
-                        value={form.openai_base_url}
-                        onChange={(event) => setField("openai_base_url", event.target.value)}
-                        placeholder="https://api.openai.com/v1"
-                      />
-                      <Input
-                        label="OpenAI API Key"
-                        value={form.openai_api_key}
-                        onChange={(event) => setField("openai_api_key", event.target.value)}
-                        placeholder="sk-..."
-                        type="password"
-                      />
-                      <Input
-                        label="OpenAI 对话模型"
-                        value={form.openai_chat_model}
-                        onChange={(event) => setField("openai_chat_model", event.target.value)}
-                        placeholder="gpt-4o-mini"
-                      />
-                      <Input
-                        label="OpenAI Embedding 模型"
-                        value={form.openai_embedding_model}
-                        onChange={(event) => setField("openai_embedding_model", event.target.value)}
-                        placeholder="text-embedding-3-small"
-                      />
-                    </>
-                  )}
-
-                  {provider === "anthropic" && (
-                    <>
-                      <Input
-                        label="Anthropic API Key"
-                        value={form.anthropic_api_key}
-                        onChange={(event) => setField("anthropic_api_key", event.target.value)}
-                        placeholder="sk-ant-..."
-                        type="password"
-                      />
-                      <Input
-                        label="Anthropic 对话模型"
-                        value={form.anthropic_chat_model}
-                        onChange={(event) => setField("anthropic_chat_model", event.target.value)}
-                        placeholder="claude-3-5-haiku-20241022"
-                      />
-                    </>
-                  )}
-
-                  <Input
-                    label="Semantic Scholar API Key"
-                    value={form.semantic_scholar_api_key}
-                    onChange={(event) => setField("semantic_scholar_api_key", event.target.value)}
-                    placeholder={MASK}
-                    type="password"
-                  />
-                </div>
-              </SettingSection>
+              {/* 模型服务（模型分工）区域已移至多 Agent 编排中，每个 Agent 独立配置 */}
 
               <SettingSection
                 icon={Database}
@@ -469,7 +455,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-3 md:grid-cols-2">
                     <Input
                       label="单次最多执行的专项 Agent 步数"
                       value={form.multi_agent_max_steps}
@@ -482,42 +468,71 @@ export default function SettingsPage() {
                       onChange={(event) => setField("multi_agent_search_limit", event.target.value)}
                       placeholder="8"
                     />
-                    <Input
-                      label="调度器模型"
-                      value={form.multi_agent_supervisor_model}
-                      onChange={(event) => setField("multi_agent_supervisor_model", event.target.value)}
-                      placeholder="留空则沿用主对话模型"
-                    />
-                    <Input
-                      label="调度器 Temperature"
-                      value={form.multi_agent_supervisor_temperature}
-                      onChange={(event) => setField("multi_agent_supervisor_temperature", event.target.value)}
-                      placeholder="0.1"
-                    />
-                    <Input
-                      label="默认执行模型"
-                      value={form.multi_agent_worker_model}
-                      onChange={(event) => setField("multi_agent_worker_model", event.target.value)}
-                      placeholder="留空则沿用主对话模型"
-                    />
-                    <Input
-                      label="默认执行 Temperature"
-                      value={form.multi_agent_worker_temperature}
-                      onChange={(event) => setField("multi_agent_worker_temperature", event.target.value)}
-                      placeholder="0.3"
-                    />
-                    <Input
-                      label="整合模型"
-                      value={form.multi_agent_synthesis_model}
-                      onChange={(event) => setField("multi_agent_synthesis_model", event.target.value)}
-                      placeholder="留空则沿用主对话模型"
-                    />
-                    <Input
-                      label="整合 Temperature"
-                      value={form.multi_agent_synthesis_temperature}
-                      onChange={(event) => setField("multi_agent_synthesis_temperature", event.target.value)}
-                      placeholder="0.4"
-                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-sm font-semibold text-slate-900">Agent 模型配置</div>
+                    <p className="text-xs leading-5 text-slate-500">
+                      每个 Agent 可独立设置 model、base_url、api_key、temperature、top_p，留空则继承上级默认值。
+                    </p>
+                    <div className="space-y-2 pt-1">
+                      <AgentConfigPanel
+                        title="supervisor"
+                        subtitle="调度器"
+                        agentKey="supervisor"
+                        form={form}
+                        setField={setField}
+                      />
+                      <AgentConfigPanel
+                        title="worker"
+                        subtitle="默认执行"
+                        agentKey="worker"
+                        form={form}
+                        setField={setField}
+                      />
+                      <AgentConfigPanel
+                        title="planner"
+                        subtitle="路径规划"
+                        agentKey="planner"
+                        form={form}
+                        setField={setField}
+                      />
+                      <AgentConfigPanel
+                        title="literature_scout"
+                        subtitle="论文侦察"
+                        agentKey="literature_scout"
+                        form={form}
+                        setField={setField}
+                      />
+                      <AgentConfigPanel
+                        title="survey"
+                        subtitle="综述生成"
+                        agentKey="survey"
+                        form={form}
+                        setField={setField}
+                      />
+                      <AgentConfigPanel
+                        title="paper_analyst"
+                        subtitle="论文解析"
+                        agentKey="paper_analyst"
+                        form={form}
+                        setField={setField}
+                      />
+                      <AgentConfigPanel
+                        title="reproduction"
+                        subtitle="复现建议"
+                        agentKey="reproduction"
+                        form={form}
+                        setField={setField}
+                      />
+                      <AgentConfigPanel
+                        title="synthesis"
+                        subtitle="最终整合"
+                        agentKey="synthesis"
+                        form={form}
+                        setField={setField}
+                      />
+                    </div>
                   </div>
                 </div>
               </SettingSection>
