@@ -63,6 +63,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const getSortKey = (groupId: string): SortKey => sortKeys[groupId] ?? "created_at";
   const setSortKey = (groupId: string, key: SortKey) =>
     setSortKeys((prev) => ({ ...prev, [groupId]: key }));
+  const [keywordFilters, setKeywordFilters] = useState<Record<string, string>>({});
+  const setKeywordFilter = (groupId: string, kw: string) =>
+    setKeywordFilters((prev) => ({ ...prev, [groupId]: kw }));
   const [editDraft, setEditDraft] = useState({
     title: "",
     authors: "",
@@ -165,28 +168,42 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   };
 
   const paperGroups = useMemo(() => {
-    return interests.map((interest) => ({
-      key: interest.id,
-      title: interestFolderName(interest),
-      subtitle: interest.topic,
-      papers: sortPapers(
-        papers.filter((paper) => paper.research_interest_id === interest.id),
-        getSortKey(interest.id),
-      ),
-    }));
+    return interests.map((interest) => {
+      const groupPapers = papers.filter((paper) => paper.research_interest_id === interest.id);
+      const allKeywords = [...new Set(groupPapers.flatMap((p) => p.tags ?? []))].sort();
+      const activeKw = keywordFilters[interest.id];
+      const filtered = activeKw ? groupPapers.filter((p) => p.tags?.includes(activeKw)) : groupPapers;
+      return {
+        key: interest.id,
+        title: interestFolderName(interest),
+        subtitle: interest.topic,
+        papers: sortPapers(filtered, getSortKey(interest.id)),
+        allKeywords,
+      };
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interests, papers, sortKeys]);
+  }, [interests, papers, sortKeys, keywordFilters]);
 
+  const ungroupedBase = useMemo(
+    () => papers.filter((paper) => {
+      if (!paper.research_interest_id) return true;
+      return !(paper.research_interest_id in interestMap);
+    }),
+    [interestMap, papers],
+  );
+  const ungroupedKeywords = useMemo(
+    () => [...new Set(ungroupedBase.flatMap((p) => p.tags ?? []))].sort(),
+    [ungroupedBase],
+  );
   const ungroupedPapers = useMemo(() => (
     sortPapers(
-      papers.filter((paper) => {
-        if (!paper.research_interest_id) return true;
-        return !(paper.research_interest_id in interestMap);
-      }),
+      keywordFilters["ungrouped"]
+        ? ungroupedBase.filter((p) => p.tags?.includes(keywordFilters["ungrouped"]))
+        : ungroupedBase,
       getSortKey("ungrouped"),
     )
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [interestMap, papers, sortKeys]);
+  ), [ungroupedBase, sortKeys, keywordFilters]);
 
   const toFilePath = (item: unknown): string => {
     if (typeof item === "string") return item;
@@ -459,7 +476,37 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     </div>
   );
 
-  const renderPaperCard = (paper: Paper) => (
+  const renderGroupControls = (groupId: string, allKeywords: string[]) => {
+    const activeKw = keywordFilters[groupId];
+    return (
+      <div className="flex items-center gap-2">
+        {allKeywords.length > 0 && (
+          <div className="flex items-center gap-1">
+            <select
+              value={activeKw ?? ""}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => { e.stopPropagation(); setKeywordFilter(groupId, e.target.value); }}
+              className="rounded-lg px-2 py-0.5 text-[10px] cursor-pointer outline-none border-none appearance-none"
+              style={{
+                background: activeKw ? "rgba(0,122,255,0.1)" : "#E8ECF0",
+                color: activeKw ? "#007AFF" : "#8E8E93",
+                fontWeight: activeKw ? 600 : 400,
+                boxShadow: activeKw
+                  ? "inset 1px 1px 2px rgba(0,122,255,0.15)"
+                  : "1px 1px 3px #C8CDD3, -1px -1px 3px #FFFFFF",
+              }}
+            >
+              <option value="">关键词筛选</option>
+              {allKeywords.map((kw) => <option key={kw} value={kw}>{kw}</option>)}
+            </select>
+          </div>
+        )}
+        {renderSortControl(groupId)}
+      </div>
+    );
+  };
+
+  const renderPaperCard = (paper: Paper, groupId = "ungrouped") => (
     <Card key={paper.id} padding="sm" className="space-y-0 overflow-hidden" style={{ background: "rgba(255,255,255,0.82)", borderTop: paper.importance_color ? `3px solid ${paper.importance_color}` : undefined }}>
       <div className="flex items-start gap-3">
         {/* 状态图标 */}
@@ -526,6 +573,28 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               {visiblePaperTags.has("jcr_quartile") ? <JcrQuartileBadge quartile={paper.jcr_quartile} /> : null}
               {visiblePaperTags.has("cas_quartile") ? <CasQuartileBadge quartile={paper.cas_quartile} /> : null}
               {visiblePaperTags.has("cas_top") ? <CasTopBadge top={paper.cas_top} /> : null}
+            </div>
+          )}
+          {(paper.tags?.length ?? 0) > 0 && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              {paper.tags!.map((tag) => {
+                const active = keywordFilters[groupId] === tag;
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setKeywordFilter(groupId, active ? "" : tag); }}
+                    className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium transition-all"
+                    style={{
+                      background: active ? "rgba(0,122,255,0.15)" : "rgba(0,122,255,0.07)",
+                      color: active ? "#005EC8" : "#007AFF",
+                      boxShadow: active ? "inset 1px 1px 2px rgba(0,122,255,0.15)" : "none",
+                    }}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1035,7 +1104,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         </Card>
       ) : hideFolders ? (
         <div className="space-y-3">
-          {sortPapers(papers, getSortKey("all")).map(renderPaperCard)}
+          {sortPapers(papers, getSortKey("all")).map((p) => renderPaperCard(p, "all"))}
         </div>
       ) : (
         <div className="space-y-3">
@@ -1077,7 +1146,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                   </>
                 ) : (
                   <>
-                    {renderSortControl(group.key)}
+                    {renderGroupControls(group.key, group.allKeywords)}
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteGroupId(group.key)}
@@ -1094,7 +1163,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                   这个方向下还没有论文，导入 PDF 后会显示在这里。
                 </Card>
               ) : (
-                group.papers.map(renderPaperCard)
+                group.papers.map((p) => renderPaperCard(p, group.key))
               )}
             </CollapsibleGroup>
           ))}
@@ -1106,9 +1175,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                   <p className="text-sm font-semibold text-ink-primary">未归档论文</p>
                   <p className="mt-0.5 text-xs text-ink-tertiary">这些论文暂未绑定主题，可直接编辑后移动到主题文件夹。</p>
                 </div>
-                {renderSortControl("ungrouped")}
+                {renderGroupControls("ungrouped", ungroupedKeywords)}
               </div>
-              {ungroupedPapers.map(renderPaperCard)}
+              {ungroupedPapers.map((p) => renderPaperCard(p, "ungrouped"))}
             </section>
           )}
         </div>

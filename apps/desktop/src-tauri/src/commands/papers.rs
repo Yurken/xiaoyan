@@ -442,9 +442,12 @@ pub async fn papers_upload(
     let paper_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
+    let keywords = extract_keywords_from_text(&full_text);
+    let tags_json = serde_json::to_string(&keywords).unwrap_or_else(|_| "[]".to_string());
+
     sqlx::query(
-        "INSERT INTO papers (id, title, authors, year, venue, doi, file_path, full_text, research_interest_id, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'parsed', ?, ?)",
+        "INSERT INTO papers (id, title, authors, year, venue, doi, file_path, full_text, research_interest_id, tags, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'parsed', ?, ?)",
     )
     .bind(&paper_id)
     .bind(&detected_title)
@@ -455,6 +458,7 @@ pub async fn papers_upload(
     .bind(&file_path_str)
     .bind(&full_text)
     .bind(&research_interest_id)
+    .bind(&tags_json)
     .bind(&now)
     .bind(&now)
     .execute(&state.db)
@@ -1094,6 +1098,47 @@ fn sanitize_file_stem(input: &str) -> String {
     } else {
         normalized
     }
+}
+
+// ── Keyword extraction ────────────────────────────────────────────
+
+/// Scan the first ~4000 chars of extracted PDF text for a "Keywords:" section.
+/// Returns up to 10 cleaned keyword strings, or an empty vec if not found.
+fn extract_keywords_from_text(full_text: &str) -> Vec<String> {
+    let search_area = if full_text.len() > 4000 { &full_text[..4000] } else { full_text };
+    let lower = search_area.to_lowercase();
+
+    let markers = [
+        "keywords—", "keywords:", "key words:", "key words—",
+        "index terms—", "index terms:", "index terms\n",
+        "keywords\n",
+    ];
+
+    let kw_start = markers.iter().find_map(|m| lower.find(m).map(|p| p + m.len()));
+    let start = match kw_start {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+
+    let rest = &search_area[start..];
+    // Stop at blank line or 500 chars, whichever comes first
+    let end = rest.find("\n\n").unwrap_or(rest.len().min(500));
+    let kw_text = &rest[..end];
+
+    kw_text
+        .split([',', ';'])
+        .map(|k| {
+            k.lines()
+                .next()
+                .unwrap_or("")
+                .trim()
+                .trim_matches('.')
+                .trim()
+                .to_string()
+        })
+        .filter(|k| !k.is_empty() && k.len() > 1 && k.len() < 80)
+        .take(10)
+        .collect()
 }
 
 // ── Figure extraction ─────────────────────────────────────────────
