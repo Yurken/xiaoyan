@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { AlertCircle, CalendarDays, ChevronDown, ChevronUp, FileSearch, Globe2, Plus, Search, Sparkles, X } from "lucide-react";
+import { AlertCircle, CalendarDays, ChevronDown, FileSearch, Globe2, Plus, Search, Sparkles, X } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode, ArxivSearchRequest, ArxivSearchResponse, SourceLookupSection } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, WosIndexBadge, VenueTypeBadge } from "../components/CcfBadges";
@@ -174,7 +174,7 @@ export default function Tools() {
   const [arxivSearched, setArxivSearched] = useState(false);
   const [arxivResult, setArxivResult] = useState<ArxivSearchResponse | null>(null);
   const arxivLastSearchAt = useRef<number>(0);
-  const [friendLinkPanelOpen, setFriendLinkPanelOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"arxiv" | "source" | "links">("arxiv");
   const [openFriendSections, setOpenFriendSections] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => [section.title, index === 0]))
   );
@@ -293,15 +293,48 @@ export default function Tools() {
     }
   };
 
+  const TABS = [
+    { key: "arxiv" as const, icon: <Sparkles className="h-4 w-4" />, label: "arXiv 检索" },
+    { key: "source" as const, icon: <FileSearch className="h-4 w-4" />, label: "刊会查询" },
+    { key: "links" as const, icon: <Globe2 className="h-4 w-4" />, label: "科研友链" },
+  ];
+
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-5">
-      <div>
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="shrink-0 px-6 pt-6 pb-4">
         <h1 className="text-2xl font-bold text-ink-primary">实用工具</h1>
         <p className="mt-1 text-sm text-ink-tertiary">
           查期刊分区、查 CCF 等级、搜 arXiv 新论文，还有一批常用科研网站。
         </p>
       </div>
 
+      <div className="shrink-0 px-6 pb-3">
+        <div
+          className="inline-flex rounded-2xl p-1 gap-0.5"
+          style={{ background: "#E8ECF0", boxShadow: insetShadow }}
+        >
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150"
+              style={
+                activeTab === tab.key
+                  ? { background: "#F2F4F7", boxShadow: "3px 3px 8px #C8CDD3, -3px -3px 8px #FFFFFF", color: "#1C1C1E" }
+                  : { color: "#8E8E93" }
+              }
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-5">
+
+      {activeTab === "arxiv" && <>
       <Card padding="md" className="space-y-5">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
@@ -505,18 +538,26 @@ export default function Tools() {
           />
           <div className="w-full">
             <label className="block text-xs font-medium text-ink-tertiary mb-1.5 ml-1">排序方式</label>
-            <select
-              value={arxivMode}
-              onChange={(event) => setArxivMode(event.target.value as ArxivRankingMode)}
-              className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary outline-none border-0"
+            <div
+              className="inline-flex w-full rounded-2xl p-1 gap-0.5"
               style={{ background: "#E8ECF0", boxShadow: insetShadow }}
             >
               {ARXIV_MODE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setArxivMode(option.value)}
+                  className="flex-1 rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-150"
+                  style={
+                    arxivMode === option.value
+                      ? { background: "#F2F4F7", boxShadow: "3px 3px 8px #C8CDD3, -3px -3px 8px #FFFFFF", color: "#1C1C1E" }
+                      : { color: "#8E8E93" }
+                  }
+                >
                   {option.label}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
         </div>
 
@@ -663,7 +704,9 @@ export default function Tools() {
           </div>
         </Card>
       ) : null}
+      </>}
 
+      {activeTab === "source" && <>
       <Card padding="md" className="space-y-4">
         <div className="flex items-center gap-2">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
@@ -781,7 +824,9 @@ export default function Tools() {
           </div>
         </Card>
       ) : null}
+      </>}
 
+      {activeTab === "links" && <>
       <Card padding="md" className="space-y-5">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
@@ -794,26 +839,15 @@ export default function Tools() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setFriendLinkPanelOpen((v) => !v)}
-              className="inline-flex items-center rounded-full bg-white/45 px-2.5 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
-              aria-label={friendLinkPanelOpen ? "收起科研友链" : "展开科研友链"}
+              onClick={() => setAllFriendSections(!allFriendSectionsExpanded)}
+              className="inline-flex items-center rounded-full bg-white/45 px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
             >
-              {friendLinkPanelOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              {allFriendSectionsExpanded ? "收起全部" : "展开全部"}
             </button>
-            {friendLinkPanelOpen && (
-              <button
-                type="button"
-                onClick={() => setAllFriendSections(!allFriendSectionsExpanded)}
-                className="inline-flex items-center rounded-full bg-white/45 px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
-                aria-label={allFriendSectionsExpanded ? "收起全部友链分类" : "展开全部友链分类"}
-              >
-                {allFriendSectionsExpanded ? "收起全部" : "展开全部"}
-              </button>
-            )}
           </div>
         </div>
 
-        {friendLinkPanelOpen && <>
+        {<>
         <div className="flex flex-wrap gap-2">
           {YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => (
             <button
@@ -907,6 +941,9 @@ export default function Tools() {
         </div>
         </>}
       </Card>
+      </>}
+
+      </div>
     </div>
   );
 }
