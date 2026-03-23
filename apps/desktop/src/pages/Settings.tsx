@@ -1,5 +1,6 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { relaunch } from "@tauri-apps/plugin-process";
 import {
   AlertCircle,
   Bot,
@@ -1767,8 +1768,12 @@ export default function Settings() {
                   key={mode}
                   type="button"
                   onClick={() => {
+                    if (mode === pendingLayout) return;
                     setPendingLayout(mode);
                     setLayoutMode(mode);
+                    const root = document.getElementById("root");
+                    root?.classList.add("dissolve-out");
+                    setTimeout(() => void relaunch(), 480);
                   }}
                   className="rounded-[24px] p-4 text-left transition-all duration-150"
                   style={
@@ -1802,10 +1807,10 @@ export default function Settings() {
             </div>
 
             <div
-              className="rounded-2xl px-4 py-3 text-xs leading-5 text-amber-700"
-              style={{ background: "rgba(255,159,10,0.1)", border: "1px solid rgba(255,159,10,0.25)" }}
+              className="rounded-2xl px-4 py-3 text-xs leading-5 text-ink-tertiary"
+              style={{ background: "rgba(200,205,211,0.3)", border: "1px solid rgba(200,205,211,0.5)" }}
             >
-              布局设置已保存，下次重启软件后生效。
+              切换布局后软件将自动重启，已保存的数据不受影响。
             </div>
           </Card>
         ) : null}
@@ -1892,10 +1897,6 @@ export default function Settings() {
                   <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">{updateInfo.body}</p>
                 </div>
               ) : null}
-
-              <p className="text-[11px] leading-5 text-ink-tertiary">
-                如果这里一直显示“未配置升级源”，说明当前构建没有注入更新地址或公钥。开发环境通常如此，正式发布版由 CI 在构建时写入。
-              </p>
             </Card>
 
             <Card padding="md" className="space-y-3">

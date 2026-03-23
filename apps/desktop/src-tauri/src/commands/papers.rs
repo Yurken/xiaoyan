@@ -10,7 +10,7 @@ use serde_json::json;
 use sqlx::Row;
 use std::path::{Path, PathBuf};
 use tauri::{Emitter, Manager, State};
-use tauri_plugin_shell::ShellExt;
+use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 
 // ── List ────────────────────────────────────────────────────────
@@ -330,8 +330,8 @@ pub async fn papers_open_pdf(
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| "该论文没有关联的本地文件".to_string())?;
 
-    app.shell()
-        .open(&path, None)
+    app.opener()
+        .open_path(&path, None::<&str>)
         .map_err(|e| e.to_string())
 }
 

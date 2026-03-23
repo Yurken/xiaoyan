@@ -1,6 +1,6 @@
 import SurveyPanel from "../features/knowledge/SurveyPanel";
 
-export default function Survey() {
+export default function Survey({ hideFolders = false }: { hideFolders?: boolean }) {
   return (
     <div className="h-full overflow-y-auto p-6 space-y-5">
       <div>
@@ -10,7 +10,7 @@ export default function Survey() {
         </p>
       </div>
 
-      <SurveyPanel />
+      <SurveyPanel hideInterestPanel={hideFolders} />
     </div>
   );
 }

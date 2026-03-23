@@ -144,7 +144,7 @@ function ToggleChip({
   );
 }
 
-export default function SurveyPanel() {
+export default function SurveyPanel({ hideInterestPanel = false }: { hideInterestPanel?: boolean }) {
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [selectedInterestId, setSelectedInterestId] = useState("");
   const [interestPapers, setInterestPapers] = useState<Paper[]>([]);
@@ -1040,7 +1040,7 @@ export default function SurveyPanel() {
   );
 
   // ── 最终布局：左侧研究方向面板 + 右侧生成区 ──
-  return interests.length > 0 ? (
+  return !hideInterestPanel && interests.length > 0 ? (
     <div className="flex gap-3 items-start">
       <div className="w-48 flex-shrink-0 lg:w-56">{interestPanel}</div>
       {generationArea}

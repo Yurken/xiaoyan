@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Routes, Route, NavLink } from "react-router-dom";
 import {
   BookOpen,
@@ -38,6 +39,14 @@ const navItems = [
 
 export default function App() {
   const autoUpdate = useAutoUpdate();
+
+  useEffect(() => {
+    const root = document.getElementById("root");
+    if (!root) return;
+    root.classList.add("dissolve-in");
+    const timer = setTimeout(() => root.classList.remove("dissolve-in"), 600);
+    return () => clearTimeout(timer);
+  }, []);
 
   if (layoutMode === "focus") {
     return (

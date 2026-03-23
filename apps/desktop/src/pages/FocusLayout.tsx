@@ -13,6 +13,7 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   Wrench,
+  X,
 } from "lucide-react";
 import { Badge, Button } from "@research-copilot/ui";
 import { MAIN_ASSISTANT_NAME, PRODUCT_NAME } from "@research-copilot/types";
@@ -22,7 +23,6 @@ import { listen } from "@tauri-apps/api/event";
 import PlannerComposer from "../features/knowledge/PlannerComposer";
 import hitLogo from "../assets/hit-logo.svg";
 import ResearchWorkbench, { type InterestTab } from "../features/knowledge/ResearchWorkbench";
-import Planner from "./Planner";
 import Survey from "./Survey";
 import Papers from "./Papers";
 import Knowledge from "./Knowledge";
@@ -141,6 +141,8 @@ function FocusHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [wizardTopic, setWizardTopic] = useState("");
 
   const load = () => {
     setLoading(true);
@@ -208,53 +210,114 @@ function FocusHome() {
           <div className="text-sm text-apple-red py-10 text-center">{error}</div>
         ) : (
           <>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-lg font-bold text-ink-primary">研究主题</p>
-                <p className="text-xs text-ink-tertiary mt-0.5">
-                  {interests.length === 0
-                    ? "新建一个研究主题，开始你的研究"
-                    : `共 ${interests.length} 个主题`}
-                </p>
-              </div>
-              {!creating && (
-                <Button onClick={() => setCreating(true)}>
-                  <Plus className="w-4 h-4" />
-                  新建主题
-                </Button>
+            {/* ── 规划入口（研究主题上方） ── */}
+            <div
+              className="rounded-[28px] overflow-hidden"
+              style={{ background: "#EEF1F5", boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF" }}
+            >
+              {/* 收起态：标题 + 操作按钮 */}
+              {!creating && !discovering && (
+                <div className="flex items-center justify-between gap-4 px-5 py-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink-primary">研究路线设计器</p>
+                    <p className="text-xs text-ink-tertiary mt-0.5 truncate">
+                      把研究主题转成阶段化学习路线、经典论文和潜在切入方向。
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setDiscovering(true)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-medium transition-all duration-150"
+                      style={{ background: "#E0E5EA", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      没想好要做什么？
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreating(true)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold text-white transition-all duration-150 active:scale-95"
+                      style={{
+                        background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                        boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
+                      }}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      添加研究方向
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 展开态：PlannerComposer */}
+              {creating && (
+                <div className="p-5">
+                  <PlannerComposer
+                    initialTopic={wizardTopic || undefined}
+                    onCancel={() => { setCreating(false); setWizardTopic(""); }}
+                    onCreated={(interest) => {
+                      setInterests((prev) => [interest, ...prev]);
+                      setCreating(false);
+                      setWizardTopic("");
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* 展开态：发现向导 */}
+              {discovering && (
+                <div className="p-5">
+                  {/* inline TopicDiscoveryWizard via dynamic import would work, but we reuse the navigate pattern */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-ink-primary">帮我找研究方向</p>
+                      <button
+                        type="button"
+                        onClick={() => setDiscovering(false)}
+                        className="text-ink-tertiary hover:text-ink-primary"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-xs text-ink-tertiary leading-5">
+                      回答几个问题，小妍帮你找到适合你的研究切入点。
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { setDiscovering(false); setCreating(true); }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-medium transition-all"
+                      style={{
+                        background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                        color: "#fff",
+                        boxShadow: "3px 3px 8px rgba(0,62,204,0.35)",
+                      }}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      前往完整向导
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 
-            {creating && (
-              <div
-                className="rounded-[28px] p-5"
-                style={{
-                  background: "#EEF1F5",
-                  boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF",
-                }}
-              >
-                <PlannerComposer
-                  onCancel={() => setCreating(false)}
-                  onCreated={(interest) => {
-                    setInterests((prev) => [interest, ...prev]);
-                    setCreating(false);
-                  }}
-                />
-              </div>
-            )}
+            {/* ── 研究主题列表 ── */}
+            <div className="flex items-center justify-between px-1 pt-1">
+              <p className="text-sm font-semibold text-ink-primary">研究主题</p>
+              <p className="text-xs text-ink-tertiary">
+                {interests.length > 0 ? `共 ${interests.length} 个` : ""}
+              </p>
+            </div>
 
-            {interests.length === 0 && !creating ? (
+            {interests.length === 0 ? (
               <div
                 className="rounded-[28px] p-10 text-center"
-                style={{
-                  background: "#EEF1F5",
-                  boxShadow: "inset 3px 3px 7px #C8CDD3, inset -3px -3px 7px #FFFFFF",
-                }}
+                style={{ background: "#EEF1F5", boxShadow: "inset 3px 3px 7px #C8CDD3, inset -3px -3px 7px #FFFFFF" }}
               >
                 <Microscope className="w-10 h-10 text-ink-tertiary mx-auto mb-3" />
                 <p className="text-sm font-semibold text-ink-primary">还没有研究主题</p>
                 <p className="text-xs text-ink-tertiary mt-2 leading-5">
-                  新建一个方向，小妍帮你整理路线和文献。
+                  点击「添加研究方向」，小妍帮你整理路线和文献。
                 </p>
               </div>
             ) : (
@@ -269,12 +332,10 @@ function FocusHome() {
               </div>
             )}
 
-            {/* Free topic always shown at the bottom */}
-            {!creating && (
-              <div className="pt-2">
-                <FreeTopicCard onEnter={() => navigate("/workbench/free")} />
-              </div>
-            )}
+            {/* 自由主题入口 */}
+            <div className="pt-1">
+              <FreeTopicCard onEnter={() => navigate("/workbench/free")} />
+            </div>
           </>
         )}
       </div>
@@ -284,10 +345,9 @@ function FocusHome() {
 
 // ─── Focus Workbench ─────────────────────────────────────────────────────────
 
-type FreeTab = "planner" | "survey" | "papers" | "knowledge" | "copilot" | "tools";
+type FreeTab = "survey" | "papers" | "knowledge" | "copilot" | "tools";
 
 const FREE_TABS: Array<{ key: FreeTab; label: string; icon: typeof Sparkles }> = [
-  { key: "planner",   label: "规划",    icon: Sparkles },
   { key: "survey",    label: "综述",    icon: BookOpen },
   { key: "papers",    label: "论文",    icon: FileText },
   { key: "knowledge", label: "知识",    icon: Library },
@@ -362,7 +422,7 @@ function FocusWorkbench() {
   const [interestTab, setInterestTab] = useState<InterestTab>("papers");
   const [stats, setStats] = useState({ papers: 0, sessions: 0, notes: 0 });
   const isFree = interestId === "free";
-  const freeTab = isFreeTab(tab) ? tab : "planner";
+  const freeTab = isFreeTab(tab) ? tab : "survey";
 
   const interestTabs = interest?.status === "planned"
     ? [PLANNER_TAB, ...BASE_INTEREST_TABS]
@@ -405,11 +465,10 @@ function FocusWorkbench() {
 
   const FreePage = (() => {
     switch (freeTab) {
-      case "planner":   return <Planner />;
-      case "survey":    return <Survey />;
-      case "papers":    return <Papers />;
-      case "knowledge": return <Knowledge />;
-      case "copilot":   return <Copilot />;
+      case "survey":    return <Survey hideFolders />;
+      case "papers":    return <Papers hideFolders />;
+      case "knowledge": return <Knowledge hideFolders />;
+      case "copilot":   return <Copilot hideFolders />;
       case "tools":     return <Tools />;
     }
   })();

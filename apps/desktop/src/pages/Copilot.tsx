@@ -83,7 +83,7 @@ function interestFolderName(interest: ResearchInterest) {
   return interest.folder_name?.trim() || interest.topic;
 }
 
-export default function Copilot() {
+export default function Copilot({ hideFolders = false }: { hideFolders?: boolean }) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
@@ -450,6 +450,7 @@ export default function Copilot() {
             <Plus className="w-4 h-4" />
             新建对话
           </button>
+          {!hideFolders && (
           <div
             className="relative mt-2"
             onBlur={(e) => {
@@ -516,6 +517,7 @@ export default function Copilot() {
               </div>
             )}
           </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
@@ -526,7 +528,10 @@ export default function Copilot() {
             </div>
           )}
 
-          {selectedInterestId ? (
+          {hideFolders ? (
+            // 自由工作台：扁平展示所有会话
+            <div className="space-y-1.5">{sessions.map(renderSessionItem)}</div>
+          ) : selectedInterestId ? (
             // 已选主题：只展示该主题下的会话
             (() => {
               const group = sessionGroups.find((g) => g.key === selectedInterestId);
