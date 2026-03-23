@@ -1,3 +1,4 @@
+use crate::assistant_prompts::specialist_system;
 use crate::ccf::{infer_from_text, match_venue};
 use crate::journal_partitions::match_journal;
 use crate::links::paper_reference_url;
@@ -25,8 +26,8 @@ pub async fn papers_list(
     let rows = if let Some(interest_id) = research_interest_id.filter(|value| !value.trim().is_empty()) {
         sqlx::query(
             "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.research_interest_id, p.status, p.created_at, p.updated_at,
-                    a.research_question, a.core_method, a.experiment_design, a.innovations, a.limitations, a.key_conclusions,
-                    rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
+                    a.research_question, a.core_method, a.experiment_design, a.experiment_results, a.innovations, a.limitations, a.key_conclusions,
+                    rg.code_repository, rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
                     rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
              FROM papers p
              LEFT JOIN paper_analyses a ON a.paper_id = p.id
@@ -43,8 +44,8 @@ pub async fn papers_list(
     } else {
         sqlx::query(
             "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.research_interest_id, p.status, p.created_at, p.updated_at,
-                    a.research_question, a.core_method, a.experiment_design, a.innovations, a.limitations, a.key_conclusions,
-                    rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
+                    a.research_question, a.core_method, a.experiment_design, a.experiment_results, a.innovations, a.limitations, a.key_conclusions,
+                    rg.code_repository, rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
                     rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
              FROM papers p
              LEFT JOIN paper_analyses a ON a.paper_id = p.id
@@ -69,6 +70,7 @@ pub async fn papers_list(
                     "research_question": r.try_get::<Option<String>, _>("research_question").ok().flatten(),
                     "core_method": r.try_get::<Option<String>, _>("core_method").ok().flatten(),
                     "experiment_design": r.try_get::<Option<String>, _>("experiment_design").ok().flatten(),
+                    "experiment_results": r.try_get::<Option<String>, _>("experiment_results").ok().flatten(),
                     "innovations": r.try_get::<Option<String>, _>("innovations").ok().flatten(),
                     "limitations": r.try_get::<Option<String>, _>("limitations").ok().flatten(),
                     "key_conclusions": r.try_get::<Option<String>, _>("key_conclusions").ok().flatten(),
@@ -77,6 +79,7 @@ pub async fn papers_list(
             let env: Option<String> = r.try_get("environment_setup").ok().flatten();
             if env.is_some() {
                 v["reproduction_guide"] = json!({
+                    "code_repository": r.try_get::<Option<String>, _>("code_repository").ok().flatten(),
                     "environment_setup": r.try_get::<Option<String>, _>("environment_setup").ok().flatten(),
                     "dependencies": r.try_get::<Option<String>, _>("dependencies").ok().flatten(),
                     "dataset_preparation": r.try_get::<Option<String>, _>("dataset_preparation").ok().flatten(),
@@ -110,7 +113,7 @@ pub async fn papers_get(
     .ok_or_else(|| "未找到对应论文。".to_string())?;
 
     let analysis = sqlx::query(
-        "SELECT id, research_question, core_method, experiment_design, innovations, limitations, key_conclusions, created_at
+        "SELECT id, research_question, core_method, experiment_design, experiment_results, innovations, limitations, key_conclusions, created_at
          FROM paper_analyses WHERE paper_id = ?",
     )
     .bind(&id)
@@ -124,6 +127,7 @@ pub async fn papers_get(
             "research_question": a.get::<Option<String>, _>("research_question"),
             "core_method": a.get::<Option<String>, _>("core_method"),
             "experiment_design": a.get::<Option<String>, _>("experiment_design"),
+            "experiment_results": a.get::<Option<String>, _>("experiment_results"),
             "innovations": a.get::<Option<String>, _>("innovations"),
             "limitations": a.get::<Option<String>, _>("limitations"),
             "key_conclusions": a.get::<Option<String>, _>("key_conclusions"),
@@ -132,7 +136,7 @@ pub async fn papers_get(
     });
 
     let guide = sqlx::query(
-        "SELECT id, environment_setup, dependencies, dataset_preparation, training_process, inference_process, evaluation_metrics, risks_and_notes, created_at
+        "SELECT id, code_repository, environment_setup, dependencies, dataset_preparation, training_process, inference_process, evaluation_metrics, risks_and_notes, created_at
          FROM reproduction_guides WHERE paper_id = ?",
     )
     .bind(&id)
@@ -143,6 +147,7 @@ pub async fn papers_get(
     .map(|g: sqlx::sqlite::SqliteRow| {
         json!({
             "id": g.get::<String, _>("id"),
+            "code_repository": g.get::<Option<String>, _>("code_repository"),
             "environment_setup": g.get::<Option<String>, _>("environment_setup"),
             "dependencies": g.get::<Option<String>, _>("dependencies"),
             "dataset_preparation": g.get::<Option<String>, _>("dataset_preparation"),
@@ -272,7 +277,6 @@ struct ImportRenameMetadata {
     doi: Option<String>,
 }
 
-const IMPORT_RENAME_SYSTEM: &str = "你是论文元数据识别助手，负责从文件名和正文片段中提取稳定、可信的论文元数据。输出必须严格、克制、可直接用于归档。";
 const IMPORT_RENAME_PROMPT: &str = r#"请根据用户提供的 PDF 文件名和正文前段识别论文元数据，仅返回合法 JSON：
 {"title":"...","authors":"作者1, 作者2","year":2024,"venue":"期刊或会议名称","doi":"10.1234/abcd"}
 
@@ -289,6 +293,14 @@ const IMPORT_RENAME_PROMPT: &str = r#"请根据用户提供的 PDF 文件名和�
 正文前段：
 {text}
 "#;
+
+fn import_rename_system() -> String {
+    specialist_system(
+        "论文元数据识别助手",
+        "从文件名和正文片段中提取稳定、可信的论文元数据。",
+        Some("输出必须严格、克制、可直接用于归档。"),
+    )
+}
 
 #[tauri::command]
 pub async fn papers_upload(
@@ -424,13 +436,25 @@ pub async fn papers_upload(
 
 // ── Analyze ──────────────────────────────────────────────────────
 
-const ANALYZE_SYSTEM: &str = "你是论文精读分析助手，负责基于论文内容输出客观、结构化、可追溯的分析结论。不得编造论文中未出现的信息。";
-const ANALYZE_PROMPT: &str = r#"请对以下论文进行精读分析，仅返回严格合法的 JSON，不要输出 JSON 以外的内容：
+const ANALYZE_PROMPT: &str = r#"请对以下论文进行精读分析，仅返回严格合法的 JSON，不要输出 JSON 以外的内容。
+
+要求：
+- 所有字段内容必须使用中文
+- 如有多条并列内容或带序号的条目，在 JSON 字符串中用 \n 分隔每一条（例如："1. xxx\n2. yyy\n3. zzz"）
+- 每个字段限 150 字以内，保持简洁
 
 {text}
 
 返回格式：
-{{"research_question":"...","core_method":"...","experiment_design":"...","innovations":"...","limitations":"...","key_conclusions":"..."}}"#;
+{{"research_question":"...","core_method":"...","experiment_design":"...","experiment_results":"...","innovations":"...","limitations":"...","key_conclusions":"..."}}"#;
+
+fn analyze_system() -> String {
+    specialist_system(
+        "论文精读分析助手",
+        "基于论文内容输出客观、结构化、可追溯的分析结论。",
+        Some("不得编造论文中未出现的信息。"),
+    )
+}
 
 #[tauri::command]
 pub async fn papers_analyze(
@@ -469,7 +493,7 @@ pub async fn papers_analyze(
         };
         let model = resolve_model(&settings, &["paper_analysis_model", "multi_agent_paper_analyst_model", "multi_agent_worker_model"]);
         let temperature = resolve_temperature(&settings, "paper_analysis_temperature", 0.3);
-        let msgs = vec![LlmMessage::system(ANALYZE_SYSTEM), LlmMessage::user(&prompt)];
+        let msgs = vec![LlmMessage::system(analyze_system()), LlmMessage::user(&prompt)];
 
         match client.chat(&msgs, model.as_deref(), temperature).await {
             Ok(response) => {
@@ -478,19 +502,19 @@ pub async fn papers_analyze(
                 let now = chrono::Utc::now().to_rfc3339();
                 let raw = serde_json::to_string(&v).unwrap_or_default();
                 let _ = sqlx::query(
-                    "INSERT INTO paper_analyses (id, paper_id, research_question, core_method, experiment_design, innovations, limitations, key_conclusions, raw_analysis, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    "INSERT INTO paper_analyses (id, paper_id, research_question, core_method, experiment_design, experiment_results, innovations, limitations, key_conclusions, raw_analysis, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                      ON CONFLICT(paper_id) DO UPDATE SET
                        research_question = excluded.research_question, core_method = excluded.core_method,
-                       experiment_design = excluded.experiment_design, innovations = excluded.innovations,
-                       limitations = excluded.limitations, key_conclusions = excluded.key_conclusions,
-                       raw_analysis = excluded.raw_analysis",
+                       experiment_design = excluded.experiment_design, experiment_results = excluded.experiment_results,
+                       innovations = excluded.innovations, limitations = excluded.limitations,
+                       key_conclusions = excluded.key_conclusions, raw_analysis = excluded.raw_analysis",
                 )
                 .bind(&analysis_id).bind(&pid)
                 .bind(v["research_question"].as_str()).bind(v["core_method"].as_str())
-                .bind(v["experiment_design"].as_str()).bind(v["innovations"].as_str())
-                .bind(v["limitations"].as_str()).bind(v["key_conclusions"].as_str())
-                .bind(&raw).bind(&now)
+                .bind(v["experiment_design"].as_str()).bind(v["experiment_results"].as_str())
+                .bind(v["innovations"].as_str()).bind(v["limitations"].as_str())
+                .bind(v["key_conclusions"].as_str()).bind(&raw).bind(&now)
                 .execute(&db).await;
                 let _ = sqlx::query("UPDATE papers SET status = 'analyzed', updated_at = ? WHERE id = ?")
                     .bind(&now).bind(&pid).execute(&db).await;
@@ -506,13 +530,26 @@ pub async fn papers_analyze(
 
 // ── Reproduce ────────────────────────────────────────────────────
 
-const REPRODUCE_SYSTEM: &str = "你是论文复现助手，负责基于论文内容输出可执行、可验证、风险可控的复现指南。不得编造论文中未提供的实验细节。";
-const REPRODUCE_PROMPT: &str = r#"请根据以下论文内容生成复现指南，仅返回严格合法的 JSON：
+const REPRODUCE_PROMPT: &str = r#"请根据以下论文内容生成复现指南，仅返回严格合法的 JSON，不要输出 JSON 以外的内容。
+
+要求：
+- 所有字段内容必须使用中文（代码仓库 URL 除外）
+- code_repository：填写论文中提到的官方代码仓库链接，或论文发布后社区已知的复现仓库（如 GitHub/GitLab/HuggingFace 等），如有多个用 \n 分隔；若论文未提供且无已知复现，填"暂无"
+- 步骤类内容（环境配置、依赖安装、训练流程等）请用 \n 分隔各条目（例如："1. 安装 Python 3.10\n2. 配置 CUDA 11.7\n3. ..."）
+- 每个字段限 200 字以内，保持可操作性
 
 {text}
 
 返回格式：
-{{"environment_setup":"...","dependencies":"...","dataset_preparation":"...","training_process":"...","inference_process":"...","evaluation_metrics":"...","risks_and_notes":"..."}}"#;
+{{"code_repository":"...","environment_setup":"...","dependencies":"...","dataset_preparation":"...","training_process":"...","inference_process":"...","evaluation_metrics":"...","risks_and_notes":"..."}}"#;
+
+fn reproduce_system() -> String {
+    specialist_system(
+        "论文复现助手",
+        "基于论文内容输出可执行、可验证、风险可控的复现指南。",
+        Some("不得编造论文中未提供的实验细节。"),
+    )
+}
 
 #[tauri::command]
 pub async fn papers_reproduce(
@@ -550,7 +587,7 @@ pub async fn papers_reproduce(
         };
         let model = resolve_model(&settings, &["paper_reproduction_model", "multi_agent_reproduction_model", "multi_agent_worker_model"]);
         let temperature = resolve_temperature(&settings, "paper_reproduction_temperature", 0.25);
-        let msgs = vec![LlmMessage::system(REPRODUCE_SYSTEM), LlmMessage::user(&prompt)];
+        let msgs = vec![LlmMessage::system(reproduce_system()), LlmMessage::user(&prompt)];
 
         match client.chat(&msgs, model.as_deref(), temperature).await {
             Ok(response) => {
@@ -559,19 +596,21 @@ pub async fn papers_reproduce(
                 let now = chrono::Utc::now().to_rfc3339();
                 let raw = serde_json::to_string(&v).unwrap_or_default();
                 let _ = sqlx::query(
-                    "INSERT INTO reproduction_guides (id, paper_id, environment_setup, dependencies, dataset_preparation, training_process, inference_process, evaluation_metrics, risks_and_notes, raw_guide, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    "INSERT INTO reproduction_guides (id, paper_id, code_repository, environment_setup, dependencies, dataset_preparation, training_process, inference_process, evaluation_metrics, risks_and_notes, raw_guide, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                      ON CONFLICT(paper_id) DO UPDATE SET
+                       code_repository = excluded.code_repository,
                        environment_setup = excluded.environment_setup, dependencies = excluded.dependencies,
                        dataset_preparation = excluded.dataset_preparation, training_process = excluded.training_process,
                        inference_process = excluded.inference_process, evaluation_metrics = excluded.evaluation_metrics,
                        risks_and_notes = excluded.risks_and_notes, raw_guide = excluded.raw_guide",
                 )
                 .bind(&guide_id).bind(&pid)
-                .bind(v["environment_setup"].as_str()).bind(v["dependencies"].as_str())
-                .bind(v["dataset_preparation"].as_str()).bind(v["training_process"].as_str())
-                .bind(v["inference_process"].as_str()).bind(v["evaluation_metrics"].as_str())
-                .bind(v["risks_and_notes"].as_str()).bind(&raw).bind(&now)
+                .bind(v["code_repository"].as_str()).bind(v["environment_setup"].as_str())
+                .bind(v["dependencies"].as_str()).bind(v["dataset_preparation"].as_str())
+                .bind(v["training_process"].as_str()).bind(v["inference_process"].as_str())
+                .bind(v["evaluation_metrics"].as_str()).bind(v["risks_and_notes"].as_str())
+                .bind(&raw).bind(&now)
                 .execute(&db).await;
                 let _ = sqlx::query("UPDATE papers SET status = 'reproduced', updated_at = ? WHERE id = ?")
                     .bind(&now).bind(&pid).execute(&db).await;
@@ -628,7 +667,7 @@ async fn extract_import_rename_metadata(
         .replace("{title_guess}", title_guess)
         .replace("{text}", text_preview);
     let messages = vec![
-        LlmMessage::system(IMPORT_RENAME_SYSTEM),
+        LlmMessage::system(import_rename_system()),
         LlmMessage::user(prompt),
     ];
     let model = resolve_model(settings, &["planner_hint_model"]);

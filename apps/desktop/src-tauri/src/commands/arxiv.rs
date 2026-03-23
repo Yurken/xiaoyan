@@ -1,3 +1,4 @@
+use crate::assistant_prompts::specialist_system;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::state::AppState;
 use anyhow::{anyhow, Context};
@@ -415,9 +416,11 @@ async fn rerank_with_llm(
     );
 
     let messages = vec![
-        LlmMessage::system(
-            "你是科研论文筛选助手。你要从候选 arXiv 论文中做严格筛选和排序，结果必须精炼、可信、可溯源。",
-        ),
+        LlmMessage::system(specialist_system(
+            "科研论文筛选助手",
+            "从候选 arXiv 论文中做严格筛选和排序。",
+            Some("结果必须精炼、可信、可溯源。"),
+        )),
         LlmMessage::user(prompt),
     ];
 

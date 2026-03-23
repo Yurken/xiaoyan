@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { Map, BookOpen, FileText, Library, MessageSquare, ArrowRight, Sparkles, SlidersHorizontal } from "lucide-react";
 import { Card } from "@research-copilot/ui";
+import {
+  MAIN_ASSISTANT_BADGE,
+  MAIN_ASSISTANT_NAME,
+  MAIN_ASSISTANT_WORKSPACE_NAME,
+  PRODUCT_NAME,
+} from "@research-copilot/types";
 
 const features = [
   {
@@ -38,8 +44,8 @@ const features = [
   {
     href: "/copilot",
     icon: MessageSquare,
-    title: "多 Agent Copilot",
-    description: "由调度器自动拆解任务，将检索、综述、论文解析与复现建议串联为可观测执行链路",
+    title: MAIN_ASSISTANT_WORKSPACE_NAME,
+    description: `由${MAIN_ASSISTANT_NAME}自动拆解任务，将检索、综述、论文解析与复现建议串联为可观测执行链路`,
     color: "text-rose-600",
     bg: "bg-rose-50",
   },
@@ -60,13 +66,13 @@ export default function HomePage() {
       <div className="mb-10">
         <div className="inline-flex items-center gap-2 bg-brand-50 text-brand-700 text-sm font-medium px-3 py-1.5 rounded-full mb-4">
           <Sparkles className="w-4 h-4" />
-          AI 科研全流程助手
+          {MAIN_ASSISTANT_BADGE}
         </div>
         <h1 className="text-4xl font-bold text-gray-900 mb-3">
-          智研 Copilot
+          {PRODUCT_NAME}
         </h1>
         <p className="text-lg text-gray-500 max-w-2xl">
-          现在已经支持多 Agent 协同，把方向规划、文献调研、论文精读、实验复现和最终回答串成一条可追踪的科研工作流。
+          主 AI {MAIN_ASSISTANT_NAME} 现已接入多 Agent 协同，把方向规划、文献调研、论文精读、实验复现和最终回答串成一条可追踪的科研工作流。
         </p>
       </div>
 
@@ -99,7 +105,7 @@ export default function HomePage() {
             { step: "2", text: "在「文献调研」中输入研究关键词，生成结构化综述并快速了解领域现状" },
             { step: "3", text: "上传 PDF 论文，获取论文精读分析与复现指导" },
             { step: "4", text: "所有内容自动归档到「知识库」，支持语义搜索和问答" },
-            { step: "5", text: "随时打开「Copilot」查看调度计划、Agent 时间线与结构化产物" },
+            { step: "5", text: `随时打开「${MAIN_ASSISTANT_NAME}」查看调度计划、Agent 时间线与结构化产物` },
           ].map(({ step, text }) => (
             <li key={step} className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center">

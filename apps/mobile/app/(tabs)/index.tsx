@@ -39,7 +39,7 @@ function PaperItem({ paper, onAnalyze }: { paper: Paper; onAnalyze: (id: string)
           disabled={paper.status === "analyzing"}
           onPress={() => onAnalyze(paper.id)}
         >
-          AI 分析
+          小妍分析
         </NmButton>
       </View>
     </NmCard>

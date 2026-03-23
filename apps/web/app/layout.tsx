@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { MAIN_ASSISTANT_NAME, PRODUCT_NAME } from "@research-copilot/types";
 import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 
 export const metadata: Metadata = {
-  title: "智研 Copilot — AI 科研助手",
-  description: "面向高校学生和科研新手的 AI 全流程科研助手",
+  title: `${PRODUCT_NAME} | 主 AI ${MAIN_ASSISTANT_NAME}`,
+  description: `${PRODUCT_NAME} 的主 AI ${MAIN_ASSISTANT_NAME}，面向高校学生和科研新手提供全流程科研协作能力。`,
 };
 
 export default function RootLayout({

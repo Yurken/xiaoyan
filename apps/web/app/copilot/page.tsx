@@ -17,6 +17,14 @@ import {
   XCircle,
 } from "lucide-react";
 import { Badge, Button, Card, MarkdownRenderer } from "@research-copilot/ui";
+import {
+  MAIN_ASSISTANT_INPUT_PLACEHOLDER,
+  MAIN_ASSISTANT_NAME,
+  MAIN_ASSISTANT_PANEL_TITLE,
+  MAIN_ASSISTANT_STATUS_DESCRIPTION,
+  MAIN_ASSISTANT_WELCOME_DESCRIPTION,
+  MAIN_ASSISTANT_WELCOME_TITLE,
+} from "@research-copilot/types";
 import { chatApi } from "@/lib/client";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession } from "@research-copilot/types";
 
@@ -105,7 +113,7 @@ function MissionControl({
             <h3 className="text-sm font-semibold text-slate-900">计划分解</h3>
           </div>
           {plan.length === 0 ? (
-            <p className="text-sm leading-6 text-slate-500">尚未启动任务拆解。发送问题后，调度器会在此展示当前执行链路。</p>
+            <p className="text-sm leading-6 text-slate-500">尚未启动任务拆解。发送问题后，小妍会在此展示当前执行链路。</p>
           ) : (
             <div className="space-y-3">
               {plan.map((step, index) => (
@@ -425,8 +433,8 @@ function CopilotContent() {
                     <BrainCircuit className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="text-lg font-semibold text-slate-950">Copilot 调度面板</div>
-                    <div className="mt-1 text-sm text-slate-500">调度模型负责拆解任务，专项 Agent 负责执行，右侧实时显示执行链路。</div>
+                    <div className="text-lg font-semibold text-slate-950">{MAIN_ASSISTANT_PANEL_TITLE}</div>
+                    <div className="mt-1 text-sm text-slate-500">{MAIN_ASSISTANT_STATUS_DESCRIPTION}</div>
                   </div>
                 </div>
               </div>
@@ -455,10 +463,8 @@ function CopilotContent() {
                       <Sparkles className="h-6 w-6" />
                     </div>
                     <div>
-                      <div className="text-xl font-semibold text-slate-950">多 Agent Copilot</div>
-                      <div className="mt-1 text-sm text-slate-500">
-                        请输入研究问题。系统会自动拆解为检索、规划、综述、论文解析或复现等链路。
-                      </div>
+                      <div className="text-xl font-semibold text-slate-950">{MAIN_ASSISTANT_WELCOME_TITLE}</div>
+                      <div className="mt-1 text-sm text-slate-500">{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</div>
                     </div>
                   </div>
                   <div className="grid gap-3 md:grid-cols-3">
@@ -546,7 +552,7 @@ function CopilotContent() {
                         <div
                           className="rounded-[28px] border border-white/70 bg-white/85 px-5 py-4 text-slate-900 shadow-[0_20px_45px_rgba(15,23,42,0.08)]"
                         >
-                          <MarkdownRenderer content={parsed.answer || (sending && isActiveAssistant ? "正在整理最终答复..." : "…")} />
+                          <MarkdownRenderer content={parsed.answer || (sending && isActiveAssistant ? `${MAIN_ASSISTANT_NAME} 正在整理最终答复...` : "…")} />
                         </div>
                       </>
                     );
@@ -586,7 +592,7 @@ function CopilotContent() {
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="请输入研究问题，系统会自动选择合适的 Agent 链路"
+                placeholder={MAIN_ASSISTANT_INPUT_PLACEHOLDER}
                 className="min-h-[84px] flex-1 resize-none rounded-[24px] border-0 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-900 outline-none"
               />
               <Button onClick={handleSend} disabled={!input.trim() || sending} className="h-12 px-5">

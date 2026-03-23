@@ -16,6 +16,14 @@ import {
   XCircle,
 } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
+import {
+  MAIN_ASSISTANT_INPUT_PLACEHOLDER,
+  MAIN_ASSISTANT_NAME,
+  MAIN_ASSISTANT_STATUS_DESCRIPTION,
+  MAIN_ASSISTANT_WELCOME_DESCRIPTION,
+  MAIN_ASSISTANT_WELCOME_TITLE,
+  MAIN_ASSISTANT_WORKSPACE_NAME,
+} from "@research-copilot/types";
 import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
@@ -587,7 +595,7 @@ export default function Copilot() {
                 <div className="px-2 pt-2">
                   <div className="px-2 pb-2">
                     <p className="text-[11px] font-semibold text-ink-tertiary">未归档</p>
-                    <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">打开会话后可在顶部调整所属主题。</p>
+                    <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">可在对话顶部关联到具体研究方向。</p>
                   </div>
                   <div className="space-y-1.5">
                     {ungroupedSessions.map(renderSessionItem)}
@@ -619,8 +627,8 @@ export default function Copilot() {
                 <BrainCircuit className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-semibold text-sm text-ink-primary">Copilot 协同台</span>
-                <p className="text-xs text-ink-tertiary mt-0.5">调度 Agent 与专项 Agent 协同工作</p>
+                <span className="font-semibold text-sm text-ink-primary">{MAIN_ASSISTANT_WORKSPACE_NAME}</span>
+                <p className="text-xs text-ink-tertiary mt-0.5">{MAIN_ASSISTANT_STATUS_DESCRIPTION}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -734,10 +742,8 @@ export default function Copilot() {
                   <Sparkles className="w-9 h-9 text-white" />
                 </div>
                 <div className="text-center max-w-md">
-                  <p className="font-semibold text-ink-primary">多 Agent 研究助手</p>
-                  <p className="text-sm text-ink-tertiary mt-2 leading-6">
-                    请输入研究问题。系统会自动拆解为检索、规划、综述、论文解析和复现等链路，并在右侧实时展示执行过程。
-                  </p>
+                  <p className="font-semibold text-ink-primary">{MAIN_ASSISTANT_WELCOME_TITLE}</p>
+                  <p className="text-sm text-ink-tertiary mt-2 leading-6">{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</p>
                 </div>
               </div>
             )}
@@ -836,7 +842,7 @@ export default function Copilot() {
                           }}
                         >
                           <MarkdownRenderer
-                            content={parsed.answer || (sending && isActiveAssistant ? "正在整理最终答复..." : "…")}
+                            content={parsed.answer || (sending && isActiveAssistant ? `${MAIN_ASSISTANT_NAME} 正在整理最终答复...` : "…")}
                             onLinkClick={openLink}
                           />
                         </div>
@@ -896,7 +902,7 @@ export default function Copilot() {
                     void handleSend();
                   }
                 }}
-                placeholder="请输入研究问题，系统会自动选择合适的 Agent 链路"
+                placeholder={MAIN_ASSISTANT_INPUT_PLACEHOLDER}
                 className="w-full rounded-3xl px-5 py-3 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none transition-shadow duration-150"
                 style={{
                   background: "#E8ECF0",
@@ -954,7 +960,7 @@ export default function Copilot() {
             <div className="text-sm font-semibold text-ink-primary mb-3">计划分解</div>
             <div className="space-y-3">
               {plan.length === 0 ? (
-                <p className="text-xs text-ink-tertiary leading-5">提交问题后，调度 Agent 会在这里展示任务拆解与执行状态。</p>
+                <p className="text-xs text-ink-tertiary leading-5">提交问题后，小妍会在这里展示任务拆解与执行状态。</p>
               ) : (
                 plan.map((step, index) => (
                   <div

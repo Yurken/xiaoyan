@@ -6,6 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+mod assistant_prompts;
 mod ccf;
 mod commands;
 mod db;

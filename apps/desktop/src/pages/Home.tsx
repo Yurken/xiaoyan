@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, BookOpen, FileText, Library, Loader2, MessageSquare, Sparkles, Wrench } from "lucide-react";
 import { Badge, Button, Card } from "@research-copilot/ui";
+import {
+  MAIN_ASSISTANT_BADGE,
+  MAIN_ASSISTANT_NAME,
+  MAIN_ASSISTANT_WORKSPACE_NAME,
+  PRODUCT_NAME,
+} from "@research-copilot/types";
 import { Link } from "react-router-dom";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
@@ -25,7 +31,7 @@ const quickActions = [
     to: "/survey",
     icon: BookOpen,
     title: "生成文献综述",
-    description: "自动规划检索、整理候选论文并输出结构化综述。",
+    description: "从一个研究问题出发，自动找文献、读摘要、整理成综述。",
     iconColor: "#007AFF",
     iconBg: "rgba(0,122,255,0.1)",
   },
@@ -40,8 +46,8 @@ const quickActions = [
   {
     to: "/copilot",
     icon: MessageSquare,
-    title: "进入 Copilot",
-    description: "查看 Agent 执行链路，围绕论文或研究问题继续追问。",
+    title: `和${MAIN_ASSISTANT_NAME}对话`,
+    description: "有问题直接问，带着论文一起读也行。",
     iconColor: "#34C759",
     iconBg: "rgba(52,199,89,0.1)",
   },
@@ -126,9 +132,12 @@ export default function Home() {
         <div className="grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
           <div className="space-y-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-ink-primary">智研 Copilot</h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-bold tracking-tight text-ink-primary">{PRODUCT_NAME}</h1>
+                <Badge variant="info">{MAIN_ASSISTANT_BADGE}</Badge>
+              </div>
               <p className="mt-2 text-sm leading-6 text-ink-secondary">
-                从研究规划到文献综述、论文精读、知识沉淀——串成持续推进的研究闭环。
+                选题、读文献、整理笔记——{MAIN_ASSISTANT_NAME}帮你把研究的每一步都连起来，进展自然就看得见。
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -139,7 +148,7 @@ export default function Home() {
                 </Button>
               </Link>
               <Link to="/copilot">
-                <Button variant="secondary">进入 Copilot 协同台</Button>
+                <Button variant="secondary">进入{MAIN_ASSISTANT_WORKSPACE_NAME}</Button>
               </Link>
             </div>
           </div>
@@ -149,7 +158,7 @@ export default function Home() {
               { label: "论文库",       value: state.papers.length,    note: `${analyzedCount} 篇已分析`,  color: "#007AFF" },
               { label: "研究方向",     value: state.interests.length, note: `${plannedCount} 条已成路线`, color: "#AF52DE" },
               { label: "知识笔记",     value: state.notes.length,     note: "支持语义检索",              color: "#FF9500" },
-              { label: "Copilot 会话", value: state.sessions.length,  note: "可回溯执行过程",            color: "#34C759" },
+              { label: `${MAIN_ASSISTANT_NAME}会话`, value: state.sessions.length,  note: "历史对话随时翻", color: "#34C759" },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl p-4 relative overflow-hidden" style={{ background: "rgba(255,255,255,0.5)", boxShadow: "inset 2px 2px 5px #D0D6DC, inset -2px -2px 5px #FFFFFF" }}>
                 <div className="absolute top-0 left-4 right-4 h-[2px] rounded-full" style={{ background: item.color, opacity: 0.55 }} />
@@ -167,7 +176,7 @@ export default function Home() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-lg font-semibold text-ink-primary">下一步建议</p>
-              <p className="mt-1 text-xs text-ink-tertiary">优先把已有能力串成闭环，而不是继续分散入口。</p>
+              <p className="mt-1 text-xs text-ink-tertiary">从这里开始，选一件最近想做的事。</p>
             </div>
             {/* <Badge variant="info">高优先级</Badge> */}
           </div>
@@ -190,7 +199,7 @@ export default function Home() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-lg font-semibold text-ink-primary">研究资产概览</p>
-              <p className="mt-1 text-xs text-ink-tertiary">最近沉淀下来的方向、笔记和会话。</p>
+              <p className="mt-1 text-xs text-ink-tertiary">最近的研究进展。</p>
             </div>
             <Link to="/knowledge" className="text-xs font-medium text-apple-blue">
               查看知识库
@@ -204,7 +213,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-ink-primary">最近研究方向</p>
               </div>
               {state.interests.length === 0 ? (
-                <p className="text-xs text-ink-tertiary">暂无研究方向，建议先前往规划页创建。</p>
+                <p className="text-xs text-ink-tertiary">还没有研究方向，去规划页新建一个吧。</p>
               ) : (
                 <div className="space-y-2">
                   {state.interests.slice(0, 3).map((interest) => (
@@ -225,7 +234,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-ink-primary">最近知识卡片</p>
               </div>
               {state.notes.length === 0 ? (
-                <p className="text-xs text-ink-tertiary">暂无笔记，建议将综述与论文分析逐步沉淀为知识卡片。</p>
+                <p className="text-xs text-ink-tertiary">读完论文或综述后，把重要内容保存为知识卡片。</p>
               ) : (
                 <div className="space-y-2">
                   {state.notes.slice(0, 3).map((note) => (
@@ -244,7 +253,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-ink-primary">最近会话</p>
               </div>
               {state.sessions.length === 0 ? (
-                <p className="text-xs text-ink-tertiary">暂无会话，建议围绕论文或研究方向发起上下文问答。</p>
+                <p className="text-xs text-ink-tertiary">有问题直接去 Copilot 问，带着论文一起读也行。</p>
               ) : (
                 <div className="space-y-2">
                   {state.sessions.slice(0, 3).map((session) => (

@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
-  FlaskConical,
   Loader2,
   Pencil,
   Trash2,
@@ -34,8 +33,13 @@ export default function Papers() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [confirmDeletePaperId, setConfirmDeletePaperId] = useState<string | null>(null);
+  const [deletingPaperId, setDeletingPaperId] = useState<string | null>(null);
   const [visiblePaperTags, setVisiblePaperTags] = useState(() => parsePaperTagVisibility(DEFAULT_PAPER_TAG_VISIBILITY_VALUE));
   const [selectedInterestId, setSelectedInterestId] = useState("");
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+  const [editFolderPickerOpen, setEditFolderPickerOpen] = useState(false);
+  const [autoRename, setAutoRename] = useState(true);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({
@@ -188,18 +192,10 @@ export default function Papers() {
     try {
       setLoadError("");
       setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "analyzing" } : paper)));
-      await apiClient.papers.analyze(id);
-    } catch (error) {
-      setLoadError(formatErrorMessage(error));
-      setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "failed" } : paper)));
-    }
-  };
-
-  const handleReproduce = async (id: string) => {
-    try {
-      setLoadError("");
-      setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "analyzing" } : paper)));
-      await apiClient.papers.reproduce(id);
+      await Promise.all([
+        apiClient.papers.analyze(id),
+        apiClient.papers.reproduce(id),
+      ]);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
       setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "failed" } : paper)));
@@ -250,6 +246,20 @@ export default function Papers() {
     }
   };
 
+  const handleDeletePaper = async (id: string) => {
+    try {
+      setDeletingPaperId(id);
+      setLoadError("");
+      await apiClient.papers.delete(id);
+      setPapers((prev) => prev.filter((p) => p.id !== id));
+      setConfirmDeletePaperId(null);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+    } finally {
+      setDeletingPaperId(null);
+    }
+  };
+
   const handleDeleteInterestGroup = async (interestId: string, deleteAll: boolean) => {
     try {
       setDeletingGroupId(interestId);
@@ -273,9 +283,9 @@ export default function Papers() {
     if (status === "analyzed") return <Badge variant="success">已分析</Badge>;
     if (status === "reproduced") return <Badge variant="success">已复现</Badge>;
     if (status === "failed" || status === "error") return <Badge variant="danger">失败</Badge>;
-    if (status === "analyzing") return <Badge variant="info">处理中</Badge>;
+    if (status === "analyzing") return <Badge variant="info">分析中</Badge>;
     if (status === "parsed") return <Badge variant="info">已解析</Badge>;
-    return <Badge variant="default">已上传</Badge>;
+    return <Badge variant="default">待分析</Badge>;
   };
 
   const statusIcon = (status: string) => {
@@ -286,7 +296,17 @@ export default function Papers() {
       return <AlertCircle className="w-5 h-5 text-apple-red" />;
     }
     if (status === "analyzing") {
-      return <Loader2 className="w-5 h-5 animate-spin text-apple-blue" />;
+      return (
+        <div className="flex items-center gap-[3px]">
+          {([0, 0.18, 0.36] as number[]).map((delay, i) => (
+            <div
+              key={i}
+              className="w-1.5 h-1.5 rounded-full bg-apple-blue"
+              style={{ animation: "thinking-dot 1.1s ease-in-out infinite", animationDelay: `${delay}s` }}
+            />
+          ))}
+        </div>
+      );
     }
     return <FileText className="w-5 h-5 text-ink-tertiary" />;
   };
@@ -323,7 +343,7 @@ export default function Papers() {
                 >
                   {paper.venue}
                 </ExternalLink>
-              ) : "未识别来源"}
+              ) : "来源未知"}
               {paper.ccf_area ? ` · ${paper.ccf_area}` : ""}
               {paper.ccf_publisher ? ` · ${paper.ccf_publisher}` : ""}
               {!paper.ccf_publisher && paper.journal_publisher ? ` · ${paper.journal_publisher}` : ""}
@@ -354,26 +374,44 @@ export default function Papers() {
           {/* 次要操作：图标按钮 */}
           <button
             type="button"
-            onClick={() => openEditor(paper)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-tertiary hover:text-ink-primary transition-colors"
-            style={{ background: "#EEF1F5", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
-            title="编辑信息"
+            onClick={() => {
+              if (editingId === paper.id) {
+                setEditingId(null);
+              } else {
+                openEditor(paper);
+              }
+            }}
+            className={[
+              "w-7 h-7 flex items-center justify-center rounded-lg transition-colors",
+              editingId === paper.id ? "text-apple-blue" : "text-ink-tertiary hover:text-ink-primary",
+            ].join(" ")}
+            style={{
+              background: "#EEF1F5",
+              boxShadow: editingId === paper.id
+                ? "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF"
+                : "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF",
+            }}
+            title={editingId === paper.id ? "收起编辑" : "编辑信息"}
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
+
           <button
             type="button"
-            onClick={() => void handleReproduce(paper.id)}
-            disabled={paper.status === "analyzing"}
+            onClick={() => setConfirmDeletePaperId(confirmDeletePaperId === paper.id ? null : paper.id)}
             className={[
               "w-7 h-7 flex items-center justify-center rounded-lg transition-colors",
-              paper.reproduction_guide ? "text-apple-blue" : "text-ink-tertiary hover:text-ink-primary",
-              paper.status === "analyzing" ? "opacity-40 cursor-not-allowed" : "",
+              confirmDeletePaperId === paper.id ? "text-apple-red" : "text-ink-tertiary/50 hover:text-apple-red",
             ].join(" ")}
-            style={{ background: "#EEF1F5", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
-            title="复现指南"
+            style={{
+              background: "#EEF1F5",
+              boxShadow: confirmDeletePaperId === paper.id
+                ? "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF"
+                : "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF",
+            }}
+            title="删除论文"
           >
-            <FlaskConical className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
 
           {/* 主要 CTA */}
@@ -383,7 +421,7 @@ export default function Papers() {
             disabled={paper.status === "analyzing"}
           >
             {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {paper.status === "analyzing" ? "分析中…" : "AI 分析"}
+            {paper.status === "analyzing" ? "分析中…" : "小妍解读"}
           </Button>
 
           {/* 展开按钮 */}
@@ -399,6 +437,30 @@ export default function Papers() {
           )}
         </div>
       </div>
+
+      {confirmDeletePaperId === paper.id && (
+        <div
+          className="mt-2 flex items-center justify-between gap-2 rounded-xl px-3 py-2"
+          style={{ background: "rgba(255,59,48,0.06)" }}
+        >
+          <span className="text-xs text-apple-red">确认删除这篇论文？此操作无法撤销。</span>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Button size="sm" variant="secondary" onClick={() => setConfirmDeletePaperId(null)}>
+              取消
+            </Button>
+            <button
+              type="button"
+              onClick={() => void handleDeletePaper(paper.id)}
+              disabled={deletingPaperId === paper.id}
+              className="inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:opacity-60"
+              style={{ background: "#FF3B30" }}
+            >
+              {deletingPaperId === paper.id && <Loader2 className="h-3 w-3 animate-spin" />}
+              删除
+            </button>
+          </div>
+        </div>
+      )}
 
       {editingId === paper.id && (
         <div className="mt-3 grid gap-3 border-t border-nm-dark/10 pt-3 md:grid-cols-2">
@@ -426,21 +488,69 @@ export default function Papers() {
             onChange={(event) => setEditDraft((prev) => ({ ...prev, year: event.target.value }))}
             placeholder="例如：2024"
           />
-          <div className="space-y-1">
+          <div
+            className="relative space-y-1"
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setEditFolderPickerOpen(false);
+              }
+            }}
+          >
             <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
-            <select
-              value={editDraft.research_interest_id}
-              onChange={(event) => setEditDraft((prev) => ({ ...prev, research_interest_id: event.target.value }))}
-              className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary outline-none"
-              style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+            <button
+              type="button"
+              onClick={() => setEditFolderPickerOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl text-sm text-ink-primary transition-all duration-150"
+              style={{
+                background: "#E8ECF0",
+                boxShadow: editFolderPickerOpen
+                  ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
+                  : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+              }}
             >
-              <option value="">未归档</option>
-              {interests.map((interest) => (
-                <option key={interest.id} value={interest.id}>
-                  {interestFolderName(interest)}
-                </option>
-              ))}
-            </select>
+              <span className="truncate">
+                {editDraft.research_interest_id
+                  ? interestFolderName(interests.find((i) => i.id === editDraft.research_interest_id)!)
+                  : "未归档"}
+              </span>
+              <ChevronDown
+                className="h-4 w-4 flex-shrink-0 text-ink-tertiary transition-transform duration-150"
+                style={{ transform: editFolderPickerOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+              />
+            </button>
+
+            {editFolderPickerOpen && (
+              <div
+                className="absolute left-0 right-0 top-full mt-1 z-20 rounded-2xl py-1 overflow-hidden"
+                style={{
+                  background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
+                  boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF",
+                }}
+              >
+                {[{ id: "", label: "未归档" }, ...interests.map((i) => ({
+                  id: i.id,
+                  label: interestFolderName(i),
+                }))].map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setEditDraft((prev) => ({ ...prev, research_interest_id: id }));
+                      setEditFolderPickerOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm transition-colors duration-100"
+                    style={{
+                      color: editDraft.research_interest_id === id ? "#007AFF" : "#1C1C1E",
+                      background: editDraft.research_interest_id === id ? "rgba(0,122,255,0.08)" : "transparent",
+                      fontWeight: editDraft.research_interest_id === id ? 600 : 400,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="md:col-span-2">
             <Input
@@ -462,15 +572,16 @@ export default function Papers() {
       )}
 
       {expanded === paper.id && (paper.analysis || paper.reproduction_guide) && (
-        <div className="mt-3 border-t border-nm-dark/10 pt-3 space-y-4">
+        <div className="mt-3 border-t border-nm-dark/10 pt-3 space-y-5">
           {paper.analysis && (
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary">论文分析</p>
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-ink-secondary tracking-wide">论文分析</p>
               {(
                 [
                   ["研究问题", paper.analysis.research_question],
                   ["核心方法", paper.analysis.core_method],
                   ["实验设计", paper.analysis.experiment_design],
+                  ["实验结果", paper.analysis.experiment_results],
                   ["创新点", paper.analysis.innovations],
                   ["局限性", paper.analysis.limitations],
                   ["关键结论", paper.analysis.key_conclusions],
@@ -478,18 +589,19 @@ export default function Papers() {
               )
                 .filter(([, value]) => value)
                 .map(([label, value]) => (
-                  <div key={label}>
-                    <span className="text-[11px] font-medium text-ink-tertiary">{label}</span>
-                    <p className="mt-0.5 text-xs leading-5 text-ink-secondary">{value}</p>
+                  <div key={label} className="rounded-xl px-3 py-2" style={{ background: "rgba(0,0,0,0.025)" }}>
+                    <span className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider">{label}</span>
+                    <p className="mt-1 whitespace-pre-wrap text-xs leading-[1.7] text-ink-secondary">{value}</p>
                   </div>
                 ))}
             </div>
           )}
           {paper.reproduction_guide && (
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-apple-blue">复现指南</p>
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-apple-blue tracking-wide">复现指南</p>
               {(
                 [
+                  ["代码仓库", paper.reproduction_guide.code_repository],
                   ["环境配置", paper.reproduction_guide.environment_setup],
                   ["依赖安装", paper.reproduction_guide.dependencies],
                   ["数据准备", paper.reproduction_guide.dataset_preparation],
@@ -499,11 +611,25 @@ export default function Papers() {
                   ["风险与注意事项", paper.reproduction_guide.risks_and_notes],
                 ] as [string, string | undefined][]
               )
-                .filter(([, value]) => value)
+                .filter(([, value]) => value && value !== "暂无")
                 .map(([label, value]) => (
-                  <div key={label}>
-                    <span className="text-[11px] font-medium text-ink-tertiary">{label}</span>
-                    <p className="mt-0.5 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">{value}</p>
+                  <div key={label} className="rounded-xl px-3 py-2" style={{ background: "rgba(0,122,255,0.04)" }}>
+                    <span className="text-[11px] font-semibold text-apple-blue/70 uppercase tracking-wider">{label}</span>
+                    {label === "代码仓库" ? (
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        {value!.split("\n").filter(Boolean).map((url) => (
+                          <ExternalLink
+                            key={url}
+                            href={url.trim()}
+                            className="text-xs text-apple-blue hover:underline break-all"
+                          >
+                            {url.trim()}
+                          </ExternalLink>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-1 whitespace-pre-wrap text-xs leading-[1.7] text-ink-secondary">{value}</p>
+                    )}
                   </div>
                 ))}
             </div>
@@ -515,6 +641,12 @@ export default function Papers() {
 
   return (
     <div className="h-full overflow-y-auto p-6 space-y-5">
+      <style>{`
+        @keyframes thinking-dot {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+          30% { transform: translateY(-5px); opacity: 1; }
+        }
+      `}</style>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-ink-primary">论文库</h1>
@@ -522,22 +654,98 @@ export default function Papers() {
             {`共 ${papers.length} 篇论文 · ${interests.length} 个主题分组`}
           </p>
         </div>
-        <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:items-center">
-          <div className="min-w-[220px]">
-            <label className="mb-1 ml-1 block text-xs font-medium text-ink-tertiary">导入到主题文件夹</label>
-            <select
-              value={selectedInterestId}
-              onChange={(event) => setSelectedInterestId(event.target.value)}
-              className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary outline-none"
-              style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+        <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
+          {/* 自动更名开关 */}
+          <button
+            type="button"
+            onClick={() => setAutoRename((v) => !v)}
+            className="flex items-center gap-2 rounded-2xl px-3 py-2 transition-all duration-150 flex-shrink-0"
+            style={{
+              background: "#E8ECF0",
+              boxShadow: autoRename
+                ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
+                : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+            }}
+            title="导入后自动用提取的元数据重命名文件"
+          >
+            <span className={`text-xs font-medium transition-colors ${autoRename ? "text-apple-blue" : "text-ink-tertiary"}`}>
+              自动更名
+            </span>
+            {/* pill track */}
+            <div
+              className="relative h-5 w-9 rounded-full transition-colors duration-200 flex-shrink-0"
+              style={{ background: autoRename ? "#007AFF" : "#C8CDD3" }}
             >
-              <option value="">未归档</option>
-              {interests.map((interest) => (
-                <option key={interest.id} value={interest.id}>
-                  {interestFolderName(interest)}
-                </option>
-              ))}
-            </select>
+              <div
+                className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200"
+                style={{ transform: autoRename ? "translateX(16px)" : "translateX(2px)" }}
+              />
+            </div>
+          </button>
+
+          <div
+            className="relative min-w-[200px]"
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setFolderPickerOpen(false);
+              }
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setFolderPickerOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl text-sm text-ink-primary transition-all duration-150"
+              style={{
+                background: "#E8ECF0",
+                boxShadow: folderPickerOpen
+                  ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
+                  : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+              }}
+            >
+              <span className="truncate">
+                <span className="text-ink-tertiary">文件夹：</span>
+                {selectedInterestId
+                  ? interestFolderName(interests.find((i) => i.id === selectedInterestId)!)
+                  : "未归档"}
+              </span>
+              <ChevronDown
+                className="h-4 w-4 flex-shrink-0 text-ink-tertiary transition-transform duration-150"
+                style={{ transform: folderPickerOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+              />
+            </button>
+
+            {folderPickerOpen && (
+              <div
+                className="absolute left-0 right-0 top-full mt-1 z-20 rounded-2xl py-1 overflow-hidden"
+                style={{
+                  background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
+                  boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF",
+                }}
+              >
+                {[{ id: "", label: "未归档" }, ...interests.map((i) => ({
+                  id: i.id,
+                  label: interestFolderName(i),
+                }))].map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setSelectedInterestId(id);
+                      setFolderPickerOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm transition-colors duration-100"
+                    style={{
+                      color: selectedInterestId === id ? "#007AFF" : "#1C1C1E",
+                      background: selectedInterestId === id ? "rgba(0,122,255,0.08)" : "transparent",
+                      fontWeight: selectedInterestId === id ? 600 : 400,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <Button onClick={handleUpload} loading={uploading} size="md">
             <Upload className="w-4 h-4" />
@@ -578,8 +786,8 @@ export default function Papers() {
             <FileText className="h-8 w-8 text-ink-tertiary" />
           </div>
           <div>
-            <p className="font-medium text-ink-secondary">暂无论文</p>
-            <p className="mt-1 text-sm text-ink-tertiary">请先导入 PDF 文件。</p>
+            <p className="font-medium text-ink-secondary">还没有论文</p>
+            <p className="mt-1 text-sm text-ink-tertiary">上传 PDF，开始精读和分析。</p>
           </div>
         </Card>
       ) : (
@@ -633,7 +841,7 @@ export default function Papers() {
             >
               {group.papers.length === 0 ? (
                 <Card padding="sm" className="border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
-                  该主题下暂无论文。
+                  这个方向下还没有论文，导入 PDF 后会显示在这里。
                 </Card>
               ) : (
                 group.papers.map(renderPaperCard)
