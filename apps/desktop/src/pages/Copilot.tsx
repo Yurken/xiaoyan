@@ -4,6 +4,7 @@ import {
   Bot,
   BrainCircuit,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   MessageSquare,
   Plus,
@@ -87,6 +88,8 @@ export default function Copilot() {
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [selectedInterestId, setSelectedInterestId] = useState("");
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+  const [sessionFolderPickerOpen, setSessionFolderPickerOpen] = useState(false);
   const [updatingSessionContext, setUpdatingSessionContext] = useState(false);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
@@ -395,7 +398,11 @@ export default function Copilot() {
               boxShadow: "inset 3px 3px 6px #C8CDD3, inset -3px -3px 6px #FFFFFF",
               color: "#007AFF",
             }
-          : { color: "#3C3C43" }
+          : {
+              background: "rgba(255,255,255,0.6)",
+              boxShadow: "2px 2px 6px #D0D6DC, -2px -2px 5px #FFFFFF",
+              color: "#3C3C43",
+            }
       }
     >
       <button className="min-w-0 flex-1 text-left" onClick={() => void loadSession(session)}>
@@ -435,21 +442,71 @@ export default function Copilot() {
             <Plus className="w-4 h-4" />
             新建对话
           </button>
-          <div className="mt-2">
+          <div
+            className="relative mt-2"
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setFolderPickerOpen(false);
+              }
+            }}
+          >
             <label className="mb-1 ml-1 block text-[11px] font-medium text-ink-tertiary">新对话主题文件夹</label>
-            <select
-              value={selectedInterestId}
-              onChange={(event) => setSelectedInterestId(event.target.value)}
-              className="w-full rounded-2xl border-0 px-3 py-2 text-xs text-ink-primary outline-none"
-              style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+            <button
+              type="button"
+              onClick={() => setFolderPickerOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-2xl text-xs text-ink-primary transition-all duration-150"
+              style={{
+                background: "#E8ECF0",
+                boxShadow: folderPickerOpen
+                  ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
+                  : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+              }}
             >
-              <option value="">未归档</option>
-              {interests.map((interest) => (
-                <option key={interest.id} value={interest.id}>
-                  {interestFolderName(interest)}
-                </option>
-              ))}
-            </select>
+              <span className="truncate">
+                {selectedInterestId
+                  ? (interests.find((i) => i.id === selectedInterestId)?.folder_name?.trim() ||
+                     interests.find((i) => i.id === selectedInterestId)?.topic ||
+                     "未归档")
+                  : "未归档"}
+              </span>
+              <ChevronDown
+                className="h-3.5 w-3.5 flex-shrink-0 text-ink-tertiary transition-transform duration-150"
+                style={{ transform: folderPickerOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+              />
+            </button>
+
+            {folderPickerOpen && (
+              <div
+                className="absolute left-0 right-0 top-full mt-1 z-20 rounded-2xl py-1 overflow-hidden"
+                style={{
+                  background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
+                  boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF",
+                }}
+              >
+                {[{ id: "", label: "未归档" }, ...interests.map((i) => ({
+                  id: i.id,
+                  label: i.folder_name?.trim() || i.topic,
+                }))].map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setSelectedInterestId(id);
+                      setFolderPickerOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs transition-colors duration-100"
+                    style={{
+                      color: selectedInterestId === id ? "#007AFF" : "#1C1C1E",
+                      background: selectedInterestId === id ? "rgba(0,122,255,0.08)" : "transparent",
+                      fontWeight: selectedInterestId === id ? 600 : 400,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -469,7 +526,7 @@ export default function Copilot() {
               return groupSessions.length === 0 ? (
                 <div className="px-3 py-6 text-center text-xs text-ink-tertiary">该主题下暂无会话</div>
               ) : (
-                <div className="space-y-1">{groupSessions.map(renderSessionItem)}</div>
+                <div className="space-y-1.5">{groupSessions.map(renderSessionItem)}</div>
               );
             })()
           ) : (
@@ -483,7 +540,7 @@ export default function Copilot() {
                   subtitle={group.subtitle}
                   countLabel={`${group.sessions.length} 条`}
                   defaultOpen={group.sessions.length > 0}
-                  bodyClassName="space-y-1"
+                  bodyClassName="space-y-1.5"
                   actions={
                     confirmDeleteGroupId === group.key ? (
                       <>
@@ -532,7 +589,7 @@ export default function Copilot() {
                     <p className="text-[11px] font-semibold text-ink-tertiary">未归档</p>
                     <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">打开会话后可在顶部调整所属主题。</p>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     {ungroupedSessions.map(renderSessionItem)}
                   </div>
                 </div>
@@ -568,22 +625,72 @@ export default function Copilot() {
             </div>
             <div className="flex items-center gap-3">
               {currentSession && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-ink-tertiary">所属研究方向</span>
-                  <select
-                    value={selectedInterestId}
-                    onChange={(event) => void handleSessionInterestChange(event.target.value)}
+                <div
+                  className="relative flex items-center gap-2"
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      setSessionFolderPickerOpen(false);
+                    }
+                  }}
+                >
+                  <span className="text-xs text-ink-tertiary flex-shrink-0">所属研究方向</span>
+                  <button
+                    type="button"
                     disabled={updatingSessionContext}
-                    className="min-w-[180px] rounded-2xl border-0 px-3 py-2 text-xs text-ink-primary outline-none disabled:opacity-60"
-                    style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                    onClick={() => setSessionFolderPickerOpen((prev) => !prev)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs text-ink-primary transition-all duration-150 disabled:opacity-50 min-w-[140px]"
+                    style={{
+                      background: "#E8ECF0",
+                      boxShadow: sessionFolderPickerOpen
+                        ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
+                        : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+                    }}
                   >
-                    <option value="">未归档</option>
-                    {interests.map((interest) => (
-                      <option key={interest.id} value={interest.id}>
-                        {interestFolderName(interest)}
-                      </option>
-                    ))}
-                  </select>
+                    <span className="truncate flex-1 text-left">
+                      {selectedInterestId
+                        ? (interests.find((i) => i.id === selectedInterestId)?.folder_name?.trim() ||
+                           interests.find((i) => i.id === selectedInterestId)?.topic ||
+                           "未归档")
+                        : "未归档"}
+                    </span>
+                    <ChevronDown
+                      className="h-3 w-3 flex-shrink-0 text-ink-tertiary transition-transform duration-150"
+                      style={{ transform: sessionFolderPickerOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+                    />
+                  </button>
+
+                  {sessionFolderPickerOpen && (
+                    <div
+                      className="absolute left-[calc(100%-140px)] top-full mt-1 z-20 rounded-2xl py-1 overflow-hidden min-w-[160px]"
+                      style={{
+                        background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
+                        boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF",
+                      }}
+                    >
+                      {[{ id: "", label: "未归档" }, ...interests.map((i) => ({
+                        id: i.id,
+                        label: i.folder_name?.trim() || i.topic,
+                      }))].map(({ id, label }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setSessionFolderPickerOpen(false);
+                            void handleSessionInterestChange(id);
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-xs transition-colors duration-100"
+                          style={{
+                            color: selectedInterestId === id ? "#007AFF" : "#1C1C1E",
+                            background: selectedInterestId === id ? "rgba(0,122,255,0.08)" : "transparent",
+                            fontWeight: selectedInterestId === id ? 600 : 400,
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               <div
