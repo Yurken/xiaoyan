@@ -341,6 +341,31 @@ pub async fn papers_open_pdf(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn papers_extract_pdf_text(
+    file_path: tauri_plugin_fs::FilePath,
+    max_chars: Option<usize>,
+) -> Result<String, String> {
+    let path = file_path.into_path().map_err(|e| e.to_string())?;
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("该文件")
+        .to_string();
+    let max_chars = max_chars.unwrap_or(32_000).clamp(1_000, 100_000);
+
+    let text = tokio::task::spawn_blocking(move || pdf_extract::extract_text(&path))
+        .await
+        .map_err(|error| format!("PDF 解析任务失败：{error}"))?
+        .map_err(|error| format!("PDF 解析失败：{error}"))?;
+
+    let preview = safe_text_preview(&text, max_chars).trim().to_string();
+    if preview.is_empty() {
+        return Err(format!("{file_name} 未解析到可用正文，请确认文件内容可复制。"));
+    }
+    Ok(preview)
+}
+
 // ── Upload ───────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Deserialize, Default)]

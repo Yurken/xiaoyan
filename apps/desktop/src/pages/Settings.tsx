@@ -1527,7 +1527,7 @@ function SkillsSection() {
         s.tags.some((t) => t.includes(q))
     );
   }, [skills, search]);
-  const builtin = filtered.filter((s) => s.is_builtin && s.name !== "ppt-generate");
+  const builtin = filtered.filter((s) => s.is_builtin);
   const custom = filtered.filter((s) => !s.is_builtin);
 
   const handleToggle = async (skill: Skill) => {

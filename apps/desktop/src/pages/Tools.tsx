@@ -169,6 +169,96 @@ interface PptData {
   slides: PptSlide[];
 }
 
+function sanitizePptFileName(name: string) {
+  const cleaned = name
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 40);
+  return cleaned || "slides";
+}
+
+function extractJsonObject(text: string) {
+  const cleaned = text
+    .replace(/```(?:json)?\s*/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const start = cleaned.indexOf("{");
+  if (start < 0) throw new Error("模型未返回有效 JSON 对象。");
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < cleaned.length; i += 1) {
+    const ch = cleaned[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") depth += 1;
+    if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return cleaned.slice(start, i + 1);
+    }
+  }
+
+  throw new Error("模型返回的 JSON 不完整，请重试。");
+}
+
+function normalizePptData(input: unknown): PptData {
+  if (!input || typeof input !== "object") {
+    throw new Error("模型返回格式错误：缺少演示数据对象。");
+  }
+  const raw = input as { title?: unknown; slides?: unknown };
+  if (!Array.isArray(raw.slides) || raw.slides.length === 0) {
+    throw new Error("模型返回格式错误：slides 不能为空。");
+  }
+
+  const validLayouts: PptLayout[] = ["title", "section", "content", "two_column"];
+  const slides: PptSlide[] = raw.slides.slice(0, 40).map((slide, idx) => {
+    const source = (slide && typeof slide === "object" ? slide : {}) as Record<string, unknown>;
+    const layout = (typeof source.layout === "string" && validLayouts.includes(source.layout as PptLayout)
+      ? source.layout
+      : "content") as PptLayout;
+    const title = typeof source.title === "string" && source.title.trim() ? source.title.trim() : `第 ${idx + 1} 页`;
+
+    const toLines = (value: unknown) =>
+      Array.isArray(value)
+        ? value
+            .filter((item): item is string => typeof item === "string")
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .slice(0, 5)
+        : undefined;
+
+    return {
+      layout,
+      title,
+      subtitle: typeof source.subtitle === "string" ? source.subtitle.trim() || undefined : undefined,
+      bullets: toLines(source.bullets),
+      left: toLines(source.left),
+      right: toLines(source.right),
+    };
+  });
+
+  return {
+    title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : "演示文稿",
+    slides,
+  };
+}
+
 async function buildPptx(data: PptData): Promise<ArrayBuffer> {
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE"; // 13.33" × 7.5"
@@ -281,6 +371,10 @@ export default function Tools() {
   const [pptBuffer, setPptBuffer] = useState<ArrayBuffer | null>(null);
   const [pptError, setPptError] = useState("");
   const [pptSkill, setPptSkill] = useState<Skill | null | undefined>(undefined); // undefined = loading
+  const [pptDocError, setPptDocError] = useState("");
+  const [pptDocLoading, setPptDocLoading] = useState(false);
+  const [pptFileBaseName, setPptFileBaseName] = useState("slides");
+  const pptRunIdRef = useRef(0);
 
   const [mdInput, setMdInput] = useState("");
   const [mdResult, setMdResult] = useState("");
@@ -304,6 +398,27 @@ export default function Tools() {
       setPptSkill(skill);
     }).catch(() => setPptSkill(null));
   }, []);
+
+  const pptFeatureDisabled = pptSkill?.is_enabled === false;
+
+  useEffect(() => {
+    if (pptStatus !== "ready" && pptStatus !== "error") return;
+    setPptStatus("idle");
+    setPptBuffer(null);
+    setPptSlideCount(0);
+    setPptError("");
+  }, [
+    pptDocContent,
+    pptDocName,
+    pptLang,
+    pptMode,
+    pptOutline,
+    pptPages,
+    pptCustomPages,
+    pptStyle,
+    pptCustomStyle,
+    pptTopic,
+  ]);
 
   const currentMode = useMemo(
     () => ARXIV_MODE_OPTIONS.find((item) => item.value === arxivMode) ?? ARXIV_MODE_OPTIONS[0],
@@ -564,7 +679,7 @@ export default function Tools() {
   };
 
   const handlePptGenerate = async () => {
-    if (!pptSkill?.is_enabled) return;
+    if (pptFeatureDisabled || pptStatus === "llm" || pptStatus === "building") return;
 
     const JSON_SCHEMA = `{\n  "title": "演示标题",\n  "slides": [\n    { "layout": "title", "title": "主标题", "subtitle": "副标题" },\n    { "layout": "section", "title": "章节名", "subtitle": "章节说明（可选）" },\n    { "layout": "content", "title": "幻灯片标题", "bullets": ["要点1", "要点2", "要点3"] },\n    { "layout": "two_column", "title": "对比标题", "left": ["左侧1", "左侧2"], "right": ["右侧1", "右侧2"] }\n  ]\n}`;
 
@@ -594,31 +709,37 @@ export default function Tools() {
       if (!pptOutline.trim()) return;
       prompt = `请根据以下大纲生成幻灯片数据：\n\n${pptOutline.trim()}\n\n只输出一个 JSON 对象，不要 markdown 代码块，不要任何额外说明，格式严格如下：\n${JSON_SCHEMA}\n${COMMON_RULES}\n- 严格按照大纲层级组织幻灯片`;
     } else {
-      if (!pptDocContent) return;
+      if (!pptDocContent || pptDocError) return;
       prompt = `请根据以下文档内容生成幻灯片数据：\n\n${pptDocContent.slice(0, 4000)}\n\n只输出一个 JSON 对象，不要 markdown 代码块，不要任何额外说明，格式严格如下：\n${JSON_SCHEMA}\n${COMMON_RULES}\n- 提炼文档核心内容`;
     }
 
+    const runId = ++pptRunIdRef.current;
     setPptStatus("llm");
     setPptBuffer(null);
+    setPptSlideCount(0);
     setPptError("");
 
     try {
       let raw = "";
       for await (const chunk of apiClient.chat.stream({ message: prompt })) {
+        if (runId !== pptRunIdRef.current) return;
         if (chunk.type === "delta") raw += chunk.value;
         else if (chunk.type === "error") throw new Error(chunk.value as string);
       }
 
-      // 提取 JSON（剥除可能的 markdown 代码块）
-      const jsonStr = raw.replace(/^```[a-z]*\n?/m, "").replace(/```\s*$/m, "").trim();
-      const data: PptData = JSON.parse(jsonStr);
+      const jsonStr = extractJsonObject(raw);
+      const data = normalizePptData(JSON.parse(jsonStr));
 
+      if (runId !== pptRunIdRef.current) return;
       setPptStatus("building");
       const buffer = await buildPptx(data);
+      if (runId !== pptRunIdRef.current) return;
       setPptSlideCount(data.slides.length);
       setPptBuffer(buffer);
+      setPptFileBaseName(sanitizePptFileName(data.title));
       setPptStatus("ready");
     } catch (err) {
+      if (runId !== pptRunIdRef.current) return;
       setPptError(formatErrorMessage(err));
       setPptStatus("error");
     }
@@ -628,7 +749,7 @@ export default function Tools() {
     if (!pptBuffer) return;
     const { save } = await import("@tauri-apps/plugin-dialog");
     const { writeFile } = await import("@tauri-apps/plugin-fs");
-    const defaultName = pptTopic.trim() ? `${pptTopic.trim().slice(0, 20)}.pptx` : "slides.pptx";
+    const defaultName = `${pptFileBaseName}.pptx`;
     const path = await save({ filters: [{ name: "PowerPoint", extensions: ["pptx"] }], defaultPath: defaultName });
     if (path) await writeFile(path, new Uint8Array(pptBuffer));
   };
@@ -1784,7 +1905,7 @@ export default function Tools() {
 
       {activeTab === "ppt" && <>
       <div className="relative">
-      <Card padding="md" className={["space-y-5", pptSkill !== undefined && !pptSkill?.is_enabled ? "pointer-events-none select-none opacity-40" : ""].join(" ")}>
+      <Card padding="md" className={["space-y-5", pptFeatureDisabled ? "pointer-events-none select-none opacity-40" : ""].join(" ")}>
         {/* Header */}
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-purple/10 text-apple-purple">
@@ -1851,11 +1972,34 @@ export default function Tools() {
                 const file = e.dataTransfer.files[0];
                 if (!file) return;
                 setPptDocName(file.name);
-                if (file.name.endsWith(".pdf")) {
-                  setPptDocContent(`[PDF文档：${file.name}，共 ${Math.round(file.size / 1024)} KB]`);
+                if (file.name.toLowerCase().endsWith(".pdf")) {
+                  setPptDocLoading(true);
+                  try {
+                    const droppedPath = (file as File & { path?: string }).path;
+                    if (!droppedPath) {
+                      throw new Error("拖拽的 PDF 无法获取本地路径，请使用“本地文件”按钮选择 PDF。");
+                    }
+                    const text = await apiClient.papers.extractPdfText(droppedPath);
+                    setPptDocContent(text);
+                    setPptDocError("");
+                  } catch (err) {
+                    setPptDocContent(null);
+                    setPptDocError(formatErrorMessage(err));
+                  } finally {
+                    setPptDocLoading(false);
+                  }
                 } else {
-                  const text = await file.text();
-                  setPptDocContent(text);
+                  setPptDocLoading(true);
+                  try {
+                    const text = await file.text();
+                    setPptDocContent(text);
+                    setPptDocError("");
+                  } catch (err) {
+                    setPptDocContent(null);
+                    setPptDocError(formatErrorMessage(err));
+                  } finally {
+                    setPptDocLoading(false);
+                  }
                 }
               }}
             >
@@ -1865,7 +2009,7 @@ export default function Tools() {
                   <p className="text-sm font-medium text-ink-primary">{pptDocName}</p>
                   <button
                     type="button"
-                    onClick={() => { setPptDocName(null); setPptDocContent(null); }}
+                    onClick={() => { setPptDocName(null); setPptDocContent(null); setPptDocError(""); setPptDocLoading(false); }}
                     className="text-xs text-ink-muted hover:text-apple-red transition-colors"
                   >
                     移除文件
@@ -1889,12 +2033,31 @@ export default function Tools() {
                       if (typeof path === "string") {
                         const name = path.split("/").pop() ?? path;
                         setPptDocName(name);
-                        if (name.endsWith(".pdf")) {
-                          setPptDocContent(`[PDF文档：${name}]`);
+                        if (name.toLowerCase().endsWith(".pdf")) {
+                          setPptDocLoading(true);
+                          try {
+                            const text = await apiClient.papers.extractPdfText(path);
+                            setPptDocContent(text);
+                            setPptDocError("");
+                          } catch (err) {
+                            setPptDocContent(null);
+                            setPptDocError(formatErrorMessage(err));
+                          } finally {
+                            setPptDocLoading(false);
+                          }
                         } else {
-                          const { readTextFile } = await import("@tauri-apps/plugin-fs");
-                          const text = await readTextFile(path);
-                          setPptDocContent(text);
+                          setPptDocLoading(true);
+                          try {
+                            const { readTextFile } = await import("@tauri-apps/plugin-fs");
+                            const text = await readTextFile(path);
+                            setPptDocContent(text);
+                            setPptDocError("");
+                          } catch (err) {
+                            setPptDocContent(null);
+                            setPptDocError(formatErrorMessage(err));
+                          } finally {
+                            setPptDocLoading(false);
+                          }
                         }
                       }
                     }}
@@ -1907,6 +2070,8 @@ export default function Tools() {
                 </div>
               )}
             </div>
+            {pptDocLoading && <p className="mt-2 text-xs text-ink-muted">正在读取文档内容…</p>}
+            {pptDocError && <p className="mt-2 text-xs text-apple-red">{pptDocError}</p>}
           </div>
         )}
 
@@ -2054,7 +2219,7 @@ export default function Tools() {
             )}
             <button
               type="button"
-              disabled={pptStatus === "llm" || pptStatus === "building" || (pptMode === "topic" && !pptTopic.trim()) || (pptMode === "outline" && !pptOutline.trim()) || (pptMode === "document" && !pptDocContent)}
+              disabled={pptStatus === "llm" || pptStatus === "building" || (pptMode === "topic" && !pptTopic.trim()) || (pptMode === "outline" && !pptOutline.trim()) || (pptMode === "document" && (!pptDocContent || !!pptDocError || pptDocLoading))}
               onClick={() => void handlePptGenerate()}
               className="inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: "linear-gradient(145deg, #1A8AFF, #0062CC)", boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)" }}
@@ -2074,7 +2239,7 @@ export default function Tools() {
       </Card>
 
       {/* Disabled overlay */}
-      {pptSkill !== undefined && !pptSkill?.is_enabled && (
+      {pptFeatureDisabled && (
         <div className="absolute inset-0 flex items-center justify-center rounded-3xl z-10">
           <div
             className="flex flex-col items-center gap-3 rounded-3xl px-8 py-6 text-center"
