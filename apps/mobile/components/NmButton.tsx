@@ -103,14 +103,14 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   secondary: {
-    backgroundColor: "#E8ECF0",
-    shadowColor: "#1C1C1E",
+    backgroundColor: "#141A23",
+    shadowColor: "#000000",
     shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.8)",
+    borderColor: "rgba(60,74,92,0.7)",
   },
   ghost: {
     backgroundColor: "transparent",
@@ -121,6 +121,6 @@ const styles = StyleSheet.create({
   textSm: { fontSize: 13 },
   textLg: { fontSize: 17 },
   textPrimary:   { color: "#FFFFFF" },
-  textSecondary: { color: "#3C3C43" },
+  textSecondary: { color: "#E6ECF5" },
   textGhost:     { color: "#007AFF" },
 });

@@ -21,6 +21,7 @@ import Tools from "./pages/Tools";
 import FocusApp from "./pages/FocusLayout";
 import hitLogo from "./assets/hit-logo.svg";
 import { getLayoutMode } from "./lib/layoutMode";
+import { applyTheme, getTheme, watchSystemTheme } from "./lib/themeMode";
 import { useAutoUpdate } from "./lib/useAutoUpdate";
 import UpdateNotification from "./components/UpdateNotification";
 
@@ -41,11 +42,16 @@ export default function App() {
   const autoUpdate = useAutoUpdate();
 
   useEffect(() => {
+    applyTheme(getTheme());
+    const unwatch = watchSystemTheme(() => {});
     const root = document.getElementById("root");
-    if (!root) return;
+    if (!root) return () => unwatch();
     root.classList.add("dissolve-in");
     const timer = setTimeout(() => root.classList.remove("dissolve-in"), 600);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      unwatch();
+    };
   }, []);
 
   if (layoutMode === "focus") {
@@ -63,8 +69,8 @@ export default function App() {
       <aside
         className="w-[80px] flex-shrink-0 flex flex-col items-center py-4 gap-0.5"
         style={{
-          background: "linear-gradient(180deg, #F0F4F8 0%, #E8ECF0 100%)",
-          boxShadow: "2px 0 0 rgba(200,205,211,0.6), 4px 0 16px rgba(0,0,0,0.04)",
+          background: "linear-gradient(180deg, var(--rc-elevated) 0%, var(--rc-surface) 100%)",
+          boxShadow: "2px 0 0 rgb(var(--rc-sidebar-divider-rgb) / 0.9), 6px 0 18px rgb(var(--rc-sidebar-shadow-rgb) / 0.22)",
         }}
       >
         {/* Logo */}
@@ -75,7 +81,7 @@ export default function App() {
         </NavLink>
 
         {/* Divider */}
-        <div className="w-8 h-px mb-2" style={{ background: "linear-gradient(90deg, transparent, #C8CDD3, transparent)" }} />
+        <div className="w-8 h-px mb-2" style={{ background: "linear-gradient(90deg, transparent, var(--rc-border), transparent)" }} />
 
         {/* Nav items */}
         {navItems.map(({ to, icon: Icon, label }) => (
@@ -96,8 +102,8 @@ export default function App() {
                 style={
                   isActive
                     ? {
-                        background: "#E8ECF0",
-                        boxShadow: "inset 3px 3px 7px #C8CDD3, inset -3px -3px 7px #FFFFFF",
+                        background: "var(--rc-surface)",
+                        boxShadow: "var(--rc-inset-shadow)",
                       }
                     : undefined
                 }

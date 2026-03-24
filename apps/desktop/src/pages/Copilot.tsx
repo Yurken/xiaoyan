@@ -934,15 +934,15 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         <div
           className="w-[340px] flex-shrink-0 p-4 space-y-4"
           style={{
-            background: "linear-gradient(180deg, #EEF2F6 0%, #E6EBF1 100%)",
-            boxShadow: "-4px 0 10px rgba(0,0,0,0.04)",
+            background: "linear-gradient(180deg, var(--rc-elevated) 0%, var(--rc-surface) 100%)",
+            boxShadow: "-6px 0 16px rgba(0,0,0,0.35)",
           }}
         >
           <div
             className="rounded-3xl p-4"
             style={{
-              background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)",
-              boxShadow: "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF",
+              background: "var(--rc-card-bg)",
+              boxShadow: "var(--rc-raised-shadow)",
             }}
           >
             <div className="text-xs uppercase tracking-[0.22em] text-ink-tertiary">任务总览</div>
@@ -958,8 +958,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           <div
             className="rounded-3xl p-4"
             style={{
-              background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)",
-              boxShadow: "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF",
+              background: "var(--rc-card-bg)",
+              boxShadow: "var(--rc-raised-shadow)",
             }}
           >
             <div className="text-sm font-semibold text-ink-primary mb-3">计划分解</div>
@@ -972,8 +972,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                     key={`${step.agent_name}-${index}`}
                     className="rounded-2xl px-3 py-3"
                     style={{
-                      background: "#E8ECF0",
-                      boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                      background: "var(--rc-card-inset-bg)",
+                      boxShadow: "var(--rc-inset-shadow)",
                     }}
                   >
                     <div className="text-sm font-semibold text-ink-primary">{index + 1}. {step.title}</div>
@@ -988,8 +988,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           <div
             className="rounded-3xl p-4"
             style={{
-              background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)",
-              boxShadow: "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF",
+              background: "var(--rc-card-bg)",
+              boxShadow: "var(--rc-raised-shadow)",
             }}
           >
             <div className="text-sm font-semibold text-ink-primary mb-3">执行时间线</div>
@@ -1004,8 +1004,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                       key={run.id}
                       className="rounded-2xl px-3 py-3"
                       style={{
-                        background: "#E8ECF0",
-                        boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                        background: "var(--rc-card-inset-bg)",
+                        boxShadow: "var(--rc-inset-shadow)",
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -1034,8 +1034,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           <div
             className="rounded-3xl p-4"
             style={{
-              background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)",
-              boxShadow: "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF",
+              background: "var(--rc-card-bg)",
+              boxShadow: "var(--rc-raised-shadow)",
             }}
           >
             <div className="text-sm font-semibold text-ink-primary mb-3">结构化产物</div>
@@ -1048,8 +1048,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                     key={artifact.id}
                     className="rounded-2xl px-3 py-3"
                     style={{
-                      background: "#E8ECF0",
-                      boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                      background: "var(--rc-card-inset-bg)",
+                      boxShadow: "var(--rc-inset-shadow)",
                     }}
                   >
                     <div className="text-sm font-semibold text-ink-primary">{artifact.title}</div>

@@ -27,8 +27,8 @@ export function Card({
       )}
       style={
         variant === "inset"
-          ? { background: "#E8ECF0" }
-          : { background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)" }
+          ? { background: "var(--rc-card-inset-bg)" }
+          : { background: "var(--rc-card-bg)" }
       }
       {...props}
     >

@@ -7,8 +7,8 @@ import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { YANWEB_FRIEND_LINK_SECTIONS, YANWEB_FRIEND_LINK_TOTAL } from "../lib/yanweb-links";
 
-const insetShadow = "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF";
-const raisedShadow = "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF";
+const insetShadow = "var(--rc-inset-shadow)";
+const raisedShadow = "var(--rc-raised-shadow)";
 
 const ARXIV_CATEGORIES: Array<{ domain: string; items: Array<{ id: string; zh: string }> }> = [
   {
@@ -404,7 +404,7 @@ export default function Tools() {
       <div className="shrink-0 px-6 pb-3">
         <div
           className="inline-flex rounded-2xl p-1 gap-0.5"
-          style={{ background: "#E8ECF0", boxShadow: insetShadow }}
+          style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}
         >
           {TABS.map((tab) => (
             <button
@@ -414,8 +414,8 @@ export default function Tools() {
               className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150"
               style={
                 activeTab === tab.key
-                  ? { background: "#F2F4F7", boxShadow: "3px 3px 8px #C8CDD3, -3px -3px 8px #FFFFFF", color: "#1C1C1E" }
-                  : { color: "#8E8E93" }
+                  ? { background: "var(--rc-elevated)", boxShadow: raisedShadow, color: "var(--rc-text)" }
+                  : { color: "var(--rc-text-muted)" }
               }
             >
               {tab.icon}
@@ -533,7 +533,7 @@ export default function Tools() {
             {catPickerOpen && (
               <div
                 className="rounded-2xl p-3 space-y-3"
-                style={{ background: "#EEF1F5", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}
               >
                 {ARXIV_CATEGORIES.map((group) => (
                   <div key={group.domain}>
@@ -561,9 +561,9 @@ export default function Tools() {
                                     boxShadow: "2px 2px 6px rgba(0,62,204,0.3), -1px -1px 4px rgba(58,155,255,0.2)",
                                   }
                                 : {
-                                    background: "#E8ECF0",
-                                    color: "#3C3C43",
-                                    boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF",
+                                    background: "var(--rc-surface)",
+                                    color: "var(--rc-text-soft)",
+                                    boxShadow: raisedShadow,
                                   }
                             }
                           >
@@ -633,7 +633,7 @@ export default function Tools() {
             <label className="block text-xs font-medium text-ink-tertiary mb-1.5 ml-1">排序方式</label>
             <div
               className="inline-flex w-full rounded-2xl p-1 gap-0.5"
-              style={{ background: "#E8ECF0", boxShadow: insetShadow }}
+              style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}
             >
               {ARXIV_MODE_OPTIONS.map((option) => (
                 <button
@@ -643,8 +643,8 @@ export default function Tools() {
                   className="flex-1 rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-150"
                   style={
                     arxivMode === option.value
-                      ? { background: "#F2F4F7", boxShadow: "3px 3px 8px #C8CDD3, -3px -3px 8px #FFFFFF", color: "#1C1C1E" }
-                      : { color: "#8E8E93" }
+                      ? { background: "var(--rc-elevated)", boxShadow: raisedShadow, color: "var(--rc-text)" }
+                      : { color: "var(--rc-text-muted)" }
                   }
                 >
                   {option.label}
@@ -953,7 +953,7 @@ export default function Tools() {
                 style={
                   translateSourceLang === lang.value
                     ? { background: "linear-gradient(145deg,#1A8AFF,#0062CC)", color: "#fff", boxShadow: "3px 3px 8px rgba(0,62,204,0.3)" }
-                    : { background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3,-3px -3px 6px #FFFFFF" }
+                    : { background: "var(--rc-surface)", color: "var(--rc-text-soft)", boxShadow: raisedShadow }
                 }
               >
                 {lang.label}
@@ -992,7 +992,7 @@ export default function Tools() {
                   style={
                     translateTargetLang === lang.value
                       ? { background: "linear-gradient(145deg,#1A8AFF,#0062CC)", color: "#fff", boxShadow: "3px 3px 8px rgba(0,62,204,0.3)" }
-                      : { background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3,-3px -3px 6px #FFFFFF" }
+                      : { background: "var(--rc-surface)", color: "var(--rc-text-soft)", boxShadow: raisedShadow }
                   }
                 >
                   {lang.label}
@@ -1115,7 +1115,7 @@ export default function Tools() {
             </div>
             <div
               className="h-1.5 rounded-full overflow-hidden"
-              style={{ background: "#E8ECF0", boxShadow: insetShadow }}
+              style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}
             >
               <div
                 className="h-full rounded-full transition-all duration-300"
@@ -1160,7 +1160,7 @@ export default function Tools() {
           </div>
           <pre
             className="text-xs leading-6 text-ink-primary whitespace-pre-wrap font-mono overflow-x-auto rounded-2xl p-4"
-            style={{ background: "#E8ECF0", boxShadow: insetShadow }}
+            style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}
           >
             {mdResult}
           </pre>
@@ -1212,7 +1212,7 @@ export default function Tools() {
               key={section.title}
               id={friendLinkSectionId(index)}
               className="scroll-mt-6 overflow-hidden rounded-3xl border border-white/55 bg-white/25"
-              style={{ boxShadow: "inset 1px 1px 0 rgba(255, 255, 255, 0.72)" }}
+              style={{ boxShadow: "var(--rc-inset-shadow)" }}
             >
               <button
                 type="button"
@@ -1246,8 +1246,8 @@ export default function Tools() {
                         className="group flex items-center gap-3 rounded-2xl bg-white/45 px-3 py-3 transition hover:bg-white/70"
                       >
                         <div
-                          className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#EEF1F5] text-sm font-semibold text-ink-secondary transition-transform duration-150 group-hover:-translate-y-0.5"
-                          style={{ boxShadow: raisedShadow }}
+                          className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl text-sm font-semibold text-ink-secondary transition-transform duration-150 group-hover:-translate-y-0.5"
+                          style={{ background: "var(--rc-elevated)", boxShadow: raisedShadow }}
                         >
                           <span
                             className="absolute inset-0 flex items-center justify-center transition-opacity duration-150"

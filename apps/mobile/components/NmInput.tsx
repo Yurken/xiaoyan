@@ -19,7 +19,7 @@ export function NmInput({ label, error, style, ...props }: NmInputProps) {
           error && styles.inputError,
           style,
         ]}
-        placeholderTextColor="#8E8E93"
+        placeholderTextColor="#7F8A9A"
         onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}
         onBlur={(e)  => { setFocused(false); props.onBlur?.(e); }}
         {...props}
@@ -34,23 +34,23 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: "500",
-    color: "#8E8E93",
+    color: "#9AA7B8",
     marginBottom: 6,
     marginLeft: 4,
   },
   input: {
-    backgroundColor: "#E8ECF0",
+    backgroundColor: "#0F141C",
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 15,
-    color: "#1C1C1E",
+    color: "#F5F7FA",
     borderWidth: 1,
-    borderColor: "rgba(200,205,211,0.6)",
-    shadowColor: "#1C1C1E",
+    borderColor: "rgba(36,45,58,0.9)",
+    shadowColor: "#000000",
     shadowOffset: { width: -1, height: -1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   inputFocused: {
     borderColor: "rgba(0,122,255,0.35)",

@@ -21,6 +21,9 @@ import {
   Loader2,
   Layers3,
   MessageSquare,
+  Monitor,
+  Moon,
+  Sun,
   Pencil,
   Plus,
   RefreshCw,
@@ -35,6 +38,7 @@ import { Card } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, PAPER_TAG_OPTIONS, parsePaperTagVisibility, togglePaperTagVisibility } from "../lib/paperTags";
 import { getLayoutMode, setLayoutMode, type LayoutMode } from "../lib/layoutMode";
+import { getThemePreference, setTheme, type ThemePreference } from "../lib/themeMode";
 import type { AppSettings, AppUpdateInfo, LlmProvider, MultiAgentRoutingMode, Skill } from "@research-copilot/types";
 
 function SettingInput({
@@ -399,7 +403,6 @@ function SettingsSectionTab({
   icon: Icon,
   color,
   label,
-  description,
   active,
   onClick,
 }: {
@@ -418,14 +421,14 @@ function SettingsSectionTab({
       style={
         active
           ? {
-              background: "#F2F5F8",
-              border: "1px solid rgba(0,122,255,0.22)",
-              boxShadow: "0 8px 20px rgba(15,23,42,0.08)",
+              background: "var(--rc-elevated)",
+              border: "1px solid rgba(10,132,255,0.35)",
+              boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
             }
           : {
-              background: "#F4F6F9",
-              border: "1px solid rgba(15,23,42,0.08)",
-              boxShadow: "0 6px 16px rgba(15,23,42,0.06)",
+              background: "var(--rc-surface)",
+              border: "1px solid var(--rc-border)",
+              boxShadow: "0 8px 18px rgba(0,0,0,0.3)",
             }
       }
     >
@@ -433,9 +436,10 @@ function SettingsSectionTab({
         <div
           className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
           style={{
-            background: "#EDF1F5",
-            border: "1px solid rgba(15,23,42,0.08)",
+            background: "var(--rc-card-inset-bg)",
+            border: "1px solid var(--rc-border)",
             color,
+            boxShadow: "var(--rc-inset-shadow)",
           }}
         >
           <Icon className="w-5 h-5" />
@@ -1680,6 +1684,7 @@ export default function Settings() {
   const [appVersion, setAppVersion] = useState("");
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>("connection");
   const [pendingLayout, setPendingLayout] = useState<LayoutMode>(getLayoutMode());
+  const [currentTheme, setCurrentTheme] = useState<ThemePreference>(getThemePreference());
 
   const set = (key: keyof AppSettings) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -2447,7 +2452,78 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* Theme toggle */}
+            <div>
+              <p className="text-xs font-medium text-ink-tertiary mb-2 ml-1">外观主题</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {([
+                  {
+                    mode: "auto" as ThemePreference,
+                    label: "跟随系统",
+                    description: "随 macOS / Windows 深浅模式自动切换。",
+                    icon: Monitor,
+                  },
+                  {
+                    mode: "light" as ThemePreference,
+                    label: "浅色",
+                    description: "明亮的浅色界面，适合白天使用。",
+                    icon: Sun,
+                  },
+                  {
+                    mode: "dark" as ThemePreference,
+                    label: "深色",
+                    description: "护眼的深色界面，适合低光环境。",
+                    icon: Moon,
+                  },
+                ] as const).map(({ mode, label, description, icon: ThemeIcon }) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      if (mode === currentTheme) return;
+                      setCurrentTheme(mode);
+                      setTheme(mode);
+                    }}
+                    className="rounded-[24px] p-4 text-left transition-all duration-150"
+                    style={
+                      currentTheme === mode
+                        ? {
+                            background: "rgb(0 122 255 / 0.16)",
+                            border: "1px solid rgb(0 122 255 / 0.42)",
+                            boxShadow: "0 10px 24px rgb(0 122 255 / 0.18)",
+                          }
+                        : {
+                            background: "var(--rc-elevated)",
+                            border: "1px solid var(--rc-border)",
+                            boxShadow: "0 8px 18px rgb(var(--rc-sidebar-shadow-rgb) / 0.16)",
+                          }
+                    }
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <ThemeIcon className="w-4 h-4 text-ink-secondary" />
+                        <p className="text-sm font-semibold text-ink-primary">{label}</p>
+                      </div>
+                      {currentTheme === mode && (
+                        <span
+                          className="w-4 h-4 rounded-full flex items-center justify-center"
+                          style={{ background: "#007AFF" }}
+                        >
+                          <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                            <path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs leading-5 text-ink-secondary">{description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-ink-tertiary mb-2 ml-1">布局模式</p>
+              <div className="grid gap-3 sm:grid-cols-2">
               {([
                 {
                   mode: "landscape" as LayoutMode,
@@ -2475,12 +2551,14 @@ export default function Settings() {
                   style={
                     pendingLayout === mode
                       ? {
-                          background: "linear-gradient(145deg, rgba(26,138,255,0.12), rgba(255,255,255,0.92))",
-                          boxShadow: "6px 6px 16px rgba(183,190,199,0.8), -6px -6px 16px rgba(255,255,255,0.95)",
+                          background: "rgb(0 122 255 / 0.16)",
+                          border: "1px solid rgb(0 122 255 / 0.42)",
+                          boxShadow: "0 10px 24px rgb(0 122 255 / 0.18)",
                         }
                       : {
-                          background: "#EEF1F5",
-                          boxShadow: "5px 5px 14px #CBD0D7, -5px -5px 14px #FFFFFF",
+                          background: "var(--rc-elevated)",
+                          border: "1px solid var(--rc-border)",
+                          boxShadow: "0 8px 18px rgb(var(--rc-sidebar-shadow-rgb) / 0.16)",
                         }
                   }
                 >
@@ -2500,6 +2578,7 @@ export default function Settings() {
                   <p className="text-xs leading-5 text-ink-secondary">{description}</p>
                 </button>
               ))}
+              </div>
             </div>
 
             <div

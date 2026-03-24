@@ -160,7 +160,7 @@ export default function Home() {
               { label: "知识笔记",     value: state.notes.length,     note: "支持语义检索",              color: "#FF9500" },
               { label: "小妍对话", value: state.sessions.length,  note: "历史对话随时翻", color: "#34C759" },
             ].map((item) => (
-              <div key={item.label} className="rounded-3xl p-4 relative overflow-hidden" style={{ background: "rgba(255,255,255,0.5)", boxShadow: "inset 2px 2px 5px #D0D6DC, inset -2px -2px 5px #FFFFFF" }}>
+              <div key={item.label} className="rounded-3xl p-4 relative overflow-hidden" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.12), inset -2px -2px 5px rgba(255,255,255,0.6)" }}>
                 <div className="absolute top-0 left-4 right-4 h-[2px] rounded-full" style={{ background: item.color, opacity: 0.55 }} />
                 <p className="text-[11px] font-medium text-ink-tertiary mt-1">{item.label}</p>
                 <p className="mt-1.5 text-3xl font-bold tabular-nums" style={{ color: item.color }}>{item.value}</p>

@@ -23,7 +23,7 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style="dark" backgroundColor="#E8ECF0" />
+      <StatusBar style="light" backgroundColor="#090B10" />
       <Stack screenOptions={{ headerShown: false }} />
     </>
   );
