@@ -703,6 +703,92 @@ async fn fetch_papers_by_ids(
     Ok(papers)
 }
 
+// ── Translate ─────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn translate_text(
+    state: State<'_, AppState>,
+    text: String,
+    target_lang: String,
+    source_lang: Option<String>,
+) -> Result<String, String> {
+    let settings = state.settings.read().await.clone();
+    let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
+
+    let model = resolve_model(&settings, &["translation_model"]);
+    let temperature = resolve_temperature(&settings, "translation_temperature", 0.1);
+
+    let lang_map: &[(&str, &str)] = &[
+        ("zh", "简体中文"), ("en", "English"), ("ja", "日本語"),
+        ("de", "Deutsch"), ("fr", "Français"),
+    ];
+    let target_display = lang_map.iter()
+        .find(|(code, _)| *code == target_lang.as_str())
+        .map(|(_, name)| *name)
+        .unwrap_or(target_lang.as_str());
+
+    let source_hint = match &source_lang {
+        Some(src) => {
+            let src_display = lang_map.iter()
+                .find(|(code, _)| *code == src.as_str())
+                .map(|(_, name)| *name)
+                .unwrap_or(src.as_str());
+            format!("原文语言：{src_display}\n")
+        }
+        None => "原文语言：自动识别\n".to_string(),
+    };
+
+    let system = specialist_system(
+        "学术翻译专家",
+        "将学术文本精准翻译为目标语言，严格保留专业术语、保持学术写作风格，不增删原文内容。",
+        Some("只返回译文，不加任何解释、标注或前缀。"),
+    );
+
+    let user = format!(
+        "{source_hint}目标语言：{target_display}\n\n原文：\n{text}"
+    );
+
+    let msgs = vec![LlmMessage::system(system), LlmMessage::user(&user)];
+    client.chat(&msgs, model.as_deref(), temperature).await.map_err(|e| e.to_string())
+}
+
+// ── Markdown Format ───────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn markdown_format_chunk(
+    state: State<'_, AppState>,
+    text: String,
+    style_summary: String,
+) -> Result<serde_json::Value, String> {
+    let settings = state.settings.read().await.clone();
+    let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
+
+    let model = resolve_model(&settings, &["copilot_simple_model"]);
+    let temperature = resolve_temperature(&settings, "copilot_simple_temperature", 0.3);
+
+    let style_context = if style_summary.trim().is_empty() {
+        "这是第一块，请自行决定合适的 Markdown 排版风格，并在 style_summary 中简要记录约定（标题层级用法、列表风格等），供后续块继承。".to_string()
+    } else {
+        format!("请严格延续以下排版约定，保证全文风格一致：\n{style_summary}")
+    };
+
+    let system = specialist_system(
+        "Markdown 排版整理专家",
+        "将任意文本整理为规范、一致的 Markdown 格式，结构清晰，保留全部原始内容。",
+        Some("仅返回合法 JSON，不输出其他内容。"),
+    );
+
+    let user = format!(
+        "{style_context}\n\n请整理下面这段文本，仅返回 JSON：\n{{\n  \"formatted\": \"整理好的 Markdown 文本\",\n  \"style_summary\": \"排版约定摘要（≤150字，供下一块继承）\"\n}}\n\n待整理文本：\n{text}"
+    );
+
+    let msgs = vec![LlmMessage::system(system), LlmMessage::user(&user)];
+    let raw = client.chat(&msgs, model.as_deref(), temperature).await.map_err(|e| e.to_string())?;
+    let clean = extract_json(&raw);
+    serde_json::from_str::<serde_json::Value>(&clean)
+        .map_err(|e| format!("JSON parse error: {e}\nraw: {raw}"))
+}
+
 async fn retrieve_papers(
     db: &sqlx::SqlitePool,
     query: &str,

@@ -32,7 +32,7 @@ use commands::{
         knowledge_generate_plan, knowledge_list_interests, knowledge_list_notes, knowledge_search,
         knowledge_move_note, knowledge_suggest_topics, knowledge_update_interest_folder, knowledge_update_note,
     },
-    misc::{planner_generate, survey_generate, survey_search},
+    misc::{markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text},
     papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_list_figures, papers_open_pdf, papers_reproduce, papers_update, papers_upload},
     settings::{settings_get, settings_test, settings_update},
     source::source_lookup,
@@ -204,6 +204,8 @@ pub fn run() {
             planner_generate,
             survey_generate,
             survey_search,
+            translate_text,
+            markdown_format_chunk,
         ])
         .run(tauri::generate_context!());
 

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { AlertCircle, CalendarDays, ChevronDown, FileSearch, Globe2, Plus, Search, Sparkles, X } from "lucide-react";
+import { AlertCircle, CalendarDays, ChevronDown, FileSearch, FileText, Globe2, Languages, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode, ArxivSearchRequest, ArxivSearchResponse, SourceLookupSection } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, WosIndexBadge, VenueTypeBadge } from "../components/CcfBadges";
@@ -174,7 +174,20 @@ export default function Tools() {
   const [arxivSearched, setArxivSearched] = useState(false);
   const [arxivResult, setArxivResult] = useState<ArxivSearchResponse | null>(null);
   const arxivLastSearchAt = useRef<number>(0);
-  const [activeTab, setActiveTab] = useState<"arxiv" | "source" | "links">("arxiv");
+  const [activeTab, setActiveTab] = useState<"arxiv" | "source" | "links" | "translate" | "md">("arxiv");
+
+  const [mdInput, setMdInput] = useState("");
+  const [mdResult, setMdResult] = useState("");
+  const [mdProcessing, setMdProcessing] = useState(false);
+  const [mdError, setMdError] = useState("");
+  const [mdProgress, setMdProgress] = useState<{ current: number; total: number } | null>(null);
+
+  const [translateInput, setTranslateInput] = useState("");
+  const [translateResult, setTranslateResult] = useState("");
+  const [translateLoading, setTranslateLoading] = useState(false);
+  const [translateError, setTranslateError] = useState("");
+  const [translateSourceLang, setTranslateSourceLang] = useState("auto");
+  const [translateTargetLang, setTranslateTargetLang] = useState("zh");
   const [openFriendSections, setOpenFriendSections] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => [section.title, index === 0]))
   );
@@ -293,9 +306,89 @@ export default function Tools() {
     }
   };
 
+  const handleMdFormat = async () => {
+    const text = mdInput.trim();
+    if (!text || mdProcessing) return;
+
+    // 按段落边界分块，每块不超过 1500 字
+    const paragraphs = text.split(/\n{2,}/);
+    const chunks: string[] = [];
+    let cur = "";
+    for (const para of paragraphs) {
+      if (cur.length + para.length > 1500 && cur) {
+        chunks.push(cur.trim());
+        cur = para;
+      } else {
+        cur = cur ? `${cur}\n\n${para}` : para;
+      }
+    }
+    if (cur.trim()) chunks.push(cur.trim());
+
+    setMdProcessing(true);
+    setMdError("");
+    setMdResult("");
+    setMdProgress({ current: 0, total: chunks.length });
+
+    let styleSummary = "";
+    const parts: string[] = [];
+
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        setMdProgress({ current: i + 1, total: chunks.length });
+        const { formatted, styleSummary: nextSummary } = await apiClient.markdown.formatChunk(
+          chunks[i],
+          styleSummary,
+        );
+        parts.push(formatted);
+        styleSummary = nextSummary;
+      }
+      setMdResult(parts.join("\n\n"));
+    } catch (err) {
+      setMdError(formatErrorMessage(err));
+    } finally {
+      setMdProcessing(false);
+      setMdProgress(null);
+    }
+  };
+
+  const handleMdSave = async () => {
+    if (!mdResult) return;
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+    const path = await save({
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+      defaultPath: "formatted.md",
+    });
+    if (path) {
+      await writeTextFile(path, mdResult);
+    }
+  };
+
+  const handleTranslate = async () => {
+    const text = translateInput.trim();
+    if (!text || translateLoading) return;
+    setTranslateLoading(true);
+    setTranslateError("");
+    setTranslateResult("");
+    try {
+      const result = await apiClient.translate.translate(
+        text,
+        translateTargetLang,
+        translateSourceLang === "auto" ? undefined : translateSourceLang,
+      );
+      setTranslateResult(result);
+    } catch (err) {
+      setTranslateError(formatErrorMessage(err));
+    } finally {
+      setTranslateLoading(false);
+    }
+  };
+
   const TABS = [
     { key: "arxiv" as const, icon: <Sparkles className="h-4 w-4" />, label: "arXiv 检索" },
     { key: "source" as const, icon: <FileSearch className="h-4 w-4" />, label: "刊会查询" },
+    { key: "translate" as const, icon: <Languages className="h-4 w-4" />, label: "学术翻译" },
+    { key: "md" as const, icon: <FileText className="h-4 w-4" />, label: "MD 整理" },
     { key: "links" as const, icon: <Globe2 className="h-4 w-4" />, label: "科研友链" },
   ];
 
@@ -822,6 +915,255 @@ export default function Tools() {
             <p className="font-medium text-ink-secondary">没有匹配结果</p>
             <p className="mt-1 text-sm text-ink-tertiary">建议改用更完整的期刊名、会议全称或 ISSN 重试。</p>
           </div>
+        </Card>
+      ) : null}
+      </>}
+
+      {activeTab === "translate" && <>
+      <Card padding="md" className="space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
+            <Languages className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-ink-primary">学术翻译</p>
+            <p className="text-xs leading-5 text-ink-tertiary">
+              由译衡模型驱动，优先保留专业术语和学术表达。可在设置 → 模型分工中单独配置译衡模型。
+            </p>
+          </div>
+        </div>
+
+        {/* 源语言 */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-ink-tertiary ml-1">原文语言</p>
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { value: "auto", label: "自动识别" },
+              { value: "en", label: "English" },
+              { value: "zh", label: "中文" },
+              { value: "ja", label: "日本語" },
+              { value: "de", label: "Deutsch" },
+              { value: "fr", label: "Français" },
+            ].map((lang) => (
+              <button
+                key={lang.value}
+                type="button"
+                onClick={() => setTranslateSourceLang(lang.value)}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
+                style={
+                  translateSourceLang === lang.value
+                    ? { background: "linear-gradient(145deg,#1A8AFF,#0062CC)", color: "#fff", boxShadow: "3px 3px 8px rgba(0,62,204,0.3)" }
+                    : { background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3,-3px -3px 6px #FFFFFF" }
+                }
+              >
+                {lang.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 输入框 */}
+        <Textarea
+          value={translateInput}
+          onChange={(e) => setTranslateInput(e.target.value)}
+          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void handleTranslate(); }}
+          rows={6}
+          placeholder="粘贴论文摘要、段落或任意学术文本…"
+          label="待翻译内容"
+        />
+
+        {/* 目标语言 + 按钮 */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-2 flex-1">
+            <p className="text-xs font-medium text-ink-tertiary ml-1">目标语言</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { value: "zh", label: "中文" },
+                { value: "en", label: "English" },
+                { value: "ja", label: "日本語" },
+                { value: "de", label: "Deutsch" },
+                { value: "fr", label: "Français" },
+              ].map((lang) => (
+                <button
+                  key={lang.value}
+                  type="button"
+                  onClick={() => setTranslateTargetLang(lang.value)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
+                  style={
+                    translateTargetLang === lang.value
+                      ? { background: "linear-gradient(145deg,#1A8AFF,#0062CC)", color: "#fff", boxShadow: "3px 3px 8px rgba(0,62,204,0.3)" }
+                      : { background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3,-3px -3px 6px #FFFFFF" }
+                  }
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleTranslate()}
+            disabled={!translateInput.trim() || translateLoading}
+            className="flex items-center gap-1.5 px-5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
+            style={{
+              background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
+              boxShadow: "4px 4px 10px rgba(0,62,204,0.3),-3px -3px 8px rgba(58,155,255,0.15)",
+            }}
+          >
+            {translateLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
+            {translateLoading ? "翻译中…" : "翻译"}
+          </button>
+        </div>
+
+        {translateError ? (
+          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{translateError}</span>
+          </div>
+        ) : null}
+      </Card>
+
+      {translateResult ? (
+        <Card padding="md" className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-ink-secondary">翻译结果</p>
+            <button
+              type="button"
+              onClick={() => void navigator.clipboard.writeText(translateResult)}
+              className="text-xs text-ink-tertiary hover:text-apple-blue transition-colors"
+            >
+              复制
+            </button>
+          </div>
+          <p className="text-sm leading-7 text-ink-primary whitespace-pre-wrap">{translateResult}</p>
+        </Card>
+      ) : null}
+      </>}
+
+      {activeTab === "md" && <>
+      <Card padding="md" className="space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
+            <FileText className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-ink-primary">Markdown 自动整理</p>
+            <p className="text-xs leading-5 text-ink-tertiary">
+              将任意文本整理为规范 Markdown。内容过长时自动分块处理，每块的排版风格会以压缩提示词的形式传递给下一块，保证全文一致性。完成后可直接保存为 .md 文件。
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-medium text-ink-tertiary ml-1">待整理内容</label>
+            <button
+              type="button"
+              onClick={async () => {
+                const { open } = await import("@tauri-apps/plugin-dialog");
+                const { readTextFile } = await import("@tauri-apps/plugin-fs");
+                const path = await open({
+                  filters: [{ name: "文本文件", extensions: ["md", "txt"] }],
+                  multiple: false,
+                });
+                if (typeof path === "string") {
+                  const content = await readTextFile(path);
+                  setMdInput(content);
+                }
+              }}
+              className="flex items-center gap-1 text-xs text-ink-tertiary hover:text-apple-blue transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              上传文件
+            </button>
+          </div>
+          <Textarea
+            value={mdInput}
+            onChange={(e) => setMdInput(e.target.value)}
+            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void handleMdFormat(); }}
+            rows={10}
+            placeholder="粘贴需要整理的文字内容，或点击右上角上传 .md / .txt 文件…"
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-ink-tertiary">
+            {mdInput.trim().length > 0
+              ? `${mdInput.trim().length} 字 · 预计 ${Math.ceil(mdInput.trim().length / 1500)} 块`
+              : "支持 ⌘/Ctrl+Enter 快捷提交"}
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleMdFormat()}
+            disabled={!mdInput.trim() || mdProcessing}
+            className="flex items-center gap-1.5 px-5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
+            style={{
+              background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
+              boxShadow: "4px 4px 10px rgba(0,62,204,0.3),-3px -3px 8px rgba(58,155,255,0.15)",
+            }}
+          >
+            {mdProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            {mdProcessing ? "整理中…" : "开始整理"}
+          </button>
+        </div>
+
+        {mdProcessing && mdProgress ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-ink-tertiary">
+              <span>正在处理第 {mdProgress.current} / {mdProgress.total} 块</span>
+              <span>{Math.round((mdProgress.current / mdProgress.total) * 100)}%</span>
+            </div>
+            <div
+              className="h-1.5 rounded-full overflow-hidden"
+              style={{ background: "#E8ECF0", boxShadow: insetShadow }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${(mdProgress.current / mdProgress.total) * 100}%`,
+                  background: "linear-gradient(90deg,#1A8AFF,#0062CC)",
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {mdError ? (
+          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{mdError}</span>
+          </div>
+        ) : null}
+      </Card>
+
+      {mdResult ? (
+        <Card padding="md" className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-ink-secondary">整理结果</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void navigator.clipboard.writeText(mdResult)}
+                className="text-xs text-ink-tertiary hover:text-apple-blue transition-colors"
+              >
+                复制
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleMdSave()}
+                className="flex items-center gap-1 text-xs font-medium text-apple-blue hover:opacity-80 transition-opacity"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                保存为 .md
+              </button>
+            </div>
+          </div>
+          <pre
+            className="text-xs leading-6 text-ink-primary whitespace-pre-wrap font-mono overflow-x-auto rounded-2xl p-4"
+            style={{ background: "#E8ECF0", boxShadow: insetShadow }}
+          >
+            {mdResult}
+          </pre>
         </Card>
       ) : null}
       </>}

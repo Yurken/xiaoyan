@@ -329,6 +329,23 @@ export const surveyApi = {
     invoke("survey_search", { query, limit }),
 };
 
+// ── Translate ─────────────────────────────────────────────────────
+
+export const translateApi = {
+  translate: (text: string, targetLang: string, sourceLang?: string): Promise<string> =>
+    invoke("translate_text", { text, targetLang, sourceLang: sourceLang ?? null }),
+};
+
+// ── Markdown Format ───────────────────────────────────────────────
+
+export const markdownApi = {
+  formatChunk: (
+    text: string,
+    styleSummary: string,
+  ): Promise<{ formatted: string; styleSummary: string }> =>
+    invoke("markdown_format_chunk", { text, styleSummary }),
+};
+
 // ── Unified client (mirrors api-sdk shape) ────────────────────────
 
 export const apiClient = {
@@ -337,6 +354,8 @@ export const apiClient = {
   journals: journalApi,
   sources: sourceApi,
   settings: settingsApi,
+  translate: translateApi,
+  markdown: markdownApi,
   updates: updatesApi,
   papers: papersApi,
   knowledge: knowledgeApi,
