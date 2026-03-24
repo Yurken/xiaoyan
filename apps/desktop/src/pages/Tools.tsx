@@ -1,10 +1,12 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { AlertCircle, CalendarDays, ChevronDown, FileSearch, FileText, Globe2, Languages, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { AlertCircle, AlignLeft, ArrowRight, CalendarDays, CheckCircle2, ChevronDown, Download, FileSearch, FileText, Globe2, Languages, Loader2, Presentation, Plus, Search, Sparkles, Upload, Wand2, X } from "lucide-react";
+import PptxGenJS from "pptxgenjs";
 import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
-import type { ArxivRankingMode, ArxivSearchRequest, ArxivSearchResponse, SourceLookupSection } from "@research-copilot/types";
+import type { ArxivRankingMode, ArxivSearchRequest, ArxivSearchResponse, Skill, SourceLookupSection } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, WosIndexBadge, VenueTypeBadge } from "../components/CcfBadges";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
+import { Link } from "react-router-dom";
 import { YANWEB_FRIEND_LINK_SECTIONS, YANWEB_FRIEND_LINK_TOTAL } from "../lib/yanweb-links";
 
 const insetShadow = "var(--rc-inset-shadow)";
@@ -149,6 +151,75 @@ function friendLinkInitial(value: string) {
   return value.trim().slice(0, 1) || "?";
 }
 
+// ── PPT builder ──────────────────────────────────────────────────
+
+type PptLayout = "title" | "section" | "content" | "two_column";
+
+interface PptSlide {
+  layout: PptLayout;
+  title: string;
+  subtitle?: string;
+  bullets?: string[];
+  left?: string[];
+  right?: string[];
+}
+
+interface PptData {
+  title: string;
+  slides: PptSlide[];
+}
+
+async function buildPptx(data: PptData): Promise<ArrayBuffer> {
+  const pptx = new PptxGenJS();
+  pptx.layout = "LAYOUT_WIDE"; // 13.33" × 7.5"
+
+  const W = 13.33;
+  const H = 7.5;
+  const C = { navy: "0D1B2A", blue: "007AFF", white: "FFFFFF", text: "1A2233", soft: "3C4655", light: "F4F6F9", border: "D0D6DC" };
+
+  for (const slide of data.slides) {
+    const s = pptx.addSlide();
+
+    if (slide.layout === "title") {
+      s.background = { color: C.navy };
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: H, fill: { type: "solid", color: C.blue, transparency: 72 } });
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: H - 0.18, w: W, h: 0.18, fill: { type: "solid", color: C.blue, transparency: 0 } });
+      s.addText(slide.title, { x: 1.2, y: 2.3, w: W - 2.4, h: 1.6, fontSize: 42, bold: true, color: C.white, align: "center", valign: "middle" });
+      if (slide.subtitle) s.addText(slide.subtitle, { x: 1.2, y: 4.1, w: W - 2.4, h: 0.9, fontSize: 20, color: "AACCFF", align: "center" });
+
+    } else if (slide.layout === "section") {
+      s.background = { color: C.blue };
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.12, h: H, fill: { type: "solid", color: C.white, transparency: 40 } });
+      s.addText(slide.title, { x: 0.8, y: 2.6, w: W - 1.6, h: 1.4, fontSize: 36, bold: true, color: C.white, align: "center", valign: "middle" });
+      if (slide.subtitle) s.addText(slide.subtitle, { x: 0.8, y: 4.2, w: W - 1.6, h: 0.8, fontSize: 18, color: "DDEEFF", align: "center" });
+
+    } else if (slide.layout === "content") {
+      s.background = { color: C.light };
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: 1.25, fill: { type: "solid", color: C.navy } });
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 1.25, w: W, h: 0.06, fill: { type: "solid", color: C.blue } });
+      s.addText(slide.title, { x: 0.5, y: 0.18, w: W - 1, h: 0.9, fontSize: 26, bold: true, color: C.white, valign: "middle" });
+      if (slide.bullets?.length) {
+        s.addText(
+          slide.bullets.map((b) => ({ text: b, options: { bullet: { code: "2022" }, paraSpaceAfter: 10 } })),
+          { x: 0.7, y: 1.55, w: W - 1.4, h: H - 2, fontSize: 19, color: C.text, valign: "top", lineSpacingMultiple: 1.3 }
+        );
+      }
+
+    } else if (slide.layout === "two_column") {
+      s.background = { color: C.light };
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: 1.25, fill: { type: "solid", color: C.navy } });
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 1.25, w: W, h: 0.06, fill: { type: "solid", color: C.blue } });
+      s.addText(slide.title, { x: 0.5, y: 0.18, w: W - 1, h: 0.9, fontSize: 26, bold: true, color: C.white, valign: "middle" });
+      s.addShape(pptx.ShapeType.line, { x: W / 2, y: 1.5, w: 0, h: H - 1.9, line: { color: C.border, width: 1 } });
+      const colOpts = { fontSize: 18, color: C.text, valign: "top" as const, lineSpacingMultiple: 1.3 };
+      if (slide.left?.length) s.addText(slide.left.map((b) => ({ text: b, options: { bullet: { code: "2022" }, paraSpaceAfter: 8 } })), { x: 0.5, y: 1.55, w: W / 2 - 0.8, h: H - 2, ...colOpts });
+      if (slide.right?.length) s.addText(slide.right.map((b) => ({ text: b, options: { bullet: { code: "2022" }, paraSpaceAfter: 8 } })), { x: W / 2 + 0.3, y: 1.55, w: W / 2 - 0.8, h: H - 2, ...colOpts });
+    }
+  }
+
+  return await pptx.write({ outputType: "arraybuffer" }) as ArrayBuffer;
+}
+
 export default function Tools() {
   const [sourceQuery, setSourceQuery] = useState("");
   const [sourceSections, setSourceSections] = useState<SourceLookupSection[]>([]);
@@ -174,7 +245,42 @@ export default function Tools() {
   const [arxivSearched, setArxivSearched] = useState(false);
   const [arxivResult, setArxivResult] = useState<ArxivSearchResponse | null>(null);
   const arxivLastSearchAt = useRef<number>(0);
-  const [activeTab, setActiveTab] = useState<"arxiv" | "source" | "links" | "translate" | "md">("arxiv");
+  const [arxivOnlyTopic, setArxivOnlyTopic] = useState("");
+  const [arxivOnlyAllTerms, setArxivOnlyAllTerms] = useState("");
+  const [arxivOnlyTitleTerms, setArxivOnlyTitleTerms] = useState("");
+  const [arxivOnlyAbstractTerms, setArxivOnlyAbstractTerms] = useState("");
+  const [arxivOnlyAuthors, setArxivOnlyAuthors] = useState("");
+  const [arxivOnlyCategories, setArxivOnlyCategories] = useState<string[]>([]);
+  const [arxivOnlyCatPickerOpen, setArxivOnlyCatPickerOpen] = useState(false);
+  const [arxivOnlyCommentsTerms, setArxivOnlyCommentsTerms] = useState("");
+  const [arxivOnlyJournalTerms, setArxivOnlyJournalTerms] = useState("");
+  const [arxivOnlyExcludeTerms, setArxivOnlyExcludeTerms] = useState("");
+  const [arxivOnlyDays, setArxivOnlyDays] = useState("30");
+  const [arxivOnlyLimit, setArxivOnlyLimit] = useState("8");
+  const [arxivOnlyMode, setArxivOnlyMode] = useState<ArxivRankingMode>("relevance");
+  const [arxivOnlyLoading, setArxivOnlyLoading] = useState(false);
+  const [arxivOnlyError, setArxivOnlyError] = useState("");
+  const [arxivOnlySearched, setArxivOnlySearched] = useState(false);
+  const [arxivOnlyResult, setArxivOnlyResult] = useState<ArxivSearchResponse | null>(null);
+  const arxivOnlyLastSearchAt = useRef<number>(0);
+  const [activeTab, setActiveTab] = useState<"arxiv" | "source" | "links" | "translate" | "md" | "ppt">("arxiv");
+
+  // PPT
+  const [pptMode, setPptMode] = useState<"topic" | "document" | "outline">("topic");
+  const [pptTopic, setPptTopic] = useState("");
+  const [pptOutline, setPptOutline] = useState("");
+  const [pptDocName, setPptDocName] = useState<string | null>(null);
+  const [pptDocContent, setPptDocContent] = useState<string | null>(null);
+  const [pptStyle, setPptStyle] = useState("auto");
+  const [pptCustomStyle, setPptCustomStyle] = useState("");
+  const [pptLang, setPptLang] = useState("auto");
+  const [pptPages, setPptPages] = useState("auto");
+  const [pptCustomPages, setPptCustomPages] = useState("");
+  const [pptStatus, setPptStatus] = useState<"idle" | "llm" | "building" | "ready" | "error">("idle");
+  const [pptSlideCount, setPptSlideCount] = useState(0);
+  const [pptBuffer, setPptBuffer] = useState<ArrayBuffer | null>(null);
+  const [pptError, setPptError] = useState("");
+  const [pptSkill, setPptSkill] = useState<Skill | null | undefined>(undefined); // undefined = loading
 
   const [mdInput, setMdInput] = useState("");
   const [mdResult, setMdResult] = useState("");
@@ -191,6 +297,13 @@ export default function Tools() {
   const [openFriendSections, setOpenFriendSections] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(YANWEB_FRIEND_LINK_SECTIONS.map((section, index) => [section.title, index === 0]))
   );
+
+  useEffect(() => {
+    apiClient.skills.list().then((skills) => {
+      const skill = skills.find((s) => s.name === "ppt-generate") ?? null;
+      setPptSkill(skill);
+    }).catch(() => setPptSkill(null));
+  }, []);
 
   const currentMode = useMemo(
     () => ARXIV_MODE_OPTIONS.find((item) => item.value === arxivMode) ?? ARXIV_MODE_OPTIONS[0],
@@ -222,6 +335,38 @@ export default function Tools() {
   );
   const arxivHasSearchTerms = useMemo(() => hasStructuredArxivTerms(arxivRequest), [arxivRequest]);
   const arxivAppliedFilters = useMemo(() => buildAppliedFilterEntries(arxivResult?.applied_filters), [arxivResult]);
+  const arxivOnlyRequest = useMemo<ArxivSearchRequest>(
+    () => ({
+      topic: arxivOnlyTopic.trim(),
+      all_terms: splitStructuredInput(arxivOnlyAllTerms),
+      title_terms: splitStructuredInput(arxivOnlyTitleTerms),
+      abstract_terms: splitStructuredInput(arxivOnlyAbstractTerms),
+      authors: splitStructuredInput(arxivOnlyAuthors),
+      categories: arxivOnlyCategories,
+      comments_terms: splitStructuredInput(arxivOnlyCommentsTerms),
+      journal_ref_terms: splitStructuredInput(arxivOnlyJournalTerms),
+      exclude_terms: splitStructuredInput(arxivOnlyExcludeTerms),
+    }),
+    [
+      arxivOnlyAbstractTerms,
+      arxivOnlyAllTerms,
+      arxivOnlyAuthors,
+      arxivOnlyCategories,
+      arxivOnlyCommentsTerms,
+      arxivOnlyExcludeTerms,
+      arxivOnlyJournalTerms,
+      arxivOnlyTitleTerms,
+      arxivOnlyTopic,
+    ]
+  );
+  const arxivOnlyHasSearchTerms = useMemo(
+    () => hasStructuredArxivTerms(arxivOnlyRequest),
+    [arxivOnlyRequest]
+  );
+  const arxivOnlyAppliedFilters = useMemo(
+    () => buildAppliedFilterEntries(arxivOnlyResult?.applied_filters),
+    [arxivOnlyResult]
+  );
   const journalSection = useMemo(
     () => sourceSections.find((section) => section.key === "journal_partition"),
     [sourceSections]
@@ -273,7 +418,7 @@ export default function Tools() {
       setArxivLoading(true);
       setArxivError("");
       setArxivSearched(true);
-      const result = await apiClient.arxiv.search(
+      const result = await apiClient.paperSearch.search(
         arxivRequest,
         Number.isFinite(days) ? days : 14,
         Number.isFinite(limit) ? limit : 6,
@@ -285,6 +430,40 @@ export default function Tools() {
       setArxivError(formatErrorMessage(nextError));
     } finally {
       setArxivLoading(false);
+    }
+  };
+
+  const handleArxivOnlyKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      void handleArxivOnlySearch();
+    }
+  };
+
+  const handleArxivOnlySearch = async () => {
+    if (!arxivOnlyHasSearchTerms || arxivOnlyLoading) return;
+    const now = Date.now();
+    if (now - arxivOnlyLastSearchAt.current < 3000) return;
+    arxivOnlyLastSearchAt.current = now;
+
+    const days = Number(arxivOnlyDays);
+    const limit = Number(arxivOnlyLimit);
+
+    try {
+      setArxivOnlyLoading(true);
+      setArxivOnlyError("");
+      setArxivOnlySearched(true);
+      const result = await apiClient.arxiv.search(
+        arxivOnlyRequest,
+        Number.isFinite(days) ? days : 30,
+        Number.isFinite(limit) ? limit : 8,
+        arxivOnlyMode
+      );
+      setArxivOnlyResult(result);
+    } catch (nextError) {
+      setArxivOnlyResult(null);
+      setArxivOnlyError(formatErrorMessage(nextError));
+    } finally {
+      setArxivOnlyLoading(false);
     }
   };
 
@@ -384,11 +563,82 @@ export default function Tools() {
     }
   };
 
+  const handlePptGenerate = async () => {
+    if (!pptSkill?.is_enabled) return;
+
+    const JSON_SCHEMA = `{\n  "title": "演示标题",\n  "slides": [\n    { "layout": "title", "title": "主标题", "subtitle": "副标题" },\n    { "layout": "section", "title": "章节名", "subtitle": "章节说明（可选）" },\n    { "layout": "content", "title": "幻灯片标题", "bullets": ["要点1", "要点2", "要点3"] },\n    { "layout": "two_column", "title": "对比标题", "left": ["左侧1", "左侧2"], "right": ["右侧1", "右侧2"] }\n  ]\n}`;
+
+    const LANG_MAP: Record<string, string> = {
+      auto: "语言根据主题自动决定（中文主题用中文，英文主题用英文）",
+      zh: "全程使用中文",
+      en: "全 content in English",
+    };
+
+    const effectivePptStyle = pptStyle === "custom" ? pptCustomStyle.trim() : pptStyle;
+    const effectivePptPages = pptPages === "custom" ? pptCustomPages.trim() : pptPages;
+    const customPageCount = Number.parseInt(effectivePptPages, 10);
+    const styleHint = effectivePptStyle === "auto" || !effectivePptStyle
+      ? "根据科研主题与内容深度自行判断最合适的学术风格"
+      : `${effectivePptStyle}风格`;
+    const langHint = LANG_MAP[pptLang] ?? LANG_MAP.auto;
+    const pageHint = effectivePptPages === "auto" || !Number.isFinite(customPageCount)
+      ? "页数由小妍根据内容深度自动决定（建议 10～16 页）"
+      : `总页数控制在 ${Math.min(40, Math.max(4, customPageCount))} 页左右（含标题页和致谢页）`;
+    const COMMON_RULES = `\n风格：${styleHint}\n语言：${langHint}\n页数：${pageHint}\n其他规则：\n- layout 只能是 title / section / content / two_column\n- 第一页固定 title 布局，最后一页用 title 布局作为致谢页\n- 包含 2～3 个 section 分隔页\n- bullets 每条不超过 20 字，最多 5 条\n- two_column 用于对比或并列内容`;
+
+    let prompt = "";
+    if (pptMode === "topic") {
+      if (!pptTopic.trim()) return;
+      prompt = `请为演示主题"${pptTopic.trim()}"生成幻灯片数据。\n\n只输出一个 JSON 对象，不要 markdown 代码块，不要任何额外说明，格式严格如下：\n${JSON_SCHEMA}\n${COMMON_RULES}`;
+    } else if (pptMode === "outline") {
+      if (!pptOutline.trim()) return;
+      prompt = `请根据以下大纲生成幻灯片数据：\n\n${pptOutline.trim()}\n\n只输出一个 JSON 对象，不要 markdown 代码块，不要任何额外说明，格式严格如下：\n${JSON_SCHEMA}\n${COMMON_RULES}\n- 严格按照大纲层级组织幻灯片`;
+    } else {
+      if (!pptDocContent) return;
+      prompt = `请根据以下文档内容生成幻灯片数据：\n\n${pptDocContent.slice(0, 4000)}\n\n只输出一个 JSON 对象，不要 markdown 代码块，不要任何额外说明，格式严格如下：\n${JSON_SCHEMA}\n${COMMON_RULES}\n- 提炼文档核心内容`;
+    }
+
+    setPptStatus("llm");
+    setPptBuffer(null);
+    setPptError("");
+
+    try {
+      let raw = "";
+      for await (const chunk of apiClient.chat.stream({ message: prompt })) {
+        if (chunk.type === "delta") raw += chunk.value;
+        else if (chunk.type === "error") throw new Error(chunk.value as string);
+      }
+
+      // 提取 JSON（剥除可能的 markdown 代码块）
+      const jsonStr = raw.replace(/^```[a-z]*\n?/m, "").replace(/```\s*$/m, "").trim();
+      const data: PptData = JSON.parse(jsonStr);
+
+      setPptStatus("building");
+      const buffer = await buildPptx(data);
+      setPptSlideCount(data.slides.length);
+      setPptBuffer(buffer);
+      setPptStatus("ready");
+    } catch (err) {
+      setPptError(formatErrorMessage(err));
+      setPptStatus("error");
+    }
+  };
+
+  const handlePptDownload = async () => {
+    if (!pptBuffer) return;
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeFile } = await import("@tauri-apps/plugin-fs");
+    const defaultName = pptTopic.trim() ? `${pptTopic.trim().slice(0, 20)}.pptx` : "slides.pptx";
+    const path = await save({ filters: [{ name: "PowerPoint", extensions: ["pptx"] }], defaultPath: defaultName });
+    if (path) await writeFile(path, new Uint8Array(pptBuffer));
+  };
+
   const TABS = [
-    { key: "arxiv" as const, icon: <Sparkles className="h-4 w-4" />, label: "arXiv 检索" },
+    { key: "arxiv" as const, icon: <Sparkles className="h-4 w-4" />, label: "论文检索" },
     { key: "source" as const, icon: <FileSearch className="h-4 w-4" />, label: "刊会查询" },
     { key: "translate" as const, icon: <Languages className="h-4 w-4" />, label: "学术翻译" },
     { key: "md" as const, icon: <FileText className="h-4 w-4" />, label: "MD 整理" },
+    { key: "ppt" as const, icon: <Presentation className="h-4 w-4" />, label: "生成 PPT" },
     { key: "links" as const, icon: <Globe2 className="h-4 w-4" />, label: "科研友链" },
   ];
 
@@ -431,13 +681,25 @@ export default function Tools() {
       <Card padding="md" className="space-y-5">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
-            <Sparkles className="h-5 w-5" />
+            <Globe2 className="h-5 w-5" />
           </div>
           <div className="space-y-1">
-            <p className="text-sm font-semibold text-ink-primary">arXiv 智能检索</p>
+            <p className="text-sm font-semibold text-ink-primary">论文检索</p>
             <p className="text-xs leading-5 text-ink-tertiary">
-              输入会按 arXiv 官方字段拆分：同一字段内多个值按 OR 合并，不同字段之间按 AND 组合，排除词走 ANDNOT。小妍会帮你优化检索策略。
+              小妍会联网检索全网论文，并按相关性与研究价值做聚合排序，帮你快速定位值得读的工作。
             </p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-apple-blue/15 bg-apple-blue/5 px-4 py-3">
+          <div className="flex items-start gap-2">
+            <Sparkles className="mt-0.5 h-4 w-4 text-apple-blue" />
+            <div>
+              <p className="text-sm font-semibold text-ink-primary">论文智能检索模块</p>
+              <p className="mt-1 text-xs leading-5 text-ink-tertiary">
+                支持关键词、标题、摘要、作者、排除词组合检索；同一字段内多个词按 OR 合并，不同字段按 AND 组合。
+              </p>
+            </div>
           </div>
         </div>
 
@@ -447,7 +709,7 @@ export default function Tools() {
           onKeyDown={handleArxivKeyDown}
           rows={2}
           placeholder="例如：想找最近两周里，tool-using LLM agents 中关于 memory / planning 的代表性新文"
-          label="研究主题说明（可选，仅用于 LLM 重排理解需求）"
+          label="研究主题说明（可选，小妍根据你的输入自动优化检索策略）"
         />
 
         <div className="grid grid-cols-3 gap-3">
@@ -456,21 +718,21 @@ export default function Tools() {
             onChange={(event) => setArxivAllTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
             placeholder="例如：agent memory, tool use"
-            label="通用关键词（all）"
+            label="通用关键词"
           />
           <Input
             value={arxivTitleTerms}
             onChange={(event) => setArxivTitleTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
             placeholder="例如：planning, memory"
-            label="标题关键词（ti）"
+            label="标题关键词"
           />
           <Input
             value={arxivAbstractTerms}
             onChange={(event) => setArxivAbstractTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
             placeholder="例如：benchmark, long-term"
-            label="摘要关键词（abs）"
+            label="摘要关键词"
           />
         </div>
 
@@ -480,16 +742,16 @@ export default function Tools() {
             onChange={(event) => setArxivAuthors(event.target.value)}
             onKeyDown={handleArxivKeyDown}
             placeholder="例如：Geoffrey Hinton, Percy Liang"
-            label="作者（au）"
+            label="作者"
           />
-          {/* arXiv 分类多选 */}
+          {/* 研究领域多选 */}
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-ink-tertiary ml-1">arXiv 分类（cat）</label>
+            <label className="block text-xs font-medium text-ink-tertiary ml-1">研究领域标签</label>
 
             {/* 已选芯片 */}
             <div className="flex flex-wrap gap-1.5 min-h-[28px] items-center">
               {arxivCategories.length === 0 ? (
-                <span className="text-xs text-ink-tertiary">未选择分类，检索时不限分类</span>
+                <span className="text-xs text-ink-tertiary">未选择领域标签，检索时不限领域</span>
               ) : (
                 arxivCategories.map((cat) => (
                   <span
@@ -529,7 +791,7 @@ export default function Tools() {
               {catPickerOpen ? "收起分类面板" : "展开分类面板"}
             </button>
 
-            {/* 分类面板 */}
+            {/* 领域面板 */}
             {catPickerOpen && (
               <div
                 className="rounded-2xl p-3 space-y-3"
@@ -588,26 +850,26 @@ export default function Tools() {
             onChange={(event) => setArxivCommentsTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
             placeholder="例如：code, benchmark, workshop"
-            label="备注关键词（co）"
+            label="扩展关键词"
           />
           <Input
             value={arxivJournalTerms}
             onChange={(event) => setArxivJournalTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
-            placeholder="例如：ICLR, ACL, NeurIPS"
-            label="期刊/会议信息（jr）"
+            placeholder="例如：NeurIPS, ACL, Nature"
+            label="期刊/会议"
           />
           <Input
             value={arxivExcludeTerms}
             onChange={(event) => setArxivExcludeTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
             placeholder="例如：robotics, medical imaging"
-            label="排除词（ANDNOT）"
+            label="排除词"
           />
         </div>
 
         <p className="text-xs leading-5 text-ink-tertiary">
-          检索时会自动加入最近时间窗口的 <span className="font-medium text-ink-secondary">submittedDate</span> 条件，多个分类之间以 OR 合并。
+          检索会结合最近时间窗口，并对候选论文做相关性和质量信号排序。
         </p>
 
         <div className="grid gap-3 md:grid-cols-3">
@@ -661,7 +923,7 @@ export default function Tools() {
           </p>
           <Button onClick={() => void handleArxivSearch()} loading={arxivLoading} disabled={!arxivHasSearchTerms}>
             <FileSearch className="h-4 w-4" />
-            检索 arXiv
+            联网检索论文
           </Button>
         </div>
 
@@ -703,7 +965,7 @@ export default function Tools() {
                     ))
                   )}
                 </div>
-                <p className="text-[11px] leading-5 text-ink-tertiary">官方 arXiv 查询式</p>
+                <p className="text-[11px] leading-5 text-ink-tertiary">本次查询表达式</p>
                 <p className="break-all rounded-2xl bg-white/55 px-3 py-2 font-mono text-[11px] leading-5 text-ink-tertiary">
                   {arxivResult.search_expression}
                 </p>
@@ -735,6 +997,360 @@ export default function Tools() {
                       ) : null}
                     </div>
 
+                    <div className="flex flex-wrap gap-2">
+                      <ExternalLink
+                        href={paper.abs_url}
+                        className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-apple-blue"
+                        title="打开论文详情页"
+                      >
+                        详情
+                      </ExternalLink>
+                      <ExternalLink
+                        href={paper.pdf_url}
+                        className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-apple-blue"
+                        title="打开论文 PDF"
+                      >
+                        PDF
+                      </ExternalLink>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs leading-5 text-ink-tertiary">{paper.authors || "作者信息缺失"}</p>
+                    {paper.tldr_zh ? (
+                      <p className="rounded-2xl bg-white/45 px-3 py-2 text-sm leading-6 text-ink-secondary">
+                        {paper.tldr_zh}
+                      </p>
+                    ) : null}
+                    <p className="text-sm leading-6 text-ink-secondary">{paper.reason}</p>
+                    <p className="text-sm leading-6 text-ink-tertiary">{truncateText(paper.abstract_text)}</p>
+                  </div>
+
+                  {paper.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {paper.tags.map((tag) => (
+                        <Badge key={`${paper.arxiv_id}-${tag}`} variant="default">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="flex flex-col items-center gap-3 py-12 text-center">
+              <CalendarDays className="h-8 w-8 text-ink-tertiary" />
+              <div>
+                <p className="font-medium text-ink-secondary">当前条件下没有匹配论文</p>
+                <p className="mt-1 text-sm text-ink-tertiary">
+                  建议增加最近天数，或放宽标题词、摘要词和领域标签条件。
+                </p>
+              </div>
+            </Card>
+          )}
+        </div>
+      ) : arxivSearched && !arxivLoading && !arxivError ? (
+        <Card className="flex flex-col items-center gap-3 py-12 text-center">
+          <Search className="h-8 w-8 text-ink-tertiary" />
+          <div>
+            <p className="font-medium text-ink-secondary">暂无结果</p>
+            <p className="mt-1 text-sm text-ink-tertiary">检查检索字段和时间窗口后重试。</p>
+          </div>
+        </Card>
+      ) : null}
+
+      <Card padding="md" className="space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
+            <Sparkles className="h-5 w-5" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-ink-primary">arXiv 智能检索</p>
+            <p className="text-xs leading-5 text-ink-tertiary">
+              独立 arXiv 模块，仅在 arXiv 官方数据源中检索。输入会按 arXiv 官方字段拆分：同一字段内多个值按 OR 合并，不同字段按 AND 组合，排除词走 ANDNOT。
+            </p>
+          </div>
+        </div>
+
+        <Textarea
+          value={arxivOnlyTopic}
+          onChange={(event) => setArxivOnlyTopic(event.target.value)}
+          onKeyDown={handleArxivOnlyKeyDown}
+          rows={2}
+          placeholder="例如：想找最近两周里，tool-using LLM agents 中关于 memory / planning 的代表性新文"
+          label="研究主题说明（可选，小妍根据你的输入自动优化检索策略）"
+        />
+
+        <div className="grid grid-cols-3 gap-3">
+          <Input
+            value={arxivOnlyAllTerms}
+            onChange={(event) => setArxivOnlyAllTerms(event.target.value)}
+            onKeyDown={handleArxivOnlyKeyDown}
+            placeholder="例如：agent memory, tool use"
+            label="通用关键词（all）"
+          />
+          <Input
+            value={arxivOnlyTitleTerms}
+            onChange={(event) => setArxivOnlyTitleTerms(event.target.value)}
+            onKeyDown={handleArxivOnlyKeyDown}
+            placeholder="例如：planning, memory"
+            label="标题关键词（ti）"
+          />
+          <Input
+            value={arxivOnlyAbstractTerms}
+            onChange={(event) => setArxivOnlyAbstractTerms(event.target.value)}
+            onKeyDown={handleArxivOnlyKeyDown}
+            placeholder="例如：benchmark, long-term"
+            label="摘要关键词（abs）"
+          />
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-2">
+          <Input
+            value={arxivOnlyAuthors}
+            onChange={(event) => setArxivOnlyAuthors(event.target.value)}
+            onKeyDown={handleArxivOnlyKeyDown}
+            placeholder="例如：Geoffrey Hinton, Percy Liang"
+            label="作者（au）"
+          />
+
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-ink-tertiary ml-1">arXiv 分类（cat）</label>
+          <div className="flex flex-wrap gap-1.5 min-h-[28px] items-center">
+            {arxivOnlyCategories.length === 0 ? (
+              <span className="text-xs text-ink-tertiary">未选择分类，检索时不限分类</span>
+            ) : (
+              arxivOnlyCategories.map((cat) => (
+                <span
+                  key={cat}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-medium text-apple-blue"
+                  style={{ background: "rgba(0,122,255,0.1)" }}
+                >
+                  {cat}
+                  <button
+                    type="button"
+                    onClick={() => setArxivOnlyCategories((prev) => prev.filter((c) => c !== cat))}
+                    className="hover:text-apple-red transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))
+            )}
+            {arxivOnlyCategories.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setArxivOnlyCategories([])}
+                className="text-[11px] text-ink-tertiary hover:text-apple-red transition-colors ml-1"
+              >
+                清空
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setArxivOnlyCatPickerOpen((prev) => !prev)}
+            className="flex items-center gap-1 text-xs font-medium text-apple-blue hover:opacity-75 transition-opacity"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {arxivOnlyCatPickerOpen ? "收起分类面板" : "展开分类面板"}
+          </button>
+
+          {arxivOnlyCatPickerOpen && (
+            <div className="rounded-2xl p-3 space-y-3" style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}>
+              {ARXIV_CATEGORIES.map((group) => (
+                <div key={group.domain}>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary mb-1.5">
+                    {group.domain}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {group.items.map(({ id, zh }) => {
+                      const selected = arxivOnlyCategories.includes(id);
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() =>
+                            setArxivOnlyCategories((prev) =>
+                              selected ? prev.filter((c) => c !== id) : [...prev, id]
+                            )
+                          }
+                          className="flex flex-col items-start px-2.5 py-1.5 rounded-xl transition-all duration-100 active:scale-95"
+                          style={
+                            selected
+                              ? {
+                                  background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                                  color: "#FFFFFF",
+                                  boxShadow: "2px 2px 6px rgba(0,62,204,0.3), -1px -1px 4px rgba(58,155,255,0.2)",
+                                }
+                              : {
+                                  background: "var(--rc-surface)",
+                                  color: "var(--rc-text-soft)",
+                                  boxShadow: raisedShadow,
+                                }
+                          }
+                        >
+                          <span className="text-xs font-semibold leading-tight">{id}</span>
+                          <span className="text-[10px] leading-tight mt-0.5" style={{ opacity: selected ? 0.8 : 0.55 }}>
+                            {zh}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+          <Input
+            value={arxivOnlyCommentsTerms}
+            onChange={(event) => setArxivOnlyCommentsTerms(event.target.value)}
+            onKeyDown={handleArxivOnlyKeyDown}
+            placeholder="例如：code, benchmark, workshop"
+            label="备注关键词（co）"
+          />
+          <Input
+            value={arxivOnlyJournalTerms}
+            onChange={(event) => setArxivOnlyJournalTerms(event.target.value)}
+            onKeyDown={handleArxivOnlyKeyDown}
+            placeholder="例如：ICLR, ACL, NeurIPS"
+            label="期刊/会议信息（jr）"
+          />
+          <Input
+            value={arxivOnlyExcludeTerms}
+            onChange={(event) => setArxivOnlyExcludeTerms(event.target.value)}
+            onKeyDown={handleArxivOnlyKeyDown}
+            placeholder="例如：robotics, medical imaging"
+            label="排除词（ANDNOT）"
+          />
+        </div>
+
+        <p className="text-xs leading-5 text-ink-tertiary">
+          检索时会自动加入最近时间窗口的 <span className="font-medium text-ink-secondary">submittedDate</span> 条件，多个分类之间以 OR 合并。
+        </p>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <Input
+            label="最近天数"
+            type="number"
+            min={1}
+            max={365}
+            value={arxivOnlyDays}
+            onChange={(event) => setArxivOnlyDays(event.target.value)}
+            placeholder="14"
+          />
+          <Input
+            label="返回篇数"
+            type="number"
+            min={1}
+            max={20}
+            value={arxivOnlyLimit}
+            onChange={(event) => setArxivOnlyLimit(event.target.value)}
+            placeholder="6"
+          />
+          <div className="w-full">
+            <label className="block text-xs font-medium text-ink-tertiary mb-1.5 ml-1">排序方式</label>
+            <div className="inline-flex w-full rounded-2xl p-1 gap-0.5" style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}>
+              {ARXIV_MODE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setArxivOnlyMode(option.value)}
+                  className="flex-1 rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-150"
+                  style={
+                    arxivOnlyMode === option.value
+                      ? { background: "var(--rc-elevated)", boxShadow: raisedShadow, color: "var(--rc-text)" }
+                      : { color: "var(--rc-text-muted)" }
+                  }
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <p className="text-xs leading-5 text-ink-tertiary">
+            当前模式：<span className="font-medium text-ink-secondary">{(ARXIV_MODE_OPTIONS.find((m) => m.value === arxivOnlyMode) ?? ARXIV_MODE_OPTIONS[0]).label}</span>
+            {`，${(ARXIV_MODE_OPTIONS.find((m) => m.value === arxivOnlyMode) ?? ARXIV_MODE_OPTIONS[0]).description}`}
+          </p>
+          <Button onClick={() => void handleArxivOnlySearch()} loading={arxivOnlyLoading} disabled={!arxivOnlyHasSearchTerms}>
+            <FileSearch className="h-4 w-4" />
+            检索 arXiv
+          </Button>
+        </div>
+
+        {arxivOnlyError && (
+          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{arxivOnlyError}</span>
+          </div>
+        )}
+      </Card>
+
+      {arxivOnlyResult ? (
+        <div className="space-y-4">
+          <Card padding="md" className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="info">{arxivOnlyResult.ranking_mode === "quality" ? "质量预测" : "最相关"}</Badge>
+              <Badge variant={arxivOnlyResult.llm_used ? "success" : "warning"}>
+                {arxivOnlyResult.llm_used ? "已使用当前模型设置" : "模型未启用，已降级启发式排序"}
+              </Badge>
+              <Badge variant="default">{`候选 ${arxivOnlyResult.candidate_count} 篇`}</Badge>
+              <Badge variant="default">{`返回 ${arxivOnlyResult.papers.length} 篇`}</Badge>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-ink-primary">{arxivOnlyResult.overall_summary}</p>
+              <p className="text-sm leading-6 text-ink-secondary">{arxivOnlyResult.ranking_note}</p>
+              <p className="text-xs leading-5 text-ink-tertiary">{arxivOnlyResult.disclaimer}</p>
+            </div>
+
+            {arxivOnlyAppliedFilters.length > 0 ? (
+              <div className="space-y-2 rounded-2xl bg-white/40 px-3 py-3">
+                <p className="text-xs font-semibold text-ink-secondary">本次检索条件</p>
+                <div className="flex flex-wrap gap-2">
+                  {arxivOnlyAppliedFilters.flatMap((entry) =>
+                    entry.values.map((value) => (
+                      <Badge key={`${entry.label}-${value}`} variant="default">
+                        {`${entry.label}：${value}`}
+                      </Badge>
+                    ))
+                  )}
+                </div>
+                <p className="text-[11px] leading-5 text-ink-tertiary">官方 arXiv 查询式</p>
+                <p className="break-all rounded-2xl bg-white/55 px-3 py-2 font-mono text-[11px] leading-5 text-ink-tertiary">
+                  {arxivOnlyResult.search_expression}
+                </p>
+              </div>
+            ) : null}
+          </Card>
+
+          {arxivOnlyResult.papers.length > 0 ? (
+            <div className="space-y-3">
+              {arxivOnlyResult.papers.map((paper, index) => (
+                <Card key={`${paper.arxiv_id}-${index}`} padding="md" className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={scoreVariant(paper.score)}>{`${paper.score} 分`}</Badge>
+                        {paper.category ? <Badge variant="default">{paper.category}</Badge> : null}
+                        {paper.published_at ? (
+                          <Badge variant="default">{formatDate(paper.published_at)}</Badge>
+                        ) : null}
+                      </div>
+                      <ExternalLink
+                        href={paper.abs_url}
+                        className="text-base font-semibold leading-7 text-ink-primary hover:text-apple-blue hover:underline"
+                      >
+                        {paper.title}
+                      </ExternalLink>
+                      {paper.title_zh ? <p className="text-sm font-medium text-ink-secondary">{paper.title_zh}</p> : null}
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       <ExternalLink
                         href={paper.abs_url}
@@ -781,14 +1397,12 @@ export default function Tools() {
               <CalendarDays className="h-8 w-8 text-ink-tertiary" />
               <div>
                 <p className="font-medium text-ink-secondary">当前条件下没有匹配论文</p>
-                <p className="mt-1 text-sm text-ink-tertiary">
-                  建议增加最近天数，或放宽标题词、摘要词和分类条件。
-                </p>
+                <p className="mt-1 text-sm text-ink-tertiary">建议增加最近天数，或放宽标题词、摘要词和分类条件。</p>
               </div>
             </Card>
           )}
         </div>
-      ) : arxivSearched && !arxivLoading && !arxivError ? (
+      ) : arxivOnlySearched && !arxivOnlyLoading && !arxivOnlyError ? (
         <Card className="flex flex-col items-center gap-3 py-12 text-center">
           <Search className="h-8 w-8 text-ink-tertiary" />
           <div>
@@ -1166,6 +1780,316 @@ export default function Tools() {
           </pre>
         </Card>
       ) : null}
+      </>}
+
+      {activeTab === "ppt" && <>
+      <div className="relative">
+      <Card padding="md" className={["space-y-5", pptSkill !== undefined && !pptSkill?.is_enabled ? "pointer-events-none select-none opacity-40" : ""].join(" ")}>
+        {/* Header */}
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-purple/10 text-apple-purple">
+            <Presentation className="h-5 w-5" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-ink-primary">幻灯片生成</p>
+            <p className="text-xs leading-5 text-ink-tertiary">
+              告诉小妍你的演示主题，或上传文档、粘贴大纲，小妍会帮你生成一份结构清晰的幻灯片内容。
+            </p>
+          </div>
+        </div>
+
+        {/* Mode tabs */}
+        <div
+          className="flex rounded-2xl p-1 gap-0.5"
+          style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}
+        >
+          {([
+            { key: "topic" as const,    icon: <Wand2 className="h-3.5 w-3.5" />,   label: "输入主题" },
+            { key: "document" as const, icon: <Upload className="h-3.5 w-3.5" />,  label: "上传文档" },
+            { key: "outline" as const,  icon: <AlignLeft className="h-3.5 w-3.5" />, label: "粘贴大纲" },
+          ] as const).map(({ key, icon, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setPptMode(key)}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150"
+              style={
+                pptMode === key
+                  ? { background: "var(--rc-elevated)", boxShadow: raisedShadow, color: "var(--rc-text)" }
+                  : { color: "var(--rc-text-muted)" }
+              }
+            >
+              {icon}{label}
+            </button>
+          ))}
+        </div>
+
+        {/* Input area */}
+        {pptMode === "topic" && (
+          <div className="space-y-2">
+            <textarea
+              value={pptTopic}
+              onChange={(e) => setPptTopic(e.target.value)}
+              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void handlePptGenerate(); }}
+              rows={3}
+              placeholder={'输入演示主题，例如："大语言模型在科研中的应用"'}
+              className="w-full resize-none rounded-2xl px-4 py-3 text-sm text-ink-primary placeholder:text-ink-muted outline-none"
+              style={{ background: "var(--rc-surface)", boxShadow: insetShadow, color: "var(--rc-text)" }}
+            />
+            <p className="text-xs text-ink-muted ml-1">小妍会自动决定幻灯片数量、内容深度与配图风格</p>
+          </div>
+        )}
+
+        {pptMode === "document" && (
+          <div>
+            <div
+              className="rounded-2xl border-2 border-dashed p-8 text-center space-y-4 transition-colors"
+              style={{ borderColor: "var(--rc-border)" }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={async (e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files[0];
+                if (!file) return;
+                setPptDocName(file.name);
+                if (file.name.endsWith(".pdf")) {
+                  setPptDocContent(`[PDF文档：${file.name}，共 ${Math.round(file.size / 1024)} KB]`);
+                } else {
+                  const text = await file.text();
+                  setPptDocContent(text);
+                }
+              }}
+            >
+              {pptDocName ? (
+                <div className="space-y-2">
+                  <FileText className="h-8 w-8 mx-auto text-apple-blue" />
+                  <p className="text-sm font-medium text-ink-primary">{pptDocName}</p>
+                  <button
+                    type="button"
+                    onClick={() => { setPptDocName(null); setPptDocContent(null); }}
+                    className="text-xs text-ink-muted hover:text-apple-red transition-colors"
+                  >
+                    移除文件
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Upload className="h-8 w-8 mx-auto text-ink-muted" />
+                  <div>
+                    <p className="text-sm font-medium text-ink-primary">拖拽文件到此处</p>
+                    <p className="text-xs text-ink-muted mt-1">支持 PDF、TXT、MD 文档</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const { open } = await import("@tauri-apps/plugin-dialog");
+                      const path = await open({
+                        filters: [{ name: "文档", extensions: ["pdf", "txt", "md"] }],
+                        multiple: false,
+                      });
+                      if (typeof path === "string") {
+                        const name = path.split("/").pop() ?? path;
+                        setPptDocName(name);
+                        if (name.endsWith(".pdf")) {
+                          setPptDocContent(`[PDF文档：${name}]`);
+                        } else {
+                          const { readTextFile } = await import("@tauri-apps/plugin-fs");
+                          const text = await readTextFile(path);
+                          setPptDocContent(text);
+                        }
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-ink-secondary transition-all"
+                    style={{ background: "var(--rc-elevated)", boxShadow: raisedShadow }}
+                  >
+                    <FileText className="h-4 w-4" />
+                    本地文件
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {pptMode === "outline" && (
+          <div className="space-y-2">
+            <textarea
+              value={pptOutline}
+              onChange={(e) => setPptOutline(e.target.value)}
+              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void handlePptGenerate(); }}
+              rows={8}
+              placeholder={"在此处键入或粘贴大纲，内容层级尽量不超过 4 级，例如：\n第一章 章节页标题\n  正文页标题\n    a. 此处为正文小标题\n    此处为正文内容，建议内容尽量精简"}
+              className="w-full resize-none rounded-2xl px-4 py-3 text-sm outline-none font-mono leading-6"
+              style={{ background: "var(--rc-surface)", boxShadow: insetShadow, color: "var(--rc-text)" }}
+            />
+            <p className="text-xs text-ink-muted ml-1">小妍会按照大纲层级整理为幻灯片结构</p>
+          </div>
+        )}
+
+        {/* Options */}
+        <div className="space-y-3">
+          {/* 风格 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-ink-muted w-6 flex-shrink-0">风格</span>
+            {[
+              { value: "auto", label: "✦ 小妍推荐" },
+              { value: "文献综述", label: "文献综述" },
+              { value: "实验汇报", label: "实验汇报" },
+              { value: "开题答辩", label: "开题答辩" },
+              { value: "技术路线", label: "技术路线" },
+              { value: "custom", label: "自定义" },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setPptStyle(opt.value)}
+                className="rounded-full px-3 py-1 text-xs font-medium transition-all duration-150 flex-shrink-0"
+                style={
+                  pptStyle === opt.value
+                    ? { background: "var(--rc-card-inset-bg)", color: "#007AFF", boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.12), inset -1px -1px 3px rgba(255,255,255,0.5)", border: "1px solid rgba(0,122,255,0.3)" }
+                    : { background: "var(--rc-elevated)", color: "var(--rc-text-muted)", border: "1px solid transparent" }
+                }
+              >
+                {opt.label}
+              </button>
+            ))}
+            {pptStyle === "custom" && (
+              <input
+                type="text"
+                value={pptCustomStyle}
+                onChange={(e) => setPptCustomStyle(e.target.value)}
+                placeholder="输入科研风格（如：算法推导型）"
+                className="rounded-xl px-3 py-1 text-xs outline-none min-w-0 flex-1"
+                style={{ background: "var(--rc-surface)", boxShadow: insetShadow, color: "var(--rc-text)" }}
+              />
+            )}
+          </div>
+
+          {/* 语言 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-ink-muted w-6 flex-shrink-0">语言</span>
+            <div className="flex gap-1.5 flex-wrap">
+              {[
+                { value: "auto", label: "✦ 小妍推荐" },
+                { value: "zh", label: "中文" },
+                { value: "en", label: "English" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPptLang(opt.value)}
+                  className="rounded-full px-3 py-1 text-xs font-medium transition-all duration-150"
+                  style={
+                    pptLang === opt.value
+                      ? { background: "var(--rc-card-inset-bg)", color: "#007AFF", boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.12), inset -1px -1px 3px rgba(255,255,255,0.5)", border: "1px solid rgba(0,122,255,0.3)" }
+                      : { background: "var(--rc-elevated)", color: "var(--rc-text-muted)", border: "1px solid transparent" }
+                  }
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 页数 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-ink-muted w-6 flex-shrink-0">页数</span>
+            {[
+              { value: "auto", label: "✦ 小妍推荐" },
+              { value: "8", label: "8 页" },
+              { value: "12", label: "12 页" },
+              { value: "16", label: "16 页" },
+              { value: "20", label: "20 页" },
+              { value: "custom", label: "自定义" },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setPptPages(opt.value)}
+                className="rounded-full px-3 py-1 text-xs font-medium transition-all duration-150 flex-shrink-0"
+                style={
+                  pptPages === opt.value
+                    ? { background: "var(--rc-card-inset-bg)", color: "#007AFF", boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.12), inset -1px -1px 3px rgba(255,255,255,0.5)", border: "1px solid rgba(0,122,255,0.3)" }
+                    : { background: "var(--rc-elevated)", color: "var(--rc-text-muted)", border: "1px solid transparent" }
+                }
+              >
+                {opt.label}
+              </button>
+            ))}
+            {pptPages === "custom" && (
+              <input
+                type="number"
+                min={4}
+                max={40}
+                value={pptCustomPages}
+                onChange={(e) => setPptCustomPages(e.target.value)}
+                placeholder="4-40"
+                className="w-20 rounded-xl px-3 py-1 text-xs outline-none flex-shrink-0"
+                style={{ background: "var(--rc-surface)", boxShadow: insetShadow, color: "var(--rc-text)" }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-4">
+          {/* Status indicator */}
+          <div className="text-xs text-ink-muted min-w-0">
+            {pptStatus === "llm" && <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin text-apple-blue" />小妍正在构思幻灯片结构…</span>}
+            {pptStatus === "building" && <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin text-apple-blue" />正在生成 .pptx 文件…</span>}
+            {pptStatus === "ready" && <span className="flex items-center gap-1.5 text-apple-green"><CheckCircle2 className="h-3.5 w-3.5" />已生成 {pptSlideCount} 张幻灯片，可直接在 PowerPoint / WPS 中打开</span>}
+            {pptStatus === "idle" && <span>小妍生成可直接打开的 .pptx 文件</span>}
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {pptStatus === "ready" && (
+              <button
+                type="button"
+                onClick={() => void handlePptDownload()}
+                className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-white transition-all duration-150"
+                style={{ background: "linear-gradient(145deg, #38C759, #28A048)", boxShadow: "3px 3px 8px rgba(0,0,0,0.2)" }}
+              >
+                <Download className="h-4 w-4" />
+                下载 .pptx
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={pptStatus === "llm" || pptStatus === "building" || (pptMode === "topic" && !pptTopic.trim()) || (pptMode === "outline" && !pptOutline.trim()) || (pptMode === "document" && !pptDocContent)}
+              onClick={() => void handlePptGenerate()}
+              className="inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "linear-gradient(145deg, #1A8AFF, #0062CC)", boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)" }}
+            >
+              {(pptStatus === "llm" || pptStatus === "building") ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+              {pptStatus === "ready" ? "重新生成" : "立即生成"}
+            </button>
+          </div>
+        </div>
+
+        {pptStatus === "error" && pptError && (
+          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{pptError}</span>
+          </div>
+        )}
+      </Card>
+
+      {/* Disabled overlay */}
+      {pptSkill !== undefined && !pptSkill?.is_enabled && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-3xl z-10">
+          <div
+            className="flex flex-col items-center gap-3 rounded-3xl px-8 py-6 text-center"
+            style={{ background: "var(--rc-elevated)", boxShadow: "var(--rc-raised-shadow)" }}
+          >
+            <Presentation className="h-8 w-8 text-ink-muted" />
+            <p className="text-sm font-semibold text-ink-primary">PPT 生成功能已关闭</p>
+            <p className="text-xs text-ink-tertiary">此功能已在技能库中被禁用，请前往设置开启。</p>
+            <Link to="/settings" className="text-xs font-medium text-apple-blue hover:underline">
+              前往 设置 › 技能库
+            </Link>
+          </div>
+        </div>
+      )}
+      </div>
       </>}
 
       {activeTab === "links" && <>

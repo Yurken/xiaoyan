@@ -33,6 +33,7 @@ use commands::{
         knowledge_move_note, knowledge_suggest_topics, knowledge_update_interest_folder, knowledge_update_note,
     },
     misc::{markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text},
+    paper_search::paper_search,
     papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_list_figures, papers_open_pdf, papers_reproduce, papers_update, papers_upload},
     settings::{settings_get, settings_test, settings_update},
     skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
@@ -179,6 +180,8 @@ pub fn run() {
             source_lookup,
             // arXiv
             arxiv_search,
+            // Paper search
+            paper_search,
             // Knowledge
             knowledge_list_interests,
             knowledge_create_interest,

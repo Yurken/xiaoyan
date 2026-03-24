@@ -124,6 +124,16 @@ export const arxivApi = {
     invoke("arxiv_search", { request, days, limit, rankingMode: ranking_mode }),
 };
 
+export const paperSearchApi = {
+  search: (
+    request: ArxivSearchRequest,
+    days = 14,
+    limit = 5,
+    ranking_mode: ArxivRankingMode = "relevance"
+  ): Promise<ArxivSearchResponse> =>
+    invoke("paper_search", { request, days, limit, rankingMode: ranking_mode }),
+};
+
 // ── Knowledge ─────────────────────────────────────────────────────
 
 export const knowledgeApi = {
@@ -394,6 +404,7 @@ export const skillsApi = {
 
 export const apiClient = {
   arxiv: arxivApi,
+  paperSearch: paperSearchApi,
   ccf: ccfApi,
   journals: journalApi,
   sources: sourceApi,

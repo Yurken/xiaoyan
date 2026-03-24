@@ -1210,7 +1210,29 @@ function SkillEditModal({
   const [prompt, setPrompt] = useState(skill?.prompt ?? "");
   const [tagsInput, setTagsInput] = useState(skill?.tags.join("、") ?? "");
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState("");
+
+  const handleReset = async () => {
+    if (!skill?.is_builtin) return;
+    if (!window.confirm(`重置「${skill.title}」为默认内容？当前编辑将被覆盖。`)) return;
+    setResetting(true);
+    setError("");
+    try {
+      const builtins = await apiClient.skills.resetBuiltins();
+      const original = builtins.find((s) => s.id === skill.id);
+      if (original) {
+        setTitle(original.title);
+        setDescription(original.description);
+        setPrompt(original.prompt);
+        setTagsInput(original.tags.join("、"));
+      }
+    } catch (e) {
+      setError(formatErrorMessage(e));
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -1330,25 +1352,41 @@ function SkillEditModal({
           </p>
         ) : null}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2 rounded-2xl text-sm font-medium text-ink-secondary transition-all"
-            style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-5 py-2 rounded-2xl text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
-            style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3)" }}
-          >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-            {isCreate ? "创建" : "保存"}
-          </button>
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <div>
+            {!isCreate && skill?.is_builtin && (
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={resetting}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium text-ink-tertiary hover:text-ink-secondary transition-all disabled:opacity-50"
+                style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+              >
+                {resetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                重置默认
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2 rounded-2xl text-sm font-medium text-ink-secondary transition-all"
+              style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-5 py-2 rounded-2xl text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
+              style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3)" }}
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              {isCreate ? "创建" : "保存"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1464,6 +1502,7 @@ function SkillsSection() {
   const [error, setError] = useState("");
   const [editingSkill, setEditingSkill] = useState<Skill | "new" | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [enablingAll, setEnablingAll] = useState(false);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -1488,7 +1527,7 @@ function SkillsSection() {
         s.tags.some((t) => t.includes(q))
     );
   }, [skills, search]);
-  const builtin = filtered.filter((s) => s.is_builtin);
+  const builtin = filtered.filter((s) => s.is_builtin && s.name !== "ppt-generate");
   const custom = filtered.filter((s) => !s.is_builtin);
 
   const handleToggle = async (skill: Skill) => {
@@ -1518,18 +1557,39 @@ function SkillsSection() {
     setEditingSkill(null);
   };
 
+  const handleEnableAll = async () => {
+    setEnablingAll(true);
+    try {
+      const disabled = skills.filter((s) => !s.is_enabled);
+      const updated = await Promise.all(
+        disabled.map((s) => apiClient.skills.update(s.id, { is_enabled: true }))
+      );
+      setSkills((prev) =>
+        prev.map((s) => updated.find((u) => u.id === s.id) ?? s)
+      );
+    } catch (e) {
+      setError(formatErrorMessage(e));
+    } finally {
+      setEnablingAll(false);
+    }
+  };
+
   const handleResetBuiltins = async () => {
     if (!window.confirm("重置所有内置技能为默认内容？您对内置技能的编辑将被覆盖，自定义技能不受影响。")) return;
     setResetting(true);
     try {
       const updated = await apiClient.skills.resetBuiltins();
-      setSkills(updated);
+      setSkills((prev) => {
+        const custom = prev.filter((s) => !s.is_builtin);
+        return [...updated, ...custom];
+      });
     } catch (e) {
       setError(formatErrorMessage(e));
     } finally {
       setResetting(false);
     }
   };
+
 
   return (
     <>
@@ -1553,6 +1613,16 @@ function SkillsSection() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleEnableAll}
+              disabled={enablingAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-ink-secondary transition-all hover:text-ink-primary disabled:opacity-50"
+              style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+            >
+              {enablingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+              全部打开
+            </button>
             <button
               type="button"
               onClick={handleResetBuiltins}

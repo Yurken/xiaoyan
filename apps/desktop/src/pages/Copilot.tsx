@@ -14,6 +14,7 @@ import {
   User,
   X,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
 import {
@@ -28,7 +29,7 @@ import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
-import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, ResearchInterest } from "@research-copilot/types";
+import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, ResearchInterest, Skill } from "@research-copilot/types";
 
 function upsertRun(runs: AgentRun[], next: AgentRun) {
   const index = runs.findIndex((item) => item.id === next.id);
@@ -102,6 +103,9 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; session: ChatSession } | null>(null);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -148,6 +152,12 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     };
   }, []);
 
+  useEffect(() => {
+    apiClient.skills.list().then((data) => {
+      setSkills(data.filter((s) => s.is_enabled && s.name !== "ppt-generate"));
+    }).catch(() => {});
+  }, []);
+
   const sessionGroups = useMemo(() => {
     return interests.map((interest) => ({
       key: interest.id,
@@ -167,11 +177,11 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   }, [messages]);
 
   useEffect(() => {
-    if (!contextMenu) return;
-    const close = () => setContextMenu(null);
+    if (!contextMenu && !skillPickerOpen) return;
+    const close = () => { setContextMenu(null); setSkillPickerOpen(false); };
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
-  }, [contextMenu]);
+  }, [contextMenu, skillPickerOpen]);
 
   const handleMoveSession = async (session: ChatSession, interestId: string) => {
     setContextMenu(null);
@@ -291,7 +301,11 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   const handleSend = async () => {
     if (!input.trim() || sending) return;
-    const text = input.trim();
+    const rawText = input.trim();
+    const selectedSkill = skills.find((s) => s.id === selectedSkillId);
+    const text = selectedSkill
+      ? `[技能指令 · ${selectedSkill.title}]\n${selectedSkill.prompt}\n\n---\n\n${rawText}`
+      : rawText;
     const assistantId = `${Date.now()}_a`;
 
     setInput("");
@@ -896,7 +910,94 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           </div>
 
           <div className="p-4 flex gap-3 items-end">
-            <div className="flex-1">
+            <div className="flex-1 space-y-2">
+              {/* 技能选择器 */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setSkillPickerOpen((prev) => !prev); }}
+                    className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150"
+                    style={{
+                      background: skillPickerOpen ? "rgba(0,122,255,0.12)" : "#E8ECF0",
+                      color: skillPickerOpen ? "#007AFF" : "#636366",
+                      boxShadow: skillPickerOpen
+                        ? "inset 2px 2px 4px rgba(0,62,204,0.15)"
+                        : "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF",
+                    }}
+                  >
+                    <Zap className="w-3 h-3" />
+                    技能
+                  </button>
+
+                  {skillPickerOpen && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                    className="absolute bottom-full mb-2 left-0 z-20 min-w-[200px] rounded-2xl py-1.5 overflow-hidden"
+                      style={{
+                        background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
+                        boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedSkillId(null); setSkillPickerOpen(false); }}
+                        className="w-full text-left px-3 py-1.5 text-xs transition-colors duration-100"
+                        style={{
+                          color: !selectedSkillId ? "#007AFF" : "#3C3C43",
+                          background: !selectedSkillId ? "rgba(0,122,255,0.08)" : "transparent",
+                          fontWeight: !selectedSkillId ? 600 : 400,
+                        }}
+                      >
+                        不使用技能
+                      </button>
+                      {skills.length === 0 && (
+                        <p className="px-3 py-2 text-xs text-ink-tertiary">暂无已启用的技能</p>
+                      )}
+                      {skills.map((skill) => (
+                        <button
+                          key={skill.id}
+                          type="button"
+                          onClick={() => { setSelectedSkillId(skill.id); setSkillPickerOpen(false); }}
+                          className="w-full text-left px-3 py-1.5 text-xs transition-colors duration-100"
+                          style={{
+                            color: selectedSkillId === skill.id ? "#007AFF" : "#3C3C43",
+                            background: selectedSkillId === skill.id ? "rgba(0,122,255,0.08)" : "transparent",
+                            fontWeight: selectedSkillId === skill.id ? 600 : 400,
+                          }}
+                        >
+                          <span className="font-medium">{skill.title}</span>
+                          {skill.description && (
+                            <span className="ml-1.5 text-ink-tertiary">{skill.description.slice(0, 28)}…</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {selectedSkillId && (() => {
+                  const skill = skills.find((s) => s.id === selectedSkillId);
+                  if (!skill) return null;
+                  return (
+                    <div
+                      className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium"
+                      style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
+                    >
+                      <Zap className="w-3 h-3" />
+                      {skill.title}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSkillId(null)}
+                        className="ml-0.5 hover:opacity-60 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+
               <textarea
                 rows={3}
                 value={input}

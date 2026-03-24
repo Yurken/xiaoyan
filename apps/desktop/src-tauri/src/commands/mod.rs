@@ -4,6 +4,7 @@ pub mod chat;
 pub mod journal;
 pub mod knowledge;
 pub mod misc;
+pub mod paper_search;
 pub mod papers;
 pub mod settings;
 pub mod skills;
