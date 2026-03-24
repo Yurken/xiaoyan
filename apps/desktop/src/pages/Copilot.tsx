@@ -106,6 +106,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
+  const [hoveredSkillId, setHoveredSkillId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -178,10 +179,27 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   useEffect(() => {
     if (!contextMenu && !skillPickerOpen) return;
-    const close = () => { setContextMenu(null); setSkillPickerOpen(false); };
+    const close = () => {
+      setContextMenu(null);
+      setSkillPickerOpen(false);
+      setHoveredSkillId(null);
+    };
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [contextMenu, skillPickerOpen]);
+
+  const hoveredSkill = useMemo(
+    () => skills.find((item) => item.id === hoveredSkillId) ?? null,
+    [hoveredSkillId, skills]
+  );
+  const previewSkill = useMemo(() => {
+    if (hoveredSkill) return hoveredSkill;
+    if (selectedSkillId) {
+      const selected = skills.find((item) => item.id === selectedSkillId);
+      if (selected) return selected;
+    }
+    return skills[0] ?? null;
+  }, [hoveredSkill, selectedSkillId, skills]);
 
   const handleMoveSession = async (session: ChatSession, interestId: string) => {
     setContextMenu(null);
@@ -933,45 +951,113 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                   {skillPickerOpen && (
                     <div
                       onClick={(e) => e.stopPropagation()}
-                    className="absolute bottom-full mb-2 left-0 z-20 min-w-[200px] rounded-2xl py-1.5 overflow-hidden"
-                      style={{
-                        background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
-                        boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF",
-                      }}
+                      onMouseLeave={() => setHoveredSkillId(null)}
+                      className="absolute bottom-full mb-2 left-0 z-20 flex items-start gap-2"
                     >
-                      <button
-                        type="button"
-                        onClick={() => { setSelectedSkillId(null); setSkillPickerOpen(false); }}
-                        className="w-full text-left px-3 py-1.5 text-xs transition-colors duration-100"
+                      {/* 左：技能列表 */}
+                      <div
+                        className="w-44 flex-shrink-0 py-2 max-h-[420px] overflow-y-auto rounded-2xl"
                         style={{
-                          color: !selectedSkillId ? "#007AFF" : "#3C3C43",
-                          background: !selectedSkillId ? "rgba(0,122,255,0.08)" : "transparent",
-                          fontWeight: !selectedSkillId ? 600 : 400,
+                          background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
+                          boxShadow: "8px 8px 20px #C0C6CC, -4px -4px 12px #FFFFFF",
                         }}
                       >
-                        不使用技能
-                      </button>
-                      {skills.length === 0 && (
-                        <p className="px-3 py-2 text-xs text-ink-tertiary">暂无已启用的技能</p>
-                      )}
-                      {skills.map((skill) => (
+                        <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">技能库</p>
                         <button
-                          key={skill.id}
                           type="button"
-                          onClick={() => { setSelectedSkillId(skill.id); setSkillPickerOpen(false); }}
-                          className="w-full text-left px-3 py-1.5 text-xs transition-colors duration-100"
+                          onMouseEnter={() => setHoveredSkillId(null)}
+                          onClick={() => { setSelectedSkillId(null); setSkillPickerOpen(false); setHoveredSkillId(null); }}
+                          className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
                           style={{
-                            color: selectedSkillId === skill.id ? "#007AFF" : "#3C3C43",
-                            background: selectedSkillId === skill.id ? "rgba(0,122,255,0.08)" : "transparent",
-                            fontWeight: selectedSkillId === skill.id ? 600 : 400,
+                            color: !selectedSkillId ? "#007AFF" : "#3C3C43",
+                            background: !selectedSkillId ? "rgba(0,122,255,0.08)" : "transparent",
+                            fontWeight: !selectedSkillId ? 600 : 400,
                           }}
                         >
-                          <span className="font-medium">{skill.title}</span>
-                          {skill.description && (
-                            <span className="ml-1.5 text-ink-tertiary">{skill.description.slice(0, 28)}…</span>
-                          )}
+                          <X className="w-3 h-3 flex-shrink-0 opacity-50" />
+                          不使用技能
                         </button>
-                      ))}
+                        {skills.length === 0 ? (
+                          <p className="px-3 py-2 text-xs text-ink-tertiary">暂无已启用技能</p>
+                        ) : (
+                          skills.map((skill) => (
+                            <button
+                              key={skill.id}
+                              type="button"
+                              onMouseEnter={() => setHoveredSkillId(skill.id)}
+                              onClick={() => { setSelectedSkillId(skill.id); setSkillPickerOpen(false); setHoveredSkillId(null); }}
+                              className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
+                              style={{
+                                color: selectedSkillId === skill.id ? "#007AFF" : "#3C3C43",
+                                background: (hoveredSkillId === skill.id || selectedSkillId === skill.id)
+                                  ? "rgba(0,122,255,0.08)"
+                                  : "transparent",
+                                fontWeight: selectedSkillId === skill.id ? 600 : 400,
+                              }}
+                            >
+                              <Zap className="w-3 h-3 flex-shrink-0 opacity-60" />
+                              <span className="truncate">{skill.title}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+
+                      {/* 右：预览面板 */}
+                      <div
+                        className="w-56 flex-shrink-0 p-3 flex flex-col gap-2 self-start rounded-2xl"
+                        style={{
+                          background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
+                          boxShadow: "8px 8px 20px #C0C6CC, -4px -4px 12px #FFFFFF",
+                        }}
+                      >
+                        {previewSkill ? (
+                          <>
+                            <div className="flex items-start gap-2">
+                              <div
+                                className="w-7 h-7 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5"
+                                style={{ background: "rgba(0,122,255,0.12)", color: "#007AFF" }}
+                              >
+                                <Zap className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-ink-primary leading-tight">{previewSkill.title}</p>
+                                <p className="text-[10px] font-mono text-ink-tertiary mt-0.5">/{previewSkill.name}</p>
+                              </div>
+                            </div>
+
+                            {previewSkill.description ? (
+                              <p className="text-[11px] leading-[1.6] text-ink-secondary">{previewSkill.description}</p>
+                            ) : null}
+
+                            {previewSkill.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {previewSkill.tags.map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                                    style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <div
+                              className="rounded-xl px-2.5 py-2 overflow-y-auto"
+                              style={{ background: "rgba(0,0,0,0.04)", maxHeight: 160 }}
+                            >
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-tertiary mb-1">指令预览</p>
+                              <p className="whitespace-pre-wrap break-words text-[11px] leading-[1.6] text-ink-secondary">{previewSkill.prompt}</p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full gap-2 py-6 text-center">
+                            <Zap className="w-6 h-6 text-ink-tertiary opacity-30" />
+                            <p className="text-xs text-ink-tertiary">悬停技能查看详情</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

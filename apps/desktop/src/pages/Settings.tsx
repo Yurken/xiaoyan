@@ -378,7 +378,7 @@ const SETTINGS_SECTIONS: Array<{
   },
   {
     key: "skills",
-    label: "技能库",
+    label: "小妍技能库",
     description: "提示词技能管理",
     icon: Zap,
     color: "#FF9F0A",
@@ -392,7 +392,7 @@ const SETTINGS_SECTIONS: Array<{
   },
   {
     key: "about",
-    label: "系统信息",
+    label: "更多设置",
     description: "查看版本与升级",
     icon: Info,
     color: "#5AC8FA",
