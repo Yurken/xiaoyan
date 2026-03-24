@@ -24,6 +24,33 @@ function interestFolderName(interest: ResearchInterest) {
   return interest.folder_name?.trim() || interest.topic;
 }
 
+type PaperFigure = { id: string; fig_index: number; caption: string | null; data_url: string };
+
+/** Parse figure/table reference numbers from analysis text and match against extracted figures. */
+function findReferencedFigures(text: string, figures: PaperFigure[]): PaperFigure[] {
+  if (!figures.length || !text) return [];
+  const refs = new Set<number>();
+  const patterns = [/\bfig(?:ure)?\.?\s*(\d+)/gi, /\b图\s*(\d+)/g, /\btable\s*(\d+)/gi, /\b表\s*(\d+)/g];
+  for (const pat of patterns) {
+    const re = new RegExp(pat.source, pat.flags);
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) refs.add(parseInt(m[1], 10));
+  }
+  if (!refs.size) return [];
+  const result: PaperFigure[] = [];
+  const usedIds = new Set<string>();
+  for (const n of refs) {
+    const byCaption = figures.find(f => {
+      if (!f.caption || usedIds.has(f.id)) return false;
+      const c = f.caption.toLowerCase();
+      return [`figure ${n}`, `fig. ${n}`, `fig ${n}`, `table ${n}`, `图${n}`, `表${n}`].some(p => c.includes(p));
+    });
+    const match = byCaption ?? figures.find(f => f.fig_index === n && !usedIds.has(f.id));
+    if (match) { usedIds.add(match.id); result.push(match); }
+  }
+  return result;
+}
+
 export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
   // Tracks papers where BOTH analyze + reproduce are in-flight.
   // Only when both events arrive do we fetch and surface results.
@@ -918,10 +945,18 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             ];
             const filled = SECTIONS.filter(({ key }) => paper.analysis![key]);
             if (filled.length === 0) return null;
+            const figs = paperFigures[paper.id] ?? [];
+            const referencedIds = new Set<string>();
+            const sectionFigs = filled.map(({ key }) => {
+              const refs = findReferencedFigures(String(paper.analysis![key] ?? ""), figs);
+              refs.forEach(f => referencedIds.add(f.id));
+              return refs;
+            });
+            const unreferencedFigs = figs.filter(f => !referencedIds.has(f.id));
             return (
               <div className="space-y-2.5">
                 <p className="text-[11px] font-semibold text-ink-tertiary tracking-widest uppercase pl-0.5">小妍解读</p>
-                {filled.map(({ key, label, color, bg }) => (
+                {filled.map(({ key, label, color, bg }, i) => (
                   <div
                     key={key}
                     className="rounded-2xl overflow-hidden"
@@ -937,33 +972,60 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                     </div>
                     <div className="px-3 pt-1 pb-3">
                       <MarkdownRenderer content={String(paper.analysis![key] ?? "")} />
+                      {sectionFigs[i].length > 0 && (
+                        <div
+                          className="mt-2.5 pt-2.5 flex flex-wrap gap-2.5"
+                          style={{ borderTop: `1px solid ${color}20` }}
+                        >
+                          {sectionFigs[i].map(fig => (
+                            <div key={fig.id} className="flex flex-col items-center gap-1" style={{ maxWidth: 130 }}>
+                              <img
+                                src={fig.data_url}
+                                alt={fig.caption ?? `图 ${fig.fig_index}`}
+                                title={fig.caption ?? undefined}
+                                className="rounded-xl object-contain"
+                                style={{ maxWidth: 130, maxHeight: 100, background: "rgba(0,0,0,0.03)", border: `1px solid ${color}30` }}
+                              />
+                              {fig.caption && (
+                                <span className="text-[9px] text-ink-tertiary text-center line-clamp-2 leading-tight">{fig.caption}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
+                {unreferencedFigs.length > 0 && (
+                  <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(0,0,0,0.02)", borderLeft: "3px solid rgba(0,0,0,0.08)" }}>
+                    <div className="px-3 pt-2.5 pb-0.5">
+                      <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(0,0,0,0.06)", color: "#666" }}>
+                        论文图表
+                      </span>
+                    </div>
+                    <div className="px-3 pt-1 pb-3">
+                      <div className="flex flex-wrap gap-2.5">
+                        {unreferencedFigs.map(fig => (
+                          <div key={fig.id} className="flex flex-col items-center gap-1" style={{ maxWidth: 130 }}>
+                            <img
+                              src={fig.data_url}
+                              alt={fig.caption ?? `图 ${fig.fig_index}`}
+                              title={fig.caption ?? undefined}
+                              className="rounded-xl object-contain"
+                              style={{ maxWidth: 130, maxHeight: 100, background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.06)" }}
+                            />
+                            {fig.caption && (
+                              <span className="text-[9px] text-ink-tertiary text-center line-clamp-2 leading-tight">{fig.caption}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
-          {(paperFigures[paper.id]?.length ?? 0) > 0 && (
-            <div>
-              <p className="text-[11px] font-semibold text-ink-tertiary tracking-widest uppercase pl-0.5 mb-2">论文图表</p>
-              <div className="flex flex-wrap gap-3">
-                {paperFigures[paper.id].map((fig) => (
-                  <div key={fig.id} className="flex flex-col items-center gap-1" style={{ maxWidth: 140 }}>
-                    <img
-                      src={fig.data_url}
-                      alt={fig.caption ?? `图 ${fig.fig_index}`}
-                      title={fig.caption ?? undefined}
-                      className="rounded-xl object-contain"
-                      style={{ maxWidth: 140, maxHeight: 110, background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.06)" }}
-                    />
-                    {fig.caption && (
-                      <span className="text-[9px] text-ink-tertiary text-center line-clamp-2 leading-tight">{fig.caption}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           {paper.reproduction_guide && (
             <div className="space-y-3">
               <p className="text-[11px] font-semibold text-ink-tertiary tracking-widest uppercase pl-0.5">复现指南</p>

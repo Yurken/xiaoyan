@@ -1224,7 +1224,106 @@ fn extract_figure_captions(full_text: &str) -> std::collections::HashMap<u32, St
     captions
 }
 
-/// Extract JPEG image XObjects from a PDF file into `output_dir`.
+/// Check whether a stream's Filter chain includes the given filter name.
+fn stream_has_filter(stream: &lopdf::Stream, filter_name: &[u8]) -> bool {
+    use lopdf::Object;
+    match stream.dict.get(b"Filter") {
+        Ok(Object::Name(n)) => n.as_slice() == filter_name,
+        Ok(Object::Array(arr)) => arr.iter().any(|o| {
+            matches!(o, Object::Name(n) if n.as_slice() == filter_name)
+        }),
+        _ => false,
+    }
+}
+
+/// Determine the number of color channels from a stream's ColorSpace entry.
+/// Returns 0 if the colorspace is unsupported.
+fn colorspace_channels(stream: &lopdf::Stream, doc: &lopdf::Document) -> u32 {
+    use lopdf::Object;
+    match stream.dict.get(b"ColorSpace") {
+        Ok(Object::Name(n)) => match n.as_slice() {
+            b"DeviceRGB" | b"CalRGB" => 3,
+            b"DeviceGray" | b"CalGray" => 1,
+            _ => 0,
+        },
+        Ok(Object::Array(arr)) => {
+            match arr.first() {
+                Some(Object::Name(n)) if n.as_slice() == b"ICCBased" => {
+                    // Read N (number of components) from the ICC profile stream
+                    let n = arr.get(1)
+                        .and_then(|o| if let Object::Reference(r) = o { Some(*r) } else { None })
+                        .and_then(|r| doc.get_object(r).ok())
+                        .and_then(|o| if let Object::Stream(s) = o { Some(s.dict.clone()) } else { None })
+                        .and_then(|d| d.get(b"N").ok().cloned())
+                        .and_then(|o| if let Object::Integer(n) = o { Some(n as u32) } else { None })
+                        .unwrap_or(3);
+                    if n == 1 || n == 3 { n } else { 0 }
+                },
+                Some(Object::Name(n)) if n.as_slice() == b"CalRGB" => 3,
+                Some(Object::Name(n)) if n.as_slice() == b"CalGray" => 1,
+                _ => 0,
+            }
+        },
+        _ => 0,
+    }
+}
+
+/// Paeth predictor function used for PNG row de-filtering.
+fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
+    let (a, b, c) = (a as i32, b as i32, c as i32);
+    let p = a + b - c;
+    let pa = (p - a).abs();
+    let pb = (p - b).abs();
+    let pc = (p - c).abs();
+    if pa <= pb && pa <= pc { a as u8 } else if pb <= pc { b as u8 } else { c as u8 }
+}
+
+/// Apply PNG row de-prediction to raw decompressed FlateDecode data.
+fn apply_png_predictor(data: &[u8], width: u32, channels: u32) -> Vec<u8> {
+    let stride = (width * channels) as usize;
+    let row_bytes = stride + 1; // +1 for the filter-type byte
+    let num_rows = data.len() / row_bytes;
+    let mut out = Vec::with_capacity(num_rows * stride);
+    let mut prev = vec![0u8; stride];
+
+    for r in 0..num_rows {
+        let base = r * row_bytes;
+        if base + row_bytes > data.len() { break; }
+        let filter = data[base];
+        let src = &data[base + 1..base + row_bytes];
+        let mut row = vec![0u8; stride];
+
+        for i in 0..stride {
+            let left  = if i >= channels as usize { row[i - channels as usize] } else { 0 };
+            let up    = prev[i];
+            let upleft = if i >= channels as usize { prev[i - channels as usize] } else { 0 };
+            row[i] = match filter {
+                0 => src[i],
+                1 => src[i].wrapping_add(left),
+                2 => src[i].wrapping_add(up),
+                3 => src[i].wrapping_add(((left as u16 + up as u16) / 2) as u8),
+                4 => src[i].wrapping_add(paeth_predictor(left, up, upleft)),
+                _ => src[i],
+            };
+        }
+        out.extend_from_slice(&row);
+        prev = row;
+    }
+    out
+}
+
+/// Decompress a FlateDecode (zlib/deflate) byte slice.
+fn zlib_decompress(data: &[u8]) -> Option<Vec<u8>> {
+    use flate2::read::ZlibDecoder;
+    use std::io::Read;
+    let mut dec = ZlibDecoder::new(data);
+    let mut out = Vec::new();
+    dec.read_to_end(&mut out).ok()?;
+    Some(out)
+}
+
+/// Extract image XObjects from a PDF file into `output_dir`.
+/// Supports JPEG (DCTDecode) and flat/PNG (FlateDecode) images.
 /// Returns a list of (sequential_index, caption, file_path).
 fn extract_pdf_images(
     pdf_path: &Path,
@@ -1236,41 +1335,97 @@ fn extract_pdf_images(
         Ok(d) => d,
         Err(_) => return Vec::new(),
     };
+
+    // Collect image object IDs and sort for deterministic ordering
+    let mut image_oids: Vec<lopdf::ObjectId> = doc.objects.iter()
+        .filter_map(|(oid, obj)| {
+            if let Object::Stream(s) = obj {
+                let is_img = s.dict.get(b"Subtype")
+                    .map(|o| matches!(o, Object::Name(n) if n.as_slice() == b"Image"))
+                    .unwrap_or(false);
+                if is_img { Some(*oid) } else { None }
+            } else { None }
+        })
+        .collect();
+    image_oids.sort();
+
     let mut results = Vec::new();
     let mut idx: u32 = 1;
-    let mut scanned_image_streams: u32 = 0;
-    for (_oid, object) in &doc.objects {
-        if let Object::Stream(stream) = object {
-            let is_image = match stream.dict.get(b"Subtype") {
-                Ok(Object::Name(n)) => n.as_slice() == b"Image",
-                _ => false,
-            };
-            if !is_image { continue; }
-            scanned_image_streams += 1;
-            if scanned_image_streams > 400 { break; }
-            let width: i64 = match stream.dict.get(b"Width") {
-                Ok(Object::Integer(n)) => *n,
-                _ => 0,
-            };
-            let height: i64 = match stream.dict.get(b"Height") {
-                Ok(Object::Integer(n)) => *n,
-                _ => 0,
-            };
-            if width < 80 || height < 80 { continue; }
-            let is_jpeg = match stream.dict.get(b"Filter") {
-                Ok(Object::Name(n)) => n.as_slice() == b"DCTDecode",
-                Ok(Object::Array(arr)) => arr.iter().any(|o| {
-                    matches!(o, Object::Name(n) if n.as_slice() == b"DCTDecode")
-                }),
-                _ => false,
-            };
-            if !is_jpeg { continue; }
-            let file_path = output_dir.join(format!("fig_{idx}.jpg"));
-            if std::fs::write(&file_path, &stream.content).is_ok() {
-                let caption = captions.get(&idx).cloned();
-                results.push((idx, caption, file_path));
+
+    for (scanned, &oid) in image_oids.iter().enumerate() {
+        if scanned >= 400 || idx > 30 { break; }
+
+        let stream = match doc.objects.get(&oid) {
+            Some(Object::Stream(s)) => s,
+            _ => continue,
+        };
+
+        let width = match stream.dict.get(b"Width") {
+            Ok(Object::Integer(n)) => *n as u32,
+            _ => 0,
+        };
+        let height = match stream.dict.get(b"Height") {
+            Ok(Object::Integer(n)) => *n as u32,
+            _ => 0,
+        };
+        if width < 80 || height < 80 { continue; }
+
+        if stream_has_filter(stream, b"DCTDecode") {
+            // JPEG: raw stream bytes are valid JPEG data
+            let fp = output_dir.join(format!("fig_{idx}.jpg"));
+            if std::fs::write(&fp, &stream.content).is_ok() {
+                results.push((idx, captions.get(&idx).cloned(), fp));
                 idx += 1;
-                if idx > 30 { break; }
+            }
+        } else if stream_has_filter(stream, b"FlateDecode") {
+            // Only handle 8-bit images
+            let bits = match stream.dict.get(b"BitsPerComponent") {
+                Ok(Object::Integer(n)) => *n as u32,
+                _ => 8,
+            };
+            if bits != 8 { continue; }
+
+            let channels = colorspace_channels(stream, &doc);
+            if channels != 1 && channels != 3 { continue; }
+
+            let raw = match zlib_decompress(&stream.content) {
+                Some(d) => d,
+                None => continue,
+            };
+
+            // Check for PNG predictor (Predictor >= 10 means PNG row filters)
+            let predictor = match stream.dict.get(b"DecodeParms") {
+                Ok(Object::Dictionary(d)) => match d.get(b"Predictor") {
+                    Ok(Object::Integer(n)) => *n,
+                    _ => 1,
+                },
+                _ => 1,
+            };
+
+            let pixels = if predictor >= 10 {
+                apply_png_predictor(&raw, width, channels)
+            } else {
+                raw
+            };
+
+            let expected = (width * height * channels) as usize;
+            if pixels.len() < expected { continue; }
+            let pixel_data = pixels[..expected].to_vec();
+
+            let fp = output_dir.join(format!("fig_{idx}.png"));
+            let saved = if channels == 1 {
+                image::GrayImage::from_raw(width, height, pixel_data)
+                    .map(|img| img.save(&fp).is_ok())
+                    .unwrap_or(false)
+            } else {
+                image::RgbImage::from_raw(width, height, pixel_data)
+                    .map(|img| img.save(&fp).is_ok())
+                    .unwrap_or(false)
+            };
+
+            if saved {
+                results.push((idx, captions.get(&idx).cloned(), fp));
+                idx += 1;
             }
         }
     }
