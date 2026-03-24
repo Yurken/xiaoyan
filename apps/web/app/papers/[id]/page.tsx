@@ -153,7 +153,7 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
           <div className="flex items-center justify-between">
             <div>
               <div className="font-medium text-brand-900">暂无论文精读分析</div>
-              <div className="text-sm text-brand-700 mt-0.5">请启动论文精读，系统将自动提取研究问题、方法与创新点等结构化信息。</div>
+              <div className="text-sm text-brand-700 mt-0.5">请启动论文精读，小妍会自动提取研究问题、方法与创新点等结构化信息。</div>
             </div>
             <Button onClick={handleAnalyze} loading={analyzing}>
               <Sparkles className="w-4 h-4" />

@@ -231,7 +231,7 @@ export default function KnowledgePage() {
           {displayedNotes.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Library className="w-10 h-10 mx-auto mb-2 opacity-30" />
-              {searchResults !== null ? "未找到相关笔记" : "暂无笔记，导入论文或新建笔记后会自动归档"}
+              {searchResults !== null ? "未找到相关笔记" : "暂无笔记，导入论文或新建笔记后小妍会自动归档"}
             </div>
           ) : (
             displayedNotes.map((note) => (

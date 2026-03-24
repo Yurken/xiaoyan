@@ -147,7 +147,7 @@ export default function PlannerPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">研究方向规划</h1>
-          <p className="text-sm text-gray-500">请输入研究方向，系统会为你生成结构化学习路径</p>
+          <p className="text-sm text-gray-500">请输入研究方向，小妍会为你生成结构化学习路径</p>
         </div>
       </div>
 

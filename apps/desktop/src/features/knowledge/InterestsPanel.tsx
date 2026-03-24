@@ -485,7 +485,7 @@ export default function InterestsPanel() {
           </div>
           <div>
             <p className="font-medium text-ink-secondary">暂无研究方向</p>
-            <p className="mt-1 text-sm text-ink-tertiary">添加研究方向，AI 会为你生成系统化路线。</p>
+            <p className="mt-1 text-sm text-ink-tertiary">添加研究方向，小妍会为你生成系统化路线。</p>
           </div>
         </Card>
       ) : (

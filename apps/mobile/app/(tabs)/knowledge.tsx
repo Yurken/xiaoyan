@@ -34,7 +34,7 @@ export default function KnowledgeScreen() {
         <View>
           <Text style={styles.title}>知识库</Text>
           <Text style={styles.subtitle}>
-            {notes.length > 0 ? `共 ${notes.length} 条笔记` : "分析论文后会自动生成"}
+            {notes.length > 0 ? `共 ${notes.length} 条笔记` : "分析论文后小妍会自动生成"}
           </Text>
         </View>
       </View>
@@ -66,7 +66,7 @@ export default function KnowledgeScreen() {
             {search ? "未找到相关笔记" : "暂无笔记"}
           </Text>
           <Text style={styles.emptyText}>
-            {search ? "请尝试更换关键词" : "分析论文后会自动生成知识卡片"}
+            {search ? "请尝试更换关键词" : "分析论文后小妍会自动生成知识卡片"}
           </Text>
         </View>
       ) : (

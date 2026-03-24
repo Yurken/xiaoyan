@@ -68,7 +68,7 @@ function getDefaultWorkflow(): AgentStep[] {
     {
       id: "retriever",
       name: "文献检索 Agent",
-      role: "自动检索相关文献",
+      role: "小妍会自动检索相关文献",
       status: "pending",
     },
     {
@@ -208,7 +208,7 @@ function normalizeWorkflow(raw: Record<string, unknown>, normalized: SurveyData)
     {
       id: "retriever",
       name: "文献检索 Agent",
-      role: "自动检索相关文献",
+      role: "小妍会自动检索相关文献",
       status: "done",
       summary: `已检索到 ${normalized.papers.length} 篇候选论文`,
     },
@@ -331,7 +331,7 @@ export default function SurveyPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">文献调研与综述</h1>
-          <p className="text-sm text-gray-500">请输入研究关键词，系统会自动检索论文并生成结构化综述</p>
+          <p className="text-sm text-gray-500">请输入研究关键词，小妍会自动检索论文并生成结构化综述</p>
         </div>
       </div>
 

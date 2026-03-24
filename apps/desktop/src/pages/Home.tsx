@@ -31,7 +31,7 @@ const quickActions = [
     to: "/survey",
     icon: BookOpen,
     title: "生成文献综述",
-    description: "从一个研究问题出发，自动找文献、读摘要、整理成综述。",
+    description: "从一个研究问题出发，小妍会帮你找文献、读摘要、整理成综述。",
     iconColor: "#007AFF",
     iconBg: "rgba(0,122,255,0.1)",
   },
@@ -253,7 +253,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-ink-primary">最近对话</p>
               </div>
               {state.sessions.length === 0 ? (
-                <p className="text-xs text-ink-tertiary">有问题直接去 Copilot 问，带着论文一起读也行。</p>
+                <p className="text-xs text-ink-tertiary">有问题直接问小妍，带着论文一起读也行。</p>
               ) : (
                 <div className="space-y-2">
                   {state.sessions.slice(0, 3).map((session) => (

@@ -340,7 +340,7 @@ export default function PlannerComposer({ onCancel, onCreated, initialTopic }: P
         <div>
           <p className="text-sm font-semibold text-ink-primary">研究画像输入</p>
           <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-            输入信息越完整，系统生成的学习路线、资源推荐和候选研究切口就越准确。
+            输入信息越完整，小妍生成的学习路线、资源推荐和候选研究切口就越准确。
           </p>
         </div>
         <div className="flex items-center gap-2">

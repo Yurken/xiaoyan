@@ -248,7 +248,7 @@ function inferNextField(draft: PlannerDraft): DraftField {
 
 function summarize(draft: PlannerDraft, domainLabels: string[], nextField: DraftField) {
   if (!draft.topic.trim()) {
-    return "先输入研究主题，系统才能识别方向并推荐关键词。";
+    return "先输入研究主题，小妍才能识别方向并推荐关键词。";
   }
 
   if (domainLabels.length === 0) {

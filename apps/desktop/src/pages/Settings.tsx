@@ -343,21 +343,21 @@ const SETTINGS_SECTIONS: Array<{
   {
     key: "connection",
     label: "连接与检索",
-    description: "服务商与默认基座",
+    description: "小妍主模型与服务商",
     icon: Brain,
     color: "#AF52DE",
   },
   {
     key: "roles",
     label: "模型分工",
-    description: "按特征分配专属模型",
+    description: "按能力给小妍分配专属模型",
     icon: Sparkles,
     color: "#0A84FF",
   },
   {
     key: "agents",
     label: "多 Agent",
-    description: "编排模式与并发限制",
+    description: "配置小妍协作编排与并发限制",
     icon: Bot,
     color: "#34C759",
   },
@@ -438,7 +438,7 @@ function RecommendationList({ items }: { items: string[] }) {
     >
       <div className="flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-[#1A8AFF]" />
-        <p className="text-sm font-semibold text-ink-primary">配置建议</p>
+        <p className="text-sm font-semibold text-ink-primary">小妍配置建议</p>
       </div>
       <div className="space-y-2">
         {items.map((item) => (
@@ -1352,7 +1352,7 @@ export default function Settings() {
       >
         <div>
           <h1 className="text-lg font-bold text-ink-primary leading-tight">设置</h1>
-          <p className="text-xs text-ink-tertiary">按用途配置模型、检索和多 Agent 协作策略</p>
+          <p className="text-xs text-ink-tertiary">按用途配置小妍能力模块、检索参数和多 Agent 协作策略</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -1472,7 +1472,7 @@ export default function Settings() {
               <div>
                 <h2 className="text-sm font-semibold text-ink-primary">小妍</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">
-                  这里配置默认对话模型小妍。下面各个场景如果留空，会按继承规则回退到这里。
+                  在这里配置小妍的默认对话模型。下面各个场景如果留空，会按继承规则回退到这里。
                 </p>
               </div>
             </div>
@@ -1742,7 +1742,7 @@ export default function Settings() {
                 <div>
                   <h2 className="text-sm font-semibold text-ink-primary">导入论文自动重命名</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">
-                    导入时用 AI 识别标题、作者、年份等元数据，并按规则直接重命名原 PDF 文件，效果接近 Zotero 的重命名模板。
+                    导入时由小妍识别标题、作者、年份等元数据，并按规则直接重命名原 PDF 文件，效果接近 Zotero 的重命名模板。
                   </p>
                 </div>
               </div>
@@ -1797,7 +1797,7 @@ export default function Settings() {
               <div>
                 <h2 className="text-sm font-semibold text-ink-primary">模型分工</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">
-                  将具备不同特征的模型分配给最适合的任务场景。完全留空则全部由“默认对话模型”承担。
+                  将具备不同特征的模型分配给小妍的不同能力模块。完全留空则全部由“默认对话模型”承担。
                 </p>
               </div>
             </div>
@@ -1846,7 +1846,7 @@ export default function Settings() {
               <div>
                 <h2 className="text-sm font-semibold text-ink-primary">多 Agent 编排</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">
-                  控制多 Agent 模式的心智、选路策略与可用角色。
+                  控制小妍的多 Agent 协作心智、选路策略与可用角色。
                 </p>
               </div>
             </div>
@@ -1861,7 +1861,7 @@ export default function Settings() {
             />
 
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-ink-tertiary ml-1">路由判断模式</label>
+              <label className="block text-xs font-medium text-ink-tertiary ml-1">小妍路由判断模式</label>
               <div className="flex gap-2 flex-wrap">
                 {(["rule", "llm", "hybrid"] as const).map((value) => (
                   <ProviderTab
@@ -1886,9 +1886,9 @@ export default function Settings() {
             <div className="space-y-3 pt-4 border-t border-nm-dark/10">
               <div className="flex items-center gap-2">
                 <Route className="w-4 h-4 text-[#1A8AFF]" />
-                <p className="text-sm font-semibold text-ink-primary">Agent 角色开关</p>
+                <p className="text-sm font-semibold text-ink-primary">小妍 Agent 角色开关</p>
               </div>
-              <p className="text-xs text-ink-tertiary">选择在多 Agent 协作时允许唤醒的分支角色。关闭某个角色后，调度模型将不会将其纳入考量。</p>
+              <p className="text-xs text-ink-tertiary">选择小妍在多 Agent 协作时允许唤醒的分支角色。关闭某个角色后，调度模型将不会将其纳入考量。</p>
               
               <div className="flex gap-2 flex-wrap pb-2">
                 {AGENT_OPTIONS.map(([value, label]) => (

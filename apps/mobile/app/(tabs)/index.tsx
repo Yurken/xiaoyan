@@ -99,7 +99,7 @@ export default function PapersScreen() {
             <Ionicons name="document-text-outline" size={40} color="#8E8E93" />
           </View>
           <Text style={styles.emptyTitle}>暂无论文</Text>
-          <Text style={styles.emptyText}>在桌面端导入 PDF 后即可在此浏览</Text>
+          <Text style={styles.emptyText}>在桌面端导入 PDF 后即可在此浏览，小妍会帮你分析论文内容</Text>
         </View>
       ) : (
         <View style={styles.list}>

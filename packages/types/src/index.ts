@@ -1,6 +1,6 @@
 export const PRODUCT_NAME = "智研 Copilot";
 export const MAIN_ASSISTANT_NAME = "小妍";
-export const MAIN_ASSISTANT_ROLE = `${PRODUCT_NAME} 主 AI`;
+export const MAIN_ASSISTANT_ROLE = "小妍 · 主 AI 助手";
 export const MAIN_ASSISTANT_WORKSPACE_NAME = "小妍协同台";
 export const MAIN_ASSISTANT_PANEL_TITLE = "小妍调度面板";
 export const MAIN_ASSISTANT_BADGE = "主 AI：小妍";

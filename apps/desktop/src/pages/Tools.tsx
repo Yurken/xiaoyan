@@ -397,7 +397,7 @@ export default function Tools() {
       <div className="shrink-0 px-6 pt-6 pb-4">
         <h1 className="text-2xl font-bold text-ink-primary">实用工具</h1>
         <p className="mt-1 text-sm text-ink-tertiary">
-          查期刊分区、查 CCF 等级、搜 arXiv 新论文，还有一批常用科研网站。
+          小妍为你提供了一批科研实用工具。
         </p>
       </div>
 
@@ -436,7 +436,7 @@ export default function Tools() {
           <div className="space-y-1">
             <p className="text-sm font-semibold text-ink-primary">arXiv 智能检索</p>
             <p className="text-xs leading-5 text-ink-tertiary">
-              输入会按 arXiv 官方字段拆分：同一字段内多个值按 OR 合并，不同字段之间按 AND 组合，排除词走 ANDNOT。
+              输入会按 arXiv 官方字段拆分：同一字段内多个值按 OR 合并，不同字段之间按 AND 组合，排除词走 ANDNOT。小妍会帮你优化检索策略。
             </p>
           </div>
         </div>
@@ -807,7 +807,7 @@ export default function Tools() {
           </div>
           <div>
             <p className="text-sm font-semibold text-ink-primary">刊会查询</p>
-            <p className="mt-1 text-xs text-ink-tertiary">请输入期刊、会议名称或 ISSN，系统将返回分区与 CCF 评级。</p>
+            <p className="mt-1 text-xs text-ink-tertiary">请输入期刊、会议名称或 ISSN，小妍会返回分区与 CCF 评级。</p>
           </div>
         </div>
 
@@ -928,7 +928,7 @@ export default function Tools() {
           <div className="space-y-0.5">
             <p className="text-sm font-semibold text-ink-primary">学术翻译</p>
             <p className="text-xs leading-5 text-ink-tertiary">
-              由译衡模型驱动，优先保留专业术语和学术表达。可在设置 → 模型分工中单独配置译衡模型。
+              由小妍的译衡能力驱动，优先保留专业术语和学术表达。可在设置 → 模型分工中单独配置译衡模型。
             </p>
           </div>
         </div>
@@ -1047,9 +1047,9 @@ export default function Tools() {
             <FileText className="h-5 w-5" />
           </div>
           <div className="space-y-0.5">
-            <p className="text-sm font-semibold text-ink-primary">Markdown 自动整理</p>
+            <p className="text-sm font-semibold text-ink-primary">Markdown 整理</p>
             <p className="text-xs leading-5 text-ink-tertiary">
-              将任意文本整理为规范 Markdown。内容过长时自动分块处理，每块的排版风格会以压缩提示词的形式传递给下一块，保证全文一致性。完成后可直接保存为 .md 文件。
+              将任意文本整理为规范 Markdown。内容过长时小妍会自动分块处理，每块的排版风格会以压缩提示词的形式传递给下一块，保证全文一致性，完成后小妍会直接保存为 .md 文件。
             </p>
           </div>
         </div>
