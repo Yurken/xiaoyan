@@ -343,35 +343,42 @@ const SETTINGS_SECTIONS: Array<{
   {
     key: "connection",
     label: "连接与检索",
-    description: "服务商、主模型、向量化与 RAG",
+    description: "服务商与默认基座",
     icon: Brain,
     color: "#AF52DE",
   },
   {
-    key: "paper_tags",
-    label: "论文库",
-    description: "标签显示与导入命名",
-    icon: Layers3,
-    color: "#FF9F0A",
+    key: "roles",
+    label: "模型分工",
+    description: "按特征分配专属模型",
+    icon: Sparkles,
+    color: "#0A84FF",
   },
   {
     key: "agents",
     label: "多 Agent",
-    description: "编排模式、覆盖和高级设置",
+    description: "编排模式与并发限制",
     icon: Bot,
     color: "#34C759",
   },
   {
+    key: "paper_tags",
+    label: "论文库",
+    description: "管理论文显示与导入",
+    icon: Layers3,
+    color: "#FF9F0A",
+  },
+  {
     key: "layout",
-    label: "布局",
-    description: "界面模式，重启后生效",
+    label: "界面布局",
+    description: "功能入口与界面形态",
     icon: LayoutDashboard,
     color: "#30B0C7",
   },
   {
     key: "about",
-    label: "更多",
-    description: "查看继承规则、版本和升级",
+    label: "系统信息",
+    description: "查看版本与升级",
     icon: Info,
     color: "#5AC8FA",
   },
@@ -444,164 +451,9 @@ function RecommendationList({ items }: { items: string[] }) {
   );
 }
 
-function ModelRoleCard({
-  icon: Icon,
-  iconColor,
-  title,
-  description,
-  recommendation,
-  fallback,
-  modelValue,
-  onModelChange,
-  modelPlaceholder,
-  temperatureValue,
-  onTemperatureChange,
-  temperaturePlaceholder,
-  baseUrlValue,
-  onBaseUrlChange,
-  apiKeyValue,
-  onApiKeyChange,
-  topPValue,
-  onTopPChange,
-  maxTokensValue,
-  onMaxTokensChange,
-  presencePenaltyValue,
-  onPresencePenaltyChange,
-  frequencyPenaltyValue,
-  onFrequencyPenaltyChange,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  iconColor: string;
-  title: string;
-  description: string;
-  recommendation: string;
-  fallback: string;
-  modelValue: string;
-  onModelChange: (value: string) => void;
-  modelPlaceholder: string;
-  temperatureValue: string;
-  onTemperatureChange: (value: string) => void;
-  temperaturePlaceholder: string;
-  baseUrlValue?: string;
-  onBaseUrlChange?: (value: string) => void;
-  apiKeyValue?: string;
-  onApiKeyChange?: (value: string) => void;
-  topPValue?: string;
-  onTopPChange?: (value: string) => void;
-  maxTokensValue?: string;
-  onMaxTokensChange?: (value: string) => void;
-  presencePenaltyValue?: string;
-  onPresencePenaltyChange?: (value: string) => void;
-  frequencyPenaltyValue?: string;
-  onFrequencyPenaltyChange?: (value: string) => void;
-}) {
-  return (
-    <div
-      className="rounded-[28px] p-4 space-y-4"
-      style={{
-        background: "#EEF1F5",
-        boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF",
-      }}
-    >
-      <div className="flex items-start gap-3">
-        <SectionIcon icon={Icon} color={iconColor} />
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink-primary">{title}</p>
-          <p className="text-xs text-ink-tertiary mt-1 leading-5">{description}</p>
-        </div>
-      </div>
-      <div className="rounded-2xl border border-white/70 bg-white/45 px-4 py-3 space-y-2">
-        <p className="text-[11px] font-semibold tracking-wide text-ink-secondary">选型建议</p>
-        <p className="text-xs leading-5 text-ink-secondary">{recommendation}</p>
-        <p className="text-[11px] leading-5 text-ink-tertiary">{fallback}</p>
-      </div>
-      <div className="grid gap-3">
-        <SettingInput
-          label="model"
-          value={modelValue}
-          onChange={onModelChange}
-          placeholder={modelPlaceholder}
-        />
-        {onBaseUrlChange !== undefined && (
-          <SettingInput
-            label="base_url"
-            value={baseUrlValue ?? ""}
-            onChange={onBaseUrlChange}
-            placeholder="留空则继承默认"
-          />
-        )}
-        {onApiKeyChange !== undefined && (
-          <SettingInput
-            label="api_key"
-            value={apiKeyValue ?? ""}
-            onChange={onApiKeyChange}
-            placeholder="留空则继承默认"
-            sensitive
-          />
-        )}
-        <div className="grid gap-3 grid-cols-2">
-          <SettingInput
-            label="temperature"
-            value={temperatureValue}
-            onChange={onTemperatureChange}
-            placeholder={temperaturePlaceholder}
-          />
-          {onTopPChange !== undefined && (
-            <SettingInput
-              label="top_p"
-              value={topPValue ?? ""}
-              onChange={onTopPChange}
-              placeholder="留空则不设置"
-            />
-          )}
-          {onMaxTokensChange !== undefined && (
-            <SettingInput
-              label="max_tokens"
-              value={maxTokensValue ?? ""}
-              onChange={onMaxTokensChange}
-              placeholder="留空则不设置"
-            />
-          )}
-          {onPresencePenaltyChange !== undefined && (
-            <SettingInput
-              label="presence_penalty"
-              value={presencePenaltyValue ?? ""}
-              onChange={onPresencePenaltyChange}
-              placeholder="留空则不设置"
-            />
-          )}
-          {onFrequencyPenaltyChange !== undefined && (
-            <SettingInput
-              label="frequency_penalty"
-              value={frequencyPenaltyValue ?? ""}
-              onChange={onFrequencyPenaltyChange}
-              placeholder="留空则不设置"
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
-type ModelRoleDefinition = {
-  title: string;
-  description: string;
-  recommendation: string;
-  fallback: string;
-  icon: ComponentType<{ className?: string }>;
-  iconColor: string;
-  modelKey: keyof AppSettings;
-  temperatureKey: keyof AppSettings;
-  modelPlaceholder: string;
-  temperaturePlaceholder: string;
-  baseUrlKey?: keyof AppSettings;
-  apiKeyKey?: keyof AppSettings;
-  topPKey?: keyof AppSettings;
-  maxTokensKey?: keyof AppSettings;
-  presencePenaltyKey?: keyof AppSettings;
-  frequencyPenaltyKey?: keyof AppSettings;
-};
+
+
 
 type GroupedModelDefinition = {
   title: string;
@@ -612,6 +464,8 @@ type GroupedModelDefinition = {
   iconColor: string;
   modelKeys: (keyof AppSettings)[];
   temperatureKeys: (keyof AppSettings)[];
+  baseUrlKeys: (keyof AppSettings)[];
+  apiKeyKeys: (keyof AppSettings)[];
   modelPlaceholder: string;
   temperaturePlaceholder: string;
 };
@@ -625,10 +479,14 @@ function GroupedModelCard({
   affectedScopes,
   modelValue,
   temperatureValue,
-  mixedModel,
-  mixedTemperature,
+  baseUrlValue,
+  apiKeyValue,
+  mixedBaseUrl,
+  mixedApiKey,
   onModelChange,
   onTemperatureChange,
+  onBaseUrlChange,
+  onApiKeyChange,
   modelPlaceholder,
   temperaturePlaceholder,
 }: {
@@ -640,13 +498,19 @@ function GroupedModelCard({
   affectedScopes: string;
   modelValue: string;
   temperatureValue: string;
-  mixedModel: boolean;
-  mixedTemperature: boolean;
+  baseUrlValue: string;
+  apiKeyValue: string;
+  mixedBaseUrl: boolean;
+  mixedApiKey: boolean;
   onModelChange: (value: string) => void;
   onTemperatureChange: (value: string) => void;
+  onBaseUrlChange: (value: string) => void;
+  onApiKeyChange: (value: string) => void;
   modelPlaceholder: string;
   temperaturePlaceholder: string;
 }) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   return (
     <div
       className="rounded-[28px] p-4 space-y-4"
@@ -667,13 +531,6 @@ function GroupedModelCard({
         <p className="text-xs leading-5 text-ink-secondary">{affectedScopes}</p>
         <p className="text-[11px] leading-5 text-ink-tertiary">{recommendation}</p>
       </div>
-      {mixedModel || mixedTemperature ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
-          <p className="text-xs leading-5 text-amber-800">
-            当前这组里已经存在更细粒度的不同配置。这里如果重新填写，会统一覆盖这一组相关场景；若要分别微调，请展开高级设置。
-          </p>
-        </div>
-      ) : null}
       <div className="grid gap-3">
         <SettingInput
           label="统一模型"
@@ -690,6 +547,40 @@ function GroupedModelCard({
           hint="留空表示继续沿用各自已有温度；重新填写会统一覆盖这一组。"
         />
       </div>
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((v) => !v)}
+        className="flex items-center gap-1.5 text-xs text-ink-tertiary hover:text-ink-secondary transition-colors"
+      >
+        {showAdvanced ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+        {showAdvanced ? "收起独立接口配置" : "展开独立接口配置（Base URL / API Key）"}
+      </button>
+      {showAdvanced ? (
+        <div className="grid gap-3 pt-1 border-t border-nm-dark/10">
+          {(mixedBaseUrl || mixedApiKey) ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+              <p className="text-xs leading-5 text-amber-800">
+                这组内已有不同的接口地址或密钥。重新填写将统一覆盖这一组所有场景。
+              </p>
+            </div>
+          ) : null}
+          <SettingInput
+            label="接口地址（留空继承主服务商）"
+            value={baseUrlValue}
+            onChange={onBaseUrlChange}
+            placeholder="https://api.example.com/v1"
+            hint="为这一组场景单独指定接口地址，例如猎犬场景可接入支持联网的服务商。"
+          />
+          <SettingInput
+            label="接口密钥（留空继承主服务商）"
+            value={apiKeyValue}
+            onChange={onApiKeyChange}
+            placeholder="sk-..."
+            sensitive
+            hint={`留空或输入 ${MASK} 表示不更改`}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -962,6 +853,22 @@ const DEFAULT_SETTINGS: AppSettings = {
   paper_visible_venue_tags: DEFAULT_PAPER_TAG_VISIBILITY_VALUE,
   paper_auto_rename_on_import: "false",
   paper_auto_rename_rule: "{first_author} - {title} ({year})",
+  vision_model: "",
+  vision_base_url: "",
+  vision_api_key: "",
+  vision_temperature: "0.2",
+  vision_top_p: "",
+  vision_max_tokens: "",
+  vision_presence_penalty: "",
+  vision_frequency_penalty: "",
+  translation_model: "",
+  translation_base_url: "",
+  translation_api_key: "",
+  translation_temperature: "0.1",
+  translation_top_p: "",
+  translation_max_tokens: "",
+  translation_presence_penalty: "",
+  translation_frequency_penalty: "",
 };
 
 const AGENT_OPTIONS = [
@@ -1002,209 +909,151 @@ const AGENT_GUIDES = [
   { key: "synthesis", label: "最终整合", description: "把各专项 Agent 的结果整合成最终回答。" },
 ];
 
-const ROLE_MODEL_CARDS: ModelRoleDefinition[] = [
-  {
-    title: "方向提示",
-    description: "用于研究方向输入过程中的实时提示、关键词补全和下一步字段建议。",
-    recommendation: "优先低延迟模型。如果服务商支持联网或搜索能力，这里最适合配置可联网的快模型。",
-    fallback: "留空则沿用当前主对话模型。",
-    icon: Compass,
-    iconColor: "#0A84FF",
-    modelKey: "planner_hint_model",
-    baseUrlKey: "planner_hint_base_url",
-    apiKeyKey: "planner_hint_api_key",
-    temperatureKey: "planner_hint_temperature",
-    topPKey: "planner_hint_top_p",
-    maxTokensKey: "planner_hint_max_tokens",
-    presencePenaltyKey: "planner_hint_presence_penalty",
-    frequencyPenaltyKey: "planner_hint_frequency_penalty",
-    modelPlaceholder: "例如：qwen-turbo / gpt-4.1-mini / 可联网快模型",
-    temperaturePlaceholder: "0.2",
-  },
-  {
-    title: "深度规划分析",
-    description: "用于理解研究背景、约束和目标，生成更可靠的规划依据。",
-    recommendation: "优先旗舰或推理更强的模型，稳定性比速度更重要。",
-    fallback: "留空则沿用当前主对话模型。",
-    icon: Brain,
-    iconColor: "#AF52DE",
-    modelKey: "planner_analysis_model",
-    baseUrlKey: "planner_analysis_base_url",
-    apiKeyKey: "planner_analysis_api_key",
-    temperatureKey: "planner_analysis_temperature",
-    topPKey: "planner_analysis_top_p",
-    maxTokensKey: "planner_analysis_max_tokens",
-    presencePenaltyKey: "planner_analysis_presence_penalty",
-    frequencyPenaltyKey: "planner_analysis_frequency_penalty",
-    modelPlaceholder: "例如：gpt-5 / claude-sonnet / deepseek-reasoner",
-    temperaturePlaceholder: "0.2",
-  },
-  {
-    title: "规划结果生成",
-    description: "用于输出完整学习路线、阶段任务、论文清单和行动建议。",
-    recommendation: "优先长输出质量好的模型。若预算有限，可用均衡型模型承担此角色。",
-    fallback: "留空则沿用当前主对话模型。",
-    icon: Route,
-    iconColor: "#30B0C7",
-    modelKey: "planner_generation_model",
-    baseUrlKey: "planner_generation_base_url",
-    apiKeyKey: "planner_generation_api_key",
-    temperatureKey: "planner_generation_temperature",
-    topPKey: "planner_generation_top_p",
-    maxTokensKey: "planner_generation_max_tokens",
-    presencePenaltyKey: "planner_generation_presence_penalty",
-    frequencyPenaltyKey: "planner_generation_frequency_penalty",
-    modelPlaceholder: "例如：qwen-plus / claude-sonnet / gpt-4.1",
-    temperaturePlaceholder: "0.3",
-  },
-  {
-    title: "综述检索规划",
-    description: "用于规划调研范围、筛选线索和构建综述骨架。",
-    recommendation: "优先速度快、信息覆盖广的模型。如支持联网或学术搜索，会更适合放在这里。",
-    fallback: "留空则沿用当前主对话模型。",
-    icon: Search,
-    iconColor: "#34C759",
-    modelKey: "survey_planner_model",
-    baseUrlKey: "survey_planner_base_url",
-    apiKeyKey: "survey_planner_api_key",
-    temperatureKey: "survey_planner_temperature",
-    topPKey: "survey_planner_top_p",
-    maxTokensKey: "survey_planner_max_tokens",
-    presencePenaltyKey: "survey_planner_presence_penalty",
-    frequencyPenaltyKey: "survey_planner_frequency_penalty",
-    modelPlaceholder: "例如：快模型 / 可联网模型",
-    temperaturePlaceholder: "0.2",
-  },
-  {
-    title: "综述写作",
-    description: "用于撰写正式的结构化综述、方法对比和趋势总结。",
-    recommendation: "优先长上下文、结构化能力强、写作品质稳定的模型。",
-    fallback: "留空则沿用当前主对话模型。",
-    icon: MessageSquare,
-    iconColor: "#FF9F0A",
-    modelKey: "survey_writer_model",
-    baseUrlKey: "survey_writer_base_url",
-    apiKeyKey: "survey_writer_api_key",
-    temperatureKey: "survey_writer_temperature",
-    topPKey: "survey_writer_top_p",
-    maxTokensKey: "survey_writer_max_tokens",
-    presencePenaltyKey: "survey_writer_presence_penalty",
-    frequencyPenaltyKey: "survey_writer_frequency_penalty",
-    modelPlaceholder: "例如：claude-sonnet / qwen-plus / gpt-4.1",
-    temperaturePlaceholder: "0.3",
-  },
-  {
-    title: "论文精读",
-    description: "用于单篇论文解析、方法拆解、实验理解和局限总结。",
-    recommendation: "优先学术理解强、长上下文稳定的模型。",
-    fallback: "留空则沿用当前主对话模型。",
-    icon: FileSearch,
-    iconColor: "#5856D6",
-    modelKey: "paper_analysis_model",
-    baseUrlKey: "paper_analysis_base_url",
-    apiKeyKey: "paper_analysis_api_key",
-    temperatureKey: "paper_analysis_temperature",
-    topPKey: "paper_analysis_top_p",
-    maxTokensKey: "paper_analysis_max_tokens",
-    presencePenaltyKey: "paper_analysis_presence_penalty",
-    frequencyPenaltyKey: "paper_analysis_frequency_penalty",
-    modelPlaceholder: "例如：旗舰模型 / 长上下文模型",
-    temperaturePlaceholder: "0.3",
-  },
-  {
-    title: "复现指导",
-    description: "用于推断实现要点、训练配置、工程细节和风险点。",
-    recommendation: "优先代码和工程理解能力强的模型，通常温度应更低。",
-    fallback: "留空则沿用当前主对话模型。",
-    icon: Hammer,
-    iconColor: "#FF3B30",
-    modelKey: "paper_reproduction_model",
-    baseUrlKey: "paper_reproduction_base_url",
-    apiKeyKey: "paper_reproduction_api_key",
-    temperatureKey: "paper_reproduction_temperature",
-    topPKey: "paper_reproduction_top_p",
-    maxTokensKey: "paper_reproduction_max_tokens",
-    presencePenaltyKey: "paper_reproduction_presence_penalty",
-    frequencyPenaltyKey: "paper_reproduction_frequency_penalty",
-    modelPlaceholder: "例如：代码能力强的模型",
-    temperaturePlaceholder: "0.25",
-  },
-  {
-    title: "小妍轻量对话",
-    description: "用于关闭多 Agent 后的普通对话，或处理日常轻量问题。",
-    recommendation: "优先低成本、低延迟模型。复杂任务可改用旗舰模型。",
-    fallback: "留空则沿用当前主对话模型。",
-    icon: Bot,
-    iconColor: "#5AC8FA",
-    modelKey: "copilot_simple_model",
-    baseUrlKey: "copilot_simple_base_url",
-    apiKeyKey: "copilot_simple_api_key",
-    temperatureKey: "copilot_simple_temperature",
-    topPKey: "copilot_simple_top_p",
-    maxTokensKey: "copilot_simple_max_tokens",
-    presencePenaltyKey: "copilot_simple_presence_penalty",
-    frequencyPenaltyKey: "copilot_simple_frequency_penalty",
-    modelPlaceholder: "例如：gpt-4o-mini / qwen-turbo / haiku",
-    temperaturePlaceholder: "0.4",
-  },
-];
 
-const GROUPED_MODEL_CARDS: GroupedModelDefinition[] = [
+
+
+const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   {
-    title: "快速模型",
-    description: "优先响应速度，适合实时提示、调度判断、文献侦察和轻量对话。",
-    recommendation: "多数情况下选低延迟模型即可；若服务商支持联网或搜索，也优先放在这一组。",
-    affectedScopes: "方向提示、综述检索规划、多 Agent 调度、文献侦察、小妍轻量对话",
+    title: "流光 · 快速响应",
+    description: "反应极快，负责方向提示和小妍日常轻量对话。",
+    recommendation: "优先选低延迟、低成本的快模型，用量最大，对速度要求最高。",
+    affectedScopes: "方向提示（planner_hint）、小妍轻量对话（copilot_simple）",
     icon: Sparkles,
     iconColor: "#0A84FF",
     modelKeys: [
       "planner_hint_model",
-      "survey_planner_model",
-      "multi_agent_supervisor_model",
-      "multi_agent_literature_scout_model",
       "copilot_simple_model",
     ],
     temperatureKeys: [
       "planner_hint_temperature",
-      "survey_planner_temperature",
-      "multi_agent_supervisor_temperature",
-      "multi_agent_literature_scout_temperature",
       "copilot_simple_temperature",
     ],
-    modelPlaceholder: "例如：qwen-turbo / gpt-4.1-mini / 可联网快模型",
+    baseUrlKeys: [
+      "planner_hint_base_url",
+      "copilot_simple_base_url",
+    ],
+    apiKeyKeys: [
+      "planner_hint_api_key",
+      "copilot_simple_api_key",
+    ],
+    modelPlaceholder: "例如：qwen-turbo / gpt-4.1-mini",
     temperaturePlaceholder: "0.2",
   },
   {
-    title: "深度分析模型",
-    description: "优先理解深度，适合研究规划、论文精读和较复杂的分析任务。",
-    recommendation: "这里更适合旗舰模型或推理能力强的模型，不必一味追求速度。",
-    affectedScopes: "深度规划分析、规划结果生成、论文精读、多 Agent 研究规划、多 Agent 论文解析",
+    title: "元枢 · 默认执行",
+    description: "各方面能力均衡，作为所有专项任务的默认执行基座。",
+    recommendation: "没有单独指定时，多 Agent 工作节点默认回退到这里，选一个稳定均衡的主力模型即可。",
+    affectedScopes: "多 Agent 通用工作节点（worker）",
+    icon: Compass,
+    iconColor: "#34C759",
+    modelKeys: [
+      "multi_agent_worker_model",
+    ],
+    temperatureKeys: [
+      "multi_agent_worker_temperature",
+    ],
+    baseUrlKeys: [
+      "multi_agent_worker_base_url",
+    ],
+    apiKeyKeys: [
+      "multi_agent_worker_api_key",
+    ],
+    modelPlaceholder: "例如：gpt-4o / qwen-plus / deepseek-chat",
+    temperaturePlaceholder: "0.3",
+  },
+  {
+    title: "探知 · 搜索",
+    description: "擅长全网搜索与信息收集，用于强外部信息依赖的场景。",
+    recommendation: "若服务商支持联网或内置搜索工具，优先接在这里；否则可填与闪电相同的快模型。",
+    affectedScopes: "文献侦察（literature_scout）、综述检索规划（survey_planner）",
+    icon: Search,
+    iconColor: "#FF9F0A",
+    modelKeys: [
+      "multi_agent_literature_scout_model",
+      "survey_planner_model",
+    ],
+    temperatureKeys: [
+      "multi_agent_literature_scout_temperature",
+      "survey_planner_temperature",
+    ],
+    baseUrlKeys: [
+      "multi_agent_literature_scout_base_url",
+      "survey_planner_base_url",
+    ],
+    apiKeyKeys: [
+      "multi_agent_literature_scout_api_key",
+      "survey_planner_api_key",
+    ],
+    modelPlaceholder: "例如：联网搜索模型 / perplexity / qwen-turbo",
+    temperaturePlaceholder: "0.2",
+  },
+  {
+    title: "谋策 · 规划",
+    description: "具备极强逻辑推理与拆解能力，负责深度调度与研究思路分析。",
+    recommendation: "这里更适合旗舰推理模型，不必追求速度，准确性和逻辑性优先。",
+    affectedScopes: "多 Agent 调度（supervisor）、研究规划分析与生成（planner_analysis / planner_generation）、多 Agent 研究规划（planner）",
     icon: Brain,
     iconColor: "#AF52DE",
     modelKeys: [
+      "multi_agent_supervisor_model",
       "planner_analysis_model",
       "planner_generation_model",
-      "paper_analysis_model",
       "multi_agent_planner_model",
+    ],
+    temperatureKeys: [
+      "multi_agent_supervisor_temperature",
+      "planner_analysis_temperature",
+      "planner_generation_temperature",
+      "multi_agent_planner_temperature",
+    ],
+    baseUrlKeys: [
+      "multi_agent_supervisor_base_url",
+      "planner_analysis_base_url",
+      "planner_generation_base_url",
+      "multi_agent_planner_base_url",
+    ],
+    apiKeyKeys: [
+      "multi_agent_supervisor_api_key",
+      "planner_analysis_api_key",
+      "planner_generation_api_key",
+      "multi_agent_planner_api_key",
+    ],
+    modelPlaceholder: "例如：deepseek-reasoner / o3 / claude-opus",
+    temperaturePlaceholder: "0.1",
+  },
+  {
+    title: "洞见 · 深度总结",
+    description: "擅长长文本阅读与核心结论提炼，负责单篇大文献精读与长上下文读取。",
+    recommendation: "优先选上下文窗口大、长文阅读能力强的模型；推理深度比速度重要。",
+    affectedScopes: "论文精读（paper_analysis）、多 Agent 论文解析（paper_analyst）",
+    icon: FileSearch,
+    iconColor: "#5AC8FA",
+    modelKeys: [
+      "paper_analysis_model",
       "multi_agent_paper_analyst_model",
     ],
     temperatureKeys: [
-      "planner_analysis_temperature",
-      "planner_generation_temperature",
       "paper_analysis_temperature",
-      "multi_agent_planner_temperature",
       "multi_agent_paper_analyst_temperature",
     ],
-    modelPlaceholder: "例如：gpt-5 / claude-sonnet / deepseek-reasoner",
-    temperaturePlaceholder: "0.2",
+    baseUrlKeys: [
+      "paper_analysis_base_url",
+      "multi_agent_paper_analyst_base_url",
+    ],
+    apiKeyKeys: [
+      "paper_analysis_api_key",
+      "multi_agent_paper_analyst_api_key",
+    ],
+    modelPlaceholder: "例如：gemini-2.5-pro / claude-sonnet / gpt-4.1",
+    temperaturePlaceholder: "0.3",
   },
   {
-    title: "写作整合模型",
-    description: "优先结构化表达和长输出质量，适合正式综述和最终整合。",
-    recommendation: "适合长上下文、写作品质稳的模型。预算有限时可选均衡型模型。",
-    affectedScopes: "综述写作、多 Agent 综述 Agent、最终整合回答",
+    title: "翰章 · 内容生成",
+    description: "擅长结构化表达和流畅排版，负责综述长篇输出与最终整合。",
+    recommendation: "适合长上下文、写作品质稳的模型；预算有限时可选均衡型模型。",
+    affectedScopes: "综述写作（survey_writer）、多 Agent 综述（survey）、最终整合回答（synthesis）",
     icon: MessageSquare,
-    iconColor: "#FF9F0A",
+    iconColor: "#FF6B6B",
     modelKeys: [
       "survey_writer_model",
       "multi_agent_survey_model",
@@ -1215,14 +1064,24 @@ const GROUPED_MODEL_CARDS: GroupedModelDefinition[] = [
       "multi_agent_survey_temperature",
       "multi_agent_synthesis_temperature",
     ],
+    baseUrlKeys: [
+      "survey_writer_base_url",
+      "multi_agent_survey_base_url",
+      "multi_agent_synthesis_base_url",
+    ],
+    apiKeyKeys: [
+      "survey_writer_api_key",
+      "multi_agent_survey_api_key",
+      "multi_agent_synthesis_api_key",
+    ],
     modelPlaceholder: "例如：claude-sonnet / qwen-plus / gpt-4.1",
     temperaturePlaceholder: "0.3",
   },
   {
-    title: "代码复现模型",
-    description: "优先代码与工程理解，适合复现建议、训练配置和实现排查。",
-    recommendation: "这组通常建议更低温度，减少拍脑袋式推断。",
-    affectedScopes: "复现指导、多 Agent 复现 Agent",
+    title: "构域 · 代码",
+    description: "深入理解代码逻辑、实验环境和工程细节，负责论文复现场景。",
+    recommendation: "这组建议更低温度，减少拍脑袋式推断；代码能力强的模型优先。",
+    affectedScopes: "复现指导（paper_reproduction）、多 Agent 复现（reproduction）",
     icon: Hammer,
     iconColor: "#FF3B30",
     modelKeys: [
@@ -1233,160 +1092,48 @@ const GROUPED_MODEL_CARDS: GroupedModelDefinition[] = [
       "paper_reproduction_temperature",
       "multi_agent_reproduction_temperature",
     ],
-    modelPlaceholder: "例如：代码能力强的模型",
+    baseUrlKeys: [
+      "paper_reproduction_base_url",
+      "multi_agent_reproduction_base_url",
+    ],
+    apiKeyKeys: [
+      "paper_reproduction_api_key",
+      "multi_agent_reproduction_api_key",
+    ],
+    modelPlaceholder: "例如：deepseek-coder / claude-sonnet / gpt-4.1",
     temperaturePlaceholder: "0.25",
   },
-];
-
-const ORCHESTRATION_MODEL_CARDS: ModelRoleDefinition[] = [
   {
-    title: "supervisor · 调度",
-    description: "只负责判断该启用哪些 Agent，不负责生成最终答案。",
-    recommendation: "优先反应快、判断稳定的模型。调度阶段通常不需要最贵的旗舰模型。",
-    fallback: "仅在模型判断或混合判断模式下生效。留空则沿用主对话模型。",
-    icon: Brain,
-    iconColor: "#AF52DE",
-    modelKey: "multi_agent_supervisor_model",
-    baseUrlKey: "multi_agent_supervisor_base_url",
-    apiKeyKey: "multi_agent_supervisor_api_key",
-    temperatureKey: "multi_agent_supervisor_temperature",
-    topPKey: "multi_agent_supervisor_top_p",
-    maxTokensKey: "multi_agent_supervisor_max_tokens",
-    presencePenaltyKey: "multi_agent_supervisor_presence_penalty",
-    frequencyPenaltyKey: "multi_agent_supervisor_frequency_penalty",
-    modelPlaceholder: "例如：qwen-plus / gpt-4.1-mini",
+    title: "视界 · 视觉 (Beta)",
+    description: "解读论文图表、架构图、公式截图等视觉内容，弥补纯文本模型的盲区。",
+    recommendation: "需要多模态能力，推荐 GPT-4o / Gemini / Claude Sonnet 等原生支持图像输入的模型。后端视觉调用接口尚在开发中，配置后暂不生效。",
+    affectedScopes: "论文图表解析、视觉内容问答（Beta，后端开发中）",
+    icon: Eye,
+    iconColor: "#30B0C7",
+    modelKeys: ["vision_model"],
+    temperatureKeys: ["vision_temperature"],
+    baseUrlKeys: ["vision_base_url"],
+    apiKeyKeys: ["vision_api_key"],
+    modelPlaceholder: "例如：gpt-4o / gemini-2.0-flash / claude-sonnet",
+    temperaturePlaceholder: "0.2",
+  },
+  {
+    title: "译衡 · 翻译 (Beta)",
+    description: "中英学术互译，要求忠实原文，温度极低，适合专门优化了翻译的模型。",
+    recommendation: "翻译不同于总结，忠实度优先于流畅度。建议选专注翻译或支持术语锁定的模型，温度设 0.1 或更低。后端翻译调用接口尚在开发中。",
+    affectedScopes: "论文全文翻译、段落翻译（Beta，后端开发中）",
+    icon: Compass,
+    iconColor: "#5856D6",
+    modelKeys: ["translation_model"],
+    temperatureKeys: ["translation_temperature"],
+    baseUrlKeys: ["translation_base_url"],
+    apiKeyKeys: ["translation_api_key"],
+    modelPlaceholder: "例如：deepseek-chat / gpt-4.1-mini / 专用翻译 API",
     temperaturePlaceholder: "0.1",
   },
-  {
-    title: "worker · 默认执行",
-    description: "作为多 Agent 中各专项 Agent 的统一默认模型。",
-    recommendation: "优先均衡型模型，兼顾成本、速度和学术理解能力。",
-    fallback: "各专项 Agent 可单独覆盖；留空则沿用主对话模型。",
-    icon: Bot,
-    iconColor: "#34C759",
-    modelKey: "multi_agent_worker_model",
-    baseUrlKey: "multi_agent_worker_base_url",
-    apiKeyKey: "multi_agent_worker_api_key",
-    temperatureKey: "multi_agent_worker_temperature",
-    topPKey: "multi_agent_worker_top_p",
-    maxTokensKey: "multi_agent_worker_max_tokens",
-    presencePenaltyKey: "multi_agent_worker_presence_penalty",
-    frequencyPenaltyKey: "multi_agent_worker_frequency_penalty",
-    modelPlaceholder: "例如：qwen-plus / gpt-4.1 / claude-sonnet",
-    temperaturePlaceholder: "0.3",
-  },
-  {
-    title: "synthesis · 最终整合",
-    description: "负责把多个 Agent 的中间结果整理成最终中文答复。",
-    recommendation: "优先长输出质量好、整合能力强的模型，必要时可以用旗舰模型。",
-    fallback: "留空则沿用主对话模型。",
-    icon: Sparkles,
-    iconColor: "#0A84FF",
-    modelKey: "multi_agent_synthesis_model",
-    baseUrlKey: "multi_agent_synthesis_base_url",
-    apiKeyKey: "multi_agent_synthesis_api_key",
-    temperatureKey: "multi_agent_synthesis_temperature",
-    topPKey: "multi_agent_synthesis_top_p",
-    maxTokensKey: "multi_agent_synthesis_max_tokens",
-    presencePenaltyKey: "multi_agent_synthesis_presence_penalty",
-    frequencyPenaltyKey: "multi_agent_synthesis_frequency_penalty",
-    modelPlaceholder: "例如：旗舰模型 / 写作质量强的模型",
-    temperaturePlaceholder: "0.4",
-  },
 ];
 
-const SPECIALIST_OVERRIDE_CARDS: ModelRoleDefinition[] = [
-  {
-    title: "planner · 研究规划",
-    description: "多 Agent 对话里负责拆解研究路线、学习路径和行动建议。",
-    recommendation: "如果你希望规划类问题明显更强，可在这里单独指定更强的模型。",
-    fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
-    icon: Route,
-    iconColor: "#30B0C7",
-    modelKey: "multi_agent_planner_model",
-    baseUrlKey: "multi_agent_planner_base_url",
-    apiKeyKey: "multi_agent_planner_api_key",
-    temperatureKey: "multi_agent_planner_temperature",
-    topPKey: "multi_agent_planner_top_p",
-    maxTokensKey: "multi_agent_planner_max_tokens",
-    presencePenaltyKey: "multi_agent_planner_presence_penalty",
-    frequencyPenaltyKey: "multi_agent_planner_frequency_penalty",
-    modelPlaceholder: "例如：更强推理模型",
-    temperaturePlaceholder: "留空继承",
-  },
-  {
-    title: "literature_scout · 文献侦察",
-    description: "负责快速找论文线索、核心工作和调研入口。",
-    recommendation: "若服务商支持联网或搜索，这里最适合分配快且能检索外部信息的模型。",
-    fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
-    icon: Search,
-    iconColor: "#34C759",
-    modelKey: "multi_agent_literature_scout_model",
-    baseUrlKey: "multi_agent_literature_scout_base_url",
-    apiKeyKey: "multi_agent_literature_scout_api_key",
-    temperatureKey: "multi_agent_literature_scout_temperature",
-    topPKey: "multi_agent_literature_scout_top_p",
-    maxTokensKey: "multi_agent_literature_scout_max_tokens",
-    presencePenaltyKey: "multi_agent_literature_scout_presence_penalty",
-    frequencyPenaltyKey: "multi_agent_literature_scout_frequency_penalty",
-    modelPlaceholder: "例如：可联网快模型",
-    temperaturePlaceholder: "留空继承",
-  },
-  {
-    title: "survey · 综述",
-    description: "负责把文献线索整理成结构化领域综述。",
-    recommendation: "适合分配长上下文和写作质量更稳定的模型。",
-    fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
-    icon: MessageSquare,
-    iconColor: "#FF9F0A",
-    modelKey: "multi_agent_survey_model",
-    baseUrlKey: "multi_agent_survey_base_url",
-    apiKeyKey: "multi_agent_survey_api_key",
-    temperatureKey: "multi_agent_survey_temperature",
-    topPKey: "multi_agent_survey_top_p",
-    maxTokensKey: "multi_agent_survey_max_tokens",
-    presencePenaltyKey: "multi_agent_survey_presence_penalty",
-    frequencyPenaltyKey: "multi_agent_survey_frequency_penalty",
-    modelPlaceholder: "例如：长上下文写作模型",
-    temperaturePlaceholder: "留空继承",
-  },
-  {
-    title: "paper_analyst · 论文解析",
-    description: "负责单篇论文理解、方法拆解和实验解读。",
-    recommendation: "适合分配更擅长学术分析和细节理解的模型。",
-    fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
-    icon: FileSearch,
-    iconColor: "#5856D6",
-    modelKey: "multi_agent_paper_analyst_model",
-    baseUrlKey: "multi_agent_paper_analyst_base_url",
-    apiKeyKey: "multi_agent_paper_analyst_api_key",
-    temperatureKey: "multi_agent_paper_analyst_temperature",
-    topPKey: "multi_agent_paper_analyst_top_p",
-    maxTokensKey: "multi_agent_paper_analyst_max_tokens",
-    presencePenaltyKey: "multi_agent_paper_analyst_presence_penalty",
-    frequencyPenaltyKey: "multi_agent_paper_analyst_frequency_penalty",
-    modelPlaceholder: "例如：旗舰模型 / 长上下文模型",
-    temperaturePlaceholder: "留空继承",
-  },
-  {
-    title: "reproduction · 复现",
-    description: "负责实现路径、训练配置、复现实验和工程风险。",
-    recommendation: "适合分配代码能力更强、温度更低的模型。",
-    fallback: "留空则继承默认执行模型；仍为空时再回退到主对话模型。",
-    icon: Hammer,
-    iconColor: "#FF3B30",
-    modelKey: "multi_agent_reproduction_model",
-    baseUrlKey: "multi_agent_reproduction_base_url",
-    apiKeyKey: "multi_agent_reproduction_api_key",
-    temperatureKey: "multi_agent_reproduction_temperature",
-    topPKey: "multi_agent_reproduction_top_p",
-    maxTokensKey: "multi_agent_reproduction_max_tokens",
-    presencePenaltyKey: "multi_agent_reproduction_presence_penalty",
-    frequencyPenaltyKey: "multi_agent_reproduction_frequency_penalty",
-    modelPlaceholder: "例如：代码能力强的模型",
-    temperaturePlaceholder: "留空继承",
-  },
-];
+
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 type TestState = "idle" | "testing" | "ok" | "error";
@@ -1426,7 +1173,6 @@ export default function Settings() {
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [updateMsg, setUpdateMsg] = useState("");
   const [appVersion, setAppVersion] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>("connection");
   const [pendingLayout, setPendingLayout] = useState<LayoutMode>(getLayoutMode());
 
@@ -1444,7 +1190,7 @@ export default function Settings() {
 
   const getSharedValue = (keys: (keyof AppSettings)[]) => {
     const values = keys
-      .map((key) => form[key].trim())
+      .map((key) => (form[key] ?? "").trim())
       .filter(Boolean);
     if (values.length === 0) {
       return "";
@@ -1454,7 +1200,7 @@ export default function Settings() {
 
   const hasMixedValue = (keys: (keyof AppSettings)[]) => {
     const values = keys
-      .map((key) => form[key].trim())
+      .map((key) => (form[key] ?? "").trim())
       .filter(Boolean);
     return new Set(values).size > 1;
   };
@@ -1678,7 +1424,7 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           {SETTINGS_SECTIONS.map((item) => (
             <SettingsSectionTab
               key={item.key}
@@ -2047,26 +1793,26 @@ export default function Settings() {
         {activeSection === "roles" && !contentUnavailable ? (
           <Card padding="md" className="space-y-4">
             <div className="flex items-center gap-3">
-              <SectionIcon icon={Layers3} color="#0A84FF" />
+              <SectionIcon icon={Sparkles} color="#0A84FF" />
               <div>
-                <h2 className="text-sm font-semibold text-ink-primary">常用模型分工</h2>
+                <h2 className="text-sm font-semibold text-ink-primary">模型分工</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">
-                  默认只保留最常用的 4 组模型。大多数情况下，配好这里就够用，不需要逐项微调。
+                  将具备不同特征的模型分配给最适合的任务场景。完全留空则全部由“默认对话模型”承担。
                 </p>
               </div>
             </div>
 
             <RecommendationList
               items={[
-                "如果你不想配太多模型，通常只需要主模型、快速模型、深度分析模型和写作整合模型。",
-                "这 4 组模型会自动覆盖对应功能和多 Agent 场景；你只有在想精细控制时，才需要展开高级设置。",
-                "所有分组都支持留空继承，所以完全可以只填其中一两项。",
-                "如果你已经在高级设置里做过细分，这里会提醒“已细分配置”；重新填写会统一覆盖这一组。",
+                "建议分工：流光负责极速轻量问答，元枢承担均衡主力，探知处理联网检索，谋策负责深度推理，洞见专注长文精读，翰章用于结构化写作，构域用于代码工程。按场景分配，效果与成本更优。",
+                "视界（Beta）与译衡（Beta）现在就可以先配置；后端接口上线后会自动启用，无需二次设置。",
+                "即使全部留空也可正常使用：所有角色会自动回退到「连接与检索」中的默认对话模型。",
+                "如需让探知联网，可在其卡片中单独配置支持搜索的接口；其余角色仍使用主服务商。",
               ]}
             />
 
             <div className="grid gap-4 xl:grid-cols-2">
-              {GROUPED_MODEL_CARDS.map((item) => (
+              {CHARACTERISTIC_MODEL_CARDS.map((item) => (
                 <GroupedModelCard
                   key={item.title}
                   icon={item.icon}
@@ -2077,10 +1823,14 @@ export default function Settings() {
                   affectedScopes={item.affectedScopes}
                   modelValue={getSharedValue(item.modelKeys)}
                   temperatureValue={getSharedValue(item.temperatureKeys)}
-                  mixedModel={hasMixedValue(item.modelKeys)}
-                  mixedTemperature={hasMixedValue(item.temperatureKeys)}
+                  baseUrlValue={getSharedValue(item.baseUrlKeys)}
+                  apiKeyValue={getSharedValue(item.apiKeyKeys)}
+                  mixedBaseUrl={hasMixedValue(item.baseUrlKeys)}
+                  mixedApiKey={hasMixedValue(item.apiKeyKeys)}
                   onModelChange={setMany(item.modelKeys)}
                   onTemperatureChange={setMany(item.temperatureKeys)}
+                  onBaseUrlChange={setMany(item.baseUrlKeys)}
+                  onApiKeyChange={setMany(item.apiKeyKeys)}
                   modelPlaceholder={item.modelPlaceholder}
                   temperaturePlaceholder={item.temperaturePlaceholder}
                 />
@@ -2096,14 +1846,14 @@ export default function Settings() {
               <div>
                 <h2 className="text-sm font-semibold text-ink-primary">多 Agent 编排</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">
-                  默认会继承上面的常用模型分工。只有你想精细控制每个 Agent 时，才需要展开高级设置。
+                  控制多 Agent 模式的心智、选路策略与可用角色。
                 </p>
               </div>
             </div>
 
             <ToggleRow
               title="启用多 Agent 编排"
-              description="关闭后只使用小妍轻量对话模型，不再拆分任务，也不展示中间 Agent 过程。"
+              description="关闭后将只使用小妍轻量对话模型直接回复，不再拆分复杂任务，也不展示中间 Agent 推理过程。"
               checked={form.multi_agent_enabled === "true"}
               onToggle={() =>
                 set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")
@@ -2111,7 +1861,7 @@ export default function Settings() {
             />
 
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-ink-tertiary ml-1">选路方式</label>
+              <label className="block text-xs font-medium text-ink-tertiary ml-1">路由判断模式</label>
               <div className="flex gap-2 flex-wrap">
                 {(["rule", "llm", "hybrid"] as const).map((value) => (
                   <ProviderTab
@@ -2133,196 +1883,52 @@ export default function Settings() {
               </div>
             </div>
 
-            <RecommendationList
-              items={[
-                "推荐直接用混合判断。多数用户不需要手动调整到每个 Agent 的模型级别。",
-                "默认继承关系是：专项 Agent 覆盖值 -> 常用模型分工 -> 默认执行模型 -> 主模型。",
-                "如果你只是想让文献侦察用快模型、论文解析用强模型，通常只改上面的常用模型分工就够了。",
-                "只有在做成本压缩、AB 测试或特定 Agent 调优时，才建议展开高级设置。",
-              ]}
-            />
-
-            <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-4 space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-ink-primary">高级设置</p>
-                  <p className="text-xs text-ink-tertiary mt-1 leading-5">
-                    这里包含逐个场景模型、默认执行模型、专项 Agent 覆盖、Agent 开关和步数限制。
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced((value) => !value)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-150"
-                  style={{
-                    background: "#E8ECF0",
-                    color: "#3C3C43",
-                    boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
-                  }}
-                >
-                  {showAdvanced ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  {showAdvanced ? "收起高级设置" : "展开高级设置"}
-                </button>
+            <div className="space-y-3 pt-4 border-t border-nm-dark/10">
+              <div className="flex items-center gap-2">
+                <Route className="w-4 h-4 text-[#1A8AFF]" />
+                <p className="text-sm font-semibold text-ink-primary">Agent 角色开关</p>
+              </div>
+              <p className="text-xs text-ink-tertiary">选择在多 Agent 协作时允许唤醒的分支角色。关闭某个角色后，调度模型将不会将其纳入考量。</p>
+              
+              <div className="flex gap-2 flex-wrap pb-2">
+                {AGENT_OPTIONS.map(([value, label]) => (
+                  <AgentChip
+                    key={value}
+                    label={label}
+                    active={enabledAgents.includes(value)}
+                    onClick={() => toggleAgent(value)}
+                  />
+                ))}
+              </div>
+              
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {AGENT_GUIDES.map((item) => (
+                  <div key={item.key} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3 shadow-sm">
+                    <p className="text-xs font-semibold text-ink-primary">{item.label}</p>
+                    <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{item.description}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {showAdvanced ? (
-              <div className="space-y-5">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Compass className="w-4 h-4 text-[#1A8AFF]" />
-                    <p className="text-sm font-semibold text-ink-primary">逐项场景模型</p>
-                  </div>
-                  <p className="text-xs text-ink-tertiary leading-5">
-                    如果你想让某个具体功能使用不同模型，比如单独调整“方向提示”或“轻量对话”，在这里设置。
-                  </p>
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    {ROLE_MODEL_CARDS.map((item) => (
-                      <ModelRoleCard
-                        key={item.title}
-                        icon={item.icon}
-                        iconColor={item.iconColor}
-                        title={item.title}
-                        description={item.description}
-                        recommendation={item.recommendation}
-                        fallback={item.fallback}
-                        modelValue={form[item.modelKey]}
-                        onModelChange={set(item.modelKey)}
-                        modelPlaceholder={item.modelPlaceholder}
-                        temperatureValue={form[item.temperatureKey]}
-                        onTemperatureChange={set(item.temperatureKey)}
-                        temperaturePlaceholder={item.temperaturePlaceholder}
-                        baseUrlValue={item.baseUrlKey ? form[item.baseUrlKey] : undefined}
-                        onBaseUrlChange={item.baseUrlKey ? set(item.baseUrlKey) : undefined}
-                        apiKeyValue={item.apiKeyKey ? form[item.apiKeyKey] : undefined}
-                        onApiKeyChange={item.apiKeyKey ? set(item.apiKeyKey) : undefined}
-                        topPValue={item.topPKey ? form[item.topPKey] : undefined}
-                        onTopPChange={item.topPKey ? set(item.topPKey) : undefined}
-                        maxTokensValue={item.maxTokensKey ? form[item.maxTokensKey] : undefined}
-                        onMaxTokensChange={item.maxTokensKey ? set(item.maxTokensKey) : undefined}
-                        presencePenaltyValue={item.presencePenaltyKey ? form[item.presencePenaltyKey] : undefined}
-                        onPresencePenaltyChange={item.presencePenaltyKey ? set(item.presencePenaltyKey) : undefined}
-                        frequencyPenaltyValue={item.frequencyPenaltyKey ? form[item.frequencyPenaltyKey] : undefined}
-                        onFrequencyPenaltyChange={item.frequencyPenaltyKey ? set(item.frequencyPenaltyKey) : undefined}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Route className="w-4 h-4 text-[#1A8AFF]" />
-                    <p className="text-sm font-semibold text-ink-primary">多 Agent 细项</p>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-xs font-medium text-ink-tertiary ml-1">启用的专项 Agent</label>
-                    <div className="flex gap-2 flex-wrap">
-                      {AGENT_OPTIONS.map(([value, label]) => (
-                        <AgentChip
-                          key={value}
-                          label={label}
-                          active={enabledAgents.includes(value)}
-                          onClick={() => toggleAgent(value)}
-                        />
-                      ))}
-                    </div>
-                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                      {AGENT_GUIDES.map((item) => (
-                        <div key={item.key} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-3 py-3">
-                          <p className="text-xs font-semibold text-ink-primary">{item.label}</p>
-                          <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{item.description}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <SettingInput
-                      label="单次最多调用的专项 Agent 数"
-                      value={form.multi_agent_max_steps}
-                      onChange={set("multi_agent_max_steps")}
-                      placeholder="6"
-                    />
-                    <SettingInput
-                      label="文献检索条数上限"
-                      value={form.multi_agent_search_limit}
-                      onChange={set("multi_agent_search_limit")}
-                      placeholder="8"
-                    />
-                  </div>
-
-                  <div className="grid gap-4 xl:grid-cols-3">
-                    {ORCHESTRATION_MODEL_CARDS.map((item) => (
-                      <ModelRoleCard
-                        key={item.title}
-                        icon={item.icon}
-                        iconColor={item.iconColor}
-                        title={item.title}
-                        description={item.description}
-                        recommendation={item.recommendation}
-                        fallback={item.fallback}
-                        modelValue={form[item.modelKey]}
-                        onModelChange={set(item.modelKey)}
-                        modelPlaceholder={item.modelPlaceholder}
-                        temperatureValue={form[item.temperatureKey]}
-                        onTemperatureChange={set(item.temperatureKey)}
-                        temperaturePlaceholder={item.temperaturePlaceholder}
-                        baseUrlValue={item.baseUrlKey ? form[item.baseUrlKey] : undefined}
-                        onBaseUrlChange={item.baseUrlKey ? set(item.baseUrlKey) : undefined}
-                        apiKeyValue={item.apiKeyKey ? form[item.apiKeyKey] : undefined}
-                        onApiKeyChange={item.apiKeyKey ? set(item.apiKeyKey) : undefined}
-                        topPValue={item.topPKey ? form[item.topPKey] : undefined}
-                        onTopPChange={item.topPKey ? set(item.topPKey) : undefined}
-                        maxTokensValue={item.maxTokensKey ? form[item.maxTokensKey] : undefined}
-                        onMaxTokensChange={item.maxTokensKey ? set(item.maxTokensKey) : undefined}
-                        presencePenaltyValue={item.presencePenaltyKey ? form[item.presencePenaltyKey] : undefined}
-                        onPresencePenaltyChange={item.presencePenaltyKey ? set(item.presencePenaltyKey) : undefined}
-                        frequencyPenaltyValue={item.frequencyPenaltyKey ? form[item.frequencyPenaltyKey] : undefined}
-                        onFrequencyPenaltyChange={item.frequencyPenaltyKey ? set(item.frequencyPenaltyKey) : undefined}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="space-y-3">
-                    <p className="text-sm font-semibold text-ink-primary">专项 Agent 覆盖</p>
-                    <p className="text-xs text-ink-tertiary leading-5">
-                      只在你明确知道某个 Agent 需要不同模型时填写，比如让文献侦察走快模型、论文解析走旗舰模型。
-                    </p>
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      {SPECIALIST_OVERRIDE_CARDS.map((item) => (
-                        <ModelRoleCard
-                          key={item.title}
-                          icon={item.icon}
-                          iconColor={item.iconColor}
-                          title={item.title}
-                          description={item.description}
-                          recommendation={item.recommendation}
-                          fallback={item.fallback}
-                          modelValue={form[item.modelKey]}
-                          onModelChange={set(item.modelKey)}
-                          modelPlaceholder={item.modelPlaceholder}
-                          temperatureValue={form[item.temperatureKey]}
-                          onTemperatureChange={set(item.temperatureKey)}
-                          temperaturePlaceholder={item.temperaturePlaceholder}
-                          baseUrlValue={item.baseUrlKey ? form[item.baseUrlKey] : undefined}
-                          onBaseUrlChange={item.baseUrlKey ? set(item.baseUrlKey) : undefined}
-                          apiKeyValue={item.apiKeyKey ? form[item.apiKeyKey] : undefined}
-                          onApiKeyChange={item.apiKeyKey ? set(item.apiKeyKey) : undefined}
-                          topPValue={item.topPKey ? form[item.topPKey] : undefined}
-                          onTopPChange={item.topPKey ? set(item.topPKey) : undefined}
-                          maxTokensValue={item.maxTokensKey ? form[item.maxTokensKey] : undefined}
-                          onMaxTokensChange={item.maxTokensKey ? set(item.maxTokensKey) : undefined}
-                          presencePenaltyValue={item.presencePenaltyKey ? form[item.presencePenaltyKey] : undefined}
-                          onPresencePenaltyChange={item.presencePenaltyKey ? set(item.presencePenaltyKey) : undefined}
-                          frequencyPenaltyValue={item.frequencyPenaltyKey ? form[item.frequencyPenaltyKey] : undefined}
-                          onFrequencyPenaltyChange={item.frequencyPenaltyKey ? set(item.frequencyPenaltyKey) : undefined}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
+            <div className="pt-2">
+              <div className="grid gap-3 md:grid-cols-2">
+                <SettingInput
+                  label="单次最多调用的 Agent 步数上限"
+                  value={form.multi_agent_max_steps}
+                  onChange={set("multi_agent_max_steps")}
+                  placeholder="6"
+                  hint="超过该步数将强行中断多 Agent 思考流程，防止发散。"
+                />
+                <SettingInput
+                  label="文献检索 Agent 抓取条数上限"
+                  value={form.multi_agent_search_limit}
+                  onChange={set("multi_agent_search_limit")}
+                  placeholder="8"
+                  hint="限制搜索接口每次带回来的文献条数，过大可能会导致被拦截或上下文超限。"
+                />
               </div>
-            ) : null}
+            </div>
           </Card>
         ) : null}
 

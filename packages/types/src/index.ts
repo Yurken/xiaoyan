@@ -539,6 +539,22 @@ export interface AppSettings {
   paper_visible_venue_tags: string;
   paper_auto_rename_on_import: string;
   paper_auto_rename_rule: string;
+  vision_model: string;
+  vision_base_url: string;
+  vision_api_key: string;
+  vision_temperature: string;
+  vision_top_p: string;
+  vision_max_tokens: string;
+  vision_presence_penalty: string;
+  vision_frequency_penalty: string;
+  translation_model: string;
+  translation_base_url: string;
+  translation_api_key: string;
+  translation_temperature: string;
+  translation_top_p: string;
+  translation_max_tokens: string;
+  translation_presence_penalty: string;
+  translation_frequency_penalty: string;
 }
 
 export interface Job {
