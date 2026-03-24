@@ -147,6 +147,19 @@ CREATE TABLE IF NOT EXISTS paper_figures (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS skills (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL UNIQUE,
+    title       TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    prompt      TEXT NOT NULL DEFAULT '',
+    tags        TEXT NOT NULL DEFAULT '[]',
+    is_builtin  INTEGER NOT NULL DEFAULT 0,
+    is_enabled  INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_papers_created_at ON papers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_papers_status ON papers(status);
 CREATE INDEX IF NOT EXISTS idx_papers_research_interest_created_at ON papers(research_interest_id, created_at DESC);
@@ -180,6 +193,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_papers_notes_column(&pool).await?;
     ensure_paper_figures_table(&pool).await?;
     ensure_performance_indexes(&pool).await?;
+    ensure_skills_table(&pool).await?;
 
     Ok(pool)
 }
@@ -325,6 +339,31 @@ async fn ensure_research_interest_folder_name_column(pool: &SqlitePool) -> Resul
     sqlx::query("UPDATE research_interests SET folder_name = topic WHERE folder_name IS NULL OR TRIM(folder_name) = ''")
         .execute(pool)
         .await?;
+
+    Ok(())
+}
+
+pub async fn ensure_skills_table(pool: &SqlitePool) -> Result<()> {
+    // Create table if not exists (already in SCHEMA, this handles upgrades for existing DBs)
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS skills (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL UNIQUE,
+            title       TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            prompt      TEXT NOT NULL DEFAULT '',
+            tags        TEXT NOT NULL DEFAULT '[]',
+            is_builtin  INTEGER NOT NULL DEFAULT 0,
+            is_enabled  INTEGER NOT NULL DEFAULT 1,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );",
+    )
+    .execute(pool)
+    .await?;
+
+    // Seed built-in skills (INSERT OR IGNORE so existing customizations are preserved)
+    crate::commands::skills::seed_builtin_skills(pool).await?;
 
     Ok(())
 }

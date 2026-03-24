@@ -6,5 +6,6 @@ pub mod knowledge;
 pub mod misc;
 pub mod papers;
 pub mod settings;
+pub mod skills;
 pub mod source;
 pub mod update;

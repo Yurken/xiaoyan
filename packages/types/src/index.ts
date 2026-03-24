@@ -557,6 +557,19 @@ export interface AppSettings {
   translation_frequency_penalty: string;
 }
 
+export interface Skill {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  prompt: string;
+  tags: string[];
+  is_builtin: boolean;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Job {
   id: string;
   type: string;

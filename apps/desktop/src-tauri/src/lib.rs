@@ -35,6 +35,7 @@ use commands::{
     misc::{markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text},
     papers::{papers_analyze, papers_delete, papers_get, papers_list, papers_list_figures, papers_open_pdf, papers_reproduce, papers_update, papers_upload},
     settings::{settings_get, settings_test, settings_update},
+    skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
     source::source_lookup,
     update::{update_check, update_install, PendingUpdate},
 };
@@ -200,6 +201,12 @@ pub fn run() {
             chat_update_session_context,
             chat_list_agent_runs,
             chat_stream,
+            // Skills
+            skills_list,
+            skills_create,
+            skills_update,
+            skills_delete,
+            skills_reset_builtins,
             // Misc
             planner_generate,
             survey_generate,

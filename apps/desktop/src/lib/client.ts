@@ -21,6 +21,7 @@ import type {
   ResearchInterestHintRequest,
   ResearchInterestHintResponse,
   KnowledgeNote,
+  Skill,
   AppSettings,
   AppUpdateInfo,
   AgentRun,
@@ -346,6 +347,49 @@ export const markdownApi = {
     invoke("markdown_format_chunk", { text, styleSummary }),
 };
 
+// ── Skills ────────────────────────────────────────────────────────
+
+export const skillsApi = {
+  list: (): Promise<Skill[]> =>
+    invoke("skills_list"),
+  create: (data: {
+    name: string;
+    title: string;
+    description: string;
+    prompt: string;
+    tags?: string[];
+  }): Promise<Skill> =>
+    invoke("skills_create", {
+      name: data.name,
+      title: data.title,
+      description: data.description,
+      prompt: data.prompt,
+      tags: data.tags ?? null,
+    }),
+  update: (
+    id: string,
+    data: {
+      title?: string;
+      description?: string;
+      prompt?: string;
+      tags?: string[];
+      is_enabled?: boolean;
+    }
+  ): Promise<Skill> =>
+    invoke("skills_update", {
+      id,
+      title: data.title ?? null,
+      description: data.description ?? null,
+      prompt: data.prompt ?? null,
+      tags: data.tags ?? null,
+      isEnabled: data.is_enabled ?? null,
+    }),
+  delete: (id: string): Promise<void> =>
+    invoke("skills_delete", { id }),
+  resetBuiltins: (): Promise<Skill[]> =>
+    invoke("skills_reset_builtins"),
+};
+
 // ── Unified client (mirrors api-sdk shape) ────────────────────────
 
 export const apiClient = {
@@ -362,4 +406,5 @@ export const apiClient = {
   chat: chatApi,
   planner: plannerApi,
   survey: surveyApi,
+  skills: skillsApi,
 };
