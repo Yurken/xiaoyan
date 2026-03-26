@@ -32,6 +32,7 @@ use commands::{
         knowledge_generate_plan, knowledge_list_interests, knowledge_list_notes, knowledge_search,
         knowledge_move_note, knowledge_suggest_topics, knowledge_update_interest_folder, knowledge_update_note,
     },
+    memory::{memory_add, memory_list, memory_delete, memory_clear_auto, memory_build_context},
     misc::{markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text},
     paper_search::paper_search,
     papers::{papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list, papers_list_figures, papers_open_pdf, papers_reproduce, papers_update, papers_upload},
@@ -211,6 +212,12 @@ pub fn run() {
             skills_update,
             skills_delete,
             skills_reset_builtins,
+            // Memory
+            memory_add,
+            memory_list,
+            memory_delete,
+            memory_clear_auto,
+            memory_build_context,
             // Misc
             planner_generate,
             survey_generate,

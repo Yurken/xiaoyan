@@ -3,6 +3,7 @@ pub mod ccf;
 pub mod chat;
 pub mod journal;
 pub mod knowledge;
+pub mod memory;
 pub mod misc;
 pub mod paper_search;
 pub mod papers;

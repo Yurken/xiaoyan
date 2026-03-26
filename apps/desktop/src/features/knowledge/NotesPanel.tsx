@@ -457,6 +457,12 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
       resetDraft();
       setCreating(false);
       setError("");
+      void apiClient.memory.add({
+        type: "auto",
+        action: "note.create",
+        summary: `创建了笔记：「${note.title}」`,
+        detail: JSON.stringify({ note_id: note.id }),
+      });
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
     } finally {

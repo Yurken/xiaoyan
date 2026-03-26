@@ -286,6 +286,12 @@ export default function PlannerComposer({ onCancel, onCreated, initialTopic }: P
       setHintMessage("");
       setSaving(false);
       setSubmitPhase("idle");
+      void apiClient.memory.add({
+        type: "auto",
+        action: "interest.create",
+        summary: `创建了研究主题：「${interest.folder_name?.trim() || interest.topic}」`,
+        detail: JSON.stringify({ interest_id: interest.id }),
+      });
       onCreated(interest, { uploadedReferences, failedUploads });
       return;
     } catch (nextError) {

@@ -167,6 +167,19 @@ CREATE INDEX IF NOT EXISTS idx_paper_chunks_paper_id_chunk_index ON paper_chunks
 CREATE INDEX IF NOT EXISTS idx_paper_figures_paper_id_fig_index ON paper_figures(paper_id, fig_index);
 "#;
 
+// ── Migration: user_memories ──────────────────────────────────────
+pub const USER_MEMORIES_DDL: &str = "
+CREATE TABLE IF NOT EXISTS user_memories (
+    id         TEXT PRIMARY KEY,
+    type       TEXT NOT NULL DEFAULT 'auto',
+    action     TEXT,
+    summary    TEXT NOT NULL,
+    detail     TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_user_memories_type_created ON user_memories(type, created_at DESC);
+";
+
 pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     std::fs::create_dir_all(app_data_dir)?;
     let db_path = app_data_dir.join("research_copilot.db");
@@ -194,6 +207,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_paper_figures_table(&pool).await?;
     ensure_performance_indexes(&pool).await?;
     ensure_skills_table(&pool).await?;
+    ensure_user_memories_table(&pool).await?;
 
     Ok(pool)
 }
@@ -365,5 +379,10 @@ pub async fn ensure_skills_table(pool: &SqlitePool) -> Result<()> {
     // Seed built-in skills (INSERT OR IGNORE so existing customizations are preserved)
     crate::commands::skills::seed_builtin_skills(pool).await?;
 
+    Ok(())
+}
+
+pub async fn ensure_user_memories_table(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(USER_MEMORIES_DDL).execute(pool).await?;
     Ok(())
 }

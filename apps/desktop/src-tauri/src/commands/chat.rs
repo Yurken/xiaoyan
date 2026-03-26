@@ -282,7 +282,15 @@ async fn run_chat(
 ) -> anyhow::Result<()> {
     let client = LlmClient::from_settings(settings)?;
     let multi_agent = settings.get("multi_agent_enabled").map(|v| v == "true").unwrap_or(true);
-    let context_summary = load_context_summary(db, context_type, context_id).await;
+    let base_context = load_context_summary(db, context_type, context_id).await;
+    let memory_ctx = crate::commands::memory::build_memory_context(db).await;
+    let context_summary = if memory_ctx.is_empty() {
+        base_context
+    } else if base_context.is_empty() {
+        format!("【用户记忆与近期操作】\n{memory_ctx}")
+    } else {
+        format!("{base_context}\n\n【用户记忆与近期操作】\n{memory_ctx}")
+    };
 
     let full = if multi_agent {
         run_agentic(

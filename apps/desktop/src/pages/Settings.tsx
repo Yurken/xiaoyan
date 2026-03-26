@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import changelogRaw from "../../../../CHANGELOG.md?raw";
 import { getVersion } from "@tauri-apps/api/app";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -32,10 +32,11 @@ import {
   Sparkles,
   Trash2,
   Wifi,
+  X,
   Zap,
 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
-import { apiClient, formatErrorMessage } from "../lib/client";
+import { apiClient, formatErrorMessage, type UserMemory } from "../lib/client";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, PAPER_TAG_OPTIONS, parsePaperTagVisibility, togglePaperTagVisibility } from "../lib/paperTags";
 import { getLayoutMode, setLayoutMode, type LayoutMode } from "../lib/layoutMode";
 import { getThemePreference, setTheme, type ThemePreference } from "../lib/themeMode";
@@ -339,7 +340,7 @@ function ToggleRow({
   );
 }
 
-type SettingsSectionKey = "connection" | "paper_tags" | "roles" | "agents" | "skills" | "about" | "layout";
+type SettingsSectionKey = "connection" | "paper_tags" | "roles" | "agents" | "skills" | "memory" | "about" | "layout";
 
 const SETTINGS_SECTIONS: Array<{
   key: SettingsSectionKey;
@@ -389,6 +390,13 @@ const SETTINGS_SECTIONS: Array<{
     description: "功能入口与界面形态",
     icon: LayoutDashboard,
     color: "#30B0C7",
+  },
+  {
+    key: "memory",
+    label: "记忆管理",
+    description: "查看与管理小妍的记忆",
+    icon: Brain,
+    color: "#FF9F0A",
   },
   {
     key: "about",
@@ -1526,6 +1534,126 @@ function SkillCard({
   );
 }
 
+function MemorySection({
+  memories,
+  loading,
+  clearingAuto,
+  onEnter,
+  onDelete,
+  onClearAuto,
+}: {
+  memories: UserMemory[];
+  loading: boolean;
+  clearingAuto: boolean;
+  onEnter: () => void;
+  onDelete: (id: string) => void;
+  onClearAuto: () => void;
+}) {
+  // Trigger data load on mount via useEffect to avoid render-phase state updates
+  const onEnterRef = useRef(onEnter);
+  onEnterRef.current = onEnter;
+  useEffect(() => { onEnterRef.current(); }, []);
+
+  const manualList = memories.filter((m) => m.type === "manual");
+  const autoList = memories.filter((m) => m.type === "auto");
+
+  const fmtTime = (ts: string) => {
+    try { return new Date(ts).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+    catch { return ts.slice(0, 16); }
+  };
+
+  return (
+    <div className="space-y-4">
+      {loading && (
+        <Card padding="md" className="flex items-center gap-2 text-sm text-ink-tertiary">
+          <Loader2 className="w-4 h-4 animate-spin" /> 加载记忆中…
+        </Card>
+      )}
+
+      {/* 手动记忆 */}
+      <Card padding="md" className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-ink-primary">手动备忘</h2>
+            <p className="text-xs text-ink-tertiary mt-0.5">在 Copilot 侧边栏"添加记忆"面板中写入，永久保留，每次对话均会参考。</p>
+          </div>
+          <span className="text-xs text-ink-tertiary">{manualList.length} 条</span>
+        </div>
+        {manualList.length === 0 ? (
+          <p className="text-xs text-ink-tertiary">暂无手动备忘。前往 Copilot 页侧边栏添加。</p>
+        ) : (
+          <div className="space-y-2">
+            {manualList.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-start gap-2 rounded-2xl px-3 py-2.5"
+                style={{ background: "rgba(0,122,255,0.05)", borderLeft: "3px solid rgba(0,122,255,0.3)" }}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-ink-primary leading-relaxed">{m.summary}</p>
+                  <p className="text-[10px] text-ink-tertiary mt-1">{fmtTime(m.created_at)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onDelete(m.id)}
+                  className="flex-shrink-0 text-ink-tertiary/50 hover:text-apple-red transition-colors mt-0.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* 自动记录 */}
+      <Card padding="md" className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-ink-primary">自动操作记录</h2>
+            <p className="text-xs text-ink-tertiary mt-0.5">系统自动记录的操作轨迹，最近3小时逐条、近7天按天聚合后注入对话。最多保留1000条。</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClearAuto}
+            disabled={clearingAuto || autoList.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 disabled:opacity-40"
+            style={{ background: "#E8ECF0", color: "#FF3B30", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
+          >
+            {clearingAuto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+            清除所有自动记录
+          </button>
+        </div>
+        {autoList.length === 0 ? (
+          <p className="text-xs text-ink-tertiary">暂无自动记录。</p>
+        ) : (
+          <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-1">
+            {autoList.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center gap-2 rounded-xl px-3 py-2"
+                style={{ background: "rgba(0,0,0,0.03)" }}
+              >
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs text-ink-primary leading-relaxed">{m.summary}</span>
+                  <span className="ml-2 text-[10px] text-ink-tertiary">{fmtTime(m.created_at)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onDelete(m.id)}
+                  className="flex-shrink-0 text-ink-tertiary/40 hover:text-apple-red transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 function SkillsSection() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1785,6 +1913,9 @@ export default function Settings() {
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>("connection");
   const [pendingLayout, setPendingLayout] = useState<LayoutMode>(getLayoutMode());
   const [currentTheme, setCurrentTheme] = useState<ThemePreference>(getThemePreference());
+  const [memories, setMemories] = useState<UserMemory[]>([]);
+  const [memoriesLoading, setMemoriesLoading] = useState(false);
+  const [clearingAuto, setClearingAuto] = useState(false);
 
   const set = (key: keyof AppSettings) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -2627,6 +2758,31 @@ export default function Settings() {
 
         {activeSection === "skills" ? (
           <SkillsSection />
+        ) : null}
+
+        {activeSection === "memory" ? (
+          <MemorySection
+            memories={memories}
+            loading={memoriesLoading}
+            clearingAuto={clearingAuto}
+            onEnter={() => {
+              setMemoriesLoading(true);
+              apiClient.memory.list().then((data) => {
+                setMemories(data);
+              }).catch(() => {}).finally(() => setMemoriesLoading(false));
+            }}
+            onDelete={(id) => {
+              void apiClient.memory.delete(id).then(() => {
+                setMemories((prev) => prev.filter((m) => m.id !== id));
+              });
+            }}
+            onClearAuto={() => {
+              setClearingAuto(true);
+              void apiClient.memory.clearAuto().then(() => {
+                setMemories((prev) => prev.filter((m) => m.type !== "auto"));
+              }).finally(() => setClearingAuto(false));
+            }}
+          />
         ) : null}
 
         {activeSection === "about" ? (

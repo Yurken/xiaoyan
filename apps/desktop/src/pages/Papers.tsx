@@ -259,9 +259,11 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       setBatchProgress({ done: 0, total: paths.length });
 
       const failures: string[] = [];
+      const succeededPaths: string[] = [];
       for (let i = 0; i < paths.length; i++) {
         try {
           await apiClient.papers.upload(paths[i], selectedInterestId || undefined);
+          succeededPaths.push(paths[i]);
         } catch (err) {
           const name = paths[i].split("/").pop() ?? paths[i];
           failures.push(`${name}：${formatErrorMessage(err)}`);
@@ -272,6 +274,15 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       const updated = await apiClient.papers.list();
       setPapers(updated);
 
+      if (succeededPaths.length > 0) {
+        void apiClient.memory.add({
+          type: "auto",
+          action: "paper.upload",
+          summary: succeededPaths.length === 1
+            ? `上传了论文：${succeededPaths[0].split("/").pop() ?? succeededPaths[0]}`
+            : `批量上传了 ${succeededPaths.length} 篇论文`,
+        });
+      }
       if (failures.length > 0) {
         setLoadError(failures.join("\n"));
       }
@@ -356,6 +367,15 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "analyzing" } : paper)));
       // Register both expected completion events before firing requests
       pendingPairs.current.set(id, new Set(["analyzed", "reproduced"]));
+      const paper = papers.find((p) => p.id === id);
+      if (paper) {
+        void apiClient.memory.add({
+          type: "auto",
+          action: "paper.analyze",
+          summary: `触发小妍解读论文：《${paper.title}》`,
+          detail: JSON.stringify({ paper_id: id }),
+        });
+      }
       await Promise.all([
         apiClient.papers.analyze(id),
         apiClient.papers.reproduce(id),
@@ -710,7 +730,18 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           {(paper.analysis || paper.reproduction_guide) && (
             <button
               type="button"
-              onClick={() => setExpanded(expanded === paper.id ? null : paper.id)}
+              onClick={() => {
+                const isOpening = expanded !== paper.id;
+                setExpanded(expanded === paper.id ? null : paper.id);
+                if (isOpening) {
+                  void apiClient.memory.add({
+                    type: "auto",
+                    action: "paper.view",
+                    summary: `查看了论文解读：《${paper.title}》`,
+                    detail: JSON.stringify({ paper_id: paper.id }),
+                  });
+                }
+              }}
               className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-tertiary hover:text-ink-primary transition-colors"
               style={{ background: "#EEF1F5", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
             >

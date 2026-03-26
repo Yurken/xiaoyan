@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
+  BookMarked,
   Bot,
   BrainCircuit,
   CheckCircle2,
@@ -107,6 +108,9 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const [hoveredSkillId, setHoveredSkillId] = useState<string | null>(null);
+  const [memoryInput, setMemoryInput] = useState("");
+  const [savingMemory, setSavingMemory] = useState(false);
+  const [memorySaved, setMemorySaved] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -325,6 +329,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       ? `[技能指令 · ${selectedSkill.title}]\n${selectedSkill.prompt}\n\n---\n\n${rawText}`
       : rawText;
     const assistantId = `${Date.now()}_a`;
+
+    // 埋点：记录提问内容（取前60字）
+    void apiClient.memory.add({
+      type: "auto",
+      action: "chat.query",
+      summary: `向小妍提问：${rawText.slice(0, 60)}${rawText.length > 60 ? "…" : ""}`,
+    });
 
     setInput("");
     setSending(true);
@@ -1246,6 +1257,69 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                   </div>
                 ))
               )}
+            </div>
+          </div>
+
+          {/* 添加记忆卡片 */}
+          <div
+            className="rounded-3xl p-4"
+            style={{
+              background: "var(--rc-card-bg)",
+              boxShadow: "var(--rc-raised-shadow)",
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <BookMarked className="w-4 h-4 text-apple-blue" />
+              <div className="text-sm font-semibold text-ink-primary">添加记忆</div>
+            </div>
+            <p className="text-[11px] text-ink-tertiary leading-5 mb-2.5">
+              将重要信息、研究思路或背景告诉小妍，下次对话时会自动参考。
+            </p>
+            <textarea
+              rows={3}
+              value={memoryInput}
+              onChange={(e) => { setMemoryInput(e.target.value); setMemorySaved(false); }}
+              placeholder="例如：我正在研究 LoRA 微调在医疗 NLP 上的应用，重点关注低资源场景…"
+              className="w-full rounded-2xl px-3 py-2.5 text-xs text-ink-primary placeholder:text-ink-tertiary outline-none resize-none transition-shadow duration-150"
+              style={{
+                background: "var(--rc-card-inset-bg)",
+                boxShadow: "var(--rc-inset-shadow)",
+              }}
+            />
+            <div className="mt-2 flex items-center justify-between gap-2">
+              {memorySaved && (
+                <span className="text-[11px] text-apple-green flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> 已记住
+                </span>
+              )}
+              <div className="flex-1" />
+              <button
+                type="button"
+                disabled={!memoryInput.trim() || savingMemory}
+                onClick={async () => {
+                  if (!memoryInput.trim() || savingMemory) return;
+                  setSavingMemory(true);
+                  try {
+                    await apiClient.memory.add({
+                      type: "manual",
+                      summary: memoryInput.trim(),
+                    });
+                    setMemoryInput("");
+                    setMemorySaved(true);
+                    setTimeout(() => setMemorySaved(false), 3000);
+                  } finally {
+                    setSavingMemory(false);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white"
+                style={{
+                  background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                  boxShadow: memoryInput.trim() ? "3px 3px 8px rgba(0,62,204,0.3)" : "none",
+                }}
+              >
+                <BookMarked className="w-3 h-3" />
+                {savingMemory ? "保存中…" : "记住这条"}
+              </button>
             </div>
           </div>
         </div>
