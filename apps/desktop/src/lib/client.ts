@@ -113,6 +113,8 @@ export const ccfApi = {
 export const journalApi = {
   lookup: (query: string, limit = 8): Promise<JournalLookupResponse> =>
     invoke("journal_lookup", { query, limit }),
+  rankFilter: (wosCatKeywords: string[], ranks: string[]): Promise<string[]> =>
+    invoke("journal_rank_filter", { wosCatKeywords, ranks }),
 };
 
 export const sourceApi = {

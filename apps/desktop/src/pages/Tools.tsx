@@ -5,7 +5,7 @@ import { Badge, Button, Card, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode, ArxivSearchRequest, ArxivSearchResponse, Skill, SourceLookupSection } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, WosIndexBadge, VenueTypeBadge } from "../components/CcfBadges";
 import ExternalLink from "../components/ExternalLink";
-import { apiClient, formatErrorMessage } from "../lib/client";
+import { apiClient, formatErrorMessage, journalApi } from "../lib/client";
 import { Link } from "react-router-dom";
 import { YANWEB_FRIEND_LINK_SECTIONS, YANWEB_FRIEND_LINK_TOTAL } from "../lib/yanweb-links";
 
@@ -76,6 +76,165 @@ const ARXIV_MODE_OPTIONS: Array<{ value: ArxivRankingMode; label: string; descri
     description: "优先找摘要信息密度、实验信号和潜在影响更强的论文。",
   },
 ];
+
+// ── 研究领域 × 会议期刊数据 ────────────────────────────────────
+interface DomainVenues {
+  label: string;
+  arxivCats: string[];
+  /** WoS category keywords for dynamic rank lookup (jcr_q1/q2, cas_3/4, scie, etc.) */
+  wosCats: string[];
+  conf: { ccf_a: string[]; ccf_b: string[]; ccf_c: string[] };
+  jour: { ccf_a: string[]; ccf_b: string[]; ccf_c: string[]; cas_1: string[]; cas_2: string[] };
+}
+
+const DOMAIN_VENUES: Record<string, DomainVenues> = {
+  ai: {
+    label: "AI & 机器学习", arxivCats: ["cs.AI","cs.LG","cs.NE","stat.ML"],
+    wosCats: ["Computer Science, Artificial Intelligence","Computer Science, Interdisciplinary Applications"],
+    conf: { ccf_a: ["AAAI","NeurIPS","ICML","ICLR","IJCAI"], ccf_b: ["COLT","ECAI","AAMAS","UAI","KR","ICCBR","ICAPS","PPSN"], ccf_c: ["ACML","ICONIP","IJCNN","GECCO"] },
+    jour: { ccf_a: ["AI","JMLR","TPAMI","TNNLS"], ccf_b: ["IJAR","JAIR"], ccf_c: ["Constraints","APIN"], cas_1: ["Nature Machine Intelligence","Artificial Intelligence","JMLR","TPAMI","TNNLS","IEEE Transactions on Neural Networks and Learning Systems"], cas_2: ["Pattern Recognition","Neural Networks","Knowledge-Based Systems","Neurocomputing"] },
+  },
+  cv: {
+    label: "计算机视觉", arxivCats: ["cs.CV","eess.IV"],
+    wosCats: ["Computer Science, Artificial Intelligence","Imaging Science & Photographic Technology"],
+    conf: { ccf_a: ["CVPR","ICCV","ACM MM"], ccf_b: ["ECCV","ICMR","ICME","ISMAR","PG"], ccf_c: ["BMVC","ICIP","FG","WACV"] },
+    jour: { ccf_a: ["TIP","TPAMI","IJCV","TVCG","TOG"], ccf_b: ["CVIU","SIIMS","CVMJ","TAP","TMM","TCSVT"], ccf_c: ["IET Image Processing"], cas_1: ["International Journal of Computer Vision","IEEE Transactions on Image Processing","TPAMI","Medical Image Analysis"], cas_2: ["Computer Vision and Image Understanding","Image and Vision Computing"] },
+  },
+  nlp: {
+    label: "自然语言处理", arxivCats: ["cs.CL"],
+    wosCats: ["Computer Science, Artificial Intelligence","Linguistics"],
+    conf: { ccf_a: ["ACL"], ccf_b: ["EMNLP","NAACL","COLING"], ccf_c: ["EACL","CoNLL","SemEval"] },
+    jour: { ccf_a: [], ccf_b: ["TACL"], ccf_c: ["Natural Language Engineering","Computational Linguistics"], cas_1: ["Transactions of the ACL","Computational Linguistics"], cas_2: ["Natural Language Processing Journal","Language Resources and Evaluation"] },
+  },
+  db: {
+    label: "数据库 & 数据挖掘", arxivCats: ["cs.DB","cs.IR"],
+    wosCats: ["Computer Science, Information Systems","Computer Science, Interdisciplinary Applications"],
+    conf: { ccf_a: ["SIGMOD","SIGKDD","ICDE","SIGIR","VLDB"], ccf_b: ["CIKM","WSDM","PODS","DASFAA","EDBT","CIDR","SDM","ISWC","ICDM","ICDT","RecSys","WISE","ECML-PKDD"], ccf_c: ["APWeb","DEXA","SSDBM","ER"] },
+    jour: { ccf_a: ["TODS","TOIS","TKDE","VLDBJ"], ccf_b: ["TKDD","TWEB","DKE","DMKD","IPM","IS","JASIST","JWS","KAIS","AEI"], ccf_c: ["Information Systems","Data & Knowledge Engineering"], cas_1: ["VLDB Journal","IEEE Transactions on Knowledge and Data Engineering","ACM Transactions on Database Systems"], cas_2: ["Data Mining and Knowledge Discovery","Information Processing & Management","Knowledge-Based Systems"] },
+  },
+  sys: {
+    label: "系统 & 体系结构", arxivCats: ["cs.DC","cs.AR"],
+    wosCats: ["Computer Science, Hardware & Architecture","Computer Science, Theory & Methods"],
+    conf: { ccf_a: ["ASPLOS","ISCA","MICRO","HPCA","PPoPP","FAST","SC","USENIX ATC","EuroSys","OSDI","SOSP","HPDC"], ccf_b: ["SoCC","SPAA","PODC","IPDPS","ICDCS","CLUSTER","ICS","VEE","HiPEAC","PACT","ICPP","Euro-Par","MSST"], ccf_c: ["Middleware","NPC","ICDCN"] },
+    jour: { ccf_a: ["TOCS","TOS","TC","TPDS","TACO"], ccf_b: ["TAAS","JPDC","JSA","TCC","TECS","TRETS","TVLSI"], ccf_c: ["Parallel Computing","Journal of Systems Architecture"], cas_1: ["IEEE Transactions on Parallel and Distributed Systems","ACM Transactions on Computer Systems"], cas_2: ["Cluster Computing","Journal of Parallel and Distributed Computing"] },
+  },
+  se: {
+    label: "软件工程", arxivCats: ["cs.SE","cs.PL"],
+    wosCats: ["Computer Science, Software Engineering","Computer Science, Theory & Methods"],
+    conf: { ccf_a: ["ICSE","FSE","ASE","ISSTA","OOPSLA","PLDI","POPL"], ccf_b: ["ICPC","RE","ICFP","LCTES","MoDELS","SANER","ICSME","VMCAI","CC","ESEM","ISSRE","SAS","CAiSE","ECOOP"], ccf_c: ["PEPM","FASE","SCAM"] },
+    jour: { ccf_a: ["TOSEM","TSE"], ccf_b: ["ASE","ESE","IST","JFP","JSS","SCP","SoSyM","STVR","SPE"], ccf_c: ["Software Quality Journal"], cas_1: ["IEEE Transactions on Software Engineering","ACM Transactions on Software Engineering and Methodology"], cas_2: ["Journal of Systems and Software","Information and Software Technology"] },
+  },
+  net: {
+    label: "网络 & 通信", arxivCats: ["cs.NI"],
+    wosCats: ["Telecommunications","Computer Science, Information Systems"],
+    conf: { ccf_a: ["SIGCOMM","MobiCom","INFOCOM","NSDI"], ccf_b: ["CoNEXT","SECON","IPSN","MobiSys","ICNP","MobiHoc","NOSSDAV","IWQoS","IMC","SenSys"], ccf_c: ["WCNC","Globecom","ICC"] },
+    jour: { ccf_a: ["JSAC","TMC","TON"], ccf_b: ["CN","TCOM","TWC","TOIT","TOMM","TOSN"], ccf_c: ["Wireless Networks","Ad Hoc Networks"], cas_1: ["IEEE/ACM Transactions on Networking","IEEE Transactions on Mobile Computing","IEEE Communications Surveys & Tutorials"], cas_2: ["Computer Networks","IEEE Transactions on Wireless Communications"] },
+  },
+  sec: {
+    label: "安全 & 密码学", arxivCats: ["cs.CR"],
+    wosCats: ["Computer Science, Information Systems","Computer Science, Theory & Methods"],
+    conf: { ccf_a: ["CCS","EUROCRYPT","S&P","CRYPTO","USENIX Security","NDSS"], ccf_b: ["ACSAC","ASIACRYPT","ESORICS","CSFW","SRDS","CHES","DSN","RAID","PKC","TCC"], ccf_c: ["FC","ACNS","ISC","DIMVA"] },
+    jour: { ccf_a: ["TDSC","TIFS"], ccf_b: ["TOPS","JCS"], ccf_c: ["Computers & Security","Journal of Cryptology"], cas_1: ["IEEE Transactions on Information Forensics and Security","IEEE Transactions on Dependable and Secure Computing"], cas_2: ["Computers & Security","Journal of Network and Computer Applications"] },
+  },
+  theory: {
+    label: "理论计算机", arxivCats: ["cs.DS","cs.CC","cs.LO"],
+    wosCats: ["Computer Science, Theory & Methods","Mathematics, Applied","Mathematics"],
+    conf: { ccf_a: ["STOC","SODA","FOCS","LICS","CAV"], ccf_b: ["SoCG","ESA","CCC","ICALP","CADE","CONCUR","HSCC","SAT","FMCAD"], ccf_c: ["MFCS","ICTAC","FoSSaCS"] },
+    jour: { ccf_a: ["TALG","TOCL","TOMS","Algorithmica","FMSD","JCSS","JSC","MSCS","TCS","IANDC","SICOMP"], ccf_b: [], ccf_c: [], cas_1: ["SIAM Journal on Computing","Journal of the ACM"], cas_2: ["Theoretical Computer Science","Journal of Computer and System Sciences"] },
+  },
+  hci: {
+    label: "人机交互", arxivCats: ["cs.HC"],
+    wosCats: ["Computer Science, Cybernetics","Computer Science, Information Systems"],
+    conf: { ccf_a: ["CHI","UbiComp","UIST","CSCW"], ccf_b: ["GROUP","IUI","ISS","ECSCW","PERCOM","MobileHCI"], ccf_c: ["DIS","ASSETS","INTERACT"] },
+    jour: { ccf_a: ["TOCHI","IJHCS"], ccf_b: ["HCI","IJHCI","UMUAI","CSCW"], ccf_c: ["Interacting with Computers","Personal and Ubiquitous Computing"], cas_1: ["ACM Transactions on Computer-Human Interaction","International Journal of Human-Computer Studies"], cas_2: ["Behaviour & Information Technology","Human-Computer Interaction"] },
+  },
+  cross: {
+    label: "跨学科 & 多媒体", arxivCats: ["cs.MA","cs.GR"],
+    wosCats: ["Computer Science, Interdisciplinary Applications","Computer Science, Information Systems"],
+    conf: { ccf_a: ["ACM MM","SIGGRAPH","WWW","IEEE VIS"], ccf_b: ["ICWSM","CogSci","WINE","MICCAI","I3D","Eurographics","EuroVis"], ccf_c: ["3DV","ISMIR","PacificVis"] },
+    jour: { ccf_a: ["TOG","TMM","TVCG","Proc. IEEE"], ccf_b: ["TCSVT","CAGD","CGF","CAD"], ccf_c: [], cas_1: ["ACM Transactions on Graphics","IEEE Transactions on Visualization and Computer Graphics"], cas_2: ["IEEE Transactions on Multimedia","Computers & Graphics"] },
+  },
+  bio: {
+    label: "生物信息", arxivCats: ["q-bio.QM","q-bio.BM","q-bio.GN","q-bio.NC"],
+    wosCats: ["Mathematical & Computational Biology","Biochemistry & Molecular Biology","Biotechnology & Applied Microbiology"],
+    conf: { ccf_a: [], ccf_b: ["ISMB","RECOMB","BIBM","MICCAI"], ccf_c: ["APBC","ISBRA"] },
+    jour: { ccf_a: ["Bioinformatics"], ccf_b: ["TCBB","JAMIA"], ccf_c: ["BMC Bioinformatics","Briefings in Bioinformatics"], cas_1: ["Nature Methods","Nucleic Acids Research","Genome Research","PLOS Computational Biology","Bioinformatics"], cas_2: ["BMC Bioinformatics","Briefings in Bioinformatics","Genomics"] },
+  },
+  math: {
+    label: "数学", arxivCats: ["math.OC","math.NA","math.PR","math.ST","math.CO"],
+    wosCats: ["Mathematics","Mathematics, Applied","Statistics & Probability"],
+    conf: { ccf_a: [], ccf_b: [], ccf_c: [] },
+    jour: { ccf_a: [], ccf_b: [], ccf_c: [], cas_1: ["Annals of Mathematics","Journal of the AMS","Inventiones Mathematicae","Acta Mathematica","SIAM Journal on Numerical Analysis","Foundations of Computational Mathematics"], cas_2: ["Mathematics of Computation","Numerische Mathematik","Journal of Differential Equations","SIAM Journal on Optimization"] },
+  },
+  physics: {
+    label: "物理", arxivCats: ["physics.comp-ph","cond-mat","quant-ph","physics.app-ph"],
+    wosCats: ["Physics, Multidisciplinary","Physics, Applied","Physics, Condensed Matter","Quantum Science & Technology"],
+    conf: { ccf_a: [], ccf_b: [], ccf_c: [] },
+    jour: { ccf_a: [], ccf_b: [], ccf_c: [], cas_1: ["Physical Review Letters","Nature Physics","Physical Review X","npj Quantum Information","Physical Review Materials"], cas_2: ["Physical Review B","Physical Review E","Journal of Physics: Condensed Matter"] },
+  },
+  ee: {
+    label: "电气工程", arxivCats: ["eess.SP","eess.SY","eess.AS"],
+    wosCats: ["Engineering, Electrical & Electronic","Instruments & Instrumentation","Energy & Fuels"],
+    conf: { ccf_a: ["DAC","RTSS"], ccf_b: ["DATE","RTAS","EMSOFT","ISCAS"], ccf_c: ["ICCAD","ICCD","ISLPED"] },
+    jour: { ccf_a: ["TCAD","TC"], ccf_b: ["TODAES","TECS","TRETS","TVLSI"], ccf_c: ["Integration"], cas_1: ["IEEE Transactions on Industrial Electronics","IEEE Transactions on Power Electronics","IEEE Signal Processing Letters","IEEE Transactions on Circuits and Systems I"], cas_2: ["Signal Processing","Digital Signal Processing","IEEE Transactions on Circuits and Systems II"] },
+  },
+  robotics: {
+    label: "机器人", arxivCats: ["cs.RO","eess.SY"],
+    wosCats: ["Robotics","Automation & Control Systems"],
+    conf: { ccf_a: [], ccf_b: ["ICRA","IROS"], ccf_c: ["ICAR","Humanoids","CoRL"] },
+    jour: { ccf_a: [], ccf_b: ["TAC"], ccf_c: ["Robotics and Autonomous Systems"], cas_1: ["Science Robotics","IEEE Transactions on Robotics","International Journal of Robotics Research","T-RO"], cas_2: ["Autonomous Robots","Journal of Field Robotics","Robotics and Autonomous Systems"] },
+  },
+};
+
+const RANK_OPTIONS = [
+  { key: "ccf_a",   label: "CCF-A",    color: "#FF3B30", dynamic: false },
+  { key: "ccf_b",   label: "CCF-B",    color: "#FF9500", dynamic: false },
+  { key: "ccf_c",   label: "CCF-C",    color: "#8E8E93", dynamic: false },
+  { key: "cas_1",   label: "中科院1区", color: "#34C759", dynamic: false },
+  { key: "cas_2",   label: "中科院2区", color: "#30B0C7", dynamic: false },
+  { key: "cas_3",   label: "中科院3区", color: "#5AC8FA", dynamic: true  },
+  { key: "cas_4",   label: "中科院4区", color: "#636366", dynamic: true  },
+  { key: "cas_top", label: "Top期刊",   color: "#AF52DE", dynamic: true  },
+  { key: "jcr_q1",  label: "JCR Q1",   color: "#FF6B35", dynamic: true  },
+  { key: "jcr_q2",  label: "JCR Q2",   color: "#FF9F1C", dynamic: true  },
+  { key: "jcr_q3",  label: "JCR Q3",   color: "#A8DADC", dynamic: true  },
+  { key: "scie",    label: "SCIE",      color: "#4ECDC4", dynamic: true  },
+  { key: "ssci",    label: "SSCI",      color: "#96CEB4", dynamic: true  },
+] as const;
+type RankKey = (typeof RANK_OPTIONS)[number]["key"];
+
+/** Compute static (CCF / CAS 1-2) venues synchronously. Dynamic ranks are fetched from backend. */
+function computeStaticVenues(
+  domains: string[],
+  type: "all" | "conference" | "journal",
+  ranks: RankKey[],
+): { categories: string[]; journalTerms: string[] } {
+  const cats = new Set<string>();
+  const terms = new Set<string>();
+  const staticRanks = ranks.filter((r) => !RANK_OPTIONS.find((o) => o.key === r)?.dynamic);
+  for (const dk of domains) {
+    const d = DOMAIN_VENUES[dk];
+    if (!d) continue;
+    d.arxivCats.forEach((c) => cats.add(c));
+    const addConf = type === "all" || type === "conference";
+    const addJour = type === "all" || type === "journal";
+    for (const rank of staticRanks) {
+      if (addConf && rank in d.conf) (d.conf as Record<string, string[]>)[rank]?.forEach((v) => terms.add(v));
+      if (addJour && rank in d.jour) (d.jour as Record<string, string[]>)[rank]?.forEach((v) => terms.add(v));
+    }
+  }
+  return { categories: [...cats], journalTerms: [...terms] };
+}
+
+// 计算机科学两级分类
+const CS_GROUPS: Array<{ label: string; keys: string[] }> = [
+  { label: "人工智能",    keys: ["ai", "cv", "nlp"] },
+  { label: "数据与信息", keys: ["db"] },
+  { label: "系统与工程", keys: ["sys", "se", "net"] },
+  { label: "安全与理论", keys: ["sec", "theory"] },
+  { label: "人机与多媒体", keys: ["hci", "cross"] },
+];
+const NON_CS_KEYS = ["bio", "math", "physics", "ee", "robotics"];
 
 function splitStructuredInput(value: string) {
   const seen = new Set<string>();
@@ -323,10 +482,15 @@ export default function Tools() {
   const [arxivAbstractTerms, setArxivAbstractTerms] = useState("");
   const [arxivAuthors, setArxivAuthors] = useState("");
   const [arxivCategories, setArxivCategories] = useState<string[]>([]);
-  const [catPickerOpen, setCatPickerOpen] = useState(false);
+
   const [arxivCommentsTerms, setArxivCommentsTerms] = useState("");
   const [arxivJournalTerms, setArxivJournalTerms] = useState("");
   const [arxivExcludeTerms, setArxivExcludeTerms] = useState("");
+  const [venueFilterDomains, setVenueFilterDomains] = useState<string[]>([]);
+  const [venueFilterType, setVenueFilterType] = useState<"all" | "conference" | "journal">("all");
+  const [venueFilterRanks, setVenueFilterRanks] = useState<RankKey[]>([]);
+  const [venueFilterLoading, setVenueFilterLoading] = useState(false);
+  const [dynamicJournalTerms, setDynamicJournalTerms] = useState<string[]>([]);
   const [arxivDays, setArxivDays] = useState("14");
   const [arxivLimit, setArxivLimit] = useState("6");
   const [arxivMode, setArxivMode] = useState<ArxivRankingMode>("relevance");
@@ -419,6 +583,46 @@ export default function Tools() {
     pptCustomStyle,
     pptTopic,
   ]);
+
+  useEffect(() => {
+    if (venueFilterDomains.length === 0 || venueFilterRanks.length === 0) {
+      setArxivCategories([]);
+      setArxivJournalTerms("");
+      setDynamicJournalTerms([]);
+      return;
+    }
+
+    // Sync: static CCF / CAS1-2
+    const { categories, journalTerms: staticTerms } = computeStaticVenues(venueFilterDomains, venueFilterType, venueFilterRanks);
+    setArxivCategories(categories);
+
+    // Async: dynamic ranks (JCR / CAS3-4 / cas_top / scie / ssci)
+    const dynamicRanks = venueFilterRanks.filter((r) => RANK_OPTIONS.find((o) => o.key === r)?.dynamic);
+    if (dynamicRanks.length === 0) {
+      setDynamicJournalTerms([]);
+      setArxivJournalTerms(staticTerms.join(", "));
+      return;
+    }
+
+    const wosCats = [...new Set(venueFilterDomains.flatMap((dk) => DOMAIN_VENUES[dk]?.wosCats ?? []))];
+    // Only fetch journals when type includes journals
+    const fetchForJournals = venueFilterType === "all" || venueFilterType === "journal";
+    if (!fetchForJournals) {
+      setDynamicJournalTerms([]);
+      setArxivJournalTerms(staticTerms.join(", "));
+      return;
+    }
+
+    setVenueFilterLoading(true);
+    journalApi.rankFilter(wosCats, dynamicRanks).then((titles) => {
+      setDynamicJournalTerms(titles);
+      const all = [...new Set([...staticTerms, ...titles])];
+      setArxivJournalTerms(all.join(", "));
+    }).catch(() => {
+      setDynamicJournalTerms([]);
+      setArxivJournalTerms(staticTerms.join(", "));
+    }).finally(() => setVenueFilterLoading(false));
+  }, [venueFilterDomains, venueFilterType, venueFilterRanks]);
 
   const currentMode = useMemo(
     () => ARXIV_MODE_OPTIONS.find((item) => item.value === arxivMode) ?? ARXIV_MODE_OPTIONS[0],
@@ -865,107 +1069,6 @@ export default function Tools() {
             placeholder="例如：Geoffrey Hinton, Percy Liang"
             label="作者"
           />
-          {/* 研究领域多选 */}
-          <div className="space-y-2">
-            <label className="block text-xs font-medium text-ink-tertiary ml-1">研究领域标签</label>
-
-            {/* 已选芯片 */}
-            <div className="flex flex-wrap gap-1.5 min-h-[28px] items-center">
-              {arxivCategories.length === 0 ? (
-                <span className="text-xs text-ink-tertiary">未选择领域标签，检索时不限领域</span>
-              ) : (
-                arxivCategories.map((cat) => (
-                  <span
-                    key={cat}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-medium text-apple-blue"
-                    style={{ background: "rgba(0,122,255,0.1)" }}
-                  >
-                    {cat}
-                    <button
-                      type="button"
-                      onClick={() => setArxivCategories((prev) => prev.filter((c) => c !== cat))}
-                      className="hover:text-apple-red transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))
-              )}
-              {arxivCategories.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setArxivCategories([])}
-                  className="text-[11px] text-ink-tertiary hover:text-apple-red transition-colors ml-1"
-                >
-                  清空
-                </button>
-              )}
-            </div>
-
-            {/* 展开/收起面板按钮 */}
-            <button
-              type="button"
-              onClick={() => setCatPickerOpen((prev) => !prev)}
-              className="flex items-center gap-1 text-xs font-medium text-apple-blue hover:opacity-75 transition-opacity"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {catPickerOpen ? "收起分类面板" : "展开分类面板"}
-            </button>
-
-            {/* 领域面板 */}
-            {catPickerOpen && (
-              <div
-                className="rounded-2xl p-3 space-y-3"
-                style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}
-              >
-                {ARXIV_CATEGORIES.map((group) => (
-                  <div key={group.domain}>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary mb-1.5">
-                      {group.domain}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {group.items.map(({ id, zh }) => {
-                        const selected = arxivCategories.includes(id);
-                        return (
-                          <button
-                            key={id}
-                            type="button"
-                            onClick={() =>
-                              setArxivCategories((prev) =>
-                                selected ? prev.filter((c) => c !== id) : [...prev, id]
-                              )
-                            }
-                            className="flex flex-col items-start px-2.5 py-1.5 rounded-xl transition-all duration-100 active:scale-95"
-                            style={
-                              selected
-                                ? {
-                                    background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                                    color: "#FFFFFF",
-                                    boxShadow: "2px 2px 6px rgba(0,62,204,0.3), -1px -1px 4px rgba(58,155,255,0.2)",
-                                  }
-                                : {
-                                    background: "var(--rc-surface)",
-                                    color: "var(--rc-text-soft)",
-                                    boxShadow: raisedShadow,
-                                  }
-                            }
-                          >
-                            <span className="text-xs font-semibold leading-tight">{id}</span>
-                            <span
-                              className="text-[10px] leading-tight mt-0.5"
-                              style={{ opacity: selected ? 0.8 : 0.55 }}
-                            >
-                              {zh}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
           <Input
             value={arxivCommentsTerms}
             onChange={(event) => setArxivCommentsTerms(event.target.value)}
@@ -974,19 +1077,212 @@ export default function Tools() {
             label="扩展关键词"
           />
           <Input
-            value={arxivJournalTerms}
-            onChange={(event) => setArxivJournalTerms(event.target.value)}
-            onKeyDown={handleArxivKeyDown}
-            placeholder="例如：NeurIPS, ACL, Nature"
-            label="期刊/会议"
-          />
-          <Input
             value={arxivExcludeTerms}
             onChange={(event) => setArxivExcludeTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
             placeholder="例如：robotics, medical imaging"
             label="排除词"
           />
+        </div>
+
+        {/* 三步级联筛选：研究领域 × 类型 × 等级 */}
+        <div className="rounded-2xl p-4 space-y-4" style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}>
+          {/* Step 1 */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-ink-tertiary tracking-wide">
+                步骤 1 · 研究领域
+                <span className="font-normal ml-1">（可多选）</span>
+              </label>
+              {venueFilterDomains.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setVenueFilterDomains([]); setVenueFilterRanks([]); }}
+                  className="text-[11px] text-ink-tertiary hover:text-apple-red transition-colors"
+                >
+                  清空筛选
+                </button>
+              )}
+            </div>
+
+            {/* 计算机科学：两级分类 */}
+            <div className="rounded-xl p-2.5 space-y-2" style={{ background: "var(--rc-elevated)", boxShadow: insetShadow }}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary px-0.5">计算机科学</p>
+              {CS_GROUPS.map((group) => {
+                const groupKeys = group.keys;
+                const allSel = groupKeys.every((k) => venueFilterDomains.includes(k));
+                const someSel = groupKeys.some((k) => venueFilterDomains.includes(k));
+                return (
+                  <div key={group.label} className="flex items-center gap-1.5 flex-wrap">
+                    {/* 一级：分组标签，点击全选/全取消该组 */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVenueFilterDomains((prev) =>
+                          allSel
+                            ? prev.filter((k) => !groupKeys.includes(k))
+                            : [...new Set([...prev, ...groupKeys])]
+                        )
+                      }
+                      className="px-2 py-0.5 rounded-lg text-[10px] font-semibold shrink-0 transition-all duration-100 active:scale-95"
+                      style={
+                        allSel
+                          ? { background: "#0062CC", color: "#fff" }
+                          : someSel
+                          ? { background: "rgba(0,122,255,0.15)", color: "var(--apple-blue,#007AFF)", border: "1px solid rgba(0,122,255,0.3)" }
+                          : { background: "var(--rc-surface)", color: "var(--rc-text-muted)", boxShadow: raisedShadow }
+                      }
+                    >
+                      {group.label}
+                    </button>
+                    <span className="text-ink-tertiary" style={{ fontSize: 10 }}>›</span>
+                    {/* 二级：子领域 chip */}
+                    {groupKeys.map((key) => {
+                      const d = DOMAIN_VENUES[key];
+                      const sel = venueFilterDomains.includes(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() =>
+                            setVenueFilterDomains((prev) =>
+                              sel ? prev.filter((k) => k !== key) : [...prev, key]
+                            )
+                          }
+                          className="px-2.5 py-1 rounded-xl text-xs font-medium transition-all duration-100 active:scale-95"
+                          style={
+                            sel
+                              ? { background: "linear-gradient(145deg,#1A8AFF,#0062CC)", color: "#fff", boxShadow: "2px 2px 6px rgba(0,62,204,0.3)" }
+                              : { background: "var(--rc-surface)", color: "var(--rc-text-soft)", boxShadow: raisedShadow }
+                          }
+                        >
+                          {d?.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 非 CS 领域：平铺 */}
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary px-0.5">其他领域</p>
+              <div className="flex flex-wrap gap-1.5">
+                {NON_CS_KEYS.map((key) => {
+                  const d = DOMAIN_VENUES[key];
+                  const sel = venueFilterDomains.includes(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() =>
+                        setVenueFilterDomains((prev) =>
+                          sel ? prev.filter((k) => k !== key) : [...prev, key]
+                        )
+                      }
+                      className="px-2.5 py-1 rounded-xl text-xs font-medium transition-all duration-100 active:scale-95"
+                      style={
+                        sel
+                          ? { background: "linear-gradient(145deg,#1A8AFF,#0062CC)", color: "#fff", boxShadow: "2px 2px 6px rgba(0,62,204,0.3)" }
+                          : { background: "var(--rc-elevated)", color: "var(--rc-text-soft)", boxShadow: raisedShadow }
+                      }
+                    >
+                      {d?.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Step 2 + 3：仅当选了领域后展示 */}
+          {venueFilterDomains.length > 0 && (
+            <>
+              {/* Step 2 */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-ink-tertiary tracking-wide">步骤 2 · 类型</label>
+                <div
+                  className="inline-flex rounded-xl p-0.5 gap-0.5"
+                  style={{ background: "var(--rc-elevated)", boxShadow: insetShadow }}
+                >
+                  {(["all","conference","journal"] as const).map((t) => {
+                    const lbl = t === "all" ? "全部" : t === "conference" ? "会议" : "期刊";
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setVenueFilterType(t)}
+                        className="px-3 py-1 rounded-lg text-xs font-medium transition-all duration-150"
+                        style={
+                          venueFilterType === t
+                            ? { background: "var(--rc-surface)", color: "var(--rc-text)", boxShadow: raisedShadow }
+                            : { color: "var(--rc-text-muted)" }
+                        }
+                      >
+                        {lbl}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-ink-tertiary tracking-wide">
+                  步骤 3 · 等级
+                  <span className="font-normal ml-1">（可多选）</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {RANK_OPTIONS.map(({ key, label, color }) => {
+                    const sel = venueFilterRanks.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() =>
+                          setVenueFilterRanks((prev) =>
+                            sel ? prev.filter((k) => k !== key) : [...prev, key]
+                          )
+                        }
+                        className="px-2.5 py-1 rounded-xl text-xs font-semibold transition-all duration-100 active:scale-95"
+                        style={
+                          sel
+                            ? { background: color, color: "#fff", boxShadow: `0 2px 6px ${color}55` }
+                            : { background: `${color}15`, color: color, border: `1px solid ${color}40` }
+                        }
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 结果摘要 */}
+          {venueFilterDomains.length > 0 && venueFilterRanks.length > 0 && (() => {
+            const { categories, journalTerms: staticTerms } = computeStaticVenues(venueFilterDomains, venueFilterType, venueFilterRanks);
+            const totalTerms = new Set([...staticTerms, ...dynamicJournalTerms]).size;
+            return (
+              <p className="text-[11px] text-ink-tertiary flex items-center gap-1.5">
+                {venueFilterLoading
+                  ? <><Loader2 className="h-3 w-3 animate-spin" /> 正在从本地数据库加载期刊列表…</>
+                  : <>已匹配 <span className="font-semibold text-apple-blue">{totalTerms}</span> 个会议/期刊
+                    {categories.length > 0 && <>，<span className="font-semibold text-apple-blue">{categories.length}</span> 个 arXiv 分类</>}</>
+                }
+              </p>
+            );
+          })()}
+
+          {/* 空提示 */}
+          {venueFilterDomains.length === 0 && (
+            <p className="text-[11px] text-ink-tertiary">选择领域后，继续选择类型和等级，自动填充期刊/会议检索范围。</p>
+          )}
+          {venueFilterDomains.length > 0 && venueFilterRanks.length === 0 && (
+            <p className="text-[11px] text-ink-tertiary">请在步骤 3 选择至少一个等级以确定检索范围。</p>
+          )}
         </div>
 
         <p className="text-xs leading-5 text-ink-tertiary">
@@ -1189,7 +1485,7 @@ export default function Tools() {
           <div className="space-y-1">
             <p className="text-sm font-semibold text-ink-primary">arXiv 智能检索</p>
             <p className="text-xs leading-5 text-ink-tertiary">
-              独立 arXiv 模块，仅在 arXiv 官方数据源中检索。输入会按 arXiv 官方字段拆分：同一字段内多个值按 OR 合并，不同字段按 AND 组合，排除词走 ANDNOT。
+              arXiv 是全球最早且规模最大的学术预印本开放仓储，1991 年由物理学家 Paul Ginsparg 创立，现由康奈尔大学图书馆运营，核心价值是支持研究者在同行评审前快速发布成果，加速学术传播并确立研究优先权。此处的输入会按 arXiv 官方字段拆分：同一字段内多个值按 OR 合并，不同字段按 AND 组合，排除词走 ANDNOT。
             </p>
           </div>
         </div>

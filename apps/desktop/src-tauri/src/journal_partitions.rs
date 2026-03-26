@@ -77,6 +77,57 @@ pub fn match_journal(query: &str) -> Option<JournalPartitionTag> {
     scored_lookup(query, 1).into_iter().next()
 }
 
+/// Return journal titles whose wos_categories contain any of the keywords AND match the rank criterion.
+/// `rank` values: "jcr_q1" | "jcr_q2" | "jcr_q3" | "cas_3" | "cas_4" | "cas_top" | "scie" | "ssci" | "ahci"
+/// Results are sorted by quality (cas_quartile, jcr_quartile) and capped at `limit`.
+pub fn filter_by_rank(wos_cat_keywords: &[String], rank: &str, limit: usize) -> Vec<String> {
+    let kws_lower: Vec<String> = wos_cat_keywords.iter().map(|k| k.to_lowercase()).collect();
+
+    let mut entries: Vec<&JournalPartitionIndexEntry> = index()
+        .iter()
+        .filter(|entry| {
+            let cat_match = kws_lower.is_empty()
+                || kws_lower.iter().any(|kw| {
+                    entry
+                        .entry
+                        .wos_categories
+                        .iter()
+                        .any(|cat| cat.to_lowercase().contains(kw.as_str()))
+                });
+            if !cat_match {
+                return false;
+            }
+            match rank {
+                "jcr_q1" => entry.entry.jcr_quartile == "Q1",
+                "jcr_q2" => entry.entry.jcr_quartile == "Q2",
+                "jcr_q3" => entry.entry.jcr_quartile == "Q3",
+                "cas_3" => entry.entry.cas_quartile == "3",
+                "cas_4" => entry.entry.cas_quartile == "4",
+                "cas_top" => entry.entry.cas_top,
+                "scie" => entry.entry.indexes.iter().any(|i| i == "SCIE"),
+                "ssci" => entry.entry.indexes.iter().any(|i| i == "SSCI"),
+                "ahci" => entry.entry.indexes.iter().any(|i| i == "AHCI"),
+                _ => false,
+            }
+        })
+        .collect();
+
+    entries.sort_by_key(|entry| {
+        (
+            Reverse(cas_rank(&entry.entry.cas_quartile)),
+            Reverse(entry.entry.cas_top),
+            Reverse(quartile_rank(&entry.entry.jcr_quartile)),
+            Reverse(index_rank(&entry.entry.indexes)),
+        )
+    });
+
+    entries
+        .into_iter()
+        .take(limit)
+        .map(|entry| entry.entry.title.clone())
+        .collect()
+}
+
 pub fn lookup(query: &str, limit: usize) -> Vec<JournalPartitionTag> {
     scored_lookup(query, limit.max(1))
 }

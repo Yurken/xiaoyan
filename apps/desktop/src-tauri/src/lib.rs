@@ -25,7 +25,7 @@ use commands::{
         chat_delete_session, chat_get_session, chat_list_agent_runs, chat_list_sessions,
         chat_stream, chat_update_session_context,
     },
-    journal::journal_lookup,
+    journal::{journal_lookup, journal_rank_filter},
     knowledge::{
         knowledge_create_interest, knowledge_create_note, knowledge_delete_interest_bundle,
         knowledge_delete_interest_only, knowledge_delete_note, knowledge_generate_interest_hints,
@@ -180,6 +180,7 @@ pub fn run() {
             ccf_lookup,
             // Journal partitions
             journal_lookup,
+            journal_rank_filter,
             // Unified source lookup
             source_lookup,
             // arXiv
