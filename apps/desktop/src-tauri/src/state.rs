@@ -188,11 +188,11 @@ pub fn default_settings() -> HashMap<String, String> {
         "paper_visible_venue_tags".into(),
         "ccf_rating,ccf_type,wos_indexes,jcr_quartile,cas_quartile,cas_top".into(),
     );
-    m.insert("paper_auto_rename_on_import".into(), "true".into());
-    m.insert(
-        "paper_auto_rename_rule".into(),
-        "{first_author} - {title} ({year})".into(),
-    );
+    m.insert("paper_import_recognize_title".into(), "true".into());
+    m.insert("paper_import_recognize_authors".into(), "true".into());
+    m.insert("paper_import_recognize_year".into(), "true".into());
+    m.insert("paper_import_recognize_venue".into(), "true".into());
+    m.insert("paper_import_recognize_keywords".into(), "true".into());
     m
 }
 

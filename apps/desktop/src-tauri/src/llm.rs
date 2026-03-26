@@ -99,6 +99,34 @@ impl LlmClient {
         }
     }
 
+    /// Build a client specifically for vision tasks using the "视界" (vision) model settings.
+    /// Falls back to the main LLM provider if vision-specific settings are not configured.
+    pub fn vision_client_from_settings(s: &HashMap<String, String>) -> Option<(Self, Option<String>)> {
+        let model = s.get("vision_model").map(|v| v.trim().to_string()).filter(|v| !v.is_empty())?;
+        let base_url = s.get("vision_base_url").map(|v| v.trim().to_string()).unwrap_or_default();
+        let api_key = s.get("vision_api_key").map(|v| v.trim().to_string()).unwrap_or_default();
+
+        let client = if !base_url.is_empty() && !api_key.is_empty() {
+            // Dedicated vision endpoint (OpenAI-compatible)
+            LlmClient::OpenAI {
+                base_url,
+                api_key,
+                chat_model: model.clone(),
+                embed_model: String::new(),
+            }
+        } else if !api_key.is_empty() {
+            // Likely Anthropic (api_key only, no base_url)
+            LlmClient::Anthropic { api_key, chat_model: model.clone() }
+        } else {
+            // No dedicated key — reuse main provider with vision model override
+            match Self::from_settings(s) {
+                Ok(c) => c,
+                Err(_) => return None,
+            }
+        };
+        Some((client, Some(model)))
+    }
+
     /// Build a client for embedding only.
     /// If `embedding_base_url` + `embedding_api_key` are set, use those.
     /// Otherwise fall back to the main LLM provider.
@@ -121,6 +149,75 @@ impl LlmClient {
             })
         } else {
             Self::from_settings(s)
+        }
+    }
+
+    /// Vision chat — send one image + text prompt to a multimodal model.
+    /// `image_b64` is the base64-encoded image bytes; `media_type` is e.g. "image/png".
+    /// Fails silently (callers should handle errors) if the model doesn't support vision.
+    pub async fn chat_with_image(
+        &self,
+        image_b64: &str,
+        media_type: &str,
+        text: &str,
+        model: Option<&str>,
+        temperature: f32,
+    ) -> Result<String> {
+        match self {
+            LlmClient::OpenAI { base_url, api_key, chat_model, .. } => {
+                let client = reqwest::Client::new();
+                let body = json!({
+                    "model": model.unwrap_or(chat_model),
+                    "temperature": temperature,
+                    "max_tokens": 1024,
+                    "messages": [{
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": format!("data:{media_type};base64,{image_b64}"), "detail": "low"}},
+                            {"type": "text", "text": text}
+                        ]
+                    }]
+                });
+                let resp = client
+                    .post(format!("{}/chat/completions", base_url.trim_end_matches('/')))
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .header("User-Agent", USER_AGENT)
+                    .json(&body)
+                    .send()
+                    .await?;
+                if !resp.status().is_success() {
+                    return Err(anyhow!("Vision API error: {}", resp.text().await?));
+                }
+                let json: serde_json::Value = resp.json().await?;
+                Ok(json["choices"][0]["message"]["content"].as_str().unwrap_or("").to_string())
+            }
+            LlmClient::Anthropic { api_key, chat_model } => {
+                let client = reqwest::Client::new();
+                let body = json!({
+                    "model": model.unwrap_or(chat_model),
+                    "max_tokens": 1024,
+                    "temperature": temperature,
+                    "messages": [{
+                        "role": "user",
+                        "content": [
+                            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_b64}},
+                            {"type": "text", "text": text}
+                        ]
+                    }]
+                });
+                let resp = client
+                    .post("https://api.anthropic.com/v1/messages")
+                    .header("x-api-key", api_key)
+                    .header("anthropic-version", "2023-06-01")
+                    .json(&body)
+                    .send()
+                    .await?;
+                if !resp.status().is_success() {
+                    return Err(anyhow!("Anthropic vision error: {}", resp.text().await?));
+                }
+                let json: serde_json::Value = resp.json().await?;
+                Ok(json["content"][0]["text"].as_str().unwrap_or("").to_string())
+            }
         }
     }
 

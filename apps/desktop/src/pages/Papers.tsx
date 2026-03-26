@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useClickOutside } from "../hooks/useClickOutside";
 import {
   AlertCircle,
   CheckCircle,
@@ -72,16 +73,24 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [selectedInterestId, setSelectedInterestId] = useState("");
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [editFolderPickerOpen, setEditFolderPickerOpen] = useState(false);
-  const [autoRename, setAutoRename] = useState(true);
+  const [recognizeOpen, setRecognizeOpen] = useState(false);
+  type RecognizeFlags = { title: boolean; authors: boolean; year: boolean; venue: boolean; keywords: boolean };
+  const [recognizeFlags, setRecognizeFlags] = useState<RecognizeFlags>({
+    title: true, authors: true, year: true, venue: true, keywords: true,
+  });
   const [paperFigures, setPaperFigures] = useState<Record<string, Array<{ id: string; fig_index: number; caption: string | null; data_url: string }>>>({});
 
-  const handleToggleAutoRename = async () => {
-    const next = !autoRename;
-    setAutoRename(next);
+  const recognizeRef = useClickOutside(recognizeOpen, () => setRecognizeOpen(false));
+  const folderPickerRef = useClickOutside(folderPickerOpen, () => setFolderPickerOpen(false));
+  const editFolderPickerRef = useClickOutside(editFolderPickerOpen, () => setEditFolderPickerOpen(false));
+
+  const handleToggleRecognize = async (key: keyof RecognizeFlags) => {
+    const next = { ...recognizeFlags, [key]: !recognizeFlags[key] };
+    setRecognizeFlags(next);
     try {
-      await apiClient.settings.update({ paper_auto_rename_on_import: next ? "true" : "false" });
+      await apiClient.settings.update({ [`paper_import_recognize_${key}`]: next[key] ? "true" : "false" });
     } catch {
-      setAutoRename(!next); // rollback on error
+      setRecognizeFlags(recognizeFlags);
     }
   };
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
@@ -94,6 +103,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [keywordFilters, setKeywordFilters] = useState<Record<string, string>>({});
   const setKeywordFilter = (groupId: string, kw: string) =>
     setKeywordFilters((prev) => ({ ...prev, [groupId]: kw }));
+  const [titleFilters, setTitleFilters] = useState<Record<string, string>>({});
+  const setTitleFilter = (groupId: string, q: string) =>
+    setTitleFilters((prev) => ({ ...prev, [groupId]: q }));
   const [editDraft, setEditDraft] = useState({
     title: "",
     authors: "",
@@ -164,7 +176,13 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       .then((settings) => {
         if (!cancelled) {
           setVisiblePaperTags(parsePaperTagVisibility(settings.paper_visible_venue_tags));
-          setAutoRename(settings.paper_auto_rename_on_import !== "false");
+          setRecognizeFlags({
+            title: settings.paper_import_recognize_title !== "false",
+            authors: settings.paper_import_recognize_authors !== "false",
+            year: settings.paper_import_recognize_year !== "false",
+            venue: settings.paper_import_recognize_venue !== "false",
+            keywords: settings.paper_import_recognize_keywords !== "false",
+          });
         }
       })
       .catch(() => {
@@ -198,19 +216,21 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const paperGroups = useMemo(() => {
     return interests.map((interest) => {
       const groupPapers = papers.filter((paper) => paper.research_interest_id === interest.id);
-      const allKeywords = [...new Set(groupPapers.flatMap((p) => p.tags ?? []))].sort();
-      const activeKw = keywordFilters[interest.id];
-      const filtered = activeKw ? groupPapers.filter((p) => p.tags?.includes(activeKw)) : groupPapers;
+      const activeKw = keywordFilters[interest.id]?.toLowerCase();
+      const activeTf = titleFilters[interest.id]?.toLowerCase();
+      let filtered = activeKw
+        ? groupPapers.filter((p) => p.tags?.some((tag) => tag.toLowerCase().includes(activeKw)))
+        : groupPapers;
+      if (activeTf) filtered = filtered.filter((p) => p.title.toLowerCase().includes(activeTf));
       return {
         key: interest.id,
         title: interestFolderName(interest),
         subtitle: interest.topic,
         papers: sortPapers(filtered, getSortKey(interest.id)),
-        allKeywords,
       };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interests, papers, sortKeys, keywordFilters]);
+  }, [interests, papers, sortKeys, keywordFilters, titleFilters]);
 
   const ungroupedBase = useMemo(
     () => papers.filter((paper) => {
@@ -219,19 +239,16 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     }),
     [interestMap, papers],
   );
-  const ungroupedKeywords = useMemo(
-    () => [...new Set(ungroupedBase.flatMap((p) => p.tags ?? []))].sort(),
-    [ungroupedBase],
-  );
-  const ungroupedPapers = useMemo(() => (
-    sortPapers(
-      keywordFilters["ungrouped"]
-        ? ungroupedBase.filter((p) => p.tags?.includes(keywordFilters["ungrouped"]))
-        : ungroupedBase,
-      getSortKey("ungrouped"),
-    )
+  const ungroupedPapers = useMemo(() => {
+    const activeKw = keywordFilters["ungrouped"]?.toLowerCase();
+    const activeTf = titleFilters["ungrouped"]?.toLowerCase();
+    let base = activeKw
+      ? ungroupedBase.filter((p) => p.tags?.some((tag) => tag.toLowerCase().includes(activeKw)))
+      : ungroupedBase;
+    if (activeTf) base = base.filter((p) => p.title.toLowerCase().includes(activeTf));
+    return sortPapers(base, getSortKey("ungrouped"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [ungroupedBase, sortKeys, keywordFilters]);
+  }, [ungroupedBase, sortKeys, keywordFilters, titleFilters]);
 
   const toFilePath = (item: unknown): string => {
     if (typeof item === "string") return item;
@@ -515,7 +532,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     return "小妍解读";
   };
 
-  const SORT_LABELS: Record<SortKey, string> = { created_at: "时间", title: "名称", importance: "重要性" };
+  const SORT_LABELS: Record<SortKey, string> = { created_at: "导入时间", title: "名称", importance: "重要性" };
 
   const renderSortControl = (groupId: string) => (
     <div className="flex items-center gap-1">
@@ -541,31 +558,38 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     </div>
   );
 
-  const renderGroupControls = (groupId: string, allKeywords: string[]) => {
-    const activeKw = keywordFilters[groupId];
+  const inputStyle = (active: boolean) => ({
+    background: active ? "rgba(0,122,255,0.1)" : "#E8ECF0",
+    color: active ? "#007AFF" : "#8E8E93",
+    fontWeight: active ? 600 : 400,
+    boxShadow: active
+      ? "inset 1px 1px 2px rgba(0,122,255,0.15)"
+      : "1px 1px 3px #C8CDD3, -1px -1px 3px #FFFFFF",
+  });
+
+  const renderGroupControls = (groupId: string) => {
+    const activeKw = keywordFilters[groupId] ?? "";
+    const activeTf = titleFilters[groupId] ?? "";
     return (
       <div className="flex items-center gap-2">
-        {allKeywords.length > 0 && (
-          <div className="flex items-center gap-1">
-            <select
-              value={activeKw ?? ""}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => { e.stopPropagation(); setKeywordFilter(groupId, e.target.value); }}
-              className="rounded-lg px-2 py-0.5 text-[10px] cursor-pointer outline-none border-none appearance-none"
-              style={{
-                background: activeKw ? "rgba(0,122,255,0.1)" : "#E8ECF0",
-                color: activeKw ? "#007AFF" : "#8E8E93",
-                fontWeight: activeKw ? 600 : 400,
-                boxShadow: activeKw
-                  ? "inset 1px 1px 2px rgba(0,122,255,0.15)"
-                  : "1px 1px 3px #C8CDD3, -1px -1px 3px #FFFFFF",
-              }}
-            >
-              <option value="">关键词筛选</option>
-              {allKeywords.map((kw) => <option key={kw} value={kw}>{kw}</option>)}
-            </select>
-          </div>
-        )}
+        <input
+          type="text"
+          value={activeTf}
+          placeholder="搜索标题"
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => { e.stopPropagation(); setTitleFilter(groupId, e.target.value); }}
+          className="rounded-lg px-2 py-0.5 text-[10px] outline-none border-none w-20"
+          style={inputStyle(!!activeTf)}
+        />
+        <input
+          type="text"
+          value={activeKw}
+          placeholder="关键词筛选"
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => { e.stopPropagation(); setKeywordFilter(groupId, e.target.value); }}
+          className="rounded-lg px-2 py-0.5 text-[10px] outline-none border-none w-20"
+          style={inputStyle(!!activeKw)}
+        />
         {renderSortControl(groupId)}
       </div>
     );
@@ -643,7 +667,8 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           {(paper.tags?.length ?? 0) > 0 && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1">
               {paper.tags!.map((tag) => {
-                const active = keywordFilters[groupId] === tag;
+                const kf = keywordFilters[groupId];
+                const active = !!kf && tag.toLowerCase().includes(kf.toLowerCase());
                 return (
                   <button
                     key={tag}
@@ -828,12 +853,8 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             placeholder="例如：2024"
           />
           <div
+            ref={editFolderPickerRef}
             className="relative space-y-1"
-            onBlur={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                setEditFolderPickerOpen(false);
-              }
-            }}
           >
             <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
             <button
@@ -1075,41 +1096,70 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
-          {/* 自动更名开关 */}
-          <button
-            type="button"
-            onClick={() => void handleToggleAutoRename()}
-            className="flex items-center gap-2 rounded-2xl px-3 py-2 transition-all duration-150 flex-shrink-0"
-            style={{
-              background: "#E8ECF0",
-              boxShadow: autoRename
-                ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
-                : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
-            }}
-            title="导入后自动用提取的元数据重命名文件"
+          {/* 自动识别下拉 */}
+          <div
+            ref={recognizeRef}
+            className="relative flex-shrink-0"
           >
-            <span className={`text-xs font-medium transition-colors ${autoRename ? "text-apple-blue" : "text-ink-tertiary"}`}>
-              自动更名
-            </span>
-            {/* pill track */}
-            <div
-              className="relative h-5 w-9 rounded-full transition-colors duration-200 flex-shrink-0"
-              style={{ background: autoRename ? "#007AFF" : "#C8CDD3" }}
+            <button
+              type="button"
+              onClick={() => setRecognizeOpen((v) => !v)}
+              className="flex items-center gap-1.5 rounded-2xl px-3 py-2 transition-all duration-150"
+              style={{
+                background: "#E8ECF0",
+                boxShadow: recognizeOpen
+                  ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
+                  : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+              }}
+              title="导入时自动识别论文内容"
             >
+              <span className="text-xs font-medium text-ink-secondary">自动识别</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-ink-tertiary transition-transform ${recognizeOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {recognizeOpen && (
               <div
-                className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200"
-                style={{ transform: autoRename ? "translateX(16px)" : "translateX(2px)" }}
-              />
-            </div>
-          </button>
+                className="absolute left-0 top-full mt-1.5 z-30 rounded-2xl py-2 min-w-[160px]"
+                style={{ background: "#E8ECF0", boxShadow: "6px 6px 14px #C0C5CB, -4px -4px 10px #FFFFFF" }}
+              >
+                {(
+                  [
+                    { key: "title", label: "名称" },
+                    { key: "authors", label: "作者" },
+                    { key: "year", label: "年份" },
+                    { key: "venue", label: "期刊 / 会议" },
+                    { key: "keywords", label: "关键词" },
+                  ] as { key: keyof RecognizeFlags; label: string }[]
+                ).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => void handleToggleRecognize(key)}
+                    className="w-full flex items-center gap-2.5 px-4 py-1.5 text-xs text-ink-primary hover:bg-white/40 transition-colors"
+                  >
+                    <span
+                      className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                      style={{
+                        background: recognizeFlags[key] ? "#007AFF" : "transparent",
+                        border: recognizeFlags[key] ? "none" : "1.5px solid #B0B5BB",
+                      }}
+                    >
+                      {recognizeFlags[key] && (
+                        <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                          <path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {!hideFolders && <div
+            ref={folderPickerRef}
             className="relative min-w-[200px]"
-            onBlur={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                setFolderPickerOpen(false);
-              }
-            }}
           >
             <button
               type="button"
@@ -1254,7 +1304,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                   </>
                 ) : (
                   <>
-                    {renderGroupControls(group.key, group.allKeywords)}
+                    {renderGroupControls(group.key)}
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteGroupId(group.key)}
@@ -1283,7 +1333,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                   <p className="text-sm font-semibold text-ink-primary">未归档论文</p>
                   <p className="mt-0.5 text-xs text-ink-tertiary">这些论文暂未绑定主题，可直接编辑后移动到主题文件夹。</p>
                 </div>
-                {renderGroupControls("ungrouped", ungroupedKeywords)}
+                {renderGroupControls("ungrouped")}
               </div>
               {ungroupedPapers.map((p) => renderPaperCard(p, "ungrouped"))}
             </section>

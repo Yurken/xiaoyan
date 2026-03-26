@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useClickOutside } from "../../hooks/useClickOutside";
 import { AlertCircle, ArrowLeft, Eye, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
 import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
@@ -17,7 +18,7 @@ function InterestPicker({
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useClickOutside<HTMLDivElement>(open, () => setOpen(false));
   const selected = interests.find((i) => i.id === value);
   const label = selected ? (selected.folder_name?.trim() || selected.topic) : placeholder;
 
@@ -25,9 +26,6 @@ function InterestPicker({
     <div
       ref={ref}
       className="relative"
-      onBlur={(e) => {
-        if (!ref.current?.contains(e.relatedTarget as Node)) setOpen(false);
-      }}
     >
       <button
         type="button"

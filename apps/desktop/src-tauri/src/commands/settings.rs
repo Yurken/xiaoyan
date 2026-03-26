@@ -215,8 +215,11 @@ const EXPOSED_KEYS: &[&str] = &[
     "multi_agent_synthesis_presence_penalty",
     "multi_agent_synthesis_frequency_penalty",
     "paper_visible_venue_tags",
-    "paper_auto_rename_on_import",
-    "paper_auto_rename_rule",
+    "paper_import_recognize_title",
+    "paper_import_recognize_authors",
+    "paper_import_recognize_year",
+    "paper_import_recognize_venue",
+    "paper_import_recognize_keywords",
 ];
 
 const MASK: &str = "***";

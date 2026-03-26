@@ -375,10 +375,11 @@ struct ImportRenameMetadata {
     year: Option<i64>,
     venue: Option<String>,
     doi: Option<String>,
+    keywords: Option<String>,
 }
 
-const IMPORT_RENAME_PROMPT: &str = r#"请根据用户提供的 PDF 文件名和正文前段识别论文元数据，仅返回合法 JSON：
-{"title":"...","authors":"作者1, 作者2","year":2024,"venue":"期刊或会议名称","doi":"10.1234/abcd"}
+const IMPORT_RECOGNIZE_PROMPT: &str = r#"请根据用户提供的 PDF 文件名和正文前段识别论文元数据，仅返回合法 JSON：
+{"title":"...","authors":"作者1, 作者2","year":2024,"venue":"期刊或会议名称","doi":"10.1234/abcd","keywords":"关键词1, 关键词2, 关键词3"}
 
 要求：
 1. title 尽量使用论文首页中的正式标题，不要保留文件名噪声。
@@ -386,7 +387,8 @@ const IMPORT_RENAME_PROMPT: &str = r#"请根据用户提供的 PDF 文件名和�
 3. year 无法确认时返回 0。
 4. venue 无法确认时返回空字符串。
 5. doi 仅返回 DOI 本身；没有就返回空字符串。
-6. 不要输出 markdown、解释或额外文本。
+6. keywords 提取 3-8 个核心学术关键词，英文逗号分隔；无法确认时返回空字符串。
+7. 不要输出 markdown、解释或额外文本。
 
 文件名：{file_name}
 当前标题猜测：{title_guess}
@@ -427,9 +429,25 @@ pub async fn papers_upload(
     let preview_text = extract_pdf_preview_text(&path, 3, 12_000).unwrap_or_default();
     let settings = state.settings.read().await.clone();
     let inferred_venue = infer_from_text(&preview_text).map(|tag| tag.full_name);
-    let auto_rename_enabled = settings
-        .get("paper_auto_rename_on_import")
-        .map(|value| value.trim().eq_ignore_ascii_case("true"))
+    let recognize_title = settings
+        .get("paper_import_recognize_title")
+        .map(|v| v.trim().eq_ignore_ascii_case("true"))
+        .unwrap_or(true);
+    let recognize_authors = settings
+        .get("paper_import_recognize_authors")
+        .map(|v| v.trim().eq_ignore_ascii_case("true"))
+        .unwrap_or(true);
+    let recognize_year = settings
+        .get("paper_import_recognize_year")
+        .map(|v| v.trim().eq_ignore_ascii_case("true"))
+        .unwrap_or(true);
+    let recognize_venue = settings
+        .get("paper_import_recognize_venue")
+        .map(|v| v.trim().eq_ignore_ascii_case("true"))
+        .unwrap_or(true);
+    let recognize_keywords = settings
+        .get("paper_import_recognize_keywords")
+        .map(|v| v.trim().eq_ignore_ascii_case("true"))
         .unwrap_or(true);
 
     let mut detected_title = title_guess.clone();
@@ -437,37 +455,51 @@ pub async fn papers_upload(
     let mut detected_year: Option<i64> = None;
     let mut detected_venue = inferred_venue;
     let mut detected_doi: Option<String> = None;
-    let mut copy_stem = original_stem.clone();
 
-    if auto_rename_enabled && !preview_text.is_empty() {
-        if let Some(metadata) = extract_import_rename_metadata(&settings, file_name, &title_guess, &preview_text).await {
-            let rename_rule = settings
-                .get("paper_auto_rename_rule")
-                .map(|value| value.as_str())
-                .unwrap_or("{first_author} - {title} ({year})");
-            copy_stem = render_import_file_stem(rename_rule, &metadata, &title_guess, &original_stem);
+    let mut tags_json = serde_json::to_string(&extract_keywords_from_text(&preview_text))
+        .unwrap_or_else(|_| "[]".to_string());
 
-            if let Some(value) = clean_optional_text(metadata.title) {
-                detected_title = value;
+    let any_recognition = recognize_title || recognize_authors || recognize_year || recognize_venue || recognize_keywords;
+    if any_recognition && !preview_text.is_empty() {
+        if let Some(metadata) = extract_import_metadata(&settings, file_name, &title_guess, &preview_text).await {
+            if recognize_title {
+                if let Some(value) = clean_optional_text(metadata.title) {
+                    detected_title = value;
+                }
             }
-            detected_authors = clean_optional_text(metadata.authors);
-            detected_year = metadata.year.filter(|value| *value > 0);
-            detected_venue = clean_optional_text(metadata.venue).or(detected_venue);
+            if recognize_authors {
+                detected_authors = clean_optional_text(metadata.authors);
+            }
+            if recognize_year {
+                detected_year = metadata.year.filter(|value| *value > 0);
+            }
+            if recognize_keywords {
+                if let Some(kw_str) = clean_optional_text(metadata.keywords) {
+                    let kw_list: Vec<String> = kw_str
+                        .split(',')
+                        .map(|k| k.trim().to_string())
+                        .filter(|k| !k.is_empty())
+                        .collect();
+                    if !kw_list.is_empty() {
+                        tags_json = serde_json::to_string(&kw_list).unwrap_or(tags_json);
+                    }
+                }
+            }
+            if recognize_venue {
+                detected_venue = clean_optional_text(metadata.venue).or(detected_venue);
+            }
             detected_doi = clean_optional_text(metadata.doi);
         }
     }
 
     // Always copy into the app-managed papers directory so the file survives
     // even if the user deletes or moves the original in Finder.
-    let final_path = copy_to_managed_papers_dir(&app, &path, &copy_stem)
+    let final_path = copy_to_managed_papers_dir(&app, &path, &original_stem)
         .unwrap_or_else(|_| path.clone());
     let file_path_str = final_path.to_string_lossy().to_string();
 
     let paper_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
-
-    let keywords = extract_keywords_from_text(&preview_text);
-    let tags_json = serde_json::to_string(&keywords).unwrap_or_else(|_| "[]".to_string());
 
     sqlx::query(
         "INSERT INTO papers (id, title, authors, year, venue, doi, file_path, full_text, research_interest_id, tags, status, created_at, updated_at)
@@ -731,19 +763,21 @@ pub async fn papers_analyze(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
-    let row = sqlx::query("SELECT full_text FROM papers WHERE id = ?")
+    let row = sqlx::query("SELECT file_path, full_text FROM papers WHERE id = ?")
         .bind(&id)
         .fetch_optional(&state.db)
         .await
         .map_err(|e| e.to_string())?
         .ok_or("未找到对应论文。")?;
     let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
+    let file_path_for_spawn: Option<String> = row.get("file_path");
     if full_text.trim().is_empty() {
         return Err("论文仍在解析中，请稍后再试。".to_string());
     }
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
     let pid = id.clone();
+    let app_for_spawn = app.clone();
 
     // Slice the paper into three overlapping windows for different agents.
     // Each window covers a different region so together they span the full paper.
@@ -761,6 +795,7 @@ pub async fn papers_analyze(
         .await;
 
     tokio::spawn(async move {
+        let app = app_for_spawn;
         let client = match LlmClient::from_settings(&settings) {
             Ok(c) => c,
             Err(e) => {
@@ -771,9 +806,40 @@ pub async fn papers_analyze(
         let model = resolve_model(&settings, &["paper_analysis_model", "multi_agent_paper_analyst_model", "multi_agent_worker_model"]);
         let temperature = resolve_temperature(&settings, "paper_analysis_temperature", 0.3);
 
+        // ── Phase 0: Figure extraction ────────────────────────────
+        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "图表提取中…" }));
+        // Prefer the dedicated "视界" vision model; fall back to the main analysis model
+        let (vision_ref, vision_model_owned);
+        let (vision_client_opt, vision_model_opt): (Option<&LlmClient>, Option<&str>) =
+            if let Some((vc, vm)) = LlmClient::vision_client_from_settings(&settings) {
+                vision_ref = vc;
+                vision_model_owned = vm;
+                (Some(&vision_ref), vision_model_owned.as_deref())
+            } else {
+                (Some(&client), model.as_deref())
+            };
+
+        let extracted_figures = ensure_figures_extracted(
+            &app, &db, &pid,
+            file_path_for_spawn.as_deref(),
+            &full_text,
+            vision_client_opt,
+            vision_model_opt,
+        ).await;
+
+        // Build figure context to inject into every agent prompt
+        let figure_context = if extracted_figures.is_empty() {
+            String::new()
+        } else {
+            let list = extracted_figures.iter().map(|(idx, cap)| {
+                if let Some(c) = cap { format!("  • Figure {idx}: {c}") } else { format!("  • Figure {idx}") }
+            }).collect::<Vec<_>>().join("\n");
+            format!("【论文图表（共 {} 个，已成功提取，请在分析中积极用编号引用，如: Figure 1 所示、Table 2 中）】\n{}\n\n", extracted_figures.len(), list)
+        };
+
         // ── Agent 1: Problem & Background ────────────────────────
         let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "问题背景分析中（1/4）…" }));
-        let prompt1 = AGENT1_PROMPT.replace("{text}", &intro_text);
+        let prompt1 = AGENT1_PROMPT.replace("{text}", &format!("{figure_context}{intro_text}"));
         let msgs1 = vec![LlmMessage::system(agent1_system()), LlmMessage::user(&prompt1)];
         let research_question = match client.chat(&msgs1, model.as_deref(), temperature).await {
             Ok(resp) => {
@@ -787,7 +853,7 @@ pub async fn papers_analyze(
         let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "方法深度解析中（2/4）…" }));
         let prompt2 = AGENT2_PROMPT
             .replace("{problem_summary}", &research_question)
-            .replace("{text}", &method_text);
+            .replace("{text}", &format!("{figure_context}{method_text}"));
         let msgs2 = vec![LlmMessage::system(agent2_system()), LlmMessage::user(&prompt2)];
         let core_method = match client.chat(&msgs2, model.as_deref(), temperature).await {
             Ok(resp) => {
@@ -801,7 +867,7 @@ pub async fn papers_analyze(
         let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "实验结果分析中（3/4）…" }));
         let prompt3 = AGENT3_PROMPT
             .replace("{method_summary}", &core_method)
-            .replace("{text}", &experiment_text);
+            .replace("{text}", &format!("{figure_context}{experiment_text}"));
         let msgs3 = vec![LlmMessage::system(agent3_system()), LlmMessage::user(&prompt3)];
         let (experiment_design, experiment_results) = match client.chat(&msgs3, model.as_deref(), temperature).await {
             Ok(resp) => {
@@ -818,7 +884,7 @@ pub async fn papers_analyze(
         let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "综合评审中（4/4）…" }));
         let experiment_summary = format!("{}\n\n{}", experiment_design, experiment_results);
         let prompt4 = AGENT4_PROMPT
-            .replace("{problem_summary}", &research_question)
+            .replace("{problem_summary}", &format!("{figure_context}{research_question}"))
             .replace("{method_summary}", &core_method)
             .replace("{experiment_summary}", &experiment_summary);
         let msgs4 = vec![LlmMessage::system(agent4_system()), LlmMessage::user(&prompt4)];
@@ -1062,7 +1128,7 @@ pub(crate) fn extract_json(s: &str) -> String {
     s[start..end].to_string()
 }
 
-async fn extract_import_rename_metadata(
+async fn extract_import_metadata(
     settings: &std::collections::HashMap<String, String>,
     file_name: &str,
     title_guess: &str,
@@ -1070,7 +1136,7 @@ async fn extract_import_rename_metadata(
 ) -> Option<ImportRenameMetadata> {
     let client = LlmClient::from_settings(settings).ok()?;
     let text_preview = safe_text_preview(full_text, 12000);
-    let prompt = IMPORT_RENAME_PROMPT
+    let prompt = IMPORT_RECOGNIZE_PROMPT
         .replace("{file_name}", file_name)
         .replace("{title_guess}", title_guess)
         .replace("{text}", text_preview);
@@ -1224,7 +1290,208 @@ pub(crate) fn extract_keywords_from_text(full_text: &str) -> Vec<String> {
         .collect()
 }
 
-// ── Figure extraction ─────────────────────────────────────────────
+// ── Figure extraction pipeline ────────────────────────────────────
+
+/// Ensure figures are extracted and stored for a paper.
+/// Phase 1: extract embedded bitmap images via lopdf.
+/// Phase 2 (if vision_client supplied): render PDF pages and ask vision LLM to
+///          identify figures/tables that were missed by lopdf (e.g. vector graphics).
+/// Returns (fig_index, caption) for all stored figures.
+async fn ensure_figures_extracted(
+    app: &tauri::AppHandle,
+    db: &sqlx::SqlitePool,
+    paper_id: &str,
+    file_path: Option<&str>,
+    full_text: &str,
+    vision_client: Option<&LlmClient>,
+    vision_model: Option<&str>,
+) -> Vec<(u32, Option<String>)> {
+    // Skip if already extracted (e.g. from a previous analysis run)
+    let existing: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM paper_figures WHERE paper_id = ?")
+        .bind(paper_id)
+        .fetch_one(db)
+        .await
+        .unwrap_or(0);
+    if existing > 0 {
+        return sqlx::query("SELECT fig_index, caption FROM paper_figures WHERE paper_id = ? ORDER BY fig_index")
+            .bind(paper_id)
+            .fetch_all(db)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(|r| (r.get::<i64, _>("fig_index") as u32, r.get("caption")))
+            .collect();
+    }
+
+    let fp = match file_path.filter(|f| !f.trim().is_empty()) {
+        Some(f) => f,
+        None => return Vec::new(),
+    };
+    let pdf_path = PathBuf::from(fp);
+    if !pdf_path.exists() { return Vec::new(); }
+
+    let data_dir = match app.path().app_data_dir() {
+        Ok(d) => d,
+        Err(_) => return Vec::new(),
+    };
+    let figures_dir = data_dir.join("papers").join(paper_id).join("figures");
+    if std::fs::create_dir_all(&figures_dir).is_err() { return Vec::new(); }
+
+    // Phase 1: lopdf bitmap extraction (CPU-bound → spawn_blocking)
+    let captions = extract_figure_captions(full_text);
+    let lopdf_figs = {
+        let pdf_p = pdf_path.clone();
+        let fig_d = figures_dir.clone();
+        let caps = captions.clone();
+        tokio::task::spawn_blocking(move || extract_pdf_images(&pdf_p, &fig_d, &caps))
+            .await
+            .unwrap_or_default()
+    };
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut extracted: std::collections::HashSet<u32> = std::collections::HashSet::new();
+
+    for (idx, caption, fp_img) in &lopdf_figs {
+        let fig_id = format!("{paper_id}-{idx}");
+        let _ = sqlx::query(
+            "INSERT OR IGNORE INTO paper_figures (id, paper_id, fig_index, caption, file_path, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&fig_id).bind(paper_id).bind(*idx as i64)
+        .bind(caption).bind(fp_img.to_string_lossy().as_ref()).bind(&now)
+        .execute(db).await;
+        extracted.insert(*idx);
+    }
+
+    // Phase 2: vision LLM scan for non-extractable figures (vector graphics, tables)
+    if let Some(client) = vision_client {
+        let pages_dir = figures_dir.join("_pages");
+        let _ = std::fs::create_dir_all(&pages_dir);
+
+        let page_images = {
+            let pdf_p = pdf_path.clone();
+            let pg_d = pages_dir.clone();
+            tokio::task::spawn_blocking(move || render_pdf_pages(&pdf_p, &pg_d, 15))
+                .await
+                .unwrap_or_default()
+        };
+
+        for (page_no, page_path) in page_images.iter().enumerate() {
+            let identified = vision_scan_page(client, vision_model, page_path).await;
+            for (fig_idx, _) in identified {
+                if extracted.contains(&fig_idx) { continue; }
+                // Use the rendered page image as the figure file
+                let dest = figures_dir.join(format!("fig_{fig_idx}_p{}.png", page_no + 1));
+                if std::fs::copy(page_path, &dest).is_ok() {
+                    let fig_id = format!("{paper_id}-v{fig_idx}");
+                    let caption = captions.get(&fig_idx).cloned();
+                    let _ = sqlx::query(
+                        "INSERT OR IGNORE INTO paper_figures (id, paper_id, fig_index, caption, file_path, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    )
+                    .bind(&fig_id).bind(paper_id).bind(fig_idx as i64)
+                    .bind(&caption).bind(dest.to_string_lossy().as_ref()).bind(&now)
+                    .execute(db).await;
+                    extracted.insert(fig_idx);
+                }
+            }
+        }
+
+        // Clean up temporary page renders
+        let _ = std::fs::remove_dir_all(&pages_dir);
+    }
+
+    sqlx::query("SELECT fig_index, caption FROM paper_figures WHERE paper_id = ? ORDER BY fig_index")
+        .bind(paper_id)
+        .fetch_all(db)
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|r| (r.get::<i64, _>("fig_index") as u32, r.get("caption")))
+        .collect()
+}
+
+/// Render up to `max_pages` pages of a PDF to PNG images in `output_dir`.
+/// Tries pdftoppm (Poppler) first for per-page quality; falls back to qlmanage (macOS built-in).
+fn render_pdf_pages(pdf_path: &Path, output_dir: &Path, max_pages: usize) -> Vec<PathBuf> {
+    let stem = pdf_path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let page_prefix = output_dir.join(format!("{stem}_pg"));
+
+    // Try pdftoppm (Poppler) — produces per-page PNG files
+    let pdftoppm_ok = std::process::Command::new("pdftoppm")
+        .args([
+            "-r", "120", "-png",
+            "-l", &max_pages.to_string(),
+            pdf_path.to_str().unwrap_or(""),
+            page_prefix.to_str().unwrap_or(""),
+        ])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    if pdftoppm_ok {
+        let mut pages: Vec<PathBuf> = std::fs::read_dir(output_dir)
+            .ok().into_iter().flatten()
+            .filter_map(|e| {
+                let p = e.ok()?.path();
+                let name = p.file_name()?.to_string_lossy().to_string();
+                if name.starts_with(&format!("{stem}_pg")) && name.ends_with(".png") { Some(p) } else { None }
+            })
+            .collect();
+        pages.sort();
+        if !pages.is_empty() { return pages; }
+    }
+
+    // Fall back to qlmanage (macOS built-in) — produces a single preview image
+    let ql_ok = std::process::Command::new("qlmanage")
+        .args(["-t", "-s", "1200", "-o", output_dir.to_str().unwrap_or(""), pdf_path.to_str().unwrap_or("")])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    if ql_ok {
+        // qlmanage outputs <filename>.pdf.png (appends .png to the full input filename)
+        let ql_out = output_dir.join(format!("{}.png", pdf_path.file_name().unwrap_or_default().to_string_lossy()));
+        if ql_out.exists() { return vec![ql_out]; }
+    }
+
+    Vec::new()
+}
+
+/// Ask a vision LLM to identify figure/table numbers in a rendered PDF page image.
+/// Returns list of (fig_index, type) pairs. Errors are silently ignored.
+async fn vision_scan_page(
+    client: &LlmClient,
+    model: Option<&str>,
+    page_path: &Path,
+) -> Vec<(u32, String)> {
+    let image_data = match std::fs::read(page_path) {
+        Ok(d) => d,
+        Err(_) => return Vec::new(),
+    };
+    let b64 = general_purpose::STANDARD.encode(&image_data);
+
+    const PROMPT: &str = "请分析这份学术论文的页面图片，识别其中所有的图（Figure/Fig）和表（Table）。\
+对每个识别到的图或表，提取其编号（仅阿拉伯数字）和类型（figure 或 table）。\
+图/表的标题通常出现在其正下方或正上方，格式如 \"Figure 1\"、\"Fig. 2\"、\"Table 3\"。\
+只返回严格合法的 JSON，格式：{\"items\": [{\"index\": 1, \"type\": \"figure\"}, {\"index\": 2, \"type\": \"table\"}]}\
+如果该页面没有图或表，返回：{\"items\": []}";
+
+    let resp = match client.chat_with_image(&b64, "image/png", PROMPT, model, 0.1).await {
+        Ok(r) => r,
+        Err(_) => return Vec::new(),
+    };
+
+    let json_str = extract_json(&resp);
+    let v: serde_json::Value = serde_json::from_str(&json_str).unwrap_or_default();
+    v["items"].as_array()
+        .map(|arr| {
+            arr.iter().filter_map(|item| {
+                let idx = item["index"].as_u64()? as u32;
+                let t = item["type"].as_str().unwrap_or("figure").to_string();
+                if idx > 0 && idx <= 100 { Some((idx, t)) } else { None }
+            }).collect()
+        })
+        .unwrap_or_default()
+}
 
 /// Scan full text for figure/table captions, mapping figure number → caption line.
 fn extract_figure_captions(full_text: &str) -> std::collections::HashMap<u32, String> {
@@ -1493,33 +1760,14 @@ pub async fn papers_list_figures(
     .map_err(|e| e.to_string())?;
 
     if rows.is_empty() {
-        if let Some(file_path) = paper_file_path.clone().filter(|value| !value.trim().is_empty()) {
-            let pdf_path = PathBuf::from(file_path);
-            if pdf_path.exists() {
-                let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-                let figures_dir = data_dir.join("papers").join(&paper_id).join("figures");
-                std::fs::create_dir_all(&figures_dir)
-                    .map_err(|e| format!("创建图片目录失败：{e}"))?;
-
-                let captions = extract_figure_captions(&paper_full_text);
-                let figures = extract_pdf_images(&pdf_path, &figures_dir, &captions);
-                let now = chrono::Utc::now().to_rfc3339();
-                for (fig_idx, caption, fp) in figures {
-                    let fig_id = format!("{paper_id}-{fig_idx}");
-                    let _ = sqlx::query(
-                        "INSERT OR IGNORE INTO paper_figures (id, paper_id, fig_index, caption, file_path, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    )
-                    .bind(&fig_id)
-                    .bind(&paper_id)
-                    .bind(fig_idx as i64)
-                    .bind(&caption)
-                    .bind(fp.to_string_lossy().as_ref())
-                    .bind(&now)
-                    .execute(&state.db)
-                    .await;
-                }
-            }
-        }
+        // Lazy fallback extraction (no vision LLM — used for papers analyzed before this change)
+        ensure_figures_extracted(
+            &app, &state.db, &paper_id,
+            paper_file_path.as_deref(),
+            &paper_full_text,
+            None,  // no vision client in lazy path
+            None,
+        ).await;
 
         rows = sqlx::query(
             "SELECT id, paper_id, fig_index, caption, file_path FROM paper_figures WHERE paper_id = ? ORDER BY fig_index",

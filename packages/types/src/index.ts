@@ -537,8 +537,11 @@ export interface AppSettings {
   multi_agent_synthesis_presence_penalty: string;
   multi_agent_synthesis_frequency_penalty: string;
   paper_visible_venue_tags: string;
-  paper_auto_rename_on_import: string;
-  paper_auto_rename_rule: string;
+  paper_import_recognize_title: string;
+  paper_import_recognize_authors: string;
+  paper_import_recognize_year: string;
+  paper_import_recognize_venue: string;
+  paper_import_recognize_keywords: string;
   vision_model: string;
   vision_base_url: string;
   vision_api_key: string;

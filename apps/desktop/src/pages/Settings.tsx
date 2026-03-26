@@ -342,7 +342,7 @@ function ToggleRow({
   );
 }
 
-type SettingsSectionKey = "connection" | "paper_tags" | "roles" | "agents" | "skills" | "memory" | "about" | "layout";
+type SettingsSectionKey = "connection" | "paper_tags" | "roles" | "skills" | "memory" | "about" | "layout";
 
 const SETTINGS_SECTIONS: Array<{
   key: SettingsSectionKey;
@@ -364,13 +364,6 @@ const SETTINGS_SECTIONS: Array<{
     description: "按场景分配专属模型",
     icon: Sparkles,
     color: "#0A84FF",
-  },
-  {
-    key: "agents",
-    label: "多 Agent",
-    description: "协作编排与调度策略",
-    icon: Bot,
-    color: "#34C759",
   },
   {
     key: "paper_tags",
@@ -890,8 +883,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   multi_agent_synthesis_presence_penalty: "",
   multi_agent_synthesis_frequency_penalty: "",
   paper_visible_venue_tags: DEFAULT_PAPER_TAG_VISIBILITY_VALUE,
-  paper_auto_rename_on_import: "false",
-  paper_auto_rename_rule: "{first_author} - {title} ({year})",
+  paper_import_recognize_title: "true",
+  paper_import_recognize_authors: "true",
+  paper_import_recognize_year: "true",
+  paper_import_recognize_venue: "true",
+  paper_import_recognize_keywords: "true",
   vision_model: "",
   vision_base_url: "",
   vision_api_key: "",
@@ -1167,10 +1163,10 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     temperaturePlaceholder: "0.25",
   },
   {
-    title: "视界 · 视觉 (Beta)",
+    title: "视界 · 视觉",
     description: "解读论文图表、架构图、公式截图等视觉内容，弥补纯文本模型的盲区。",
-    recommendation: "需要多模态能力，推荐 GPT-4o / Gemini / Claude Sonnet 等原生支持图像输入的模型。后端视觉调用接口尚在开发中，配置后暂不生效。",
-    affectedScopes: "论文图表解析、视觉内容问答（Beta，后端开发中）",
+    recommendation: "需要多模态能力，推荐 GPT-4o / Gemini / Claude Sonnet 等原生支持图像输入的模型。配置后小妍解读时将自动用视界扫描 PDF 各页，识别 lopdf 无法提取的矢量图和表格。",
+    affectedScopes: "小妍解读时的论文图表扫描（矢量图、表格补充识别）",
     icon: Eye,
     iconColor: "#30B0C7",
     modelKeys: ["vision_model"],
@@ -2475,6 +2471,49 @@ export default function Settings() {
           <div className="space-y-4">
             <Card padding="md" className="space-y-4">
               <div className="flex items-center gap-3">
+                <SectionIcon icon={FileSearch} color="#0A84FF" />
+                <div>
+                  <h2 className="text-sm font-semibold text-ink-primary">导入论文识别内容</h2>
+                  <p className="text-xs text-ink-tertiary mt-0.5">
+                    导入时由小妍从 PDF 正文中自动识别并填写论文元数据，关闭某项后该字段将保留文件名猜测值或留空。模型优先使用"方向提示模型"，未单独配置则回退到默认对话模型。
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-3xl px-4 py-4 space-y-3" style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { key: "paper_import_recognize_title", label: "名称" },
+                    { key: "paper_import_recognize_authors", label: "作者" },
+                    { key: "paper_import_recognize_year", label: "年份" },
+                    { key: "paper_import_recognize_venue", label: "期刊 / 会议" },
+                    { key: "paper_import_recognize_keywords", label: "关键词" },
+                  ] as { key: keyof typeof form; label: string }[]).map((item) => (
+                    <AgentChip
+                      key={item.key}
+                      label={item.label}
+                      active={form[item.key] !== "false"}
+                      onClick={() => set(item.key)(form[item.key] !== "false" ? "false" : "true")}
+                    />
+                  ))}
+                </div>
+                <div className="grid gap-1.5 md:grid-cols-2">
+                  {([
+                    { label: "名称", description: "从正文提取正式标题，比文件名猜测更准确" },
+                    { label: "作者", description: "提取所有作者姓名，英文逗号分隔" },
+                    { label: "年份", description: "提取发表年份，用于排序与筛选" },
+                    { label: "期刊 / 会议", description: "提取发表场所，用于来源标签显示" },
+                    { label: "关键词", description: "AI 提取 3-8 个核心学术关键词，比文本统计更贴合主题" },
+                  ]).map((item) => (
+                    <p key={item.label} className="text-xs leading-5 text-ink-secondary">
+                      {item.label}：{item.description}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </Card>
+            <Card padding="md" className="space-y-4">
+              <div className="flex items-center gap-3">
                 <SectionIcon icon={Layers3} color="#FF9F0A" />
                 <div>
                   <h2 className="text-sm font-semibold text-ink-primary">论文标签显示</h2>
@@ -2504,58 +2543,6 @@ export default function Settings() {
                 </div>
               </div>
             </Card>
-
-            <Card padding="md" className="space-y-4">
-              <div className="flex items-center gap-3">
-                <SectionIcon icon={FileSearch} color="#0A84FF" />
-                <div>
-                  <h2 className="text-sm font-semibold text-ink-primary">导入论文自动重命名</h2>
-                  <p className="text-xs text-ink-tertiary mt-0.5">
-                    导入时由小妍识别标题、作者、年份等元数据，并按规则直接重命名原 PDF 文件，效果接近 Zotero 的重命名模板。
-                  </p>
-                </div>
-              </div>
-
-              <ToggleRow
-                title="导入后自动重命名 PDF"
-                description="开启后会在原目录就地改名。模型优先使用“方向提示模型（planner_hint_model）”，若未单独配置则回退到当前默认对话模型。"
-                checked={form.paper_auto_rename_on_import === "true"}
-                onToggle={() =>
-                  set("paper_auto_rename_on_import")(form.paper_auto_rename_on_import === "true" ? "false" : "true")
-                }
-              />
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <SettingInput
-                  label="命名规则"
-                  value={form.paper_auto_rename_rule}
-                  onChange={set("paper_auto_rename_rule")}
-                  placeholder="{first_author} - {title} ({year})"
-                  hint="支持 {title}、{authors}、{first_author}、{year}、{venue}、{doi}、{original_name}。缺失字段会自动留空并尽量清理多余符号。"
-                />
-                <div
-                  className="rounded-3xl px-4 py-4 space-y-3"
-                  style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
-                >
-                  <p className="text-xs font-semibold text-ink-primary">可用占位符</p>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {[
-                      "{title}：论文标题",
-                      "{authors}：作者列表",
-                      "{first_author}：第一作者",
-                      "{year}：年份",
-                      "{venue}：期刊或会议",
-                      "{doi}：DOI",
-                      "{original_name}：原始文件名",
-                    ].map((item) => (
-                      <p key={item} className="text-xs leading-5 text-ink-secondary">
-                        {item}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Card>
           </div>
         ) : null}
 
@@ -2573,8 +2560,7 @@ export default function Settings() {
 
             <RecommendationList
               items={[
-                "建议分工：溯源负责向量化与检索，流光负责极速轻量问答，元枢承担均衡主力，探知处理联网检索，谋策负责深度推理，洞见专注长文精读，翰章用于结构化写作，构域用于代码工程。按场景分配，效果与成本更优。",
-                "视界与译衡现在就可以先配置；后端接口上线后会自动启用，无需二次设置。",
+                "建议分工：溯源负责向量化与检索，流光负责极速轻量问答，元枢承担均衡主力，探知处理联网检索，谋策负责深度推理，洞见专注长文精读，翰章用于结构化写作，构域用于代码工程，视界主攻多模态解析。按场景分配，效果与成本更优。",
                 "即使全部留空也可正常使用：所有角色会自动回退到「连接与检索」中的默认对话模型。",
                 "如需让探知联网，可在其卡片中单独配置支持搜索的接口；其余角色仍使用主服务商。",
               ]}
@@ -2607,82 +2593,79 @@ export default function Settings() {
                 />
               ))}
             </div>
-          </Card>
-        ) : null}
 
-        {activeSection === "agents" && !contentUnavailable ? (
-          <Card padding="md" className="space-y-4">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Bot} color="#34C759" />
-              <div>
-                <h2 className="text-sm font-semibold text-ink-primary">多 Agent 编排</h2>
-                <p className="text-xs text-ink-tertiary mt-0.5">
-                  控制小妍的多 Agent 协作心智、选路策略与可用角色。
-                </p>
+            {/* ── 多 Agent 编排 ── */}
+            <div className="pt-4 border-t border-nm-dark/10 space-y-4">
+              <div className="flex items-center gap-3">
+                <SectionIcon icon={Bot} color="#34C759" />
+                <div>
+                  <h2 className="text-sm font-semibold text-ink-primary">多 Agent 编排</h2>
+                  <p className="text-xs text-ink-tertiary mt-0.5">
+                    控制小妍的多 Agent 协作心智、选路策略与可用角色。
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <ToggleRow
-              title="启用多 Agent 编排"
-              description="关闭后将只使用小妍轻量对话模型直接回复，不再拆分复杂任务，也不展示中间 Agent 推理过程。"
-              checked={form.multi_agent_enabled === "true"}
-              onToggle={() =>
-                set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")
-              }
-            />
+              <ToggleRow
+                title="启用多 Agent 编排"
+                description="关闭后将只使用小妍轻量对话模型直接回复，不再拆分复杂任务，也不展示中间 Agent 推理过程。"
+                checked={form.multi_agent_enabled === "true"}
+                onToggle={() =>
+                  set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")
+                }
+              />
 
-            <div className="space-y-2">
-              <label className="block text-xs font-medium text-ink-tertiary ml-1">小妍路由判断模式</label>
-              <div className="flex gap-2 flex-wrap">
-                {(["rule", "llm", "hybrid"] as const).map((value) => (
-                  <ProviderTab
-                    key={value}
-                    label={ROUTING_MODE_COPY[value].label}
-                    active={routingMode === value}
-                    onClick={() => set("multi_agent_routing_mode")(value)}
-                  />
-                ))}
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-ink-tertiary ml-1">小妍路由判断模式</label>
+                <div className="flex gap-2 flex-wrap">
+                  {(["rule", "llm", "hybrid"] as const).map((value) => (
+                    <ProviderTab
+                      key={value}
+                      label={ROUTING_MODE_COPY[value].label}
+                      active={routingMode === value}
+                      onClick={() => set("multi_agent_routing_mode")(value)}
+                    />
+                  ))}
+                </div>
+                <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
+                  <p className="text-sm font-semibold text-ink-primary">{ROUTING_MODE_COPY[routingMode].label}</p>
+                  <p className="mt-1 text-xs leading-5 text-ink-secondary">
+                    {ROUTING_MODE_COPY[routingMode].description}
+                  </p>
+                  <p className="mt-2 text-[11px] leading-5 text-ink-tertiary">
+                    {ROUTING_MODE_COPY[routingMode].note}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-                <p className="text-sm font-semibold text-ink-primary">{ROUTING_MODE_COPY[routingMode].label}</p>
-                <p className="mt-1 text-xs leading-5 text-ink-secondary">
-                  {ROUTING_MODE_COPY[routingMode].description}
-                </p>
-                <p className="mt-2 text-[11px] leading-5 text-ink-tertiary">
-                  {ROUTING_MODE_COPY[routingMode].note}
-                </p>
-              </div>
-            </div>
 
-            <div className="space-y-3 pt-4 border-t border-nm-dark/10">
-              <div className="flex items-center gap-2">
-                <Route className="w-4 h-4 text-[#1A8AFF]" />
-                <p className="text-sm font-semibold text-ink-primary">小妍 Agent 角色开关</p>
-              </div>
-              <p className="text-xs text-ink-tertiary">选择小妍在多 Agent 协作时允许唤醒的分支角色。关闭某个角色后，调度模型将不会将其纳入考量。</p>
-              
-              <div className="flex gap-2 flex-wrap pb-2">
-                {AGENT_OPTIONS.map(([value, label]) => (
-                  <AgentChip
-                    key={value}
-                    label={label}
-                    active={enabledAgents.includes(value)}
-                    onClick={() => toggleAgent(value)}
-                  />
-                ))}
-              </div>
-              
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {AGENT_GUIDES.map((item) => (
-                  <div key={item.key} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3 shadow-sm">
-                    <p className="text-xs font-semibold text-ink-primary">{item.label}</p>
-                    <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{item.description}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Route className="w-4 h-4 text-[#1A8AFF]" />
+                  <p className="text-sm font-semibold text-ink-primary">Agent 角色开关</p>
+                </div>
+                <p className="text-xs text-ink-tertiary">选择小妍在多 Agent 协作时允许唤醒的分支角色。关闭某个角色后，调度模型将不会将其纳入考量。</p>
 
-            <div className="pt-2">
+                <div className="flex gap-2 flex-wrap pb-2">
+                  {AGENT_OPTIONS.map(([value, label]) => (
+                    <AgentChip
+                      key={value}
+                      label={label}
+                      active={enabledAgents.includes(value)}
+                      onClick={() => toggleAgent(value)}
+                    />
+                  ))}
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {AGENT_GUIDES.map((item) => (
+                    <div key={item.key} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3 shadow-sm">
+                      <p className="text-xs font-semibold text-ink-primary">{item.label}</p>
+                      <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{item.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid gap-3 md:grid-cols-2">
                 <SettingInput
                   label="单次最多调用的 Agent 步数上限"

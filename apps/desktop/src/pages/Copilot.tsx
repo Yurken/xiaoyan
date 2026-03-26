@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useClickOutside } from "../hooks/useClickOutside";
 import {
   AlertCircle,
   BookMarked,
@@ -100,6 +101,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [selectedInterestId, setSelectedInterestId] = useState("");
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [sessionFolderPickerOpen, setSessionFolderPickerOpen] = useState(false);
+  const folderPickerRef = useClickOutside(folderPickerOpen, () => setFolderPickerOpen(false));
+  const sessionFolderPickerRef = useClickOutside(sessionFolderPickerOpen, () => setSessionFolderPickerOpen(false));
   const [updatingSessionContext, setUpdatingSessionContext] = useState(false);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
@@ -495,12 +498,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           </button>
           {!hideFolders && (
           <div
+            ref={folderPickerRef}
             className="relative mt-2"
-            onBlur={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                setFolderPickerOpen(false);
-              }
-            }}
           >
             <label className="mb-1 ml-1 block text-[11px] font-medium text-ink-tertiary">新对话主题文件夹</label>
             <button
@@ -682,12 +681,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             <div className="flex items-center gap-3">
               {currentSession && (
                 <div
+                  ref={sessionFolderPickerRef}
                   className="relative flex items-center gap-2"
-                  onBlur={(e) => {
-                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                      setSessionFolderPickerOpen(false);
-                    }
-                  }}
                 >
                   <span className="text-xs text-ink-tertiary flex-shrink-0">所属研究方向</span>
                   <button
