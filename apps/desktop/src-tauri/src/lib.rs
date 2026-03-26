@@ -36,7 +36,7 @@ use commands::{
     misc::{markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text},
     paper_search::paper_search,
     papers::{papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list, papers_list_figures, papers_open_pdf, papers_reproduce, papers_update, papers_upload},
-    settings::{settings_get, settings_test, settings_update},
+    settings::{settings_get, settings_test, settings_update, settings_export, settings_import},
     skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
     source::source_lookup,
     update::{update_check, update_install, PendingUpdate},
@@ -161,6 +161,8 @@ pub fn run() {
             settings_get,
             settings_update,
             settings_test,
+            settings_export,
+            settings_import,
             update_check,
             update_install,
             // Papers

@@ -41,5 +41,11 @@ lopdf = "0.32"
 flate2 = "1"
 # Image encoding (PNG/JPEG)
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
-# Base64 for figure data API
+# Base64 for figure data API and settings export
 base64 = "0.22"
+# Encryption for settings export/import (AES-256-GCM + PBKDF2)
+aes-gcm = "0.10"
+pbkdf2 = "0.12"
+sha2 = "0.10"
+hmac = "0.12"
+rand = "0.8"

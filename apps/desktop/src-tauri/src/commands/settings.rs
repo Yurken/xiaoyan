@@ -3,6 +3,65 @@ use crate::state::{AppState, SENSITIVE_KEYS};
 use std::collections::HashMap;
 use tauri::State;
 
+// ── Crypto helpers (AES-256-GCM + PBKDF2) ───────────────────────
+use aes_gcm::aead::{Aead, KeyInit};
+use aes_gcm::{Aes256Gcm, Key, Nonce};
+use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+use rand::RngCore;
+
+const MAGIC: &[u8; 6] = b"RCCFG1";
+const PBKDF2_ROUNDS: u32 = 200_000;
+const SALT_LEN: usize = 16;
+const NONCE_LEN: usize = 12;
+const KEY_LEN: usize = 32;
+
+fn derive_key(password: &[u8], salt: &[u8]) -> [u8; KEY_LEN] {
+    let mut key = [0u8; KEY_LEN];
+    pbkdf2::pbkdf2_hmac::<sha2::Sha256>(password, salt, PBKDF2_ROUNDS, &mut key);
+    key
+}
+
+fn encrypt_blob(plaintext: &[u8], password: &str) -> Result<String, String> {
+    let mut salt = [0u8; SALT_LEN];
+    let mut nonce_bytes = [0u8; NONCE_LEN];
+    rand::thread_rng().fill_bytes(&mut salt);
+    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+
+    let key = derive_key(password.as_bytes(), &salt);
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
+    let ciphertext = cipher
+        .encrypt(Nonce::from_slice(&nonce_bytes), plaintext)
+        .map_err(|e| format!("加密失败: {e}"))?;
+
+    let mut blob = Vec::with_capacity(MAGIC.len() + SALT_LEN + NONCE_LEN + ciphertext.len());
+    blob.extend_from_slice(MAGIC);
+    blob.extend_from_slice(&salt);
+    blob.extend_from_slice(&nonce_bytes);
+    blob.extend_from_slice(&ciphertext);
+    Ok(B64.encode(&blob))
+}
+
+fn decrypt_blob(b64_data: &str, password: &str) -> Result<Vec<u8>, String> {
+    let blob = B64.decode(b64_data).map_err(|_| "文件格式无效。".to_string())?;
+    let min_len = MAGIC.len() + SALT_LEN + NONCE_LEN + 16; // 16 = GCM tag
+    if blob.len() < min_len {
+        return Err("文件格式无效或已损坏。".to_string());
+    }
+    if &blob[..MAGIC.len()] != MAGIC {
+        return Err("不是有效的配置文件。".to_string());
+    }
+    let offset = MAGIC.len();
+    let salt = &blob[offset..offset + SALT_LEN];
+    let nonce_bytes = &blob[offset + SALT_LEN..offset + SALT_LEN + NONCE_LEN];
+    let ciphertext = &blob[offset + SALT_LEN + NONCE_LEN..];
+
+    let key = derive_key(password.as_bytes(), salt);
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
+    cipher
+        .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
+        .map_err(|_| "密码错误或文件已损坏。".to_string())
+}
+
 const EXPOSED_KEYS: &[&str] = &[
     "llm_provider",
     "openai_api_key",
@@ -230,6 +289,94 @@ pub async fn settings_update(
 
     let updated: Vec<String> = to_save.keys().cloned().collect();
     Ok(serde_json::json!({ "ok": true, "updated": updated }))
+}
+
+// ── Export settings (encrypted) ─────────────────────────────────
+
+/// Export all settings (including raw API keys) encrypted with the given password.
+/// Returns a base64-encoded blob suitable for saving to a .rcconf file.
+#[tauri::command]
+pub async fn settings_export(
+    state: State<'_, AppState>,
+    password: String,
+) -> Result<String, String> {
+    if password.is_empty() {
+        return Err("密码不能为空。".to_string());
+    }
+
+    // Read raw settings (bypass masking — export needs real values)
+    let rows = sqlx::query("SELECT key, value FROM settings")
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut map: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    for row in &rows {
+        use sqlx::Row;
+        let key: String = row.get("key");
+        let value: String = row.get("value");
+        if EXPOSED_KEYS.contains(&key.as_str()) {
+            map.insert(key, value);
+        }
+    }
+
+    let json = serde_json::to_string(&map).map_err(|e| e.to_string())?;
+    encrypt_blob(json.as_bytes(), &password)
+}
+
+// ── Import settings (encrypted) ─────────────────────────────────
+
+/// Decrypt an exported .rcconf blob and write the contained settings into the DB.
+/// Returns the list of keys that were written.
+#[tauri::command]
+pub async fn settings_import(
+    state: State<'_, AppState>,
+    data: String,
+    password: String,
+) -> Result<Vec<String>, String> {
+    if password.is_empty() {
+        return Err("密码不能为空。".to_string());
+    }
+
+    let plaintext = decrypt_blob(data.trim(), &password)?;
+    let json_str = std::str::from_utf8(&plaintext)
+        .map_err(|_| "解密数据格式错误。".to_string())?;
+    let map: std::collections::BTreeMap<String, String> = serde_json::from_str(json_str)
+        .map_err(|_| "配置文件内容格式错误。".to_string())?;
+
+    let mut to_save: HashMap<String, String> = HashMap::new();
+    for (key, value) in &map {
+        if EXPOSED_KEYS.contains(&key.as_str()) {
+            to_save.insert(key.clone(), value.clone());
+        }
+    }
+
+    if to_save.is_empty() {
+        return Err("文件中未找到有效配置项。".to_string());
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
+    for (key, value) in &to_save {
+        sqlx::query(
+            "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+        )
+        .bind(key)
+        .bind(value)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+    tx.commit().await.map_err(|e| e.to_string())?;
+
+    let mut cache = state.settings.write().await;
+    for (k, v) in &to_save {
+        cache.insert(k.clone(), v.clone());
+    }
+
+    Ok(to_save.keys().cloned().collect())
 }
 
 // ── Test connection ──────────────────────────────────────────────

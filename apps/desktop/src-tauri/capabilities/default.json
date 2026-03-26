@@ -10,6 +10,7 @@
     "shell:default",
     "updater:default",
     "fs:read-files",
+    "fs:allow-write-text-file",
     "fs:scope-home-recursive"
   ]
 }

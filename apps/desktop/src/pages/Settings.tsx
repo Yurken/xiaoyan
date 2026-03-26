@@ -17,6 +17,7 @@ import {
   FileSearch,
   Hammer,
   Info,
+  KeyRound,
   LayoutDashboard,
   Loader2,
   Layers3,
@@ -31,6 +32,7 @@ import {
   Search,
   Sparkles,
   Trash2,
+  Upload,
   Wifi,
   X,
   Zap,
@@ -1916,6 +1918,13 @@ export default function Settings() {
   const [memories, setMemories] = useState<UserMemory[]>([]);
   const [memoriesLoading, setMemoriesLoading] = useState(false);
   const [clearingAuto, setClearingAuto] = useState(false);
+  // Import / Export
+  type CryptoModal = { mode: "export" } | { mode: "import"; fileData: string } | null;
+  const [cryptoModal, setCryptoModal] = useState<CryptoModal>(null);
+  const [cryptoPassword, setCryptoPassword] = useState("");
+  const [cryptoConfirm, setCryptoConfirm] = useState("");
+  const [cryptoBusy, setCryptoBusy] = useState(false);
+  const [cryptoError, setCryptoError] = useState("");
 
   const set = (key: keyof AppSettings) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -1978,6 +1987,69 @@ export default function Settings() {
       cancelled = true;
     };
   }, []);
+
+  const openExportModal = () => {
+    setCryptoModal({ mode: "export" });
+    setCryptoPassword("");
+    setCryptoConfirm("");
+    setCryptoError("");
+  };
+
+  const openImportPicker = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const file = await open({ filters: [{ name: "配置文件", extensions: ["rcconf"] }], multiple: false });
+      if (!file) return;
+      const filePath = typeof file === "string" ? file : (file as { path: string }).path;
+      const { readTextFile } = await import("@tauri-apps/plugin-fs");
+      const data = await readTextFile(filePath);
+      setCryptoModal({ mode: "import", fileData: data.trim() });
+      setCryptoPassword("");
+      setCryptoError("");
+    } catch (e) {
+      setCryptoError(String(e));
+    }
+  };
+
+  const handleCryptoConfirm = async () => {
+    if (!cryptoModal) return;
+    if (!cryptoPassword.trim()) { setCryptoError("密码不能为空。"); return; }
+    if (cryptoModal.mode === "export" && cryptoPassword !== cryptoConfirm) {
+      setCryptoError("两次密码不一致。"); return;
+    }
+    setCryptoBusy(true);
+    setCryptoError("");
+    try {
+      if (cryptoModal.mode === "export") {
+        const blob = await apiClient.settings.export(cryptoPassword);
+        const { save } = await import("@tauri-apps/plugin-dialog");
+        const savePath = await save({ defaultPath: "settings.rcconf", filters: [{ name: "配置文件", extensions: ["rcconf"] }] });
+        if (savePath) {
+          const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+          await writeTextFile(savePath, blob);
+          setCryptoModal(null);
+          setSaveState("saved");
+          window.setTimeout(() => setSaveState("idle"), 2500);
+          void apiClient.memory.add({ type: "auto", action: "settings.export", summary: "导出了加密配置文件" });
+        } else {
+          setCryptoModal(null);
+        }
+      } else {
+        const keys = await apiClient.settings.import(cryptoModal.fileData, cryptoPassword);
+        // Reload settings into form
+        const fresh = await apiClient.settings.get();
+        setForm(fresh as typeof form);
+        setCryptoModal(null);
+        setSaveState("saved");
+        window.setTimeout(() => setSaveState("idle"), 2500);
+        void apiClient.memory.add({ type: "auto", action: "settings.import", summary: `导入了 ${keys.length} 项配置` });
+      }
+    } catch (e) {
+      setCryptoError(String(e));
+    } finally {
+      setCryptoBusy(false);
+    }
+  };
 
   const handleSaveSettings = async () => {
     setSaveState("saving");
@@ -2086,6 +2158,7 @@ export default function Settings() {
   const updatePublishedAt = formatUpdateDate(updateInfo?.pub_date || changelogPublishedAt);
 
   return (
+    <>
     <div className="h-full flex flex-col">
       <div
         className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-nm-dark/10"
@@ -2096,6 +2169,28 @@ export default function Settings() {
           <p className="text-xs text-ink-tertiary">按用途配置小妍能力模块、检索参数和多 Agent 协作策略</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* 导出配置 */}
+          <button
+            type="button"
+            onClick={openExportModal}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
+            style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+            title="将当前配置（含 API Key）加密导出为 .rcconf 文件"
+          >
+            <Download className="w-3.5 h-3.5" />
+            导出配置
+          </button>
+          {/* 导入配置 */}
+          <button
+            type="button"
+            onClick={() => void openImportPicker()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
+            style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+            title="从 .rcconf 文件导入配置（会覆盖当前配置）"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            导入配置
+          </button>
           <div className="relative">
             <button
               type="button"
@@ -2896,5 +2991,95 @@ export default function Settings() {
         ) : null}
       </div>
     </div>
+
+    {/* 加密密码弹窗 */}
+    {cryptoModal !== null && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center"
+        style={{ background: "rgba(0,0,0,0.45)" }}
+        onClick={(e) => { if (e.target === e.currentTarget) setCryptoModal(null); }}
+      >
+        <div
+          className="w-full max-w-sm mx-4 rounded-3xl p-6 space-y-4"
+          style={{ background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)", boxShadow: "12px 12px 28px rgba(0,0,0,0.35), -6px -6px 18px rgba(255,255,255,0.6)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF" }}>
+              <KeyRound className="w-5 h-5 text-apple-blue" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-ink-primary">
+                {cryptoModal.mode === "export" ? "加密导出配置" : "解密导入配置"}
+              </h3>
+              <p className="text-xs text-ink-tertiary mt-0.5">
+                {cryptoModal.mode === "export"
+                  ? "设置一个密码保护配置文件，导入时需要输入同一密码。"
+                  : "输入导出时设置的密码解锁配置文件。"}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-ink-tertiary ml-1">密码</label>
+              <input
+                type="password"
+                value={cryptoPassword}
+                onChange={(e) => { setCryptoPassword(e.target.value); setCryptoError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !cryptoBusy) void handleCryptoConfirm(); }}
+                placeholder="输入密码"
+                autoFocus
+                className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
+                style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+              />
+            </div>
+            {cryptoModal.mode === "export" && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-ink-tertiary ml-1">确认密码</label>
+                <input
+                  type="password"
+                  value={cryptoConfirm}
+                  onChange={(e) => { setCryptoConfirm(e.target.value); setCryptoError(""); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !cryptoBusy) void handleCryptoConfirm(); }}
+                  placeholder="再次输入密码"
+                  className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
+                  style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                />
+              </div>
+            )}
+            {cryptoModal.mode === "export" && (
+              <p className="text-[11px] text-ink-tertiary leading-relaxed px-1">
+                配置文件包含所有 API Key，请妥善保管，切勿分享给他人。
+              </p>
+            )}
+            {cryptoError && (
+              <p className="text-xs text-apple-red px-1">{cryptoError}</p>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setCryptoModal(null)}
+              className="flex-1 py-2 rounded-2xl text-sm font-medium transition-all duration-150"
+              style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCryptoConfirm()}
+              disabled={cryptoBusy || !cryptoPassword.trim()}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
+              style={{ background: "linear-gradient(145deg, #1A8AFF, #0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3)" }}
+            >
+              {cryptoBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
+              {cryptoBusy ? "处理中…" : cryptoModal.mode === "export" ? "加密并保存" : "解密并导入"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

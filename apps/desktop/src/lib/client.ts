@@ -59,6 +59,10 @@ export const settingsApi = {
     invoke("settings_update", { data }),
   test: (data: Partial<AppSettings>): Promise<string> =>
     invoke("settings_test", { data }),
+  export: (password: string): Promise<string> =>
+    invoke("settings_export", { password }),
+  import: (data: string, password: string): Promise<string[]> =>
+    invoke("settings_import", { data, password }),
 };
 
 export const updatesApi = {
