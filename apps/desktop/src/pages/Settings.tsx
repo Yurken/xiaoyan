@@ -491,6 +491,8 @@ type GroupedModelDefinition = {
   apiKeyKeys: (keyof AppSettings)[];
   modelPlaceholder: string;
   temperaturePlaceholder: string;
+  secondaryFieldLabel?: string;
+  secondaryFieldHint?: string;
 };
 
 function GroupedModelCard({
@@ -512,6 +514,8 @@ function GroupedModelCard({
   onApiKeyChange,
   modelPlaceholder,
   temperaturePlaceholder,
+  secondaryFieldLabel,
+  secondaryFieldHint,
 }: {
   icon: ComponentType<{ className?: string }>;
   iconColor: string;
@@ -531,6 +535,8 @@ function GroupedModelCard({
   onApiKeyChange: (value: string) => void;
   modelPlaceholder: string;
   temperaturePlaceholder: string;
+  secondaryFieldLabel?: string;
+  secondaryFieldHint?: string;
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -563,11 +569,11 @@ function GroupedModelCard({
           hint="留空表示继续按主模型或高级设置中的细分配置继承。"
         />
         <SettingInput
-          label="统一温度"
+          label={secondaryFieldLabel ?? "统一温度"}
           value={temperatureValue}
           onChange={onTemperatureChange}
           placeholder={temperaturePlaceholder}
-          hint="留空表示继续沿用各自已有温度；重新填写会统一覆盖这一组。"
+          hint={secondaryFieldHint ?? "留空表示继续沿用各自已有温度；重新填写会统一覆盖这一组。"}
         />
       </div>
       <button
@@ -936,6 +942,30 @@ const AGENT_GUIDES = [
 
 
 const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
+  {
+    title: "溯源 · 向量化与检索",
+    description: "负责知识库向量化、语义检索与 RAG 证据回溯，决定答案的可验证性。",
+    recommendation: "优先选择稳定的 embedding 模型与向量接口；检索数量建议 5-8，过高会拉长响应且引入噪声。",
+    affectedScopes: "知识库向量化（embedding）、知识库检索与 RAG 溯源（retrieval / rag）",
+    icon: Database,
+    iconColor: "#1F8A70",
+    modelKeys: [
+      "embedding_model",
+    ],
+    temperatureKeys: [
+      "rag_top_k",
+    ],
+    baseUrlKeys: [
+      "embedding_base_url",
+    ],
+    apiKeyKeys: [
+      "embedding_api_key",
+    ],
+    modelPlaceholder: "例如：text-embedding-3-small / BAAI/bge-m3",
+    temperaturePlaceholder: "5",
+    secondaryFieldLabel: "统一检索数量",
+    secondaryFieldHint: "留空表示沿用现有 RAG 检索数量；重新填写会统一覆盖为同一检索上限。",
+  },
   {
     title: "流光 · 快速响应",
     description: "反应极快，负责方向提示和小妍日常轻量对话。",
@@ -2215,73 +2245,6 @@ export default function Settings() {
           </Card>
         ) : null}
 
-        {activeSection === "connection" && !contentUnavailable ? (
-          <Card padding="md" className="space-y-4">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Database} color="#5856D6" />
-              <div>
-                <h2 className="text-sm font-semibold text-ink-primary">向量化与检索</h2>
-                <p className="text-xs text-ink-tertiary mt-0.5">
-                  独立配置向量接口后，知识库、论文检索和 RAG 都会优先使用这里的模型。
-                </p>
-              </div>
-            </div>
-
-            {provider === "anthropic" ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
-                <p className="text-xs leading-5 text-amber-800">
-                  当前主服务商不提供向量接口。若你要使用知识库检索、论文检索和 RAG，建议在下方配置独立向量化接口。
-                </p>
-              </div>
-            ) : null}
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <SettingInput
-                label="向量接口地址"
-                value={form.embedding_base_url}
-                onChange={set("embedding_base_url")}
-                placeholder="https://api.openai.com/v1"
-                hint="留空则沿用主模型服务商的向量接口设置。"
-              />
-              <SettingInput
-                label="向量接口密钥"
-                value={form.embedding_api_key}
-                onChange={set("embedding_api_key")}
-                placeholder="sk-..."
-                sensitive
-                hint={`留空或输入 ${MASK} 表示不更改`}
-              />
-              <SettingInput
-                label="向量模型"
-                value={form.embedding_model}
-                onChange={set("embedding_model")}
-                placeholder="text-embedding-3-small / bge-m3"
-                hint="留空则沿用当前服务商的默认向量模型。"
-              />
-              <div className="grid grid-cols-3 gap-3">
-                <SettingInput
-                  label="分块大小"
-                  value={form.chunk_size}
-                  onChange={set("chunk_size")}
-                  placeholder="800"
-                />
-                <SettingInput
-                  label="重叠大小"
-                  value={form.chunk_overlap}
-                  onChange={set("chunk_overlap")}
-                  placeholder="150"
-                />
-                <SettingInput
-                  label="检索数量"
-                  value={form.rag_top_k}
-                  onChange={set("rag_top_k")}
-                  placeholder="5"
-                />
-              </div>
-            </div>
-          </Card>
-        ) : null}
-
         {activeSection === "paper_tags" && !contentUnavailable ? (
           <div className="space-y-4">
             <Card padding="md" className="space-y-4">
@@ -2384,7 +2347,7 @@ export default function Settings() {
 
             <RecommendationList
               items={[
-                "建议分工：流光负责极速轻量问答，元枢承担均衡主力，探知处理联网检索，谋策负责深度推理，洞见专注长文精读，翰章用于结构化写作，构域用于代码工程。按场景分配，效果与成本更优。",
+                "建议分工：溯源负责向量化与检索，流光负责极速轻量问答，元枢承担均衡主力，探知处理联网检索，谋策负责深度推理，洞见专注长文精读，翰章用于结构化写作，构域用于代码工程。按场景分配，效果与成本更优。",
                 "视界与译衡现在就可以先配置；后端接口上线后会自动启用，无需二次设置。",
                 "即使全部留空也可正常使用：所有角色会自动回退到「连接与检索」中的默认对话模型。",
                 "如需让探知联网，可在其卡片中单独配置支持搜索的接口；其余角色仍使用主服务商。",
@@ -2413,6 +2376,8 @@ export default function Settings() {
                   onApiKeyChange={setMany(item.apiKeyKeys)}
                   modelPlaceholder={item.modelPlaceholder}
                   temperaturePlaceholder={item.temperaturePlaceholder}
+                  secondaryFieldLabel={item.secondaryFieldLabel}
+                  secondaryFieldHint={item.secondaryFieldHint}
                 />
               ))}
             </div>

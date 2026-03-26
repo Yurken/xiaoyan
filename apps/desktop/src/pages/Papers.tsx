@@ -946,13 +946,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             const filled = SECTIONS.filter(({ key }) => paper.analysis![key]);
             if (filled.length === 0) return null;
             const figs = paperFigures[paper.id] ?? [];
-            const referencedIds = new Set<string>();
-            const sectionFigs = filled.map(({ key }) => {
-              const refs = findReferencedFigures(String(paper.analysis![key] ?? ""), figs);
-              refs.forEach(f => referencedIds.add(f.id));
-              return refs;
-            });
-            const unreferencedFigs = figs.filter(f => !referencedIds.has(f.id));
+            const sectionFigs = filled.map(({ key }) =>
+              findReferencedFigures(String(paper.analysis![key] ?? ""), figs)
+            );
             return (
               <div className="space-y-2.5">
                 <p className="text-[11px] font-semibold text-ink-tertiary tracking-widest uppercase pl-0.5">小妍解读</p>
@@ -974,20 +970,20 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                       <MarkdownRenderer content={String(paper.analysis![key] ?? "")} />
                       {sectionFigs[i].length > 0 && (
                         <div
-                          className="mt-2.5 pt-2.5 flex flex-wrap gap-2.5"
+                          className="mt-2.5 pt-2.5 space-y-3"
                           style={{ borderTop: `1px solid ${color}20` }}
                         >
                           {sectionFigs[i].map(fig => (
-                            <div key={fig.id} className="flex flex-col items-center gap-1" style={{ maxWidth: 130 }}>
+                            <div key={fig.id} className="flex flex-col items-center gap-1.5">
                               <img
                                 src={fig.data_url}
                                 alt={fig.caption ?? `图 ${fig.fig_index}`}
                                 title={fig.caption ?? undefined}
-                                className="rounded-xl object-contain"
-                                style={{ maxWidth: 130, maxHeight: 100, background: "rgba(0,0,0,0.03)", border: `1px solid ${color}30` }}
+                                className="rounded-xl object-contain mx-auto"
+                                style={{ maxWidth: "100%", maxHeight: 400, background: "rgba(0,0,0,0.03)", border: `1px solid ${color}30` }}
                               />
                               {fig.caption && (
-                                <span className="text-[9px] text-ink-tertiary text-center line-clamp-2 leading-tight">{fig.caption}</span>
+                                <span className="text-[10px] text-ink-tertiary text-center leading-snug px-2">{fig.caption}</span>
                               )}
                             </div>
                           ))}
@@ -996,33 +992,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                     </div>
                   </div>
                 ))}
-                {unreferencedFigs.length > 0 && (
-                  <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(0,0,0,0.02)", borderLeft: "3px solid rgba(0,0,0,0.08)" }}>
-                    <div className="px-3 pt-2.5 pb-0.5">
-                      <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(0,0,0,0.06)", color: "#666" }}>
-                        论文图表
-                      </span>
-                    </div>
-                    <div className="px-3 pt-1 pb-3">
-                      <div className="flex flex-wrap gap-2.5">
-                        {unreferencedFigs.map(fig => (
-                          <div key={fig.id} className="flex flex-col items-center gap-1" style={{ maxWidth: 130 }}>
-                            <img
-                              src={fig.data_url}
-                              alt={fig.caption ?? `图 ${fig.fig_index}`}
-                              title={fig.caption ?? undefined}
-                              className="rounded-xl object-contain"
-                              style={{ maxWidth: 130, maxHeight: 100, background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.06)" }}
-                            />
-                            {fig.caption && (
-                              <span className="text-[9px] text-ink-tertiary text-center line-clamp-2 leading-tight">{fig.caption}</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })()}
