@@ -542,6 +542,8 @@ export interface AppSettings {
   paper_import_recognize_year: string;
   paper_import_recognize_venue: string;
   paper_import_recognize_keywords: string;
+  paper_auto_rename_on_import: string;
+  paper_auto_rename_rule: string;
   vision_model: string;
   vision_base_url: string;
   vision_api_key: string;
