@@ -6,14 +6,22 @@
 
 - **多 Agent 协同**：Supervisor 负责任务拆解，调用检索、规划、文献侦察、综述、论文解析、复现等专长 Agent，最终整合回答。
 - **可观测 Copilot**：实时展示计划步骤、Agent 执行轨迹与来源（Mission Control 面板）。
-- **协作式研究规划**：研究方向规划支持 Agent 协作流程可视化，可查看 Topic Analyst / Paper Scout / Learning Path Designer 的执行过程。
-- **协作式文献综述**：文献综述支持 Intent Planner / Literature Retriever / Survey Writer 协作流程可视化，并输出结构化综述与候选论文。
+- **协作式研究规划**：支持 Topic Analyst / Paper Scout / Learning Path Designer 协作流程可视化。
+- **协作式文献综述**：支持 Intent Planner / Literature Retriever / Survey Writer 协作流程可视化，输出结构化综述与候选论文。
 - **论文库**：上传 PDF，自动提取全文、分块向量化，支持语义检索与论文精读分析。导入时可开启 AI 自动重命名，按自定义模板（作者、标题、年份等）就地改名原文件。
+- **小妍解读（论文精读）**：点击解读后自动提取 PDF 图表（lopdf 位图 + 视觉模型扫描矢量图/表格），AI 分析时积极引用图表编号，结果以文字 + 图片并排呈现。
+- **视界·视觉模型**：独立配置视觉模型（`vision_model` / `vision_base_url` / `vision_api_key`），小妍解读自动调用，扫描 PDF 各页识别 lopdf 无法提取的矢量图与表格。
+- **记忆管理**：支持手动录入和 AI 自动提取用户操作记忆，Copilot 对话时自动注入相关上下文。
 - **知识卡片**：创建笔记，自动生成 Embedding，支持语义搜索。
 - **研究规划**：输入研究方向，AI 生成系统化学习路线（前置知识、阶段、经典论文、开放问题）。
 - **文献综述**：基于知识库 RAG + LLM 流式生成结构化综述。
-- **实用工具**：内置 arXiv 智能检索（关键词 + 时间窗口 + LLM 重排）、期刊分区查询（WoS / JCR / 中科院）、CCF 等级查询，以及按分类整理的科研友链。
-- **按用途选模**：可为方向提示、深度规划、综述写作、论文精读、复现指导、多 Agent 调度与整合分别指定模型。
+- **实用工具**：
+  - **arXiv 智能检索**：关键词 + 时间窗口 + LLM 重排，支持三步级联筛选（研究领域 × 类型 × 等级）自动填充检索范围
+  - **期刊分区查询**：WoS / JCR / 中科院，支持按 CCF-A/B/C、中科院1-4区、Top期刊、JCR Q1/Q2/Q3、SCIE、SSCI 等级动态过滤
+  - **CCF 等级查询**：679 个 CCF 会议与期刊
+  - 按分类整理的科研友链
+- **设置导入/导出**：支持加密（AES-256-GCM + PBKDF2）导出配置文件，方便多设备迁移。
+- **按用途选模**：可为方向提示、深度规划、综述写作、论文精读、复现指导、多 Agent 调度与整合、视觉识别分别指定模型。
 - **设置中心**：默认展示少量常用模型分工，高级设置中再展开逐项场景和单个 Agent 的覆盖参数。
 
 ## 页面一览
@@ -37,19 +45,20 @@
 前端 (React + Vite)
     ↕  Tauri invoke() / listen()
 Rust 后端 (Tauri Commands)
-    ├── llm.rs                LLM 客户端（OpenAI / Anthropic / 兼容接口，SSE 流式）
+    ├── llm.rs                LLM 客户端（OpenAI / Anthropic / 兼容接口，SSE 流式；含视觉模型 chat_with_image）
     ├── rag.rs                文本分块 + 余弦相似度向量检索
-    ├── ccf.rs                CCF 目录索引与查询
-    ├── journal_partitions.rs 期刊分区索引与查询（WoS / JCR / 中科院）
+    ├── ccf.rs                CCF 目录索引与查询（679 条）
+    ├── journal_partitions.rs 期刊分区索引与查询（WoS / JCR / 中科院，22804 条）
     ├── db.rs                 SQLite 初始化与 Schema 迁移
     ├── state.rs              AppState（线程安全 Arc<RwLock>）
     └── commands/
-        ├── settings   设置读写（事务）
-        ├── papers     PDF 上传、解析、分析、复现、AI 重命名
+        ├── settings   设置读写（事务）、加密导入/导出
+        ├── papers     PDF 上传、解析、图表提取（lopdf + 视觉扫描）、分析、复现、AI 重命名
         ├── knowledge  研究方向 + 知识笔记
+        ├── memory     记忆管理（手动 / 自动提取 / 上下文构建）
         ├── chat       多 Agent 编排与流式对话
         ├── arxiv      arXiv 检索与 LLM 重排
-        ├── journal    期刊分区查询
+        ├── journal    期刊分区查询 + 按等级/学科过滤（journal_rank_filter）
         └── misc       规划器、综述生成、搜索
 SQLite（本地嵌入式，无需独立服务）
 ```
@@ -72,6 +81,7 @@ SQLite（本地嵌入式，无需独立服务）
 - **读取**：每次启动时从数据库加载全部键值并合并进内存缓存（默认值兜底）
 - **敏感字段**（API Key 等）：读取时返回 `***` 占位，保存时跳过 `***` 值（保留已存储内容）
 - **持久性**：数据库文件在卸载/重装 App 时保留于 Application Support 目录，不会随 App 本体删除
+- **导入/导出**：设置支持加密导出为 `.rcconf` 文件（AES-256-GCM + PBKDF2），便于备份和多设备迁移
 
 ### 数据库表结构
 
@@ -80,10 +90,12 @@ SQLite（本地嵌入式，无需独立服务）
 | `settings` | 应用设置键值对 |
 | `papers` | 论文元数据 + 全文 |
 | `paper_chunks` | 论文分块 + Embedding 向量（JSON 存储） |
+| `paper_figures` | 论文图表文件（lopdf 提取 + 视觉模型扫描） |
 | `paper_analyses` | 论文 AI 分析结果 |
 | `reproduction_guides` | 论文复现指南 |
 | `research_interests` | 研究方向 + 学习路线 |
 | `knowledge_notes` | 知识笔记 + Embedding |
+| `memories` | 用户记忆（手动 / 自动） |
 | `chat_sessions` | 对话会话 |
 | `chat_messages` | 对话消息 |
 | `agent_runs` | Agent 执行记录 |
@@ -178,7 +190,19 @@ pnpm tauri build
 2. 如需更好体验，再补一个快速模型
 3. 如果你经常做规划、综述和论文精读，再补深度分析模型或写作整合模型
 
-### 3. 高级设置只在需要时展开
+### 3. 视界·视觉模型（可选）
+
+在「视界」模块配置专用视觉模型（支持 OpenAI Vision 格式或 Anthropic）：
+
+| 字段 | 说明 |
+|---|---|
+| `vision_model` | 视觉模型名称，如 `gpt-4o`、`claude-3-5-sonnet-20241022` |
+| `vision_base_url` | 视觉模型 API Base URL（留空则复用主模型接口） |
+| `vision_api_key` | 视觉模型 API Key（留空则复用主模型密钥） |
+
+配置后，点击「小妍解读」时会自动调用视觉模型扫描 PDF 各页，识别 lopdf 无法提取的矢量图和表格，补充进论文图表库。
+
+### 4. 高级设置只在需要时展开
 
 高级设置中可以继续微调：
 
@@ -195,7 +219,7 @@ pnpm tauri build
   -> 主模型
 ```
 
-### 4. 多 Agent 选路建议
+### 5. 多 Agent 选路建议
 
 设置页支持三种选路模式：
 
@@ -204,6 +228,37 @@ pnpm tauri build
 | `rule` | 纯规则判断，最稳定 | 对成本敏感或需要严格可复现时使用 |
 | `llm` | 由调度模型实时选择 Agent | 对开放式复杂任务更灵活 |
 | `hybrid` | 规则初选 + 调度模型修正 | 默认推荐，大多数情况更稳妥 |
+
+## arXiv 论文检索：三步级联筛选
+
+论文检索模块支持三步级联筛选，自动填充 arXiv 分类和期刊/会议范围：
+
+**步骤 1 · 研究领域**（计算机科学两级分类 + 其他领域平铺）
+
+| CS 一级分组 | 子领域 |
+|---|---|
+| 人工智能 | AI & 机器学习、计算机视觉、自然语言处理 |
+| 数据与信息 | 数据库 & 数据挖掘 |
+| 系统与工程 | 系统 & 体系结构、软件工程、网络 & 通信 |
+| 安全与理论 | 安全 & 密码学、理论计算机 |
+| 人机与多媒体 | 人机交互、跨学科 & 多媒体 |
+
+其他领域：生物信息、数学、物理、电气工程、机器人
+
+**步骤 2 · 类型**：全部 / 会议 / 期刊
+
+**步骤 3 · 等级**（静态 + 动态）：
+
+| 等级 | 来源 | 说明 |
+|---|---|---|
+| CCF-A / B / C | 静态内嵌 | CCF 目录，679 条 |
+| 中科院1区 / 2区 | 静态内嵌 | 按领域精选 |
+| 中科院3区 / 4区 | 动态查询 | 从本地 22804 条期刊库过滤 |
+| Top期刊 | 动态查询 | `cas_top = true`，共 1789 条 |
+| JCR Q1 / Q2 / Q3 | 动态查询 | `jcr_quartile` 字段 |
+| SCIE / SSCI | 动态查询 | `indexes` 字段 |
+
+选择领域 + 等级后自动填充 arXiv 分类（`categories`）和期刊/会议名称（`journal_ref_terms`），动态等级通过 `journal_rank_filter` 命令查询本地数据库，加载过程显示进度提示。
 
 ## 版本号管理
 
@@ -275,11 +330,12 @@ node scripts/sync-version.mjs --tag v1.2.3
 │   │   ├── src/               # React 前端
 │   │   └── src-tauri/
 │   │       └── src/
-│   │           ├── commands/  # Tauri Commands（settings/papers/knowledge/chat/arxiv/journal/misc）
-│   │           ├── ccf.rs     # CCF 目录
-│   │           ├── journal_partitions.rs  # 期刊分区
+│   │           ├── commands/  # Tauri Commands（settings/papers/knowledge/memory/chat/arxiv/journal/misc）
+│   │           ├── data/      # 本地数据（ccf_catalog.json / journal_partitions.json）
+│   │           ├── ccf.rs     # CCF 目录（679 条）
+│   │           ├── journal_partitions.rs  # 期刊分区（22804 条，含动态过滤）
 │   │           ├── db.rs      # SQLite 初始化
-│   │           ├── llm.rs     # LLM 客户端
+│   │           ├── llm.rs     # LLM 客户端（含视觉模型）
 │   │           ├── rag.rs     # 向量检索
 │   │           ├── state.rs   # 应用状态
 │   │           └── lib.rs     # 入口
@@ -306,11 +362,15 @@ node scripts/sync-version.mjs --tag v1.2.3
 
 **Q: 重装应用后设置会丢失吗？**
 
-不会。设置存储在系统 Application Support 目录（见上方路径），与 App 本体分开存放，重装不影响数据。
+不会。设置存储在系统 Application Support 目录（见上方路径），与 App 本体分开存放，重装不影响数据。如需迁移到新设备，可在设置页导出加密配置文件（`.rcconf`），在新设备导入还原。
 
 **Q: PDF 上传到哪里？**
 
 PDF 文件保留在原始位置，不会被复制。数据库只存储提取出的文本内容、分块向量和文件路径引用。开启自动重命名后，文件会在原目录就地改名。
+
+**Q: 小妍解读的图表识别需要什么条件？**
+
+lopdf 图表提取无需额外配置。视觉模型扫描（识别矢量图和表格）需要在设置「视界」模块配置支持图像输入的视觉模型（如 `gpt-4o`）。未配置时仅使用 lopdf 提取位图图像。
 
 **Q: macOS 提示"已损坏"无法打开怎么办？**
 
