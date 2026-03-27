@@ -888,6 +888,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   paper_import_recognize_year: "true",
   paper_import_recognize_venue: "true",
   paper_import_recognize_keywords: "true",
+  paper_auto_rename_on_import: "false",
+  paper_auto_rename_rule: "{first_author} - {title} ({year})",
   vision_model: "",
   vision_base_url: "",
   vision_api_key: "",
