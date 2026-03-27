@@ -641,7 +641,7 @@ export default function InterestsPanel() {
                         <div>
                           <div className="flex items-center gap-1.5">
                             <GitBranch className="h-3.5 w-3.5 text-apple-blue" />
-                            <p className="text-xs font-semibold text-ink-primary">规划 Agent 协作流程</p>
+                            <p className="text-xs font-semibold text-ink-primary">小妍工作流</p>
                           </div>
                           <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">
                             实时展示主题分析、参考文献筛选与学习路径规划的协作状态。

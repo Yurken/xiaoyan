@@ -311,7 +311,7 @@ pub async fn knowledge_generate_plan(
             "id": rid,
             "agent": {
                 "id": analyst_id,
-                "name": "主题分析 Agent",
+                "name": "元枢模型",
                 "role": "拆解研究主题与能力目标",
                 "status": "running"
             }
@@ -322,8 +322,8 @@ pub async fn knowledge_generate_plan(
             .replace("{keywords}", &keywords.join("、"))
             + &profile_to_analysis_context(&profile);
         let analyst_msgs = vec![LlmMessage::system(planner_analyst_system()), LlmMessage::user(&analyst_prompt)];
-        let analyst_model = resolve_model(&settings, &["planner_analysis_model"]);
-        let analyst_temperature = resolve_temperature(&settings, "planner_analysis_temperature", 0.2);
+        let analyst_model = resolve_model(&settings, &["multi_agent_worker_model"]);
+        let analyst_temperature = resolve_temperature(&settings, "multi_agent_worker_temperature", 0.3);
         let analysis_json = match client.chat(&analyst_msgs, analyst_model.as_deref(), analyst_temperature).await {
             Ok(resp) => {
                 let clean = crate::commands::papers::extract_json_pub(&resp);
@@ -332,7 +332,7 @@ pub async fn knowledge_generate_plan(
                     "id": rid,
                     "agent": {
                         "id": analyst_id,
-                        "name": "主题分析 Agent",
+                        "name": "元枢模型",
                         "role": "拆解研究主题与能力目标",
                         "status": "done",
                         "summary": parsed.get("scope").and_then(|v| v.as_str()).unwrap_or("已完成主题拆解")
@@ -345,7 +345,7 @@ pub async fn knowledge_generate_plan(
                     "id": rid,
                     "agent": {
                         "id": analyst_id,
-                        "name": "主题分析 Agent",
+                        "name": "元枢模型",
                         "role": "拆解研究主题与能力目标",
                         "status": "failed",
                         "error": e.to_string()

@@ -19,9 +19,9 @@ interface PlannerAgentStep {
 
 function defaultPlannerWorkflow(): PlannerAgentStep[] {
   return [
-    { id: "analyst", name: "主题分析 Agent", role: "拆解研究主题与能力目标", status: "pending" },
-    { id: "scout", name: "参考文献筛选 Agent", role: "筛选候选经典论文", status: "pending" },
-    { id: "designer", name: "学习路径规划 Agent", role: "生成结构化学习路径", status: "pending" },
+    { id: "analyst", name: "元枢", role: "拆解研究主题与能力目标", status: "pending" },
+    { id: "scout", name: "探知", role: "筛选候选经典论文", status: "pending" },
+    { id: "designer", name: "谋策", role: "生成结构化学习路径", status: "pending" },
   ];
 }
 
@@ -100,7 +100,7 @@ export default function PlannerPage() {
         setWorkflow([
           {
             id: "analyst",
-            name: "主题分析 Agent",
+            name: "元枢模型",
             role: "拆解研究主题与能力目标",
             status: "done",
             summary: `完成「${topic.trim()}」的学习能力拆解`,

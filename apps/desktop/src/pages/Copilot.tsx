@@ -684,8 +684,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                   ref={sessionFolderPickerRef}
                   className="relative flex items-center gap-2"
                 >
-                  <span className="text-xs text-ink-tertiary flex-shrink-0">所属研究方向</span>
-                  <button
+                  {/* <span className="text-xs text-ink-tertiary flex-shrink-0">所属研究方向</span> */}
+                  {/* <button
                     type="button"
                     disabled={updatingSessionContext}
                     onClick={() => setSessionFolderPickerOpen((prev) => !prev)}
@@ -708,7 +708,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                       className="h-3 w-3 flex-shrink-0 text-ink-tertiary transition-transform duration-150"
                       style={{ transform: sessionFolderPickerOpen ? "rotate(180deg)" : "rotate(0deg)" }}
                     />
-                  </button>
+                  </button> */}
 
                   {sessionFolderPickerOpen && (
                     <div
