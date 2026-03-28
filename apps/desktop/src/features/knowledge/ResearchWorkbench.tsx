@@ -139,6 +139,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
 
   useEffect(() => {
     const unlisten = listen<{ paper_id: string; status: string }>("paper:status", (event) => {
+      if (event.payload.status === "metadata") return;
       setPapers((prev) =>
         prev.map((p) => p.id === event.payload.paper_id ? { ...p, status: event.payload.status } : p)
       );

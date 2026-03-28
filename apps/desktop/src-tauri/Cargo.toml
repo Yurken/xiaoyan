@@ -43,6 +43,8 @@ flate2 = "1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # Base64 for figure data API and settings export
 base64 = "0.22"
+# Capture stderr for filtering noisy PDF extraction warnings
+gag = "1"
 # Encryption for settings export/import (AES-256-GCM + PBKDF2)
 aes-gcm = "0.10"
 pbkdf2 = "0.12"

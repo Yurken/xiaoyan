@@ -346,6 +346,14 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         return;
       }
 
+      if (status === "metadata") {
+        // 元数据识别完成：刷新论文字段，但保留当前处理状态（parsing）
+        void apiClient.papers.get(paper_id).then((latest) => {
+          setPapers((prev) => prev.map((p) => (p.id === paper_id ? { ...latest, status: p.status } : p)));
+        }).catch(() => {});
+        return;
+      }
+
       if (status === "parsed") {
         doFetch(paper_id, status);
         return;

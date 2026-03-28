@@ -9,7 +9,9 @@ use base64::{engine::general_purpose, Engine as _};
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::Row;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
@@ -354,10 +356,19 @@ pub async fn papers_extract_pdf_text(
         .to_string();
     let max_chars = max_chars.unwrap_or(32_000).clamp(1_000, 100_000);
 
-    let text = tokio::task::spawn_blocking(move || pdf_extract::extract_text(&path))
+    let extract_started_at = Instant::now();
+    eprintln!("[pdf-extract] start: path={}", path.display());
+    let path_for_extract = path.clone();
+    let text = tokio::task::spawn_blocking(move || extract_pdf_text_with_filtered_stderr(&path_for_extract))
         .await
         .map_err(|error| format!("PDF 解析任务失败：{error}"))?
         .map_err(|error| format!("PDF 解析失败：{error}"))?;
+    eprintln!(
+        "[pdf-extract] done: path={} chars={} elapsed_ms={}",
+        path.display(),
+        text.chars().count(),
+        extract_started_at.elapsed().as_millis()
+    );
 
     let preview = safe_text_preview(&text, max_chars).trim().to_string();
     if preview.is_empty() {
@@ -426,9 +437,7 @@ pub async fn papers_upload(
         .unwrap_or(file_name)
         .replace(['_', '-'], " ");
 
-    let preview_text = extract_pdf_preview_text(&path, 3, 12_000).unwrap_or_default();
     let settings = state.settings.read().await.clone();
-    let inferred_venue = infer_from_text(&preview_text).map(|tag| tag.full_name);
     let recognize_title = settings
         .get("paper_import_recognize_title")
         .map(|v| v.trim().eq_ignore_ascii_case("true"))
@@ -450,56 +459,39 @@ pub async fn papers_upload(
         .map(|v| v.trim().eq_ignore_ascii_case("true"))
         .unwrap_or(true);
 
-    let mut detected_title = title_guess.clone();
-    let mut detected_authors: Option<String> = None;
-    let mut detected_year: Option<i64> = None;
-    let mut detected_venue = inferred_venue;
-    let mut detected_doi: Option<String> = None;
-
-    let mut tags_json = serde_json::to_string(&extract_keywords_from_text(&preview_text))
-        .unwrap_or_else(|_| "[]".to_string());
-
+    // 前台不再解析 PDF，只用文件名作为暂定标题，后台识别后更新
+    let detected_title = title_guess.clone();
+    let detected_authors: Option<String> = None;
+    let detected_year: Option<i64> = None;
+    let detected_venue: Option<String> = None;
+    let detected_doi: Option<String> = None;
+    let tags_json = "[]".to_string();
     let any_recognition = recognize_title || recognize_authors || recognize_year || recognize_venue || recognize_keywords;
-    if any_recognition && !preview_text.is_empty() {
-        if let Some(metadata) = extract_import_metadata(&settings, file_name, &title_guess, &preview_text).await {
-            if recognize_title {
-                if let Some(value) = clean_optional_text(metadata.title) {
-                    detected_title = value;
-                }
-            }
-            if recognize_authors {
-                detected_authors = clean_optional_text(metadata.authors);
-            }
-            if recognize_year {
-                detected_year = metadata.year.filter(|value| *value > 0);
-            }
-            if recognize_keywords {
-                if let Some(kw_str) = clean_optional_text(metadata.keywords) {
-                    let kw_list: Vec<String> = kw_str
-                        .split(',')
-                        .map(|k| k.trim().to_string())
-                        .filter(|k| !k.is_empty())
-                        .collect();
-                    if !kw_list.is_empty() {
-                        tags_json = serde_json::to_string(&kw_list).unwrap_or(tags_json);
-                    }
-                }
-            }
-            if recognize_venue {
-                detected_venue = clean_optional_text(metadata.venue).or(detected_venue);
-            }
-            detected_doi = clean_optional_text(metadata.doi);
-        }
-    }
+    let file_name_owned = file_name.to_string();
 
     // Always copy into the app-managed papers directory so the file survives
     // even if the user deletes or moves the original in Finder.
+    let copy_started_at = Instant::now();
     let final_path = copy_to_managed_papers_dir(&app, &path, &original_stem)
         .unwrap_or_else(|_| path.clone());
+    eprintln!(
+        "[paper-import] copy_pdf done: source={} target={} elapsed_ms={}",
+        path.display(),
+        final_path.display(),
+        copy_started_at.elapsed().as_millis()
+    );
     let file_path_str = final_path.to_string_lossy().to_string();
 
     let paper_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
+    eprintln!(
+        "[paper-import][{}] upload start: file={} any_recognition={} chunk_size={} chunk_overlap={}",
+        paper_id,
+        file_name_owned,
+        any_recognition,
+        settings.get("chunk_size").cloned().unwrap_or_else(|| "800".to_string()),
+        settings.get("chunk_overlap").cloned().unwrap_or_else(|| "150".to_string())
+    );
 
     sqlx::query(
         "INSERT INTO papers (id, title, authors, year, venue, doi, file_path, full_text, research_interest_id, tags, status, created_at, updated_at)
@@ -529,6 +521,8 @@ pub async fn papers_upload(
     let chunk_overlap: usize = settings.get("chunk_overlap").and_then(|v| v.parse().ok()).unwrap_or(150);
 
     tokio::spawn(async move {
+        let pipeline_started_at = Instant::now();
+        eprintln!("[paper-import][{}] background pipeline start", pid);
         let parsing_now = chrono::Utc::now().to_rfc3339();
         let _ = sqlx::query("UPDATE papers SET status = 'parsing', updated_at = ? WHERE id = ?")
             .bind(&parsing_now)
@@ -536,8 +530,95 @@ pub async fn papers_upload(
             .execute(&db)
             .await;
         let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "parsing" }));
+        eprintln!("[paper-import][{}] status=parsing emitted", pid);
 
-        let text = match tokio::task::spawn_blocking(move || pdf_extract::extract_text(&path_for_parse)).await {
+        // ① 尽早启动全文提取（慢，CPU 密集，先开始但不等待）
+        let preview_path = path_for_parse.clone();
+        let full_text_started_at = Instant::now();
+        eprintln!("[paper-import][{}] full_text extraction start", pid);
+        let full_text_handle = tokio::task::spawn_blocking(move || extract_pdf_text_with_filtered_stderr(&path_for_parse));
+
+        // ② 提取前3页预览文本（相对快），与①并发进行
+        let preview_started_at = Instant::now();
+        let preview_text = tokio::task::spawn_blocking(move || {
+            extract_pdf_preview_text(&preview_path, 3, 12_000)
+        }).await.ok().flatten().unwrap_or_default();
+        eprintln!(
+            "[paper-import][{}] preview extracted: chars={} elapsed_ms={}",
+            pid,
+            preview_text.chars().count(),
+            preview_started_at.elapsed().as_millis()
+        );
+
+        // ③ 基于预览文本做本地快速识别并更新初始字段
+        let venue_and_kw_started_at = Instant::now();
+        let inferred_venue = infer_from_text(&preview_text).map(|tag| tag.full_name);
+        let preview_keywords = extract_keywords_from_text(&preview_text);
+        let preview_tags = serde_json::to_string(&preview_keywords).unwrap_or_else(|_| "[]".to_string());
+        if inferred_venue.is_some() || !preview_keywords.is_empty() {
+            let now = chrono::Utc::now().to_rfc3339();
+            let _ = sqlx::query(
+                "UPDATE papers SET venue = COALESCE(?, venue), tags = ?, updated_at = ? WHERE id = ?"
+            )
+            .bind(&inferred_venue)
+            .bind(&preview_tags)
+            .bind(&now)
+            .bind(&pid)
+            .execute(&db)
+            .await;
+        }
+        eprintln!(
+            "[paper-import][{}] preview infer done: venue={} keywords={} elapsed_ms={}",
+            pid,
+            inferred_venue.is_some(),
+            preview_keywords.len(),
+            venue_and_kw_started_at.elapsed().as_millis()
+        );
+
+        // ④ LLM 元数据识别（与①的全文提取并发进行）
+        let metadata_started_at = Instant::now();
+        let metadata_opt = if any_recognition && !preview_text.is_empty() {
+            extract_import_metadata(&settings, &file_name_owned, &title_guess, &preview_text).await
+        } else {
+            None
+        };
+        eprintln!(
+            "[paper-import][{}] metadata step done: recognized={} elapsed_ms={}",
+            pid,
+            metadata_opt.is_some(),
+            metadata_started_at.elapsed().as_millis()
+        );
+
+        // 元数据到位后立即写库并通知前端
+        if let Some(ref metadata) = metadata_opt {
+            let meta_title = if recognize_title { clean_optional_text(metadata.title.clone()) } else { None };
+            let meta_authors = if recognize_authors { clean_optional_text(metadata.authors.clone()) } else { None };
+            let meta_year: Option<i64> = if recognize_year { metadata.year.filter(|v| *v > 0) } else { None };
+            let meta_venue = if recognize_venue {
+                clean_optional_text(metadata.venue.clone()).or(inferred_venue)
+            } else {
+                None
+            };
+            let meta_doi = clean_optional_text(metadata.doi.clone());
+            let meta_now = chrono::Utc::now().to_rfc3339();
+            let _ = sqlx::query(
+                "UPDATE papers SET title = COALESCE(?, title), authors = COALESCE(?, authors), year = COALESCE(?, year), venue = COALESCE(?, venue), doi = COALESCE(?, doi), updated_at = ? WHERE id = ?"
+            )
+            .bind(meta_title)
+            .bind(meta_authors)
+            .bind(meta_year)
+            .bind(meta_venue)
+            .bind(meta_doi)
+            .bind(&meta_now)
+            .bind(&pid)
+            .execute(&db)
+            .await;
+            let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "metadata" }));
+            eprintln!("[paper-import][{}] status=metadata emitted", pid);
+        }
+
+        // ⑤ 等待全文提取完成（此时①可能已基本完成）
+        let text = match full_text_handle.await {
             Ok(Ok(value)) => value,
             Ok(Err(error)) => {
                 let now = chrono::Utc::now().to_rfc3339();
@@ -547,6 +628,7 @@ pub async fn papers_upload(
                     .execute(&db)
                     .await;
                 let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 解析失败：{error}") }));
+                eprintln!("[paper-import][{}] full_text extraction failed: {}", pid, error);
                 return;
             }
             Err(join_error) => {
@@ -557,35 +639,87 @@ pub async fn papers_upload(
                     .execute(&db)
                     .await;
                 let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 后台解析任务失败：{join_error}") }));
+                eprintln!("[paper-import][{}] full_text extraction join failed: {}", pid, join_error);
                 return;
             }
         };
+        eprintln!(
+            "[paper-import][{}] full_text extracted: chars={} elapsed_ms={}",
+            pid,
+            text.chars().count(),
+            full_text_started_at.elapsed().as_millis()
+        );
 
         let refreshed_keywords = extract_keywords_from_text(&text);
         let refreshed_tags = serde_json::to_string(&refreshed_keywords).unwrap_or_else(|_| "[]".to_string());
         let parsed_now = chrono::Utc::now().to_rfc3339();
-        let _ = sqlx::query("UPDATE papers SET full_text = ?, tags = ?, updated_at = ? WHERE id = ?")
+        let _ = sqlx::query("UPDATE papers SET full_text = ?, tags = ?, status = 'parsed', updated_at = ? WHERE id = ?")
             .bind(&text)
             .bind(&refreshed_tags)
             .bind(&parsed_now)
             .bind(&pid)
             .execute(&db)
             .await;
+        // 全文已写入，立即通知前端 parsed，后续 embedding 在后台静默完成
+        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "parsed" }));
+        eprintln!(
+            "[paper-import][{}] status=parsed emitted (full_text ready) elapsed_ms={}",
+            pid,
+            pipeline_started_at.elapsed().as_millis()
+        );
 
+        let chunk_started_at = Instant::now();
         let chunks = chunk_text(&text, chunk_size, chunk_overlap);
+        eprintln!(
+            "[paper-import][{}] chunking done: chunks={} elapsed_ms={}",
+            pid,
+            chunks.len(),
+            chunk_started_at.elapsed().as_millis()
+        );
         let contents: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
         let embedding_batch_size = settings
             .get("embedding_batch_size")
             .and_then(|v| v.parse::<usize>().ok())
             .unwrap_or(48)
             .clamp(8, 128);
+        let embedding_batches = if contents.is_empty() {
+            0
+        } else {
+            (contents.len() + embedding_batch_size - 1) / embedding_batch_size
+        };
+        let embedding_started_at = Instant::now();
+        eprintln!(
+            "[paper-import][{}] embedding start: chunks={} batch_size={} batches={}",
+            pid,
+            contents.len(),
+            embedding_batch_size,
+            embedding_batches
+        );
         let embeddings: Option<Vec<Vec<f32>>> = if let Ok(client) = LlmClient::embed_client_from_settings(&settings) {
             embed_in_batches(&client, &contents, embedding_batch_size).await
         } else {
             None
         };
+        match embeddings.as_ref() {
+            Some(values) => {
+                eprintln!(
+                    "[paper-import][{}] embedding done: vectors={} elapsed_ms={}",
+                    pid,
+                    values.len(),
+                    embedding_started_at.elapsed().as_millis()
+                );
+            }
+            None => {
+                eprintln!(
+                    "[paper-import][{}] embedding unavailable_or_failed elapsed_ms={}",
+                    pid,
+                    embedding_started_at.elapsed().as_millis()
+                );
+            }
+        }
 
         let chunk_now = chrono::Utc::now().to_rfc3339();
+        let insert_started_at = Instant::now();
         let mut inserted_with_tx = false;
         if let Ok(mut tx) = db.begin().await {
             let mut tx_failed = false;
@@ -636,12 +770,18 @@ pub async fn papers_upload(
                 .await;
             }
         }
-        let _ = sqlx::query("UPDATE papers SET status = 'parsed', updated_at = ? WHERE id = ?")
-            .bind(&chunk_now)
-            .bind(&pid)
-            .execute(&db)
-            .await;
-        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "parsed" }));
+
+        eprintln!(
+            "[paper-import][{}] chunk insert done: used_tx={} elapsed_ms={}",
+            pid,
+            inserted_with_tx,
+            insert_started_at.elapsed().as_millis()
+        );
+        eprintln!(
+            "[paper-import][{}] pipeline complete total_elapsed_ms={}",
+            pid,
+            pipeline_started_at.elapsed().as_millis()
+        );
     });
 
     Ok(json!({ "paper_id": paper_id, "title": detected_title }))
@@ -1887,6 +2027,32 @@ fn extract_pdf_preview_text(path: &Path, max_pages: usize, max_chars: usize) -> 
     }
 }
 
+fn should_suppress_pdf_stderr_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    trimmed.contains("Unicode mismatch")
+}
+
+fn extract_pdf_text_with_filtered_stderr(path: &Path) -> Result<String, String> {
+    let mut redirect = gag::BufferRedirect::stderr().ok();
+    let result = pdf_extract::extract_text(path).map_err(|e| e.to_string());
+
+    if let Some(ref mut handle) = redirect {
+        let mut captured = String::new();
+        let _ = handle.read_to_string(&mut captured);
+        for line in captured.lines() {
+            if should_suppress_pdf_stderr_line(line) {
+                continue;
+            }
+            eprintln!("{line}");
+        }
+    }
+
+    result
+}
+
 async fn embed_in_batches(
     client: &LlmClient,
     texts: &[String],
@@ -1944,28 +2110,34 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
         .map(str::to_string);
 
     if let Some(venue) = venue_name.as_deref() {
-        if let Some(tag) = match_venue(venue) {
+        let is_conference = if let Some(tag) = match_venue(venue) {
+            let conference = tag.kind == "conference";
             obj["ccf_rating"] = json!(tag.rating);
             obj["ccf_area"] = json!(tag.area);
             obj["ccf_type"] = json!(tag.kind);
             obj["ccf_label"] = json!(tag.label);
             obj["ccf_publisher"] = json!(tag.publisher);
             obj["venue_url"] = json!(tag.url);
-        }
+            conference
+        } else {
+            false
+        };
 
-        if let Some(tag) = match_journal(venue) {
-            obj["wos_indexes"] = json!(tag.indexes);
-            obj["wos_categories"] = json!(tag.wos_categories);
-            obj["jcr_quartile"] = json!(tag.jcr_quartile);
-            obj["jcr_category"] = json!(tag.jcr_category);
-            obj["jif"] = json!(tag.jif);
-            obj["jif_rank"] = json!(tag.jif_rank);
-            obj["cas_quartile"] = json!(tag.cas_quartile);
-            obj["cas_top"] = json!(tag.cas_top);
-            obj["open_access"] = json!(tag.open_access);
-            obj["journal_issn"] = json!(tag.issn);
-            obj["journal_eissn"] = json!(tag.eissn);
-            obj["journal_publisher"] = json!(tag.publisher);
+        if !is_conference {
+            if let Some(tag) = match_journal(venue) {
+                obj["wos_indexes"] = json!(tag.indexes);
+                obj["wos_categories"] = json!(tag.wos_categories);
+                obj["jcr_quartile"] = json!(tag.jcr_quartile);
+                obj["jcr_category"] = json!(tag.jcr_category);
+                obj["jif"] = json!(tag.jif);
+                obj["jif_rank"] = json!(tag.jif_rank);
+                obj["cas_quartile"] = json!(tag.cas_quartile);
+                obj["cas_top"] = json!(tag.cas_top);
+                obj["open_access"] = json!(tag.open_access);
+                obj["journal_issn"] = json!(tag.issn);
+                obj["journal_eissn"] = json!(tag.eissn);
+                obj["journal_publisher"] = json!(tag.publisher);
+            }
         }
     }
     obj
