@@ -5,6 +5,7 @@ use chrono::{Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 use tauri::State;
 
 const SEMANTIC_SCHOLAR_API_URL: &str = "https://api.semanticscholar.org/graph/v1/paper/search";
@@ -276,7 +277,7 @@ async fn fetch_semantic_scholar_candidates(
     max_results: usize,
 ) -> anyhow::Result<Vec<PaperCandidate>> {
     let client = reqwest::Client::new();
-    let mut request = client
+    let mut builder = client
         .get(SEMANTIC_SCHOLAR_API_URL)
         .header("User-Agent", SEMANTIC_SCHOLAR_USER_AGENT)
         .query(&[
@@ -294,10 +295,31 @@ async fn fetch_semantic_scholar_candidates(
         .map(|value| value.trim())
         .filter(|value| !value.is_empty())
     {
-        request = request.header("x-api-key", api_key);
+        builder = builder.header("x-api-key", api_key);
     }
 
-    let response = request.send().await.context("联网检索请求失败")?;
+    let base_request = builder.build().context("联网检索请求构建失败")?;
+
+    const MAX_RETRIES: u32 = 3;
+    let mut attempt = 0u32;
+    let response = loop {
+        let req = base_request.try_clone().context("联网检索请求克隆失败")?;
+        let resp = client.execute(req).await.context("联网检索请求失败")?;
+        if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            attempt += 1;
+            if attempt >= MAX_RETRIES {
+                return Err(anyhow::anyhow!(
+                    "Semantic Scholar 接口触发速率限制（429）。\n\
+                     请在「设置 → 外部学术服务」中配置 Semantic Scholar API Key 以获得更高频次限额。\n\
+                     免费 Key 申请：https://www.semanticscholar.org/product/api#api-key-form"
+                ));
+            }
+            let wait_secs = 2u64.pow(attempt);
+            tokio::time::sleep(Duration::from_secs(wait_secs)).await;
+            continue;
+        }
+        break resp;
+    };
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();

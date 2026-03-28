@@ -477,6 +477,33 @@ export default function SettingsPage() {
                   />
                 </div>
               </SettingSection>
+
+              <SettingSection
+                icon={Network}
+                title="外部学术服务"
+                description="配置第三方学术数据接口的访问密钥，提升检索频次上限。"
+              >
+                <div className="space-y-2">
+                  <Input
+                    label="Semantic Scholar API Key"
+                    type="password"
+                    value={form.semantic_scholar_api_key}
+                    onChange={(event) => setField("semantic_scholar_api_key", event.target.value)}
+                    placeholder="留空使用免费限速额度"
+                  />
+                  <p className="text-xs text-slate-400 ml-1">
+                    免费额度约 1 次/秒；申请 Key 可提升频次：
+                    <a
+                      href="https://www.semanticscholar.org/product/api#api-key-form"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-1 text-blue-500 underline underline-offset-2 hover:text-blue-700"
+                    >
+                      semanticscholar.org/product/api
+                    </a>
+                  </p>
+                </div>
+              </SettingSection>
             </div>
 
             <div className="space-y-6">

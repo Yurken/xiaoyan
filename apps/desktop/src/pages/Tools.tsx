@@ -1037,6 +1037,11 @@ export default function Tools() {
           label="研究主题说明（可选，小妍根据你的输入自动优化检索策略）"
         />
 
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-ink-tertiary ml-1">
+            检索词<span className="text-apple-red ml-0.5">*</span>
+            <span className="font-normal ml-1">（通用、标题、摘要、作者、扩展词中至少填写一项）</span>
+          </p>
         <div className="grid grid-cols-3 gap-3">
           <Input
             value={arxivAllTerms}
@@ -1083,6 +1088,7 @@ export default function Tools() {
             placeholder="例如：robotics, medical imaging"
             label="排除词"
           />
+        </div>
         </div>
 
         {/* 三步级联筛选：研究领域 × 类型 × 等级 */}
@@ -1499,6 +1505,11 @@ export default function Tools() {
           label="研究主题说明（可选，小妍根据你的输入自动优化检索策略）"
         />
 
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-ink-tertiary ml-1">
+            检索词<span className="text-apple-red ml-0.5">*</span>
+            <span className="font-normal ml-1">（通用、标题、摘要、作者、备注、期刊词中至少填写一项）</span>
+          </p>
         <div className="grid grid-cols-3 gap-3">
           <Input
             value={arxivOnlyAllTerms}
@@ -1643,6 +1654,7 @@ export default function Tools() {
             placeholder="例如：robotics, medical imaging"
             label="排除词（ANDNOT）"
           />
+        </div>
         </div>
 
         <p className="text-xs leading-5 text-ink-tertiary">
