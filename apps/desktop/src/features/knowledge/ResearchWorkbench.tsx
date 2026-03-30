@@ -443,7 +443,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
 
           {(plan.length > 0 || displayedRuns.length > 0) && (
             <div className="flex-shrink-0 rounded-2xl border border-nm-dark/10 bg-white/35 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">当前 Agent 过程</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">当前能力域模型过程</p>
               <div className="mt-3 space-y-2">
                 {plan.map((step) => {
                   const matchedRun = displayedRuns.find((r) => r.agent_name === step.agent_name);

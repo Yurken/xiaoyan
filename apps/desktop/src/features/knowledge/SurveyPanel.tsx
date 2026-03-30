@@ -15,7 +15,7 @@ import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { buildPaperSearchUrl, openLink } from "../../lib/links";
 import { listen } from "@tauri-apps/api/event";
-import type { Paper, ResearchInterest } from "@research-copilot/types";
+import { replaceAgentWording, toCapabilityModelName, type Paper, type ResearchInterest } from "@research-copilot/types";
 
 type SurveyAgentStatus = "running" | "done" | "failed";
 
@@ -487,7 +487,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
         <div>
           <p className="text-sm font-semibold text-ink-primary">结构化文献综述生成</p>
           <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-            多 Agent 协作完成范围规划、发展脉络梳理与综述生成，并输出带参考文献格式的结构化结果。
+            多能力域模型协作完成范围规划、发展脉络梳理与综述生成，并输出带参考文献格式的结构化结果。
           </p>
         </div>
         <div className="flex gap-2">
@@ -655,10 +655,10 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
             <Card padding="sm" className="space-y-3">
               <div className="flex items-center gap-2">
                 <GitBranch className="h-4 w-4 text-apple-blue" />
-                <p className="text-sm font-semibold text-ink-primary">多 Agent 协作流程</p>
+                <p className="text-sm font-semibold text-ink-primary">多能力域模型协作流程</p>
               </div>
               {agents.length === 0 ? (
-                <p className="text-sm leading-6 text-ink-tertiary">等待 Agent 开始执行任务。</p>
+                <p className="text-sm leading-6 text-ink-tertiary">等待能力域模型开始执行任务。</p>
               ) : (
                 <div className="space-y-2">
                   {agents.map((agent) => (
@@ -671,9 +671,9 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <Bot className="h-4 w-4 flex-shrink-0 text-ink-tertiary" />
-                            <p className="truncate text-sm font-medium text-ink-primary">{agent.name}</p>
+                            <p className="truncate text-sm font-medium text-ink-primary">{toCapabilityModelName(agent.name)}</p>
                           </div>
-                          <p className="mt-1 truncate text-xs text-ink-tertiary">{agent.role}</p>
+                          <p className="mt-1 truncate text-xs text-ink-tertiary">{replaceAgentWording(agent.role)}</p>
                         </div>
                         <Badge variant={agent.status === "done" ? "success" : agent.status === "failed" ? "danger" : "info"}>
                           {agent.status === "done" ? "已完成" : agent.status === "failed" ? "失败" : "处理中"}

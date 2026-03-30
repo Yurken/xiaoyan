@@ -187,13 +187,13 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const AGENT_OPTIONS = [
-  ["retrieval", "检索"],
-  ["planner", "路径规划"],
-  ["literature_scout", "论文侦察"],
-  ["survey", "综述生成"],
-  ["paper_analyst", "论文解析"],
-  ["reproduction", "复现建议"],
-  ["synthesis", "最终整合"],
+  ["retrieval", "溯源模型"],
+  ["planner", "谋策模型"],
+  ["literature_scout", "探知模型"],
+  ["survey", "翰章模型"],
+  ["paper_analyst", "洞见模型"],
+  ["reproduction", "构域模型"],
+  ["synthesis", "整合模型"],
 ] as const;
 
 function SettingSection({
@@ -423,11 +423,11 @@ export default function SettingsPage() {
           <div>
             <Badge variant="info" className="mb-3 bg-white/80 text-slate-700">
               <Sparkles className="mr-1 h-3.5 w-3.5" />
-              多 Agent 控制台
+              多能力域模型控制台
             </Badge>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-950">设置中心</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              把模型、RAG、调度器路由和专项 Agent 行为统一收拢到这里。Web 端默认走同源代理，无需单独配置 API 地址。
+              把模型、RAG、调度器路由和专项能力域模型行为统一收拢到这里。Web 端默认走同源代理，无需单独配置 API 地址。
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -449,7 +449,7 @@ export default function SettingsPage() {
         ) : (
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
             <div className="space-y-6">
-              {/* 模型服务（模型分工）区域已移至多 Agent 编排中，每个 Agent 独立配置 */}
+              {/* 模型服务（模型分工）区域已移至多能力域模型编排中，每个能力域模型独立配置 */}
 
               <SettingSection
                 icon={Database}
@@ -509,14 +509,14 @@ export default function SettingsPage() {
             <div className="space-y-6">
               <SettingSection
                 icon={Bot}
-                title="多 Agent 编排"
-                description="决定调度器是否开启、如何路由，以及各专项 Agent 的模型与温度。"
+                title="多能力域模型编排"
+                description="决定调度器是否开启、如何路由，以及各专项能力域模型的模型与温度。"
               >
                 <div className="space-y-5">
                   <div className="rounded-3xl border border-slate-200 bg-white/70 p-4">
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">启用多 Agent</div>
+                        <div className="text-sm font-semibold text-slate-900">启用多能力域模型</div>
                         <div className="mt-1 text-xs leading-5 text-slate-500">
                           关闭后仍保留最终答复能力，但不再经过调度器拆解。
                         </div>
@@ -562,7 +562,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <div className="mb-3 text-sm font-semibold text-slate-900">启用的专项 Agent</div>
+                    <div className="mb-3 text-sm font-semibold text-slate-900">启用的能力域模型</div>
                     <div className="flex flex-wrap gap-2">
                       {AGENT_OPTIONS.map(([value, label]) => (
                         <AgentToggle
@@ -577,7 +577,7 @@ export default function SettingsPage() {
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <Input
-                      label="单次最多执行的专项 Agent 步数"
+                      label="单次最多执行的能力域模型步数"
                       value={form.multi_agent_max_steps}
                       onChange={(event) => setField("multi_agent_max_steps", event.target.value)}
                       placeholder="4"
@@ -591,62 +591,62 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-sm font-semibold text-slate-900">Agent 模型配置</div>
+                    <div className="text-sm font-semibold text-slate-900">能力域模型配置</div>
                     <p className="text-xs leading-5 text-slate-500">
-                      每个 Agent 可独立设置 model、base_url、api_key、temperature、top_p，留空则继承上级默认值。
+                      每个能力域模型可独立设置 model、base_url、api_key、temperature、top_p，留空则继承上级默认值。
                     </p>
                     <div className="space-y-2 pt-1">
                       <AgentConfigPanel
-                        title="supervisor"
+                        title="谋策调度模型"
                         subtitle="调度器"
                         agentKey="supervisor"
                         form={form}
                         setField={setField}
                       />
                       <AgentConfigPanel
-                        title="worker"
+                        title="元枢执行模型"
                         subtitle="默认执行"
                         agentKey="worker"
                         form={form}
                         setField={setField}
                       />
                       <AgentConfigPanel
-                        title="planner"
+                        title="谋策模型"
                         subtitle="路径规划"
                         agentKey="planner"
                         form={form}
                         setField={setField}
                       />
                       <AgentConfigPanel
-                        title="literature_scout"
+                        title="探知模型"
                         subtitle="论文侦察"
                         agentKey="literature_scout"
                         form={form}
                         setField={setField}
                       />
                       <AgentConfigPanel
-                        title="survey"
+                        title="翰章模型"
                         subtitle="综述生成"
                         agentKey="survey"
                         form={form}
                         setField={setField}
                       />
                       <AgentConfigPanel
-                        title="paper_analyst"
+                        title="洞见模型"
                         subtitle="论文解析"
                         agentKey="paper_analyst"
                         form={form}
                         setField={setField}
                       />
                       <AgentConfigPanel
-                        title="reproduction"
+                        title="构域模型"
                         subtitle="复现建议"
                         agentKey="reproduction"
                         form={form}
                         setField={setField}
                       />
                       <AgentConfigPanel
-                        title="synthesis"
+                        title="整合模型"
                         subtitle="最终整合"
                         agentKey="synthesis"
                         form={form}
@@ -666,8 +666,8 @@ export default function SettingsPage() {
                     <div className="text-lg font-semibold">编排建议</div>
                     <div className="mt-2 space-y-2 text-sm leading-6 text-slate-300">
                       <p>日常问答：`hybrid` + 4 步以内，避免链路膨胀。</p>
-                      <p>论文精读：保留 `retrieval,paper_analyst,reproduction,synthesis`。</p>
-                      <p>综述写作：保留 `retrieval,literature_scout,survey,synthesis`。</p>
+                      <p>论文精读：优先启用溯源模型、洞见模型、构域模型与整合模型。</p>
+                      <p>综述写作：优先启用溯源模型、探知模型、翰章模型与整合模型。</p>
                     </div>
                   </div>
                 </div>
@@ -682,7 +682,7 @@ export default function SettingsPage() {
                     <div className="text-lg font-semibold text-slate-900">当前启用摘要</div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Badge variant="success">路由模式: {routingMode}</Badge>
-                      <Badge variant="info">Agent 数: {enabledAgents.length}</Badge>
+                      <Badge variant="info">模型数: {enabledAgents.length}</Badge>
                       <Badge variant="default">Top-K: {form.multi_agent_search_limit}</Badge>
                     </div>
                   </div>

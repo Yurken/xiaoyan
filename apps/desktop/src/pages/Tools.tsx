@@ -1033,7 +1033,7 @@ export default function Tools() {
           onChange={(event) => setArxivTopic(event.target.value)}
           onKeyDown={handleArxivKeyDown}
           rows={2}
-          placeholder="例如：想找最近两周里，tool-using LLM agents 中关于 memory / planning 的代表性新文"
+          placeholder="例如：想找最近两周里，tool-using LLM models 中关于 memory / planning 的代表性新文"
           label="研究主题说明（可选，小妍根据你的输入自动优化检索策略）"
         />
 
@@ -1047,7 +1047,7 @@ export default function Tools() {
             value={arxivAllTerms}
             onChange={(event) => setArxivAllTerms(event.target.value)}
             onKeyDown={handleArxivKeyDown}
-            placeholder="例如：agent memory, tool use"
+            placeholder="例如：model memory, tool use"
             label="通用关键词"
           />
           <Input
@@ -1501,7 +1501,7 @@ export default function Tools() {
           onChange={(event) => setArxivOnlyTopic(event.target.value)}
           onKeyDown={handleArxivOnlyKeyDown}
           rows={2}
-          placeholder="例如：想找最近两周里，tool-using LLM agents 中关于 memory / planning 的代表性新文"
+          placeholder="例如：想找最近两周里，tool-using LLM models 中关于 memory / planning 的代表性新文"
           label="研究主题说明（可选，小妍根据你的输入自动优化检索策略）"
         />
 
@@ -1515,7 +1515,7 @@ export default function Tools() {
             value={arxivOnlyAllTerms}
             onChange={(event) => setArxivOnlyAllTerms(event.target.value)}
             onKeyDown={handleArxivOnlyKeyDown}
-            placeholder="例如：agent memory, tool use"
+            placeholder="例如：model memory, tool use"
             label="通用关键词（all）"
           />
           <Input

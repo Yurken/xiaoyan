@@ -360,7 +360,7 @@ const SETTINGS_SECTIONS: Array<{
   },
   {
     key: "roles",
-    label: "模型分工",
+    label: "小妍能力域",
     description: "按场景分配专属模型",
     icon: Sparkles,
     color: "#0A84FF",
@@ -909,41 +909,41 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const AGENT_OPTIONS = [
-  ["retrieval", "检索"],
-  ["planner", "研究规划"],
-  ["literature_scout", "文献侦察"],
-  ["survey", "综述组织"],
-  ["paper_analyst", "论文解析"],
-  ["reproduction", "复现建议"],
-  ["synthesis", "最终整合"],
+  ["retrieval", "溯源模型"],
+  ["planner", "谋策模型"],
+  ["literature_scout", "探知模型"],
+  ["survey", "翰章模型"],
+  ["paper_analyst", "洞见模型"],
+  ["reproduction", "构域模型"],
+  ["synthesis", "整合模型"],
 ] as const;
 
 const ROUTING_MODE_COPY: Record<MultiAgentRoutingMode, { label: string; description: string; note: string }> = {
   rule: {
     label: "规则判断",
-    description: "根据关键词和上下文类型固定选择 Agent，最稳定，也最容易复现。",
+    description: "根据关键词和上下文类型固定选择能力域模型，最稳定，也最容易复现。",
     note: "这一模式不会调用调度模型，适合你想严格控制成本和行为边界时使用。",
   },
   llm: {
     label: "模型判断",
-    description: "由调度模型实时决定该启用哪些 Agent，更灵活，也更依赖模型本身。",
+    description: "由调度模型实时决定该启用哪些能力域模型，更灵活，也更依赖模型本身。",
     note: "适合复杂提问和开放式任务。建议给调度模型配置快一些、判断力强一些的模型。",
   },
   hybrid: {
     label: "混合判断",
     description: "先用规则确定基础班底，再由调度模型补充和重排，兼顾稳定性和灵活性。",
-    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键 Agent，再由模型补充额外角色。",
+    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键能力域模型，再由模型补充额外角色。",
   },
 };
 
 const AGENT_GUIDES = [
-  { key: "retrieval", label: "检索", description: "先从知识库和论文库找证据，适合需要依据的问题。" },
-  { key: "planner", label: "研究规划", description: "拆解研究主题、学习路径和阶段目标。" },
-  { key: "literature_scout", label: "文献侦察", description: "先找代表性论文、研究脉络和阅读入口。" },
-  { key: "survey", label: "综述组织", description: "把线索整理成结构化综述和趋势判断。" },
-  { key: "paper_analyst", label: "论文解析", description: "聚焦单篇论文的方法、实验和局限。" },
-  { key: "reproduction", label: "复现建议", description: "聚焦实现细节、实验配置和复现风险。" },
-  { key: "synthesis", label: "最终整合", description: "把各专项 Agent 的结果整合成最终回答。" },
+  { key: "retrieval", label: "溯源模型", description: "先从知识库和论文库找证据，适合需要依据的问题。" },
+  { key: "planner", label: "谋策模型", description: "拆解研究主题、学习路径和阶段目标。" },
+  { key: "literature_scout", label: "探知模型", description: "先找代表性论文、研究脉络和阅读入口。" },
+  { key: "survey", label: "翰章模型", description: "把线索整理成结构化综述和趋势判断。" },
+  { key: "paper_analyst", label: "洞见模型", description: "聚焦单篇论文的方法、实验和局限。" },
+  { key: "reproduction", label: "构域模型", description: "聚焦实现细节、实验配置和复现风险。" },
+  { key: "synthesis", label: "整合模型", description: "把各专项能力域模型的结果整合成最终回答。" },
 ];
 
 
@@ -1003,8 +1003,8 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   {
     title: "元枢 · 默认执行",
     description: "各方面能力均衡，作为所有专项任务的默认执行基座。",
-    recommendation: "没有单独指定时，多 Agent 工作节点默认回退到这里，选一个稳定均衡的主力模型即可。",
-    affectedScopes: "多 Agent 通用工作节点（worker）",
+    recommendation: "没有单独指定时，多能力域模型工作节点默认回退到这里，选一个稳定均衡的主力模型即可。",
+    affectedScopes: "多能力域模型通用工作节点（worker）",
     icon: Compass,
     iconColor: "#34C759",
     modelKeys: [
@@ -1052,7 +1052,7 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "谋策 · 规划",
     description: "具备极强逻辑推理与拆解能力，负责深度调度与研究思路分析。",
     recommendation: "这里更适合旗舰推理模型，不必追求速度，准确性和逻辑性优先。",
-    affectedScopes: "多 Agent 调度（supervisor）、研究规划分析与生成（planner_analysis / planner_generation）、多 Agent 研究规划（planner）",
+    affectedScopes: "多能力域模型调度（supervisor）、研究规划分析与生成（planner_analysis / planner_generation）、多能力域模型研究规划（planner）",
     icon: Brain,
     iconColor: "#AF52DE",
     modelKeys: [
@@ -1086,7 +1086,7 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "洞见 · 深度总结",
     description: "擅长长文本阅读与核心结论提炼，负责单篇大文献精读与长上下文读取。",
     recommendation: "优先选上下文窗口大、长文阅读能力强的模型；推理深度比速度重要。",
-    affectedScopes: "论文精读（paper_analysis）、多 Agent 论文解析（paper_analyst）",
+    affectedScopes: "论文精读（paper_analysis）、多能力域模型论文解析（paper_analyst）",
     icon: FileSearch,
     iconColor: "#5AC8FA",
     modelKeys: [
@@ -1112,7 +1112,7 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "翰章 · 内容生成",
     description: "擅长结构化表达和流畅排版，负责综述长篇输出与最终整合。",
     recommendation: "适合长上下文、写作品质稳的模型；预算有限时可选均衡型模型。",
-    affectedScopes: "综述写作（survey_writer）、多 Agent 综述（survey）、最终整合回答（synthesis）",
+    affectedScopes: "综述写作（survey_writer）、多能力域模型综述（survey）、最终整合回答（synthesis）",
     icon: MessageSquare,
     iconColor: "#FF6B6B",
     modelKeys: [
@@ -1142,7 +1142,7 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "构域 · 代码",
     description: "深入理解代码逻辑、实验环境和工程细节，负责论文复现场景。",
     recommendation: "这组建议更低温度，减少拍脑袋式推断；代码能力强的模型优先。",
-    affectedScopes: "复现指导（paper_reproduction）、多 Agent 复现（reproduction）",
+    affectedScopes: "复现指导（paper_reproduction）、多能力域模型复现（reproduction）",
     icon: Hammer,
     iconColor: "#FF3B30",
     modelKeys: [
@@ -2164,7 +2164,7 @@ export default function Settings() {
       >
         <div>
           <h1 className="text-lg font-bold text-ink-primary leading-tight">设置</h1>
-          <p className="text-xs text-ink-tertiary">按用途配置小妍能力模块、检索参数和多 Agent 协作策略</p>
+          <p className="text-xs text-ink-tertiary">按用途配置小妍能力模块、检索参数和多能力域模型协作策略</p>
         </div>
         <div className="flex items-center gap-2">
           {/* 导出配置 */}
@@ -2596,21 +2596,21 @@ export default function Settings() {
               ))}
             </div>
 
-            {/* ── 多 Agent 编排 ── */}
+            {/* ── 多能力域模型编排 ── */}
             <div className="pt-4 border-t border-nm-dark/10 space-y-4">
               <div className="flex items-center gap-3">
                 <SectionIcon icon={Bot} color="#34C759" />
                 <div>
-                  <h2 className="text-sm font-semibold text-ink-primary">多 Agent 编排</h2>
+                  <h2 className="text-sm font-semibold text-ink-primary">多能力域模型编排</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">
-                    控制小妍的多 Agent 协作心智、选路策略与可用角色。
+                    控制小妍的多能力域模型协作心智、选路策略与可用角色。
                   </p>
                 </div>
               </div>
 
               <ToggleRow
-                title="启用多 Agent 编排"
-                description="关闭后将只使用小妍轻量对话模型直接回复，不再拆分复杂任务，也不展示中间 Agent 推理过程。"
+                title="启用多能力域模型编排"
+                description="关闭后将只使用小妍轻量对话模型直接回复，不再拆分复杂任务，也不展示中间能力域模型推理过程。"
                 checked={form.multi_agent_enabled === "true"}
                 onToggle={() =>
                   set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")
@@ -2643,9 +2643,9 @@ export default function Settings() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Route className="w-4 h-4 text-[#1A8AFF]" />
-                  <p className="text-sm font-semibold text-ink-primary">Agent 角色开关</p>
+                  <p className="text-sm font-semibold text-ink-primary">能力域模型开关</p>
                 </div>
-                <p className="text-xs text-ink-tertiary">选择小妍在多 Agent 协作时允许唤醒的分支角色。关闭某个角色后，调度模型将不会将其纳入考量。</p>
+                <p className="text-xs text-ink-tertiary">选择小妍在多能力域模型协作时允许唤醒的能力域模型。关闭某个能力域模型后，调度模型将不会将其纳入考量。</p>
 
                 <div className="flex gap-2 flex-wrap pb-2">
                   {AGENT_OPTIONS.map(([value, label]) => (
@@ -2670,14 +2670,14 @@ export default function Settings() {
 
               <div className="grid gap-3 md:grid-cols-2">
                 <SettingInput
-                  label="单次最多调用的 Agent 步数上限"
+                  label="单次最多调用的能力域模型步数上限"
                   value={form.multi_agent_max_steps}
                   onChange={set("multi_agent_max_steps")}
                   placeholder="6"
-                  hint="超过该步数将强行中断多 Agent 思考流程，防止发散。"
+                  hint="超过该步数将强行中断多能力域模型思考流程，防止发散。"
                 />
                 <SettingInput
-                  label="文献检索 Agent 抓取条数上限"
+                  label="文献检索模型抓取条数上限"
                   value={form.multi_agent_search_limit}
                   onChange={set("multi_agent_search_limit")}
                   placeholder="8"
@@ -2961,7 +2961,7 @@ export default function Settings() {
                 {[
                   "主模型连接是最后的兜底值。没有单独指定的场景，最终都会回退到这里。",
                   "按场景选模用于独立功能，比如规划提示、综述写作、论文精读和复现指导。",
-                  "多 Agent 的专项覆盖只影响多 Agent 对话流程，不影响独立功能页的模型选择。",
+                  "多能力域模型的专项覆盖只影响多能力域模型对话流程，不影响独立功能页的模型选择。",
                   "如果你刚开始配置，建议先填主对话模型、方向提示模型和最终整合模型，其他项之后再细化。",
                 ].map((item) => (
                   <div key={item} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">

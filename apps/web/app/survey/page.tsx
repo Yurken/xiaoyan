@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, Input, Button, Badge } from "@research-copilot/ui";
 import { surveyApi } from "@/lib/client";
+import { replaceAgentWording, toCapabilityModelName } from "@research-copilot/types";
 
 type AgentStatus = "pending" | "running" | "done" | "failed";
 
@@ -61,19 +62,19 @@ function getDefaultWorkflow(): AgentStep[] {
   return [
     {
       id: "planner",
-      name: "检索规划 Agent",
+      name: "检索规划模型",
       role: "规划研究范围与检索策略",
       status: "pending",
     },
     {
       id: "retriever",
-      name: "文献检索 Agent",
+      name: "文献检索模型",
       role: "小妍会自动检索相关文献",
       status: "pending",
     },
     {
       id: "writer",
-      name: "综述写作 Agent",
+      name: "综述写作模型",
       role: "生成结构化文献综述",
       status: "pending",
     },
@@ -188,7 +189,7 @@ function normalizeWorkflow(raw: Record<string, unknown>, normalized: SurveyData)
           : "pending";
       return {
         id: String(item.id ?? `agent_${idx}`),
-        name: String(item.name ?? `Agent ${idx + 1}`),
+        name: toCapabilityModelName(String(item.name ?? `能力域模型 ${idx + 1}`)),
         role: String(item.role ?? "执行任务"),
         status,
         summary: item.summary ? String(item.summary) : undefined,
@@ -200,21 +201,21 @@ function normalizeWorkflow(raw: Record<string, unknown>, normalized: SurveyData)
   return [
     {
       id: "planner",
-      name: "检索规划 Agent",
+      name: "检索规划模型",
       role: "规划研究范围与检索策略",
       status: "done",
       summary: `已完成「${normalized.query}」的综述范围拆解`,
     },
     {
       id: "retriever",
-      name: "文献检索 Agent",
+      name: "文献检索模型",
       role: "小妍会自动检索相关文献",
       status: "done",
       summary: `已检索到 ${normalized.papers.length} 篇候选论文`,
     },
     {
       id: "writer",
-      name: "综述写作 Agent",
+      name: "综述写作模型",
       role: "生成结构化文献综述",
       status: "done",
       summary: "已输出研究背景、方法、趋势与建议研究方向",
@@ -355,7 +356,7 @@ export default function SurveyPage() {
       {(workflow.length > 0 || loading) && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>多 Agent 协作流程</CardTitle>
+            <CardTitle>多能力域模型协作流程</CardTitle>
             <GitBranch className="w-4 h-4 text-gray-400" />
           </CardHeader>
           <div className="space-y-3">
@@ -365,8 +366,8 @@ export default function SurveyPage() {
                   <div className="flex items-center gap-2 min-w-0">
                     <Bot className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 truncate">{step.name}</div>
-                      <div className="text-xs text-gray-500 truncate">{step.role}</div>
+                      <div className="text-sm font-semibold text-gray-900 truncate">{toCapabilityModelName(step.name)}</div>
+                      <div className="text-xs text-gray-500 truncate">{replaceAgentWording(step.role)}</div>
                     </div>
                   </div>
                   <Badge variant={statusBadgeTone(step.status)}>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Map, Sparkles, BookOpen, Target, ChevronDown, ChevronUp, GitBranch, Bot, CheckCircle2, Clock3, XCircle } from "lucide-react";
 import { Card, CardHeader, CardTitle, Input, Button, Badge } from "@research-copilot/ui";
 import { plannerApi } from "@/lib/client";
-import type { LearningPath } from "@research-copilot/types";
+import { toCapabilityModelName, type LearningPath } from "@research-copilot/types";
 
 type PlannerAgentStatus = "pending" | "running" | "done" | "failed";
 
@@ -19,9 +19,9 @@ interface PlannerAgentStep {
 
 function defaultPlannerWorkflow(): PlannerAgentStep[] {
   return [
-    { id: "analyst", name: "元枢", role: "拆解研究主题与能力目标", status: "pending" },
-    { id: "scout", name: "探知", role: "筛选候选经典论文", status: "pending" },
-    { id: "designer", name: "谋策", role: "生成结构化学习路径", status: "pending" },
+    { id: "analyst", name: "元枢模型", role: "拆解研究主题与能力目标", status: "pending" },
+    { id: "scout", name: "探知模型", role: "筛选候选经典论文", status: "pending" },
+    { id: "designer", name: "谋策模型", role: "生成结构化学习路径", status: "pending" },
   ];
 }
 
@@ -63,7 +63,7 @@ function normalizePlannerPayload(raw: Record<string, unknown>): { path: Learning
     const status: PlannerAgentStatus = s === "running" || s === "done" || s === "failed" ? s : "pending";
     return {
       id: String(step.id ?? `step_${idx}`),
-      name: String(step.name ?? `Agent ${idx + 1}`),
+      name: toCapabilityModelName(String(step.name ?? `能力域模型 ${idx + 1}`)),
       role: String(step.role ?? "执行任务"),
       status,
       summary: step.summary ? String(step.summary) : undefined,
@@ -107,14 +107,14 @@ export default function PlannerPage() {
           },
           {
             id: "scout",
-            name: "参考文献筛选 Agent",
+            name: "参考文献筛选模型",
             role: "筛选候选经典论文",
             status: "done",
             summary: `已完成候选文献推荐（${normalized.path?.classic_papers?.length || 0} 篇）`,
           },
           {
             id: "designer",
-            name: "学习路径规划 Agent",
+            name: "学习路径规划模型",
             role: "生成结构化学习路径",
             status: "done",
             summary: `路径已生成（${normalized.path?.learning_stages?.length || 0} 个阶段）`,
@@ -177,7 +177,7 @@ export default function PlannerPage() {
       {(workflow.length > 0 || loading) && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>规划 Agent 协作流程</CardTitle>
+            <CardTitle>规划能力域模型协作流程</CardTitle>
             <GitBranch className="w-4 h-4 text-gray-400" />
           </CardHeader>
           <div className="space-y-2.5">
@@ -187,7 +187,7 @@ export default function PlannerPage() {
                   <div className="flex items-center gap-2 min-w-0">
                     <Bot className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 truncate">{step.name}</div>
+                      <div className="text-sm font-semibold text-gray-900 truncate">{toCapabilityModelName(step.name)}</div>
                       <div className="text-xs text-gray-500 truncate">{step.role}</div>
                     </div>
                   </div>

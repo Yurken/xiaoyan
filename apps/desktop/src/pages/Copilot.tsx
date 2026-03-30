@@ -26,6 +26,7 @@ import {
   MAIN_ASSISTANT_WELCOME_DESCRIPTION,
   MAIN_ASSISTANT_WELCOME_TITLE,
   MAIN_ASSISTANT_WORKSPACE_NAME,
+  toCapabilityModelName,
 } from "@research-copilot/types";
 import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
@@ -1170,7 +1171,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                     }}
                   >
                     <div className="text-sm font-semibold text-ink-primary">{index + 1}. {step.title}</div>
-                    <div className="text-xs text-apple-blue mt-1">{step.agent_name}</div>
+                    <div className="text-xs text-apple-blue mt-1">{toCapabilityModelName(step.agent_name)}</div>
                     <p className="text-xs text-ink-tertiary mt-2 leading-5">{step.goal}</p>
                   </div>
                 ))
@@ -1188,7 +1189,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             <div className="text-sm font-semibold text-ink-primary mb-3">执行时间线</div>
             <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
               {displayedRuns.length === 0 ? (
-                <p className="text-xs text-ink-tertiary leading-5">暂无 Agent 运行记录。</p>
+                <p className="text-xs text-ink-tertiary leading-5">暂无能力域模型运行记录。</p>
               ) : (
                 displayedRuns.map((run) => {
                   const tone = runTone(run.status);
@@ -1204,7 +1205,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <div className="text-sm font-semibold text-ink-primary">{run.step_name}</div>
-                          <div className="text-xs text-ink-tertiary mt-1">{run.agent_name}</div>
+                          <div className="text-xs text-ink-tertiary mt-1">{toCapabilityModelName(run.agent_name)}</div>
                         </div>
                         <div
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium"

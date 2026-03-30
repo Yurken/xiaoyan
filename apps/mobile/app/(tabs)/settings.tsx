@@ -85,7 +85,7 @@ export default function SettingsScreen() {
           <View style={styles.divider} />
           <InfoRow label="平台" value="Expo SDK 52 · React Native" />
           <View style={styles.divider} />
-          <InfoRow label="后端" value="FastAPI · PostgreSQL · pgvector · Multi-Agent" />
+          <InfoRow label="后端" value="FastAPI · PostgreSQL · pgvector · 小妍能力域模型协作" />
         </NmCard>
       </ScrollView>
     </SafeAreaView>

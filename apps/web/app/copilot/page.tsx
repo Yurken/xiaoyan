@@ -24,6 +24,7 @@ import {
   MAIN_ASSISTANT_STATUS_DESCRIPTION,
   MAIN_ASSISTANT_WELCOME_DESCRIPTION,
   MAIN_ASSISTANT_WELCOME_TITLE,
+  toCapabilityModelName,
 } from "@research-copilot/types";
 import { chatApi } from "@/lib/client";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession } from "@research-copilot/types";
@@ -120,7 +121,7 @@ function MissionControl({
                 <div key={`${step.agent_name}-${index}`} className="rounded-2xl border border-slate-200 bg-white/80 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold text-slate-900">{index + 1}. {step.title}</span>
-                    <Badge variant="default">{step.agent_name}</Badge>
+                    <Badge variant="default">{toCapabilityModelName(step.agent_name)}</Badge>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-slate-500">{step.goal}</p>
                 </div>
@@ -132,10 +133,10 @@ function MissionControl({
         <Card variant="flat" className="border border-white/80">
           <div className="mb-3 flex items-center gap-2">
             <BrainCircuit className="h-4 w-4 text-amber-600" />
-            <h3 className="text-sm font-semibold text-slate-900">Agent 执行时间线</h3>
+            <h3 className="text-sm font-semibold text-slate-900">能力域模型执行时间线</h3>
           </div>
           {orderedRuns.length === 0 ? (
-            <p className="text-sm leading-6 text-slate-500">暂无 Agent 运行记录。</p>
+            <p className="text-sm leading-6 text-slate-500">暂无能力域模型运行记录。</p>
           ) : (
             <div className="space-y-3">
               {orderedRuns.map((run) => (
@@ -143,7 +144,7 @@ function MissionControl({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-slate-900">{run.step_name}</div>
-                      <div className="mt-1 text-xs text-slate-400">{run.agent_name}</div>
+                      <div className="mt-1 text-xs text-slate-400">{toCapabilityModelName(run.agent_name)}</div>
                     </div>
                     <div className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${runStatusTone(run.status)}`}>
                       {runStatusIcon(run.status)}
@@ -523,7 +524,7 @@ function CopilotContent() {
 
                             {planForBubble.length > 0 && (
                               <div className={`${parsed.thought ? "mt-3" : ""}`}>
-                                <div className="mb-2 text-xs font-semibold tracking-wide text-slate-700">Agent 执行步骤</div>
+                                <div className="mb-2 text-xs font-semibold tracking-wide text-slate-700">能力域模型执行步骤</div>
                                 <div className="space-y-2">
                                   {planForBubble.map((step, index) => {
                                     const run = [...runsForBubble]

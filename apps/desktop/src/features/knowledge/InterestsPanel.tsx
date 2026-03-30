@@ -4,7 +4,7 @@ import { Badge, Button, Card, Input } from "@research-copilot/ui";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
-import type { LearningPath, ResearchInterest } from "@research-copilot/types";
+import { replaceAgentWording, toCapabilityModelName, type LearningPath, type ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
 import PlannerComposer from "./PlannerComposer";
 import ResearchWorkbench from "./ResearchWorkbench";
@@ -671,8 +671,8 @@ export default function InterestsPanel() {
                                   <span className="agent-flow-step">{String(index + 1).padStart(2, "0")}</span>
                                   <span className={`agent-flow-dot agent-flow-dot--${agent.status}`} aria-hidden="true" />
                                 </div>
-                                <p className="mt-3 truncate text-sm font-semibold text-ink-primary">{agent.name}</p>
-                                <p className="mt-1 truncate text-[11px] text-ink-tertiary">{agent.role}</p>
+                                <p className="mt-3 truncate text-sm font-semibold text-ink-primary">{toCapabilityModelName(agent.name)}</p>
+                                <p className="mt-1 truncate text-[11px] text-ink-tertiary">{replaceAgentWording(agent.role)}</p>
                               </div>
                               <Badge variant={agent.status === "done" ? "success" : agent.status === "failed" ? "danger" : "info"}>
                                 {agent.status === "done" ? "已完成" : agent.status === "failed" ? "失败" : "处理中"}
@@ -680,7 +680,7 @@ export default function InterestsPanel() {
                             </div>
 
                             <p className={`mt-3 text-[11px] leading-5 ${agent.error ? "text-apple-red" : "text-ink-secondary"}`}>
-                              {agent.error || agent.summary || "等待该 Agent 输出阶段性结果。"}
+                              {agent.error || agent.summary || "等待该能力域模型输出阶段性结果。"}
                             </p>
 
                             <div className="agent-flow-progress" aria-hidden="true">

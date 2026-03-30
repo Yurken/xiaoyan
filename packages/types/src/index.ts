@@ -8,9 +8,47 @@ export const MAIN_ASSISTANT_WELCOME_TITLE = "你好，我是小妍";
 export const MAIN_ASSISTANT_WELCOME_DESCRIPTION =
   "我会先理解你的研究目标，再协调检索、规划、综述、论文解析与复现能力，给出可信、结构化、可执行的答复。";
 export const MAIN_ASSISTANT_STATUS_DESCRIPTION =
-  "小妍负责理解问题、调度专项 Agent，并整合成最终答复。";
+  "小妍负责理解问题、调度专项能力域模型，并整合成最终答复。";
 export const MAIN_ASSISTANT_INPUT_PLACEHOLDER =
   "把你当前的研究问题告诉小妍，她会先拆解任务，再一步步陪你推进";
+
+const CAPABILITY_MODEL_NAME_MAP: Record<string, string> = {
+  retrieval: "溯源模型",
+  planner: "谋策模型",
+  literature_scout: "探知模型",
+  survey: "翰章模型",
+  paper_analyst: "洞见模型",
+  reproduction: "构域模型",
+  synthesis: "整合模型",
+  supervisor: "谋策调度模型",
+  worker: "元枢执行模型",
+  analyst: "元枢模型",
+  scout: "探知模型",
+  designer: "谋策模型",
+  retriever: "溯源模型",
+  writer: "翰章模型",
+};
+
+export function replaceAgentWording(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\bAgent\s*(\d+)\b/gi, "能力域模型 $1")
+    .replace(/\bAgent\b/g, "能力域模型")
+    .replace(/\bagent\b/g, "能力域模型");
+}
+
+export function toCapabilityModelName(name: string): string {
+  const raw = name.trim();
+  if (!raw) return raw;
+
+  const mapped = CAPABILITY_MODEL_NAME_MAP[raw.toLowerCase()];
+  if (mapped) return mapped;
+
+  return replaceAgentWording(raw)
+    .replace(/\s*能力域模型$/, "模型")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 export interface Paper {
   id: string;
