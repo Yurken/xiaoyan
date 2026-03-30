@@ -20,7 +20,7 @@
         opacity: 0;
         animation: sparkle-magic 2s infinite ease-out;
       }
-      .s1 { animation-delay: 0s; fill: #FFD700; }
+      .s1 { animation-delay: 0s; fill: #BAD8FE; }
       .s2 { animation-delay: 0.5s; fill: #40C4FF; }
       .s3 { animation-delay: 1s; fill: #B388FF; }
       .s4 { animation-delay: 1.5s; fill: #FF8A80; }
@@ -64,14 +64,14 @@
   </g>
 
   <g class="body-magic">
-    <g id="legs" fill="#DE886D">
+    <g id="legs" fill="#BAD8FE">
       <rect x="3" y="13" width="1" height="2"/>
       <rect x="5" y="13" width="1" height="2"/>
       <rect x="9" y="13" width="1" height="2"/>
       <rect x="11" y="13" width="1" height="2"/>
     </g>
 
-    <g id="body-color-group" fill="#DE886D">
+    <g id="body-color-group" fill="#BAD8FE">
       <rect x="2" y="6" width="11" height="7"/>
       <g class="arm-l-magic"><rect x="0" y="9" width="2" height="2"/></g>
     </g>
@@ -85,14 +85,14 @@
     <g transform="translate(7.5, 6)">
       <polygon points="-4,0 4,0 0,-6" fill="#673AB7"/>
       <rect x="-5" y="0" width="10" height="1" fill="#512DA8"/>
-      <polygon points="0,-3 0.5,-2.5 1.5,-2.5 0.75,-1.75 1,-0.5 0,-1.25 -1,-0.5 -0.75,-1.75 -1.5,-2.5 -0.5,-2.5" fill="#FFC107"/>
+      <polygon points="0,-3 0.5,-2.5 1.5,-2.5 0.75,-1.75 1,-0.5 0,-1.25 -1,-0.5 -0.75,-1.75 -1.5,-2.5 -0.5,-2.5" fill="#BAD8FE"/>
     </g>
 
     <!-- Wand arm (on top of hat and eyes) -->
-    <g class="arm-wand" fill="#DE886D">
+    <g class="arm-wand" fill="#BAD8FE">
       <rect x="13" y="9" width="2" height="2"/>
       <rect x="13.5" y="4" width="1" height="6" fill="#8D6E63"/>
-      <rect x="13.5" y="4" width="1" height="1" fill="#FFD700"/>
+      <rect x="13.5" y="4" width="1" height="1" fill="#BAD8FE"/>
     </g>
   </g>
 </svg>

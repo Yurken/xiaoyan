@@ -155,7 +155,7 @@
   <rect id="ground-shadow" class="shadow-anim" x="3" y="15" width="9" height="1" fill="#000000" opacity="0.5"/>
 
   <!-- Static Character Legs (extended up to stay connected during yawn stretch) -->
-  <g id="legs" fill="#DE886D">
+  <g id="legs" fill="#BAD8FE">
     <rect id="outer-left-leg" x="3" y="12" width="1" height="3"/>
     <rect id="inner-left-leg" x="5" y="12" width="1" height="3"/>
     <rect id="inner-right-leg" x="9" y="12" width="1" height="3"/>
@@ -167,14 +167,14 @@
     <g class="breathe-anim">
       
       <!-- Torso -->
-      <rect id="torso" x="2" y="6" width="11" height="7" fill="#DE886D"/>
+      <rect id="torso" x="2" y="6" width="11" height="7" fill="#BAD8FE"/>
       
       <!-- Arms -->
       <g class="arm-l">
-        <rect id="left-arm" x="0" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect id="left-arm" x="0" y="9" width="2" height="2" fill="#BAD8FE"/>
       </g>
       <g class="arm-r">
-        <rect id="right-arm" x="13" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect id="right-arm" x="13" y="9" width="2" height="2" fill="#BAD8FE"/>
       </g>
 
       <!-- Yawning Mouth (Hidden usually) -->

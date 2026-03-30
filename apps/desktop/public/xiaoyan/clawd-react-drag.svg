@@ -73,7 +73,7 @@
   <!-- Swaying body -->
   <g class="body-sway">
     <!-- Dangling legs -->
-    <g fill="#DE886D">
+    <g fill="#BAD8FE">
       <rect class="leg-dangle-1" x="3" y="13" width="1" height="2"/>
       <rect class="leg-dangle-2" x="5" y="13" width="1" height="2"/>
       <rect class="leg-dangle-1" x="9" y="13" width="1" height="2"/>
@@ -81,7 +81,7 @@
     </g>
 
     <!-- Torso + flailing arms -->
-    <g fill="#DE886D">
+    <g fill="#BAD8FE">
       <rect x="2" y="6" width="11" height="7"/>
       <g class="arm-flail-l">
         <rect x="0" y="9" width="2" height="2"/>

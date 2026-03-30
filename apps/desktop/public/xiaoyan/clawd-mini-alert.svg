@@ -85,7 +85,7 @@
   <g transform="rotate(-12, 7.5, 15)">
 
     <!-- Legs -->
-    <g fill="#DE886D">
+    <g fill="#BAD8FE">
       <rect x="3" y="11" width="1" height="4"/>
       <rect x="5" y="11" width="1" height="4"/>
       <rect x="9" y="11" width="1" height="4"/>
@@ -95,15 +95,15 @@
     <g id="body-js">
       <g class="breathe-anim">
         <!-- Torso -->
-        <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+        <rect x="2" y="6" width="11" height="7" fill="#BAD8FE"/>
 
         <!-- Left Arm — still then shake -->
         <g class="arm-alert">
-          <rect x="-1.5" y="9" width="4.5" height="2" fill="#DE886D"/>
+          <rect x="-1.5" y="9" width="4.5" height="2" fill="#BAD8FE"/>
         </g>
 
         <!-- Right Arm -->
-        <rect x="13" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect x="13" y="9" width="2" height="2" fill="#BAD8FE"/>
 
         <!-- Phase 1: Normal rect eyes (look left at exclamation, then blink away) -->
         <g class="eyes-rect" fill="#000000">

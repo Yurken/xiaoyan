@@ -119,11 +119,11 @@
       <rect x="13" y="7" width="4" height="2" fill="#3D7AC7"/>
       <rect x="13" y="10" width="4" height="1" fill="#3D7AC7"/>
       <rect x="13" y="12" width="4" height="1" fill="#2D5FA5"/>
-      <rect x="15" y="9" width="1" height="1" fill="#FFD54F"/>
+      <rect x="15" y="9" width="1" height="1" fill="#DBEAFE"/>
     </g>
 
     <!-- Legs -->
-    <g fill="#DE886D">
+    <g fill="#BAD8FE">
       <rect class="step-a" x="3" y="13" width="1" height="2"/>
       <rect class="step-b" x="5" y="13" width="1" height="2"/>
       <rect class="step-b" x="9" y="13" width="1" height="2"/>
@@ -131,13 +131,13 @@
     </g>
 
     <!-- Body -->
-    <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+    <rect x="2" y="6" width="11" height="7" fill="#BAD8FE"/>
 
     <!-- Arms -->
-    <g class="arm-swing-l" fill="#DE886D">
+    <g class="arm-swing-l" fill="#BAD8FE">
       <rect x="0" y="9" width="3" height="2"/>
     </g>
-    <rect x="13" y="9" width="2" height="2" fill="#DE886D"/>
+    <rect x="13" y="9" width="2" height="2" fill="#BAD8FE"/>
 
     <!-- Right strap -->
     <rect x="13" y="7" width="1" height="4" fill="#3D7AC7"/>
@@ -170,7 +170,7 @@
       <g transform="rotate(-15, 6, 6.5)">
         <rect x="1" y="4.5" width="7" height="2" fill="#5C9CE6"/>
         <rect x="-1" y="5.5" width="4" height="1" fill="#3D7AC7"/>
-        <rect x="4" y="4.5" width="1" height="1" fill="#FFD54F"/>
+        <rect x="4" y="4.5" width="1" height="1" fill="#DBEAFE"/>
       </g>
     </g>
   </g>

@@ -4,6 +4,14 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "HYPixel11pxU-2";
+  src: url("./HYPixel11pxU-2.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 /* ── CSS Custom Properties ─────────────────────────────────────── */
 
 :root {

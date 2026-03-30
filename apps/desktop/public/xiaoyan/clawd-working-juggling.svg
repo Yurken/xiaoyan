@@ -43,7 +43,7 @@
         animation: juggle 1.2s infinite;
       }
       .p1 { animation-delay: 0s; fill: #FF5252; }
-      .p2 { animation-delay: -0.4s; fill: #FFC107; }
+      .p2 { animation-delay: -0.4s; fill: #BAD8FE; }
       .p3 { animation-delay: -0.8s; fill: #4CAF50; }
 
       /* (no sweat — juggling is a steady state, not emergency) */
@@ -134,9 +134,9 @@
     </g>
     <!-- Yellow ball -->
     <g class="packet p2">
-      <circle cx="0" cy="0" r="1.2" fill="#FFC107"/>
-      <circle cx="-0.35" cy="-0.35" r="0.45" fill="#FFE082" opacity="0.7"/>
-      <circle cx="0.3" cy="0.4" r="0.6" fill="#FFA000" opacity="0.3"/>
+      <circle cx="0" cy="0" r="1.2" fill="#BAD8FE"/>
+      <circle cx="-0.35" cy="-0.35" r="0.45" fill="#E8F3FF" opacity="0.7"/>
+      <circle cx="0.3" cy="0.4" r="0.6" fill="#5BAEF7" opacity="0.3"/>
     </g>
     <!-- Green ball -->
     <g class="packet p3">
@@ -147,7 +147,7 @@
   </g>
 
   <!-- Static Legs -->
-  <g fill="#DE886D">
+  <g fill="#BAD8FE">
     <rect x="3" y="13" width="1" height="2"/>
     <rect x="5" y="13" width="1" height="2"/>
     <rect x="9" y="13" width="1" height="2"/>
@@ -158,16 +158,16 @@
   <g class="body-rock">
     <g class="breathe">
       <!-- Torso -->
-      <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+      <rect x="2" y="6" width="11" height="7" fill="#BAD8FE"/>
 
       <!-- Left Arm -->
       <g class="arm-juggle-l">
-        <rect x="0" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect x="0" y="9" width="2" height="2" fill="#BAD8FE"/>
       </g>
 
       <!-- Right Arm -->
       <g class="arm-juggle-r">
-        <rect x="13" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect x="13" y="9" width="2" height="2" fill="#BAD8FE"/>
       </g>
 
       <!-- Eyes -->

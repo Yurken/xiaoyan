@@ -84,7 +84,7 @@
   <use href="#pixel-z" class="z-particle z3" fill="#CFD8DC"/>
 
   <g transform="rotate(-12, 7.5, 15)">
-    <g fill="#DE886D">
+    <g fill="#BAD8FE">
       <rect x="3" y="11" width="1" height="4"/>
       <rect x="5" y="11" width="1" height="4"/>
       <rect x="9" y="11" width="1" height="4"/>
@@ -93,13 +93,13 @@
 
     <g id="body-js">
       <g class="breathe-anim">
-        <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+        <rect x="2" y="6" width="11" height="7" fill="#BAD8FE"/>
 
         <g class="arm-wobble">
-          <rect x="-1.5" y="9" width="4.5" height="2" fill="#DE886D"/>
+          <rect x="-1.5" y="9" width="4.5" height="2" fill="#BAD8FE"/>
         </g>
 
-        <rect x="13" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect x="13" y="9" width="2" height="2" fill="#BAD8FE"/>
 
         <!-- Eyes closed — wide dashes like sleeping pose -->
         <g id="eyes-js" fill="#000000">

@@ -121,7 +121,7 @@
     <rect class="shadow-anim" x="3" y="15" width="9" height="1" fill="#000000"/>
 
     <g class="body-anim">
-      <g fill="#DE886D">
+      <g fill="#BAD8FE">
         <rect x="3" y="13" width="1" height="2"/>
         <rect x="5" y="13" width="1" height="2"/>
         <rect x="9" y="13" width="1" height="2"/>

@@ -52,14 +52,14 @@
   <rect id="ground-shadow" class="shadow-sneak" x="3" y="15" width="9" height="1" fill="#000000" opacity="0.5"/>
 
   <g class="body-hunch">
-    <g id="legs" fill="#DE886D">
+    <g id="legs" fill="#BAD8FE">
       <rect id="outer-left-leg" class="leg-1" x="3" y="13" width="1" height="2"/>
       <rect id="inner-left-leg" class="leg-2" x="5" y="13" width="1" height="2"/>
       <rect id="inner-right-leg" class="leg-1" x="9" y="13" width="1" height="2"/>
       <rect id="outer-right-leg" class="leg-2" x="11" y="13" width="1" height="2"/>
     </g>
 
-    <g id="body-color-group" fill="#DE886D">
+    <g id="body-color-group" fill="#BAD8FE">
       <rect id="torso" x="2" y="6" width="11" height="7"/>
       <!-- Left arm (normal pose) -->
       <rect id="left-arm" x="0" y="9" width="2" height="2"/>

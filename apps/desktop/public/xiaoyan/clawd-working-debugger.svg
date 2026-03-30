@@ -180,7 +180,7 @@
   </g>
 
   <!-- Static Legs (idle phases) -->
-  <g class="legs-idle" fill="#DE886D">
+  <g class="legs-idle" fill="#BAD8FE">
     <rect x="3" y="12" width="1" height="3"/>
     <rect x="5" y="12" width="1" height="3"/>
     <rect x="9" y="12" width="1" height="3"/>
@@ -191,7 +191,7 @@
   <g class="body-main">
 
     <!-- Sneaking Legs (detective phase, inside body so they walk with it) -->
-    <g class="legs-sneak" fill="#DE886D" opacity="0">
+    <g class="legs-sneak" fill="#BAD8FE" opacity="0">
       <rect class="leg-a" x="3" y="13" width="1" height="2"/>
       <rect class="leg-b" x="5" y="13" width="1" height="2"/>
       <rect class="leg-a" x="9" y="13" width="1" height="2"/>
@@ -201,11 +201,11 @@
     <!-- Upper Body (breathing) -->
     <g class="breathe">
       <!-- Torso -->
-      <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+      <rect x="2" y="6" width="11" height="7" fill="#BAD8FE"/>
 
       <!-- Left Arm -->
       <g class="arm-l">
-        <rect x="0" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect x="0" y="9" width="2" height="2" fill="#BAD8FE"/>
       </g>
 
       <!-- Eyes -->
@@ -220,7 +220,7 @@
 
       <!-- Right Arm + Magnifying Glass (on top of eyes in z-order) -->
       <g class="arm-r">
-        <rect x="13" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect x="13" y="9" width="2" height="2" fill="#BAD8FE"/>
 
         <!-- Magnifying Glass -->
         <g class="glass-vis" opacity="0">

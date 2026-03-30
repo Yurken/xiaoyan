@@ -184,7 +184,7 @@
     <rect class="dust dust-3" x="0" y="0" width="1.2" height="1.2" fill="#9E9E9E"/>
 
     <!-- Static Legs -->
-    <g fill="#DE886D">
+    <g fill="#BAD8FE">
       <rect x="3" y="13" width="1" height="2"/>
       <rect x="5" y="13" width="1" height="2"/>
       <rect x="9" y="13" width="1" height="2"/>
@@ -212,25 +212,25 @@
       <g class="breathe">
 
         <!-- Torso -->
-        <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+        <rect x="2" y="6" width="11" height="7" fill="#BAD8FE"/>
 
         <!-- Left Arm (scratch head during pause) -->
         <g class="arm-l">
-          <rect x="0" y="9" width="2" height="2" fill="#DE886D"/>
+          <rect x="0" y="9" width="2" height="2" fill="#BAD8FE"/>
         </g>
 
         <!-- Right Arm + Broom (attached, sweeps together) -->
         <g class="arm-r">
-          <rect x="13" y="9" width="2" height="2" fill="#DE886D"/>
+          <rect x="13" y="9" width="2" height="2" fill="#BAD8FE"/>
           <!-- Broom Handle -->
           <rect x="13.5" y="11" width="1" height="3.5" fill="#795548"/>
           <!-- Broom Bristles -->
-          <rect x="12" y="14.5" width="4" height="1.5" fill="#FFC107"/>
+          <rect x="12" y="14.5" width="4" height="1.5" fill="#BAD8FE"/>
           <!-- Bristle texture (vertical lines, bottom up, faint, gap at edges) -->
-          <rect x="12.5" y="14.85" width="0.35" height="0.8" fill="#C99700" opacity="0.3"/>
-          <rect x="13.2" y="14.8"  width="0.3"  height="0.9" fill="#C99700" opacity="0.35"/>
-          <rect x="13.8" y="14.85" width="0.35" height="0.8" fill="#C99700" opacity="0.3"/>
-          <rect x="14.5" y="14.8"  width="0.3"  height="0.85" fill="#C99700" opacity="0.35"/>
+          <rect x="12.5" y="14.85" width="0.35" height="0.8" fill="#BAD8FE" opacity="0.3"/>
+          <rect x="13.2" y="14.8"  width="0.3"  height="0.9" fill="#BAD8FE" opacity="0.35"/>
+          <rect x="13.8" y="14.85" width="0.35" height="0.8" fill="#BAD8FE" opacity="0.3"/>
+          <rect x="14.5" y="14.8"  width="0.3"  height="0.85" fill="#BAD8FE" opacity="0.35"/>
         </g>
 
         <!-- Eyes -->

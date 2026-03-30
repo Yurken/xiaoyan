@@ -125,7 +125,7 @@
       /* Hot metal glow on impact */
       @keyframes metal-glow {
         0%, 49%  { fill: #FF5252; }
-        50%, 60% { fill: #FFF59D; }
+        50%, 60% { fill: #EBF4FF; }
         100%     { fill: #FF5252; }
       }
 
@@ -187,14 +187,14 @@
   </g>
 
   <!-- Impact Sparks -->
-  <g fill="#FFC107" transform="translate(19, 12.5)">
+  <g fill="#BAD8FE" transform="translate(19, 12.5)">
     <use href="#pixel-spark" class="spark s1"/>
     <use href="#pixel-spark" class="spark s2"/>
     <use href="#pixel-spark" class="spark s3"/>
   </g>
 
   <!-- Legs (bounce with body, no squash) -->
-  <g class="body-bounce" fill="#DE886D">
+  <g class="body-bounce" fill="#BAD8FE">
     <rect x="3" y="13" width="1" height="2"/>
     <rect x="5" y="13" width="1" height="2"/>
     <rect x="9" y="13" width="1" height="2"/>
@@ -217,35 +217,35 @@
       <g class="body-squash">
 
         <!-- Torso -->
-        <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+        <rect x="2" y="6" width="11" height="7" fill="#BAD8FE"/>
 
         <!-- Hard Hat (all pixel detail preserved) -->
         <g>
           <!-- Ridges top (y=1) -->
-          <rect x="4" y="1" width="2" height="1" fill="#FBC02D"/>
-          <rect x="9" y="1" width="2" height="1" fill="#FBC02D"/>
+          <rect x="4" y="1" width="2" height="1" fill="#BAD8FE"/>
+          <rect x="9" y="1" width="2" height="1" fill="#BAD8FE"/>
           <!-- Upper Dome (y=2) -->
-          <rect x="3" y="2" width="1" height="1" fill="#F9A825"/>
-          <rect x="4" y="2" width="2" height="1" fill="#FBC02D"/>
-          <rect x="6" y="2" width="1" height="1" fill="#F9A825"/>
-          <rect x="7" y="2" width="1" height="1" fill="#FBC02D"/>
-          <rect x="8" y="2" width="1" height="1" fill="#F9A825"/>
-          <rect x="9" y="2" width="2" height="1" fill="#FBC02D"/>
-          <rect x="11" y="2" width="1" height="1" fill="#F9A825"/>
+          <rect x="3" y="2" width="1" height="1" fill="#BAD8FE"/>
+          <rect x="4" y="2" width="2" height="1" fill="#BAD8FE"/>
+          <rect x="6" y="2" width="1" height="1" fill="#BAD8FE"/>
+          <rect x="7" y="2" width="1" height="1" fill="#BAD8FE"/>
+          <rect x="8" y="2" width="1" height="1" fill="#BAD8FE"/>
+          <rect x="9" y="2" width="2" height="1" fill="#BAD8FE"/>
+          <rect x="11" y="2" width="1" height="1" fill="#BAD8FE"/>
           <!-- Mid Dome (y=3) -->
-          <rect x="2" y="3" width="1" height="1" fill="#F9A825"/>
-          <rect x="3" y="3" width="3" height="1" fill="#FBC02D"/>
-          <rect x="6" y="3" width="1" height="1" fill="#F9A825"/>
-          <rect x="7" y="3" width="1" height="1" fill="#FBC02D"/>
-          <rect x="8" y="3" width="1" height="1" fill="#F9A825"/>
-          <rect x="9" y="3" width="3" height="1" fill="#FBC02D"/>
-          <rect x="12" y="3" width="1" height="1" fill="#F9A825"/>
+          <rect x="2" y="3" width="1" height="1" fill="#BAD8FE"/>
+          <rect x="3" y="3" width="3" height="1" fill="#BAD8FE"/>
+          <rect x="6" y="3" width="1" height="1" fill="#BAD8FE"/>
+          <rect x="7" y="3" width="1" height="1" fill="#BAD8FE"/>
+          <rect x="8" y="3" width="1" height="1" fill="#BAD8FE"/>
+          <rect x="9" y="3" width="3" height="1" fill="#BAD8FE"/>
+          <rect x="12" y="3" width="1" height="1" fill="#BAD8FE"/>
           <!-- Lower Dome / Brim (y=4) -->
-          <rect x="1" y="4" width="2" height="1" fill="#F9A825"/>
-          <rect x="3" y="4" width="9" height="1" fill="#FBC02D"/>
-          <rect x="12" y="4" width="2" height="1" fill="#F9A825"/>
+          <rect x="1" y="4" width="2" height="1" fill="#BAD8FE"/>
+          <rect x="3" y="4" width="9" height="1" fill="#BAD8FE"/>
+          <rect x="12" y="4" width="2" height="1" fill="#BAD8FE"/>
           <!-- Bottom Band (y=5) -->
-          <rect x="0" y="5" width="15" height="1" fill="#F9A825"/>
+          <rect x="0" y="5" width="15" height="1" fill="#BAD8FE"/>
         </g>
 
         <!-- Eyes [look 5s > blink 4s] — standard 1x2 at (4,8)/(10,8) -->
@@ -260,7 +260,7 @@
 
       <!-- Left arm (bounces + breathes, NO squash) -->
       <g class="arm-l-rest">
-        <rect x="0" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect x="0" y="9" width="2" height="2" fill="#BAD8FE"/>
       </g>
 
     </g>
@@ -270,7 +270,7 @@
   <g class="body-bounce">
     <g class="breathe">
       <g class="arm-hammer">
-        <rect x="13" y="9" width="2" height="2" fill="#DE886D"/>
+        <rect x="13" y="9" width="2" height="2" fill="#BAD8FE"/>
         <!-- Hammer -->
         <g>
           <!-- Handle -->

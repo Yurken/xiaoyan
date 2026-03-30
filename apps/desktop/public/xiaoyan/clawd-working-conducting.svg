@@ -175,7 +175,7 @@
   </g></g></g>
 
   <g class="dim-all"><g class="f2">
-    <rect x="0" y="0" width="2" height="2" fill="#FFC107"/>
+    <rect x="0" y="0" width="2" height="2" fill="#BAD8FE"/>
   </g></g>
 
   <g class="dim-13"><g class="f3"><g class="cs3">
@@ -197,13 +197,13 @@
 
   <!-- Character Body -->
   <g class="breathe">
-    <g fill="#DE886D">
+    <g fill="#BAD8FE">
       <rect x="3" y="13" width="1" height="2"/>
       <rect x="5" y="13" width="1" height="2"/>
       <rect x="9" y="13" width="1" height="2"/>
       <rect x="11" y="13" width="1" height="2"/>
     </g>
-    <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+    <rect x="2" y="6" width="11" height="7" fill="#BAD8FE"/>
     <g class="eyes-dispatch">
       <g class="eyes-blink">
         <rect x="4" y="8" width="1" height="2" fill="#000000"/>
@@ -211,10 +211,10 @@
       </g>
     </g>
     <g class="arm-l-dispatch">
-      <rect x="0" y="9" width="2" height="2" fill="#DE886D"/>
+      <rect x="0" y="9" width="2" height="2" fill="#BAD8FE"/>
     </g>
     <g class="arm-r-dispatch">
-      <rect x="13" y="9" width="2" height="2" fill="#DE886D"/>
+      <rect x="13" y="9" width="2" height="2" fill="#BAD8FE"/>
     </g>
   </g>
 </svg>

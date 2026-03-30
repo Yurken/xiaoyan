@@ -116,6 +116,11 @@ export default function App() {
             )}
           </NavLink>
         ))}
+
+        {/* 小妍伴侣 — 左下角 */}
+        <div className="mt-auto">
+          <XiaoYanPet inline />
+        </div>
       </aside>
 
       {/* Main content */}
@@ -132,7 +137,6 @@ export default function App() {
         </Routes>
       </main>
       <UpdateNotification {...autoUpdate} />
-      <XiaoYanPet />
     </div>
   );
 }

@@ -181,21 +181,21 @@
     <rect x="-0.5" y="-6" width="13.5" height="10.5" fill="#1E1E2E" rx="0.3"/>
     <rect x="-0.5" y="-6" width="13.5" height="1.2" fill="#2D2D3D" rx="0.3"/>
     <rect x="0.3" y="-5.6" width="0.5" height="0.4" fill="#FF5F56"/>
-    <rect x="1.2" y="-5.6" width="0.5" height="0.4" fill="#FFBD2E"/>
+    <rect x="1.2" y="-5.6" width="0.5" height="0.4" fill="#BAD8FE"/>
     <rect x="2.1" y="-5.6" width="0.5" height="0.4" fill="#27C93F"/>
 
     <!-- Code lines (indented, varying lengths = code structure) -->
     <rect class="code-line cl1" x="0.5" y="-3.5" width="5"   height="0.7" fill="#4CAF50" opacity="0.8"/>
     <rect class="code-line cl2" x="2"   y="-1.8" width="8"   height="0.7" fill="#4CAF50" opacity="0.8"/>
     <rect class="code-line cl3" x="2"   y="-0.1" width="4.5" height="0.7" fill="#40C4FF" opacity="0.7"/>
-    <rect class="code-line cl4" x="0.5" y="1.6"  width="2"   height="0.7" fill="#FFC107" opacity="0.7"/>
+    <rect class="code-line cl4" x="0.5" y="1.6"  width="2"   height="0.7" fill="#BAD8FE" opacity="0.7"/>
 
   </g>
 
   <!-- Layer 1: Body -->
   <g class="body-bounce">
     <g class="breathe">
-      <g fill="#DE886D">
+      <g fill="#BAD8FE">
         <rect x="3" y="13" width="1" height="2"/>
         <rect x="5" y="13" width="1" height="2"/>
         <rect x="9" y="13" width="1" height="2"/>
@@ -264,7 +264,7 @@
   <!-- Layer 3: Arms -->
   <g class="body-bounce">
     <g class="breathe">
-      <g fill="#DE886D">
+      <g fill="#BAD8FE">
         <g class="arm-l-type"><rect x="0" y="9" width="2" height="2"/></g>
         <g class="arm-r-type"><rect x="13" y="9" width="2" height="2"/></g>
       </g>

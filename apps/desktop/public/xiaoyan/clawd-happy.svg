@@ -122,18 +122,18 @@
 
   <!-- Pixel-Art Sparkle Particles Group -->
   <g class="sparkles">
-    <use href="#px-sparkle" x="-4" y="-2" fill="#FFD700" style="--delay: 0.0s"/>
-    <use href="#px-sparkle" x="18" y="-4" fill="#FFA000" style="--delay: 0.3s"/>
-    <use href="#px-sparkle" x="20" y="10" fill="#FFF59D" style="--delay: 0.6s"/>
-    <use href="#px-sparkle" x="-6" y="12" fill="#FFC107" style="--delay: 0.9s"/>
-    <use href="#px-sparkle" x="7" y="-8" fill="#FFF59D" style="--delay: 1.2s"/>
-    <use href="#px-sparkle" x="-2" y="6" fill="#FFD700" style="--delay: 0.7s"/>
+    <use href="#px-sparkle" x="-4" y="-2" fill="#BAD8FE" style="--delay: 0.0s"/>
+    <use href="#px-sparkle" x="18" y="-4" fill="#5BAEF7" style="--delay: 0.3s"/>
+    <use href="#px-sparkle" x="20" y="10" fill="#EBF4FF" style="--delay: 0.6s"/>
+    <use href="#px-sparkle" x="-6" y="12" fill="#BAD8FE" style="--delay: 0.9s"/>
+    <use href="#px-sparkle" x="7" y="-8" fill="#EBF4FF" style="--delay: 1.2s"/>
+    <use href="#px-sparkle" x="-2" y="6" fill="#BAD8FE" style="--delay: 0.7s"/>
   </g>
 
   <!-- Main Animated Character -->
   <g class="bounce-anim">
     <!-- Body Color Group -->
-    <g id="body-color-group" fill="#DE886D">
+    <g id="body-color-group" fill="#BAD8FE">
       <!-- Legs (Move and squash with the body naturally) -->
       <rect id="outer-left-leg" x="3" y="13" width="1" height="2"/>
       <rect id="inner-left-leg" x="5" y="13" width="1" height="2"/>

@@ -68,7 +68,7 @@
   <rect x="3" y="15" width="9" height="1" fill="#000000" opacity="0.5"/>
 
   <!-- Static Legs (extended upward to prevent gap when body shifts up) -->
-  <g fill="#DE886D">
+  <g fill="#BAD8FE">
     <rect x="3" y="11" width="1" height="4"/>
     <rect x="5" y="11" width="1" height="4"/>
     <rect x="9" y="11" width="1" height="4"/>
@@ -77,7 +77,7 @@
 
   <!-- Animated Upper Body -->
   <g class="body-react">
-    <g fill="#DE886D">
+    <g fill="#BAD8FE">
       <rect x="2" y="6" width="11" height="7"/>
       <rect x="0" y="9" width="2" height="2"/>
       <rect x="13" y="9" width="2" height="2"/>

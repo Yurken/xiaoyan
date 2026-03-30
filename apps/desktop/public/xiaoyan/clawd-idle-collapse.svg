@@ -73,7 +73,7 @@
   <rect class="shadow-collapse" x="3" y="15" width="9" height="1" fill="#000000" opacity="0.55"/>
 
   <!-- Legs (shrink upward into short stubs) -->
-  <g class="legs-collapse" fill="#DE886D">
+  <g class="legs-collapse" fill="#BAD8FE">
     <rect x="3" y="12" width="1" height="3"/>
     <rect x="5" y="12" width="1" height="3"/>
     <rect x="9" y="12" width="1" height="3"/>
@@ -83,14 +83,14 @@
   <!-- Body (collapses/melts down) -->
   <g class="body-collapse">
     <!-- Torso -->
-    <rect x="2" y="6" width="11" height="7" fill="#DE886D"/>
+    <rect x="2" y="6" width="11" height="7" fill="#BAD8FE"/>
     <!-- Left Arm -->
     <g class="arm-l-collapse">
-      <rect x="0" y="9" width="2" height="2" fill="#DE886D"/>
+      <rect x="0" y="9" width="2" height="2" fill="#BAD8FE"/>
     </g>
     <!-- Right Arm -->
     <g class="arm-r-collapse">
-      <rect x="13" y="9" width="2" height="2" fill="#DE886D"/>
+      <rect x="13" y="9" width="2" height="2" fill="#BAD8FE"/>
     </g>
     <!-- Eyes stay shut -->
     <g class="eyes-shut" fill="#000000">

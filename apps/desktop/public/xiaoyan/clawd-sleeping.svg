@@ -92,7 +92,7 @@
   <!-- Splooted / Melted Sleeping Pose -->
   <g class="breathe">
     <!-- Legs pointing up from behind (Relaxed Sploot) -->
-    <g fill="#DE886D">
+    <g fill="#BAD8FE">
       <rect id="outer-left-leg-up" x="3" y="9" width="1" height="1"/>
       <rect id="inner-left-leg-up" x="5" y="9" width="1" height="1"/>
       <rect id="inner-right-leg-up" x="9" y="9" width="1" height="1"/>
@@ -100,7 +100,7 @@
     </g>
 
     <!-- Squashed Body Resting on the Floor -->
-    <g fill="#DE886D">
+    <g fill="#BAD8FE">
       <!-- Main flattened torso -->
       <rect id="torso-sploot" x="1" y="10" width="13" height="5"/>
       

@@ -61,6 +61,40 @@ const SVG: Record<string, string> = {
   react_drag:   "/xiaoyan/clawd-react-drag.svg",
 };
 
+type SvgKey = keyof typeof SVG;
+
+const SVG_PATH_TO_KEY = Object.fromEntries(
+  Object.entries(SVG).map(([key, path]) => [path, key])
+) as Record<string, SvgKey>;
+
+const TOOLTIP_TEXT: Record<SvgKey, string> = {
+  idle: "小妍在工位待命，墩墩在旁边认真学样。",
+  yawning: "小妍稍作放松，墩墩也跟着打了个哈欠。",
+  dozing: "小妍短暂休息中，墩墩眯眼陪着她小憩。",
+  collapsing: "小妍准备进入深度休息，墩墩也学着蜷成一团。",
+  sleeping: "小妍休息中，墩墩在旁边同步进入睡眠模式。",
+  waking: "小妍恢复工作节奏，墩墩也立刻模仿开机。",
+  thinking: "小妍正在思考研究路径，墩墩在旁边学着沉思。",
+  working: "小妍正在敲字推进任务，墩墩跟着敲空气键盘。",
+  building: "小妍在搭建计划骨架，墩墩抱着小图纸模仿。",
+  sweeping: "小妍在检索文献，墩墩拿小扫帚有样学样。",
+  carrying: "小妍在整理搬运论文，墩墩抱着迷你文件夹跟着跑。",
+  debugger: "小妍在分析排查问题，墩墩学着认真盯日志。",
+  wizard: "小妍在做复现实现，墩墩披小斗篷模仿施法。",
+  ultrathink: "小妍进入深度综合阶段，墩墩切换超认真模仿模式。",
+  juggling: "小妍双线程并行推进，墩墩努力跟上节奏。",
+  conducting: "小妍在指挥多线程协作，墩墩挥爪同步打拍子。",
+  attention: "小妍完成了一步，墩墩先替她摇尾巴报喜。",
+  error: "小妍这一步遇到异常，墩墩皱眉学她一起复盘。",
+  notification: "小妍有新的研究动态，墩墩第一时间来提醒。",
+  react_left: "左边摸摸，墩墩学着小妍点头回应。",
+  react_right: "右边摸摸，墩墩模仿小妍露出开心表情。",
+  react_annoyed: "墩墩学小妍皱皱鼻子：我在陪她专注工作呢。",
+  react_double: "连击命中，墩墩模仿小妍进入兴奋互动状态。",
+  react_jump: "墩墩学着小妍轻快起跳，心情值上升。",
+  react_drag: "你在拖拽定位，墩墩照着小妍习惯换了驻点。",
+};
+
 // ── Agent 名称 → SVG key 映射 ─────────────────────────────────────────────
 
 /** chat:agent_start value.agent_name → svg key */
@@ -120,7 +154,7 @@ const DRAG_THRESHOLD     = 4;
 
 // ── 组件 ─────────────────────────────────────────────────────────────────────
 
-export default function XiaoYanPet() {
+export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}) {
   const [visible, setVisible]   = useState(false);
   const [shownSvg, setShownSvg] = useState(SVG.idle);
   const [opacity, setOpacity]   = useState(1);
@@ -488,15 +522,84 @@ export default function XiaoYanPet() {
 
   if (!visible) return null;
 
+  const tooltipPixelBorder = `
+    linear-gradient(rgb(var(--rc-surface-rgb) / 0.82), rgb(var(--rc-surface-rgb) / 0.82)) padding-box,
+    radial-gradient(circle at 1px 1px, var(--rc-border, #999) 1.2px, transparent 1.3px) 0 0 / 4px 4px border-box
+  `;
+  const tooltipPixelFontFamily = '"HYPixel11pxU-2", ui-monospace, "SF Mono", Menlo, Monaco, monospace';
+  const tooltipText = TOOLTIP_TEXT[SVG_PATH_TO_KEY[shownSvg]] ?? "墩墩正在陪小妍观察研究进展。";
+
+  const tooltip = (
+    <div
+      className="absolute left-full ml-2 bottom-1/2 translate-y-1/2 z-50 pointer-events-none
+                 whitespace-nowrap rounded-xl px-3 py-2 text-xs leading-relaxed
+                 text-ink-primary opacity-0 group-hover:opacity-100
+                 transition-opacity duration-200"
+      style={{
+        background: tooltipPixelBorder,
+        border: "3px solid transparent",
+        borderRadius: "10px",
+        imageRendering: "pixelated",
+        fontFamily: tooltipPixelFontFamily,
+        fontSize: "11px",
+        lineHeight: 1.4,
+        letterSpacing: "0.02em",
+        boxShadow: "var(--rc-shadow-md, 0 4px 16px rgba(0,0,0,0.12))",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }}
+    >
+      {tooltipText}
+    </div>
+  );
+
+  if (inline) {
+    return (
+      <div className="w-full flex justify-center py-2 select-none relative group">
+        {tooltip}
+        <object
+          ref={objectRef}
+          key={shownSvg}
+          data={shownSvg}
+          type="image/svg+xml"
+          width={108}
+          height={108}
+          style={{ opacity, transition: "opacity 0.18s ease", display: "block", pointerEvents: "none" }}
+          aria-label="小妍"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      className="fixed z-50 select-none"
+      className="fixed z-50 select-none group"
       style={{ right: pos.right, bottom: pos.bottom, width: 128, height: 128,
                cursor: isDragging.current ? "grabbing" : "grab", touchAction: "none" }}
     >
+      <div
+        className="absolute right-full mr-2 bottom-1/2 translate-y-1/2 pointer-events-none
+                   whitespace-nowrap px-3 py-2 text-xs leading-relaxed
+                   text-ink-primary opacity-0 group-hover:opacity-100
+                   transition-opacity duration-200"
+        style={{
+          background: tooltipPixelBorder,
+          border: "3px solid transparent",
+          borderRadius: "10px",
+          imageRendering: "pixelated",
+          fontFamily: tooltipPixelFontFamily,
+          fontSize: "11px",
+          lineHeight: 1.4,
+          letterSpacing: "0.02em",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+        }}
+      >
+        {tooltipText}
+      </div>
       <object
         ref={objectRef}
         key={shownSvg}
