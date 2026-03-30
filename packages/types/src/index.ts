@@ -1,4 +1,4 @@
-export const PRODUCT_NAME = "智研 Copilot";
+export const PRODUCT_NAME = "小妍 Copilot";
 export const MAIN_ASSISTANT_NAME = "小妍";
 export const MAIN_ASSISTANT_ROLE = "小妍 · 主 AI 助手";
 export const MAIN_ASSISTANT_WORKSPACE_NAME = "小妍协同台";

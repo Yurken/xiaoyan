@@ -1,4 +1,4 @@
-pub const PRODUCT_NAME: &str = "智研 Copilot";
+pub const PRODUCT_NAME: &str = "小妍 Copilot";
 pub const MAIN_ASSISTANT_NAME: &str = "小妍";
 
 pub fn main_chat_system(context_summary: &str) -> String {
