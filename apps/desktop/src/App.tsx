@@ -24,6 +24,7 @@ import { getLayoutMode } from "./lib/layoutMode";
 import { applyTheme, getTheme, watchSystemTheme } from "./lib/themeMode";
 import { useAutoUpdate } from "./lib/useAutoUpdate";
 import UpdateNotification from "./components/UpdateNotification";
+import XiaoYanPet from "./components/XiaoYanPet";
 
 const layoutMode = getLayoutMode();
 
@@ -59,6 +60,7 @@ export default function App() {
       <>
         <FocusApp />
         <UpdateNotification {...autoUpdate} />
+        <XiaoYanPet />
       </>
     );
   }
@@ -130,6 +132,7 @@ export default function App() {
         </Routes>
       </main>
       <UpdateNotification {...autoUpdate} />
+      <XiaoYanPet />
     </div>
   );
 }
