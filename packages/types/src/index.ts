@@ -1,4 +1,4 @@
-export const PRODUCT_NAME = "小妍 Copilot";
+export const PRODUCT_NAME = "小妍";
 export const MAIN_ASSISTANT_NAME = "小妍";
 export const MAIN_ASSISTANT_ROLE = "小妍 · 主 AI 助手";
 export const MAIN_ASSISTANT_WORKSPACE_NAME = "小妍协同台";
@@ -10,7 +10,7 @@ export const MAIN_ASSISTANT_WELCOME_DESCRIPTION =
 export const MAIN_ASSISTANT_STATUS_DESCRIPTION =
   "小妍负责理解问题、调度专项 Agent，并整合成最终答复。";
 export const MAIN_ASSISTANT_INPUT_PLACEHOLDER =
-  "向小妍描述你的研究问题，我会先帮你拆解再推进下一步";
+  "把你当前的研究问题告诉小妍，她会先拆解任务，再一步步陪你推进";
 
 export interface Paper {
   id: string;

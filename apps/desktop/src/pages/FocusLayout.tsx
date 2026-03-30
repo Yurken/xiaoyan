@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { Badge, Button } from "@research-copilot/ui";
-import { MAIN_ASSISTANT_NAME, PRODUCT_NAME } from "@research-copilot/types";
+import { PRODUCT_NAME } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
@@ -182,7 +182,7 @@ function FocusHome() {
           <div className="w-9 h-9 flex items-center justify-center">
             <img src={hitLogo} alt="HIT" className="w-9 h-9 object-contain" />
           </div>
-          <p className="text-base font-bold text-ink-primary">{PRODUCT_NAME} · {MAIN_ASSISTANT_NAME}</p>
+          <p className="text-base font-bold text-ink-primary">{PRODUCT_NAME} 研究协同台</p>
         </div>
         <Link to="/settings">
           <button

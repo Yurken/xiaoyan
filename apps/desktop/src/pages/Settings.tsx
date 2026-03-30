@@ -1575,12 +1575,12 @@ function MemorySection({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-ink-primary">手动备忘</h2>
-            <p className="text-xs text-ink-tertiary mt-0.5">在 Copilot 侧边栏"添加记忆"面板中写入，永久保留，每次对话均会参考。</p>
+            <p className="text-xs text-ink-tertiary mt-0.5">在「小妍」页侧边栏的「添加记忆」面板中写入，永久保留，每次对话均会参考。</p>
           </div>
           <span className="text-xs text-ink-tertiary">{manualList.length} 条</span>
         </div>
         {manualList.length === 0 ? (
-          <p className="text-xs text-ink-tertiary">暂无手动备忘。前往 Copilot 页侧边栏添加。</p>
+          <p className="text-xs text-ink-tertiary">暂无手动备忘。前往「小妍」页侧边栏添加。</p>
         ) : (
           <div className="space-y-2">
             {manualList.map((m) => (

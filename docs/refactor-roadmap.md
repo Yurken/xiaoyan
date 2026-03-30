@@ -43,8 +43,8 @@
 - [x] 接入 `packages/api-sdk`、`packages/ui`、`packages/types`
 - [x] 实现文件上传适配器（Tauri `dialog.open()`）
 - [ ] 实现 Token 存储适配器（Tauri keychain plugin）
-- [ ] 实现全局快捷键唤起 Copilot 窗口
-- [x] 桌面端页面：论文库、Copilot、知识库、设置
+- [ ] 实现全局快捷键唤起小妍对话窗口
+- [x] 桌面端页面：论文库、小妍对话、知识库、设置
 - [x] 打包脚本（macOS `.dmg`、Windows `.msi`）
 - [x] github打包流程（.github/workflows/desktop-release.yml）
 
@@ -56,7 +56,7 @@
 
 - [x] 初始化 `apps/mobile`（Expo SDK 52 + Expo Router 4）
 - [x] 接入 `packages/api-sdk`（Metro monorepo 配置）
-- [x] 实现页面：论文列表浏览、知识库阅读、Copilot SSE对话、设置
+- [x] 实现页面：论文列表浏览、知识库阅读、小妍 SSE 对话、设置
 - [x] Push Notification 基础接入（expo-notifications 权限注册 + push token 获取）
 - [ ] 后端推送接口（job完成时调用 Expo Push API）
 - [x] EAS Build 配置（development/preview/production 三环境）

@@ -29,7 +29,7 @@ export const YANWEB_FRIEND_LINK_SECTIONS: YanwebFriendLinkSection[] = [
         "icon": "/friend-link-icons/gemini.google.com.png"
       },
       {
-        "name": "Copilot",
+        "name": "Microsoft AI 助手",
         "href": "https://copilot.microsoft.com/",
         "icon": "/friend-link-icons/copilot.microsoft.com.png"
       },
@@ -764,7 +764,7 @@ export const YANWEB_FRIEND_LINK_SECTIONS: YanwebFriendLinkSection[] = [
     "title": "代码工具",
     "items": [
       {
-        "name": "GitHub Copilot",
+        "name": "GitHub AI 编程助手",
         "href": "https://github.com/features/copilot",
         "icon": "/friend-link-icons/github.com.png"
       },

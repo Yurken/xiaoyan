@@ -45,7 +45,7 @@ const features = [
     href: "/copilot",
     icon: MessageSquare,
     title: MAIN_ASSISTANT_WORKSPACE_NAME,
-    description: `由${MAIN_ASSISTANT_NAME}自动拆解任务，将检索、综述、论文解析与复现建议串联为可观测执行链路`,
+    description: `${MAIN_ASSISTANT_NAME}会先拆解你的目标，再联动检索、综述、论文解析与复现建议形成可观测链路`,
     color: "text-rose-600",
     bg: "bg-rose-50",
   },
@@ -72,7 +72,7 @@ export default function HomePage() {
           {PRODUCT_NAME}
         </h1>
         <p className="text-lg text-gray-500 max-w-2xl">
-          主 AI {MAIN_ASSISTANT_NAME} 现已接入多 Agent 协同，把方向规划、文献调研、论文精读、实验复现和最终回答串成一条可追踪的科研工作流。
+          {MAIN_ASSISTANT_NAME}会根据你的研究问题自动拆解任务，联动多 Agent 完成规划、检索、精读、复现与整合，让研究进展持续可见。
         </p>
       </div>
 
@@ -105,7 +105,7 @@ export default function HomePage() {
             { step: "2", text: "在「文献调研」中输入研究关键词，生成结构化综述并快速了解领域现状" },
             { step: "3", text: "上传 PDF 论文，获取论文精读分析与复现指导" },
             { step: "4", text: `所有内容会自动归档到「知识库」，支持语义搜索和问答` },
-            { step: "5", text: `随时打开「${MAIN_ASSISTANT_NAME}」查看调度计划、Agent 时间线与结构化产物` },
+            { step: "5", text: `随时打开「${MAIN_ASSISTANT_WORKSPACE_NAME}」查看任务计划、Agent 时间线与结构化产物` },
           ].map(({ step, text }) => (
             <li key={step} className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center">
