@@ -30,6 +30,7 @@ import {
   getAllAreas,
   type VenueTemplate,
 } from "../data/venues";
+import ExternalLink from "../components/ExternalLink";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,7 @@ interface Conference {
   type: "conference";
   name: string;
   fullName: string;
+  website?: string;
   deadline: Date;
   notificationDate?: Date;
   ccf: CcfRating;
@@ -55,6 +57,7 @@ interface Journal {
   type: "journal";
   name: string;
   fullName: string;
+  website?: string;
   ccf: CcfRating;
   area: string;
   starred: boolean;
@@ -154,31 +157,37 @@ function computeLineDiff(oldText: string, newText: string): DiffLine[] {
 const MOCK_CONFERENCES: Conference[] = [
   {
     id: "1", type: "conference", name: "NeurIPS 2026", fullName: "Conference on Neural Information Processing Systems",
+    website: "https://neurips.cc",
     deadline: new Date("2026-05-15"), notificationDate: new Date("2026-09-10"),
     ccf: "A", area: "AI/ML", starred: true, ei: true,
   },
   {
     id: "2", type: "conference", name: "ACL 2026", fullName: "Annual Meeting of the Association for Computational Linguistics",
+    website: "https://aclweb.org",
     deadline: new Date("2026-04-20"), notificationDate: new Date("2026-06-20"),
     ccf: "A", area: "NLP", starred: true, ei: true,
   },
   {
     id: "3", type: "conference", name: "ICML 2026", fullName: "International Conference on Machine Learning",
+    website: "https://icml.cc",
     deadline: new Date("2026-06-01"), notificationDate: new Date("2026-09-01"),
     ccf: "A", area: "ML", starred: false, ei: true,
   },
   {
     id: "4", type: "conference", name: "EMNLP 2026", fullName: "Empirical Methods in Natural Language Processing",
+    website: "https://aclanthology.org/venues/emnlp/",
     deadline: new Date("2026-06-14"), notificationDate: new Date("2026-09-01"),
     ccf: "B", area: "NLP", starred: false, ei: true,
   },
   {
     id: "5", type: "conference", name: "ICLR 2027", fullName: "International Conference on Learning Representations",
+    website: "https://iclr.cc",
     deadline: new Date("2026-10-01"), notificationDate: new Date("2027-01-20"),
     ccf: "A", area: "DL", starred: false, ei: true,
   },
   {
     id: "6", type: "conference", name: "CVPR 2026", fullName: "Conference on Computer Vision and Pattern Recognition",
+    website: "https://cvpr.thecvf.com",
     deadline: new Date("2025-11-14"),
     ccf: "A", area: "CV", starred: false, ei: true,
   },
@@ -187,26 +196,31 @@ const MOCK_CONFERENCES: Conference[] = [
 const MOCK_JOURNALS: Journal[] = [
   {
     id: "j1", type: "journal", name: "JMLR", fullName: "Journal of Machine Learning Research",
+    website: "https://jmlr.org",
     ccf: "A", area: "ML", starred: true, sci: true, sciQuartile: "Q1",
   },
   {
     id: "j2", type: "journal", name: "TACL", fullName: "Transactions of the Association for Computational Linguistics",
+    website: "https://aclanthology.org/tacl",
     ccf: "A", area: "NLP", starred: true, sci: true, sciQuartile: "Q1",
     specialIssueDeadline: new Date("2026-06-30"),
     specialIssueTitle: "Special Issue on Large Language Models",
   },
   {
     id: "j3", type: "journal", name: "TPAMI", fullName: "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+    website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=34",
     ccf: "A", area: "CV", starred: false, sci: true, sciQuartile: "Q1",
   },
   {
     id: "j4", type: "journal", name: "ACM CSUR", fullName: "ACM Computing Surveys",
+    website: "https://dl.acm.org/journal/csur",
     ccf: "B", area: "General", starred: false, sci: true, sciQuartile: "Q2",
     specialIssueDeadline: new Date("2026-08-15"),
     specialIssueTitle: "Survey on AI Ethics",
   },
   {
     id: "j5", type: "journal", name: "KAIS", fullName: "Knowledge and Information Systems",
+    website: "https://link.springer.com/journal/10115",
     ccf: "C", area: "AI", starred: false, sci: true, sciQuartile: "Q3", ei: true,
   },
 ];
@@ -492,6 +506,7 @@ export default function Submission() {
         type: "conference",
         name: template.name,
         fullName: template.fullName,
+        website: template.website,
         deadline: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 默认 90 天后
         ccf: template.ccf,
         area: template.area,
@@ -505,6 +520,7 @@ export default function Submission() {
         type: "journal",
         name: template.name,
         fullName: template.fullName,
+        website: template.website,
         ccf: template.ccf,
         area: template.area,
         starred: false,
@@ -935,7 +951,16 @@ export default function Submission() {
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-semibold text-base text-ink-primary truncate">{venue.name}</p>
+                          {venue.website ? (
+                            <ExternalLink
+                              href={venue.website}
+                              className="font-semibold text-base text-ink-primary truncate hover:text-blue-600 hover:underline"
+                            >
+                              {venue.name}
+                            </ExternalLink>
+                          ) : (
+                            <p className="font-semibold text-base text-ink-primary truncate">{venue.name}</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {/* CCF tag */}
@@ -2160,7 +2185,16 @@ export default function Submission() {
                         {/* Title row */}
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="font-bold text-base text-ink-primary truncate">{venue.name}</p>
+                            {venue.website ? (
+                              <ExternalLink
+                                href={venue.website}
+                                className="font-bold text-base text-ink-primary truncate hover:text-blue-600 hover:underline block"
+                              >
+                                {venue.name}
+                              </ExternalLink>
+                            ) : (
+                              <p className="font-bold text-base text-ink-primary truncate">{venue.name}</p>
+                            )}
                             <p className="text-[11px] text-ink-tertiary truncate mt-0.5">{venue.fullName}</p>
                           </div>
                           {/* Add button */}
