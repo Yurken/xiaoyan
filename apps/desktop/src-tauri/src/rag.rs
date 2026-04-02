@@ -9,30 +9,64 @@ pub struct Chunk {
     pub content: String,
 }
 
+fn floor_char_boundary(text: &str, mut idx: usize) -> usize {
+    let len = text.len();
+    if idx >= len {
+        return len;
+    }
+    while idx > 0 && !text.is_char_boundary(idx) {
+        idx -= 1;
+    }
+    idx
+}
+
 pub fn chunk_text(text: &str, chunk_size: usize, overlap: usize) -> Vec<Chunk> {
+    if chunk_size == 0 {
+        return Vec::new();
+    }
+
     let text = normalize(text);
     let mut chunks = Vec::new();
     let mut start = 0usize;
     let mut idx = 0usize;
+    let overlap = overlap.min(chunk_size.saturating_sub(1));
 
     while start < text.len() {
-        let end = (start + chunk_size).min(text.len());
+        let start_idx = floor_char_boundary(&text, start);
+        let rough_end = (start_idx + chunk_size).min(text.len());
+        let mut end = floor_char_boundary(&text, rough_end);
+
+        if end <= start_idx {
+            // Ensure forward progress even when chunk_size lands inside a multi-byte character.
+            end = text[start_idx..]
+                .char_indices()
+                .nth(1)
+                .map(|(offset, _)| start_idx + offset)
+                .unwrap_or(text.len());
+        }
+
         let end = if end < text.len() {
-            text[start..end]
+            text[start_idx..end]
                 .rfind(". ")
                 .filter(|&p| p > chunk_size / 2)
-                .map(|p| start + p + 1)
+                .map(|p| start_idx + p + 1)
                 .unwrap_or(end)
         } else {
             end
         };
-        let content = text[start..end].trim().to_string();
+
+        if end <= start_idx {
+            break;
+        }
+
+        let content = text[start_idx..end].trim().to_string();
         if !content.is_empty() {
             chunks.push(Chunk { chunk_index: idx, content });
             idx += 1;
         }
         if end >= text.len() { break; }
-        start = end.saturating_sub(overlap);
+        let next = end.saturating_sub(overlap);
+        start = if next <= start_idx { end } else { next };
     }
     chunks
 }

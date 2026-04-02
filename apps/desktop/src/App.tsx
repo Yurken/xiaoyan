@@ -7,6 +7,7 @@ import {
   Library,
   Map,
   MessageSquare,
+  Send,
   Settings as SettingsIcon,
   Wrench,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import Copilot from "./pages/Copilot";
 import Knowledge from "./pages/Knowledge";
 import Settings from "./pages/Settings";
 import Tools from "./pages/Tools";
+import Submission from "./pages/Submission";
 import FocusApp from "./pages/FocusLayout";
 import hitLogo from "./assets/hit-logo.svg";
 import { getLayoutMode } from "./lib/layoutMode";
@@ -35,6 +37,7 @@ const navItems = [
   { to: "/papers",    icon: FileText,        label: "论文" },
   { to: "/knowledge", icon: Library,         label: "知识" },
   { to: "/copilot",   icon: MessageSquare,   label: "小妍" },
+  { to: "/submission", icon: Send,            label: "投稿" },
   { to: "/tools",     icon: Wrench,          label: "工具" },
   { to: "/settings",  icon: SettingsIcon,    label: "设置" },
 ];
@@ -130,6 +133,7 @@ export default function App() {
           <Route path="/planner"    element={<Planner />} />
           <Route path="/survey"     element={<Survey />} />
           <Route path="/papers"     element={<Papers />} />
+          <Route path="/submission" element={<Submission />} />
           <Route path="/tools"      element={<Tools />} />
           <Route path="/copilot"    element={<Copilot />} />
           <Route path="/knowledge"  element={<Knowledge />} />

@@ -959,13 +959,43 @@ pub async fn papers_analyze(
                 (Some(&client), model.as_deref())
             };
 
-        let extracted_figures = ensure_figures_extracted(
-            &app, &db, &pid,
-            file_path_for_spawn.as_deref(),
-            &full_text,
-            vision_client_opt,
-            vision_model_opt,
-        ).await;
+        let figure_timeout_secs = settings
+            .get("paper_figure_extract_timeout_secs")
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .unwrap_or(45)
+            .clamp(15, 180);
+
+        let extracted_figures = match tokio::time::timeout(
+            std::time::Duration::from_secs(figure_timeout_secs),
+            ensure_figures_extracted(
+                &app,
+                &db,
+                &pid,
+                file_path_for_spawn.as_deref(),
+                &full_text,
+                vision_client_opt,
+                vision_model_opt,
+            ),
+        )
+        .await
+        {
+            Ok(figures) => figures,
+            Err(_) => {
+                eprintln!(
+                    "[paper-analyze][{}] figure extraction timed out after {}s; continue without figure context",
+                    pid, figure_timeout_secs
+                );
+                let _ = app.emit(
+                    "paper:status",
+                    json!({
+                        "paper_id": pid,
+                        "status": "analyzing",
+                        "step": "图表提取超时，已跳过并继续分析…"
+                    }),
+                );
+                Vec::new()
+            }
+        };
 
         // Build figure context to inject into every agent prompt
         let figure_context = if extracted_figures.is_empty() {
@@ -1394,8 +1424,8 @@ fn sanitize_file_stem(input: &str) -> String {
 /// Scan the first ~4000 chars of extracted PDF text for a "Keywords:" section.
 /// Returns up to 10 cleaned keyword strings, or an empty vec if not found.
 pub(crate) fn extract_keywords_from_text(full_text: &str) -> Vec<String> {
-    let search_area = if full_text.len() > 4000 { &full_text[..4000] } else { full_text };
-    let lower = search_area.to_lowercase();
+    let search_area = safe_text_preview(full_text, 4000);
+    let lower = search_area.to_ascii_lowercase();
 
     let markers = [
         "keywords—", "keywords:", "key words:", "key words—",
@@ -1410,9 +1440,10 @@ pub(crate) fn extract_keywords_from_text(full_text: &str) -> Vec<String> {
     };
 
     let rest = &search_area[start..];
-    // Stop at blank line or 500 chars, whichever comes first
-    let end = rest.find("\n\n").unwrap_or(rest.len().min(500));
-    let kw_text = &rest[..end];
+    // Stop at blank line or 500 chars (UTF-8 safe), whichever comes first
+    let limited_rest = safe_text_preview(rest, 500);
+    let end = limited_rest.find("\n\n").unwrap_or(limited_rest.len());
+    let kw_text = &limited_rest[..end];
 
     kw_text
         .split([',', ';'])
@@ -1510,13 +1541,21 @@ async fn ensure_figures_extracted(
         let page_images = {
             let pdf_p = pdf_path.clone();
             let pg_d = pages_dir.clone();
-            tokio::task::spawn_blocking(move || render_pdf_pages(&pdf_p, &pg_d, 15))
+            tokio::task::spawn_blocking(move || render_pdf_pages(&pdf_p, &pg_d, 8))
                 .await
                 .unwrap_or_default()
         };
 
         for (page_no, page_path) in page_images.iter().enumerate() {
-            let identified = vision_scan_page(client, vision_model, page_path).await;
+            let identified = match tokio::time::timeout(
+                std::time::Duration::from_secs(12),
+                vision_scan_page(client, vision_model, page_path),
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(_) => Vec::new(),
+            };
             for (fig_idx, _) in identified {
                 if extracted.contains(&fig_idx) { continue; }
                 // Use the rendered page image as the figure file
