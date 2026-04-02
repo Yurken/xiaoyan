@@ -16,32 +16,72 @@ const STATUS_CONFIG = {
   pending:   { icon: "ellipse-outline"   as const, color: "#8E8E93", label: "待分析" },
 };
 
+const CCF_COLORS: Record<string, { bg: string; text: string }> = {
+  A: { bg: "#FFE8E8", text: "#D93025" },
+  B: { bg: "#FFF3E0", text: "#E65100" },
+  C: { bg: "#F3F0FF", text: "#6741D9" },
+};
+
+function buildTags(paper: Paper): Array<{ label: string; bg: string; text: string }> {
+  const tags: Array<{ label: string; bg: string; text: string }> = [];
+  if (paper.ccf_rating) {
+    const c = CCF_COLORS[paper.ccf_rating] ?? { bg: "#E8F0FE", text: "#1A73E8" };
+    tags.push({ label: `CCF ${paper.ccf_rating}`, bg: c.bg, text: c.text });
+  }
+  if (paper.wos_indexes) {
+    for (const idx of paper.wos_indexes) {
+      if (idx === "SCI" || idx === "SSCI" || idx === "EI") {
+        tags.push({ label: idx, bg: "#E6F4EA", text: "#137333" });
+      }
+    }
+  }
+  if (paper.jcr_quartile) {
+    tags.push({ label: paper.jcr_quartile, bg: "#EDE7F6", text: "#5E35B1" });
+  }
+  if (paper.cas_quartile) {
+    tags.push({ label: `中科院${paper.cas_quartile}`, bg: "#E3F2FD", text: "#1565C0" });
+  }
+  if (paper.cas_top) {
+    tags.push({ label: "顶刊", bg: "#FCE4EC", text: "#C62828" });
+  }
+  return tags;
+}
+
 function PaperItem({ paper, onAnalyze }: { paper: Paper; onAnalyze: (id: string) => void }) {
   const s = STATUS_CONFIG[paper.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
+  const tags = buildTags(paper);
 
   return (
     <NmCard style={styles.paperCard}>
-      <View style={styles.paperRow}>
-        <View style={styles.statusIcon}>
-          <Ionicons name={s.icon} size={22} color={s.color} />
-        </View>
-        <View style={styles.paperInfo}>
-          <Text style={styles.paperTitle} numberOfLines={2}>{paper.title}</Text>
+      <View style={styles.paperInfo}>
+        <Text style={styles.paperTitle} numberOfLines={2}>{paper.title}</Text>
+        {tags.length > 0 && (
+          <View style={styles.tagsRow}>
+            {tags.map((t) => (
+              <View key={t.label} style={[styles.tag, { backgroundColor: t.bg }]}>
+                <Text style={[styles.tagText, { color: t.text }]}>{t.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        <View style={styles.paperMeta}>
           <Text style={styles.paperDate}>
             {new Date(paper.created_at).toLocaleDateString("zh-CN")}
-            {"  "}
-            <Text style={[styles.paperStatus, { color: s.color }]}>{s.label}</Text>
           </Text>
+          <View style={styles.statusBadge}>
+            <Ionicons name={s.icon} size={12} color={s.color} />
+            <Text style={[styles.paperStatus, { color: s.color }]}>{s.label}</Text>
+          </View>
         </View>
-        <NmButton
-          variant="secondary"
-          size="sm"
-          disabled={paper.status === "analyzing"}
-          onPress={() => onAnalyze(paper.id)}
-        >
-          小妍分析
-        </NmButton>
       </View>
+      <NmButton
+        variant="secondary"
+        size="sm"
+        disabled={paper.status === "analyzing"}
+        onPress={() => onAnalyze(paper.id)}
+      >
+        小妍分析
+      </NmButton>
     </NmCard>
   );
 }
@@ -134,26 +174,20 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 14, color: "#8E8E93", marginTop: 2 },
   list: { paddingHorizontal: 20, paddingBottom: 20 },
   paperItem: { marginBottom: 12 },
-  paperCard: { padding: 14 },
-  paperRow:  { flexDirection: "row", alignItems: "center", gap: 12 },
-  statusIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: "#E8ECF0",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#1C1C1E",
-    shadowOffset: { width: -1, height: -1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    borderWidth: 1,
-    borderColor: "rgba(200,205,211,0.5)",
-  },
+  paperCard: { padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
   paperInfo: { flex: 1 },
-  paperTitle: { fontSize: 14, fontWeight: "600", color: "#1C1C1E", lineHeight: 20 },
-  paperDate:  { fontSize: 12, color: "#8E8E93", marginTop: 3 },
-  paperStatus: { fontWeight: "500" },
+  paperTitle: { fontSize: 16, fontWeight: "600", color: "#1C1C1E", lineHeight: 22 },
+  tagsRow:   { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 6 },
+  tag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  tagText:   { fontSize: 11, fontWeight: "600" },
+  paperMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
+  paperDate: { fontSize: 12, color: "#8E8E93" },
+  statusBadge: { flexDirection: "row", alignItems: "center", gap: 3 },
+  paperStatus: { fontSize: 12, fontWeight: "500" },
   center:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   emptyIcon: {
     width: 72,

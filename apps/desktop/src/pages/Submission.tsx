@@ -3,6 +3,7 @@ import {
   Bell,
   BookOpen,
   Calendar,
+  Check,
   CheckCircle2,
   CheckSquare,
   Circle,
@@ -10,12 +11,19 @@ import {
   FilePlus,
   KanbanSquare,
   Plus,
+  Search,
   Star,
   StarOff,
   Trophy,
   Users,
+  X,
 } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
+import {
+  POPULAR_VENUES,
+  getAllAreas,
+  type VenueTemplate,
+} from "../data/venues";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +41,7 @@ interface Conference {
   ccf: CcfRating;
   area: string;
   starred: boolean;
+  ei?: boolean;
 }
 
 interface Journal {
@@ -43,6 +52,9 @@ interface Journal {
   ccf: CcfRating;
   area: string;
   starred: boolean;
+  sci?: boolean;
+  sciQuartile?: "Q1" | "Q2" | "Q3" | "Q4";
+  ei?: boolean;
   // 期刊特刊截止日期
   specialIssueDeadline?: Date;
   specialIssueTitle?: string;
@@ -73,59 +85,59 @@ const MOCK_CONFERENCES: Conference[] = [
   {
     id: "1", type: "conference", name: "NeurIPS 2026", fullName: "Conference on Neural Information Processing Systems",
     deadline: new Date("2026-05-15"), notificationDate: new Date("2026-09-10"),
-    ccf: "A", area: "AI/ML", starred: true,
+    ccf: "A", area: "AI/ML", starred: true, ei: true,
   },
   {
     id: "2", type: "conference", name: "ACL 2026", fullName: "Annual Meeting of the Association for Computational Linguistics",
     deadline: new Date("2026-04-20"), notificationDate: new Date("2026-06-20"),
-    ccf: "A", area: "NLP", starred: true,
+    ccf: "A", area: "NLP", starred: true, ei: true,
   },
   {
     id: "3", type: "conference", name: "ICML 2026", fullName: "International Conference on Machine Learning",
     deadline: new Date("2026-06-01"), notificationDate: new Date("2026-09-01"),
-    ccf: "A", area: "ML", starred: false,
+    ccf: "A", area: "ML", starred: false, ei: true,
   },
   {
     id: "4", type: "conference", name: "EMNLP 2026", fullName: "Empirical Methods in Natural Language Processing",
     deadline: new Date("2026-06-14"), notificationDate: new Date("2026-09-01"),
-    ccf: "B", area: "NLP", starred: false,
+    ccf: "B", area: "NLP", starred: false, ei: true,
   },
   {
     id: "5", type: "conference", name: "ICLR 2027", fullName: "International Conference on Learning Representations",
     deadline: new Date("2026-10-01"), notificationDate: new Date("2027-01-20"),
-    ccf: "A", area: "DL", starred: false,
+    ccf: "A", area: "DL", starred: false, ei: true,
   },
   {
     id: "6", type: "conference", name: "CVPR 2026", fullName: "Conference on Computer Vision and Pattern Recognition",
     deadline: new Date("2025-11-14"),
-    ccf: "A", area: "CV", starred: false,
+    ccf: "A", area: "CV", starred: false, ei: true,
   },
 ];
 
 const MOCK_JOURNALS: Journal[] = [
   {
     id: "j1", type: "journal", name: "JMLR", fullName: "Journal of Machine Learning Research",
-    ccf: "A", area: "ML", starred: true,
+    ccf: "A", area: "ML", starred: true, sci: true, sciQuartile: "Q1",
   },
   {
     id: "j2", type: "journal", name: "TACL", fullName: "Transactions of the Association for Computational Linguistics",
-    ccf: "A", area: "NLP", starred: true,
+    ccf: "A", area: "NLP", starred: true, sci: true, sciQuartile: "Q1",
     specialIssueDeadline: new Date("2026-06-30"),
     specialIssueTitle: "Special Issue on Large Language Models",
   },
   {
     id: "j3", type: "journal", name: "TPAMI", fullName: "IEEE Transactions on Pattern Analysis and Machine Intelligence",
-    ccf: "A", area: "CV", starred: false,
+    ccf: "A", area: "CV", starred: false, sci: true, sciQuartile: "Q1",
   },
   {
-    id: "j4", type: "journal", name: "ACL", fullName: "ACM Computing Surveys",
-    ccf: "B", area: "General", starred: false,
+    id: "j4", type: "journal", name: "ACM CSUR", fullName: "ACM Computing Surveys",
+    ccf: "B", area: "General", starred: false, sci: true, sciQuartile: "Q2",
     specialIssueDeadline: new Date("2026-08-15"),
     specialIssueTitle: "Survey on AI Ethics",
   },
   {
-    id: "j5", type: "journal", name: "KN", fullName: "Knowledge and Information Systems",
-    ccf: "C", area: "AI", starred: false,
+    id: "j5", type: "journal", name: "KAIS", fullName: "Knowledge and Information Systems",
+    ccf: "C", area: "AI", starred: false, sci: true, sciQuartile: "Q3", ei: true,
   },
 ];
 
@@ -249,6 +261,12 @@ export default function Submission() {
   const [journals, setJournals] = useState<Journal[]>(MOCK_JOURNALS);
   const [venueFilter, setVenueFilter] = useState<"all" | "conference" | "journal" | "starred">("all");
 
+  // Add venue modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addModalSearch, setAddModalSearch] = useState("");
+  const [addModalAreaFilter, setAddModalAreaFilter] = useState<string>("all");
+  const [addModalTypeFilter, setAddModalTypeFilter] = useState<"all" | "conference" | "journal">("all");
+
   // Kanban state
   const [submissions, setSubmissions] = useState<Submission[]>(MOCK_SUBMISSIONS);
 
@@ -286,6 +304,57 @@ export default function Submission() {
       setJournals(prev => prev.map(j => j.id === id ? { ...j, starred: !j.starred } : j));
     }
   };
+
+  // ── Add venue helpers ──
+  const handleAddVenue = (template: VenueTemplate) => {
+    const newId = `${template.id}-${Date.now()}`;
+    if (template.type === "conference") {
+      const newConf: Conference = {
+        id: newId,
+        type: "conference",
+        name: template.name,
+        fullName: template.fullName,
+        deadline: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 默认 90 天后
+        ccf: template.ccf,
+        area: template.area,
+        starred: false,
+        ei: template.ei,
+      };
+      setConferences(prev => [...prev, newConf]);
+    } else {
+      const newJournal: Journal = {
+        id: newId,
+        type: "journal",
+        name: template.name,
+        fullName: template.fullName,
+        ccf: template.ccf,
+        area: template.area,
+        starred: false,
+        sci: template.sci,
+        sciQuartile: template.sciQuartile,
+        ei: template.ei,
+      };
+      setJournals(prev => [...prev, newJournal]);
+    }
+    setShowAddModal(false);
+  };
+
+  const isVenueAdded = (template: VenueTemplate) => {
+    if (template.type === "conference") {
+      return conferences.some(c => c.name === template.name);
+    }
+    return journals.some(j => j.name === template.name);
+  };
+
+  const filteredVenueTemplates = POPULAR_VENUES.filter(v => {
+    const matchesSearch = v.name.toLowerCase().includes(addModalSearch.toLowerCase()) ||
+      v.fullName.toLowerCase().includes(addModalSearch.toLowerCase());
+    const matchesArea = addModalAreaFilter === "all" || v.area === addModalAreaFilter;
+    const matchesType = addModalTypeFilter === "all" || v.type === addModalTypeFilter;
+    return matchesSearch && matchesArea && matchesType;
+  });
+
+  const areas = getAllAreas();
 
   // ── Kanban helpers ──
   const moveSubmission = (id: string, direction: "prev" | "next") => {
@@ -395,7 +464,7 @@ export default function Submission() {
                   </button>
                 ))}
               </div>
-              <Button variant="secondary" size="sm">
+              <Button variant="secondary" size="sm" onClick={() => setShowAddModal(true)}>
                 <Plus className="w-3.5 h-3.5" />
                 添加会议/期刊
               </Button>
@@ -412,19 +481,49 @@ export default function Submission() {
                 return (
                   <Card key={venue.id} padding="sm" className="group">
                     <div className="flex items-center gap-4">
-                      {/* CCF badge + type indicator */}
-                      <div
-                        className="w-12 h-12 rounded-2xl flex flex-col items-center justify-center flex-shrink-0 text-[10px] font-bold leading-tight"
-                        style={{ background: ccf.bg, color: ccf.color }}
-                      >
-                        <span>CCF</span>
-                        <span className="text-base">{venue.ccf === "none" ? "—" : venue.ccf}</span>
-                      </div>
-
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-semibold text-sm text-ink-primary truncate">{venue.name}</p>
+                          <p className="font-semibold text-base text-ink-primary truncate">{venue.name}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {/* CCF tag */}
+                          {venue.ccf !== "none" && (
+                            <span
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                              style={{ background: ccf.bg, color: ccf.color }}
+                            >
+                              CCF {venue.ccf}
+                            </span>
+                          )}
+                          {/* SCI */}
+                          {!isConf && (venue as Journal).sci && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                              style={{ background: "rgba(52,199,89,0.12)", color: "#1A7F37" }}>
+                              SCI
+                            </span>
+                          )}
+                          {/* JCR quartile */}
+                          {!isConf && (venue as Journal).sciQuartile && (() => {
+                            const q = (venue as Journal).sciQuartile!;
+                            const qColor = q === "Q1" ? { bg: "rgba(88,86,214,0.12)", color: "#5856D6" }
+                              : q === "Q2" ? { bg: "rgba(0,122,255,0.12)", color: "#007AFF" }
+                              : q === "Q3" ? { bg: "rgba(255,149,0,0.12)", color: "#E65100" }
+                              : { bg: "rgba(142,142,147,0.12)", color: "#6B6B6B" };
+                            return (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                style={{ background: qColor.bg, color: qColor.color }}>
+                                {q}
+                              </span>
+                            );
+                          })()}
+                          {/* EI */}
+                          {venue.ei && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                              style={{ background: "rgba(0,122,255,0.10)", color: "#007AFF" }}>
+                              EI
+                            </span>
+                          )}
                           {/* Type badge */}
                           <span
                             className="text-[10px] font-medium px-1.5 py-0.5 rounded-md flex-shrink-0"
@@ -757,6 +856,197 @@ export default function Submission() {
           </div>
         )}
       </div>
+
+      {/* ════════ 添加会议/期刊弹窗 ════════ */}
+      {showAddModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.45)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false); }}
+        >
+          <div
+            className="w-full max-w-3xl max-h-[85vh] mx-4 rounded-3xl overflow-hidden flex flex-col"
+            style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)" }}
+          >
+            {/* Header */}
+            <div className="flex-shrink-0 px-6 py-5 border-b" style={{ borderColor: "var(--rc-border)" }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-ink-primary">添加会议/期刊</h2>
+                  <p className="text-xs text-ink-tertiary mt-0.5">从 CCF 推荐目录中选择要追踪的会议或期刊</p>
+                </div>
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="p-2 rounded-xl hover:bg-black/5 transition-colors"
+                >
+                  <X className="w-5 h-5 text-ink-tertiary" />
+                </button>
+              </div>
+
+              {/* Search and filters */}
+              <div className="mt-4 flex gap-3">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-tertiary" />
+                  <input
+                    type="text"
+                    placeholder="搜索会议或期刊..."
+                    value={addModalSearch}
+                    onChange={(e) => setAddModalSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 rounded-xl text-sm"
+                    style={{
+                      background: "var(--rc-card-inset-bg)",
+                      boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)",
+                    }}
+                  />
+                </div>
+                <select
+                  value={addModalAreaFilter}
+                  onChange={(e) => setAddModalAreaFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl text-sm font-medium cursor-pointer"
+                  style={{
+                    background: "var(--rc-card-bg)",
+                    boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)",
+                  }}
+                >
+                  <option value="all">全部领域</option>
+                  {areas.map(area => (
+                    <option key={area} value={area}>{area}</option>
+                  ))}
+                </select>
+                <div className="flex gap-1">
+                  {(["all", "conference", "journal"] as const).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setAddModalTypeFilter(t)}
+                      className="px-3 py-2 rounded-xl text-xs font-medium transition-all duration-150"
+                      style={addModalTypeFilter === t
+                        ? { background: "#007AFF", color: "#fff" }
+                        : { background: "var(--rc-card-bg)", color: "var(--rc-text-secondary)" as string, boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)" }
+                      }
+                    >
+                      {t === "all" ? "全部" : t === "conference" ? "会议" : "期刊"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {filteredVenueTemplates.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-sm text-ink-tertiary">未找到匹配的会议或期刊</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredVenueTemplates.map(venue => {
+                    const added = isVenueAdded(venue);
+                    return (
+                      <div
+                        key={venue.id}
+                        className="rounded-2xl p-4 transition-all duration-150"
+                        style={{
+                          background: added ? "rgba(52,199,89,0.07)" : "var(--rc-card-bg)",
+                          boxShadow: added ? "none" : "2px 2px 8px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.7)",
+                          opacity: added ? 0.7 : 1,
+                        }}
+                      >
+                        {/* Title row */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-base text-ink-primary truncate">{venue.name}</p>
+                            <p className="text-[11px] text-ink-tertiary truncate mt-0.5">{venue.fullName}</p>
+                          </div>
+                          {/* Add button */}
+                          <button
+                            onClick={() => !added && handleAddVenue(venue)}
+                            disabled={added}
+                            className="flex-shrink-0 p-2 rounded-xl transition-all duration-150"
+                            style={added
+                              ? { background: "rgba(52,199,89,0.15)", cursor: "default" }
+                              : { background: "#007AFF", boxShadow: "2px 2px 6px rgba(0,122,255,0.3)" }
+                            }
+                          >
+                            {added
+                              ? <Check className="w-4 h-4" style={{ color: "#34C759" }} />
+                              : <Plus className="w-4 h-4 text-white" />
+                            }
+                          </button>
+                        </div>
+
+                        {/* Tags row */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                          {/* CCF tag */}
+                          <span
+                            className="text-[11px] font-bold px-2 py-0.5 rounded-md"
+                            style={{
+                              background: venue.ccf === "A" ? "rgba(255,59,48,0.12)" :
+                                venue.ccf === "B" ? "rgba(255,149,0,0.12)" :
+                                venue.ccf === "C" ? "rgba(0,122,255,0.12)" :
+                                "rgba(142,142,147,0.12)",
+                              color: venue.ccf === "A" ? "#FF3B30" :
+                                venue.ccf === "B" ? "#FF9500" :
+                                venue.ccf === "C" ? "#007AFF" : "#8E8E93",
+                            }}
+                          >
+                            CCF {venue.ccf}
+                          </span>
+                          {/* Type tag */}
+                          <span
+                            className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
+                            style={{
+                              background: venue.type === "conference" ? "rgba(0,122,255,0.10)" : "rgba(175,82,222,0.10)",
+                              color: venue.type === "conference" ? "#007AFF" : "#AF52DE",
+                            }}
+                          >
+                            {venue.type === "conference" ? "会议" : "期刊"}
+                          </span>
+                          {/* SCI tag */}
+                          {venue.sci && (
+                            <span
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                              style={{ background: "rgba(52,199,89,0.12)", color: "#34C759" }}
+                            >
+                              SCI{venue.sciQuartile ? ` ${venue.sciQuartile}` : ""}
+                            </span>
+                          )}
+                          {/* EI tag */}
+                          {venue.ei && (
+                            <span
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                              style={{ background: "rgba(88,86,214,0.12)", color: "#5856D6" }}
+                            >
+                              EI
+                            </span>
+                          )}
+                          {/* Area tag */}
+                          <span className="text-[10px] text-ink-tertiary ml-auto">
+                            {venue.area}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex-shrink-0 px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: "var(--rc-border)" }}>
+              <p className="text-xs text-ink-tertiary">
+                共 {filteredVenueTemplates.length} 个结果，已追踪 {conferences.length + journals.length} 个
+              </p>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-5 py-2 rounded-2xl text-sm font-medium transition-all duration-150"
+                style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+              >
+                完成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
