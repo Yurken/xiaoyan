@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Bell,
+  Bot,
   BookOpen,
   Calendar,
   Check,
@@ -15,6 +16,7 @@ import {
   GitBranch,
   History,
   KanbanSquare,
+  Loader2,
   Plus,
   Save,
   Search,
@@ -129,6 +131,129 @@ interface PaperVersion {
   createdAt: Date;
   filePath?: string;     // 论文文件路径
   fileName?: string;     // 论文文件名
+}
+
+// ─── Mock Review Generator ────────────────────────────────────────────────────
+
+type MockStrictness = "lenient" | "balanced" | "strict";
+
+interface MockReviewerResult {
+  reviewer: string;
+  content: string;
+  tags: string[];
+  verdict: ReviewVerdict;
+}
+
+function generateMockReviews(
+  title: string,
+  abstract: string,
+  reviewerCount: number,
+  strictness: MockStrictness,
+): MockReviewerResult[] {
+  const text = `${title} ${abstract}`.toLowerCase();
+
+  const isNLP    = /\b(language model|bert|transformer|translation|summarization|classification|sentiment|tokeniz|nlp)\b/.test(text);
+  const isCV     = /\b(image|vision|object detection|segmentation|visual|pixel|conv|cnn|resnet|vit)\b/.test(text);
+  const isGraph  = /\b(graph|gnn|node|edge|knowledge graph|link prediction)\b/.test(text);
+  const domain   = isNLP ? "NLP" : isCV ? "计算机视觉" : isGraph ? "图学习" : "机器学习";
+
+  const hasAttention   = /\b(attention|transformer|self-attention)\b/.test(text);
+  const hasEfficiency  = /\b(efficient|fast|lightweight|compress|prune|throughput|latency|memory)\b/.test(text);
+  const hasContrastive = /\b(contrastive|simclr|nce)\b/.test(text);
+  const hasTheory      = /\b(theorem|proof|theoretical|bound|convergence)\b/.test(text);
+  const hasBenchmark   = /\b(benchmark|dataset|evaluation|new dataset)\b/.test(text);
+  const hasSurvey      = /\b(survey|review|overview|comprehensive)\b/.test(text);
+
+  const verdictTable: Record<MockStrictness, ReviewVerdict[]> = {
+    lenient:  ["minor_revision", "accept",         "minor_revision", "minor_revision"],
+    balanced: ["major_revision", "minor_revision",  "minor_revision", "major_revision"],
+    strict:   ["major_revision", "major_revision",  "reject",         "major_revision"],
+  };
+  const verdicts = verdictTable[strictness];
+
+  const templates: Array<{ reviewer: string; tags: string[]; body: () => string }> = [
+    {
+      reviewer: "Reviewer 1",
+      tags: ["方法", "理论", "复杂度"],
+      body: () => {
+        const strength = hasEfficiency
+          ? "The paper addresses an important efficiency challenge and the proposed approach is technically sound."
+          : hasAttention
+          ? "The paper proposes a well-motivated attention-based approach with clear advantages over prior methods."
+          : `The paper tackles an interesting problem in ${domain} and the methodology is generally clear.`;
+        const w1 = hasTheory
+          ? "The theoretical analysis is promising, but Theorem 2 relies on an assumption that is not clearly justified. Please provide a complete proof or clarify the conditions under which it holds."
+          : hasEfficiency
+          ? "The efficiency claims need more rigorous support. The complexity table only reports FLOPs; wall-clock time and GPU memory benchmarks on fair hardware are missing."
+          : "The method description in Section 3 is difficult to follow. Notation is inconsistent, and Algorithm 1 is missing edge cases that affect reproducibility.";
+        const w2 = hasContrastive
+          ? "The sensitivity of the negative-sampling queue size and temperature hyperparameter is not analyzed. An ablation study on these is necessary."
+          : hasBenchmark
+          ? "The proposed benchmark lacks inter-annotator agreement statistics. Quality control procedures should be described in detail."
+          : "The ablation study is incomplete. Each component's individual contribution is not isolated, making it hard to pinpoint the performance source.";
+        const q = isGraph
+          ? "How does the method scale to heterogeneous or hyper-graphs with millions of nodes?"
+          : isNLP
+          ? "How does the method perform on non-English benchmarks? Generalizability claims are currently only validated on English."
+          : "Could the authors include a qualitative error analysis to characterize failure cases?";
+        return `${strength}\n\nWeaknesses:\n1. ${w1}\n\n2. ${w2}\n\nQuestion: ${q}`;
+      },
+    },
+    {
+      reviewer: "Reviewer 2",
+      tags: ["实验", "相关工作"],
+      body: () => {
+        const strength = hasBenchmark
+          ? "The empirical evaluation is comprehensive, covering multiple datasets and metrics."
+          : "The experimental setup is clear and the results show consistent improvement across most benchmarks.";
+        const w1 = isGraph
+          ? "Recent strong baselines such as NodePiece and NBFNet are missing from the comparison. Without them the reported gains may not be statistically meaningful."
+          : isNLP
+          ? "Comparisons with instruction-tuned LLaMA and Mistral variants are missing, which are essential to validate the claimed improvements."
+          : "Several state-of-the-art baselines published at top venues in the past 12 months are omitted, making it difficult to assess the true novelty.";
+        const w2 = hasEfficiency
+          ? "Efficiency experiments are limited to A100 GPUs. Results on V100 and RTX 3090 would make the findings more accessible and reproducible."
+          : "Statistical significance tests are absent. Given the small margins on some benchmarks, confidence intervals or multi-seed results are required.";
+        const q = hasSurvey
+          ? "Please specify the search queries, databases, and cutoff date used for paper selection."
+          : "Could performance be broken down by data subsets (e.g., difficulty, length, or domain)?";
+        return `${strength}\n\nMajor concerns:\n1. ${w1}\n\n2. ${w2}\n\nMinor: ${q}`;
+      },
+    },
+    {
+      reviewer: "Reviewer 3",
+      tags: ["写作", "相关工作", "贡献"],
+      body: () => {
+        const strength = hasAttention
+          ? "The paper is generally well-written and the motivation for the attention-based design is clearly articulated."
+          : hasSurvey
+          ? "The survey provides a useful overview, and the taxonomy in Section 2 is a valuable contribution to the field."
+          : "The paper is well-organized and the contribution is clearly positioned against prior work.";
+        const w1 = `The related work section does not adequately cover recent developments. Several highly relevant papers from NeurIPS 2024 and ICLR 2025 are not discussed; the authors should clarify how their work differs from these.`;
+        const w2 = hasTheory
+          ? "Intuitive explanations of the theoretical results should precede formal proofs; non-expert readers may find Section 3 inaccessible as written."
+          : "Some figures are low-resolution and hard to read in print. Figure 3 requires a higher-quality rendering, and the caption for Table 3 does not adequately describe experimental conditions.";
+        const minor = "Minor issues: (1) Grammatical errors in the introduction and conclusion. (2) Inconsistent notation in Section 3. (3) Page count after appendix may exceed the venue limit.";
+        return `${strength}\n\nConcerns:\n1. ${w1}\n\n2. ${w2}\n\n${minor}`;
+      },
+    },
+    {
+      reviewer: "AC",
+      tags: ["实验", "方法", "贡献"],
+      body: () =>
+        `Having read the paper and the reviews from ${reviewerCount - 1} reviewers, I share the concerns raised regarding experimental completeness and missing baselines. The core technical contribution appears solid, but the evaluation must be strengthened before acceptance. I encourage the authors to address all reviewer comments carefully, particularly: (1) include missing baselines and add statistical significance tests, and (2) improve the clarity of the method description. Pending a satisfactory revision, I remain cautiously optimistic.`,
+    },
+  ];
+
+  return Array.from({ length: reviewerCount }, (_, i) => {
+    const tpl = templates[Math.min(i, templates.length - 1)];
+    return {
+      reviewer: tpl.reviewer,
+      content: tpl.body(),
+      tags: tpl.tags,
+      verdict: verdicts[i] ?? "major_revision",
+    };
+  });
 }
 
 // ─── Diff ─────────────────────────────────────────────────────────────────────
@@ -470,6 +595,16 @@ export default function Submission() {
   const [reviewForm, setReviewForm] = useState({
     reviewer: "", content: "", tags: [] as string[], verdict: "major_revision" as ReviewVerdict,
   });
+
+  // Mock review generation state
+  const [showMockReviewModal, setShowMockReviewModal] = useState(false);
+  const [mockReviewInput, setMockReviewInput] = useState<{
+    abstract: string; reviewerCount: number; strictness: MockStrictness;
+  }>({ abstract: "", reviewerCount: 3, strictness: "balanced" });
+  const [mockReviewLoading, setMockReviewLoading] = useState(false);
+  const [mockReviewResult, setMockReviewResult] = useState<MockReviewerResult[] | null>(null);
+  const [mockFileExtracting, setMockFileExtracting] = useState(false);
+  const [mockFileName, setMockFileName] = useState<string | null>(null);
 
   const handleUploadVersionFile = async (versionId: string) => {
     try {
@@ -1532,7 +1667,7 @@ export default function Submission() {
                               </div>
 
                               {/* File controls */}
-                              <div className="mt-3 flex items-center gap-2">
+                              <div className="mt-3 flex items-center gap-2 flex-wrap">
                                 <button
                                   onClick={() => handleUploadVersionFile(ver.id)}
                                   className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors"
@@ -1543,20 +1678,59 @@ export default function Submission() {
                                   上传
                                 </button>
                                 {ver.filePath && (
-                                  <>
-                                    <button
-                                      onClick={() => handleDownloadVersionFile(ver.filePath)}
-                                      className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors"
-                                      style={{ background: "var(--rc-card-inset-bg)", color: "#007AFF" }}
-                                      title="下载论文 PDF"
-                                    >
-                                      <Download className="w-3 h-3" />
-                                      下载
-                                    </button>
-                                    <span className="text-[10px] text-ink-tertiary truncate flex-1">
-                                      已上传: {ver.fileName}
-                                    </span>
-                                  </>
+                                  <button
+                                    onClick={() => handleDownloadVersionFile(ver.filePath)}
+                                    className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                                    style={{ background: "var(--rc-card-inset-bg)", color: "#007AFF" }}
+                                    title="下载论文 PDF"
+                                  >
+                                    <Download className="w-3 h-3" />
+                                    下载
+                                  </button>
+                                )}
+
+                                {/* AI 审稿入口 */}
+                                <button
+                                  onClick={async () => {
+                                    // 设置审稿归档目标为当前版本所属投稿
+                                    setReviewSubId(ver.submissionId);
+                                    setMockReviewResult(null);
+                                    setMockFileName(null);
+                                    setShowMockReviewModal(true);
+                                    if (ver.filePath) {
+                                      // 有 PDF 文件：自动提取
+                                      setMockFileExtracting(true);
+                                      setMockReviewInput(p => ({ ...p, abstract: "" }));
+                                      try {
+                                        const { extractTextFromPdf } = await import("../lib/pdfExtract");
+                                        const text = await extractTextFromPdf(ver.filePath);
+                                        setMockReviewInput(p => ({ ...p, abstract: text }));
+                                        setMockFileName(ver.fileName ?? "paper.pdf");
+                                      } catch {
+                                        setMockReviewInput(p => ({ ...p, abstract: ver.content }));
+                                      } finally {
+                                        setMockFileExtracting(false);
+                                      }
+                                    } else {
+                                      // 无文件：使用版本快照文本
+                                      setMockReviewInput(p => ({ ...p, abstract: ver.content }));
+                                    }
+                                  }}
+                                  className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-all duration-150"
+                                  style={ver.filePath
+                                    ? { background: "rgba(175,82,222,0.12)", color: "#AF52DE" }
+                                    : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-tertiary)" as string }
+                                  }
+                                  title={ver.filePath ? "从 PDF 文件生成模拟审稿意见" : "从版本快照文本生成模拟审稿意见"}
+                                >
+                                  <Bot className="w-3 h-3" />
+                                  AI 审稿
+                                </button>
+
+                                {ver.filePath && (
+                                  <span className="text-[10px] text-ink-tertiary truncate flex-1">
+                                    {ver.fileName}
+                                  </span>
                                 )}
                               </div>
                             </div>
@@ -1833,6 +2007,288 @@ export default function Submission() {
                 )}
               </div>
             </div>
+
+            {/* ── AI 模拟审稿弹窗 ── */}
+            {showMockReviewModal && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center"
+                style={{ background: "rgba(0,0,0,0.45)" }}
+                onClick={e => { if (e.target === e.currentTarget) setShowMockReviewModal(false); }}
+              >
+                <div
+                  className="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden flex flex-col"
+                  style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 32px rgba(0,0,0,0.25)", maxHeight: "88vh" }}
+                >
+                  {/* Header */}
+                  <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid var(--rc-border)" }}>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(175,82,222,0.12)" }}>
+                        <Bot className="w-4 h-4" style={{ color: "#AF52DE" }} />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-ink-primary">AI 模拟审稿</h2>
+                        <p className="text-xs text-ink-tertiary mt-0.5">基于论文内容生成模拟审稿意见，辅助投稿前自查</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setShowMockReviewModal(false)} className="p-2 rounded-xl hover:bg-black/5 transition-colors">
+                      <X className="w-5 h-5 text-ink-tertiary" />
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto">
+                    {/* Input section */}
+                    {!mockReviewResult && (
+                      <div className="p-6 space-y-4">
+
+                        {/* PDF 提取中 loading 状态 */}
+                        {mockFileExtracting ? (
+                          <div className="flex flex-col items-center justify-center py-12 gap-3">
+                            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#AF52DE" }} />
+                            <p className="text-sm font-medium text-ink-secondary">正在读取 PDF 文件内容…</p>
+                            <p className="text-xs text-ink-tertiary">完成后可在下方编辑并调整审稿参数</p>
+                          </div>
+                        ) : (
+                          <>
+                            {/* 文件来源：已读取提示 + 重新选择 */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {mockFileName ? (
+                                <div className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg"
+                                  style={{ background: "rgba(52,199,89,0.10)", color: "#34C759" }}>
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  已读取：{mockFileName}
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-ink-tertiary">未选择文件，可手动输入内容或：</span>
+                              )}
+                              {/* 重新/额外选择 PDF */}
+                              <button
+                                onClick={async () => {
+                                  const { open } = await import("@tauri-apps/plugin-dialog");
+                                  const selected = await open({
+                                    multiple: false,
+                                    filters: [{ name: "PDF", extensions: ["pdf"] }],
+                                  });
+                                  if (typeof selected === "string" && selected) {
+                                    setMockFileExtracting(true);
+                                    try {
+                                      const { extractTextFromPdf } = await import("../lib/pdfExtract");
+                                      const text = await extractTextFromPdf(selected);
+                                      setMockReviewInput(p => ({ ...p, abstract: text }));
+                                      setMockFileName(selected.split("/").pop() ?? "paper.pdf");
+                                    } catch {
+                                      /* keep existing text */
+                                    } finally {
+                                      setMockFileExtracting(false);
+                                    }
+                                  }
+                                }}
+                                className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                                style={{ background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string, border: "1px solid var(--rc-border)" }}
+                              >
+                                <Upload className="w-3 h-3" />
+                                {mockFileName ? "换一个 PDF" : "选择 PDF 文件"}
+                              </button>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-medium text-ink-secondary mb-1.5">
+                                论文内容
+                                <span className="ml-1 text-ink-tertiary font-normal">（PDF 提取全文 · 可编辑）</span>
+                              </p>
+                              <textarea
+                                rows={8}
+                                placeholder="从版本控制点击「AI 审稿」后自动填入，也可手动粘贴摘要或核心方法描述…"
+                                value={mockReviewInput.abstract}
+                                onChange={e => setMockReviewInput(p => ({ ...p, abstract: e.target.value }))}
+                                className="w-full px-3 py-2.5 rounded-xl text-sm resize-none leading-relaxed"
+                                style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)", color: "var(--rc-text-primary)" as string }}
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-xs font-medium text-ink-secondary mb-1.5">审稿人数量</p>
+                                <div className="flex gap-2">
+                                  {([2, 3, 4] as const).map(n => (
+                                    <button
+                                      key={n}
+                                      onClick={() => setMockReviewInput(p => ({ ...p, reviewerCount: n }))}
+                                      className="flex-1 py-1.5 rounded-xl text-sm font-medium transition-all duration-150"
+                                      style={mockReviewInput.reviewerCount === n
+                                        ? { background: "#AF52DE", color: "#fff" }
+                                        : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
+                                      }
+                                    >
+                                      {n === 4 ? "3+AC" : `${n} 人`}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div>
+                                <p className="text-xs font-medium text-ink-secondary mb-1.5">审稿严格程度</p>
+                                <div className="flex gap-2">
+                                  {([
+                                    { key: "lenient",  label: "宽松" },
+                                    { key: "balanced", label: "平衡" },
+                                    { key: "strict",   label: "严格" },
+                                  ] as const).map(({ key, label }) => (
+                                    <button
+                                      key={key}
+                                      onClick={() => setMockReviewInput(p => ({ ...p, strictness: key }))}
+                                      className="flex-1 py-1.5 rounded-xl text-sm font-medium transition-all duration-150"
+                                      style={mockReviewInput.strictness === key
+                                        ? {
+                                            background: key === "lenient" ? "#34C759" : key === "strict" ? "#FF3B30" : "#007AFF",
+                                            color: "#fff",
+                                          }
+                                        : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
+                                      }
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Result section */}
+                    {mockReviewResult && (
+                      <div className="p-6 space-y-3">
+                        {/* Overall verdict banner */}
+                        {(() => {
+                          const verdictCounts = mockReviewResult.reduce<Record<ReviewVerdict, number>>(
+                            (acc, r) => { acc[r.verdict] = (acc[r.verdict] ?? 0) + 1; return acc; },
+                            { accept: 0, minor_revision: 0, major_revision: 0, reject: 0 }
+                          );
+                          const dominant = (Object.entries(verdictCounts) as [ReviewVerdict, number][])
+                            .sort((a, b) => b[1] - a[1])[0][0];
+                          const vcfg = VERDICT_CFG[dominant];
+                          return (
+                            <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl mb-1" style={{ background: vcfg.bg }}>
+                              <span className="text-sm font-bold" style={{ color: vcfg.color }}>综合倾向：{vcfg.label}</span>
+                              <span className="text-xs text-ink-secondary">
+                                {mockReviewResult.length} 位审稿人 ·
+                                共 {Object.entries(verdictCounts).filter(([, v]) => v > 0).map(([k, v]) => `${VERDICT_CFG[k as ReviewVerdict].label} ×${v}`).join("、")}
+                              </span>
+                            </div>
+                          );
+                        })()}
+
+                        {mockReviewResult.map((r, idx) => {
+                          const vcfg = VERDICT_CFG[r.verdict];
+                          return (
+                            <div
+                              key={idx}
+                              className="rounded-2xl overflow-hidden"
+                              style={{ border: "1px solid var(--rc-border)", background: "var(--rc-card-bg)", boxShadow: "2px 2px 8px rgba(0,0,0,0.06)" }}
+                            >
+                              <div className="flex items-center justify-between px-4 py-2.5"
+                                style={{ background: "var(--rc-card-inset-bg)", borderBottom: "1px solid var(--rc-border)" }}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold text-ink-primary">{r.reviewer}</span>
+                                  {r.tags.map(tag => (
+                                    <span key={tag} className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
+                                      style={{ background: "rgba(0,122,255,0.10)", color: "#007AFF" }}>
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ background: vcfg.bg, color: vcfg.color }}>
+                                  {vcfg.label}
+                                </span>
+                              </div>
+                              <div className="px-4 py-3">
+                                <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap">{r.content}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-4 flex-shrink-0 flex items-center justify-between" style={{ borderTop: "1px solid var(--rc-border)" }}>
+                    {mockReviewResult ? (
+                      <>
+                        <button
+                          onClick={() => setMockReviewResult(null)}
+                          className="text-sm font-medium px-4 py-2 rounded-xl hover:bg-black/5 transition-colors"
+                          style={{ color: "var(--rc-text-secondary)" as string }}
+                        >
+                          重新生成
+                        </button>
+                        <button
+                          onClick={() => {
+                            const nextRound = reviewRounds.filter(r => r.submissionId === reviewSubId).length + 1;
+                            const dominantVerdict = mockReviewResult.reduce<Record<ReviewVerdict, number>>(
+                              (acc, r) => { acc[r.verdict] = (acc[r.verdict] ?? 0) + 1; return acc; },
+                              { accept: 0, minor_revision: 0, major_revision: 0, reject: 0 }
+                            );
+                            const verdict = (Object.entries(dominantVerdict) as [ReviewVerdict, number][]).sort((a, b) => b[1] - a[1])[0][0];
+                            setReviewRounds(prev => [...prev, {
+                              submissionId: reviewSubId, round: nextRound, verdict, receivedAt: new Date(),
+                            }]);
+                            mockReviewResult.forEach((r, i) => {
+                              setReviewComments(prev => [...prev, {
+                                id: `mock-${Date.now()}-${i}`,
+                                submissionId: reviewSubId,
+                                round: nextRound,
+                                reviewer: r.reviewer,
+                                content: r.content,
+                                response: "",
+                                resolved: false,
+                                tags: r.tags,
+                                createdAt: new Date(),
+                              }]);
+                            });
+                            setReviewRound(nextRound);
+                            setShowMockReviewModal(false);
+                          }}
+                          className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-medium"
+                          style={{ background: "#AF52DE", color: "#fff", boxShadow: "2px 4px 10px rgba(175,82,222,0.3)" }}
+                        >
+                          <Check className="w-4 h-4" />
+                          导入审稿归档
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs text-ink-tertiary">生成结果仅供参考，不代表真实审稿意见</p>
+                        <button
+                          disabled={!mockReviewInput.abstract.trim() || mockReviewLoading}
+                          onClick={() => {
+                            setMockReviewLoading(true);
+                            setTimeout(() => {
+                              const result = generateMockReviews(
+                                currentSub?.title ?? "",
+                                mockReviewInput.abstract,
+                                mockReviewInput.reviewerCount,
+                                mockReviewInput.strictness,
+                              );
+                              setMockReviewResult(result);
+                              setMockReviewLoading(false);
+                            }, 1200);
+                          }}
+                          className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
+                          style={{ background: "#AF52DE", color: "#fff", boxShadow: "2px 4px 10px rgba(175,82,222,0.3)" }}
+                        >
+                          {mockReviewLoading
+                            ? <><Loader2 className="w-4 h-4 animate-spin" />生成中...</>
+                            : <><Sparkles className="w-4 h-4" />生成模拟审稿</>
+                          }
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 录入审稿意见弹窗（IIFE 内，可访问 handleAddComment） */}
             {showAddReviewModal && (

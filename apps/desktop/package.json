@@ -20,6 +20,7 @@
     "@tauri-apps/plugin-shell": "^2.2.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
+    "pdfjs-dist": "^5.6.205",
     "pptxgenjs": "^4.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
