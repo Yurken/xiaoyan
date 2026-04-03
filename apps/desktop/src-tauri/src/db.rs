@@ -208,6 +208,8 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_performance_indexes(&pool).await?;
     ensure_skills_table(&pool).await?;
     ensure_user_memories_table(&pool).await?;
+    ensure_submission_tables(&pool).await?;
+    ensure_experiment_tables(&pool).await?;
 
     Ok(pool)
 }
@@ -384,5 +386,106 @@ pub async fn ensure_skills_table(pool: &SqlitePool) -> Result<()> {
 
 pub async fn ensure_user_memories_table(pool: &SqlitePool) -> Result<()> {
     sqlx::raw_sql(USER_MEMORIES_DDL).execute(pool).await?;
+    Ok(())
+}
+
+pub async fn ensure_submission_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS venues (
+            id                      TEXT PRIMARY KEY,
+            type                    TEXT NOT NULL DEFAULT 'conference',
+            name                    TEXT NOT NULL,
+            full_name               TEXT NOT NULL DEFAULT '',
+            website                 TEXT NOT NULL DEFAULT '',
+            ccf                     TEXT NOT NULL DEFAULT '',
+            area                    TEXT NOT NULL DEFAULT '',
+            starred                 INTEGER NOT NULL DEFAULT 0,
+            ei                      INTEGER NOT NULL DEFAULT 0,
+            sci                     INTEGER NOT NULL DEFAULT 0,
+            sci_quartile            TEXT NOT NULL DEFAULT '',
+            deadline                TEXT,
+            notification_date       TEXT,
+            special_issue_deadline  TEXT,
+            special_issue_title     TEXT NOT NULL DEFAULT '',
+            created_at              TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS submissions (
+            id           TEXT PRIMARY KEY,
+            title        TEXT NOT NULL,
+            venue_name   TEXT NOT NULL DEFAULT '',
+            venue_type   TEXT NOT NULL DEFAULT 'conference',
+            status       TEXT NOT NULL DEFAULT 'writing',
+            deadline     TEXT,
+            submitted_at TEXT,
+            created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS paper_versions (
+            id            TEXT PRIMARY KEY,
+            submission_id TEXT NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+            tag           TEXT NOT NULL DEFAULT '',
+            label         TEXT NOT NULL DEFAULT '',
+            stage         TEXT NOT NULL DEFAULT 'draft',
+            content       TEXT NOT NULL DEFAULT '',
+            notes         TEXT NOT NULL DEFAULT '',
+            file_path     TEXT,
+            file_name     TEXT,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS review_rounds (
+            id            TEXT PRIMARY KEY,
+            submission_id TEXT NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+            round         INTEGER NOT NULL DEFAULT 1,
+            verdict       TEXT NOT NULL DEFAULT 'pending',
+            received_at   TEXT,
+            UNIQUE(submission_id, round)
+        );
+        CREATE TABLE IF NOT EXISTS review_comments (
+            id            TEXT PRIMARY KEY,
+            submission_id TEXT NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+            round         INTEGER NOT NULL DEFAULT 1,
+            reviewer      TEXT NOT NULL DEFAULT '',
+            content       TEXT NOT NULL DEFAULT '',
+            response      TEXT NOT NULL DEFAULT '',
+            resolved      INTEGER NOT NULL DEFAULT 0,
+            tags          TEXT NOT NULL DEFAULT '[]',
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS submission_checklist (
+            id            TEXT PRIMARY KEY,
+            submission_id TEXT NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+            label         TEXT NOT NULL DEFAULT '',
+            checked       INTEGER NOT NULL DEFAULT 0,
+            category      TEXT NOT NULL DEFAULT '',
+            sort_order    INTEGER NOT NULL DEFAULT 0
+        );",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn ensure_experiment_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS experiment_records (
+            id                    TEXT PRIMARY KEY,
+            title                 TEXT NOT NULL,
+            config                TEXT NOT NULL DEFAULT '{}',
+            result                TEXT NOT NULL DEFAULT '',
+            notes                 TEXT NOT NULL DEFAULT '',
+            linked_submission_id  TEXT REFERENCES submissions(id) ON DELETE SET NULL,
+            created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS experiment_attachments (
+            id            TEXT PRIMARY KEY,
+            experiment_id TEXT NOT NULL REFERENCES experiment_records(id) ON DELETE CASCADE,
+            file_path     TEXT NOT NULL,
+            label         TEXT NOT NULL DEFAULT '',
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );",
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }

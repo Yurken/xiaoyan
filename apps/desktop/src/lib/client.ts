@@ -63,6 +63,8 @@ export const settingsApi = {
     invoke("settings_export", { password }),
   import: (data: string, password: string): Promise<string[]> =>
     invoke("settings_import", { data, password }),
+  listOllamaModels: (baseUrl?: string): Promise<string[]> =>
+    invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
 };
 
 export const updatesApi = {
@@ -204,6 +206,8 @@ export const knowledgeApi = {
     invoke("knowledge_delete_note", { id }),
   search: (q: string, topK = 5): Promise<{ id: string; content: string; source: string; score: number }[]> =>
     invoke("knowledge_search", { q, topK }),
+  webClip: (url: string, researchInterestId?: string): Promise<KnowledgeNote> =>
+    invoke("knowledge_web_clip", { url, researchInterestId: researchInterestId ?? null }),
 };
 
 // ── Chat / Streaming ──────────────────────────────────────────────
@@ -443,6 +447,125 @@ export const skillsApi = {
     invoke("skills_reset_builtins"),
 };
 
+// ── Submission API ────────────────────────────────────────────────
+
+export const submissionApi = {
+  listVenues: (params?: { search?: string; starredOnly?: boolean }) =>
+    invoke<{ venues: unknown[] }>("submission_list_venues", {
+      search: params?.search ?? null,
+      starredOnly: params?.starredOnly ?? null,
+    }),
+  createVenue: (params: {
+    name: string; fullName?: string; venueType?: string; website?: string;
+    ccf?: string; area?: string; ei?: boolean; sci?: boolean; sciQuartile?: string;
+    deadline?: string; notificationDate?: string; specialIssueDeadline?: string; specialIssueTitle?: string;
+  }) => invoke<{ id: string }>("submission_create_venue", {
+    name: params.name, fullName: params.fullName ?? null, venueType: params.venueType ?? null,
+    website: params.website ?? null, ccf: params.ccf ?? null, area: params.area ?? null,
+    ei: params.ei ?? null, sci: params.sci ?? null, sciQuartile: params.sciQuartile ?? null,
+    deadline: params.deadline ?? null, notificationDate: params.notificationDate ?? null,
+    specialIssueDeadline: params.specialIssueDeadline ?? null, specialIssueTitle: params.specialIssueTitle ?? null,
+  }),
+  updateVenue: (id: string, params: Partial<{ name: string; fullName: string; venueType: string; website: string; ccf: string; area: string; ei: boolean; sci: boolean; sciQuartile: string; deadline: string; notificationDate: string; specialIssueDeadline: string; specialIssueTitle: string }>) =>
+    invoke<void>("submission_update_venue", { id, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, v ?? null])) }),
+  deleteVenue: (id: string) => invoke<void>("submission_delete_venue", { id }),
+  toggleVenueStar: (id: string) => invoke<void>("submission_toggle_venue_star", { id }),
+
+  list: () => invoke<{ submissions: unknown[] }>("submission_list"),
+  create: (params: { title: string; venueName?: string; venueType?: string; status?: string; deadline?: string }) =>
+    invoke<{ id: string }>("submission_create", {
+      title: params.title, venueName: params.venueName ?? null,
+      venueType: params.venueType ?? null, status: params.status ?? null, deadline: params.deadline ?? null,
+    }),
+  update: (id: string, params: Partial<{ title: string; venueName: string; venueType: string; status: string; deadline: string; submittedAt: string }>) =>
+    invoke<void>("submission_update", { id, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, v ?? null])) }),
+  delete: (id: string) => invoke<void>("submission_delete", { id }),
+
+  listVersions: (submissionId: string) => invoke<{ versions: unknown[] }>("submission_list_versions", { submissionId }),
+  createVersion: (params: { submissionId: string; tag?: string; label?: string; stage?: string; content?: string; notes?: string; filePath?: string; fileName?: string }) =>
+    invoke<{ id: string }>("submission_create_version", {
+      submissionId: params.submissionId, tag: params.tag ?? null, label: params.label ?? null,
+      stage: params.stage ?? null, content: params.content ?? null, notes: params.notes ?? null,
+      filePath: params.filePath ?? null, fileName: params.fileName ?? null,
+    }),
+  deleteVersion: (id: string) => invoke<void>("submission_delete_version", { id }),
+
+  listRounds: (submissionId: string) => invoke<{ rounds: unknown[] }>("submission_list_rounds", { submissionId }),
+  upsertRound: (params: { submissionId: string; round: number; verdict?: string; receivedAt?: string }) =>
+    invoke<{ id: string }>("submission_upsert_round", {
+      submissionId: params.submissionId, round: params.round,
+      verdict: params.verdict ?? null, receivedAt: params.receivedAt ?? null,
+    }),
+
+  listComments: (submissionId: string, round?: number) =>
+    invoke<{ comments: unknown[] }>("submission_list_comments", { submissionId, round: round ?? null }),
+  createComment: (params: { submissionId: string; round: number; reviewer?: string; content: string; response?: string; tags?: string[] }) =>
+    invoke<{ id: string }>("submission_create_comment", {
+      submissionId: params.submissionId, round: params.round, reviewer: params.reviewer ?? null,
+      content: params.content, response: params.response ?? null, tags: params.tags ?? null,
+    }),
+  updateComment: (id: string, params: Partial<{ content: string; response: string; resolved: boolean; tags: string[] }>) =>
+    invoke<void>("submission_update_comment", { id, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, v ?? null])) }),
+  deleteComment: (id: string) => invoke<void>("submission_delete_comment", { id }),
+
+  getChecklist: (submissionId: string) => invoke<{ checklist: unknown[] }>("submission_get_checklist", { submissionId }),
+  toggleChecklist: (itemId: string) => invoke<void>("submission_toggle_checklist", { itemId }),
+
+  stats: () => invoke<{ active: number; pendingReviews: number; upcomingDdls: { name: string; deadline: string }[] }>("submission_stats"),
+
+  aiReview: (params: { submissionId: string; content: string; reviewerCount: number; strictness: string }) =>
+    invoke<void>("submission_ai_review", {
+      submissionId: params.submissionId, content: params.content,
+      reviewerCount: params.reviewerCount, strictness: params.strictness,
+    }),
+  polishAbstract: (submissionId: string, text: string) =>
+    invoke<void>("submission_polish_abstract", { submissionId, text }),
+  generateCoverLetter: (submissionId: string) =>
+    invoke<void>("submission_generate_cover_letter", { submissionId }),
+};
+
+// ── Experiment API ────────────────────────────────────────────────
+
+export interface ExperimentAttachment {
+  id: string;
+  experimentId: string;
+  filePath: string;
+  label: string;
+  dataUrl: string;
+  createdAt: string;
+}
+
+export const experimentApi = {
+  list: () => invoke<{ experiments: unknown[] }>("experiment_list"),
+  get: (id: string) => invoke<unknown>("experiment_get", { id }),
+  create: (params: { title: string; config?: Record<string, unknown>; result?: string; notes?: string; linkedSubmissionId?: string }) =>
+    invoke<{ id: string }>("experiment_create", {
+      title: params.title, config: params.config ?? null,
+      result: params.result ?? null, notes: params.notes ?? null,
+      linkedSubmissionId: params.linkedSubmissionId ?? null,
+    }),
+  update: (id: string, params: Partial<{ title: string; config: Record<string, unknown>; result: string; notes: string; linkedSubmissionId: string }>) =>
+    invoke<void>("experiment_update", { id, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, v ?? null])) }),
+  delete: (id: string) => invoke<void>("experiment_delete", { id }),
+  attachments: {
+    list: (experimentId: string) =>
+      invoke<{ attachments: ExperimentAttachment[] }>("experiment_list_attachments", { experimentId }),
+    add: (experimentId: string, filePath: string, label?: string) =>
+      invoke<ExperimentAttachment>("experiment_add_attachment", { experimentId, filePath, label: label ?? null }),
+    updateLabel: (id: string, label: string) =>
+      invoke<void>("experiment_update_attachment_label", { id, label }),
+    delete: (id: string) =>
+      invoke<void>("experiment_delete_attachment", { id }),
+  },
+};
+
+// ── Export API ────────────────────────────────────────────────────
+
+export const exportApi = {
+  toObsidian: (vaultPath: string) =>
+    invoke<{ notes: number; papers: number; exportPath: string }>("export_to_obsidian", { vaultPath }),
+};
+
 // ── Unified client (mirrors api-sdk shape) ────────────────────────
 
 export const apiClient = {
@@ -462,4 +585,7 @@ export const apiClient = {
   planner: plannerApi,
   survey: surveyApi,
   skills: skillsApi,
+  submission: submissionApi,
+  experiment: experimentApi,
+  export: exportApi,
 };

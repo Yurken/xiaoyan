@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { submissionApi } from "../lib/client";
+import { listen } from "@tauri-apps/api/event";
 import {
   Bell,
   Bot,
@@ -133,7 +135,7 @@ interface PaperVersion {
   fileName?: string;     // 论文文件名
 }
 
-// ─── Mock Review Generator ────────────────────────────────────────────────────
+// ─── AI Review Types ──────────────────────────────────────────────────────────
 
 type MockStrictness = "lenient" | "balanced" | "strict";
 
@@ -142,118 +144,6 @@ interface MockReviewerResult {
   content: string;
   tags: string[];
   verdict: ReviewVerdict;
-}
-
-function generateMockReviews(
-  title: string,
-  abstract: string,
-  reviewerCount: number,
-  strictness: MockStrictness,
-): MockReviewerResult[] {
-  const text = `${title} ${abstract}`.toLowerCase();
-
-  const isNLP    = /\b(language model|bert|transformer|translation|summarization|classification|sentiment|tokeniz|nlp)\b/.test(text);
-  const isCV     = /\b(image|vision|object detection|segmentation|visual|pixel|conv|cnn|resnet|vit)\b/.test(text);
-  const isGraph  = /\b(graph|gnn|node|edge|knowledge graph|link prediction)\b/.test(text);
-  const domain   = isNLP ? "NLP" : isCV ? "计算机视觉" : isGraph ? "图学习" : "机器学习";
-
-  const hasAttention   = /\b(attention|transformer|self-attention)\b/.test(text);
-  const hasEfficiency  = /\b(efficient|fast|lightweight|compress|prune|throughput|latency|memory)\b/.test(text);
-  const hasContrastive = /\b(contrastive|simclr|nce)\b/.test(text);
-  const hasTheory      = /\b(theorem|proof|theoretical|bound|convergence)\b/.test(text);
-  const hasBenchmark   = /\b(benchmark|dataset|evaluation|new dataset)\b/.test(text);
-  const hasSurvey      = /\b(survey|review|overview|comprehensive)\b/.test(text);
-
-  const verdictTable: Record<MockStrictness, ReviewVerdict[]> = {
-    lenient:  ["minor_revision", "accept",         "minor_revision", "minor_revision"],
-    balanced: ["major_revision", "minor_revision",  "minor_revision", "major_revision"],
-    strict:   ["major_revision", "major_revision",  "reject",         "major_revision"],
-  };
-  const verdicts = verdictTable[strictness];
-
-  const templates: Array<{ reviewer: string; tags: string[]; body: () => string }> = [
-    {
-      reviewer: "Reviewer 1",
-      tags: ["方法", "理论", "复杂度"],
-      body: () => {
-        const strength = hasEfficiency
-          ? "The paper addresses an important efficiency challenge and the proposed approach is technically sound."
-          : hasAttention
-          ? "The paper proposes a well-motivated attention-based approach with clear advantages over prior methods."
-          : `The paper tackles an interesting problem in ${domain} and the methodology is generally clear.`;
-        const w1 = hasTheory
-          ? "The theoretical analysis is promising, but Theorem 2 relies on an assumption that is not clearly justified. Please provide a complete proof or clarify the conditions under which it holds."
-          : hasEfficiency
-          ? "The efficiency claims need more rigorous support. The complexity table only reports FLOPs; wall-clock time and GPU memory benchmarks on fair hardware are missing."
-          : "The method description in Section 3 is difficult to follow. Notation is inconsistent, and Algorithm 1 is missing edge cases that affect reproducibility.";
-        const w2 = hasContrastive
-          ? "The sensitivity of the negative-sampling queue size and temperature hyperparameter is not analyzed. An ablation study on these is necessary."
-          : hasBenchmark
-          ? "The proposed benchmark lacks inter-annotator agreement statistics. Quality control procedures should be described in detail."
-          : "The ablation study is incomplete. Each component's individual contribution is not isolated, making it hard to pinpoint the performance source.";
-        const q = isGraph
-          ? "How does the method scale to heterogeneous or hyper-graphs with millions of nodes?"
-          : isNLP
-          ? "How does the method perform on non-English benchmarks? Generalizability claims are currently only validated on English."
-          : "Could the authors include a qualitative error analysis to characterize failure cases?";
-        return `${strength}\n\nWeaknesses:\n1. ${w1}\n\n2. ${w2}\n\nQuestion: ${q}`;
-      },
-    },
-    {
-      reviewer: "Reviewer 2",
-      tags: ["实验", "相关工作"],
-      body: () => {
-        const strength = hasBenchmark
-          ? "The empirical evaluation is comprehensive, covering multiple datasets and metrics."
-          : "The experimental setup is clear and the results show consistent improvement across most benchmarks.";
-        const w1 = isGraph
-          ? "Recent strong baselines such as NodePiece and NBFNet are missing from the comparison. Without them the reported gains may not be statistically meaningful."
-          : isNLP
-          ? "Comparisons with instruction-tuned LLaMA and Mistral variants are missing, which are essential to validate the claimed improvements."
-          : "Several state-of-the-art baselines published at top venues in the past 12 months are omitted, making it difficult to assess the true novelty.";
-        const w2 = hasEfficiency
-          ? "Efficiency experiments are limited to A100 GPUs. Results on V100 and RTX 3090 would make the findings more accessible and reproducible."
-          : "Statistical significance tests are absent. Given the small margins on some benchmarks, confidence intervals or multi-seed results are required.";
-        const q = hasSurvey
-          ? "Please specify the search queries, databases, and cutoff date used for paper selection."
-          : "Could performance be broken down by data subsets (e.g., difficulty, length, or domain)?";
-        return `${strength}\n\nMajor concerns:\n1. ${w1}\n\n2. ${w2}\n\nMinor: ${q}`;
-      },
-    },
-    {
-      reviewer: "Reviewer 3",
-      tags: ["写作", "相关工作", "贡献"],
-      body: () => {
-        const strength = hasAttention
-          ? "The paper is generally well-written and the motivation for the attention-based design is clearly articulated."
-          : hasSurvey
-          ? "The survey provides a useful overview, and the taxonomy in Section 2 is a valuable contribution to the field."
-          : "The paper is well-organized and the contribution is clearly positioned against prior work.";
-        const w1 = `The related work section does not adequately cover recent developments. Several highly relevant papers from NeurIPS 2024 and ICLR 2025 are not discussed; the authors should clarify how their work differs from these.`;
-        const w2 = hasTheory
-          ? "Intuitive explanations of the theoretical results should precede formal proofs; non-expert readers may find Section 3 inaccessible as written."
-          : "Some figures are low-resolution and hard to read in print. Figure 3 requires a higher-quality rendering, and the caption for Table 3 does not adequately describe experimental conditions.";
-        const minor = "Minor issues: (1) Grammatical errors in the introduction and conclusion. (2) Inconsistent notation in Section 3. (3) Page count after appendix may exceed the venue limit.";
-        return `${strength}\n\nConcerns:\n1. ${w1}\n\n2. ${w2}\n\n${minor}`;
-      },
-    },
-    {
-      reviewer: "AC",
-      tags: ["实验", "方法", "贡献"],
-      body: () =>
-        `Having read the paper and the reviews from ${reviewerCount - 1} reviewers, I share the concerns raised regarding experimental completeness and missing baselines. The core technical contribution appears solid, but the evaluation must be strengthened before acceptance. I encourage the authors to address all reviewer comments carefully, particularly: (1) include missing baselines and add statistical significance tests, and (2) improve the clarity of the method description. Pending a satisfactory revision, I remain cautiously optimistic.`,
-    },
-  ];
-
-  return Array.from({ length: reviewerCount }, (_, i) => {
-    const tpl = templates[Math.min(i, templates.length - 1)];
-    return {
-      reviewer: tpl.reviewer,
-      content: tpl.body(),
-      tags: tpl.tags,
-      verdict: verdicts[i] ?? "major_revision",
-    };
-  });
 }
 
 // ─── Diff ─────────────────────────────────────────────────────────────────────
@@ -282,170 +172,88 @@ function computeLineDiff(oldText: string, newText: string): DiffLine[] {
   return result;
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Helpers for DB → typed objects ──────────────────────────────────────────
 
-const MOCK_CONFERENCES: Conference[] = [
-  {
-    id: "1", type: "conference", name: "NeurIPS 2026", fullName: "Conference on Neural Information Processing Systems",
-    website: "https://neurips.cc",
-    deadline: new Date("2026-05-15"), notificationDate: new Date("2026-09-10"),
-    ccf: "A", area: "AI/ML", starred: true, ei: true,
-  },
-  {
-    id: "2", type: "conference", name: "ACL 2026", fullName: "Annual Meeting of the Association for Computational Linguistics",
-    website: "https://aclweb.org",
-    deadline: new Date("2026-04-20"), notificationDate: new Date("2026-06-20"),
-    ccf: "A", area: "NLP", starred: true, ei: true,
-  },
-  {
-    id: "3", type: "conference", name: "ICML 2026", fullName: "International Conference on Machine Learning",
-    website: "https://icml.cc",
-    deadline: new Date("2026-06-01"), notificationDate: new Date("2026-09-01"),
-    ccf: "A", area: "ML", starred: false, ei: true,
-  },
-  {
-    id: "4", type: "conference", name: "EMNLP 2026", fullName: "Empirical Methods in Natural Language Processing",
-    website: "https://aclanthology.org/venues/emnlp/",
-    deadline: new Date("2026-06-14"), notificationDate: new Date("2026-09-01"),
-    ccf: "B", area: "NLP", starred: false, ei: true,
-  },
-  {
-    id: "5", type: "conference", name: "ICLR 2027", fullName: "International Conference on Learning Representations",
-    website: "https://iclr.cc",
-    deadline: new Date("2026-10-01"), notificationDate: new Date("2027-01-20"),
-    ccf: "A", area: "DL", starred: false, ei: true,
-  },
-  {
-    id: "6", type: "conference", name: "CVPR 2026", fullName: "Conference on Computer Vision and Pattern Recognition",
-    website: "https://cvpr.thecvf.com",
-    deadline: new Date("2025-11-14"),
-    ccf: "A", area: "CV", starred: false, ei: true,
-  },
-];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToVenue(r: any): Venue {
+  if (r.type === "journal") {
+    return {
+      id: r.id, type: "journal",
+      name: r.name, fullName: r.fullName ?? "",
+      website: r.website || undefined,
+      ccf: (r.ccf || "none") as CcfRating,
+      area: r.area ?? "",
+      starred: Boolean(r.starred),
+      sci: Boolean(r.sci), sciQuartile: r.sciQuartile || undefined,
+      ei: Boolean(r.ei),
+      specialIssueDeadline: r.specialIssueDeadline ? new Date(r.specialIssueDeadline) : undefined,
+      specialIssueTitle: r.specialIssueTitle || undefined,
+    } satisfies Journal;
+  }
+  return {
+    id: r.id, type: "conference",
+    name: r.name, fullName: r.fullName ?? "",
+    website: r.website || undefined,
+    deadline: r.deadline ? new Date(r.deadline) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+    notificationDate: r.notificationDate ? new Date(r.notificationDate) : undefined,
+    ccf: (r.ccf || "none") as CcfRating,
+    area: r.area ?? "",
+    starred: Boolean(r.starred),
+    ei: Boolean(r.ei),
+  } satisfies Conference;
+}
 
-const MOCK_JOURNALS: Journal[] = [
-  {
-    id: "j1", type: "journal", name: "JMLR", fullName: "Journal of Machine Learning Research",
-    website: "https://jmlr.org",
-    ccf: "A", area: "ML", starred: true, sci: true, sciQuartile: "Q1",
-  },
-  {
-    id: "j2", type: "journal", name: "TACL", fullName: "Transactions of the Association for Computational Linguistics",
-    website: "https://aclanthology.org/tacl",
-    ccf: "A", area: "NLP", starred: true, sci: true, sciQuartile: "Q1",
-    specialIssueDeadline: new Date("2026-06-30"),
-    specialIssueTitle: "Special Issue on Large Language Models",
-  },
-  {
-    id: "j3", type: "journal", name: "TPAMI", fullName: "IEEE Transactions on Pattern Analysis and Machine Intelligence",
-    website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=34",
-    ccf: "A", area: "CV", starred: false, sci: true, sciQuartile: "Q1",
-  },
-  {
-    id: "j4", type: "journal", name: "ACM CSUR", fullName: "ACM Computing Surveys",
-    website: "https://dl.acm.org/journal/csur",
-    ccf: "B", area: "General", starred: false, sci: true, sciQuartile: "Q2",
-    specialIssueDeadline: new Date("2026-08-15"),
-    specialIssueTitle: "Survey on AI Ethics",
-  },
-  {
-    id: "j5", type: "journal", name: "KAIS", fullName: "Knowledge and Information Systems",
-    website: "https://link.springer.com/journal/10115",
-    ccf: "C", area: "AI", starred: false, sci: true, sciQuartile: "Q3", ei: true,
-  },
-];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToSubmission(r: any): Submission {
+  return {
+    id: r.id, title: r.title,
+    venue: r.venueName ?? "",
+    venueType: (r.venueType ?? "conference") as VenueType,
+    status: (r.status ?? "writing") as SubmissionStatus,
+    deadline: r.deadline ? new Date(r.deadline) : undefined,
+    submittedAt: r.submittedAt ? new Date(r.submittedAt) : undefined,
+  };
+}
 
-const MOCK_SUBMISSIONS: Submission[] = [
-  {
-    id: "1",
-    title: "Efficient Attention Mechanism for Long-Context Documents",
-    venue: "NeurIPS 2026",
-    venueType: "conference",
-    status: "writing",
-    deadline: new Date("2026-05-15"),
-  },
-  {
-    id: "2",
-    title: "Cross-lingual Transfer Learning in Low-Resource Settings",
-    venue: "ACL 2026",
-    venueType: "conference",
-    status: "submitted",
-    submittedAt: new Date("2026-03-28"),
-  },
-  {
-    id: "3",
-    title: "Graph Neural Networks for Knowledge Graph Completion",
-    venue: "ICML 2026",
-    venueType: "conference",
-    status: "reviewing",
-    submittedAt: new Date("2026-02-10"),
-  },
-  {
-    id: "4",
-    title: "Multimodal Contrastive Learning with Sparse Encoders",
-    venue: "CVPR 2026",
-    venueType: "conference",
-    status: "accepted",
-  },
-  {
-    id: "5",
-    title: "Robust Text Classification under Distribution Shift",
-    venue: "EMNLP 2025",
-    venueType: "conference",
-    status: "rejected",
-  },
-  {
-    id: "6",
-    title: "A Survey on Efficient Inference Methods for LLMs",
-    venue: "JMLR",
-    venueType: "journal",
-    status: "writing",
-  },
-  {
-    id: "7",
-    title: "Unified Framework for Multi-task NLU",
-    venue: "TACL",
-    venueType: "journal",
-    status: "submitted",
-    submittedAt: new Date("2026-02-15"),
-  },
-];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToVersion(r: any): PaperVersion {
+  return {
+    id: r.id, submissionId: r.submissionId,
+    tag: r.tag ?? "", label: r.label ?? "",
+    stage: (r.stage ?? "writing") as SubmissionStatus,
+    content: r.content ?? "", notes: r.notes ?? "",
+    createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+    filePath: r.filePath ?? undefined,
+    fileName: r.fileName ?? undefined,
+  };
+}
 
-const V1_CONTENT = `We propose an efficient attention mechanism for processing long-context documents. The key challenge is that standard self-attention scales quadratically with sequence length, making it impractical for documents exceeding 4K tokens.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToRound(r: any): ReviewRound {
+  return {
+    submissionId: r.submissionId, round: r.round,
+    verdict: normalizeVerdict(r.verdict),
+    receivedAt: r.receivedAt ? new Date(r.receivedAt) : new Date(),
+  };
+}
 
-Our method introduces sparse local windows combined with global summary tokens, reducing complexity to O(n log n) while preserving 97% of full-attention accuracy on standard benchmarks.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToComment(r: any): ReviewComment {
+  return {
+    id: r.id, submissionId: r.submissionId, round: r.round,
+    reviewer: r.reviewer ?? "", content: r.content ?? "",
+    response: r.response ?? "", resolved: Boolean(r.resolved),
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+  };
+}
 
-Experiments on LongBench, SCROLLS, and QASPER demonstrate state-of-the-art performance with 4× throughput improvement.`;
-
-const V2_CONTENT = `We propose an efficient attention mechanism for processing long-context documents. The key challenge is that standard self-attention scales quadratically with sequence length, making it impractical for documents exceeding 8K tokens.
-
-Our method introduces hierarchical sparse windows combined with learnable global summary tokens, reducing complexity to O(n log n) while preserving 98.3% of full-attention accuracy on standard benchmarks. Unlike prior work, our approach is fully compatible with existing pre-trained models via lightweight adapter fine-tuning.
-
-Experiments on LongBench, SCROLLS, QASPER, and NarrativeQA demonstrate state-of-the-art performance. We achieve 4.8× throughput improvement over FlashAttention-2 on sequences of 32K tokens, with only 12% additional memory overhead.`;
-
-const V3_CONTENT = `We propose EfficientLongAttn, an efficient attention mechanism for processing long-context documents. Standard self-attention scales quadratically (O(n²)) with sequence length, prohibiting deployment on documents exceeding 8K tokens in memory-constrained settings.
-
-Our method introduces hierarchical sparse windows combined with learnable global summary tokens, reducing complexity to O(n log n) while preserving 98.3% of full-attention accuracy. Unlike prior sparse attention methods (Longformer, BigBird), our approach requires no architectural modifications and is plug-and-play compatible with any pre-trained transformer via lightweight LoRA-style adapters.
-
-Extensive experiments on six long-document benchmarks (LongBench, SCROLLS, QASPER, NarrativeQA, QuALITY, MUSIIQUE) demonstrate consistent state-of-the-art performance. EfficientLongAttn achieves 4.8× throughput improvement over FlashAttention-2 on 32K-token sequences with only 12% additional memory. We further validate on real-world legal and biomedical document corpora.`;
-
-const GNN_V1 = `We address knowledge graph completion (KGC) using graph neural networks. Existing embedding-based methods (TransE, RotatE) capture relational patterns but ignore multi-hop structural context.
-
-We propose StructGNN, which aggregates neighborhood information through typed relational message passing. On FB15k-237 and WN18RR, StructGNN achieves competitive MRR scores.`;
-
-const GNN_V2 = `We address knowledge graph completion (KGC) using graph neural networks. Existing embedding-based methods (TransE, RotatE) capture relational patterns but fail to leverage multi-hop structural context and entity type constraints.
-
-We propose StructGNN, which aggregates neighborhood information through typed relational message passing with a novel relation-aware attention mechanism. We further introduce a type-constrained negative sampling strategy that reduces false negatives by 31%.
-
-On FB15k-237, WN18RR, and YAGO3-10, StructGNN outperforms all baselines by +2.1 MRR on average. Ablation studies confirm the complementary benefit of structural and type constraints.`;
-
-const MOCK_VERSIONS: PaperVersion[] = [
-  { id: "pv1", submissionId: "1", tag: "v1.0", label: "初稿", stage: "writing", content: V1_CONTENT, notes: "完成论文初稿，核心方法已确定，实验结果待补充。", createdAt: new Date("2026-01-10") },
-  { id: "pv2", submissionId: "1", tag: "v1.1", label: "补充实验", stage: "writing", content: V2_CONTENT, notes: "增加 NarrativeQA 实验，修正 abstract 中序列长度描述（4K→8K），补充与 FlashAttention-2 的对比数据。", createdAt: new Date("2026-02-18") },
-  { id: "pv3", submissionId: "1", tag: "v2.0", label: "投稿版", stage: "writing", content: V3_CONTENT, notes: "全面修改 introduction，新增 6 个 benchmark，重写 related work，润色全文语言表达。", createdAt: new Date("2026-03-30") },
-  { id: "pv4", submissionId: "3", tag: "v1.0", label: "初稿", stage: "writing", content: GNN_V1, notes: "论文初稿，方法部分基本成型。", createdAt: new Date("2025-12-05") },
-  { id: "pv5", submissionId: "3", tag: "v2.0", label: "重构实验", stage: "submitted", content: GNN_V2, notes: "重构实验部分，加入类型约束负采样，新增 YAGO3-10 数据集，消融实验补充完整。", createdAt: new Date("2026-01-28") },
-];
+function normalizeVerdict(value: unknown): ReviewVerdict {
+  if (value === "accept" || value === "minor_revision" || value === "major_revision" || value === "reject") {
+    return value;
+  }
+  return "major_revision";
+}
 
 const VERDICT_CFG: Record<ReviewVerdict, { label: string; color: string; bg: string }> = {
   accept:           { label: "接收",     color: "#34C759", bg: "rgba(52,199,89,0.12)"   },
@@ -455,46 +263,6 @@ const VERDICT_CFG: Record<ReviewVerdict, { label: string; color: string; bg: str
 };
 
 const REVIEW_TAGS = ["实验", "写作", "方法", "贡献", "相关工作", "理论", "复杂度", "消融实验"];
-
-const MOCK_ROUNDS: ReviewRound[] = [
-  { submissionId: "3", round: 1, verdict: "major_revision", receivedAt: new Date("2026-03-05") },
-  { submissionId: "2", round: 1, verdict: "minor_revision",  receivedAt: new Date("2026-04-15") },
-];
-
-const MOCK_REVIEW_COMMENTS: ReviewComment[] = [
-  // Submission 3 - Round 1 (major revision)
-  {
-    id: "rc1", submissionId: "3", round: 1, reviewer: "Reviewer 1",
-    content: "The proposed StructGNN lacks comparison with recent baselines (NBFNet, NodePiece). The performance gap over TransE is marginal on WN18RR and may not be statistically significant. Please provide significance tests and include missing baselines.",
-    response: "感谢审稿人的意见。我们已补充 NBFNet 和 NodePiece 的对比实验，并添加了显著性检验（paired t-test, p<0.01）。详见修改稿 Table 2 和附录 A。",
-    resolved: true, tags: ["实验", "相关工作"], createdAt: new Date("2026-03-06"),
-  },
-  {
-    id: "rc2", submissionId: "3", round: 1, reviewer: "Reviewer 2",
-    content: "The type-constrained negative sampling strategy is the key contribution, but its description in Section 3.2 is unclear. Algorithm 1 is missing. The complexity analysis should be extended to cover the sampling procedure.",
-    response: "",
-    resolved: false, tags: ["方法", "写作", "复杂度"], createdAt: new Date("2026-03-06"),
-  },
-  {
-    id: "rc3", submissionId: "3", round: 1, reviewer: "Reviewer 3",
-    content: "Minor issues: (1) Figure 3 caption is too brief. (2) Several grammatical errors in the introduction. (3) The related work section does not discuss inductive KGC methods.",
-    response: "已修正图注、润色 introduction 并在 Related Work 中补充 inductive KGC 相关综述（NBFNet, COMPILE, GraIL）。",
-    resolved: true, tags: ["写作", "相关工作"], createdAt: new Date("2026-03-06"),
-  },
-  // Submission 2 - Round 1 (minor revision)
-  {
-    id: "rc4", submissionId: "2", round: 1, reviewer: "Reviewer 1",
-    content: "The cross-lingual transfer results on African languages are impressive, but the paper should discuss failure cases more explicitly. Table 4 has inconsistent formatting.",
-    response: "",
-    resolved: false, tags: ["写作", "贡献"], createdAt: new Date("2026-04-16"),
-  },
-  {
-    id: "rc5", submissionId: "2", round: 1, reviewer: "Reviewer 2",
-    content: "Please clarify the computational cost compared to full fine-tuning. The efficiency claims in Section 4 are not backed by wall-clock time measurements.",
-    response: "已在 Section 4.3 补充训练时间与 GPU 资源消耗对比表，与 full fine-tuning 和 LoRA 基线对齐。",
-    resolved: true, tags: ["实验", "复杂度"], createdAt: new Date("2026-04-16"),
-  },
-];
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
   { id: "c1",  label: "标题符合会议主题方向",           checked: false, category: "内容" },
@@ -556,8 +324,8 @@ export default function Submission() {
   const [tab, setTab] = useState<"conferences" | "kanban" | "checklist" | "versions" | "reviews">("conferences");
 
   // Venue state (会议 + 期刊)
-  const [conferences, setConferences] = useState<Conference[]>(MOCK_CONFERENCES);
-  const [journals, setJournals] = useState<Journal[]>(MOCK_JOURNALS);
+  const [conferences, setConferences] = useState<Conference[]>([]);
+  const [journals, setJournals] = useState<Journal[]>([]);
   const [venueFilter, setVenueFilter] = useState<"all" | "conference" | "journal" | "starred">("all");
 
   // Add venue modal state
@@ -567,7 +335,7 @@ export default function Submission() {
   const [addModalTypeFilter, setAddModalTypeFilter] = useState<"all" | "conference" | "journal">("all");
 
   // Kanban state
-  const [submissions, setSubmissions] = useState<Submission[]>(MOCK_SUBMISSIONS);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
 
   // Checklist state
   const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
@@ -580,23 +348,23 @@ export default function Submission() {
   }>({ title: "", venue: "", venueType: "conference", deadline: "" });
 
   // Version control state
-  const [versions, setVersions] = useState<PaperVersion[]>(MOCK_VERSIONS);
-  const [versionSubId, setVersionSubId] = useState<string>(MOCK_SUBMISSIONS[0].id);
+  const [versions, setVersions] = useState<PaperVersion[]>([]);
+  const [versionSubId, setVersionSubId] = useState<string>("");
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveForm, setSaveForm] = useState({ tag: "", label: "", notes: "", content: "" });
 
   // Review archive state
-  const [reviewComments, setReviewComments] = useState<ReviewComment[]>(MOCK_REVIEW_COMMENTS);
-  const [reviewRounds, setReviewRounds] = useState<ReviewRound[]>(MOCK_ROUNDS);
-  const [reviewSubId, setReviewSubId] = useState<string>(MOCK_SUBMISSIONS[2].id);
+  const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
+  const [reviewRounds, setReviewRounds] = useState<ReviewRound[]>([]);
+  const [reviewSubId, setReviewSubId] = useState<string>("");
   const [reviewRound, setReviewRound] = useState<number>(1);
   const [showAddReviewModal, setShowAddReviewModal] = useState(false);
   const [reviewForm, setReviewForm] = useState({
     reviewer: "", content: "", tags: [] as string[], verdict: "major_revision" as ReviewVerdict,
   });
 
-  // Mock review generation state
+  // AI review state
   const [showMockReviewModal, setShowMockReviewModal] = useState(false);
   const [mockReviewInput, setMockReviewInput] = useState<{
     abstract: string; reviewerCount: number; strictness: MockStrictness;
@@ -605,6 +373,158 @@ export default function Submission() {
   const [mockReviewResult, setMockReviewResult] = useState<MockReviewerResult[] | null>(null);
   const [mockFileExtracting, setMockFileExtracting] = useState(false);
   const [mockFileName, setMockFileName] = useState<string | null>(null);
+
+  // Cover letter / polish state
+  const [showCoverLetterModal, setShowCoverLetterModal] = useState(false);
+  const [coverLetterText, setCoverLetterText] = useState("");
+  const [coverLetterLoading, setCoverLetterLoading] = useState(false);
+  const [showPolishPanel, setShowPolishPanel] = useState(false);
+  const [polishText, setPolishText] = useState("");
+  const [polishLoading, setPolishLoading] = useState(false);
+  const [polishSourceId, setPolishSourceId] = useState<string>("");
+  const mockReviewBufferRef = useRef<MockReviewerResult[]>([]);
+  const activeMockReviewSubmissionRef = useRef<string>("");
+
+  // ── DB data loading ──
+  useEffect(() => {
+    submissionApi.listVenues().then(res => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const venues = (res.venues as any[]).map(rowToVenue);
+      setConferences(venues.filter(v => v.type === "conference") as Conference[]);
+      setJournals(venues.filter(v => v.type === "journal") as Journal[]);
+    }).catch(console.error);
+
+    submissionApi.list().then(res => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subs = (res.submissions as any[]).map(rowToSubmission);
+      setSubmissions(subs);
+      if (subs.length > 0 && !versionSubId) setVersionSubId(subs[0].id);
+      if (subs.length > 0 && !reviewSubId) setReviewSubId(subs[0].id);
+    }).catch(console.error);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Reload versions when selected submission changes
+  useEffect(() => {
+    if (!versionSubId) return;
+    submissionApi.listVersions(versionSubId).then(res => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setVersions((res.versions as any[]).map(rowToVersion));
+    }).catch(console.error);
+  }, [versionSubId]);
+
+  // Reload rounds + comments when selected review submission changes
+  useEffect(() => {
+    if (!reviewSubId) return;
+    Promise.all([
+      submissionApi.listRounds(reviewSubId),
+      submissionApi.listComments(reviewSubId),
+    ]).then(([roundsRes, commentsRes]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setReviewRounds((roundsRes.rounds as any[]).map(rowToRound));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setReviewComments((commentsRes.comments as any[]).map(rowToComment));
+    }).catch(console.error);
+  }, [reviewSubId]);
+
+  // AI review event listeners
+  useEffect(() => {
+    let unlistenReviewer: (() => void) | undefined;
+    let unlistenDone: (() => void) | undefined;
+    let unlistenError: (() => void) | undefined;
+
+    listen<{ submissionId: string; index: number; reviewer: string; raw: string }>(
+      "submission:ai_review:reviewer",
+      ({ payload }) => {
+        if (payload.submissionId !== activeMockReviewSubmissionRef.current) {
+          return;
+        }
+        try {
+          const parsed = JSON.parse(payload.raw);
+          const result: MockReviewerResult = {
+            reviewer: payload.reviewer,
+            content: [
+              parsed.summary ? `**Summary:** ${parsed.summary}` : "",
+              parsed.strengths?.length ? `**Strengths:**\n${(parsed.strengths as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
+              parsed.weaknesses?.length ? `**Weaknesses:**\n${(parsed.weaknesses as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
+              parsed.questions?.length ? `**Questions:**\n${(parsed.questions as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
+            ].filter(Boolean).join("\n\n"),
+            tags: ["方法", "实验"],
+            verdict: (parsed.verdict === "accept" ? "accept"
+              : parsed.verdict === "weak_accept" ? "minor_revision"
+              : parsed.verdict === "weak_reject" ? "major_revision"
+              : "reject") as ReviewVerdict,
+          };
+          mockReviewBufferRef.current = [...mockReviewBufferRef.current, result];
+          setMockReviewResult([...mockReviewBufferRef.current]);
+        } catch {
+          mockReviewBufferRef.current = [
+            ...mockReviewBufferRef.current,
+            { reviewer: payload.reviewer, content: payload.raw, tags: [], verdict: "major_revision" },
+          ];
+          setMockReviewResult([...mockReviewBufferRef.current]);
+        }
+      }
+    ).then(u => { unlistenReviewer = u; });
+
+    listen<{ submissionId: string }>("submission:ai_review:done", ({ payload }) => {
+      if (payload.submissionId !== activeMockReviewSubmissionRef.current) {
+        return;
+      }
+      setMockReviewLoading(false);
+    }).then(u => { unlistenDone = u; });
+
+    listen<{ submissionId: string; error: string }>("submission:ai_review:error", ({ payload }) => {
+      if (payload.submissionId !== activeMockReviewSubmissionRef.current) {
+        return;
+      }
+      setMockReviewLoading(false);
+      console.error("AI review error:", payload.error);
+    }).then(u => { unlistenError = u; });
+
+    return () => {
+      unlistenReviewer?.();
+      unlistenDone?.();
+      unlistenError?.();
+    };
+  }, []);
+
+  // Cover letter event listeners
+  useEffect(() => {
+    let unlistenDelta: (() => void) | undefined;
+    let unlistenDone: (() => void) | undefined;
+
+    listen<{ submissionId: string; delta: string }>("submission:cover_letter:delta", ({ payload }) => {
+      setCoverLetterText(prev => prev + payload.delta);
+    }).then(u => { unlistenDelta = u; });
+
+    listen<{ submissionId: string; fullText: string }>("submission:cover_letter:done", ({ payload }) => {
+      setCoverLetterText(payload.fullText);
+      setCoverLetterLoading(false);
+    }).then(u => { unlistenDone = u; });
+
+    return () => { unlistenDelta?.(); unlistenDone?.(); };
+  }, []);
+
+  // Polish event listeners
+  useEffect(() => {
+    let unlistenDelta: (() => void) | undefined;
+    let unlistenDone: (() => void) | undefined;
+
+    listen<{ submissionId: string; delta: string }>("submission:polish:delta", ({ payload }) => {
+      if (payload.submissionId === reviewSubId || payload.submissionId === versionSubId) {
+        setPolishText(prev => prev + payload.delta);
+      }
+    }).then(u => { unlistenDelta = u; });
+
+    listen<{ submissionId: string; fullText: string }>("submission:polish:done", ({ payload }) => {
+      setPolishText(payload.fullText);
+      setPolishLoading(false);
+    }).then(u => { unlistenDone = u; });
+
+    return () => { unlistenDelta?.(); unlistenDone?.(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewSubId, versionSubId]);
 
   const handleUploadVersionFile = async (versionId: string) => {
     try {
@@ -666,41 +586,46 @@ export default function Submission() {
     } else {
       setJournals(prev => prev.map(j => j.id === id ? { ...j, starred: !j.starred } : j));
     }
+    submissionApi.toggleVenueStar(id).catch(console.error);
   };
 
   // ── Add venue helpers ──
-  const handleAddVenue = (template: VenueTemplate) => {
-    const newId = `${template.id}-${Date.now()}`;
-    if (template.type === "conference") {
-      const newConf: Conference = {
-        id: newId,
-        type: "conference",
-        name: template.name,
-        fullName: template.fullName,
-        website: template.website,
-        deadline: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 默认 90 天后
-        ccf: template.ccf,
-        area: template.area,
-        starred: false,
-        ei: template.ei,
-      };
-      setConferences(prev => [...prev, newConf]);
-    } else {
-      const newJournal: Journal = {
-        id: newId,
-        type: "journal",
-        name: template.name,
-        fullName: template.fullName,
-        website: template.website,
-        ccf: template.ccf,
-        area: template.area,
-        starred: false,
-        sci: template.sci,
-        sciQuartile: template.sciQuartile,
-        ei: template.ei,
-      };
-      setJournals(prev => [...prev, newJournal]);
-    }
+  const handleAddVenue = async (template: VenueTemplate) => {
+    const defaultConferenceDeadline =
+      template.type === "conference"
+        ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+        : null;
+
+    try {
+      const res = await submissionApi.createVenue({
+        name: template.name, fullName: template.fullName,
+        venueType: template.type, website: template.website,
+        ccf: template.ccf, area: template.area,
+        ei: template.ei, sci: (template as Journal).sci,
+        sciQuartile: (template as Journal).sciQuartile,
+        deadline: defaultConferenceDeadline?.toISOString().slice(0, 10),
+      });
+      const newId = res.id;
+      if (template.type === "conference") {
+        setConferences(prev => [...prev, {
+          id: newId, type: "conference",
+          name: template.name, fullName: template.fullName,
+          website: template.website,
+          deadline: defaultConferenceDeadline ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+          ccf: template.ccf, area: template.area, starred: false, ei: template.ei,
+        }]);
+      } else {
+        setJournals(prev => [...prev, {
+          id: newId, type: "journal",
+          name: template.name, fullName: template.fullName,
+          website: template.website,
+          ccf: template.ccf, area: template.area, starred: false,
+          sci: (template as Journal).sci,
+          sciQuartile: (template as Journal).sciQuartile,
+          ei: template.ei,
+        }]);
+      }
+    } catch (e) { console.error(e); }
     setShowAddModal(false);
   };
 
@@ -728,22 +653,39 @@ export default function Submission() {
       const idx = KANBAN_COLS.findIndex(c => c.key === s.status);
       const nextIdx = direction === "next" ? idx + 1 : idx - 1;
       if (nextIdx < 0 || nextIdx >= KANBAN_COLS.length) return s;
-      return { ...s, status: KANBAN_COLS[nextIdx].key, submittedAt: direction === "next" && s.status === "writing" ? new Date() : s.submittedAt };
+      const newStatus = KANBAN_COLS[nextIdx].key;
+      const newSubmittedAt = direction === "next" && s.status === "writing" ? new Date() : s.submittedAt;
+      submissionApi.update(id, {
+        status: newStatus,
+        submittedAt: newSubmittedAt?.toISOString().slice(0, 10),
+      }).catch(console.error);
+      return { ...s, status: newStatus, submittedAt: newSubmittedAt };
     }));
   };
 
   // ── Add submission helper ──
-  const handleAddSubmission = () => {
+  const handleAddSubmission = async () => {
     if (!addSubForm.title.trim() || !addSubForm.venue.trim()) return;
-    const newSub: Submission = {
-      id: `sub-${Date.now()}`,
-      title: addSubForm.title.trim(),
-      venue: addSubForm.venue.trim(),
-      venueType: addSubForm.venueType,
-      status: "writing",
-      deadline: addSubForm.deadline ? new Date(addSubForm.deadline) : undefined,
-    };
-    setSubmissions(prev => [...prev, newSub]);
+    try {
+      const res = await submissionApi.create({
+        title: addSubForm.title.trim(),
+        venueName: addSubForm.venue.trim(),
+        venueType: addSubForm.venueType,
+        status: "writing",
+        deadline: addSubForm.deadline || undefined,
+      });
+      const newSub: Submission = {
+        id: res.id,
+        title: addSubForm.title.trim(),
+        venue: addSubForm.venue.trim(),
+        venueType: addSubForm.venueType,
+        status: "writing",
+        deadline: addSubForm.deadline ? new Date(addSubForm.deadline) : undefined,
+      };
+      setSubmissions(prev => [...prev, newSub]);
+      if (!versionSubId) setVersionSubId(res.id);
+      if (!reviewSubId) setReviewSubId(res.id);
+    } catch (e) { console.error(e); }
     setShowAddSubModal(false);
     setAddSubForm({ title: "", venue: "", venueType: "conference", deadline: "" });
   };
@@ -769,20 +711,27 @@ export default function Submission() {
     return `v${major}.${(minor ?? 0) + 1}`;
   })();
 
-  const handleSaveVersion = () => {
+  const handleSaveVersion = async () => {
     if (!saveForm.label.trim() || !saveForm.content.trim()) return;
     const currentSub = submissions.find(s => s.id === versionSubId);
-    const newVer: PaperVersion = {
-      id: `pv-${Date.now()}`,
-      submissionId: versionSubId,
-      tag: saveForm.tag.trim() || versionNextTag,
-      label: saveForm.label.trim(),
-      stage: currentSub?.status ?? "writing",
-      content: saveForm.content.trim(),
-      notes: saveForm.notes.trim(),
-      createdAt: new Date(),
-    };
-    setVersions(prev => [...prev, newVer]);
+    const tag = saveForm.tag.trim() || versionNextTag;
+    try {
+      const res = await submissionApi.createVersion({
+        submissionId: versionSubId,
+        tag, label: saveForm.label.trim(),
+        stage: currentSub?.status ?? "writing",
+        content: saveForm.content.trim(),
+        notes: saveForm.notes.trim(),
+      });
+      setVersions(prev => [...prev, {
+        id: res.id, submissionId: versionSubId, tag,
+        label: saveForm.label.trim(),
+        stage: currentSub?.status ?? "writing",
+        content: saveForm.content.trim(),
+        notes: saveForm.notes.trim(),
+        createdAt: new Date(),
+      }]);
+    } catch (e) { console.error(e); }
     setShowSaveModal(false);
     setSaveForm({ tag: "", label: "", notes: "", content: "" });
   };
@@ -1323,9 +1272,26 @@ export default function Submission() {
                             </p>
                           )}
                           {key === "accepted" && (
-                            <div className="mt-1.5 flex items-center gap-1">
-                              <Trophy className="w-3 h-3" style={{ color: "#34C759" }} />
-                              <span className="text-[11px] font-medium" style={{ color: "#34C759" }}>已录用</span>
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <Trophy className="w-3 h-3" style={{ color: "#34C759" }} />
+                                <span className="text-[11px] font-medium" style={{ color: "#34C759" }}>已录用</span>
+                              </div>
+                              <button
+                                className="text-[10px] font-medium px-1.5 py-0.5 rounded-md transition-colors"
+                                style={{ background: "rgba(52,199,89,0.12)", color: "#34C759" }}
+                                onClick={() => {
+                                  const year = new Date().getFullYear();
+                                  const vType = sub.venueType === "journal" ? "@article" : "@inproceedings";
+                                  const vKey = sub.venueType === "journal" ? "journal" : "booktitle";
+                                  const key_ = `Author${year}${sub.venue.split(" ")[0]}`;
+                                  const bib = `${vType}{${key_},\n  title={${sub.title}},\n  author={},\n  ${vKey}={${sub.venue}},\n  year={${year}}\n}`;
+                                  navigator.clipboard.writeText(bib);
+                                }}
+                                title="复制 BibTeX"
+                              >
+                                BibTeX
+                              </button>
                             </div>
                           )}
                           {/* Move buttons */}
@@ -1689,6 +1655,27 @@ export default function Submission() {
                                   </button>
                                 )}
 
+                                {/* AI 润色 */}
+                                {ver.content.trim() && (
+                                  <button
+                                    onClick={() => {
+                                      setPolishSourceId(ver.id);
+                                      setPolishText("");
+                                      setPolishLoading(true);
+                                      setShowPolishPanel(true);
+                                      submissionApi.polishAbstract(ver.submissionId, ver.content).catch(e => {
+                                        console.error(e); setPolishLoading(false);
+                                      });
+                                    }}
+                                    className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-all duration-150"
+                                    style={{ background: "rgba(0,122,255,0.10)", color: "#007AFF" }}
+                                    title="AI 润色摘要/核心内容"
+                                  >
+                                    <Sparkles className="w-3 h-3" />
+                                    AI 润色
+                                  </button>
+                                )}
+
                                 {/* AI 审稿入口 */}
                                 <button
                                   onClick={async () => {
@@ -1721,7 +1708,7 @@ export default function Submission() {
                                     ? { background: "rgba(175,82,222,0.12)", color: "#AF52DE" }
                                     : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-tertiary)" as string }
                                   }
-                                  title={ver.filePath ? "从 PDF 文件生成模拟审稿意见" : "从版本快照文本生成模拟审稿意见"}
+                                  title={ver.filePath ? "从 PDF 文件生成 AI 审稿意见" : "从版本快照文本生成 AI 审稿意见"}
                                 >
                                   <Bot className="w-3 h-3" />
                                   AI 审稿
@@ -1812,34 +1799,47 @@ export default function Submission() {
             setShowAddReviewModal(true);
           };
 
-          const handleAddComment = () => {
+          const handleAddComment = async () => {
             if (!reviewForm.reviewer.trim() || !reviewForm.content.trim()) return;
             const isNewRound = !roundNums.includes(reviewRound);
             if (isNewRound) {
+              await submissionApi.upsertRound({
+                submissionId: reviewSubId, round: reviewRound,
+                verdict: reviewForm.verdict,
+              }).catch(console.error);
               setReviewRounds(prev => [...prev, {
                 submissionId: reviewSubId, round: reviewRound,
                 verdict: reviewForm.verdict, receivedAt: new Date(),
               }]);
             }
-            setReviewComments(prev => [...prev, {
-              id: `rc-${Date.now()}`,
-              submissionId: reviewSubId,
-              round: reviewRound,
-              reviewer: reviewForm.reviewer.trim(),
-              content: reviewForm.content.trim(),
-              response: "",
-              resolved: false,
-              tags: reviewForm.tags,
-              createdAt: new Date(),
-            }]);
+            try {
+              const res = await submissionApi.createComment({
+                submissionId: reviewSubId, round: reviewRound,
+                reviewer: reviewForm.reviewer.trim(),
+                content: reviewForm.content.trim(),
+                tags: reviewForm.tags,
+              });
+              setReviewComments(prev => [...prev, {
+                id: res.id, submissionId: reviewSubId, round: reviewRound,
+                reviewer: reviewForm.reviewer.trim(),
+                content: reviewForm.content.trim(),
+                response: "", resolved: false, tags: reviewForm.tags, createdAt: new Date(),
+              }]);
+            } catch (e) { console.error(e); }
             setReviewForm(p => ({ ...p, reviewer: `Reviewer ${reviewForm.reviewer.match(/\d+/) ? parseInt(reviewForm.reviewer.match(/\d+/)![0]) + 1 : 2}`, content: "", tags: [] }));
           };
 
-          const toggleResolved = (id: string) =>
+          const toggleResolved = (id: string) => {
+            const comment = reviewComments.find(c => c.id === id);
+            if (!comment) return;
+            submissionApi.updateComment(id, { resolved: !comment.resolved }).catch(console.error);
             setReviewComments(prev => prev.map(c => c.id === id ? { ...c, resolved: !c.resolved } : c));
+          };
 
-          const updateResponse = (id: string, response: string) =>
+          const updateResponse = (id: string, response: string) => {
+            submissionApi.updateComment(id, { response }).catch(console.error);
             setReviewComments(prev => prev.map(c => c.id === id ? { ...c, response } : c));
+          };
 
           return (<>
             <div className="flex gap-5 h-full min-h-0">
@@ -1886,14 +1886,31 @@ export default function Submission() {
                       {subRounds.length} 轮审稿 · {reviewComments.filter(c => c.submissionId === reviewSubId).length} 条意见
                     </p>
                   </div>
-                  <button
-                    onClick={handleAddRoundAndOpen}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium"
-                    style={{ background: "#007AFF", color: "#fff", boxShadow: "2px 4px 10px rgba(0,122,255,0.25)" }}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    录入审稿意见
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setCoverLetterText("");
+                        setCoverLetterLoading(true);
+                        setShowCoverLetterModal(true);
+                        submissionApi.generateCoverLetter(reviewSubId).catch(e => {
+                          console.error(e); setCoverLetterLoading(false);
+                        });
+                      }}
+                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium"
+                      style={{ background: "rgba(52,199,89,0.12)", color: "#34C759" }}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Cover Letter
+                    </button>
+                    <button
+                      onClick={handleAddRoundAndOpen}
+                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium"
+                      style={{ background: "#007AFF", color: "#fff", boxShadow: "2px 4px 10px rgba(0,122,255,0.25)" }}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      录入审稿意见
+                    </button>
+                  </div>
                 </div>
 
                 {/* Round tabs */}
@@ -2217,36 +2234,39 @@ export default function Submission() {
                     {mockReviewResult ? (
                       <>
                         <button
-                          onClick={() => setMockReviewResult(null)}
+                          onClick={() => {
+                            mockReviewBufferRef.current = [];
+                            setMockReviewResult(null);
+                          }}
                           className="text-sm font-medium px-4 py-2 rounded-xl hover:bg-black/5 transition-colors"
                           style={{ color: "var(--rc-text-secondary)" as string }}
                         >
                           重新生成
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             const nextRound = reviewRounds.filter(r => r.submissionId === reviewSubId).length + 1;
                             const dominantVerdict = mockReviewResult.reduce<Record<ReviewVerdict, number>>(
                               (acc, r) => { acc[r.verdict] = (acc[r.verdict] ?? 0) + 1; return acc; },
                               { accept: 0, minor_revision: 0, major_revision: 0, reject: 0 }
                             );
                             const verdict = (Object.entries(dominantVerdict) as [ReviewVerdict, number][]).sort((a, b) => b[1] - a[1])[0][0];
+                            await submissionApi.upsertRound({ submissionId: reviewSubId, round: nextRound, verdict }).catch(console.error);
                             setReviewRounds(prev => [...prev, {
                               submissionId: reviewSubId, round: nextRound, verdict, receivedAt: new Date(),
                             }]);
-                            mockReviewResult.forEach((r, i) => {
+                            for (const r of mockReviewResult) {
+                              const res = await submissionApi.createComment({
+                                submissionId: reviewSubId, round: nextRound,
+                                reviewer: r.reviewer, content: r.content, tags: r.tags,
+                              }).catch(() => ({ id: `mock-${Date.now()}` }));
                               setReviewComments(prev => [...prev, {
-                                id: `mock-${Date.now()}-${i}`,
-                                submissionId: reviewSubId,
-                                round: nextRound,
-                                reviewer: r.reviewer,
-                                content: r.content,
-                                response: "",
-                                resolved: false,
-                                tags: r.tags,
-                                createdAt: new Date(),
+                                id: (res as { id: string }).id,
+                                submissionId: reviewSubId, round: nextRound,
+                                reviewer: r.reviewer, content: r.content,
+                                response: "", resolved: false, tags: r.tags, createdAt: new Date(),
                               }]);
-                            });
+                            }
                             setReviewRound(nextRound);
                             setShowMockReviewModal(false);
                           }}
@@ -2263,17 +2283,16 @@ export default function Submission() {
                         <button
                           disabled={!mockReviewInput.abstract.trim() || mockReviewLoading}
                           onClick={() => {
+                            activeMockReviewSubmissionRef.current = reviewSubId;
+                            mockReviewBufferRef.current = [];
                             setMockReviewLoading(true);
-                            setTimeout(() => {
-                              const result = generateMockReviews(
-                                currentSub?.title ?? "",
-                                mockReviewInput.abstract,
-                                mockReviewInput.reviewerCount,
-                                mockReviewInput.strictness,
-                              );
-                              setMockReviewResult(result);
-                              setMockReviewLoading(false);
-                            }, 1200);
+                            setMockReviewResult([]);
+                            submissionApi.aiReview({
+                              submissionId: reviewSubId,
+                              content: mockReviewInput.abstract,
+                              reviewerCount: mockReviewInput.reviewerCount,
+                              strictness: mockReviewInput.strictness,
+                            }).catch(e => { console.error(e); setMockReviewLoading(false); });
                           }}
                           className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
                           style={{ background: "#AF52DE", color: "#fff", boxShadow: "2px 4px 10px rgba(175,82,222,0.3)" }}
@@ -2803,6 +2822,132 @@ export default function Submission() {
                 style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
               >
                 完成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Cover Letter 弹窗 ── */}
+      {showCoverLetterModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.45)" }}
+          onClick={e => { if (e.target === e.currentTarget) setShowCoverLetterModal(false); }}
+        >
+          <div
+            className="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden flex flex-col"
+            style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)", maxHeight: "80vh" }}
+          >
+            <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid var(--rc-border)" }}>
+              <div>
+                <h2 className="text-lg font-bold text-ink-primary">生成 Cover Letter</h2>
+                <p className="text-xs text-ink-tertiary mt-0.5">基于投稿历史与审稿意见自动生成</p>
+              </div>
+              <button onClick={() => setShowCoverLetterModal(false)} className="p-2 rounded-xl hover:bg-black/5">
+                <X className="w-5 h-5 text-ink-tertiary" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {coverLetterLoading && !coverLetterText ? (
+                <div className="flex items-center gap-2 text-ink-tertiary text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  正在生成…
+                </div>
+              ) : (
+                <textarea
+                  className="w-full h-80 text-sm font-mono resize-none rounded-xl p-3 outline-none"
+                  style={{ background: "var(--rc-card-inset-bg)", color: "var(--rc-text-primary)" as string, border: "1px solid var(--rc-border)" }}
+                  value={coverLetterText}
+                  onChange={e => setCoverLetterText(e.target.value)}
+                />
+              )}
+            </div>
+            <div className="px-6 py-4 flex-shrink-0 flex justify-end gap-3" style={{ borderTop: "1px solid var(--rc-border)" }}>
+              <button
+                onClick={() => navigator.clipboard.writeText(coverLetterText)}
+                disabled={!coverLetterText}
+                className="px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-40"
+                style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
+              >
+                复制
+              </button>
+              <button
+                onClick={() => setShowCoverLetterModal(false)}
+                className="px-5 py-2 rounded-xl text-sm font-medium"
+                style={{ background: "#007AFF", color: "#fff" }}
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── AI 润色侧边面板 ── */}
+      {showPolishPanel && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.45)" }}
+          onClick={e => { if (e.target === e.currentTarget) setShowPolishPanel(false); }}
+        >
+          <div
+            className="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden flex flex-col"
+            style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)", maxHeight: "80vh" }}
+          >
+            <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid var(--rc-border)" }}>
+              <div>
+                <h2 className="text-lg font-bold text-ink-primary">AI 润色</h2>
+                <p className="text-xs text-ink-tertiary mt-0.5">对版本摘要/核心内容进行学术润色</p>
+              </div>
+              <button onClick={() => setShowPolishPanel(false)} className="p-2 rounded-xl hover:bg-black/5">
+                <X className="w-5 h-5 text-ink-tertiary" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {polishLoading && !polishText ? (
+                <div className="flex items-center gap-2 text-ink-tertiary text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  润色中…
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs font-medium text-ink-secondary mb-2">润色结果</p>
+                  <textarea
+                    className="w-full h-72 text-sm resize-none rounded-xl p-3 outline-none"
+                    style={{ background: "var(--rc-card-inset-bg)", color: "var(--rc-text-primary)" as string, border: "1px solid var(--rc-border)" }}
+                    value={polishText}
+                    onChange={e => setPolishText(e.target.value)}
+                    placeholder={polishLoading ? "生成中…" : "润色结果将显示在此处"}
+                  />
+                  {polishLoading && (
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-ink-tertiary">
+                      <Loader2 className="w-3 h-3 animate-spin" /> 生成中…
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 flex-shrink-0 flex justify-end gap-3" style={{ borderTop: "1px solid var(--rc-border)" }}>
+              <button
+                onClick={() => navigator.clipboard.writeText(polishText)}
+                disabled={!polishText}
+                className="px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-40"
+                style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
+              >
+                复制
+              </button>
+              <button
+                onClick={() => {
+                  if (!polishText || !polishSourceId) return;
+                  setVersions(prev => prev.map(v => v.id === polishSourceId ? { ...v, content: polishText } : v));
+                  setShowPolishPanel(false);
+                }}
+                disabled={!polishText}
+                className="px-5 py-2 rounded-xl text-sm font-medium disabled:opacity-40"
+                style={{ background: "#007AFF", color: "#fff" }}
+              >
+                应用到版本
               </button>
             </div>
           </div>

@@ -3,6 +3,7 @@ import { Routes, Route, NavLink } from "react-router-dom";
 import {
   BookOpen,
   FileText,
+  FlaskConical,
   LayoutDashboard,
   Library,
   Map,
@@ -20,6 +21,7 @@ import Knowledge from "./pages/Knowledge";
 import Settings from "./pages/Settings";
 import Tools from "./pages/Tools";
 import Submission from "./pages/Submission";
+import Experiment from "./pages/Experiment";
 import FocusApp from "./pages/FocusLayout";
 import hitLogo from "./assets/hit-logo.svg";
 import { getLayoutMode } from "./lib/layoutMode";
@@ -38,6 +40,7 @@ const navItems = [
   { to: "/knowledge", icon: Library, label: "知识" },
   { to: "/copilot", icon: MessageSquare, label: "小妍" },
   { to: "/submission", icon: Send, label: "投稿" },
+  { to: "/experiment", icon: FlaskConical, label: "实验" },
   { to: "/tools", icon: Wrench, label: "工具" },
   { to: "/settings", icon: SettingsIcon, label: "设置" },
 ];
@@ -133,6 +136,7 @@ export default function App() {
           <Route path="/survey" element={<Survey />} />
           <Route path="/papers" element={<Papers />} />
           <Route path="/submission" element={<Submission />} />
+          <Route path="/experiment" element={<Experiment />} />
           <Route path="/tools" element={<Tools />} />
           <Route path="/copilot" element={<Copilot />} />
           <Route path="/knowledge" element={<Knowledge />} />

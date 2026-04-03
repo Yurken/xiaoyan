@@ -2,6 +2,7 @@ use crate::llm::{LlmClient, LlmMessage};
 use crate::state::{AppState, SENSITIVE_KEYS};
 use std::collections::HashMap;
 use tauri::State;
+use serde_json;
 
 // ── Crypto helpers (AES-256-GCM + PBKDF2) ───────────────────────
 use aes_gcm::aead::{Aead, KeyInit};
@@ -405,4 +406,36 @@ pub async fn settings_test(
     let msgs = vec![LlmMessage::user("Reply with the single word: ok")];
     let reply = client.chat(&msgs, None, 0.0).await.map_err(|e| e.to_string())?;
     Ok(reply.trim().to_string())
+}
+
+// ── Ollama model list ────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn settings_list_ollama_models(
+    base_url: Option<String>,
+) -> Result<Vec<String>, String> {
+    let url = base_url
+        .filter(|u| !u.trim().is_empty())
+        .unwrap_or_else(|| "http://localhost:11434".to_string());
+    let api_url = format!(
+        "{}/api/tags",
+        url.trim_end_matches('/').trim_end_matches("/v1")
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client
+        .get(&api_url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to connect to Ollama: {}", e))?;
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let models: Vec<String> = json["models"]
+        .as_array()
+        .unwrap_or(&vec![])
+        .iter()
+        .filter_map(|m| m["name"].as_str().map(|s| s.to_string()))
+        .collect();
+    Ok(models)
 }

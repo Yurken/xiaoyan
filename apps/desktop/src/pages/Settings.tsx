@@ -1924,6 +1924,10 @@ export default function Settings() {
   const [cryptoBusy, setCryptoBusy] = useState(false);
   const [cryptoError, setCryptoError] = useState("");
 
+  // Ollama models
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [loadingOllamaModels, setLoadingOllamaModels] = useState(false);
+
   const set = (key: keyof AppSettings) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
 
@@ -2348,10 +2352,43 @@ export default function Settings() {
                 {provider === "openai_compatible" ? (
                   <div className="grid gap-3 md:grid-cols-2">
                     {activePreset === "ollama" && (
-                      <div className="md:col-span-2 rounded-2xl border border-green-200 bg-green-50/80 px-4 py-3">
+                      <div className="md:col-span-2 rounded-2xl border border-green-200 bg-green-50/80 px-4 py-3 space-y-2">
                         <p className="text-xs leading-5 text-green-800">
                           Ollama 本地运行时默认不需要 API Key，接口地址默认为 <code className="font-mono">http://localhost:11434/v1</code>。接口密钥可填写任意字符（如 <code className="font-mono">ollama</code>）或留空。
                         </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            disabled={loadingOllamaModels}
+                            onClick={async () => {
+                              setLoadingOllamaModels(true);
+                              try {
+                                const models = await apiClient.settings.listOllamaModels(form.openai_compatible_base_url || undefined);
+                                setOllamaModels(models);
+                              } catch {
+                                setOllamaModels([]);
+                              } finally {
+                                setLoadingOllamaModels(false);
+                              }
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 disabled:opacity-60"
+                            style={{ background: "rgba(52,199,89,0.15)", color: "#1A7A2E" }}
+                          >
+                            {loadingOllamaModels ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                            获取本地模型
+                          </button>
+                          {ollamaModels.length > 0 && ollamaModels.map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setForm((cur) => ({ ...cur, openai_compatible_chat_model: m }))}
+                              className="px-2.5 py-1 rounded-lg text-xs font-mono transition-colors hover:bg-green-100"
+                              style={{ color: "#1A7A2E" }}
+                            >
+                              {m}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                     <SettingInput
@@ -2970,6 +3007,12 @@ export default function Settings() {
                 ))}
               </div>
             </Card>
+
+            {/* TODO: Obsidian 导出（暂时注释，待完善路径配置后启用）
+            <Card padding="md" className="space-y-4">
+              ... Obsidian export card ...
+            </Card>
+            */}
 
             <ChangelogCard />
           </div>

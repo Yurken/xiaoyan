@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useClickOutside } from "../../hooks/useClickOutside";
-import { AlertCircle, ArrowLeft, Eye, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Eye, Globe, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
 import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import { apiClient, formatErrorMessage } from "../../lib/client";
@@ -356,6 +356,10 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
     research_interest_id: "",
   });
   const [viewingNote, setViewingNote] = useState<KnowledgeNote | null>(null);
+  const [showWebClip, setShowWebClip] = useState(false);
+  const [webClipUrl, setWebClipUrl] = useState("");
+  const [webClipLoading, setWebClipLoading] = useState(false);
+  const [webClipError, setWebClipError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -613,6 +617,10 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
                 className="pl-10"
               />
             </div>
+            <Button size="sm" variant="secondary" onClick={() => { setShowWebClip((prev) => !prev); setWebClipError(""); setWebClipUrl(""); }}>
+              <Globe className="h-4 w-4" />
+              剪辑网页
+            </Button>
             <Button size="sm" onClick={() => setCreating((prev) => !prev)}>
               <Plus className="h-4 w-4" />
               {creating ? "收起表单" : "新建笔记"}
@@ -674,6 +682,58 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
           <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {showWebClip && (
+          <div className="grid gap-3 rounded-2xl border border-nm-dark/10 bg-white/30 p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-ink-primary">剪辑网页为笔记</p>
+              <button type="button" onClick={() => setShowWebClip(false)} className="text-ink-tertiary transition-colors hover:text-ink-primary">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <Input
+              label="网页 URL"
+              value={webClipUrl}
+              onChange={(event) => { setWebClipUrl(event.target.value); setWebClipError(""); }}
+              placeholder="https://arxiv.org/abs/2301.00001"
+            />
+            {!researchInterestId && (
+              <div className="space-y-1">
+                <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究方向（可选）</label>
+                <InterestPicker
+                  interests={interests}
+                  value={selectedInterestId}
+                  onChange={setSelectedInterestId}
+                  placeholder="不关联"
+                />
+              </div>
+            )}
+            {webClipError && <p className="text-xs text-apple-red ml-1">{webClipError}</p>}
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                disabled={webClipLoading || !webClipUrl.trim()}
+                onClick={async () => {
+                  setWebClipLoading(true);
+                  setWebClipError("");
+                  try {
+                    const note = await apiClient.knowledge.webClip(webClipUrl.trim(), researchInterestId || selectedInterestId || undefined);
+                    setNotes((prev) => [note, ...prev]);
+                    setShowWebClip(false);
+                    setWebClipUrl("");
+                  } catch (err) {
+                    setWebClipError(formatErrorMessage(err));
+                  } finally {
+                    setWebClipLoading(false);
+                  }
+                }}
+              >
+                {webClipLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                {webClipLoading ? "抓取中…" : "保存为笔记"}
+              </Button>
+            </div>
           </div>
         )}
       </Card>

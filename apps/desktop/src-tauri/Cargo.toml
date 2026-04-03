@@ -51,3 +51,5 @@ pbkdf2 = "0.12"
 sha2 = "0.10"
 hmac = "0.12"
 rand = "0.8"
+# Regex for HTML parsing in web clip
+regex = "1"

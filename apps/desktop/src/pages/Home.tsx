@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, BookOpen, FileText, Library, Loader2, MessageSquare, Sparkles, Wrench } from "lucide-react";
+import { ArrowRight, Bell, BookOpen, FileText, Library, Loader2, MessageSquare, Sparkles, Wrench } from "lucide-react";
 import { Badge, Button, Card } from "@research-copilot/ui";
 import {
-  MAIN_ASSISTANT_BADGE,
   MAIN_ASSISTANT_NAME,
   MAIN_ASSISTANT_WORKSPACE_NAME,
   PRODUCT_NAME,
 } from "@research-copilot/types";
 import { Link } from "react-router-dom";
-import { apiClient, formatErrorMessage } from "../lib/client";
+import { apiClient, submissionApi, formatErrorMessage } from "../lib/client";
 import type { ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 
 interface DashboardState {
@@ -16,6 +15,12 @@ interface DashboardState {
   interests: ResearchInterest[];
   notes: KnowledgeNote[];
   sessions: ChatSession[];
+}
+
+interface SubmissionStats {
+  active: number;
+  pendingReviews: number;
+  upcomingDdls: { name: string; deadline: string }[];
 }
 
 const quickActions = [
@@ -68,6 +73,7 @@ export default function Home() {
     notes: [],
     sessions: [],
   });
+  const [subStats, setSubStats] = useState<SubmissionStats>({ active: 0, pendingReviews: 0, upcomingDdls: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -79,15 +85,12 @@ export default function Home() {
       apiClient.knowledge.listInterests(),
       apiClient.knowledge.listNotes(),
       apiClient.chat.listSessions(),
+      submissionApi.stats().catch(() => ({ active: 0, pendingReviews: 0, upcomingDdls: [] })),
     ])
-      .then(([papers, interests, notes, sessions]) => {
+      .then(([papers, interests, notes, sessions, stats]) => {
         if (!cancelled) {
-          setState({
-            papers,
-            interests,
-            notes,
-            sessions,
-          });
+          setState({ papers, interests, notes, sessions });
+          setSubStats(stats as SubmissionStats);
           setLoading(false);
         }
       })
@@ -168,6 +171,23 @@ export default function Home() {
               </div>
             ))}
           </div>
+          {/* 投稿统计行 */}
+          {(subStats.active > 0 || subStats.pendingReviews > 0) && (
+            <div className="flex gap-3 flex-wrap mt-1">
+              <Link to="/submission" className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors hover:opacity-80"
+                style={{ background: "rgba(175,82,222,0.10)", color: "#AF52DE" }}>
+                <FileText className="w-3.5 h-3.5" />
+                {subStats.active} 篇进行中
+              </Link>
+              {subStats.pendingReviews > 0 && (
+                <Link to="/submission" className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors hover:opacity-80"
+                  style={{ background: "rgba(255,149,0,0.10)", color: "#FF9500" }}>
+                  <Bell className="w-3.5 h-3.5" />
+                  {subStats.pendingReviews} 条待回复审稿意见
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       </Card>
 

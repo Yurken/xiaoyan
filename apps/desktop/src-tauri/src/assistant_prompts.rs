@@ -56,3 +56,70 @@ pub fn specialist_system(
 
     prompt
 }
+
+pub fn ai_review_prompt(text: &str, reviewer: &str, strictness_desc: &str, index: u8, total: u8) -> String {
+    format!(
+        "你是第 {index}/{total} 位审稿人（{reviewer}），审稿风格：{strictness_desc}。\n\
+请对以下论文全文（或摘要）进行学术审稿，输出严格的JSON格式（不要有任何 markdown 代码块）：\n\
+{{\n\
+  \"summary\": \"一段话总结论文主要贡献\",\n\
+  \"strengths\": [\"优点1\", \"优点2\"],\n\
+  \"weaknesses\": [\"缺点1\", \"缺点2\"],\n\
+  \"questions\": [\"问题1\", \"问题2\"],\n\
+  \"verdict\": \"accept|weak_accept|weak_reject|reject\",\n\
+  \"score\": 整数1-10\n\
+}}\n\n\
+论文内容：\n{text}"
+    )
+}
+
+pub fn polish_abstract_prompt(text: &str) -> String {
+    format!(
+        "请对以下学术论文摘要进行专业润色，要求：\n\
+1. 保持原意不变，不添加新内容\n\
+2. 提升学术表达的准确性和流畅度\n\
+3. 优化句子结构，使逻辑更清晰\n\
+4. 确保符合国际期刊/会议摘要写作规范\n\
+5. 直接输出润色后的摘要文本，不要添加说明\n\n\
+原始摘要：\n{text}"
+    )
+}
+
+pub fn cover_letter_prompt(
+    title: &str,
+    venue_name: &str,
+    venue_type: &str,
+    rounds_info: &str,
+    comments_info: &str,
+) -> String {
+    let venue_label = if venue_type == "journal" { "期刊" } else { "会议" };
+    let has_revision = !rounds_info.is_empty() && !comments_info.is_empty();
+
+    if has_revision {
+        format!(
+            "请为以下论文修改稿撰写一封专业的 Cover Letter（修改说明信），用英文撰写。\n\
+论文题目：{title}\n\
+投稿{venue_label}：{venue_name}\n\
+审稿历史：\n{rounds_info}\n\n\
+主要审稿意见及作者回复摘要：\n{comments_info}\n\n\
+要求：\n\
+1. 感谢编辑和审稿人的意见\n\
+2. 逐条说明如何回应每位审稿人的主要意见\n\
+3. 突出论文的主要改进和贡献\n\
+4. 语气专业、诚恳\n\
+5. 直接输出信件正文，以 Dear Editor 开头"
+        )
+    } else {
+        format!(
+            "请为以下论文撰写一封专业的投稿 Cover Letter，用英文撰写。\n\
+论文题目：{title}\n\
+投稿{venue_label}：{venue_name}\n\n\
+要求：\n\
+1. 简要介绍论文的研究背景和主要贡献\n\
+2. 说明论文与该{venue_label}的相关性\n\
+3. 确认论文未在其他地方发表或在审\n\
+4. 语气专业、简洁\n\
+5. 直接输出信件正文，以 Dear Editor 开头"
+        )
+    }
+}

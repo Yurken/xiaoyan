@@ -1,6 +1,8 @@
 pub mod arxiv;
 pub mod ccf;
 pub mod chat;
+pub mod experiment;
+pub mod export;
 pub mod journal;
 pub mod knowledge;
 pub mod memory;
@@ -10,4 +12,5 @@ pub mod papers;
 pub mod settings;
 pub mod skills;
 pub mod source;
+pub mod submission;
 pub mod update;

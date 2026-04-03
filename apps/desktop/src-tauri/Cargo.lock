@@ -3867,6 +3867,7 @@ dependencies = [
  "pbkdf2",
  "pdf-extract",
  "rand 0.8.5",
+ "regex",
  "reqwest 0.12.28",
  "roxmltree",
  "serde",

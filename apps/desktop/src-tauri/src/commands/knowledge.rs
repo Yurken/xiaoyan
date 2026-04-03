@@ -11,6 +11,7 @@ use std::collections::HashSet;
 use sqlx::Row;
 use tauri::{Emitter, State};
 use uuid::Uuid;
+use chrono;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ResearchInterestProfilePayload {
@@ -1121,4 +1122,79 @@ fn default_interest_folder_name(topic: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+// ── Web Clip ─────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn knowledge_web_clip(
+    state: State<'_, AppState>,
+    url: String,
+    research_interest_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .user_agent("Mozilla/5.0 (compatible; ResearchCopilot/1.0)")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {}", e))?;
+
+    let html = resp.text().await.map_err(|e| e.to_string())?;
+
+    // Extract title
+    let title = {
+        let re = regex::Regex::new(r"(?i)<title[^>]*>([^<]+)</title>").unwrap();
+        re.captures(&html)
+            .and_then(|c| c.get(1))
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_else(|| url.clone())
+    };
+
+    // Strip scripts, styles, tags; collapse whitespace
+    let re_script = regex::Regex::new(r"(?is)<script[^>]*>.*?</script>").unwrap();
+    let re_style = regex::Regex::new(r"(?is)<style[^>]*>.*?</style>").unwrap();
+    let re_tags = regex::Regex::new(r"<[^>]+>").unwrap();
+    let re_ws = regex::Regex::new(r"\s{2,}").unwrap();
+
+    let text = re_script.replace_all(&html, " ");
+    let text = re_style.replace_all(&text, " ");
+    let text = re_tags.replace_all(&text, " ");
+    let text = re_ws.replace_all(&text, "\n");
+    let content = format!("来源：{}\n\n{}", url, text.trim().chars().take(8000).collect::<String>());
+
+    // Save as knowledge note
+    let id = Uuid::new_v4().to_string();
+    let ts = chrono::Utc::now().to_rfc3339();
+    let tags_json = "[]";
+    sqlx::query(
+        "INSERT INTO knowledge_notes (id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at)
+         VALUES (?, ?, ?, 'web_clip', ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&title)
+    .bind(&content)
+    .bind(&url)
+    .bind(tags_json)
+    .bind(research_interest_id.as_deref())
+    .bind(&ts)
+    .bind(&ts)
+    .execute(&state.db)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let row = sqlx::query(
+        "SELECT id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at FROM knowledge_notes WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("未找到对应笔记。")?;
+
+    Ok(note_row_to_json(&row))
 }
