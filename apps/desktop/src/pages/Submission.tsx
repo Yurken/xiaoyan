@@ -10,6 +10,7 @@ import {
   CheckSquare,
   Circle,
   Clock,
+  Download,
   FilePlus,
   GitBranch,
   History,
@@ -21,10 +22,12 @@ import {
   Star,
   StarOff,
   Trophy,
+  Upload,
   Users,
   X,
 } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   POPULAR_VENUES,
   getAllAreas,
@@ -124,6 +127,8 @@ interface PaperVersion {
   content: string;       // 摘要或核心内容快照
   notes: string;         // 本次修改说明
   createdAt: Date;
+  filePath?: string;     // 论文文件路径
+  fileName?: string;     // 论文文件名
 }
 
 // ─── Diff ─────────────────────────────────────────────────────────────────────
@@ -465,6 +470,37 @@ export default function Submission() {
   const [reviewForm, setReviewForm] = useState({
     reviewer: "", content: "", tags: [] as string[], verdict: "major_revision" as ReviewVerdict,
   });
+
+  const handleUploadVersionFile = async (versionId: string) => {
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      });
+      if (typeof selected === "string" && selected) {
+        const fileName = selected.split("/").pop() || "paper.pdf";
+        setVersions(prev =>
+          prev.map(v =>
+            v.id === versionId
+              ? { ...v, filePath: selected, fileName }
+              : v
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Upload file failed:", error);
+    }
+  };
+
+  const handleDownloadVersionFile = async (filePath?: string) => {
+    if (!filePath) return;
+    try {
+      const { openLink } = await import("../lib/links");
+      await openLink(filePath);
+    } catch (error) {
+      console.error("Download file failed:", error);
+    }
+  };
 
   // ── Venue helpers ──
   const allVenues: Venue[] = [...conferences, ...journals];
@@ -1493,6 +1529,35 @@ export default function Submission() {
                                     {slot === "0" ? "旧" : "新"}
                                   </button>
                                 ))}
+                              </div>
+
+                              {/* File controls */}
+                              <div className="mt-3 flex items-center gap-2">
+                                <button
+                                  onClick={() => handleUploadVersionFile(ver.id)}
+                                  className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                                  style={{ background: "var(--rc-card-inset-bg)", color: "var(--rc-text-tertiary)" as string }}
+                                  title="上传论文 PDF"
+                                >
+                                  <Upload className="w-3 h-3" />
+                                  上传
+                                </button>
+                                {ver.filePath && (
+                                  <>
+                                    <button
+                                      onClick={() => handleDownloadVersionFile(ver.filePath)}
+                                      className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                                      style={{ background: "var(--rc-card-inset-bg)", color: "#007AFF" }}
+                                      title="下载论文 PDF"
+                                    >
+                                      <Download className="w-3 h-3" />
+                                      下载
+                                    </button>
+                                    <span className="text-[10px] text-ink-tertiary truncate flex-1">
+                                      已上传: {ver.fileName}
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>

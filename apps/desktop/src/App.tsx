@@ -31,15 +31,15 @@ import XiaoYanPet from "./components/XiaoYanPet";
 const layoutMode = getLayoutMode();
 
 const navItems = [
-  { to: "/",          icon: LayoutDashboard, label: "工作台" },
-  { to: "/planner",   icon: Map,             label: "规划" },
-  { to: "/survey",    icon: BookOpen,        label: "综述" },
-  { to: "/papers",    icon: FileText,        label: "论文" },
-  { to: "/knowledge", icon: Library,         label: "知识" },
-  { to: "/copilot",   icon: MessageSquare,   label: "小妍" },
-  { to: "/submission", icon: Send,            label: "投稿" },
-  { to: "/tools",     icon: Wrench,          label: "工具" },
-  { to: "/settings",  icon: SettingsIcon,    label: "设置" },
+  { to: "/", icon: LayoutDashboard, label: "工作台" },
+  { to: "/planner", icon: Map, label: "规划" },
+  { to: "/survey", icon: BookOpen, label: "综述" },
+  { to: "/papers", icon: FileText, label: "论文" },
+  { to: "/knowledge", icon: Library, label: "知识" },
+  { to: "/copilot", icon: MessageSquare, label: "小妍" },
+  { to: "/submission", icon: Send, label: "投稿" },
+  { to: "/tools", icon: Wrench, label: "工具" },
+  { to: "/settings", icon: SettingsIcon, label: "设置" },
 ];
 
 export default function App() {
@@ -47,7 +47,7 @@ export default function App() {
 
   useEffect(() => {
     applyTheme(getTheme());
-    const unwatch = watchSystemTheme(() => {});
+    const unwatch = watchSystemTheme(() => { });
     const root = document.getElementById("root");
     if (!root) return () => unwatch();
     root.classList.add("dissolve-in");
@@ -72,10 +72,9 @@ export default function App() {
     <div className="flex h-full bg-nm-bg">
       {/* Sidebar */}
       <aside
-        className="w-[80px] flex-shrink-0 flex flex-col items-center py-4 gap-0.5"
+        className="w-[80px] flex-shrink-0 flex flex-col items-center py-4 gap-0.5 border-r border-black/30"
         style={{
-          background: "linear-gradient(180deg, var(--rc-elevated) 0%, var(--rc-surface) 100%)",
-          boxShadow: "2px 0 0 rgb(var(--rc-sidebar-divider-rgb) / 0.9), 6px 0 18px rgb(var(--rc-sidebar-shadow-rgb) / 0.22)",
+          background: "linear-gradient(180deg, color-mix(in srgb, var(--rc-elevated) 50%, white) 0%, color-mix(in srgb, var(--rc-surface) 50%, white) 100%)",
         }}
       >
         {/* Logo */}
@@ -107,9 +106,9 @@ export default function App() {
                 style={
                   isActive
                     ? {
-                        background: "var(--rc-surface)",
-                        boxShadow: "var(--rc-inset-shadow)",
-                      }
+                      background: "var(--rc-surface)",
+                      boxShadow: "var(--rc-inset-shadow)",
+                    }
                     : undefined
                 }
               >
@@ -129,15 +128,15 @@ export default function App() {
       {/* Main content */}
       <main className="flex-1 min-w-0 overflow-hidden">
         <Routes>
-          <Route path="/"           element={<Home />} />
-          <Route path="/planner"    element={<Planner />} />
-          <Route path="/survey"     element={<Survey />} />
-          <Route path="/papers"     element={<Papers />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/planner" element={<Planner />} />
+          <Route path="/survey" element={<Survey />} />
+          <Route path="/papers" element={<Papers />} />
           <Route path="/submission" element={<Submission />} />
-          <Route path="/tools"      element={<Tools />} />
-          <Route path="/copilot"    element={<Copilot />} />
-          <Route path="/knowledge"  element={<Knowledge />} />
-          <Route path="/settings"   element={<Settings />} />
+          <Route path="/tools" element={<Tools />} />
+          <Route path="/copilot" element={<Copilot />} />
+          <Route path="/knowledge" element={<Knowledge />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
       <UpdateNotification {...autoUpdate} />
