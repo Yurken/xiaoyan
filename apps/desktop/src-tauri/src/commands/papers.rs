@@ -1993,23 +1993,46 @@ pub async fn papers_list_figures(
         }
     }
 
-    let figures: Vec<serde_json::Value> = rows
+    // Collect metadata first (sync), then read all files concurrently (async)
+    let row_meta: Vec<(String, String, i64, Option<String>, String)> = rows
         .iter()
-        .filter_map(|r| {
-            let file_path: String = r.get("file_path");
-            let data = std::fs::read(&file_path).ok()?;
-            let b64 = general_purpose::STANDARD.encode(&data);
-            let ext = Path::new(&file_path).extension().and_then(|e| e.to_str()).unwrap_or("jpg");
-            let mime = if ext == "png" { "image/png" } else { "image/jpeg" };
-            Some(json!({
-                "id": r.get::<String, _>("id"),
-                "paper_id": r.get::<String, _>("paper_id"),
-                "fig_index": r.get::<i64, _>("fig_index"),
-                "caption": r.get::<Option<String>, _>("caption"),
-                "data_url": format!("data:{mime};base64,{b64}"),
-            }))
-        })
+        .map(|r| (
+            r.get::<String, _>("id"),
+            r.get::<String, _>("paper_id"),
+            r.get::<i64, _>("fig_index"),
+            r.get::<Option<String>, _>("caption"),
+            r.get::<String, _>("file_path"),
+        ))
         .collect();
+
+    use futures_util::StreamExt as _;
+    const READ_CONCURRENCY: usize = 8;
+
+    let figures: Vec<serde_json::Value> = futures_util::stream::iter(row_meta)
+        .map(|(id, paper_id, fig_index, caption, file_path)| async move {
+            match tokio::fs::read(&file_path).await {
+                Ok(data) => {
+                    let b64 = general_purpose::STANDARD.encode(&data);
+                    let ext = Path::new(&file_path).extension().and_then(|e| e.to_str()).unwrap_or("jpg");
+                    let mime = if ext == "png" { "image/png" } else { "image/jpeg" };
+                    Some(json!({
+                        "id": id,
+                        "paper_id": paper_id,
+                        "fig_index": fig_index,
+                        "caption": caption,
+                        "data_url": format!("data:{mime};base64,{b64}"),
+                    }))
+                }
+                Err(e) => {
+                    eprintln!("[list_figures] failed to read figure file {file_path}: {e}");
+                    None
+                }
+            }
+        })
+        .buffer_unordered(READ_CONCURRENCY)
+        .filter_map(|x| async move { x })
+        .collect()
+        .await;
 
     Ok(json!(figures))
 }

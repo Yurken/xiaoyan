@@ -15,14 +15,16 @@ export async function extractTextFromPdf(filePath: string): Promise<string> {
   const loadingTask = pdfjsLib.getDocument({ data: bytes });
   const pdf = await loadingTask.promise;
 
-  const pageTexts: string[] = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items
-      .map((item) => ("str" in item ? item.str : ""))
-      .join(" ");
-    pageTexts.push(pageText);
+  const CONCURRENCY = 6;
+  const pageTexts: string[] = new Array(pdf.numPages);
+  for (let start = 0; start < pdf.numPages; start += CONCURRENCY) {
+    const end = Math.min(start + CONCURRENCY, pdf.numPages);
+    const batch = Array.from({ length: end - start }, async (_, j) => {
+      const page = await pdf.getPage(start + j + 1);
+      const content = await page.getTextContent();
+      pageTexts[start + j] = content.items.map((item) => ("str" in item ? item.str : "")).join(" ");
+    });
+    await Promise.all(batch);
   }
 
   return pageTexts.join("\n\n").trim();

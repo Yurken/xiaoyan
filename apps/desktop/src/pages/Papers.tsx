@@ -250,6 +250,28 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ungroupedBase, sortKeys, keywordFilters, titleFilters]);
 
+  // Pre-compute figure-to-section mapping for the expanded paper to avoid
+  // re-running regex on every render. Keyed by paper id + figures identity.
+  const expandedSectionFigs = useMemo(() => {
+    if (!expanded) return null;
+    const figs = paperFigures[expanded];
+    if (!figs) return null;
+    const paper = papers.find((p) => p.id === expanded);
+    if (!paper?.analysis) return null;
+    type AnalysisKey = "research_question" | "core_method" | "experiment_design" |
+      "experiment_results" | "innovations" | "limitations" | "key_conclusions";
+    const SECTION_KEYS: AnalysisKey[] = [
+      "research_question", "core_method", "experiment_design",
+      "experiment_results", "innovations", "limitations", "key_conclusions",
+    ];
+    const result: Record<string, PaperFigure[]> = {};
+    for (const key of SECTION_KEYS) {
+      const text = String(paper.analysis[key] ?? "");
+      result[key] = findReferencedFigures(text, figs);
+    }
+    return result;
+  }, [expanded, paperFigures, papers]);
+
   const toFilePath = (item: unknown): string => {
     if (typeof item === "string") return item;
     if (item && typeof item === "object" && "path" in item) return String((item as { path: unknown }).path);
@@ -1007,7 +1029,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             if (filled.length === 0) return null;
             const figs = paperFigures[paper.id] ?? [];
             const sectionFigs = filled.map(({ key }) =>
-              findReferencedFigures(String(paper.analysis![key] ?? ""), figs)
+              (paper.id === expanded && expandedSectionFigs)
+                ? (expandedSectionFigs[key] ?? [])
+                : findReferencedFigures(String(paper.analysis![key] ?? ""), figs)
             );
             return (
               <div className="space-y-2.5">
@@ -1039,6 +1063,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                                 src={fig.data_url}
                                 alt={fig.caption ?? `图 ${fig.fig_index}`}
                                 title={fig.caption ?? undefined}
+                                loading="lazy"
                                 className="rounded-xl object-contain mx-auto"
                                 style={{ maxWidth: "100%", maxHeight: 400, background: "rgba(0,0,0,0.03)", border: `1px solid ${color}30` }}
                               />

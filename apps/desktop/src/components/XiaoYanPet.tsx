@@ -174,6 +174,7 @@ export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}
   const oneshotTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const svgSwitchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCount    = useRef(0);
   const firstClickDir = useRef<"left" | "right" | null>(null);
   const isDragging    = useRef(false);
@@ -187,8 +188,13 @@ export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}
     const path = SVG[key] ?? key;
     if (currentShown.current === path) return;
     currentShown.current = path;
+    if (svgSwitchTimer.current) { clearTimeout(svgSwitchTimer.current); svgSwitchTimer.current = null; }
     setOpacity(0);
-    setTimeout(() => { setShownSvg(path); setOpacity(1); }, 180);
+    svgSwitchTimer.current = setTimeout(() => {
+      svgSwitchTimer.current = null;
+      setShownSvg(path);
+      setOpacity(1);
+    }, 180);
   }, []);
 
   // ── 回到计算态（优先考虑当前活跃工作）────────────────────────────────────
@@ -321,6 +327,12 @@ export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}
 
       unlisten.push(await listen("chat:done", () => {
         isStreaming.current = false;
+        // 清除所有 chat agent 工作项（无前缀的 bare UUID），防止 agent_complete 丢失时卡住
+        for (const id of activeWork.current.keys()) {
+          if (!id.startsWith("paper_") && !id.startsWith("survey_") && !id.startsWith("interest_")) {
+            activeWork.current.delete(id);
+          }
+        }
         if (activeWork.current.size === 0) {
           triggerFeedback("attention", 4000, () => startIdleTimer());
         }
@@ -328,8 +340,15 @@ export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}
 
       unlisten.push(await listen("chat:error", () => {
         isStreaming.current = false;
-        activeWork.current.clear();
-        triggerFeedback("error", 5000, () => startIdleTimer());
+        // 同上，仅清除 chat 工作项
+        for (const id of activeWork.current.keys()) {
+          if (!id.startsWith("paper_") && !id.startsWith("survey_") && !id.startsWith("interest_")) {
+            activeWork.current.delete(id);
+          }
+        }
+        if (activeWork.current.size === 0) {
+          triggerFeedback("error", 5000, () => startIdleTimer());
+        }
       }));
 
       // 规划阶段（supervisor 在 routing 之前）
@@ -354,16 +373,19 @@ export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}
       ));
 
       unlisten.push(await listen("survey:done", () => {
-        // survey:agent_complete 会处理最后一步，done 只做托底
+        // 清除所有 survey 工作项，防止 agent_complete 丢失时卡住
+        for (const id of activeWork.current.keys()) {
+          if (id.startsWith("survey_")) activeWork.current.delete(id);
+        }
         if (activeWork.current.size === 0) {
           triggerFeedback("attention", 4000, () => startIdleTimer());
         }
       }));
 
       unlisten.push(await listen("survey:error", () => {
-        activeWork.current = new Map(
-          [...activeWork.current.entries()].filter(([k]) => !k.startsWith("survey_"))
-        );
+        for (const id of activeWork.current.keys()) {
+          if (id.startsWith("survey_")) activeWork.current.delete(id);
+        }
         if (activeWork.current.size === 0) {
           triggerFeedback("error", 5000, () => startIdleTimer());
         }
