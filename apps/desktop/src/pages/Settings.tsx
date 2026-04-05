@@ -18,6 +18,7 @@ import {
   Hammer,
   Info,
   KeyRound,
+  Languages,
   LayoutDashboard,
   Loader2,
   Layers3,
@@ -909,11 +910,11 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const AGENT_OPTIONS = [
-  ["retrieval", "溯源模型"],
   ["planner", "谋策模型"],
+  ["retrieval", "溯源模型"],
   ["literature_scout", "探知模型"],
-  ["survey", "翰章模型"],
   ["paper_analyst", "洞见模型"],
+  ["survey", "翰章模型"],
   ["reproduction", "构域模型"],
   ["synthesis", "整合模型"],
 ] as const;
@@ -937,11 +938,11 @@ const ROUTING_MODE_COPY: Record<MultiAgentRoutingMode, { label: string; descript
 };
 
 const AGENT_GUIDES = [
-  { key: "retrieval", label: "溯源模型", description: "先从知识库和论文库找证据，适合需要依据的问题。" },
   { key: "planner", label: "谋策模型", description: "拆解研究主题、学习路径和阶段目标。" },
+  { key: "retrieval", label: "溯源模型", description: "先从知识库和论文库找证据，适合需要依据的问题。" },
   { key: "literature_scout", label: "探知模型", description: "先找代表性论文、研究脉络和阅读入口。" },
-  { key: "survey", label: "翰章模型", description: "把线索整理成结构化综述和趋势判断。" },
   { key: "paper_analyst", label: "洞见模型", description: "聚焦单篇论文的方法、实验和局限。" },
+  { key: "survey", label: "翰章模型", description: "把线索整理成结构化综述和趋势判断。" },
   { key: "reproduction", label: "构域模型", description: "聚焦实现细节、实验配置和复现风险。" },
   { key: "synthesis", label: "整合模型", description: "把各专项能力域模型的结果整合成最终回答。" },
 ];
@@ -950,35 +951,12 @@ const AGENT_GUIDES = [
 
 
 const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
-  {
-    title: "溯源 · 向量化与检索",
-    description: "负责知识库向量化、语义检索与 RAG 证据回溯，决定答案的可验证性。",
-    recommendation: "优先选择稳定的 embedding 模型与向量接口；检索数量建议 5-8，过高会拉长响应且引入噪声。",
-    affectedScopes: "知识库向量化（embedding）、知识库检索与 RAG 溯源（retrieval / rag）",
-    icon: Database,
-    iconColor: "#1F8A70",
-    modelKeys: [
-      "embedding_model",
-    ],
-    temperatureKeys: [
-      "rag_top_k",
-    ],
-    baseUrlKeys: [
-      "embedding_base_url",
-    ],
-    apiKeyKeys: [
-      "embedding_api_key",
-    ],
-    modelPlaceholder: "例如：text-embedding-3-small / BAAI/bge-m3",
-    temperaturePlaceholder: "5",
-    secondaryFieldLabel: "统一检索数量",
-    secondaryFieldHint: "留空表示沿用现有 RAG 检索数量；重新填写会统一覆盖为同一检索上限。",
-  },
+  // ── 用户入口层：日常轻量 ──
   {
     title: "流光 · 快速响应",
-    description: "反应极快，负责方向提示和小妍日常轻量对话。",
-    recommendation: "优先选低延迟、低成本的快模型，用量最大，对速度要求最高。",
-    affectedScopes: "方向提示（planner_hint）、小妍轻量对话（copilot_simple）",
+    description: "小妍的「快思考」，负责日常轻量对话和快速提示生成。",
+    recommendation: "优先选低延迟、低成本的快模型——用量最大，速度优先。",
+    affectedScopes: "研究方向快速提示、小妍轻量对话",
     icon: Sparkles,
     iconColor: "#0A84FF",
     modelKeys: [
@@ -1000,59 +978,12 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     modelPlaceholder: "例如：qwen-turbo / gpt-4.1-mini",
     temperaturePlaceholder: "0.2",
   },
-  {
-    title: "元枢 · 默认执行",
-    description: "各方面能力均衡，作为所有专项任务的默认执行基座。",
-    recommendation: "没有单独指定时，多能力域模型工作节点默认回退到这里，选一个稳定均衡的主力模型即可。",
-    affectedScopes: "多能力域模型通用工作节点（worker）",
-    icon: Compass,
-    iconColor: "#34C759",
-    modelKeys: [
-      "multi_agent_worker_model",
-    ],
-    temperatureKeys: [
-      "multi_agent_worker_temperature",
-    ],
-    baseUrlKeys: [
-      "multi_agent_worker_base_url",
-    ],
-    apiKeyKeys: [
-      "multi_agent_worker_api_key",
-    ],
-    modelPlaceholder: "例如：gpt-4o / qwen-plus / deepseek-chat",
-    temperaturePlaceholder: "0.3",
-  },
-  {
-    title: "探知 · 搜索",
-    description: "擅长全网搜索与信息收集，用于强外部信息依赖的场景。",
-    recommendation: "若服务商支持联网或内置搜索工具，优先接在这里；否则可填与闪电相同的快模型。",
-    affectedScopes: "文献侦察（literature_scout）、综述检索规划（survey_planner）",
-    icon: Search,
-    iconColor: "#FF9F0A",
-    modelKeys: [
-      "multi_agent_literature_scout_model",
-      "survey_planner_model",
-    ],
-    temperatureKeys: [
-      "multi_agent_literature_scout_temperature",
-      "survey_planner_temperature",
-    ],
-    baseUrlKeys: [
-      "multi_agent_literature_scout_base_url",
-      "survey_planner_base_url",
-    ],
-    apiKeyKeys: [
-      "multi_agent_literature_scout_api_key",
-      "survey_planner_api_key",
-    ],
-    modelPlaceholder: "例如：联网搜索模型 / perplexity / qwen-turbo",
-    temperaturePlaceholder: "0.2",
-  },
+  // ── 核心调度层：大脑中枢 ──
   {
     title: "谋策 · 规划",
-    description: "具备极强逻辑推理与拆解能力，负责深度调度与研究思路分析。",
-    recommendation: "这里更适合旗舰推理模型，不必追求速度，准确性和逻辑性优先。",
-    affectedScopes: "多能力域模型调度（supervisor）、研究规划分析与生成（planner_analysis / planner_generation）、多能力域模型研究规划（planner）",
+    description: "小妍的「深度思考」，负责拆解复杂问题、规划研究路线。",
+    recommendation: "适合旗舰推理模型——不必追求速度，准确性和逻辑性优先。",
+    affectedScopes: "多能力域模型调度、研究规划分析与生成",
     icon: Brain,
     iconColor: "#AF52DE",
     modelKeys: [
@@ -1082,11 +1013,86 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     modelPlaceholder: "例如：deepseek-reasoner / o3 / claude-opus",
     temperaturePlaceholder: "0.1",
   },
+  // ── 通用兜底层：默认执行 ──
+  {
+    title: "元枢 · 默认执行",
+    description: "小妍的「通用基座」，各项能力均衡，承接所有未单独指定的任务。",
+    recommendation: "没有单独指定时，所有专项任务默认回退到这里——选一个稳定均衡的主力模型即可。",
+    affectedScopes: "多能力域模型通用工作节点",
+    icon: Compass,
+    iconColor: "#34C759",
+    modelKeys: [
+      "multi_agent_worker_model",
+    ],
+    temperatureKeys: [
+      "multi_agent_worker_temperature",
+    ],
+    baseUrlKeys: [
+      "multi_agent_worker_base_url",
+    ],
+    apiKeyKeys: [
+      "multi_agent_worker_api_key",
+    ],
+    modelPlaceholder: "例如：gpt-4o / qwen-plus / deepseek-chat",
+    temperaturePlaceholder: "0.3",
+  },
+  // ── 信息获取层：检索与搜索 ──
+  {
+    title: "溯源 · 向量化与检索",
+    description: "小妍的「语义索引」能力，为知识库建立向量化索引，让每次检索都能精准定位到准确依据。",
+    recommendation: "优先选择稳定的 embedding 模型；检索数量建议 5-8 条，过高会拉长响应且引入噪声。",
+    affectedScopes: "知识库向量化、语义检索与 RAG 溯源",
+    icon: Database,
+    iconColor: "#1F8A70",
+    modelKeys: [
+      "embedding_model",
+    ],
+    temperatureKeys: [
+      "rag_top_k",
+    ],
+    baseUrlKeys: [
+      "embedding_base_url",
+    ],
+    apiKeyKeys: [
+      "embedding_api_key",
+    ],
+    modelPlaceholder: "例如：text-embedding-3-small / BAAI/bge-m3",
+    temperaturePlaceholder: "5",
+    secondaryFieldLabel: "统一检索数量",
+    secondaryFieldHint: "留空表示沿用现有 RAG 检索数量；重新填写会统一覆盖为同一检索上限。",
+  },
+  {
+    title: "探知 · 搜索",
+    description: "小妍的「信息搜集」能力，负责全网搜索与文献侦察。",
+    recommendation: "若服务商支持联网或内置搜索工具，优先接在这里；否则可填与「流光」相同的快模型。",
+    affectedScopes: "文献侦察检索、综述检索规划",
+    icon: Search,
+    iconColor: "#FF9F0A",
+    modelKeys: [
+      "multi_agent_literature_scout_model",
+      "survey_planner_model",
+    ],
+    temperatureKeys: [
+      "multi_agent_literature_scout_temperature",
+      "survey_planner_temperature",
+    ],
+    baseUrlKeys: [
+      "multi_agent_literature_scout_base_url",
+      "survey_planner_base_url",
+    ],
+    apiKeyKeys: [
+      "multi_agent_literature_scout_api_key",
+      "survey_planner_api_key",
+    ],
+    modelPlaceholder: "例如：联网搜索模型 / perplexity / qwen-turbo",
+    temperaturePlaceholder: "0.2",
+  },
+  // ── 分析层：深度理解 ──
   {
     title: "洞见 · 深度总结",
-    description: "擅长长文本阅读与核心结论提炼，负责单篇大文献精读与长上下文读取。",
-    recommendation: "优先选上下文窗口大、长文阅读能力强的模型；推理深度比速度重要。",
-    affectedScopes: "论文精读（paper_analysis）、多能力域模型论文解析（paper_analyst）",
+    description: "小妍的「精读提炼」能力，擅长从长文献中提炼核心方法与结论。",
+    recommendation: "优先选上下文窗口大、长文阅读能力强的模型——推理深度比速度重要。",
+    affectedScopes: "论文精读、多能力域模型论文解析",
     icon: FileSearch,
     iconColor: "#5AC8FA",
     modelKeys: [
@@ -1108,11 +1114,12 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     modelPlaceholder: "例如：gemini-2.5-pro / claude-sonnet / gpt-4.1",
     temperaturePlaceholder: "0.3",
   },
+  // ── 输出层：生成与整合 ──
   {
     title: "翰章 · 内容生成",
-    description: "擅长结构化表达和流畅排版，负责综述长篇输出与最终整合。",
+    description: "小妍的「写作整合」能力，负责结构化综述写作与最终回答整合。",
     recommendation: "适合长上下文、写作品质稳的模型；预算有限时可选均衡型模型。",
-    affectedScopes: "综述写作（survey_writer）、多能力域模型综述（survey）、最终整合回答（synthesis）",
+    affectedScopes: "综述写作、多能力域模型综述生成、最终整合回答",
     icon: MessageSquare,
     iconColor: "#FF6B6B",
     modelKeys: [
@@ -1138,11 +1145,12 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     modelPlaceholder: "例如：claude-sonnet / qwen-plus / gpt-4.1",
     temperaturePlaceholder: "0.3",
   },
+  // ── 专项能力层：特殊场景 ──
   {
     title: "构域 · 代码",
-    description: "深入理解代码逻辑、实验环境和工程细节，负责论文复现场景。",
-    recommendation: "这组建议更低温度，减少拍脑袋式推断；代码能力强的模型优先。",
-    affectedScopes: "复现指导（paper_reproduction）、多能力域模型复现（reproduction）",
+    description: "小妍的「代码理解」能力，理解代码逻辑与实验细节，指导论文复现。",
+    recommendation: "建议更低温度，减少推断式错误；代码能力强的模型优先。",
+    affectedScopes: "复现指导、多能力域模型复现",
     icon: Hammer,
     iconColor: "#FF3B30",
     modelKeys: [
@@ -1166,9 +1174,9 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "视界 · 视觉",
-    description: "解读论文图表、架构图、公式截图等视觉内容，弥补纯文本模型的盲区。",
-    recommendation: "需要多模态能力，推荐 GPT-4o / Gemini / Claude Sonnet 等原生支持图像输入的模型。配置后小妍解读时将自动用视界扫描 PDF 各页，识别 lopdf 无法提取的矢量图和表格。",
-    affectedScopes: "小妍解读时的论文图表扫描（矢量图、表格补充识别）",
+    description: "小妍的「视觉识别」能力，扫描 PDF 中的图表、架构图与公式截图。",
+    recommendation: "需要多模态能力，推荐 GPT-4o / Gemini / Claude Sonnet 等原生支持图像输入的模型。配置后小妍解读时将自动扫描 PDF 各页，识别 lopdf 无法提取的矢量图和表格。",
+    affectedScopes: "论文解读时的图表扫描（矢量图、表格补充识别）",
     icon: Eye,
     iconColor: "#30B0C7",
     modelKeys: ["vision_model"],
@@ -1180,10 +1188,10 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "译衡 · 翻译",
-    description: "中英学术互译，要求忠实原文，温度极低，适合专门优化了翻译的模型。",
-    recommendation: "翻译不同于总结，忠实度优先于流畅度。建议选专注翻译或支持术语锁定的模型，温度设 0.1 或更低。后端翻译调用接口尚在开发中。",
+    description: "小妍的「学术翻译」能力，专注中英论文互译，忠实度优先于流畅度。",
+    recommendation: "翻译不同于总结，术语准确性最重要。建议选专注翻译或支持术语锁定的模型，温度设 0.1 或更低。",
     affectedScopes: "论文全文翻译、段落翻译（Beta，后端开发中）",
-    icon: Compass,
+    icon: Languages,
     iconColor: "#5856D6",
     modelKeys: ["translation_model"],
     temperatureKeys: ["translation_temperature"],

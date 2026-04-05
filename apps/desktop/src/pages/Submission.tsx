@@ -806,7 +806,7 @@ export default function Submission() {
         <div className="flex items-start justify-between mb-5">
           <div>
             <h1 className="text-2xl font-bold text-ink-primary">投稿管理</h1>
-            <p className="mt-0.5 text-sm text-ink-tertiary">追踪会议与期刊，管理论文投稿全流程</p>
+            <p className="mt-0.5 text-sm text-ink-tertiary">追踪会议期刊DDL，管理论文投稿全流程。</p>
           </div>
           <div className="flex gap-3">
             {[
@@ -920,7 +920,7 @@ export default function Submission() {
                         <p className="text-xs font-medium text-ink-secondary mb-1">研究方向 / 论文主题</p>
                         <textarea
                           rows={3}
-                          placeholder="描述你的研究方向或当前论文主题..."
+                          placeholder="告诉小妍你的研究方向或论文主题…"
                           value={recInput.direction}
                           onChange={e => setRecInput(p => ({ ...p, direction: e.target.value }))}
                           className="w-full px-3 py-2 rounded-xl text-xs resize-none leading-relaxed"
@@ -932,7 +932,7 @@ export default function Submission() {
                           <p className="text-xs font-medium text-ink-secondary mb-1">关键词</p>
                           <input
                             type="text"
-                            placeholder="如：LLM, graph, retrieval, NLP..."
+                            placeholder="如：LLM, diffusion, reinforcement learning…"
                             value={recInput.keywords}
                             onChange={e => setRecInput(p => ({ ...p, keywords: e.target.value }))}
                             className="w-full px-3 py-2 rounded-xl text-xs"
@@ -943,7 +943,7 @@ export default function Submission() {
                           <p className="text-xs font-medium text-ink-secondary mb-1">补充说明（可选）</p>
                           <input
                             type="text"
-                            placeholder="如：偏理论 / 工程落地 / 希望 CCF A..."
+                            placeholder="如：偏理论 / 工程落地 / 希望 CCF A 类…"
                             value={recInput.extra}
                             onChange={e => setRecInput(p => ({ ...p, extra: e.target.value }))}
                             className="w-full px-3 py-2 rounded-xl text-xs"
@@ -1554,7 +1554,7 @@ export default function Submission() {
                 {subVersions.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center gap-3 opacity-50">
                     <History className="w-10 h-10 text-ink-tertiary" />
-                    <p className="text-sm text-ink-tertiary">暂无版本记录，点击「记录版本」保存当前稿件快照</p>
+                    <p className="text-sm text-ink-tertiary">暂无版本记录，点击「记录版本」保存论文稿件快照</p>
                   </div>
                 ) : (
                   <>
@@ -2114,7 +2114,7 @@ export default function Submission() {
                               </p>
                               <textarea
                                 rows={8}
-                                placeholder="从版本控制点击「AI 审稿」后自动填入，也可手动粘贴摘要或核心方法描述…"
+                                placeholder="PDF 提取全文或手动粘贴摘要/核心方法描述…"
                                 value={mockReviewInput.abstract}
                                 onChange={e => setMockReviewInput(p => ({ ...p, abstract: e.target.value }))}
                                 className="w-full px-3 py-2.5 rounded-xl text-sm resize-none leading-relaxed"
@@ -2370,7 +2370,7 @@ export default function Submission() {
                       <p className="text-xs font-medium text-ink-secondary mb-1">审稿意见 <span style={{ color: "#FF3B30" }}>*</span></p>
                       <textarea
                         rows={6}
-                        placeholder="粘贴审稿人的原始意见..."
+                        placeholder="粘贴审稿人的原始意见…"
                         value={reviewForm.content}
                         onChange={e => setReviewForm(p => ({ ...p, content: e.target.value }))}
                         className="w-full px-3 py-2 rounded-xl text-sm resize-none leading-relaxed"
@@ -2455,7 +2455,7 @@ export default function Submission() {
                 <p className="text-xs font-medium text-ink-secondary mb-1">论文标题 <span style={{ color: "#FF3B30" }}>*</span></p>
                 <input
                   type="text"
-                  placeholder="输入论文标题..."
+                  placeholder="输入论文标题…"
                   value={addSubForm.title}
                   onChange={e => setAddSubForm(p => ({ ...p, title: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl text-sm"
@@ -2572,7 +2572,7 @@ export default function Submission() {
                   <p className="text-xs font-medium text-ink-secondary mb-1">版本标签 <span style={{ color: "#FF3B30" }}>*</span></p>
                   <input
                     type="text"
-                    placeholder="如：初稿、按审稿意见修改、camera-ready..."
+                    placeholder="如：初稿、按审稿意见修改、camera-ready…"
                     value={saveForm.label}
                     onChange={e => setSaveForm(p => ({ ...p, label: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl text-sm"
@@ -2585,7 +2585,7 @@ export default function Submission() {
                 <p className="text-xs font-medium text-ink-secondary mb-1">修改说明</p>
                 <textarea
                   rows={2}
-                  placeholder="简述本版本的主要改动..."
+                  placeholder="简述本版本的主要改动…"
                   value={saveForm.notes}
                   onChange={e => setSaveForm(p => ({ ...p, notes: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl text-sm resize-none"
@@ -2597,7 +2597,7 @@ export default function Submission() {
                 <p className="text-xs font-medium text-ink-secondary mb-1">摘要 / 核心内容 <span style={{ color: "#FF3B30" }}>*</span></p>
                 <textarea
                   rows={7}
-                  placeholder="粘贴当前版本的摘要或核心内容，用于后续 diff 对比..."
+                  placeholder="粘贴当前版本的摘要或核心内容，用于后续 diff 对比…"
                   value={saveForm.content}
                   onChange={e => setSaveForm(p => ({ ...p, content: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl text-sm resize-none font-mono leading-relaxed"
@@ -2660,7 +2660,7 @@ export default function Submission() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-tertiary" />
                   <input
                     type="text"
-                    placeholder="搜索会议或期刊..."
+                    placeholder="搜索会议或期刊…"
                     value={addModalSearch}
                     onChange={(e) => setAddModalSearch(e.target.value)}
                     className="w-full pl-9 pr-4 py-2 rounded-xl text-sm"

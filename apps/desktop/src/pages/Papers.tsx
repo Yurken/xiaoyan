@@ -1127,6 +1127,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           <p className="mt-0.5 text-sm text-ink-tertiary">
             {`共 ${papers.length} 篇论文 · ${interests.length} 个主题分组`}
           </p>
+          <p className="mt-1 text-xs text-ink-tertiary">
+            上传 PDF，小妍帮你精读、提取图表、生成复现指南。
+          </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
           {/* 自动识别下拉 */}
@@ -1290,7 +1293,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           </div>
           <div>
             <p className="font-medium text-ink-secondary">还没有论文</p>
-            <p className="mt-1 text-sm text-ink-tertiary">上传 PDF，开始精读和分析。</p>
+            <p className="mt-1 text-sm text-ink-tertiary">上传第一篇 PDF，小妍帮你精读和分析。</p>
           </div>
         </Card>
       ) : hideFolders ? (
@@ -1351,7 +1354,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             >
               {group.papers.length === 0 ? (
                 <Card padding="sm" className="border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
-                  这个方向下还没有论文，导入 PDF 后会显示在这里。
+                  这个方向下还没有论文，上传 PDF 后会显示在这里。
                 </Card>
               ) : (
                 group.papers.map((p) => renderPaperCard(p, group.key))
@@ -1364,7 +1367,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               <div className="flex items-center justify-between gap-2 px-1">
                 <div>
                   <p className="text-sm font-semibold text-ink-primary">未归档论文</p>
-                  <p className="mt-0.5 text-xs text-ink-tertiary">这些论文暂未绑定主题，可直接编辑后移动到主题文件夹。</p>
+                  <p className="mt-0.5 text-xs text-ink-tertiary">这些论文暂未绑定主题，编辑后可移动到主题文件夹。</p>
                 </div>
                 {renderGroupControls("ungrouped")}
               </div>

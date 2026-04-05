@@ -972,7 +972,7 @@ export default function Tools() {
       <div className="shrink-0 px-6 pt-6 pb-4">
         <h1 className="text-2xl font-bold text-ink-primary">实用工具</h1>
         <p className="mt-1 text-sm text-ink-tertiary">
-          小妍为你提供了一批科研实用工具。
+          小妍为你准备了一批科研实用工具，涵盖论文检索、期刊查询、工具生成等场景。
         </p>
       </div>
 
@@ -1033,7 +1033,7 @@ export default function Tools() {
           onChange={(event) => setArxivTopic(event.target.value)}
           onKeyDown={handleArxivKeyDown}
           rows={2}
-          placeholder="例如：想找最近两周里，tool-using LLM models 中关于 memory / planning 的代表性新文"
+          placeholder="例如：LLM, diffusion, reinforcement learning…"
           label="研究主题说明（可选，小妍根据你的输入自动优化检索策略）"
         />
 
@@ -1491,7 +1491,7 @@ export default function Tools() {
           <div className="space-y-1">
             <p className="text-sm font-semibold text-ink-primary">arXiv 智能检索</p>
             <p className="text-xs leading-5 text-ink-tertiary">
-              arXiv 是全球最早且规模最大的学术预印本开放仓储，1991 年由物理学家 Paul Ginsparg 创立，现由康奈尔大学图书馆运营，核心价值是支持研究者在同行评审前快速发布成果，加速学术传播并确立研究优先权。此处的输入会按 arXiv 官方字段拆分：同一字段内多个值按 OR 合并，不同字段按 AND 组合，排除词走 ANDNOT。
+              arXiv 是全球最早且规模最大的学术预印本开放仓储，1991 年由物理学家 Paul Ginsparg 创立，现由康奈尔大学图书馆运营。小妍会帮你按官方字段拆分检索式：同一字段内多个值按 OR 合并，不同字段按 AND 组合，排除词走 ANDNOT。
             </p>
           </div>
         </div>
@@ -1501,7 +1501,7 @@ export default function Tools() {
           onChange={(event) => setArxivOnlyTopic(event.target.value)}
           onKeyDown={handleArxivOnlyKeyDown}
           rows={2}
-          placeholder="例如：想找最近两周里，tool-using LLM models 中关于 memory / planning 的代表性新文"
+          placeholder="例如：LLM, diffusion, reinforcement learning…"
           label="研究主题说明（可选，小妍根据你的输入自动优化检索策略）"
         />
 
@@ -1850,7 +1850,7 @@ export default function Tools() {
           </div>
           <div>
             <p className="text-sm font-semibold text-ink-primary">刊会查询</p>
-            <p className="mt-1 text-xs text-ink-tertiary">请输入期刊、会议名称或 ISSN，小妍会返回分区与 CCF 评级。</p>
+            <p className="mt-1 text-xs text-ink-tertiary">输入期刊或会议名称，小妍帮你查 CCF 等级、SCI 分区和期刊影响因子。</p>
           </div>
         </div>
 
@@ -2092,7 +2092,7 @@ export default function Tools() {
           <div className="space-y-0.5">
             <p className="text-sm font-semibold text-ink-primary">Markdown 整理</p>
             <p className="text-xs leading-5 text-ink-tertiary">
-              将任意文本整理为规范 Markdown。内容过长时小妍会自动分块处理，每块的排版风格会以压缩提示词的形式传递给下一块，保证全文一致性，完成后小妍会直接保存为 .md 文件。
+              粘贴任意文本，小妍帮你整理为规范的 Markdown 格式。内容过长时会自动分块处理，保证全文一致性。
             </p>
           </div>
         </div>
@@ -2125,7 +2125,7 @@ export default function Tools() {
             onChange={(e) => setMdInput(e.target.value)}
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void handleMdFormat(); }}
             rows={10}
-            placeholder="粘贴需要整理的文字内容，或点击右上角上传 .md / .txt 文件…"
+            placeholder="粘贴需要整理的文字内容，或点击右上角上传文件…"
           />
         </div>
 

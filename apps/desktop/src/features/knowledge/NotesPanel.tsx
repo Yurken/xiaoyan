@@ -145,12 +145,22 @@ function sourceLabel(sourceType: string) {
   return sourceType || "未知来源";
 }
 
-function interestFolderName(interest: ResearchInterest) {
-  return interest.folder_name?.trim() || interest.topic;
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/`{1,3}([^`\n]*)`{1,3}/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/^>\s+/gm, "")
+    .replace(/\n+/g, " ")
+    .trim();
 }
 
-function parseNoteTags(raw: string) {
-  return raw.split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean);
+function interestFolderName(interest: ResearchInterest) {
+  return interest.folder_name?.trim() || interest.topic;
 }
 
 function NoteDetailModal({
@@ -175,6 +185,7 @@ function NoteDetailModal({
     research_interest_id: note.research_interest_id || "",
   });
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -197,6 +208,10 @@ function NoteDetailModal({
   };
 
   const handleDelete = async () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
     await onDelete(note.id);
     handleClose();
   };
@@ -236,14 +251,36 @@ function NoteDetailModal({
                   <Pencil className="h-3.5 w-3.5" />
                   编辑
                 </Button>
-                <button
-                  type="button"
-                  onClick={() => void handleDelete()}
-                  className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium text-apple-red transition-colors hover:bg-apple-red/10"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  删除
-                </button>
+                {confirmDelete ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-ink-tertiary">确认删除？</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete()}
+                      className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium text-white bg-apple-red transition-colors hover:bg-apple-red/90"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      删除
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(false)}
+                      className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:text-ink-primary"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      取消
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete()}
+                    className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium text-apple-red transition-colors hover:bg-apple-red/10"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    删除
+                  </button>
+                )}
               </>
             ) : (
               <>
@@ -338,23 +375,17 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
   const [notes, setNotes] = useState<KnowledgeNote[]>([]);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
   const [selectedInterestId, setSelectedInterestId] = useState(researchInterestId ?? "");
   const [saving, setSaving] = useState(false);
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [savingEditNoteId, setSavingEditNoteId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState({
-    title: "",
-    content: "",
-    tagsRaw: "",
-    research_interest_id: "",
-  });
   const [viewingNote, setViewingNote] = useState<KnowledgeNote | null>(null);
   const [showWebClip, setShowWebClip] = useState(false);
   const [webClipUrl, setWebClipUrl] = useState("");
@@ -378,10 +409,15 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
   }, []);
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     let cancelled = false;
     setLoading(true);
 
-    apiClient.knowledge.listNotes(search || undefined)
+    apiClient.knowledge.listNotes(debouncedSearch || undefined)
       .then((data) => {
         if (!cancelled) {
           setNotes(data);
@@ -399,7 +435,7 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
     return () => {
       cancelled = true;
     };
-  }, [search]);
+  }, [debouncedSearch]);
 
   const interestMap = useMemo(
     () => Object.fromEntries(interests.map((item) => [item.id, item])),
@@ -432,17 +468,6 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
     setSelectedInterestId(researchInterestId ?? "");
   };
 
-  const openEditNote = (note: KnowledgeNote) => {
-    setEditingNoteId(note.id);
-    setEditDraft({
-      title: note.title,
-      content: note.content,
-      tagsRaw: (note.tags || []).join(", "),
-      research_interest_id: note.research_interest_id || "",
-    });
-    setError("");
-  };
-
   const handleCreateNote = async () => {
     if (!noteTitle.trim() || !noteContent.trim()) return;
 
@@ -472,34 +497,13 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
     }
   };
 
-  const handleSaveEditNote = async (id: string) => {
-    const title = editDraft.title.trim();
-    const content = editDraft.content.trim();
-    if (!title || !content) {
-      setError("标题和内容不能为空");
+  const handleDelete = async (id: string, force = false) => {
+    if (!force && confirmDeleteNoteId !== id) {
+      setConfirmDeleteNoteId(id);
       return;
     }
-
     try {
-      setSavingEditNoteId(id);
-      setError("");
-      await apiClient.knowledge.updateNote(id, {
-        title,
-        content,
-        tags: parseNoteTags(editDraft.tagsRaw),
-      });
-      const moved = await apiClient.knowledge.moveNote(id, editDraft.research_interest_id || undefined);
-      setNotes((prev) => prev.map((note) => (note.id === id ? moved : note)));
-      setEditingNoteId(null);
-    } catch (nextError) {
-      setError(formatErrorMessage(nextError));
-    } finally {
-      setSavingEditNoteId(null);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
+      setConfirmDeleteNoteId(null);
       await apiClient.knowledge.deleteNote(id);
       setNotes((prev) => prev.filter((item) => item.id !== id));
     } catch (nextError) {
@@ -558,7 +562,7 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
         )}
       </div>
 
-      <p className="line-clamp-4 text-xs leading-relaxed text-ink-secondary">{note.content}</p>
+      <p className="line-clamp-4 text-xs leading-relaxed text-ink-secondary">{stripMarkdown(note.content)}</p>
 
       {note.source_type !== "manual" && note.tags && note.tags.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -572,26 +576,48 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
       )}
 
       <p className="mt-auto pt-1 text-xs text-ink-tertiary">
-        {new Date(note.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+        {new Date(note.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
       </p>
 
       <div className="absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <button
-          type="button"
-          onClick={() => setViewingNote(note)}
-          className="text-ink-tertiary hover:text-ink-primary"
-          aria-label={`编辑 ${note.title}`}
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleDelete(note.id)}
-          className="text-ink-tertiary hover:text-apple-red"
-          aria-label={`删除 ${note.title}`}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        {confirmDeleteNoteId === note.id ? (
+          <>
+            <span className="text-[10px] text-ink-tertiary">确认删除？</span>
+            <button
+              type="button"
+              onClick={() => void handleDelete(note.id)}
+              className="rounded-lg bg-apple-red/10 px-2 py-0.5 text-[11px] font-medium text-apple-red hover:bg-apple-red/20"
+            >
+              确认
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteNoteId(null)}
+              className="text-ink-tertiary hover:text-ink-primary"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setViewingNote(note)}
+              className="text-ink-tertiary hover:text-ink-primary"
+              aria-label={`编辑 ${note.title}`}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDelete(note.id)}
+              className="text-ink-tertiary hover:text-apple-red"
+              aria-label={`删除 ${note.title}`}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
       </div>
     </Card>
   );
@@ -617,13 +643,13 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
                 className="pl-10"
               />
             </div>
-            <Button size="sm" variant="secondary" onClick={() => { setShowWebClip((prev) => !prev); setWebClipError(""); setWebClipUrl(""); }}>
+            <Button size="sm" variant="secondary" onClick={() => { setShowWebClip((prev) => !prev); setCreating(false); setWebClipError(""); setWebClipUrl(""); }}>
               <Globe className="h-4 w-4" />
               剪辑网页
             </Button>
-            <Button size="sm" onClick={() => setCreating((prev) => !prev)}>
+            <Button size="sm" onClick={() => { setCreating((prev) => !prev); setShowWebClip(false); }}>
               <Plus className="h-4 w-4" />
-              {creating ? "收起表单" : "新建笔记"}
+              {creating ? "收起" : "新建笔记"}
             </Button>
           </div>
         </div>
@@ -843,7 +869,7 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
         interestMap={interestMap}
         onClose={() => setViewingNote(null)}
         onSave={handleModalSave}
-        onDelete={handleDelete}
+        onDelete={(id) => handleDelete(id, true)}
       />
     )}
     </>

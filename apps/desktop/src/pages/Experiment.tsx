@@ -203,7 +203,7 @@ function AttachmentPanel({ experimentId }: { experimentId: string }) {
           style={{ background: "rgba(52,199,89,0.12)", color: "#1A7A2E" }}
         >
           {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
-          {uploading ? "上传中…" : "上传截图"}
+          {uploading ? "上传中…" : "上传"}
         </button>
       </div>
 
@@ -214,7 +214,7 @@ function AttachmentPanel({ experimentId }: { experimentId: string }) {
           onClick={handleUpload}
         >
           <ImagePlus className="w-8 h-8 text-ink-tertiary" />
-          <p className="text-xs text-ink-tertiary">点击上传截图或实验结果图</p>
+          <p className="text-xs text-ink-tertiary">点击上传实验结果图或截图</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -400,7 +400,7 @@ export default function Experiment() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-ink-primary">实验记录</h1>
-            <p className="text-xs text-ink-tertiary mt-0.5">记录配置与结果，上传截图，关联投稿追踪进展。</p>
+            <p className="text-xs text-ink-tertiary mt-0.5">记录实验配置与结果，上传截图，关联投稿同步进度。</p>
           </div>
         </div>
         <Button onClick={handleCreate} disabled={creating}>
@@ -511,7 +511,7 @@ export default function Experiment() {
                   value={editResult}
                   onChange={setEditResult}
                   rows={5}
-                  placeholder="记录指标数值、对比分析、图表说明…"
+                  placeholder="记录实验指标、对比分析、图表说明…"
                 />
               </Card>
 
@@ -527,7 +527,7 @@ export default function Experiment() {
                   value={editNotes}
                   onChange={setEditNotes}
                   rows={4}
-                  placeholder="分析原因、后续计划、与其他实验的对比…"
+                  placeholder="分析实验现象、后续改进计划、与其他实验的对比…"
                 />
               </Card>
 

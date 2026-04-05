@@ -6,7 +6,7 @@ export default function Survey({ hideFolders = false }: { hideFolders?: boolean 
       <div>
         <h1 className="text-2xl font-bold text-ink-primary">文献综述</h1>
         <p className="mt-1 text-sm text-ink-tertiary">
-          输入一个研究问题，小妍帮你找文献、筛选、写成综述初稿。
+          告诉小妍一个研究问题，她会帮你找文献、读摘要、整理成综述初稿。
         </p>
       </div>
 

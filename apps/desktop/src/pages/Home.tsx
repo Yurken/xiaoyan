@@ -28,7 +28,7 @@ const quickActions = [
     to: "/planner",
     icon: Sparkles,
     title: "规划研究方向",
-    description: "从研究主题生成学习路线、经典论文和潜在研究切口。",
+    description: "告诉小妍你的研究方向，她会生成学习路线、经典论文和潜在研究切口。",
     iconColor: "#AF52DE",
     iconBg: "rgba(175,82,222,0.1)",
   },
@@ -36,7 +36,7 @@ const quickActions = [
     to: "/survey",
     icon: BookOpen,
     title: "生成文献综述",
-    description: "从一个研究问题出发，小妍会帮你找文献、读摘要、整理成综述。",
+    description: "从一个研究问题出发，小妍会帮你找文献、读摘要、整理成结构化综述。",
     iconColor: "#007AFF",
     iconBg: "rgba(0,122,255,0.1)",
   },
@@ -44,7 +44,7 @@ const quickActions = [
     to: "/papers",
     icon: FileText,
     title: "导入论文",
-    description: "上传 PDF 做论文精读、方法拆解和复现指南生成。",
+    description: "上传 PDF，小妍帮你精读、拆解方法、生成复现指南。",
     iconColor: "#FF9500",
     iconBg: "rgba(255,149,0,0.1)",
   },
@@ -52,15 +52,15 @@ const quickActions = [
     to: "/copilot",
     icon: MessageSquare,
     title: `和${MAIN_ASSISTANT_NAME}对话`,
-    description: "有问题直接问，带着论文一起读也行。",
+    description: "有任何研究问题都可以直接问小妍，带上论文一起讨论也可以。",
     iconColor: "#34C759",
     iconBg: "rgba(52,199,89,0.1)",
   },
   {
     to: "/tools",
     icon: Wrench,
-    title: "查询 CCF",
-    description: "输入期刊或会议名称，快速查看 CCF 评级与类别。",
+    title: "科研工具箱",
+    description: "arXiv 智能检索、期刊分区查询、CCF 等级查询、科研友链。",
     iconColor: "#FF3B30",
     iconBg: "rgba(255,59,48,0.1)",
   },
@@ -110,7 +110,7 @@ export default function Home() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-apple-blue" />
-        <p className="text-sm text-ink-tertiary">正在加载工作台…</p>
+        <p className="text-sm text-ink-tertiary">正在加载工作台...</p>
       </div>
     );
   }
@@ -140,7 +140,7 @@ export default function Home() {
                 {/* <Badge variant="info">{MAIN_ASSISTANT_BADGE}</Badge> */}
               </div>
               <p className="mt-2 text-sm leading-6 text-ink-secondary">
-                选题、读文献、整理笔记——{MAIN_ASSISTANT_NAME}帮你把研究的每一步都连起来，进展自然就看得见。
+                从选题规划到文献调研，从论文精读到知识沉淀——{MAIN_ASSISTANT_NAME}陪你走好研究的每一步。
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -196,7 +196,7 @@ export default function Home() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-lg font-semibold text-ink-primary">下一步建议</p>
-              <p className="mt-1 text-xs text-ink-tertiary">从这里开始，选一件最近想做的事。</p>
+              <p className="mt-1 text-xs text-ink-tertiary">选一件最近想做的事，从这里开始。</p>
             </div>
             {/* <Badge variant="info">高优先级</Badge> */}
           </div>
@@ -219,7 +219,7 @@ export default function Home() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-lg font-semibold text-ink-primary">研究资产概览</p>
-              <p className="mt-1 text-xs text-ink-tertiary">最近的研究进展。</p>
+              <p className="mt-1 text-xs text-ink-tertiary">看看最近积累了哪些成果。</p>
             </div>
             <Link to="/knowledge" className="text-xs font-medium text-apple-blue">
               查看知识库
@@ -233,7 +233,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-ink-primary">最近研究方向</p>
               </div>
               {state.interests.length === 0 ? (
-                <p className="text-xs text-ink-tertiary">还没有研究方向，去规划页新建一个吧。</p>
+                <p className="text-xs text-ink-tertiary">还没有研究方向，去规划页创建一个吧。</p>
               ) : (
                 <div className="space-y-2">
                   {state.interests.slice(0, 3).map((interest) => (
@@ -254,7 +254,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-ink-primary">最近知识卡片</p>
               </div>
               {state.notes.length === 0 ? (
-                <p className="text-xs text-ink-tertiary">读完论文或综述后，把重要内容保存为知识卡片。</p>
+                <p className="text-xs text-ink-tertiary">读完论文或综述后，把重要内容保存为知识卡片，小妍会帮你做好语义检索。</p>
               ) : (
                 <div className="space-y-2">
                   {state.notes.slice(0, 3).map((note) => (
@@ -273,7 +273,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-ink-primary">最近对话</p>
               </div>
               {state.sessions.length === 0 ? (
-                <p className="text-xs text-ink-tertiary">有问题直接问小妍，带着论文一起读也行。</p>
+                <p className="text-xs text-ink-tertiary">有问题直接问小妍，带上论文一起讨论也可以。</p>
               ) : (
                 <div className="space-y-2">
                   {state.sessions.slice(0, 3).map((session) => (
