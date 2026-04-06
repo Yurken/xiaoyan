@@ -368,23 +368,23 @@ export default function Experiment() {
                     style={
                       selectedId === exp.id
                         ? { background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF", borderLeft: "3px solid #007AFF" }
-                        : { background: "transparent" }
+                        : { background: "rgba(255,255,255,0.55)", boxShadow: "2px 2px 6px rgba(0,0,0,0.06), -1px -1px 4px rgba(255,255,255,0.9)" }
                     }
                     onMouseEnter={(e) => {
                       if (exp.id !== selectedId) {
-                        e.currentTarget.style.boxShadow = "3px 3px 7px rgba(0,0,0,0.08), -2px -2px 5px rgba(255,255,255,0.8)";
-                        e.currentTarget.style.background = "var(--rc-card-bg)";
+                        e.currentTarget.style.boxShadow = "3px 3px 8px rgba(0,0,0,0.1), -2px -2px 5px rgba(255,255,255,1)";
+                        e.currentTarget.style.background = "rgba(255,255,255,0.75)";
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (exp.id !== selectedId) {
-                        e.currentTarget.style.boxShadow = "";
-                        e.currentTarget.style.background = "transparent";
+                        e.currentTarget.style.boxShadow = "2px 2px 6px rgba(0,0,0,0.06), -1px -1px 4px rgba(255,255,255,0.9)";
+                        e.currentTarget.style.background = "rgba(255,255,255,0.55)";
                       }
                     }}
                   >
                     <div className="flex items-start justify-between gap-1">
-                      <p className="text-sm font-medium text-ink-primary truncate leading-5">{exp.title}</p>
+                      <p className="text-sm font-semibold text-ink-primary truncate leading-5">{exp.title}</p>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); void handleDelete(exp.id); }}
@@ -393,7 +393,7 @@ export default function Experiment() {
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <p className="text-[11px] text-ink-tertiary mt-0.5">
+                    <p className="text-[11px] text-ink-secondary mt-0.5">
                       {new Date(exp.updatedAt).toLocaleDateString("zh-CN")}
                     </p>
                     {exp.linkedSubmissionId && (
