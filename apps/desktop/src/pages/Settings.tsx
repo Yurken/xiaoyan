@@ -361,7 +361,7 @@ const SETTINGS_SECTIONS: Array<{
   },
   {
     key: "roles",
-    label: "小妍能力域",
+    label: "小妍影分身",
     description: "按场景分配专属模型",
     icon: Sparkles,
     color: "#0A84FF",
@@ -910,41 +910,41 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const AGENT_OPTIONS = [
-  ["planner", "谋策模型"],
-  ["retrieval", "溯源模型"],
-  ["literature_scout", "探知模型"],
-  ["paper_analyst", "洞见模型"],
-  ["survey", "翰章模型"],
-  ["reproduction", "构域模型"],
-  ["synthesis", "整合模型"],
+  ["planner", "知微"],
+  ["retrieval", "清源"],
+  ["literature_scout", "致远"],
+  ["paper_analyst", "明心"],
+  ["survey", "翰章"],
+  ["reproduction", "思琪"],
+  ["synthesis", "元一"],
 ] as const;
 
 const ROUTING_MODE_COPY: Record<MultiAgentRoutingMode, { label: string; description: string; note: string }> = {
   rule: {
     label: "规则判断",
-    description: "根据关键词和上下文类型固定选择能力域模型，最稳定，也最容易复现。",
+    description: "根据关键词和上下文类型固定选择影分身，最稳定，也最容易复现。",
     note: "这一模式不会调用调度模型，适合你想严格控制成本和行为边界时使用。",
   },
   llm: {
     label: "模型判断",
-    description: "由调度模型实时决定该启用哪些能力域模型，更灵活，也更依赖模型本身。",
+    description: "由调度模型实时决定该启用哪些影分身，更灵活，也更依赖模型本身。",
     note: "适合复杂提问和开放式任务。建议给调度模型配置快一些、判断力强一些的模型。",
   },
   hybrid: {
     label: "混合判断",
     description: "先用规则确定基础班底，再由调度模型补充和重排，兼顾稳定性和灵活性。",
-    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键能力域模型，再由模型补充额外角色。",
+    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键影分身，再由模型补充额外角色。",
   },
 };
 
 const AGENT_GUIDES = [
-  { key: "planner", label: "谋策模型", description: "拆解研究主题、学习路径和阶段目标。" },
-  { key: "retrieval", label: "溯源模型", description: "先从知识库和论文库找证据，适合需要依据的问题。" },
-  { key: "literature_scout", label: "探知模型", description: "先找代表性论文、研究脉络和阅读入口。" },
-  { key: "paper_analyst", label: "洞见模型", description: "聚焦单篇论文的方法、实验和局限。" },
-  { key: "survey", label: "翰章模型", description: "把线索整理成结构化综述和趋势判断。" },
-  { key: "reproduction", label: "构域模型", description: "聚焦实现细节、实验配置和复现风险。" },
-  { key: "synthesis", label: "整合模型", description: "把各专项能力域模型的结果整合成最终回答。" },
+  { key: "planner", label: "知微", description: "拆解研究主题、学习路径和阶段目标。" },
+  { key: "retrieval", label: "清源", description: "先从知识库和论文库找证据，适合需要依据的问题。" },
+  { key: "literature_scout", label: "致远", description: "先找代表性论文、研究脉络和阅读入口。" },
+  { key: "paper_analyst", label: "明心", description: "聚焦单篇论文的方法、实验和局限。" },
+  { key: "survey", label: "翰章", description: "把线索整理成结构化综述和趋势判断。" },
+  { key: "reproduction", label: "思琪", description: "聚焦实现细节、实验配置和复现风险。" },
+  { key: "synthesis", label: "元一", description: "把各专项影分身模型的结果整合成最终回答。" },
 ];
 
 
@@ -954,7 +954,7 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   // ── 用户入口层：日常轻量 ──
   {
     title: "流光 · 快速响应",
-    description: "小妍的「快思考」，负责日常轻量对话和快速提示生成。",
+    description: "小妍影分身「流光」，反应敏捷，负责日常轻量对话和快速提示生成。",
     recommendation: "优先选低延迟、低成本的快模型——用量最大，速度优先。",
     affectedScopes: "研究方向快速提示、小妍轻量对话",
     icon: Sparkles,
@@ -980,10 +980,10 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   // ── 核心调度层：大脑中枢 ──
   {
-    title: "谋策 · 规划",
-    description: "小妍的「深度思考」，负责拆解复杂问题、规划研究路线。",
+    title: "知微 · 规划",
+    description: "小妍影分身「知微」，沉稳善思，负责拆解复杂问题、规划研究路线。",
     recommendation: "适合旗舰推理模型——不必追求速度，准确性和逻辑性优先。",
-    affectedScopes: "多能力域模型调度、研究规划分析与生成",
+    affectedScopes: "研究规划、复杂问题拆解",
     icon: Brain,
     iconColor: "#AF52DE",
     modelKeys: [
@@ -1015,10 +1015,10 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   // ── 通用兜底层：默认执行 ──
   {
-    title: "元枢 · 默认执行",
-    description: "小妍的「通用基座」，各项能力均衡，承接所有未单独指定的任务。",
+    title: "元一 · 默认执行",
+    description: "小妍影分身「元一」，均衡全面，承接所有未单独指定的任务。",
     recommendation: "没有单独指定时，所有专项任务默认回退到这里——选一个稳定均衡的主力模型即可。",
-    affectedScopes: "多能力域模型通用工作节点",
+    affectedScopes: "未单独指定任务的默认处理",
     icon: Compass,
     iconColor: "#34C759",
     modelKeys: [
@@ -1038,8 +1038,8 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   // ── 信息获取层：检索与搜索 ──
   {
-    title: "溯源 · 向量化与检索",
-    description: "小妍的「语义索引」能力，为知识库建立向量化索引，让每次检索都能精准定位到准确依据。",
+    title: "清源 · 向量化与检索",
+    description: "小妍影分身「清源」，精准细致，为知识库建立语义索引，让每次检索都能找到准确依据。",
     recommendation: "优先选择稳定的 embedding 模型；检索数量建议 5-8 条，过高会拉长响应且引入噪声。",
     affectedScopes: "知识库向量化、语义检索与 RAG 溯源",
     icon: Database,
@@ -1062,8 +1062,8 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     secondaryFieldHint: "留空表示沿用现有 RAG 检索数量；重新填写会统一覆盖为同一检索上限。",
   },
   {
-    title: "探知 · 搜索",
-    description: "小妍的「信息搜集」能力，负责全网搜索与文献侦察。",
+    title: "致远 · 搜索",
+    description: "小妍影分身「致远」，敏锐好奇，负责全网搜索与文献侦察。",
     recommendation: "若服务商支持联网或内置搜索工具，优先接在这里；否则可填与「流光」相同的快模型。",
     affectedScopes: "文献侦察检索、综述检索规划",
     icon: Search,
@@ -1089,10 +1089,10 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   // ── 分析层：深度理解 ──
   {
-    title: "洞见 · 深度总结",
-    description: "小妍的「精读提炼」能力，擅长从长文献中提炼核心方法与结论。",
+    title: "明心 · 深度总结",
+    description: "小妍影分身「明心」，洞察深刻，擅长从长文献中提炼核心方法与结论。",
     recommendation: "优先选上下文窗口大、长文阅读能力强的模型——推理深度比速度重要。",
-    affectedScopes: "论文精读、多能力域模型论文解析",
+    affectedScopes: "论文精读、深度分析",
     icon: FileSearch,
     iconColor: "#5AC8FA",
     modelKeys: [
@@ -1117,9 +1117,9 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   // ── 输出层：生成与整合 ──
   {
     title: "翰章 · 内容生成",
-    description: "小妍的「写作整合」能力，负责结构化综述写作与最终回答整合。",
+    description: "小妍影分身「翰章」，文笔流畅，负责结构化综述写作与最终回答整合。",
     recommendation: "适合长上下文、写作品质稳的模型；预算有限时可选均衡型模型。",
-    affectedScopes: "综述写作、多能力域模型综述生成、最终整合回答",
+    affectedScopes: "综述写作、最终回答整合",
     icon: MessageSquare,
     iconColor: "#FF6B6B",
     modelKeys: [
@@ -1147,10 +1147,10 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   // ── 专项能力层：特殊场景 ──
   {
-    title: "构域 · 代码",
-    description: "小妍的「代码理解」能力，理解代码逻辑与实验细节，指导论文复现。",
+    title: "思琪 · 代码",
+    description: "小妍影分身「思琪」，逻辑严谨，理解代码逻辑与实验细节，指导论文复现。",
     recommendation: "建议更低温度，减少推断式错误；代码能力强的模型优先。",
-    affectedScopes: "复现指导、多能力域模型复现",
+    affectedScopes: "复现指导、代码分析",
     icon: Hammer,
     iconColor: "#FF3B30",
     modelKeys: [
@@ -1173,8 +1173,8 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     temperaturePlaceholder: "0.25",
   },
   {
-    title: "视界 · 视觉",
-    description: "小妍的「视觉识别」能力，扫描 PDF 中的图表、架构图与公式截图。",
+    title: "晓晴 · 视觉",
+    description: "小妍影分身「晓晴」，目光敏锐，扫描 PDF 中的图表、架构图与公式截图。",
     recommendation: "需要多模态能力，推荐 GPT-4o / Gemini / Claude Sonnet 等原生支持图像输入的模型。配置后小妍解读时将自动扫描 PDF 各页，识别 lopdf 无法提取的矢量图和表格。",
     affectedScopes: "论文解读时的图表扫描（矢量图、表格补充识别）",
     icon: Eye,
@@ -1187,8 +1187,8 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     temperaturePlaceholder: "0.2",
   },
   {
-    title: "译衡 · 翻译",
-    description: "小妍的「学术翻译」能力，专注中英论文互译，忠实度优先于流畅度。",
+    title: "语涵 · 翻译",
+    description: "小妍影分身「语涵」，严谨忠实，专注中英论文互译，忠实度优先于流畅度。",
     recommendation: "翻译不同于总结，术语准确性最重要。建议选专注翻译或支持术语锁定的模型，温度设 0.1 或更低。",
     affectedScopes: "论文全文翻译、段落翻译（Beta，后端开发中）",
     icon: Languages,
@@ -2176,7 +2176,7 @@ export default function Settings() {
       >
         <div>
           <h1 className="text-lg font-bold text-ink-primary leading-tight">设置</h1>
-          <p className="text-xs text-ink-tertiary">按用途配置小妍能力模块、检索参数和多能力域模型协作策略</p>
+          <p className="text-xs text-ink-tertiary">按用途配置小妍影分身、检索参数和多分身协作策略</p>
         </div>
         <div className="flex items-center gap-2">
           {/* 导出配置 */}
@@ -2318,7 +2318,7 @@ export default function Settings() {
               <div>
                 <h2 className="text-sm font-semibold text-ink-primary">小妍</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">
-                  在这里配置小妍的默认对话模型。下面各个场景如果留空，会按继承规则回退到这里。
+                  在这里配置小妍的默认对话模型。如果小妍的影分身自定义留空，会按继承规则回退到这里。
                 </p>
               </div>
             </div>
@@ -2641,21 +2641,21 @@ export default function Settings() {
               ))}
             </div>
 
-            {/* ── 多能力域模型编排 ── */}
+            {/* ── 多分身编排 ── */}
             <div className="pt-4 border-t border-nm-dark/10 space-y-4">
               <div className="flex items-center gap-3">
                 <SectionIcon icon={Bot} color="#34C759" />
                 <div>
-                  <h2 className="text-sm font-semibold text-ink-primary">多能力域模型编排</h2>
+                  <h2 className="text-sm font-semibold text-ink-primary">多分身编排</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">
-                    控制小妍的多能力域模型协作心智、选路策略与可用角色。
+                    控制小妍的多分身协作心智、选路策略与可用角色。
                   </p>
                 </div>
               </div>
 
               <ToggleRow
-                title="启用多能力域模型编排"
-                description="关闭后将只使用小妍轻量对话模型直接回复，不再拆分复杂任务，也不展示中间能力域模型推理过程。"
+                title="启用多分身编排"
+                description="关闭后将只使用小妍轻量对话模型直接回复，不再拆分复杂任务，也不展示中间影分身推理过程。"
                 checked={form.multi_agent_enabled === "true"}
                 onToggle={() =>
                   set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")
@@ -2688,9 +2688,9 @@ export default function Settings() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Route className="w-4 h-4 text-[#1A8AFF]" />
-                  <p className="text-sm font-semibold text-ink-primary">能力域模型开关</p>
+                  <p className="text-sm font-semibold text-ink-primary">影分身开关</p>
                 </div>
-                <p className="text-xs text-ink-tertiary">选择小妍在多能力域模型协作时允许唤醒的能力域模型。关闭某个能力域模型后，调度模型将不会将其纳入考量。</p>
+                <p className="text-xs text-ink-tertiary">选择小妍在多分身协作时允许唤醒的影分身。关闭某个影分身后，调度模型将不会将其纳入考量。</p>
 
                 <div className="flex gap-2 flex-wrap pb-2">
                   {AGENT_OPTIONS.map(([value, label]) => (
@@ -2715,11 +2715,11 @@ export default function Settings() {
 
               <div className="grid gap-3 md:grid-cols-2">
                 <SettingInput
-                  label="单次最多调用的能力域模型步数上限"
+                  label="单次最多调用的影分身步数上限"
                   value={form.multi_agent_max_steps}
                   onChange={set("multi_agent_max_steps")}
                   placeholder="6"
-                  hint="超过该步数将强行中断多能力域模型思考流程，防止发散。"
+                  hint="超过该步数将强行中断影分身思考流程，防止发散。"
                 />
                 <SettingInput
                   label="文献检索模型抓取条数上限"
@@ -3006,7 +3006,7 @@ export default function Settings() {
                 {[
                   "主模型连接是最后的兜底值。没有单独指定的场景，最终都会回退到这里。",
                   "按场景选模用于独立功能，比如规划提示、综述写作、论文精读和复现指导。",
-                  "多能力域模型的专项覆盖只影响多能力域模型对话流程，不影响独立功能页的模型选择。",
+                  "多分身的专项覆盖只影响多分身对话流程，不影响独立功能页的模型选择。",
                   "如果你刚开始配置，建议先填主对话模型、方向提示模型和最终整合模型，其他项之后再细化。",
                 ].map((item) => (
                   <div key={item} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
