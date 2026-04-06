@@ -74,16 +74,15 @@ function SettingInput({
           placeholder={placeholder}
           className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 transition-shadow duration-150 pr-10"
           style={{
-            background: "#E8ECF0",
-            boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+            background: "var(--rc-chip-inset-bg)",
+            boxShadow: "var(--rc-chip-inset-shadow)",
           }}
           onFocus={(event) => {
             event.currentTarget.style.boxShadow =
-              "inset 3px 3px 7px #C0C5CB, inset -3px -3px 7px #FFFFFF, 0 0 0 2px rgba(0,122,255,0.2)";
+              "var(--rc-chip-inset-shadow), 0 0 0 2px rgba(0,122,255,0.25)";
           }}
           onBlur={(event) => {
-            event.currentTarget.style.boxShadow =
-              "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF";
+            event.currentTarget.style.boxShadow = "var(--rc-chip-inset-shadow)";
           }}
         />
         {sensitive && (
@@ -165,7 +164,7 @@ function ChangelogCard() {
       <div className="flex items-center gap-3">
         <SectionIcon icon={RefreshCw} color="#34C759" />
         <div>
-          <h2 className="text-sm font-semibold text-ink-primary">更新日志</h2>
+          <h2 className="text-base font-semibold text-ink-primary">更新日志</h2>
           <p className="text-xs text-ink-tertiary mt-0.5">各版本功能变更记录</p>
         </div>
       </div>
@@ -194,7 +193,7 @@ function ChangelogCard() {
                 <div className="border-t border-nm-dark/10 px-4 pb-4 pt-3 space-y-3">
                   {sections.map(({ label, items }) => (
                     <div key={label}>
-                      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">{label}</p>
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-tertiary">{label}</p>
                       <ul className="space-y-1">
                         {items.map((item, i) => (
                           <li key={i} className="flex gap-2 text-xs leading-5 text-ink-secondary">
@@ -237,9 +236,9 @@ function ProviderTab({
               boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
             }
           : {
-              background: "#E8ECF0",
-              color: "#3C3C43",
-              boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+              background: "var(--rc-chip-bg)",
+              color: "var(--rc-text-soft)",
+              boxShadow: "var(--rc-chip-shadow)",
             }
       }
     >
@@ -259,8 +258,8 @@ function SectionIcon({
     <div
       className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
       style={{
-        background: "#E8ECF0",
-        boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+        background: "var(--rc-chip-inset-bg)",
+        boxShadow: "var(--rc-chip-inset-shadow)",
         color,
       }}
     >
@@ -291,9 +290,9 @@ function AgentChip({
               boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
             }
           : {
-              background: "#E8ECF0",
-              color: "#3C3C43",
-              boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+              background: "var(--rc-chip-bg)",
+              color: "var(--rc-text-soft)",
+              boxShadow: "var(--rc-chip-shadow)",
             }
       }
     >
@@ -317,8 +316,8 @@ function ToggleRow({
     <div
       className="rounded-3xl px-4 py-4 flex items-center justify-between gap-4"
       style={{
-        background: "#E8ECF0",
-        boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+        background: "var(--rc-chip-inset-bg)",
+        boxShadow: "var(--rc-chip-inset-shadow)",
       }}
     >
       <div className="min-w-0 flex-1">
@@ -548,8 +547,8 @@ function GroupedModelCard({
     <div
       className="rounded-[28px] p-4 space-y-4"
       style={{
-        background: "#EEF1F5",
-        boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF",
+        background: "var(--rc-chip-bg)",
+        boxShadow: "var(--rc-chip-shadow)",
       }}
     >
       <div className="flex items-start gap-3">
@@ -560,9 +559,9 @@ function GroupedModelCard({
         </div>
       </div>
       <div className="rounded-2xl border border-white/70 bg-white/45 px-4 py-3 space-y-2">
-        <p className="text-[11px] font-semibold tracking-wide text-ink-secondary">适用范围</p>
+        <p className="text-xs font-semibold tracking-wide text-ink-secondary">适用范围</p>
         <p className="text-xs leading-5 text-ink-secondary">{affectedScopes}</p>
-        <p className="text-[11px] leading-5 text-ink-tertiary">{recommendation}</p>
+        <p className="text-xs leading-5 text-ink-tertiary">{recommendation}</p>
       </div>
       <div className="grid gap-3">
         <SettingInput
@@ -1232,7 +1231,7 @@ function TagBadge({ tag }: { tag: string }) {
   const color = TAG_COLORS[tag] ?? { bg: "rgba(120,120,128,0.10)", text: "#8E8E93" };
   return (
     <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium"
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium"
       style={{ background: color.bg, color: color.text }}
     >
       {tag}
@@ -1311,7 +1310,7 @@ function SkillEditModal({
     >
       <div
         className="w-full max-w-2xl rounded-[28px] p-6 space-y-4 overflow-y-auto max-h-[90vh]"
-        style={{ background: "#EEF1F5", boxShadow: "8px 8px 24px #C8CDD3, -8px -8px 24px #FFFFFF" }}
+        style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
       >
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-ink-primary">
@@ -1321,7 +1320,7 @@ function SkillEditModal({
             type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center text-ink-tertiary hover:text-ink-secondary transition-colors"
-            style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
           >
             ✕
           </button>
@@ -1337,7 +1336,7 @@ function SkillEditModal({
               onChange={(e) => setName(e.target.value)}
               placeholder="例如：my-skill（英文、数字、连字符）"
               className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
-              style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+              style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
             />
           </div>
         )}
@@ -1349,7 +1348,7 @@ function SkillEditModal({
             onChange={(e) => setTitle(e.target.value)}
             placeholder="例如：我的分析技能"
             className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
-            style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
           />
         </div>
 
@@ -1360,7 +1359,7 @@ function SkillEditModal({
             onChange={(e) => setDescription(e.target.value)}
             placeholder="用一句话说明这个技能的用途"
             className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
-            style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
           />
         </div>
 
@@ -1374,7 +1373,7 @@ function SkillEditModal({
             rows={8}
             placeholder="在此输入提示词模板，支持 {{变量名}} 占位符…"
             className="w-full rounded-2xl px-4 py-3 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none resize-none font-mono leading-6"
-            style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
           />
         </div>
 
@@ -1387,7 +1386,7 @@ function SkillEditModal({
             onChange={(e) => setTagsInput(e.target.value)}
             placeholder="例如：论文、分析"
             className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
-            style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
           />
         </div>
 
@@ -1406,7 +1405,7 @@ function SkillEditModal({
                 onClick={handleReset}
                 disabled={resetting}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium text-ink-tertiary hover:text-ink-secondary transition-all disabled:opacity-50"
-                style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+                style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
               >
                 {resetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                 重置默认
@@ -1418,7 +1417,7 @@ function SkillEditModal({
               type="button"
               onClick={onClose}
               className="px-5 py-2 rounded-2xl text-sm font-medium text-ink-secondary transition-all"
-              style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+              style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
             >
               取消
             </button>
@@ -1454,7 +1453,7 @@ function SkillCard({
     <div
       className="rounded-[22px] p-4 flex flex-col gap-2 transition-all duration-150"
       style={{
-        background: skill.is_enabled ? "#EEF1F5" : "rgba(238,241,245,0.5)",
+        background: skill.is_enabled ? "var(--rc-chip-bg)" : "var(--rc-chip-inset-bg)",
         boxShadow: skill.is_enabled
           ? "5px 5px 14px #CBD0D7, -5px -5px 14px #FFFFFF"
           : "inset 2px 2px 6px #CBD0D7, inset -2px -2px 6px #FFFFFF",
@@ -1466,14 +1465,14 @@ function SkillCard({
         <span className="text-sm font-semibold text-ink-primary leading-tight">{skill.title}</span>
         {skill.is_builtin && (
           <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium"
+            className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-medium"
             style={{ background: "rgba(0,122,255,0.08)", color: "#0A84FF" }}
           >
             内置
           </span>
         )}
         <code
-          className="text-[11px] font-mono px-1.5 py-0.5 rounded-md"
+          className="text-xs font-mono px-1.5 py-0.5 rounded-md"
           style={{ background: "rgba(120,120,128,0.08)", color: "#8E8E93" }}
         >
           /{skill.name}
@@ -1582,7 +1581,7 @@ function MemorySection({
       <Card padding="md" className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-ink-primary">手动备忘</h2>
+            <h2 className="text-base font-semibold text-ink-primary">手动备忘</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">在「小妍」页侧边栏的「添加记忆」面板中写入，永久保留，每次对话均会参考。</p>
           </div>
           <span className="text-xs text-ink-tertiary">{manualList.length} 条</span>
@@ -1599,7 +1598,7 @@ function MemorySection({
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-ink-primary leading-relaxed">{m.summary}</p>
-                  <p className="text-[10px] text-ink-tertiary mt-1">{fmtTime(m.created_at)}</p>
+                  <p className="text-[11px] text-ink-tertiary mt-1">{fmtTime(m.created_at)}</p>
                 </div>
                 <button
                   type="button"
@@ -1618,7 +1617,7 @@ function MemorySection({
       <Card padding="md" className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-ink-primary">自动操作记录</h2>
+            <h2 className="text-base font-semibold text-ink-primary">自动操作记录</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">系统自动记录的操作轨迹，最近3小时逐条、近7天按天聚合后注入对话。最多保留1000条。</p>
           </div>
           <button
@@ -1626,7 +1625,7 @@ function MemorySection({
             onClick={onClearAuto}
             disabled={clearingAuto || autoList.length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 disabled:opacity-40"
-            style={{ background: "#E8ECF0", color: "#FF3B30", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-bg)", color: "#FF3B30", boxShadow: "var(--rc-chip-shadow)" }}
           >
             {clearingAuto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
             清除所有自动记录
@@ -1644,7 +1643,7 @@ function MemorySection({
               >
                 <div className="flex-1 min-w-0">
                   <span className="text-xs text-ink-primary leading-relaxed">{m.summary}</span>
-                  <span className="ml-2 text-[10px] text-ink-tertiary">{fmtTime(m.created_at)}</span>
+                  <span className="ml-2 text-[11px] text-ink-tertiary">{fmtTime(m.created_at)}</span>
                 </div>
                 <button
                   type="button"
@@ -1772,7 +1771,7 @@ function SkillsSection() {
           <div className="flex items-center gap-3">
             <SectionIcon icon={Zap} color="#FF9F0A" />
             <div>
-              <h2 className="text-sm font-semibold text-ink-primary">技能库</h2>
+              <h2 className="text-base font-semibold text-ink-primary">技能库</h2>
               <p className="text-xs text-ink-tertiary mt-0.5">
                 内置 15 条研究技能，迁移自 Claude / Codex；也可新建自定义技能
               </p>
@@ -1784,7 +1783,7 @@ function SkillsSection() {
               onClick={handleEnableAll}
               disabled={enablingAll}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-ink-secondary transition-all hover:text-ink-primary disabled:opacity-50"
-              style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+              style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
             >
               {enablingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
               全部打开
@@ -1794,7 +1793,7 @@ function SkillsSection() {
               onClick={handleResetBuiltins}
               disabled={resetting}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-ink-secondary transition-all hover:text-ink-primary disabled:opacity-50"
-              style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+              style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
             >
               {resetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               重置内置
@@ -1828,7 +1827,7 @@ function SkillsSection() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="搜索技能名称、标签或描述…"
                 className="w-full rounded-2xl pl-9 pr-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
-                style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
               />
             </div>
 
@@ -2171,8 +2170,8 @@ export default function Settings() {
     <>
     <div className="h-full flex flex-col">
       <div
-        className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-nm-dark/10"
-        style={{ background: "#EEF1F5" }}
+        className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b"
+        style={{ background: "var(--rc-header-bg)", borderColor: "var(--rc-border)" }}
       >
         <div>
           <h1 className="text-lg font-bold text-ink-primary leading-tight">设置</h1>
@@ -2184,7 +2183,7 @@ export default function Settings() {
             type="button"
             onClick={openExportModal}
             className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
-            style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
             title="将当前配置（含 API Key）加密导出为 .rcconf 文件"
           >
             <Download className="w-3.5 h-3.5" />
@@ -2195,7 +2194,7 @@ export default function Settings() {
             type="button"
             onClick={() => void openImportPicker()}
             className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
-            style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
             title="从 .rcconf 文件导入配置（会覆盖当前配置）"
           >
             <Upload className="w-3.5 h-3.5" />
@@ -2213,11 +2212,11 @@ export default function Settings() {
                     ? "linear-gradient(145deg,#40D466,#28A844)"
                     : testState === "error"
                       ? "linear-gradient(145deg,#FF5555,#CC2200)"
-                      : "#E8ECF0",
-                color: testState === "ok" || testState === "error" ? "#fff" : "#3C3C43",
+                      : "var(--rc-chip-bg)",
+                color: testState === "ok" || testState === "error" ? "#fff" : "var(--rc-text-soft)",
                 boxShadow:
                   testState === "idle" || testState === "testing"
-                    ? "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF"
+                    ? "var(--rc-chip-shadow)"
                     : "none",
               }}
             >
@@ -2290,7 +2289,7 @@ export default function Settings() {
           <div className="flex items-center gap-3">
             <SectionIcon icon={activeSectionMeta.icon} color={activeSectionMeta.color} />
             <div>
-              <h2 className="text-sm font-semibold text-ink-primary">{activeSectionMeta.label}</h2>
+              <h2 className="text-base font-semibold text-ink-primary">{activeSectionMeta.label}</h2>
               <p className="text-xs text-ink-tertiary mt-0.5">{activeSectionMeta.description}</p>
             </div>
           </div>
@@ -2316,7 +2315,7 @@ export default function Settings() {
             <div className="flex items-center gap-3">
               <SectionIcon icon={Brain} color="#AF52DE" />
               <div>
-                <h2 className="text-sm font-semibold text-ink-primary">小妍</h2>
+                <h2 className="text-base font-semibold text-ink-primary">小妍</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">
                   在这里配置小妍的默认对话模型。如果小妍的影分身自定义留空，会按继承规则回退到这里。
                 </p>
@@ -2344,7 +2343,7 @@ export default function Settings() {
                                   boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
                                 }
                               : {
-                                  background: "#E8ECF0",
+                                  background: "var(--rc-chip-inset-bg)",
                                   color: "#3C3C43",
                                   boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
                                 }
@@ -2520,14 +2519,14 @@ export default function Settings() {
               <div className="flex items-center gap-3">
                 <SectionIcon icon={FileSearch} color="#0A84FF" />
                 <div>
-                  <h2 className="text-sm font-semibold text-ink-primary">导入论文识别内容</h2>
+                  <h2 className="text-base font-semibold text-ink-primary">导入论文识别内容</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">
                     导入时由小妍从 PDF 正文中自动识别并填写论文元数据，关闭某项后该字段将保留文件名猜测值或留空。模型优先使用"方向提示模型"，未单独配置则回退到默认对话模型。
                   </p>
                 </div>
               </div>
 
-              <div className="rounded-3xl px-4 py-4 space-y-3" style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}>
+              <div className="rounded-3xl px-4 py-4 space-y-3" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
                 <div className="flex flex-wrap gap-2">
                   {([
                     { key: "paper_import_recognize_title", label: "名称" },
@@ -2563,14 +2562,14 @@ export default function Settings() {
               <div className="flex items-center gap-3">
                 <SectionIcon icon={Layers3} color="#FF9F0A" />
                 <div>
-                  <h2 className="text-sm font-semibold text-ink-primary">论文标签显示</h2>
+                  <h2 className="text-base font-semibold text-ink-primary">论文标签显示</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">
                     控制论文库卡片上展示哪些来源标签。关闭后不会影响后端识别，只是不显示在卡片上。
                   </p>
                 </div>
               </div>
 
-              <div className="rounded-3xl px-4 py-4 space-y-3" style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}>
+              <div className="rounded-3xl px-4 py-4 space-y-3" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
                 <div className="flex flex-wrap gap-2">
                   {PAPER_TAG_OPTIONS.map((item) => (
                     <AgentChip
@@ -2598,7 +2597,7 @@ export default function Settings() {
             <div className="flex items-center gap-3">
               <SectionIcon icon={Sparkles} color="#0A84FF" />
               <div>
-                <h2 className="text-sm font-semibold text-ink-primary">模型分工</h2>
+                <h2 className="text-base font-semibold text-ink-primary">模型分工</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">
                   将具备不同特征的模型分配给小妍的不同能力模块。完全留空则全部由“默认对话模型”承担。
                 </p>
@@ -2646,7 +2645,7 @@ export default function Settings() {
               <div className="flex items-center gap-3">
                 <SectionIcon icon={Bot} color="#34C759" />
                 <div>
-                  <h2 className="text-sm font-semibold text-ink-primary">多分身编排</h2>
+                  <h2 className="text-base font-semibold text-ink-primary">多分身编排</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">
                     控制小妍的多分身协作心智、选路策略与可用角色。
                   </p>
@@ -2679,7 +2678,7 @@ export default function Settings() {
                   <p className="mt-1 text-xs leading-5 text-ink-secondary">
                     {ROUTING_MODE_COPY[routingMode].description}
                   </p>
-                  <p className="mt-2 text-[11px] leading-5 text-ink-tertiary">
+                  <p className="mt-2 text-xs leading-5 text-ink-tertiary">
                     {ROUTING_MODE_COPY[routingMode].note}
                   </p>
                 </div>
@@ -2707,7 +2706,7 @@ export default function Settings() {
                   {AGENT_GUIDES.map((item) => (
                     <div key={item.key} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3 shadow-sm">
                       <p className="text-xs font-semibold text-ink-primary">{item.label}</p>
-                      <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{item.description}</p>
+                      <p className="mt-1 text-xs leading-5 text-ink-tertiary">{item.description}</p>
                     </div>
                   ))}
                 </div>
@@ -2738,7 +2737,7 @@ export default function Settings() {
             <div className="flex items-center gap-3">
               <SectionIcon icon={LayoutDashboard} color="#30B0C7" />
               <div>
-                <h2 className="text-sm font-semibold text-ink-primary">界面布局模式</h2>
+                <h2 className="text-base font-semibold text-ink-primary">界面布局模式</h2>
                 <p className="text-xs text-ink-tertiary mt-0.5">选择后重启软件生效</p>
               </div>
             </div>
@@ -2916,7 +2915,7 @@ export default function Settings() {
               <div className="flex items-center gap-3">
                 <SectionIcon icon={RefreshCw} color="#5AC8FA" />
                 <div>
-                  <h2 className="text-sm font-semibold text-ink-primary">桌面端升级</h2>
+                  <h2 className="text-base font-semibold text-ink-primary">桌面端升级</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">发布版会从已配置的更新源检查新版本，并支持一键安装。</p>
                 </div>
               </div>
@@ -2924,17 +2923,17 @@ export default function Settings() {
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr),auto] lg:items-center">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-tertiary">当前版本</p>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-tertiary">当前版本</p>
                     <p className="mt-1 text-sm font-semibold text-ink-primary">{appVersion || updateInfo?.current_version || "—"}</p>
                   </div>
                   <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-tertiary">最新版本</p>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-tertiary">最新版本</p>
                     <p className="mt-1 text-sm font-semibold text-ink-primary">
                       {updateInfo?.available ? updateInfo.version : updateInfo ? "已是最新" : "未检测"}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-tertiary">发布时间</p>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-tertiary">发布时间</p>
                     <p className="mt-1 text-sm font-semibold text-ink-primary">{updatePublishedAt || "未提供"}</p>
                   </div>
                 </div>
@@ -2946,9 +2945,9 @@ export default function Settings() {
                     disabled={loading || updateState === "checking" || updateState === "installing"}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
                     style={{
-                      background: "#E8ECF0",
-                      color: "#3C3C43",
-                      boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+                      background: "var(--rc-chip-bg)",
+                      color: "var(--rc-text-soft)",
+                      boxShadow: "var(--rc-chip-shadow)",
                     }}
                   >
                     {updateState === "checking" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
@@ -2998,7 +2997,7 @@ export default function Settings() {
               <div className="flex items-center gap-3">
                 <SectionIcon icon={Info} color="#5AC8FA" />
                 <div>
-                  <h2 className="text-sm font-semibold text-ink-primary">说明</h2>
+                  <h2 className="text-base font-semibold text-ink-primary">说明</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">几条最容易混淆的配置规则</p>
                 </div>
               </div>
@@ -3037,10 +3036,10 @@ export default function Settings() {
       >
         <div
           className="w-full max-w-sm mx-4 rounded-3xl p-6 space-y-4"
-          style={{ background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)", boxShadow: "12px 12px 28px rgba(0,0,0,0.35), -6px -6px 18px rgba(255,255,255,0.6)" }}
+          style={{ background: "var(--rc-card-bg)", boxShadow: "12px 12px 28px rgba(0,0,0,0.45), 0 0 0 1px var(--rc-border)" }}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF" }}>
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
               <KeyRound className="w-5 h-5 text-apple-blue" />
             </div>
             <div>
@@ -3066,7 +3065,7 @@ export default function Settings() {
                 placeholder="输入密码"
                 autoFocus
                 className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
-                style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
               />
             </div>
             {cryptoModal.mode === "export" && (
@@ -3079,12 +3078,12 @@ export default function Settings() {
                   onKeyDown={(e) => { if (e.key === "Enter" && !cryptoBusy) void handleCryptoConfirm(); }}
                   placeholder="再次输入密码"
                   className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
-                  style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                  style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
                 />
               </div>
             )}
             {cryptoModal.mode === "export" && (
-              <p className="text-[11px] text-ink-tertiary leading-relaxed px-1">
+              <p className="text-xs text-ink-tertiary leading-relaxed px-1">
                 配置文件包含所有 API Key，请妥善保管，切勿分享给他人。
               </p>
             )}
@@ -3098,7 +3097,7 @@ export default function Settings() {
               type="button"
               onClick={() => setCryptoModal(null)}
               className="flex-1 py-2 rounded-2xl text-sm font-medium transition-all duration-150"
-              style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+              style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
             >
               取消
             </button>

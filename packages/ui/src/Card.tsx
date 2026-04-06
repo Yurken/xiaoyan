@@ -47,8 +47,36 @@ export function CardHeader({ className, children, ...props }: HTMLAttributes<HTM
 
 export function CardTitle({ className, children, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h2 className={clsx("text-lg font-semibold text-ink-primary", className)} {...props}>
+    <h2 className={clsx("text-base font-semibold text-ink-primary", className)} {...props}>
       {children}
     </h2>
+  );
+}
+
+/** 卡片内分区：带上分隔线，用于卡片内的次级信息区块 */
+export function CardSection({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={clsx(
+        "pt-4 mt-4 border-t",
+        className
+      )}
+      style={{ borderColor: "var(--rc-border)" }}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** 卡片内次级标题（字段组标签、子区块标题） */
+export function CardSectionTitle({ className, children, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return (
+    <p
+      className={clsx("text-xs font-semibold uppercase tracking-wide text-ink-tertiary mb-2", className)}
+      {...props}
+    >
+      {children}
+    </p>
   );
 }

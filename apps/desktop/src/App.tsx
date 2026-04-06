@@ -101,7 +101,7 @@ export default function App() {
             {({ isActive }) => (
               <span
                 className={[
-                  "flex flex-col items-center gap-1 w-full py-2 rounded-2xl transition-all duration-150 cursor-pointer select-none",
+                  "relative flex flex-col items-center gap-1 w-full py-2 rounded-2xl transition-all duration-150 cursor-pointer select-none",
                   isActive
                     ? "text-apple-blue"
                     : "text-ink-tertiary hover:text-ink-secondary hover:shadow-nm-sm hover:bg-nm-bg",
@@ -115,8 +115,14 @@ export default function App() {
                     : undefined
                 }
               >
+                {/* 选中态左侧蓝色指示条 */}
+                {isActive && (
+                  <span
+                    className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-apple-blue"
+                  />
+                )}
                 <Icon className="w-[18px] h-[18px]" />
-                <span className="text-[10px] font-medium leading-none tracking-tight">{label}</span>
+                <span className="text-[11px] font-medium leading-none tracking-tight">{label}</span>
               </span>
             )}
           </NavLink>

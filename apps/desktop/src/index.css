@@ -38,6 +38,13 @@
   /* Card backgrounds */
   --rc-card-bg: linear-gradient(145deg, #1A2030, #0D1117);
   --rc-card-inset-bg: #11151C;
+  /* Chip / inline control tokens */
+  --rc-chip-bg: #1D2430;
+  --rc-chip-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px #242D3A;
+  --rc-chip-inset-bg: #11151C;
+  --rc-chip-inset-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.45), inset -2px -2px 5px rgba(255, 255, 255, 0.04);
+  /* Page / section header background */
+  --rc-header-bg: #11151C;
 }
 
 html[data-theme="light"] {
@@ -64,6 +71,13 @@ html[data-theme="light"] {
   /* Card backgrounds */
   --rc-card-bg: linear-gradient(145deg, #F2F6FA, #E0E4E8);
   --rc-card-inset-bg: #E8ECF0;
+  /* Chip / inline control tokens */
+  --rc-chip-bg: #E8ECF0;
+  --rc-chip-shadow: 3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF;
+  --rc-chip-inset-bg: #E8ECF0;
+  --rc-chip-inset-shadow: inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF;
+  /* Page / section header background */
+  --rc-header-bg: #EEF1F5;
 }
 
 @layer base {
@@ -235,8 +249,10 @@ html[data-theme="light"] {
 
   html[data-theme="dark"] [style*="background"][style*="rgb(232, 236, 240)"],
   html[data-theme="dark"] [style*="background"][style*="rgb(238, 241, 245)"],
+  html[data-theme="dark"] [style*="background"][style*="rgb(239, 241, 245)"],
   html[data-theme="dark"] [style*="background"][style*="rgb(240, 244, 248)"],
-  html[data-theme="dark"] [style*="background"][style*="rgb(242, 246, 250)"] {
+  html[data-theme="dark"] [style*="background"][style*="rgb(242, 246, 250)"],
+  html[data-theme="dark"] [style*="background"][style*="rgb(244, 246, 249)"] {
     background: var(--rc-surface) !important;
   }
 

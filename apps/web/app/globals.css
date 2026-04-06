@@ -12,6 +12,14 @@
   --rc-border: #242d3a;
   --rc-text: #f5f7fa;
   --rc-text-soft: #c7d0dc;
+  --rc-text-muted: #8d99aa;
+  /* Chip / inline control tokens */
+  --rc-chip-bg: #171d26;
+  --rc-chip-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px #242d3a;
+  --rc-chip-inset-bg: #11151c;
+  --rc-chip-inset-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.45), inset -2px -2px 5px rgba(255, 255, 255, 0.04);
+  --rc-chip-active-bg: linear-gradient(145deg, #1a8aff, #0062cc);
+  --rc-header-bg: #11151c;
 }
 
 @layer base {

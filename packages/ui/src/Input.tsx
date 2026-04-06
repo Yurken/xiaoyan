@@ -1,9 +1,9 @@
 import { clsx } from "clsx";
 import { InputHTMLAttributes, TextareaHTMLAttributes, forwardRef } from "react";
 
-const nmInset = "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF";
-const nmInsetError = "inset 2px 2px 5px rgba(255,59,48,0.3), inset -2px -2px 5px #FFFFFF";
-const nmInsetFocus = "inset 3px 3px 7px #C0C5CB, inset -3px -3px 7px #FFFFFF, 0 0 0 2px rgba(0,122,255,0.25)";
+const nmInset = "var(--rc-chip-inset-shadow, inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF)";
+const nmInsetError = "inset 2px 2px 5px rgba(255,59,48,0.3), inset -2px -2px 5px rgba(255,255,255,0.6)";
+const nmInsetFocus = "var(--rc-chip-inset-shadow, inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF), 0 0 0 2px rgba(0,122,255,0.25)";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -29,7 +29,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             className
           )}
           style={{
-            background: "#E8ECF0",
+            background: "var(--rc-chip-inset-bg, #E8ECF0)",
             boxShadow: error ? nmInsetError : nmInset,
             ...style,
           }}
@@ -74,7 +74,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             className
           )}
           style={{
-            background: "#E8ECF0",
+            background: "var(--rc-chip-inset-bg, #E8ECF0)",
             boxShadow: error ? nmInsetError : nmInset,
             ...style,
           }}

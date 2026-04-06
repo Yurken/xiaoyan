@@ -163,11 +163,11 @@ export default function Home() {
               { label: "知识笔记",     value: state.notes.length,     note: "支持语义检索",              color: "#FF9500" },
               { label: "小妍对话", value: state.sessions.length,  note: "历史对话随时翻", color: "#34C759" },
             ].map((item) => (
-              <div key={item.label} className="rounded-3xl p-4 relative overflow-hidden" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.12), inset -2px -2px 5px rgba(255,255,255,0.6)" }}>
-                <div className="absolute top-0 left-4 right-4 h-[2px] rounded-full" style={{ background: item.color, opacity: 0.55 }} />
-                <p className="text-[11px] font-medium text-ink-tertiary mt-1">{item.label}</p>
+              <div key={item.label} className="rounded-3xl p-4 relative overflow-hidden" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
+                <div className="absolute top-0 left-4 right-4 h-[2px] rounded-full" style={{ background: item.color, opacity: 0.65 }} />
+                <p className="text-xs font-medium text-ink-tertiary mt-1">{item.label}</p>
                 <p className="mt-1.5 text-3xl font-bold tabular-nums" style={{ color: item.color }}>{item.value}</p>
-                <p className="mt-1 text-[11px] text-ink-tertiary">{item.note}</p>
+                <p className="mt-1 text-xs text-ink-tertiary">{item.note}</p>
               </div>
             ))}
           </div>
@@ -195,15 +195,21 @@ export default function Home() {
         <Card padding="md" className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-lg font-semibold text-ink-primary">下一步建议</p>
-              <p className="mt-1 text-xs text-ink-tertiary">选一件最近想做的事，从这里开始。</p>
+              <p className="text-base font-semibold text-ink-primary">下一步建议</p>
+              <p className="mt-0.5 text-xs text-ink-tertiary">选一件最近想做的事，从这里开始。</p>
             </div>
-            {/* <Badge variant="info">高优先级</Badge> */}
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             {quickActions.map(({ to, icon: Icon, title, description, iconColor, iconBg }) => (
               <Link key={to} to={to} className="group">
-                <div className="rounded-3xl border border-nm-dark/8 bg-white/50 p-4 transition-all duration-150 group-hover:-translate-y-px group-hover:shadow-nm-sm">
+                <div
+                  className="rounded-3xl p-4 transition-all duration-150 group-hover:-translate-y-px group-hover:shadow-nm-sm"
+                  style={{
+                    background: "var(--rc-chip-inset-bg)",
+                    boxShadow: "var(--rc-chip-inset-shadow)",
+                    border: "1px solid var(--rc-border)",
+                  }}
+                >
                   <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: iconBg, color: iconColor }}>
                     <Icon className="h-4 w-4" />
                   </div>
@@ -218,16 +224,16 @@ export default function Home() {
         <Card padding="md" className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-lg font-semibold text-ink-primary">研究资产概览</p>
-              <p className="mt-1 text-xs text-ink-tertiary">看看最近积累了哪些成果。</p>
+              <p className="text-base font-semibold text-ink-primary">研究资产概览</p>
+              <p className="mt-0.5 text-xs text-ink-tertiary">看看最近积累了哪些成果。</p>
             </div>
-            <Link to="/knowledge" className="text-xs font-medium text-apple-blue">
+            <Link to="/knowledge" className="text-xs font-medium text-apple-blue hover:opacity-75 transition-opacity">
               查看知识库
             </Link>
           </div>
 
           <div className="grid gap-3">
-            <div className="rounded-2xl bg-white/50 p-3 overflow-hidden" style={{ borderLeft: "3px solid #AF52DE", border: "1px solid rgba(175,82,222,0.15)", borderLeftWidth: "3px" }}>
+            <div className="rounded-2xl p-3 overflow-hidden" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)", borderLeft: "3px solid #AF52DE" }}>
               <div className="mb-2 flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5" style={{ color: "#AF52DE" }} />
                 <p className="text-sm font-semibold text-ink-primary">最近研究方向</p>
@@ -248,7 +254,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className="rounded-2xl bg-white/50 p-3 overflow-hidden" style={{ border: "1px solid rgba(255,149,0,0.15)", borderLeftWidth: "3px", borderLeftColor: "#FF9500" }}>
+            <div className="rounded-2xl p-3 overflow-hidden" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)", borderLeft: "3px solid #FF9500" }}>
               <div className="mb-2 flex items-center gap-2">
                 <Library className="h-3.5 w-3.5 text-[#FF9500]" />
                 <p className="text-sm font-semibold text-ink-primary">最近知识卡片</p>
@@ -267,7 +273,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className="rounded-2xl bg-white/50 p-3 overflow-hidden" style={{ border: "1px solid rgba(52,199,89,0.15)", borderLeftWidth: "3px", borderLeftColor: "#34C759" }}>
+            <div className="rounded-2xl p-3 overflow-hidden" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)", borderLeft: "3px solid #34C759" }}>
               <div className="mb-2 flex items-center gap-2">
                 <MessageSquare className="h-3.5 w-3.5 text-[#34C759]" />
                 <p className="text-sm font-semibold text-ink-primary">最近对话</p>
