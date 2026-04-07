@@ -210,6 +210,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_user_memories_table(&pool).await?;
     ensure_submission_tables(&pool).await?;
     ensure_experiment_tables(&pool).await?;
+    ensure_knowledge_graph_tables(&pool).await?;
 
     Ok(pool)
 }
@@ -484,6 +485,51 @@ pub async fn ensure_experiment_tables(pool: &SqlitePool) -> Result<()> {
             label         TEXT NOT NULL DEFAULT '',
             created_at    TEXT NOT NULL DEFAULT (datetime('now'))
         );",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn ensure_knowledge_graph_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS knowledge_graph_claims (
+            id                   TEXT PRIMARY KEY,
+            title                TEXT NOT NULL,
+            statement            TEXT NOT NULL DEFAULT '',
+            research_interest_id TEXT REFERENCES research_interests(id) ON DELETE SET NULL,
+            status               TEXT NOT NULL DEFAULT 'supported',
+            created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS knowledge_graph_evidence_links (
+            id               TEXT PRIMARY KEY,
+            claim_id         TEXT NOT NULL REFERENCES knowledge_graph_claims(id) ON DELETE CASCADE,
+            source_kind      TEXT NOT NULL,
+            source_id        TEXT NOT NULL,
+            relation_kind    TEXT NOT NULL DEFAULT 'supports',
+            evidence_summary TEXT NOT NULL DEFAULT '',
+            created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(claim_id, source_kind, source_id, relation_kind)
+        );
+        CREATE TABLE IF NOT EXISTS knowledge_paper_citations (
+            id             TEXT PRIMARY KEY,
+            citing_paper_id TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+            cited_paper_id  TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+            context         TEXT,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(citing_paper_id, cited_paper_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_knowledge_graph_claim_interest
+            ON knowledge_graph_claims(research_interest_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_knowledge_graph_evidence_claim
+            ON knowledge_graph_evidence_links(claim_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_knowledge_graph_evidence_source
+            ON knowledge_graph_evidence_links(source_kind, source_id);
+        CREATE INDEX IF NOT EXISTS idx_knowledge_paper_citations_citing
+            ON knowledge_paper_citations(citing_paper_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_knowledge_paper_citations_cited
+            ON knowledge_paper_citations(cited_paper_id, created_at DESC);",
     )
     .execute(pool)
     .await?;

@@ -30,6 +30,28 @@ jobs:
       - name: Type check workspace
         run: pnpm type-check
 
+  web-smoke-build:
+    name: Web Smoke Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web
+        run: pnpm build:web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
   desktop-rust-test:
     name: Desktop Rust Test
     runs-on: macos-latest

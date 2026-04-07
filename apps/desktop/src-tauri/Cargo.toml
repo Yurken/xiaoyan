@@ -53,3 +53,4 @@ hmac = "0.12"
 rand = "0.8"
 # Regex for HTML parsing in web clip
 regex = "1"
+petgraph = "0.6"

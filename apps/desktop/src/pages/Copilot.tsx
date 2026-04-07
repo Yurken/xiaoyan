@@ -30,17 +30,11 @@ import {
 } from "@research-copilot/types";
 import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
+import AgentStateGraphPanel from "../features/copilot/AgentStateGraphPanel";
+import { upsertAgentRun } from "../features/copilot/shared";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, ResearchInterest, Skill } from "@research-copilot/types";
-
-function upsertRun(runs: AgentRun[], next: AgentRun) {
-  const index = runs.findIndex((item) => item.id === next.id);
-  if (index === -1) {
-    return [...runs, next];
-  }
-  return runs.map((item) => (item.id === next.id ? next : item));
-}
 
 function splitThoughtFromContent(content: string) {
   const thinkTagPattern = /<think>([\s\S]*?)<\/think>/gi;
@@ -382,7 +376,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           setPlan(chunk.value);
         }
         if (chunk.type === "agent_start" || chunk.type === "agent_complete" || chunk.type === "agent_error") {
-          setAgentRuns((prev) => upsertRun(prev, chunk.value));
+          setAgentRuns((prev) => upsertAgentRun(prev, chunk.value));
         }
         if (chunk.type === "delta") {
           setMessages((prev) =>
@@ -1156,73 +1150,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               boxShadow: "var(--rc-raised-shadow)",
             }}
           >
-            <div className="text-sm font-semibold text-ink-primary mb-3">计划分解</div>
-            <div className="space-y-3">
-              {plan.length === 0 ? (
-                <p className="text-xs text-ink-tertiary leading-5">提交问题后，小妍会在这里展示任务拆解与执行状态。</p>
-              ) : (
-                plan.map((step, index) => (
-                  <div
-                    key={`${step.agent_name}-${index}`}
-                    className="rounded-2xl px-3 py-3"
-                    style={{
-                      background: "var(--rc-card-inset-bg)",
-                      boxShadow: "var(--rc-inset-shadow)",
-                    }}
-                  >
-                    <div className="text-sm font-semibold text-ink-primary">{index + 1}. {step.title}</div>
-                    <div className="text-xs text-apple-blue mt-1">{toCapabilityModelName(step.agent_name)}</div>
-                    <p className="text-xs text-ink-tertiary mt-2 leading-5">{step.goal}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div
-            className="rounded-3xl p-4"
-            style={{
-              background: "var(--rc-card-bg)",
-              boxShadow: "var(--rc-raised-shadow)",
-            }}
-          >
-            <div className="text-sm font-semibold text-ink-primary mb-3">执行时间线</div>
-            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
-              {displayedRuns.length === 0 ? (
-                <p className="text-xs text-ink-tertiary leading-5">暂无能力域模型运行记录。</p>
-              ) : (
-                displayedRuns.map((run) => {
-                  const tone = runTone(run.status);
-                  return (
-                    <div
-                      key={run.id}
-                      className="rounded-2xl px-3 py-3"
-                      style={{
-                        background: "var(--rc-card-inset-bg)",
-                        boxShadow: "var(--rc-inset-shadow)",
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <div className="text-sm font-semibold text-ink-primary">{run.step_name}</div>
-                          <div className="text-xs text-ink-tertiary mt-1">{toCapabilityModelName(run.agent_name)}</div>
-                        </div>
-                        <div
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium"
-                          style={{ color: tone.color, background: tone.background }}
-                        >
-                          {tone.icon}
-                          {tone.label}
-                        </div>
-                      </div>
-                      {(run.summary || run.error) && (
-                        <p className="text-xs text-ink-tertiary mt-3 leading-5">{run.error || run.summary}</p>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
+            <div className="text-sm font-semibold text-ink-primary mb-3">状态图执行轨迹</div>
+            <AgentStateGraphPanel
+              plan={plan}
+              runs={displayedRuns}
+              sending={sending}
+              emptyText="提交问题后，小妍会在这里展示状态图中的节点状态与边流转。"
+            />
           </div>
 
           <div

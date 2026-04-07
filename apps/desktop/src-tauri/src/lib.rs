@@ -7,9 +7,13 @@ use std::{
 };
 
 mod assistant_prompts;
+mod agent_graph;
+mod agent_nodes;
 mod ccf;
+mod citation_graph;
 mod commands;
 mod db;
+mod graph_rag;
 mod journal_partitions;
 mod llm;
 mod links;
@@ -27,6 +31,10 @@ use commands::{
         chat_delete_session, chat_get_session, chat_list_agent_runs, chat_list_sessions,
         chat_stream, chat_update_session_context,
     },
+    citation_graph::{
+        knowledge_graph_citation_centrality, knowledge_graph_citation_shortest_path,
+        knowledge_graph_citation_subgraph,
+    },
     experiment::{experiment_list, experiment_get, experiment_create, experiment_update, experiment_delete, experiment_add_attachment, experiment_list_attachments, experiment_delete_attachment, experiment_update_attachment_label},
     export::export_to_obsidian,
     journal::{journal_lookup, journal_rank_filter},
@@ -36,6 +44,11 @@ use commands::{
         knowledge_generate_plan, knowledge_list_interests, knowledge_list_notes, knowledge_search,
         knowledge_move_note, knowledge_suggest_topics, knowledge_update_interest_folder, knowledge_update_note,
         knowledge_web_clip,
+    },
+    knowledge_graph::{
+        knowledge_graph_create_claim, knowledge_graph_create_citation, knowledge_graph_create_evidence,
+        knowledge_graph_delete_claim, knowledge_graph_delete_citation, knowledge_graph_delete_evidence,
+        knowledge_graph_snapshot,
     },
     memory::{memory_add, memory_list, memory_delete, memory_clear_auto, memory_build_context},
     misc::{markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text},
@@ -218,6 +231,16 @@ pub fn run() {
             knowledge_move_note,
             knowledge_delete_note,
             knowledge_search,
+            knowledge_graph_snapshot,
+            knowledge_graph_create_claim,
+            knowledge_graph_delete_claim,
+            knowledge_graph_create_evidence,
+            knowledge_graph_delete_evidence,
+            knowledge_graph_create_citation,
+            knowledge_graph_delete_citation,
+            knowledge_graph_citation_centrality,
+            knowledge_graph_citation_shortest_path,
+            knowledge_graph_citation_subgraph,
             // Chat
             chat_list_sessions,
             chat_get_session,

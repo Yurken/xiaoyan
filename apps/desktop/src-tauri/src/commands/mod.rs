@@ -1,10 +1,12 @@
 pub mod arxiv;
 pub mod ccf;
 pub mod chat;
+pub mod citation_graph;
 pub mod experiment;
 pub mod export;
 pub mod journal;
 pub mod knowledge;
+pub mod knowledge_graph;
 pub mod memory;
 pub mod misc;
 pub mod paper_search;

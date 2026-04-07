@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const DEFAULT_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8008";
+  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 const API_URL_STORAGE_KEY = "api_url";
 
 const getToken = (): string | null => {

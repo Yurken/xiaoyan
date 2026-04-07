@@ -26,6 +26,14 @@ import type {
   AppUpdateInfo,
   AgentRun,
 } from "@research-copilot/types";
+import type {
+  CitationCentralityEntry,
+  CitationPathResult,
+  CitationSubgraph,
+  KnowledgeClaimStatus,
+  KnowledgeEvidenceRelationKind,
+  KnowledgeGraphSnapshot,
+} from "../features/knowledge/shared";
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -208,6 +216,65 @@ export const knowledgeApi = {
     invoke("knowledge_search", { q, topK }),
   webClip: (url: string, researchInterestId?: string): Promise<KnowledgeNote> =>
     invoke("knowledge_web_clip", { url, researchInterestId: researchInterestId ?? null }),
+  graph: {
+    snapshot: (): Promise<KnowledgeGraphSnapshot> =>
+      invoke("knowledge_graph_snapshot"),
+    createClaim: (data: {
+      title: string;
+      statement: string;
+      researchInterestId?: string;
+      status?: KnowledgeClaimStatus;
+    }) =>
+      invoke("knowledge_graph_create_claim", {
+        title: data.title,
+        statement: data.statement,
+        researchInterestId: data.researchInterestId ?? null,
+        status: data.status ?? null,
+      }),
+    deleteClaim: (id: string) =>
+      invoke<void>("knowledge_graph_delete_claim", { id }),
+    createEvidence: (data: {
+      claimId: string;
+      sourceKind: "paper" | "experiment" | "note";
+      sourceId: string;
+      relationKind?: KnowledgeEvidenceRelationKind;
+      evidenceSummary?: string;
+    }) =>
+      invoke("knowledge_graph_create_evidence", {
+        claimId: data.claimId,
+        sourceKind: data.sourceKind,
+        sourceId: data.sourceId,
+        relationKind: data.relationKind ?? null,
+        evidenceSummary: data.evidenceSummary ?? null,
+      }),
+    deleteEvidence: (id: string) =>
+      invoke<void>("knowledge_graph_delete_evidence", { id }),
+    createCitation: (data: {
+      citingPaperId: string;
+      citedPaperId: string;
+      context?: string;
+    }) =>
+      invoke("knowledge_graph_create_citation", {
+        citingPaperId: data.citingPaperId,
+        citedPaperId: data.citedPaperId,
+        context: data.context ?? null,
+      }),
+    deleteCitation: (id: string) =>
+      invoke<void>("knowledge_graph_delete_citation", { id }),
+    citationCentrality: (limit?: number): Promise<CitationCentralityEntry[]> =>
+      invoke("knowledge_graph_citation_centrality", { limit: limit ?? null }),
+    citationShortestPath: (fromPaperId: string, toPaperId: string): Promise<CitationPathResult | null> =>
+      invoke("knowledge_graph_citation_shortest_path", {
+        fromPaperId,
+        toPaperId,
+      }),
+    citationSubgraph: (seedPaperIds: string[], radius?: number, maxNodes?: number): Promise<CitationSubgraph> =>
+      invoke("knowledge_graph_citation_subgraph", {
+        seedPaperIds,
+        radius: radius ?? null,
+        maxNodes: maxNodes ?? null,
+      }),
+  },
 };
 
 // ── Chat / Streaming ──────────────────────────────────────────────

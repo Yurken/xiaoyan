@@ -5,6 +5,8 @@ import { Badge, Button, Input, MarkdownRenderer } from "@research-copilot/ui";
 import NotesPanel from "./NotesPanel";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
+import AgentStateGraphPanel from "../copilot/AgentStateGraphPanel";
+import { upsertAgentRun } from "../copilot/shared";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { openLink } from "../../lib/links";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
@@ -19,12 +21,6 @@ interface ResearchWorkbenchProps {
   onStats?: (papers: number, sessions: number, notes: number) => void;
 }
 
-function upsertRun(runs: AgentRun[], next: AgentRun) {
-  const index = runs.findIndex((item) => item.id === next.id);
-  if (index === -1) return [...runs, next];
-  return runs.map((item) => (item.id === next.id ? next : item));
-}
-
 function paperStatusBadge(status: string) {
   if (status === "analyzed") return <Badge variant="success">已分析</Badge>;
   if (status === "reproduced") return <Badge variant="success">已复现</Badge>;
@@ -37,13 +33,6 @@ function paperStatusBadge(status: string) {
 
 function canRunPaperTask(status: string) {
   return !["uploaded", "parsing", "analyzing"].includes(status);
-}
-
-function runStatusBadge(status?: AgentRun["status"]) {
-  if (status === "done") return <Badge variant="success">已完成</Badge>;
-  if (status === "failed") return <Badge variant="danger">失败</Badge>;
-  if (status === "running") return <Badge variant="info">处理中</Badge>;
-  return <Badge variant="default">待处理</Badge>;
 }
 
 export default function ResearchWorkbench({ interest, activeTab = "papers", onStats }: ResearchWorkbenchProps) {
@@ -255,7 +244,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
         if (chunk.type === "session_id") { nextSessionId = chunk.value; setSelectedSessionId(chunk.value); }
         if (chunk.type === "plan") setPlan(chunk.value);
         if (chunk.type === "agent_start" || chunk.type === "agent_complete" || chunk.type === "agent_error") {
-          setAgentRuns((prev) => upsertRun(prev, chunk.value));
+          setAgentRuns((prev) => upsertAgentRun(prev, chunk.value));
         }
         if (chunk.type === "delta") {
           setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: m.content + chunk.value } : m));
@@ -443,20 +432,15 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
 
           {(plan.length > 0 || displayedRuns.length > 0) && (
             <div className="flex-shrink-0 rounded-2xl border border-nm-dark/10 bg-white/35 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">当前能力域模型过程</p>
-              <div className="mt-3 space-y-2">
-                {plan.map((step) => {
-                  const matchedRun = displayedRuns.find((r) => r.agent_name === step.agent_name);
-                  return (
-                    <div key={step.agent_name} className="flex items-start justify-between gap-3 rounded-2xl bg-white/55 px-3 py-2">
-                      <div>
-                        <p className="text-xs font-semibold text-ink-primary">{step.title}</p>
-                        <p className="mt-1 text-[11px] text-ink-tertiary">{matchedRun?.summary || step.goal}</p>
-                      </div>
-                      {runStatusBadge(matchedRun?.status)}
-                    </div>
-                  );
-                })}
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">当前状态图执行</p>
+              <div className="mt-3">
+                <AgentStateGraphPanel
+                  plan={plan}
+                  runs={displayedRuns}
+                  sending={sending}
+                  compact
+                  emptyText="当前路线暂无执行节点。"
+                />
               </div>
             </div>
           )}
