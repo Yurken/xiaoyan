@@ -1,6 +1,8 @@
-import { AlertCircle, AlignLeft, ArrowRight, CheckCircle2, Download, FileText, Loader2, Presentation, Upload, Wand2 } from "lucide-react";
-import { Card } from "@research-copilot/ui";
+import { AlertCircle, AlignLeft, CheckCircle2, Download, FileText, Loader2, Presentation, Upload, Wand2 } from "lucide-react";
+import { Button, Card } from "@research-copilot/ui";
 import { Link } from "react-router-dom";
+import { PptPreviewPanel } from "./PptPreviewPanel";
+import { LANGUAGE_OPTIONS, PAGE_OPTIONS, STYLE_OPTIONS, type PptData, type PptMode, type PptStatus } from "./pptShared";
 
 const insetShadow = "var(--rc-inset-shadow)";
 const raisedShadow = "var(--rc-raised-shadow)";
@@ -27,33 +29,6 @@ const MODE_OPTIONS = [
   { key: "outline" as const, icon: <AlignLeft className="h-3.5 w-3.5" />, label: "粘贴大纲" },
 ] as const;
 
-const STYLE_OPTIONS = [
-  { value: "auto", label: "✦ 小妍推荐" },
-  { value: "文献综述", label: "文献综述" },
-  { value: "实验汇报", label: "实验汇报" },
-  { value: "开题答辩", label: "开题答辩" },
-  { value: "技术路线", label: "技术路线" },
-  { value: "custom", label: "自定义" },
-] as const;
-
-const LANGUAGE_OPTIONS = [
-  { value: "auto", label: "✦ 小妍推荐" },
-  { value: "zh", label: "中文" },
-  { value: "en", label: "English" },
-] as const;
-
-const PAGE_OPTIONS = [
-  { value: "auto", label: "✦ 小妍推荐" },
-  { value: "8", label: "8 页" },
-  { value: "12", label: "12 页" },
-  { value: "16", label: "16 页" },
-  { value: "20", label: "20 页" },
-  { value: "custom", label: "自定义" },
-] as const;
-
-type PptMode = "topic" | "document" | "outline";
-type PptStatus = "idle" | "llm" | "building" | "ready" | "error";
-
 interface PptWorkspaceProps {
   featureDisabled: boolean;
   mode: PptMode;
@@ -63,11 +38,15 @@ interface PptWorkspaceProps {
   documentLoading: boolean;
   documentError: string;
   hasDocumentContent: boolean;
+  documentCharacterCount: number;
   styleValue: string;
   customStyle: string;
   language: string;
   pageCount: string;
   customPages: string;
+  fileBaseName: string;
+  generateDisabledReason: string;
+  resultData: PptData | null;
   status: PptStatus;
   slideCount: number;
   error: string;
@@ -95,11 +74,15 @@ export function PptWorkspace({
   documentLoading,
   documentError,
   hasDocumentContent,
+  documentCharacterCount,
   styleValue,
   customStyle,
   language,
   pageCount,
   customPages,
+  fileBaseName,
+  generateDisabledReason,
+  resultData,
   status,
   slideCount,
   error,
@@ -117,24 +100,20 @@ export function PptWorkspace({
   onGenerate,
   onDownload,
 }: PptWorkspaceProps) {
-  const generating = status === "llm" || status === "building";
-  const generateDisabled =
-    generating ||
-    (mode === "topic" && !topic.trim()) ||
-    (mode === "outline" && !outline.trim()) ||
-    (mode === "document" && (!hasDocumentContent || !!documentError || documentLoading));
+  const generating = status === "drafting" || status === "repairing" || status === "building";
+  const generateDisabled = Boolean(generateDisabledReason);
 
   return (
-    <div className="relative">
+    <div className="relative space-y-5">
       <Card padding="md" className={["space-y-5", featureDisabled ? "pointer-events-none select-none opacity-40" : ""].join(" ")}>
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-purple/10 text-apple-purple">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
             <Presentation className="h-5 w-5" />
           </div>
           <div className="space-y-1">
             <p className="text-sm font-semibold text-ink-primary">幻灯片生成</p>
             <p className="text-xs leading-5 text-ink-tertiary">
-              告诉小妍你的演示主题，或上传文档、粘贴大纲，小妍会帮你生成一份结构清晰的幻灯片内容。
+              输入主题、文档或大纲后，小妍会先生成可预览的页面结构，再导出为可直接打开的 PowerPoint 文件。
             </p>
           </div>
         </div>
@@ -191,6 +170,9 @@ export function PptWorkspace({
                 <div className="space-y-2">
                   <FileText className="mx-auto h-8 w-8 text-apple-blue" />
                   <p className="text-sm font-medium text-ink-primary">{documentName}</p>
+                  {hasDocumentContent ? (
+                    <p className="text-xs text-ink-muted">已提取约 {documentCharacterCount.toLocaleString()} 字内容</p>
+                  ) : null}
                   <button
                     type="button"
                     onClick={onResetDocument}
@@ -314,35 +296,29 @@ export function PptWorkspace({
         </div>
 
         <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0 text-xs text-ink-muted">
-            {status === "llm" ? <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin text-apple-blue" />小妍正在构思幻灯片结构…</span> : null}
-            {status === "building" ? <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin text-apple-blue" />正在生成 .pptx 文件…</span> : null}
+          <div className="min-w-0 text-xs text-ink-muted leading-5">
+            {status === "drafting" ? <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin text-apple-blue" />小妍正在规划页面结构与叙事节奏…</span> : null}
+            {status === "repairing" ? <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin text-apple-blue" />正在修复模型返回格式，避免生成失败…</span> : null}
+            {status === "building" ? <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin text-apple-blue" />正在整理为 .pptx 文件…</span> : null}
             {status === "ready" ? <span className="flex items-center gap-1.5 text-apple-green"><CheckCircle2 className="h-3.5 w-3.5" />已生成 {slideCount} 张幻灯片，可直接在 PowerPoint / WPS 中打开</span> : null}
-            {status === "idle" ? <span>小妍生成可直接打开的 .pptx 文件</span> : null}
+            {status === "idle" ? <span>默认会先给出结构预览，再下载最终文件。</span> : null}
+            {generateDisabledReason && status === "idle" ? <p className="mt-1 text-apple-red">{generateDisabledReason}</p> : null}
           </div>
 
           <div className="flex flex-shrink-0 items-center gap-2">
             {status === "ready" ? (
-              <button
-                type="button"
-                onClick={() => void onDownload()}
-                className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-white transition-all duration-150"
-                style={{ background: "linear-gradient(145deg, #38C759, #28A048)", boxShadow: "3px 3px 8px rgba(0,0,0,0.2)" }}
-              >
+              <Button variant="secondary" onClick={() => void onDownload()}>
                 <Download className="h-4 w-4" />
                 下载 .pptx
-              </button>
+              </Button>
             ) : null}
-            <button
-              type="button"
+            <Button
               disabled={generateDisabled}
+              loading={generating}
               onClick={() => void onGenerate()}
-              className="inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
-              style={{ background: "linear-gradient(145deg, #1A8AFF, #0062CC)", boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)" }}
             >
-              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
               {status === "ready" ? "重新生成" : "立即生成"}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -353,6 +329,10 @@ export function PptWorkspace({
           </div>
         ) : null}
       </Card>
+
+      {resultData ? (
+        <PptPreviewPanel data={resultData} fileBaseName={fileBaseName} />
+      ) : null}
 
       {featureDisabled ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl">

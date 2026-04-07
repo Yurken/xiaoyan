@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { buildPptx, extractJsonObject, normalizePptData, sanitizePptFileName } from "./ppt";
+import { buildPptPrompt, buildPptRepairPrompt } from "./pptPrompt";
 import { apiClient, formatErrorMessage } from "../../lib/client";
-
-type PptMode = "topic" | "document" | "outline";
-type PptStatus = "idle" | "llm" | "building" | "ready" | "error";
+import type { PptData, PptMode, PptStatus } from "./pptShared";
 
 export function usePptGenerator() {
   const [mode, setMode] = useState<PptMode>("topic");
@@ -19,6 +18,7 @@ export function usePptGenerator() {
   const [status, setStatus] = useState<PptStatus>("idle");
   const [slideCount, setSlideCount] = useState(0);
   const [buffer, setBuffer] = useState<ArrayBuffer | null>(null);
+  const [pptData, setPptData] = useState<PptData | null>(null);
   const [error, setError] = useState("");
   const [skillEnabled, setSkillEnabled] = useState<boolean | null>(null);
   const [documentError, setDocumentError] = useState("");
@@ -39,6 +39,7 @@ export function usePptGenerator() {
     if (status !== "ready" && status !== "error") return;
     setStatus("idle");
     setBuffer(null);
+    setPptData(null);
     setSlideCount(0);
     setError("");
   }, [
@@ -113,56 +114,85 @@ export function usePptGenerator() {
     await loadDocument(name, () => readTextFile(path));
   };
 
-  const generate = async () => {
-    if (featureDisabled || status === "llm" || status === "building") return;
+  const customPageCount = Number.parseInt(customPages.trim(), 10);
+  const customPageInvalid = pageCount === "custom" && (!Number.isFinite(customPageCount) || customPageCount < 4 || customPageCount > 40);
+  const documentCharacterCount = documentContent?.length ?? 0;
+  const generating = status === "drafting" || status === "repairing" || status === "building";
+  const generateDisabledReason = featureDisabled
+    ? "请先在技能库中启用 PPT 生成功能。"
+    : generating
+      ? "当前正在生成，请等待完成。"
+      : mode === "topic" && !topic.trim()
+        ? "先输入演示主题。"
+        : mode === "outline" && !outline.trim()
+          ? "先粘贴汇报大纲。"
+          : mode === "document" && documentLoading
+            ? "文档仍在读取中。"
+            : mode === "document" && !documentContent
+              ? "先导入一份文档内容。"
+              : Boolean(documentError)
+                ? "请先修复文档读取错误。"
+                : styleValue === "custom" && !customStyle.trim()
+                  ? "先填写自定义风格描述。"
+                  : customPageInvalid
+                    ? "页数需填写 4 到 40 之间的整数。"
+                    : "";
 
-    const jsonSchema = `{\n  "title": "演示标题",\n  "slides": [\n    { "layout": "title", "title": "主标题", "subtitle": "副标题" },\n    { "layout": "section", "title": "章节名", "subtitle": "章节说明（可选）" },\n    { "layout": "content", "title": "幻灯片标题", "bullets": ["要点1", "要点2", "要点3"] },\n    { "layout": "two_column", "title": "对比标题", "left": ["左侧1", "左侧2"], "right": ["右侧1", "右侧2"] }\n  ]\n}`;
-    const languageHintMap: Record<string, string> = {
-      auto: "语言根据主题自动决定（中文主题用中文，英文主题用英文）",
-      zh: "全程使用中文",
-      en: "全 content in English",
-    };
+  const streamMessage = async (message: string, runId: number, sessionId?: string) => {
+    let raw = "";
+    let nextSessionId = sessionId ?? "";
 
-    const effectiveStyle = styleValue === "custom" ? customStyle.trim() : styleValue;
-    const effectivePages = pageCount === "custom" ? customPages.trim() : pageCount;
-    const customPageCount = Number.parseInt(effectivePages, 10);
-    const styleHint = effectiveStyle === "auto" || !effectiveStyle
-      ? "根据科研主题与内容深度自行判断最合适的学术风格"
-      : `${effectiveStyle}风格`;
-    const languageHint = languageHintMap[language] ?? languageHintMap.auto;
-    const pageHint = effectivePages === "auto" || !Number.isFinite(customPageCount)
-      ? "页数由小妍根据内容深度自动决定（建议 10～16 页）"
-      : `总页数控制在 ${Math.min(40, Math.max(4, customPageCount))} 页左右（含标题页和致谢页）`;
-    const commonRules = `\n风格：${styleHint}\n语言：${languageHint}\n页数：${pageHint}\n其他规则：\n- layout 只能是 title / section / content / two_column\n- 第一页固定 title 布局，最后一页用 title 布局作为致谢页\n- 包含 2～3 个 section 分隔页\n- bullets 每条不超过 20 字，最多 5 条\n- two_column 用于对比或并列内容`;
-
-    let prompt = "";
-    if (mode === "topic") {
-      if (!topic.trim()) return;
-      prompt = `请为演示主题"${topic.trim()}"生成幻灯片数据。\n\n只输出一个 JSON 对象，不要 markdown 代码块，不要任何额外说明，格式严格如下：\n${jsonSchema}\n${commonRules}`;
-    } else if (mode === "outline") {
-      if (!outline.trim()) return;
-      prompt = `请根据以下大纲生成幻灯片数据：\n\n${outline.trim()}\n\n只输出一个 JSON 对象，不要 markdown 代码块，不要任何额外说明，格式严格如下：\n${jsonSchema}\n${commonRules}\n- 严格按照大纲层级组织幻灯片`;
-    } else {
-      if (!documentContent || documentError) return;
-      prompt = `请根据以下文档内容生成幻灯片数据：\n\n${documentContent.slice(0, 4000)}\n\n只输出一个 JSON 对象，不要 markdown 代码块，不要任何额外说明，格式严格如下：\n${jsonSchema}\n${commonRules}\n- 提炼文档核心内容`;
+    for await (const chunk of apiClient.chat.stream({
+      message,
+      session_id: sessionId || undefined,
+    })) {
+      if (runId !== runIdRef.current) return null;
+      if (chunk.type === "session_id") nextSessionId = chunk.value;
+      else if (chunk.type === "delta") raw += chunk.value;
+      else if (chunk.type === "error") throw new Error(chunk.value as string);
     }
 
+    return { raw, sessionId: nextSessionId };
+  };
+
+  const parsePptResponse = (raw: string) => normalizePptData(JSON.parse(extractJsonObject(raw)));
+
+  const generate = async () => {
+    if (generateDisabledReason) return;
+
+    const prompt = buildPptPrompt({
+      mode,
+      topic,
+      outline,
+      documentContent,
+      styleValue,
+      customStyle,
+      language,
+      pageCount,
+      customPages,
+    });
+
     const runId = ++runIdRef.current;
-    setStatus("llm");
+    setStatus("drafting");
     setBuffer(null);
+    setPptData(null);
     setSlideCount(0);
     setError("");
 
     try {
-      let raw = "";
-      for await (const chunk of apiClient.chat.stream({ message: prompt })) {
-        if (runId !== runIdRef.current) return;
-        if (chunk.type === "delta") raw += chunk.value;
-        else if (chunk.type === "error") throw new Error(chunk.value as string);
-      }
+      const firstPass = await streamMessage(prompt, runId);
+      if (!firstPass) return;
 
-      const jsonString = extractJsonObject(raw);
-      const data = normalizePptData(JSON.parse(jsonString));
+      let data: PptData;
+      try {
+        data = parsePptResponse(firstPass.raw);
+      } catch {
+        if (runId !== runIdRef.current) return;
+        setStatus("repairing");
+        const repaired = await streamMessage(buildPptRepairPrompt(firstPass.raw), runId, firstPass.sessionId);
+        if (!repaired) return;
+        data = parsePptResponse(repaired.raw);
+      }
 
       if (runId !== runIdRef.current) return;
       setStatus("building");
@@ -171,6 +201,7 @@ export function usePptGenerator() {
 
       setSlideCount(data.slides.length);
       setBuffer(nextBuffer);
+      setPptData(data);
       setFileBaseName(sanitizePptFileName(data.title));
       setStatus("ready");
     } catch (err) {
@@ -207,6 +238,10 @@ export function usePptGenerator() {
     language,
     pageCount,
     customPages,
+    fileBaseName,
+    documentCharacterCount,
+    generateDisabledReason,
+    pptData,
     status,
     slideCount,
     error,

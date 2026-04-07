@@ -1,20 +1,5 @@
 import PptxGenJS from "pptxgenjs";
-
-type PptLayout = "title" | "section" | "content" | "two_column";
-
-interface PptSlide {
-  layout: PptLayout;
-  title: string;
-  subtitle?: string;
-  bullets?: string[];
-  left?: string[];
-  right?: string[];
-}
-
-export interface PptData {
-  title: string;
-  slides: PptSlide[];
-}
+import type { PptData, PptLayout, PptSlide } from "./pptShared";
 
 export function sanitizePptFileName(name: string) {
   const cleaned = name
@@ -73,7 +58,7 @@ export function normalizePptData(input: unknown): PptData {
     throw new Error("模型返回格式错误：slides 不能为空。");
   }
 
-  const validLayouts: PptLayout[] = ["title", "section", "content", "two_column"];
+  const validLayouts: PptLayout[] = ["title", "section", "content", "two_column", "highlight", "timeline"];
   const slides: PptSlide[] = raw.slides.slice(0, 40).map((slide, index) => {
     const source = (slide && typeof slide === "object" ? slide : {}) as Record<string, unknown>;
     const layout = (typeof source.layout === "string" && validLayouts.includes(source.layout as PptLayout)
@@ -90,13 +75,24 @@ export function normalizePptData(input: unknown): PptData {
             .slice(0, 5)
         : undefined;
 
+    const bullets = toLines(source.bullets);
+    const left = toLines(source.left);
+    const right = toLines(source.right);
+    const steps = (toLines(source.steps) ?? bullets)?.slice(0, 4);
+    const highlight = typeof source.highlight === "string" ? source.highlight.trim() || undefined : undefined;
+    const subtitle = typeof source.subtitle === "string" ? source.subtitle.trim() || undefined : undefined;
+    const note = typeof source.note === "string" ? source.note.trim() || undefined : undefined;
+
     return {
       layout,
       title,
-      subtitle: typeof source.subtitle === "string" ? source.subtitle.trim() || undefined : undefined,
-      bullets: toLines(source.bullets),
-      left: toLines(source.left),
-      right: toLines(source.right),
+      subtitle,
+      bullets,
+      left,
+      right,
+      highlight: highlight ?? subtitle ?? bullets?.[0],
+      steps,
+      note,
     };
   });
 
@@ -119,7 +115,21 @@ export async function buildPptx(data: PptData): Promise<ArrayBuffer> {
     text: "1A2233",
     border: "D0D6DC",
     light: "F4F6F9",
+    softBlue: "EAF3FF",
+    softGreen: "EAF8EF",
   };
+
+  type DeckSlide = ReturnType<typeof pptx.addSlide>;
+
+  const addHeader = (slide: DeckSlide, title: string) => {
+    slide.background = { color: colors.light };
+    slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: width, h: 1.25, fill: { type: "solid", color: colors.navy } });
+    slide.addShape(pptx.ShapeType.rect, { x: 0, y: 1.25, w: width, h: 0.06, fill: { type: "solid", color: colors.blue } });
+    slide.addText(title, { x: 0.5, y: 0.18, w: width - 1, h: 0.9, fontSize: 26, bold: true, color: colors.white, valign: "middle" });
+  };
+
+  const asBulletRuns = (items: string[], paraSpaceAfter: number) =>
+    items.map((bullet) => ({ text: bullet, options: { bullet: { code: "2022" }, paraSpaceAfter } }));
 
   for (const slide of data.slides) {
     const pptSlide = pptx.addSlide();
@@ -136,25 +146,133 @@ export async function buildPptx(data: PptData): Promise<ArrayBuffer> {
       pptSlide.addText(slide.title, { x: 0.8, y: 2.6, w: width - 1.6, h: 1.4, fontSize: 36, bold: true, color: colors.white, align: "center", valign: "middle" });
       if (slide.subtitle) pptSlide.addText(slide.subtitle, { x: 0.8, y: 4.2, w: width - 1.6, h: 0.8, fontSize: 18, color: "DDEEFF", align: "center" });
     } else if (slide.layout === "content") {
-      pptSlide.background = { color: colors.light };
-      pptSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: width, h: 1.25, fill: { type: "solid", color: colors.navy } });
-      pptSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 1.25, w: width, h: 0.06, fill: { type: "solid", color: colors.blue } });
-      pptSlide.addText(slide.title, { x: 0.5, y: 0.18, w: width - 1, h: 0.9, fontSize: 26, bold: true, color: colors.white, valign: "middle" });
+      addHeader(pptSlide, slide.title);
       if (slide.bullets?.length) {
         pptSlide.addText(
-          slide.bullets.map((bullet) => ({ text: bullet, options: { bullet: { code: "2022" }, paraSpaceAfter: 10 } })),
+          asBulletRuns(slide.bullets, 10),
           { x: 0.7, y: 1.55, w: width - 1.4, h: height - 2, fontSize: 19, color: colors.text, valign: "top", lineSpacingMultiple: 1.3 }
         );
       }
     } else if (slide.layout === "two_column") {
-      pptSlide.background = { color: colors.light };
-      pptSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: width, h: 1.25, fill: { type: "solid", color: colors.navy } });
-      pptSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 1.25, w: width, h: 0.06, fill: { type: "solid", color: colors.blue } });
-      pptSlide.addText(slide.title, { x: 0.5, y: 0.18, w: width - 1, h: 0.9, fontSize: 26, bold: true, color: colors.white, valign: "middle" });
+      addHeader(pptSlide, slide.title);
       pptSlide.addShape(pptx.ShapeType.line, { x: width / 2, y: 1.5, w: 0, h: height - 1.9, line: { color: colors.border, width: 1 } });
       const columnOptions = { fontSize: 18, color: colors.text, valign: "top" as const, lineSpacingMultiple: 1.3 };
-      if (slide.left?.length) pptSlide.addText(slide.left.map((bullet) => ({ text: bullet, options: { bullet: { code: "2022" }, paraSpaceAfter: 8 } })), { x: 0.5, y: 1.55, w: width / 2 - 0.8, h: height - 2, ...columnOptions });
-      if (slide.right?.length) pptSlide.addText(slide.right.map((bullet) => ({ text: bullet, options: { bullet: { code: "2022" }, paraSpaceAfter: 8 } })), { x: width / 2 + 0.3, y: 1.55, w: width / 2 - 0.8, h: height - 2, ...columnOptions });
+      if (slide.left?.length) pptSlide.addText(asBulletRuns(slide.left, 8), { x: 0.5, y: 1.55, w: width / 2 - 0.8, h: height - 2, ...columnOptions });
+      if (slide.right?.length) pptSlide.addText(asBulletRuns(slide.right, 8), { x: width / 2 + 0.3, y: 1.55, w: width / 2 - 0.8, h: height - 2, ...columnOptions });
+    } else if (slide.layout === "highlight") {
+      addHeader(pptSlide, slide.title);
+      pptSlide.addShape(pptx.ShapeType.rect, {
+        x: 0.75,
+        y: 1.75,
+        w: width - 1.5,
+        h: 2.3,
+        fill: { type: "solid", color: colors.softBlue },
+        line: { color: colors.blue, transparency: 75 },
+      });
+      pptSlide.addText(slide.highlight ?? slide.subtitle ?? "核心结论", {
+        x: 1.1,
+        y: 2.2,
+        w: width - 2.2,
+        h: 1.25,
+        fontSize: 28,
+        bold: true,
+        color: colors.navy,
+        align: "center",
+        valign: "middle",
+      });
+      if (slide.bullets?.length) {
+        pptSlide.addText(asBulletRuns(slide.bullets.slice(0, 3), 10), {
+          x: 1,
+          y: 4.45,
+          w: width - 2,
+          h: 1.8,
+          fontSize: 17,
+          color: colors.text,
+          lineSpacingMultiple: 1.2,
+        });
+      }
+    } else if (slide.layout === "timeline") {
+      addHeader(pptSlide, slide.title);
+      const steps = slide.steps?.slice(0, 4) ?? [];
+      if (steps.length < 2) {
+        if (slide.bullets?.length) {
+          pptSlide.addText(asBulletRuns(slide.bullets, 10), {
+            x: 0.8,
+            y: 1.7,
+            w: width - 1.6,
+            h: height - 2.1,
+            fontSize: 18,
+            color: colors.text,
+            lineSpacingMultiple: 1.25,
+          });
+        }
+      } else {
+        const startX = 1.25;
+        const endX = width - 1.25;
+        const lineY = 2.75;
+        const gap = (endX - startX) / (steps.length - 1);
+
+        pptSlide.addShape(pptx.ShapeType.line, {
+          x: startX,
+          y: lineY,
+          w: endX - startX,
+          h: 0,
+          line: { color: colors.border, width: 1.4 },
+        });
+
+        steps.forEach((step, index) => {
+          const centerX = startX + gap * index;
+          pptSlide.addShape(pptx.ShapeType.ellipse, {
+            x: centerX - 0.22,
+            y: lineY - 0.22,
+            w: 0.44,
+            h: 0.44,
+            fill: { type: "solid", color: colors.blue },
+            line: { color: colors.white, transparency: 100 },
+          });
+          pptSlide.addText(String(index + 1), {
+            x: centerX - 0.18,
+            y: lineY - 0.16,
+            w: 0.36,
+            h: 0.26,
+            fontSize: 11,
+            bold: true,
+            color: colors.white,
+            align: "center",
+          });
+          pptSlide.addShape(pptx.ShapeType.rect, {
+            x: centerX - 1.15,
+            y: lineY + 0.4,
+            w: 2.3,
+            h: 1.45,
+            fill: { type: "solid", color: index % 2 === 0 ? colors.softBlue : colors.softGreen },
+            line: { color: colors.border, transparency: 65 },
+          });
+          pptSlide.addText(step, {
+            x: centerX - 0.95,
+            y: lineY + 0.72,
+            w: 1.9,
+            h: 0.9,
+            fontSize: 15,
+            bold: true,
+            color: colors.text,
+            align: "center",
+            valign: "middle",
+          });
+        });
+
+        if (slide.note) {
+          pptSlide.addText(slide.note, {
+            x: 0.95,
+            y: 5.45,
+            w: width - 1.9,
+            h: 0.7,
+            fontSize: 15,
+            color: colors.text,
+            align: "center",
+          });
+        }
+      }
     }
   }
 

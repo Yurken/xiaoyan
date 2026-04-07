@@ -76,11 +76,15 @@ export default function Tools() {
     documentLoading: pptDocLoading,
     documentError: pptDocError,
     hasDocumentContent: pptHasDocumentContent,
+    documentCharacterCount: pptDocumentCharacterCount,
     styleValue: pptStyle,
     customStyle: pptCustomStyle,
     language: pptLang,
     pageCount: pptPages,
     customPages: pptCustomPages,
+    fileBaseName: pptFileBaseName,
+    generateDisabledReason: pptGenerateDisabledReason,
+    pptData,
     status: pptStatus,
     slideCount: pptSlideCount,
     error: pptError,
@@ -213,11 +217,15 @@ export default function Tools() {
           documentLoading={pptDocLoading}
           documentError={pptDocError}
           hasDocumentContent={pptHasDocumentContent}
+          documentCharacterCount={pptDocumentCharacterCount}
           styleValue={pptStyle}
           customStyle={pptCustomStyle}
           language={pptLang}
           pageCount={pptPages}
           customPages={pptCustomPages}
+          fileBaseName={pptFileBaseName}
+          generateDisabledReason={pptGenerateDisabledReason}
+          resultData={pptData}
           status={pptStatus}
           slideCount={pptSlideCount}
           error={pptError}
