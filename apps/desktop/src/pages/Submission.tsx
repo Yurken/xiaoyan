@@ -2,22 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { submissionApi } from "../lib/client";
 import { listen } from "@tauri-apps/api/event";
 import {
-  Bell,
-  BookOpen,
   Calendar,
   CheckCircle2,
   CheckSquare,
   Circle,
-  Clock,
   GitBranch,
   History,
   KanbanSquare,
-  Plus,
-  Star,
-  StarOff,
-  Users,
 } from "lucide-react";
-import { Button, Card } from "@research-copilot/ui";
+import { Card } from "@research-copilot/ui";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   POPULAR_VENUES,
@@ -28,24 +21,18 @@ import AddSubmissionModal from "../features/submission/AddSubmissionModal";
 import AddVenueModal from "../features/submission/AddVenueModal";
 import ChecklistWorkspace from "../features/submission/ChecklistWorkspace";
 import CoverLetterModal from "../features/submission/CoverLetterModal";
-import ExternalLink from "../components/ExternalLink";
 import KanbanWorkspace from "../features/submission/KanbanWorkspace";
 import MockReviewModal from "../features/submission/MockReviewModal";
 import PolishPanel from "../features/submission/PolishPanel";
 import ReviewEntryModal from "../features/submission/ReviewEntryModal";
 import ReviewWorkspace from "../features/submission/ReviewWorkspace";
 import SaveVersionModal from "../features/submission/SaveVersionModal";
-import VenueRecommendationsPanel from "../features/submission/VenueRecommendationsPanel";
+import VenueTrackerWorkspace from "../features/submission/VenueTrackerWorkspace";
 import VersionWorkspace from "../features/submission/VersionWorkspace";
 import {
-  CCF_STYLE,
   DEFAULT_CHECKLIST,
-  KANBAN_COLS,
-  STATUS_CFG,
   countVerdicts,
-  getDaysUntil,
   getDominantVerdict,
-  getDdlStyle,
   rowToComment,
   rowToRound,
   rowToSubmission,
@@ -53,8 +40,6 @@ import {
   rowToVersion,
   type AddSubmissionFormState,
   type ChecklistItem,
-  type Conference,
-  type Journal,
   type MockReviewInput,
   type MockReviewerResult,
   type PaperVersion,
@@ -861,192 +846,24 @@ export default function Submission() {
 
         {/* ════════ DDL 日历 ════════ */}
         {tab === "conferences" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex gap-2">
-                {(["all", "conference", "journal", "starred"] as const).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setVenueFilter(f)}
-                    className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
-                    style={venueFilter === f
-                      ? { background: "#007AFF", color: "#fff" }
-                      : { background: "var(--rc-card-bg)", color: "var(--rc-text-secondary)" as string, boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)" }
-                    }
-                  >
-                    {f === "all" ? "全部" : f === "conference" ? "会议" : f === "journal" ? "期刊" : "⭐ 已关注"}
-                  </button>
-                ))}
-              </div>
-              <Button variant="secondary" size="sm" onClick={() => setShowAddModal(true)}>
-                <Plus className="w-3.5 h-3.5" />
-                添加会议/期刊
-              </Button>
-            </div>
-
-            {/* ── 智能推荐面板 ── */}
-            <VenueRecommendationsPanel
-              open={showRecPanel}
-              recommendations={recommendations}
-              loading={recLoading}
-              input={recInput}
-              onToggle={() => setShowRecPanel((prev) => !prev)}
-              onChangeInput={setRecInput}
-              onGenerate={generateRecommendations}
-              isVenueAdded={isVenueAdded}
-              onAddVenue={handleAddVenue}
-            />
-
-            <div className="grid gap-2.5">
-              {visibleVenues.map(venue => {
-                const isConf = venue.type === "conference";
-                const days = isConf
-                  ? getDaysUntil(venue.deadline)
-                  : venue.specialIssueDeadline ? getDaysUntil(venue.specialIssueDeadline) : null;
-                const ddl = days !== null ? getDdlStyle(days) : null;
-                const ccf = CCF_STYLE[venue.ccf];
-                return (
-                  <Card key={venue.id} padding="sm" className="group">
-                    <div className="flex items-center gap-4">
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          {venue.website ? (
-                            <ExternalLink
-                              href={venue.website}
-                              className="font-semibold text-base text-ink-primary truncate hover:text-blue-600 hover:underline"
-                            >
-                              {venue.name}
-                            </ExternalLink>
-                          ) : (
-                            <p className="font-semibold text-base text-ink-primary truncate">{venue.name}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          {/* CCF tag */}
-                          {venue.ccf !== "none" && (
-                            <span
-                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                              style={{ background: ccf.bg, color: ccf.color }}
-                            >
-                              CCF {venue.ccf}
-                            </span>
-                          )}
-                          {/* SCI */}
-                          {!isConf && (venue as Journal).sci && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                              style={{ background: "rgba(52,199,89,0.12)", color: "#1A7F37" }}>
-                              SCI
-                            </span>
-                          )}
-                          {/* JCR quartile */}
-                          {!isConf && (venue as Journal).sciQuartile && (() => {
-                            const q = (venue as Journal).sciQuartile!;
-                            const qColor = q === "Q1" ? { bg: "rgba(88,86,214,0.12)", color: "#5856D6" }
-                              : q === "Q2" ? { bg: "rgba(0,122,255,0.12)", color: "#007AFF" }
-                              : q === "Q3" ? { bg: "rgba(255,149,0,0.12)", color: "#E65100" }
-                              : { bg: "rgba(142,142,147,0.12)", color: "#6B6B6B" };
-                            return (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                                style={{ background: qColor.bg, color: qColor.color }}>
-                                {q}
-                              </span>
-                            );
-                          })()}
-                          {/* EI */}
-                          {venue.ei && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                              style={{ background: "rgba(0,122,255,0.10)", color: "#007AFF" }}>
-                              EI
-                            </span>
-                          )}
-                          {/* Type badge */}
-                          <span
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded-md flex-shrink-0"
-                            style={{
-                              background: isConf ? "rgba(0,122,255,0.10)" : "rgba(175,82,222,0.10)",
-                              color: isConf ? "#007AFF" : "#AF52DE",
-                            }}
-                          >
-                            {isConf ? "会议" : "期刊"}
-                          </span>
-                          <span
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded-md flex-shrink-0"
-                            style={{ background: "rgba(142,142,147,0.10)", color: "#8E8E93" }}
-                          >
-                            {venue.area}
-                          </span>
-                        </div>
-                        <p className="text-xs text-ink-tertiary mt-0.5 truncate">{venue.fullName}</p>
-                        <div className="flex items-center gap-3 mt-1">
-                          {isConf ? (
-                            <>
-                              <span className="flex items-center gap-1 text-[11px] text-ink-tertiary">
-                                <Clock className="w-3 h-3" />
-                                截止 {venue.deadline.toLocaleDateString("zh-CN")}
-                              </span>
-                              {venue.notificationDate && (
-                                <span className="flex items-center gap-1 text-[11px] text-ink-tertiary">
-                                  <Bell className="w-3 h-3" />
-                                  通知 {venue.notificationDate.toLocaleDateString("zh-CN")}
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              <span className="flex items-center gap-1 text-[11px] text-ink-tertiary">
-                                <BookOpen className="w-3 h-3" />
-                                随时投稿
-                              </span>
-                              {venue.specialIssueDeadline && venue.specialIssueTitle && (
-                                <span className="flex items-center gap-1 text-[11px]" style={{ color: "#FF9500" }}>
-                                  <Bell className="w-3 h-3" />
-                                  特刊「{venue.specialIssueTitle}」截止 {venue.specialIssueDeadline.toLocaleDateString("zh-CN")}
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* DDL countdown (会议和特刊) */}
-                      {ddl && (
-                        <div
-                          className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold"
-                          style={{ background: ddl.bg, color: ddl.color }}
-                        >
-                          {days! < 0 ? "已截止" : `还剩 ${ddl.label}`}
-                        </div>
-                      )}
-
-                      {/* Star */}
-                      <button
-                        onClick={() => toggleVenueStar(venue.id, venue.type)}
-                        className="flex-shrink-0 p-1.5 rounded-lg transition-all duration-150 hover:bg-black/5 opacity-0 group-hover:opacity-100"
-                      >
-                        {venue.starred
-                          ? <Star className="w-4 h-4 fill-current" style={{ color: "#FF9500" }} />
-                          : <StarOff className="w-4 h-4 text-ink-tertiary" />
-                        }
-                      </button>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-
-            {/* Collaboration placeholder */}
-            <div
-              className="rounded-3xl p-4 flex items-center gap-3 border-2 border-dashed opacity-50"
-              style={{ borderColor: "var(--rc-border)" }}
-            >
-              <Users className="w-5 h-5 text-ink-tertiary flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-ink-secondary">课题组共享日历（即将上线）</p>
-                <p className="text-xs text-ink-tertiary mt-0.5">邀请课题组成员，共同追踪会议与期刊，统一管理投稿节奏。</p>
-              </div>
-            </div>
-          </div>
+          <VenueTrackerWorkspace
+            venueFilter={venueFilter}
+            visibleVenues={visibleVenues}
+            conferencesCount={conferences.length}
+            journalsCount={journals.length}
+            showRecommendations={showRecPanel}
+            recommendations={recommendations}
+            recommendationLoading={recLoading}
+            recommendationInput={recInput}
+            onVenueFilterChange={setVenueFilter}
+            onOpenAddVenue={() => setShowAddModal(true)}
+            onToggleRecommendations={() => setShowRecPanel((prev) => !prev)}
+            onChangeRecommendationInput={setRecInput}
+            onGenerateRecommendations={generateRecommendations}
+            isVenueAdded={isVenueAdded}
+            onAddVenue={handleAddVenue}
+            onToggleVenueStar={toggleVenueStar}
+          />
         )}
 
         {/* ════════ 投稿看板 ════════ */}

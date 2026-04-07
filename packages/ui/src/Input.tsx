@@ -1,9 +1,9 @@
 import { clsx } from "clsx";
 import { InputHTMLAttributes, TextareaHTMLAttributes, forwardRef } from "react";
 
-const nmInset = "var(--rc-chip-inset-shadow, inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF)";
-const nmInsetError = "inset 2px 2px 5px rgba(255,59,48,0.3), inset -2px -2px 5px rgba(255,255,255,0.6)";
-const nmInsetFocus = "var(--rc-chip-inset-shadow, inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF), 0 0 0 2px rgba(0,122,255,0.25)";
+const nmInset = "var(--rc-control-shadow)";
+const nmInsetError = "0 0 0 1px rgba(255, 59, 48, 0.45), 0 0 0 4px rgba(255, 59, 48, 0.12)";
+const nmInsetFocus = "var(--rc-control-focus-shadow)";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -22,23 +22,25 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           className={clsx(
-            "w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary",
-            "placeholder:text-ink-tertiary",
-            "outline-none border-0",
-            "transition-shadow duration-150",
+            "w-full rounded-2xl border px-4 py-2.5 text-sm outline-none",
+            "text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]",
+            "transition-[box-shadow,border-color,background-color] duration-150",
             className
           )}
           style={{
-            background: "var(--rc-chip-inset-bg, #E8ECF0)",
+            background: "var(--rc-control-bg)",
+            borderColor: "var(--rc-control-border)",
             boxShadow: error ? nmInsetError : nmInset,
             ...style,
           }}
           onFocus={(e) => {
             (e.currentTarget as HTMLInputElement).style.boxShadow = nmInsetFocus;
+            (e.currentTarget as HTMLInputElement).style.borderColor = "rgba(0, 122, 255, 0.42)";
             onFocus?.(e);
           }}
           onBlur={(e) => {
             (e.currentTarget as HTMLInputElement).style.boxShadow = error ? nmInsetError : nmInset;
+            (e.currentTarget as HTMLInputElement).style.borderColor = error ? "rgba(255, 59, 48, 0.45)" : "var(--rc-control-border)";
             onBlur?.(e);
           }}
           {...props}
@@ -67,23 +69,25 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         <textarea
           ref={ref}
           className={clsx(
-            "w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary",
-            "placeholder:text-ink-tertiary",
-            "outline-none border-0 resize-none",
-            "transition-shadow duration-150",
+            "w-full rounded-2xl border px-4 py-2.5 text-sm outline-none resize-none",
+            "text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]",
+            "transition-[box-shadow,border-color,background-color] duration-150",
             className
           )}
           style={{
-            background: "var(--rc-chip-inset-bg, #E8ECF0)",
+            background: "var(--rc-control-bg)",
+            borderColor: "var(--rc-control-border)",
             boxShadow: error ? nmInsetError : nmInset,
             ...style,
           }}
           onFocus={(e) => {
             (e.currentTarget as HTMLTextAreaElement).style.boxShadow = nmInsetFocus;
+            (e.currentTarget as HTMLTextAreaElement).style.borderColor = "rgba(0, 122, 255, 0.42)";
             onFocus?.(e);
           }}
           onBlur={(e) => {
             (e.currentTarget as HTMLTextAreaElement).style.boxShadow = error ? nmInsetError : nmInset;
+            (e.currentTarget as HTMLTextAreaElement).style.borderColor = error ? "rgba(255, 59, 48, 0.45)" : "var(--rc-control-border)";
             onBlur?.(e);
           }}
           {...props}

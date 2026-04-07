@@ -74,63 +74,39 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-full bg-nm-bg">
-      {/* Sidebar */}
-      <aside
-        className="w-[80px] flex-shrink-0 flex flex-col items-center py-4 gap-0.5 border-r border-black/30"
-        style={{ background: "var(--rc-sidebar-bg, linear-gradient(180deg, color-mix(in srgb, var(--rc-elevated) 50%, white) 0%, color-mix(in srgb, var(--rc-surface) 50%, white) 100%))" }}
-      >
-        {/* Logo */}
-        <NavLink to="/" className="mb-3 mt-1">
-          <div className="w-10 h-10 flex items-center justify-center">
-            <img src={hitLogo} alt="HIT" className="w-10 h-10 object-contain" />
-          </div>
+    <div className="app-shell">
+      <aside className="app-sidebar">
+        <NavLink to="/" className="app-sidebar__logo" title="返回工作台">
+          <img src={hitLogo} alt="HIT" className="h-10 w-10 object-contain" />
         </NavLink>
 
-        {/* Divider */}
-        <div className="w-8 h-px mb-2" style={{ background: "linear-gradient(90deg, transparent, var(--rc-border), transparent)" }} />
+        <div className="app-sidebar__divider" />
 
-        {/* Nav items */}
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             end={to === "/"}
-            className="w-full flex justify-center px-2"
+            className="app-nav-link"
           >
             {({ isActive }) => (
               <span
-                className={[
-                  "relative flex flex-col items-center gap-1 w-full py-2 rounded-2xl transition-all duration-150 cursor-pointer select-none",
-                  isActive
-                    ? "text-apple-blue"
-                    : "text-ink-tertiary hover:text-ink-secondary hover:shadow-nm-sm hover:bg-nm-bg",
-                ].join(" ")}
-                style={
-                  isActive
-                    ? {
-                      background: "var(--rc-surface)",
-                      boxShadow: "var(--rc-inset-shadow)",
-                    }
-                    : undefined
-                }
+                className={`app-nav-item ${isActive ? "is-active" : ""}`}
               >
-
-                <Icon className="w-[18px] h-[18px]" />
-                <span className="text-[11px] font-medium leading-none tracking-tight">{label}</span>
+                <span className="app-nav-item__marker" />
+                <Icon className="app-nav-item__icon" />
+                <span className="app-nav-item__label">{label}</span>
               </span>
             )}
           </NavLink>
         ))}
 
-        {/* 小妍伴侣 — 左下角 */}
-        <div className="mt-auto">
+        <div className="app-sidebar__pet">
           <XiaoYanPet inline />
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 min-w-0 overflow-hidden">
+      <main className="app-main">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/planner" element={<Planner />} />

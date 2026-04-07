@@ -31,34 +31,34 @@ import { listen } from "@tauri-apps/api/event";
 
 const SVG: Record<string, string> = {
   // 状态
-  idle:         "/xiaoyan/clawd-idle-follow.svg",
-  yawning:      "/xiaoyan/clawd-idle-yawn.svg",
-  dozing:       "/xiaoyan/clawd-idle-doze.svg",
-  collapsing:   "/xiaoyan/clawd-collapse-sleep.svg",
-  sleeping:     "/xiaoyan/clawd-sleeping.svg",
-  waking:       "/xiaoyan/clawd-wake.svg",
+  idle:         "/dundun/clawd-idle-follow.svg",
+  yawning:      "/dundun/clawd-idle-yawn.svg",
+  dozing:       "/dundun/clawd-idle-doze.svg",
+  collapsing:   "/dundun/clawd-collapse-sleep.svg",
+  sleeping:     "/dundun/clawd-sleeping.svg",
+  waking:       "/dundun/clawd-wake.svg",
   // 工作流专属
-  thinking:     "/xiaoyan/clawd-working-thinking.svg",   // 默认思考
-  working:      "/xiaoyan/clawd-working-typing.svg",     // 打字/写作
-  building:     "/xiaoyan/clawd-working-building.svg",   // 规划/建造
-  sweeping:     "/xiaoyan/clawd-working-sweeping.svg",   // 检索/清扫
-  carrying:     "/xiaoyan/clawd-working-carrying.svg",   // 文献搬运
-  debugger:     "/xiaoyan/clawd-working-debugger.svg",   // 分析/调试
-  wizard:       "/xiaoyan/clawd-working-wizard.svg",     // 代码复现
-  ultrathink:   "/xiaoyan/clawd-working-ultrathink.svg", // 综合总结
-  juggling:     "/xiaoyan/clawd-working-juggling.svg",   // 双 agent 并发
-  conducting:   "/xiaoyan/clawd-working-conducting.svg", // 多 agent 指挥
+  thinking:     "/dundun/clawd-working-thinking.svg",   // 默认思考
+  working:      "/dundun/clawd-working-typing.svg",     // 打字/写作
+  building:     "/dundun/clawd-working-building.svg",   // 规划/建造
+  sweeping:     "/dundun/clawd-working-sweeping.svg",   // 检索/清扫
+  carrying:     "/dundun/clawd-working-carrying.svg",   // 文献搬运
+  debugger:     "/dundun/clawd-working-debugger.svg",   // 分析/调试
+  wizard:       "/dundun/clawd-working-wizard.svg",     // 代码复现
+  ultrathink:   "/dundun/clawd-working-ultrathink.svg", // 综合总结
+  juggling:     "/dundun/clawd-working-juggling.svg",   // 双 agent 并发
+  conducting:   "/dundun/clawd-working-conducting.svg", // 多 agent 指挥
   // 反馈
-  attention:    "/xiaoyan/clawd-happy.svg",
-  error:        "/xiaoyan/clawd-error.svg",
-  notification: "/xiaoyan/clawd-notification.svg",
+  attention:    "/dundun/clawd-happy.svg",
+  error:        "/dundun/clawd-error.svg",
+  notification: "/dundun/clawd-notification.svg",
   // 交互反应
-  react_left:   "/xiaoyan/clawd-react-left.svg",
-  react_right:  "/xiaoyan/clawd-react-right.svg",
-  react_annoyed:"/xiaoyan/clawd-react-annoyed.svg",
-  react_double: "/xiaoyan/clawd-react-double.svg",
-  react_jump:   "/xiaoyan/clawd-react-double-jump.svg",
-  react_drag:   "/xiaoyan/clawd-react-drag.svg",
+  react_left:   "/dundun/clawd-react-left.svg",
+  react_right:  "/dundun/clawd-react-right.svg",
+  react_annoyed:"/dundun/clawd-react-annoyed.svg",
+  react_double: "/dundun/clawd-react-double.svg",
+  react_jump:   "/dundun/clawd-react-double-jump.svg",
+  react_drag:   "/dundun/clawd-react-drag.svg",
 };
 
 type SvgKey = keyof typeof SVG;

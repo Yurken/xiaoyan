@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { Map, BookOpen, FileText, Library, MessageSquare, ArrowRight, Sparkles, SlidersHorizontal } from "lucide-react";
-import { Card } from "@research-copilot/ui";
+import { Map, BookOpen, FileText, Library, MessageSquare, ArrowRight, SlidersHorizontal } from "lucide-react";
+import { Button, Card } from "@research-copilot/ui";
 import {
-  MAIN_ASSISTANT_BADGE,
   MAIN_ASSISTANT_NAME,
   MAIN_ASSISTANT_WORKSPACE_NAME,
   PRODUCT_NAME,
@@ -61,44 +60,69 @@ const features = [
 
 export default function HomePage() {
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      {/* Hero */}
-      <div className="mb-10">
-        <div className="inline-flex items-center gap-2 bg-brand-50 text-brand-700 text-sm font-medium px-3 py-1.5 rounded-full mb-4">
-          <Sparkles className="w-4 h-4" />
-          {MAIN_ASSISTANT_BADGE}
-        </div>
-        <h1 className="text-4xl font-bold text-gray-900 mb-3">
-          {PRODUCT_NAME}
-        </h1>
-        <p className="text-lg text-gray-500 max-w-2xl">
-          {MAIN_ASSISTANT_NAME}会根据你的研究问题自动拆解任务，联动多能力域模型完成规划、检索、精读、复现与整合，让研究进展持续可见。
-        </p>
-      </div>
+    <div className="mx-auto max-w-5xl px-8 py-10">
+      <Card padding="lg" className="overflow-hidden">
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--rc-text-muted)" }}>
+              Research Copilot Desk
+            </p>
+            <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.05em]" style={{ color: "var(--rc-text)" }}>
+              {PRODUCT_NAME}
+            </h1>
+            <p className="max-w-2xl text-sm leading-7" style={{ color: "var(--rc-text-soft)" }}>
+              {MAIN_ASSISTANT_NAME}会把研究目标拆成可执行的规划、检索、精读与沉淀步骤，让每次推进都能留在同一张工作台里。
+            </p>
+          </div>
 
-      {/* Quick start */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+          <div className="flex flex-wrap gap-3">
+            <Link href="/planner">
+              <Button>
+                开始研究规划
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/copilot">
+              <Button variant="secondary">进入{MAIN_ASSISTANT_WORKSPACE_NAME}</Button>
+            </Link>
+          </div>
+        </div>
+      </Card>
+
+      <div className="mt-6 grid gap-4">
         {features.map(({ href, icon: Icon, title, description, color, bg }) => (
           <Link key={href} href={href} className="group">
-            <Card className="h-full hover:border-brand-200 hover:shadow-md transition-all duration-200 cursor-pointer">
-              <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center mb-3`}>
-                <Icon className={`w-5 h-5 ${color}`} />
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-1.5 group-hover:text-brand-600 transition-colors">
-                {title}
-              </h3>
-              <p className="text-sm text-gray-500 leading-relaxed mb-3">{description}</p>
-              <div className="flex items-center gap-1 text-xs font-medium text-brand-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                进入功能 <ArrowRight className="w-3 h-3" />
+            <Card className="cursor-pointer transition-transform duration-150 group-hover:-translate-y-px">
+              <div className="flex items-start gap-4">
+                <div
+                  className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl ${bg}`}
+                  style={{ border: "1px solid var(--rc-card-inset-outline)" }}
+                >
+                  <Icon className={`h-4.5 w-4.5 ${color}`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold" style={{ color: "var(--rc-text)" }}>
+                        {title}
+                      </h3>
+                      <p className="mt-1.5 text-sm leading-6" style={{ color: "var(--rc-text-soft)" }}>
+                        {description}
+                      </p>
+                    </div>
+                    <ArrowRight className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: "var(--rc-text-muted)" }} />
+                  </div>
+                </div>
               </div>
             </Card>
           </Link>
         ))}
       </div>
 
-      {/* Workflow */}
-      <Card>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">推荐使用流程</h2>
+      <Card className="mt-6">
+        <h2 className="mb-4 text-lg font-semibold" style={{ color: "var(--rc-text)" }}>
+          推荐使用流程
+        </h2>
         <ol className="space-y-3">
           {[
             { step: "1", text: "在「方向规划」中输入研究方向，获取系统化学习路径" },
@@ -108,10 +132,12 @@ export default function HomePage() {
             { step: "5", text: `随时打开「${MAIN_ASSISTANT_WORKSPACE_NAME}」查看任务计划、能力域模型时间线与结构化产物` },
           ].map(({ step, text }) => (
             <li key={step} className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center">
+              <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--rc-accent)" }}>
                 {step}
               </span>
-              <span className="text-sm text-gray-600 pt-0.5">{text}</span>
+              <span className="pt-0.5 text-sm" style={{ color: "var(--rc-text-soft)" }}>
+                {text}
+              </span>
             </li>
           ))}
         </ol>

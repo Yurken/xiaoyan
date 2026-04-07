@@ -29,39 +29,79 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
-      {/* Logo */}
-      <div className="h-16 flex items-center px-5 border-b border-gray-200">
-        <Microscope className="w-6 h-6 text-brand-600 mr-2" />
-        <span className="font-bold text-gray-900 text-base">{PRODUCT_NAME}</span>
+    <aside
+      className="flex w-64 flex-shrink-0 flex-col border-r"
+      style={{
+        background: "var(--rc-sidebar-bg)",
+        borderColor: "var(--rc-border)",
+        backdropFilter: "blur(18px)",
+      }}
+    >
+      <div className="px-4 pb-3 pt-4">
+        <div
+          className="rounded-[24px] border px-4 py-4"
+          style={{
+            background: "var(--rc-card-bg)",
+            borderColor: "var(--rc-card-outline)",
+            boxShadow: "var(--rc-card-flat-shadow)",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border"
+              style={{ borderColor: "var(--rc-card-outline)", background: "var(--rc-card-inset-bg)" }}
+            >
+              <Microscope className="h-5 w-5" style={{ color: "var(--rc-accent)" }} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold" style={{ color: "var(--rc-text)" }}>
+                {PRODUCT_NAME}
+              </p>
+              <p className="mt-1 text-xs" style={{ color: "var(--rc-text-muted)" }}>
+                Research Copilot Desk
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 py-4 px-3 space-y-1">
+      <nav className="flex-1 space-y-1.5 px-3 py-3">
         {navItems.map(({ href, icon: Icon, label }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
-              className={clsx(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              className={clsx("flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm font-medium transition-all duration-150")}
+              style={
                 active
-                  ? "bg-brand-50 text-brand-700"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-              )}
+                  ? {
+                      background: "color-mix(in srgb, var(--rc-accent) 10%, var(--rc-elevated))",
+                      borderColor: "color-mix(in srgb, var(--rc-accent) 24%, var(--rc-border))",
+                      color: "var(--rc-text)",
+                      boxShadow: "var(--rc-card-flat-shadow)",
+                    }
+                  : {
+                      background: "transparent",
+                      borderColor: "transparent",
+                      color: "var(--rc-text-soft)",
+                    }
+              }
             >
-              <Icon className="w-4 h-4 flex-shrink-0" />
+              <Icon className="h-4 w-4 flex-shrink-0" />
               {label}
             </Link>
           );
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-5 py-4 border-t border-gray-200">
-        <p className="text-xs text-gray-400">{PRODUCT_NAME} v0.1.4</p>
-        <p className="mt-1 text-xs text-gray-400">主 AI：{MAIN_ASSISTANT_NAME}</p>
+      <div className="border-t px-5 py-4" style={{ borderColor: "var(--rc-border)" }}>
+        <p className="text-xs" style={{ color: "var(--rc-text-muted)" }}>
+          {PRODUCT_NAME} v0.1.4
+        </p>
+        <p className="mt-1 text-xs" style={{ color: "var(--rc-text-muted)" }}>
+          主 AI：{MAIN_ASSISTANT_NAME}
+        </p>
       </div>
     </aside>
   );

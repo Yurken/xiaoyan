@@ -1,0 +1,316 @@
+import type { ComponentType } from "react";
+import {
+  Brain,
+  Compass,
+  Info,
+  LayoutDashboard,
+  Layers3,
+  Route,
+  Zap,
+} from "lucide-react";
+import type { AppSettings } from "@research-copilot/types";
+import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE } from "../../lib/paperTags";
+
+export type SettingsSectionKey =
+  | "guided"
+  | "connection"
+  | "paper_tags"
+  | "roles"
+  | "skills"
+  | "memory"
+  | "about"
+  | "layout";
+
+export const SETTINGS_SECTIONS: Array<{
+  key: SettingsSectionKey;
+  label: string;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+  color: string;
+}> = [
+  {
+    key: "guided",
+    label: "快速开始",
+    description: "先完成三步配置",
+    icon: Compass,
+    color: "#34C759",
+  },
+  {
+    key: "connection",
+    label: "基础连接",
+    description: "服务商与默认模型",
+    icon: Brain,
+    color: "#AF52DE",
+  },
+  {
+    key: "roles",
+    label: "任务分工",
+    description: "阅读、综述、复现",
+    icon: Route,
+    color: "#0A84FF",
+  },
+  {
+    key: "paper_tags",
+    label: "论文导入",
+    description: "识别项与标签显示",
+    icon: Layers3,
+    color: "#FF9F0A",
+  },
+  {
+    key: "skills",
+    label: "技能模板",
+    description: "提示词技能管理",
+    icon: Zap,
+    color: "#FF9F0A",
+  },
+  {
+    key: "layout",
+    label: "界面布局",
+    description: "功能入口与界面形态",
+    icon: LayoutDashboard,
+    color: "#30B0C7",
+  },
+  {
+    key: "memory",
+    label: "记忆管理",
+    description: "查看与管理小妍的记忆",
+    icon: Brain,
+    color: "#FF9F0A",
+  },
+  {
+    key: "about",
+    label: "升级与说明",
+    description: "版本、备份与说明",
+    icon: Info,
+    color: "#5AC8FA",
+  },
+];
+
+export function SettingsSectionTab({
+  icon: Icon,
+  color,
+  label,
+  active,
+  onClick,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  color: string;
+  label: string;
+  description: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-[24px] px-3.5 py-3 text-left transition-all duration-150"
+      style={
+        active
+          ? {
+              background: "var(--rc-elevated)",
+              border: "1px solid rgba(10,132,255,0.35)",
+              boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+            }
+          : {
+              background: "var(--rc-surface)",
+              border: "1px solid var(--rc-border)",
+              boxShadow: "0 8px 18px rgba(0,0,0,0.3)",
+            }
+      }
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+          style={{
+            background: "var(--rc-card-inset-bg)",
+            border: "1px solid var(--rc-border)",
+            color,
+            boxShadow: "var(--rc-inset-shadow)",
+          }}
+        >
+          <Icon className="w-5 h-5" />
+        </div>
+        <p className="text-sm font-semibold text-ink-primary leading-tight truncate">{label}</p>
+      </div>
+    </button>
+  );
+}
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  llm_provider: "openai_compatible",
+  openai_api_key: "",
+  openai_base_url: "https://api.openai.com/v1",
+  openai_chat_model: "gpt-4o-mini",
+  openai_embedding_model: "text-embedding-3-small",
+  anthropic_api_key: "",
+  anthropic_chat_model: "claude-3-5-haiku-20241022",
+  openai_compatible_base_url: "",
+  openai_compatible_api_key: "",
+  openai_compatible_chat_model: "deepseek-chat",
+  openai_compatible_embedding_model: "BAAI/bge-m3",
+  embedding_base_url: "",
+  embedding_api_key: "",
+  embedding_model: "",
+  chunk_size: "800",
+  chunk_overlap: "150",
+  rag_top_k: "5",
+  semantic_scholar_api_key: "",
+  planner_hint_model: "",
+  planner_hint_base_url: "",
+  planner_hint_api_key: "",
+  planner_hint_temperature: "0.2",
+  planner_hint_top_p: "",
+  planner_hint_max_tokens: "",
+  planner_hint_presence_penalty: "",
+  planner_hint_frequency_penalty: "",
+  planner_analysis_model: "",
+  planner_analysis_base_url: "",
+  planner_analysis_api_key: "",
+  planner_analysis_temperature: "0.2",
+  planner_analysis_top_p: "",
+  planner_analysis_max_tokens: "",
+  planner_analysis_presence_penalty: "",
+  planner_analysis_frequency_penalty: "",
+  planner_generation_model: "",
+  planner_generation_base_url: "",
+  planner_generation_api_key: "",
+  planner_generation_temperature: "0.3",
+  planner_generation_top_p: "",
+  planner_generation_max_tokens: "",
+  planner_generation_presence_penalty: "",
+  planner_generation_frequency_penalty: "",
+  survey_planner_model: "",
+  survey_planner_base_url: "",
+  survey_planner_api_key: "",
+  survey_planner_temperature: "0.2",
+  survey_planner_top_p: "",
+  survey_planner_max_tokens: "",
+  survey_planner_presence_penalty: "",
+  survey_planner_frequency_penalty: "",
+  survey_writer_model: "",
+  survey_writer_base_url: "",
+  survey_writer_api_key: "",
+  survey_writer_temperature: "0.3",
+  survey_writer_top_p: "",
+  survey_writer_max_tokens: "",
+  survey_writer_presence_penalty: "",
+  survey_writer_frequency_penalty: "",
+  paper_analysis_model: "",
+  paper_analysis_base_url: "",
+  paper_analysis_api_key: "",
+  paper_analysis_temperature: "0.3",
+  paper_analysis_top_p: "",
+  paper_analysis_max_tokens: "",
+  paper_analysis_presence_penalty: "",
+  paper_analysis_frequency_penalty: "",
+  paper_reproduction_model: "",
+  paper_reproduction_base_url: "",
+  paper_reproduction_api_key: "",
+  paper_reproduction_temperature: "0.25",
+  paper_reproduction_top_p: "",
+  paper_reproduction_max_tokens: "",
+  paper_reproduction_presence_penalty: "",
+  paper_reproduction_frequency_penalty: "",
+  copilot_simple_model: "",
+  copilot_simple_base_url: "",
+  copilot_simple_api_key: "",
+  copilot_simple_temperature: "0.4",
+  copilot_simple_top_p: "",
+  copilot_simple_max_tokens: "",
+  copilot_simple_presence_penalty: "",
+  copilot_simple_frequency_penalty: "",
+  multi_agent_enabled: "true",
+  multi_agent_routing_mode: "hybrid",
+  multi_agent_enabled_agents: "retrieval,planner,literature_scout,survey,paper_analyst,reproduction,synthesis",
+  multi_agent_max_steps: "6",
+  multi_agent_search_limit: "8",
+  multi_agent_supervisor_model: "",
+  multi_agent_supervisor_base_url: "",
+  multi_agent_supervisor_api_key: "",
+  multi_agent_supervisor_temperature: "0.1",
+  multi_agent_supervisor_top_p: "",
+  multi_agent_supervisor_max_tokens: "",
+  multi_agent_supervisor_presence_penalty: "",
+  multi_agent_supervisor_frequency_penalty: "",
+  multi_agent_worker_model: "",
+  multi_agent_worker_base_url: "",
+  multi_agent_worker_api_key: "",
+  multi_agent_worker_temperature: "0.3",
+  multi_agent_worker_top_p: "",
+  multi_agent_worker_max_tokens: "",
+  multi_agent_worker_presence_penalty: "",
+  multi_agent_worker_frequency_penalty: "",
+  multi_agent_planner_model: "",
+  multi_agent_planner_base_url: "",
+  multi_agent_planner_api_key: "",
+  multi_agent_planner_temperature: "",
+  multi_agent_planner_top_p: "",
+  multi_agent_planner_max_tokens: "",
+  multi_agent_planner_presence_penalty: "",
+  multi_agent_planner_frequency_penalty: "",
+  multi_agent_literature_scout_model: "",
+  multi_agent_literature_scout_base_url: "",
+  multi_agent_literature_scout_api_key: "",
+  multi_agent_literature_scout_temperature: "",
+  multi_agent_literature_scout_top_p: "",
+  multi_agent_literature_scout_max_tokens: "",
+  multi_agent_literature_scout_presence_penalty: "",
+  multi_agent_literature_scout_frequency_penalty: "",
+  multi_agent_survey_model: "",
+  multi_agent_survey_base_url: "",
+  multi_agent_survey_api_key: "",
+  multi_agent_survey_temperature: "",
+  multi_agent_survey_top_p: "",
+  multi_agent_survey_max_tokens: "",
+  multi_agent_survey_presence_penalty: "",
+  multi_agent_survey_frequency_penalty: "",
+  multi_agent_paper_analyst_model: "",
+  multi_agent_paper_analyst_base_url: "",
+  multi_agent_paper_analyst_api_key: "",
+  multi_agent_paper_analyst_temperature: "",
+  multi_agent_paper_analyst_top_p: "",
+  multi_agent_paper_analyst_max_tokens: "",
+  multi_agent_paper_analyst_presence_penalty: "",
+  multi_agent_paper_analyst_frequency_penalty: "",
+  multi_agent_reproduction_model: "",
+  multi_agent_reproduction_base_url: "",
+  multi_agent_reproduction_api_key: "",
+  multi_agent_reproduction_temperature: "",
+  multi_agent_reproduction_top_p: "",
+  multi_agent_reproduction_max_tokens: "",
+  multi_agent_reproduction_presence_penalty: "",
+  multi_agent_reproduction_frequency_penalty: "",
+  multi_agent_synthesis_model: "",
+  multi_agent_synthesis_base_url: "",
+  multi_agent_synthesis_api_key: "",
+  multi_agent_synthesis_temperature: "0.4",
+  multi_agent_synthesis_top_p: "",
+  multi_agent_synthesis_max_tokens: "",
+  multi_agent_synthesis_presence_penalty: "",
+  multi_agent_synthesis_frequency_penalty: "",
+  paper_visible_venue_tags: DEFAULT_PAPER_TAG_VISIBILITY_VALUE,
+  paper_import_recognize_title: "true",
+  paper_import_recognize_authors: "true",
+  paper_import_recognize_year: "true",
+  paper_import_recognize_venue: "true",
+  paper_import_recognize_keywords: "true",
+  paper_auto_rename_on_import: "false",
+  paper_auto_rename_rule: "{first_author} - {title} ({year})",
+  vision_model: "",
+  vision_base_url: "",
+  vision_api_key: "",
+  vision_temperature: "0.2",
+  vision_top_p: "",
+  vision_max_tokens: "",
+  vision_presence_penalty: "",
+  vision_frequency_penalty: "",
+  translation_model: "",
+  translation_base_url: "",
+  translation_api_key: "",
+  translation_temperature: "0.1",
+  translation_top_p: "",
+  translation_max_tokens: "",
+  translation_presence_penalty: "",
+  translation_frequency_penalty: "",
+};

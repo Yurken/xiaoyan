@@ -1,4 +1,7 @@
 use crate::llm::{resolve_model, resolve_temperature_chain, LlmClient, LlmMessage};
+use crate::services::submission_service::{
+    self, CreateSubmissionVenueParams, UpdateSubmissionVenueParams,
+};
 use crate::state::AppState;
 use serde_json::json;
 use sqlx::Row;
@@ -21,56 +24,7 @@ pub async fn submission_list_venues(
     search: Option<String>,
     starred_only: Option<bool>,
 ) -> Result<serde_json::Value, String> {
-    let rows = sqlx::query(
-        "SELECT id, type, name, full_name, website, ccf, area, starred, ei, sci, sci_quartile,
-                deadline, notification_date, special_issue_deadline, special_issue_title, created_at
-         FROM venues ORDER BY starred DESC, name ASC",
-    )
-    .fetch_all(&state.db)
-    .await
-    .map_err(|e| e.to_string())?;
-
-    let search_lower = search.as_deref().unwrap_or("").to_lowercase();
-    let starred_filter = starred_only.unwrap_or(false);
-
-    let venues: Vec<serde_json::Value> = rows
-        .iter()
-        .filter(|row| {
-            let name: String = row.get("name");
-            let full_name: String = row.get("full_name");
-            let starred: i64 = row.get("starred");
-            if starred_filter && starred == 0 {
-                return false;
-            }
-            if !search_lower.is_empty() {
-                return name.to_lowercase().contains(&search_lower)
-                    || full_name.to_lowercase().contains(&search_lower);
-            }
-            true
-        })
-        .map(|row| {
-            json!({
-                "id": row.get::<String, _>("id"),
-                "type": row.get::<String, _>("type"),
-                "name": row.get::<String, _>("name"),
-                "fullName": row.get::<String, _>("full_name"),
-                "website": row.get::<String, _>("website"),
-                "ccf": row.get::<String, _>("ccf"),
-                "area": row.get::<String, _>("area"),
-                "starred": row.get::<i64, _>("starred") == 1,
-                "ei": row.get::<i64, _>("ei") == 1,
-                "sci": row.get::<i64, _>("sci") == 1,
-                "sciQuartile": row.get::<String, _>("sci_quartile"),
-                "deadline": row.get::<Option<String>, _>("deadline"),
-                "notificationDate": row.get::<Option<String>, _>("notification_date"),
-                "specialIssueDeadline": row.get::<Option<String>, _>("special_issue_deadline"),
-                "specialIssueTitle": row.get::<String, _>("special_issue_title"),
-                "createdAt": row.get::<String, _>("created_at"),
-            })
-        })
-        .collect();
-
-    Ok(json!({ "venues": venues }))
+    submission_service::list_submission_venues(&state, search, starred_only).await
 }
 
 #[tauri::command]
@@ -90,31 +44,25 @@ pub async fn submission_create_venue(
     special_issue_deadline: Option<String>,
     special_issue_title: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let id = Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO venues (id, type, name, full_name, website, ccf, area, ei, sci, sci_quartile,
-                             deadline, notification_date, special_issue_deadline, special_issue_title)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    submission_service::create_submission_venue(
+        &state,
+        CreateSubmissionVenueParams {
+            name,
+            full_name,
+            venue_type,
+            website,
+            ccf,
+            area,
+            ei,
+            sci,
+            sci_quartile,
+            deadline,
+            notification_date,
+            special_issue_deadline,
+            special_issue_title,
+        },
     )
-    .bind(&id)
-    .bind(venue_type.as_deref().unwrap_or("conference"))
-    .bind(&name)
-    .bind(full_name.as_deref().unwrap_or(""))
-    .bind(website.as_deref().unwrap_or(""))
-    .bind(ccf.as_deref().unwrap_or(""))
-    .bind(area.as_deref().unwrap_or(""))
-    .bind(ei.unwrap_or(false) as i64)
-    .bind(sci.unwrap_or(false) as i64)
-    .bind(sci_quartile.as_deref().unwrap_or(""))
-    .bind(deadline.as_deref())
-    .bind(notification_date.as_deref())
-    .bind(special_issue_deadline.as_deref())
-    .bind(special_issue_title.as_deref().unwrap_or(""))
-    .execute(&state.db)
     .await
-    .map_err(|e| e.to_string())?;
-
-    Ok(json!({ "id": id }))
 }
 
 #[tauri::command]
@@ -135,49 +83,26 @@ pub async fn submission_update_venue(
     special_issue_deadline: Option<String>,
     special_issue_title: Option<String>,
 ) -> Result<(), String> {
-    if let Some(n) = &name {
-        sqlx::query("UPDATE venues SET name = ? WHERE id = ?").bind(n).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = &full_name {
-        sqlx::query("UPDATE venues SET full_name = ? WHERE id = ?").bind(v).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = &venue_type {
-        sqlx::query("UPDATE venues SET type = ? WHERE id = ?").bind(v).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = &website {
-        sqlx::query("UPDATE venues SET website = ? WHERE id = ?").bind(v).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = &ccf {
-        sqlx::query("UPDATE venues SET ccf = ? WHERE id = ?").bind(v).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = &area {
-        sqlx::query("UPDATE venues SET area = ? WHERE id = ?").bind(v).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = ei {
-        sqlx::query("UPDATE venues SET ei = ? WHERE id = ?").bind(v as i64).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = sci {
-        sqlx::query("UPDATE venues SET sci = ? WHERE id = ?").bind(v as i64).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = &sci_quartile {
-        sqlx::query("UPDATE venues SET sci_quartile = ? WHERE id = ?").bind(v).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = &deadline {
-        let val: Option<&str> = if v.is_empty() { None } else { Some(v) };
-        sqlx::query("UPDATE venues SET deadline = ? WHERE id = ?").bind(val).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = &notification_date {
-        let val: Option<&str> = if v.is_empty() { None } else { Some(v) };
-        sqlx::query("UPDATE venues SET notification_date = ? WHERE id = ?").bind(val).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = &special_issue_deadline {
-        let val: Option<&str> = if v.is_empty() { None } else { Some(v) };
-        sqlx::query("UPDATE venues SET special_issue_deadline = ? WHERE id = ?").bind(val).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = &special_issue_title {
-        sqlx::query("UPDATE venues SET special_issue_title = ? WHERE id = ?").bind(v).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    submission_service::update_submission_venue(
+        &state,
+        &id,
+        UpdateSubmissionVenueParams {
+            name,
+            full_name,
+            venue_type,
+            website,
+            ccf,
+            area,
+            ei,
+            sci,
+            sci_quartile,
+            deadline,
+            notification_date,
+            special_issue_deadline,
+            special_issue_title,
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -185,12 +110,7 @@ pub async fn submission_delete_venue(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
-    sqlx::query("DELETE FROM venues WHERE id = ?")
-        .bind(&id)
-        .execute(&state.db)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    submission_service::delete_submission_venue(&state, &id).await
 }
 
 #[tauri::command]
@@ -198,12 +118,7 @@ pub async fn submission_toggle_venue_star(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
-    sqlx::query("UPDATE venues SET starred = CASE WHEN starred = 1 THEN 0 ELSE 1 END WHERE id = ?")
-        .bind(&id)
-        .execute(&state.db)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    submission_service::toggle_submission_venue_star(&state, &id).await
 }
 
 // ══════════════════════════════════════════════════════════════════════════
