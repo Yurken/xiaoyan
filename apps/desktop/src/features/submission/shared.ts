@@ -53,6 +53,13 @@ export interface ChecklistItem {
   category: string;
 }
 
+export interface AddSubmissionFormState {
+  title: string;
+  venue: string;
+  venueType: VenueType;
+  deadline: string;
+}
+
 export interface VenueRecommendation extends VenueTemplate {
   reason: string;
   matchScore: number;
@@ -93,9 +100,29 @@ export interface PaperVersion {
   fileName?: string;
 }
 
+export interface SaveVersionFormState {
+  tag: string;
+  label: string;
+  notes: string;
+  content: string;
+}
+
 export type MockStrictness = "lenient" | "balanced" | "strict";
 
+export interface MockReviewInput {
+  abstract: string;
+  reviewerCount: number;
+  strictness: MockStrictness;
+}
+
 export interface MockReviewerResult {
+  reviewer: string;
+  content: string;
+  tags: string[];
+  verdict: ReviewVerdict;
+}
+
+export interface ReviewFormState {
   reviewer: string;
   content: string;
   tags: string[];
@@ -157,6 +184,21 @@ export function normalizeVerdict(value: unknown): ReviewVerdict {
     return value;
   }
   return "major_revision";
+}
+
+export function countVerdicts(items: Array<{ verdict: ReviewVerdict }>): Record<ReviewVerdict, number> {
+  return items.reduce<Record<ReviewVerdict, number>>(
+    (accumulator, item) => {
+      accumulator[item.verdict] = (accumulator[item.verdict] ?? 0) + 1;
+      return accumulator;
+    },
+    { accept: 0, minor_revision: 0, major_revision: 0, reject: 0 }
+  );
+}
+
+export function getDominantVerdict(counts: Record<ReviewVerdict, number>): ReviewVerdict {
+  return (Object.entries(counts) as [ReviewVerdict, number][])
+    .sort((left, right) => right[1] - left[1])[0][0];
 }
 
 export const VERDICT_CFG: Record<ReviewVerdict, { label: string; color: string; bg: string }> = {

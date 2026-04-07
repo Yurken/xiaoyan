@@ -3,10 +3,8 @@ import { submissionApi } from "../lib/client";
 import { listen } from "@tauri-apps/api/event";
 import {
   Bell,
-  Bot,
   BookOpen,
   Calendar,
-  Check,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -17,16 +15,12 @@ import {
   GitBranch,
   History,
   KanbanSquare,
-  Loader2,
   Plus,
-  Search,
   Sparkles,
   Star,
   StarOff,
   Trophy,
-  Upload,
   Users,
-  X,
 } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -35,31 +29,42 @@ import {
   getAllAreas,
   type VenueTemplate,
 } from "../data/venues";
+import AddSubmissionModal from "../features/submission/AddSubmissionModal";
+import AddVenueModal from "../features/submission/AddVenueModal";
+import CoverLetterModal from "../features/submission/CoverLetterModal";
 import ExternalLink from "../components/ExternalLink";
+import MockReviewModal from "../features/submission/MockReviewModal";
+import PolishPanel from "../features/submission/PolishPanel";
+import ReviewEntryModal from "../features/submission/ReviewEntryModal";
+import ReviewWorkspace from "../features/submission/ReviewWorkspace";
+import SaveVersionModal from "../features/submission/SaveVersionModal";
 import VersionWorkspace from "../features/submission/VersionWorkspace";
 import {
   CCF_STYLE,
   DEFAULT_CHECKLIST,
   KANBAN_COLS,
-  REVIEW_TAGS,
   STATUS_CFG,
-  VERDICT_CFG,
+  countVerdicts,
   getDaysUntil,
+  getDominantVerdict,
   getDdlStyle,
   rowToComment,
   rowToRound,
   rowToSubmission,
   rowToVenue,
   rowToVersion,
+  type AddSubmissionFormState,
   type ChecklistItem,
   type Conference,
   type Journal,
+  type MockReviewInput,
   type MockReviewerResult,
-  type MockStrictness,
   type PaperVersion,
   type ReviewComment,
+  type ReviewFormState,
   type ReviewRound,
   type ReviewVerdict,
+  type SaveVersionFormState,
   type Submission,
   type Venue,
   type VenueRecommendation,
@@ -89,16 +94,19 @@ export default function Submission() {
 
   // Add submission modal state
   const [showAddSubModal, setShowAddSubModal] = useState(false);
-  const [addSubForm, setAddSubForm] = useState<{
-    title: string; venue: string; venueType: VenueType; deadline: string;
-  }>({ title: "", venue: "", venueType: "conference", deadline: "" });
+  const [addSubForm, setAddSubForm] = useState<AddSubmissionFormState>({
+    title: "",
+    venue: "",
+    venueType: "conference",
+    deadline: "",
+  });
 
   // Version control state
   const [versions, setVersions] = useState<PaperVersion[]>([]);
   const [versionSubId, setVersionSubId] = useState<string>("");
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
-  const [saveForm, setSaveForm] = useState({ tag: "", label: "", notes: "", content: "" });
+  const [saveForm, setSaveForm] = useState<SaveVersionFormState>({ tag: "", label: "", notes: "", content: "" });
 
   // Review archive state
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
@@ -106,15 +114,17 @@ export default function Submission() {
   const [reviewSubId, setReviewSubId] = useState<string>("");
   const [reviewRound, setReviewRound] = useState<number>(1);
   const [showAddReviewModal, setShowAddReviewModal] = useState(false);
-  const [reviewForm, setReviewForm] = useState({
+  const [reviewForm, setReviewForm] = useState<ReviewFormState>({
     reviewer: "", content: "", tags: [] as string[], verdict: "major_revision" as ReviewVerdict,
   });
 
   // AI review state
   const [showMockReviewModal, setShowMockReviewModal] = useState(false);
-  const [mockReviewInput, setMockReviewInput] = useState<{
-    abstract: string; reviewerCount: number; strictness: MockStrictness;
-  }>({ abstract: "", reviewerCount: 3, strictness: "balanced" });
+  const [mockReviewInput, setMockReviewInput] = useState<MockReviewInput>({
+    abstract: "",
+    reviewerCount: 3,
+    strictness: "balanced",
+  });
   const [mockReviewLoading, setMockReviewLoading] = useState(false);
   const [mockReviewResult, setMockReviewResult] = useState<MockReviewerResult[] | null>(null);
   const [mockFileExtracting, setMockFileExtracting] = useState(false);
@@ -528,6 +538,204 @@ export default function Submission() {
     }
 
     setMockReviewInput((currentInput) => ({ ...currentInput, abstract: version.content }));
+  };
+
+  const handleOpenAddReviewModal = () => {
+    const currentRounds = reviewRounds.filter((round) => round.submissionId === reviewSubId);
+    const nextRound = currentRounds.length > 0 ? Math.max(...currentRounds.map((round) => round.round)) + 1 : 1;
+    setReviewRound(nextRound);
+    setReviewForm({ reviewer: "Reviewer 1", content: "", tags: [], verdict: "major_revision" });
+    setShowAddReviewModal(true);
+  };
+
+  const handleAddReviewComment = async () => {
+    if (!reviewForm.reviewer.trim() || !reviewForm.content.trim()) return;
+
+    const roundExists = reviewRounds.some((round) => round.submissionId === reviewSubId && round.round === reviewRound);
+    if (!roundExists) {
+      await submissionApi
+        .upsertRound({
+          submissionId: reviewSubId,
+          round: reviewRound,
+          verdict: reviewForm.verdict,
+        })
+        .catch(console.error);
+
+      setReviewRounds((currentRounds) => [
+        ...currentRounds,
+        {
+          submissionId: reviewSubId,
+          round: reviewRound,
+          verdict: reviewForm.verdict,
+          receivedAt: new Date(),
+        },
+      ]);
+    }
+
+    try {
+      const response = await submissionApi.createComment({
+        submissionId: reviewSubId,
+        round: reviewRound,
+        reviewer: reviewForm.reviewer.trim(),
+        content: reviewForm.content.trim(),
+        tags: reviewForm.tags,
+      });
+
+      setReviewComments((currentComments) => [
+        ...currentComments,
+        {
+          id: response.id,
+          submissionId: reviewSubId,
+          round: reviewRound,
+          reviewer: reviewForm.reviewer.trim(),
+          content: reviewForm.content.trim(),
+          response: "",
+          resolved: false,
+          tags: reviewForm.tags,
+          createdAt: new Date(),
+        },
+      ]);
+    } catch (error) {
+      console.error(error);
+    }
+
+    const reviewerMatch = reviewForm.reviewer.match(/\d+/);
+    const nextReviewerIndex = reviewerMatch ? Number.parseInt(reviewerMatch[0], 10) + 1 : 2;
+    setReviewForm((currentForm) => ({
+      ...currentForm,
+      reviewer: `Reviewer ${nextReviewerIndex}`,
+      content: "",
+      tags: [],
+    }));
+  };
+
+  const handleToggleReviewResolved = (commentId: string) => {
+    const comment = reviewComments.find((item) => item.id === commentId);
+    if (!comment) return;
+
+    submissionApi.updateComment(commentId, { resolved: !comment.resolved }).catch(console.error);
+    setReviewComments((currentComments) =>
+      currentComments.map((item) => (item.id === commentId ? { ...item, resolved: !item.resolved } : item))
+    );
+  };
+
+  const handleUpdateReviewResponse = (commentId: string, response: string) => {
+    submissionApi.updateComment(commentId, { response }).catch(console.error);
+    setReviewComments((currentComments) =>
+      currentComments.map((item) => (item.id === commentId ? { ...item, response } : item))
+    );
+  };
+
+  const handleOpenCoverLetter = () => {
+    setCoverLetterText("");
+    setCoverLetterLoading(true);
+    setShowCoverLetterModal(true);
+    submissionApi.generateCoverLetter(reviewSubId).catch((error) => {
+      console.error(error);
+      setCoverLetterLoading(false);
+    });
+  };
+
+  const handlePickMockReviewPdf = async () => {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+
+    if (typeof selected !== "string" || !selected) {
+      return;
+    }
+
+    setMockFileExtracting(true);
+    try {
+      const { extractTextFromPdf } = await import("../lib/pdfExtract");
+      const text = await extractTextFromPdf(selected);
+      setMockReviewInput((currentInput) => ({ ...currentInput, abstract: text }));
+      setMockFileName(selected.split("/").pop() ?? "paper.pdf");
+    } catch {
+      // Keep current abstract text when extraction fails.
+    } finally {
+      setMockFileExtracting(false);
+    }
+  };
+
+  const handleResetMockReview = () => {
+    mockReviewBufferRef.current = [];
+    setMockReviewResult(null);
+  };
+
+  const handleGenerateMockReview = () => {
+    activeMockReviewSubmissionRef.current = reviewSubId;
+    mockReviewBufferRef.current = [];
+    setMockReviewLoading(true);
+    setMockReviewResult([]);
+    submissionApi
+      .aiReview({
+        submissionId: reviewSubId,
+        content: mockReviewInput.abstract,
+        reviewerCount: mockReviewInput.reviewerCount,
+        strictness: mockReviewInput.strictness,
+      })
+      .catch((error) => {
+        console.error(error);
+        setMockReviewLoading(false);
+      });
+  };
+
+  const handleImportMockReview = async () => {
+    if (!mockReviewResult?.length) return;
+
+    const existingRounds = reviewRounds
+      .filter((round) => round.submissionId === reviewSubId)
+      .map((round) => round.round);
+    const nextRound = existingRounds.length > 0 ? Math.max(...existingRounds) + 1 : 1;
+    const verdict = getDominantVerdict(countVerdicts(mockReviewResult));
+
+    await submissionApi
+      .upsertRound({ submissionId: reviewSubId, round: nextRound, verdict })
+      .catch(console.error);
+
+    const createdComments = await Promise.all(
+      mockReviewResult.map(async (result, index) => {
+        const response = await submissionApi
+          .createComment({
+            submissionId: reviewSubId,
+            round: nextRound,
+            reviewer: result.reviewer,
+            content: result.content,
+            tags: result.tags,
+          })
+          .catch(() => ({ id: `mock-${Date.now()}-${index}` }));
+
+        return {
+          id: (response as { id: string }).id,
+          submissionId: reviewSubId,
+          round: nextRound,
+          reviewer: result.reviewer,
+          content: result.content,
+          response: "",
+          resolved: false,
+          tags: result.tags,
+          createdAt: new Date(),
+        };
+      })
+    );
+
+    setReviewRounds((currentRounds) => [
+      ...currentRounds,
+      { submissionId: reviewSubId, round: nextRound, verdict, receivedAt: new Date() },
+    ]);
+    setReviewComments((currentComments) => [...currentComments, ...createdComments]);
+    setReviewRound(nextRound);
+    setShowMockReviewModal(false);
+  };
+
+  const handleApplyPolishResult = () => {
+    if (!polishText || !polishSourceId) return;
+    setVersions((currentVersions) =>
+      currentVersions.map((version) => (version.id === polishSourceId ? { ...version, content: polishText } : version))
+    );
+    setShowPolishPanel(false);
   };
 
   // ── Recommendation state + logic ──
@@ -1284,1179 +1492,102 @@ export default function Submission() {
         )}
 
         {/* ════════ 审稿归档 ════════ */}
-        {tab === "reviews" && (() => {
-          const currentSub = submissions.find(s => s.id === reviewSubId);
-          const subRounds = reviewRounds
-            .filter(r => r.submissionId === reviewSubId)
-            .sort((a, b) => a.round - b.round);
-          const roundNums = Array.from(new Set(subRounds.map(r => r.round)));
-          const activeRound = subRounds.find(r => r.round === reviewRound);
-          const roundComments = reviewComments
-            .filter(c => c.submissionId === reviewSubId && c.round === reviewRound)
-            .sort((a, b) => a.reviewer.localeCompare(b.reviewer));
-          const unresolvedCount = roundComments.filter(c => !c.resolved).length;
-
-          const handleAddRoundAndOpen = () => {
-            const nextRound = roundNums.length > 0 ? Math.max(...roundNums) + 1 : 1;
-            setReviewRound(nextRound);
-            setReviewForm({ reviewer: "Reviewer 1", content: "", tags: [], verdict: "major_revision" });
-            setShowAddReviewModal(true);
-          };
-
-          const handleAddComment = async () => {
-            if (!reviewForm.reviewer.trim() || !reviewForm.content.trim()) return;
-            const isNewRound = !roundNums.includes(reviewRound);
-            if (isNewRound) {
-              await submissionApi.upsertRound({
-                submissionId: reviewSubId, round: reviewRound,
-                verdict: reviewForm.verdict,
-              }).catch(console.error);
-              setReviewRounds(prev => [...prev, {
-                submissionId: reviewSubId, round: reviewRound,
-                verdict: reviewForm.verdict, receivedAt: new Date(),
-              }]);
-            }
-            try {
-              const res = await submissionApi.createComment({
-                submissionId: reviewSubId, round: reviewRound,
-                reviewer: reviewForm.reviewer.trim(),
-                content: reviewForm.content.trim(),
-                tags: reviewForm.tags,
-              });
-              setReviewComments(prev => [...prev, {
-                id: res.id, submissionId: reviewSubId, round: reviewRound,
-                reviewer: reviewForm.reviewer.trim(),
-                content: reviewForm.content.trim(),
-                response: "", resolved: false, tags: reviewForm.tags, createdAt: new Date(),
-              }]);
-            } catch (e) { console.error(e); }
-            setReviewForm(p => ({ ...p, reviewer: `Reviewer ${reviewForm.reviewer.match(/\d+/) ? parseInt(reviewForm.reviewer.match(/\d+/)![0]) + 1 : 2}`, content: "", tags: [] }));
-          };
-
-          const toggleResolved = (id: string) => {
-            const comment = reviewComments.find(c => c.id === id);
-            if (!comment) return;
-            submissionApi.updateComment(id, { resolved: !comment.resolved }).catch(console.error);
-            setReviewComments(prev => prev.map(c => c.id === id ? { ...c, resolved: !c.resolved } : c));
-          };
-
-          const updateResponse = (id: string, response: string) => {
-            submissionApi.updateComment(id, { response }).catch(console.error);
-            setReviewComments(prev => prev.map(c => c.id === id ? { ...c, response } : c));
-          };
-
-          return (<>
-            <div className="flex gap-5 h-full min-h-0">
-              {/* ── 左侧：投稿列表 ── */}
-              <div className="w-52 flex-shrink-0 flex flex-col gap-2">
-                <p className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider px-1">投稿论文</p>
-                {submissions.map(sub => {
-                  const rCount = reviewComments.filter(c => c.submissionId === sub.id).length;
-                  const active = sub.id === reviewSubId;
-                  const cfg = STATUS_CFG[sub.status];
-                  return (
-                    <button
-                      key={sub.id}
-                      onClick={() => { setReviewSubId(sub.id); setReviewRound(1); }}
-                      className="w-full text-left rounded-2xl p-3 transition-all duration-150"
-                      style={active
-                        ? { background: "#007AFF", color: "#fff", boxShadow: "2px 4px 12px rgba(0,122,255,0.3)" }
-                        : { background: "var(--rc-card-bg)", color: "var(--rc-text-primary)" as string, boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)" }
-                      }
-                    >
-                      <p className="text-sm font-medium line-clamp-2 leading-snug">{sub.title}</p>
-                      <div className="mt-1.5 flex items-center justify-between gap-1">
-                        <span className="text-[10px] truncate" style={{ opacity: 0.65 }}>{sub.venue}</span>
-                        {rCount > 0
-                          ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                              style={active ? { background: "rgba(255,255,255,0.25)", color: "#fff" } : { background: cfg.bg, color: cfg.color }}>
-                              {rCount} 条
-                            </span>
-                          : <span className="text-[10px] opacity-40 flex-shrink-0">暂无</span>
-                        }
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* ── 右侧 ── */}
-              <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto">
-                {/* Header */}
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-semibold text-ink-primary line-clamp-1">{currentSub?.title}</p>
-                    <p className="text-xs text-ink-tertiary mt-0.5">
-                      {subRounds.length} 轮审稿 · {reviewComments.filter(c => c.submissionId === reviewSubId).length} 条意见
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        setCoverLetterText("");
-                        setCoverLetterLoading(true);
-                        setShowCoverLetterModal(true);
-                        submissionApi.generateCoverLetter(reviewSubId).catch(e => {
-                          console.error(e); setCoverLetterLoading(false);
-                        });
-                      }}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium"
-                      style={{ background: "rgba(52,199,89,0.12)", color: "#34C759" }}
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Cover Letter
-                    </button>
-                    <button
-                      onClick={handleAddRoundAndOpen}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium"
-                      style={{ background: "#007AFF", color: "#fff", boxShadow: "2px 4px 10px rgba(0,122,255,0.25)" }}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      录入审稿意见
-                    </button>
-                  </div>
-                </div>
-
-                {/* Round tabs */}
-                {roundNums.length > 0 && (
-                  <div className="flex gap-2 flex-wrap">
-                    {subRounds.map(r => {
-                      const vcfg = VERDICT_CFG[r.verdict];
-                      return (
-                        <button
-                          key={r.round}
-                          onClick={() => setReviewRound(r.round)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
-                          style={reviewRound === r.round
-                            ? { background: vcfg.bg, color: vcfg.color, boxShadow: `0 0 0 1.5px ${vcfg.color}40` }
-                            : { background: "var(--rc-card-bg)", color: "var(--rc-text-secondary)" as string, boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)" }
-                          }
-                        >
-                          第 {r.round} 轮
-                          <span className="font-semibold">{vcfg.label}</span>
-                          <span className="opacity-60">· {r.receivedAt.toLocaleDateString("zh-CN", { month: "short", day: "numeric" })}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {roundNums.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center gap-3 opacity-50">
-                    <BookOpen className="w-10 h-10 text-ink-tertiary" />
-                    <p className="text-sm text-ink-tertiary">暂无审稿记录，点击「录入审稿意见」开始归档</p>
-                  </div>
-                ) : roundComments.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 gap-2 opacity-40">
-                    <p className="text-sm text-ink-tertiary">本轮暂无意见</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Round summary */}
-                    {activeRound && (
-                      <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl"
-                        style={{ background: VERDICT_CFG[activeRound.verdict].bg }}>
-                        <span className="text-sm font-bold" style={{ color: VERDICT_CFG[activeRound.verdict].color }}>
-                          {VERDICT_CFG[activeRound.verdict].label}
-                        </span>
-                        <span className="text-xs text-ink-secondary">
-                          {roundComments.length} 位审稿人 · {unresolvedCount > 0 ? `${unresolvedCount} 条待处理` : "全部已处理 ✓"}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Comment cards */}
-                    <div className="space-y-3">
-                      {roundComments.map(comment => (
-                        <div
-                          key={comment.id}
-                          className="rounded-2xl overflow-hidden transition-all duration-150"
-                          style={{
-                            border: `1px solid ${comment.resolved ? "var(--rc-border)" : "rgba(255,149,0,0.3)"}`,
-                            background: "var(--rc-card-bg)",
-                            boxShadow: "2px 2px 8px rgba(0,0,0,0.06)",
-                          }}
-                        >
-                          {/* Card header */}
-                          <div className="flex items-center justify-between px-4 py-2.5"
-                            style={{ background: comment.resolved ? "var(--rc-card-inset-bg)" : "rgba(255,149,0,0.06)", borderBottom: "1px solid var(--rc-border)" }}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold text-ink-primary">{comment.reviewer}</span>
-                              {comment.tags.map(tag => (
-                                <span key={tag} className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
-                                  style={{ background: "rgba(0,122,255,0.10)", color: "#007AFF" }}>
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                            <button
-                              onClick={() => toggleResolved(comment.id)}
-                              className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-lg transition-colors"
-                              style={comment.resolved
-                                ? { background: "rgba(52,199,89,0.12)", color: "#34C759" }
-                                : { background: "rgba(255,149,0,0.12)", color: "#FF9500" }
-                              }
-                            >
-                              {comment.resolved
-                                ? <><CheckCircle2 className="w-3 h-3" /> 已处理</>
-                                : <><Circle className="w-3 h-3" /> 待处理</>
-                              }
-                            </button>
-                          </div>
-
-                          {/* Comment content */}
-                          <div className="px-4 py-3">
-                            <p className="text-sm text-ink-secondary leading-relaxed">{comment.content}</p>
-                          </div>
-
-                          {/* Response area */}
-                          <div className="px-4 pb-3">
-                            <p className="text-[10px] font-semibold text-ink-tertiary uppercase tracking-wider mb-1.5">作者回复</p>
-                            <textarea
-                              rows={2}
-                              placeholder="记录对该条意见的回复或处理方案..."
-                              value={comment.response}
-                              onChange={e => updateResponse(comment.id, e.target.value)}
-                              className="w-full px-3 py-2 rounded-xl text-xs resize-none leading-relaxed"
-                              style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 1px 1px 3px rgba(0,0,0,0.08)", color: "var(--rc-text-primary)" as string }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* ── AI 模拟审稿弹窗 ── */}
-            {showMockReviewModal && (
-              <div
-                className="fixed inset-0 z-50 flex items-center justify-center"
-                style={{ background: "rgba(0,0,0,0.45)" }}
-                onClick={e => { if (e.target === e.currentTarget) setShowMockReviewModal(false); }}
-              >
-                <div
-                  className="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden flex flex-col"
-                  style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 32px rgba(0,0,0,0.25)", maxHeight: "88vh" }}
-                >
-                  {/* Header */}
-                  <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid var(--rc-border)" }}>
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(175,82,222,0.12)" }}>
-                        <Bot className="w-4 h-4" style={{ color: "#AF52DE" }} />
-                      </div>
-                      <div>
-                        <h2 className="text-lg font-bold text-ink-primary">AI 模拟审稿</h2>
-                        <p className="text-xs text-ink-tertiary mt-0.5">基于论文内容生成模拟审稿意见，辅助投稿前自查</p>
-                      </div>
-                    </div>
-                    <button onClick={() => setShowMockReviewModal(false)} className="p-2 rounded-xl hover:bg-black/5 transition-colors">
-                      <X className="w-5 h-5 text-ink-tertiary" />
-                    </button>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto">
-                    {/* Input section */}
-                    {!mockReviewResult && (
-                      <div className="p-6 space-y-4">
-
-                        {/* PDF 提取中 loading 状态 */}
-                        {mockFileExtracting ? (
-                          <div className="flex flex-col items-center justify-center py-12 gap-3">
-                            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#AF52DE" }} />
-                            <p className="text-sm font-medium text-ink-secondary">正在读取 PDF 文件内容…</p>
-                            <p className="text-xs text-ink-tertiary">完成后可在下方编辑并调整审稿参数</p>
-                          </div>
-                        ) : (
-                          <>
-                            {/* 文件来源：已读取提示 + 重新选择 */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {mockFileName ? (
-                                <div className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg"
-                                  style={{ background: "rgba(52,199,89,0.10)", color: "#34C759" }}>
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  已读取：{mockFileName}
-                                </div>
-                              ) : (
-                                <span className="text-[11px] text-ink-tertiary">未选择文件，可手动输入内容或：</span>
-                              )}
-                              {/* 重新/额外选择 PDF */}
-                              <button
-                                onClick={async () => {
-                                  const { open } = await import("@tauri-apps/plugin-dialog");
-                                  const selected = await open({
-                                    multiple: false,
-                                    filters: [{ name: "PDF", extensions: ["pdf"] }],
-                                  });
-                                  if (typeof selected === "string" && selected) {
-                                    setMockFileExtracting(true);
-                                    try {
-                                      const { extractTextFromPdf } = await import("../lib/pdfExtract");
-                                      const text = await extractTextFromPdf(selected);
-                                      setMockReviewInput(p => ({ ...p, abstract: text }));
-                                      setMockFileName(selected.split("/").pop() ?? "paper.pdf");
-                                    } catch {
-                                      /* keep existing text */
-                                    } finally {
-                                      setMockFileExtracting(false);
-                                    }
-                                  }
-                                }}
-                                className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
-                                style={{ background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string, border: "1px solid var(--rc-border)" }}
-                              >
-                                <Upload className="w-3 h-3" />
-                                {mockFileName ? "换一个 PDF" : "选择 PDF 文件"}
-                              </button>
-                            </div>
-
-                            <div>
-                              <p className="text-xs font-medium text-ink-secondary mb-1.5">
-                                论文内容
-                                <span className="ml-1 text-ink-tertiary font-normal">（PDF 提取全文 · 可编辑）</span>
-                              </p>
-                              <textarea
-                                rows={8}
-                                placeholder="PDF 提取全文或手动粘贴摘要/核心方法描述…"
-                                value={mockReviewInput.abstract}
-                                onChange={e => setMockReviewInput(p => ({ ...p, abstract: e.target.value }))}
-                                className="w-full px-3 py-2.5 rounded-xl text-sm resize-none leading-relaxed"
-                                style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)", color: "var(--rc-text-primary)" as string }}
-                              />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <p className="text-xs font-medium text-ink-secondary mb-1.5">审稿人数量</p>
-                                <div className="flex gap-2">
-                                  {([2, 3, 4] as const).map(n => (
-                                    <button
-                                      key={n}
-                                      onClick={() => setMockReviewInput(p => ({ ...p, reviewerCount: n }))}
-                                      className="flex-1 py-1.5 rounded-xl text-sm font-medium transition-all duration-150"
-                                      style={mockReviewInput.reviewerCount === n
-                                        ? { background: "#AF52DE", color: "#fff" }
-                                        : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
-                                      }
-                                    >
-                                      {n === 4 ? "3+AC" : `${n} 人`}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-
-                              <div>
-                                <p className="text-xs font-medium text-ink-secondary mb-1.5">审稿严格程度</p>
-                                <div className="flex gap-2">
-                                  {([
-                                    { key: "lenient",  label: "宽松" },
-                                    { key: "balanced", label: "平衡" },
-                                    { key: "strict",   label: "严格" },
-                                  ] as const).map(({ key, label }) => (
-                                    <button
-                                      key={key}
-                                      onClick={() => setMockReviewInput(p => ({ ...p, strictness: key }))}
-                                      className="flex-1 py-1.5 rounded-xl text-sm font-medium transition-all duration-150"
-                                      style={mockReviewInput.strictness === key
-                                        ? {
-                                            background: key === "lenient" ? "#34C759" : key === "strict" ? "#FF3B30" : "#007AFF",
-                                            color: "#fff",
-                                          }
-                                        : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
-                                      }
-                                    >
-                                      {label}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Result section */}
-                    {mockReviewResult && (
-                      <div className="p-6 space-y-3">
-                        {/* Overall verdict banner */}
-                        {(() => {
-                          const verdictCounts = mockReviewResult.reduce<Record<ReviewVerdict, number>>(
-                            (acc, r) => { acc[r.verdict] = (acc[r.verdict] ?? 0) + 1; return acc; },
-                            { accept: 0, minor_revision: 0, major_revision: 0, reject: 0 }
-                          );
-                          const dominant = (Object.entries(verdictCounts) as [ReviewVerdict, number][])
-                            .sort((a, b) => b[1] - a[1])[0][0];
-                          const vcfg = VERDICT_CFG[dominant];
-                          return (
-                            <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl mb-1" style={{ background: vcfg.bg }}>
-                              <span className="text-sm font-bold" style={{ color: vcfg.color }}>综合倾向：{vcfg.label}</span>
-                              <span className="text-xs text-ink-secondary">
-                                {mockReviewResult.length} 位审稿人 ·
-                                共 {Object.entries(verdictCounts).filter(([, v]) => v > 0).map(([k, v]) => `${VERDICT_CFG[k as ReviewVerdict].label} ×${v}`).join("、")}
-                              </span>
-                            </div>
-                          );
-                        })()}
-
-                        {mockReviewResult.map((r, idx) => {
-                          const vcfg = VERDICT_CFG[r.verdict];
-                          return (
-                            <div
-                              key={idx}
-                              className="rounded-2xl overflow-hidden"
-                              style={{ border: "1px solid var(--rc-border)", background: "var(--rc-card-bg)", boxShadow: "2px 2px 8px rgba(0,0,0,0.06)" }}
-                            >
-                              <div className="flex items-center justify-between px-4 py-2.5"
-                                style={{ background: "var(--rc-card-inset-bg)", borderBottom: "1px solid var(--rc-border)" }}>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-semibold text-ink-primary">{r.reviewer}</span>
-                                  {r.tags.map(tag => (
-                                    <span key={tag} className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
-                                      style={{ background: "rgba(0,122,255,0.10)", color: "#007AFF" }}>
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ background: vcfg.bg, color: vcfg.color }}>
-                                  {vcfg.label}
-                                </span>
-                              </div>
-                              <div className="px-4 py-3">
-                                <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap">{r.content}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Footer */}
-                  <div className="px-6 py-4 flex-shrink-0 flex items-center justify-between" style={{ borderTop: "1px solid var(--rc-border)" }}>
-                    {mockReviewResult ? (
-                      <>
-                        <button
-                          onClick={() => {
-                            mockReviewBufferRef.current = [];
-                            setMockReviewResult(null);
-                          }}
-                          className="text-sm font-medium px-4 py-2 rounded-xl hover:bg-black/5 transition-colors"
-                          style={{ color: "var(--rc-text-secondary)" as string }}
-                        >
-                          重新生成
-                        </button>
-                        <button
-                          onClick={async () => {
-                            const nextRound = reviewRounds.filter(r => r.submissionId === reviewSubId).length + 1;
-                            const dominantVerdict = mockReviewResult.reduce<Record<ReviewVerdict, number>>(
-                              (acc, r) => { acc[r.verdict] = (acc[r.verdict] ?? 0) + 1; return acc; },
-                              { accept: 0, minor_revision: 0, major_revision: 0, reject: 0 }
-                            );
-                            const verdict = (Object.entries(dominantVerdict) as [ReviewVerdict, number][]).sort((a, b) => b[1] - a[1])[0][0];
-                            await submissionApi.upsertRound({ submissionId: reviewSubId, round: nextRound, verdict }).catch(console.error);
-                            setReviewRounds(prev => [...prev, {
-                              submissionId: reviewSubId, round: nextRound, verdict, receivedAt: new Date(),
-                            }]);
-                            for (const r of mockReviewResult) {
-                              const res = await submissionApi.createComment({
-                                submissionId: reviewSubId, round: nextRound,
-                                reviewer: r.reviewer, content: r.content, tags: r.tags,
-                              }).catch(() => ({ id: `mock-${Date.now()}` }));
-                              setReviewComments(prev => [...prev, {
-                                id: (res as { id: string }).id,
-                                submissionId: reviewSubId, round: nextRound,
-                                reviewer: r.reviewer, content: r.content,
-                                response: "", resolved: false, tags: r.tags, createdAt: new Date(),
-                              }]);
-                            }
-                            setReviewRound(nextRound);
-                            setShowMockReviewModal(false);
-                          }}
-                          className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-medium"
-                          style={{ background: "#AF52DE", color: "#fff", boxShadow: "2px 4px 10px rgba(175,82,222,0.3)" }}
-                        >
-                          <Check className="w-4 h-4" />
-                          导入审稿归档
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-xs text-ink-tertiary">生成结果仅供参考，不代表真实审稿意见</p>
-                        <button
-                          disabled={!mockReviewInput.abstract.trim() || mockReviewLoading}
-                          onClick={() => {
-                            activeMockReviewSubmissionRef.current = reviewSubId;
-                            mockReviewBufferRef.current = [];
-                            setMockReviewLoading(true);
-                            setMockReviewResult([]);
-                            submissionApi.aiReview({
-                              submissionId: reviewSubId,
-                              content: mockReviewInput.abstract,
-                              reviewerCount: mockReviewInput.reviewerCount,
-                              strictness: mockReviewInput.strictness,
-                            }).catch(e => { console.error(e); setMockReviewLoading(false); });
-                          }}
-                          className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
-                          style={{ background: "#AF52DE", color: "#fff", boxShadow: "2px 4px 10px rgba(175,82,222,0.3)" }}
-                        >
-                          {mockReviewLoading
-                            ? <><Loader2 className="w-4 h-4 animate-spin" />生成中...</>
-                            : <><Sparkles className="w-4 h-4" />生成模拟审稿</>
-                          }
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 录入审稿意见弹窗（IIFE 内，可访问 handleAddComment） */}
-            {showAddReviewModal && (
-              <div
-                className="fixed inset-0 z-50 flex items-center justify-center"
-                style={{ background: "rgba(0,0,0,0.45)" }}
-                onClick={e => { if (e.target === e.currentTarget) setShowAddReviewModal(false); }}
-              >
-                <div
-                  className="w-full max-w-lg mx-4 rounded-3xl overflow-hidden flex flex-col"
-                  style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)" }}
-                >
-                  <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--rc-border)" }}>
-                    <div>
-                      <h2 className="text-lg font-bold text-ink-primary">录入审稿意见</h2>
-                      <p className="text-xs text-ink-tertiary mt-0.5">第 {reviewRound} 轮 · {currentSub?.venue}</p>
-                    </div>
-                    <button onClick={() => setShowAddReviewModal(false)} className="p-2 rounded-xl hover:bg-black/5 transition-colors">
-                      <X className="w-5 h-5 text-ink-tertiary" />
-                    </button>
-                  </div>
-
-                  <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
-                    {/* 本轮结论（仅新轮次显示） */}
-                    {!reviewRounds.some(r => r.submissionId === reviewSubId && r.round === reviewRound) && (
-                      <div>
-                        <p className="text-xs font-medium text-ink-secondary mb-1.5">本轮结论</p>
-                        <div className="flex gap-2 flex-wrap">
-                          {(Object.entries(VERDICT_CFG) as [ReviewVerdict, typeof VERDICT_CFG[ReviewVerdict]][]).map(([k, v]) => (
-                            <button
-                              key={k}
-                              onClick={() => setReviewForm(p => ({ ...p, verdict: k }))}
-                              className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150"
-                              style={reviewForm.verdict === k
-                                ? { background: v.color, color: "#fff" }
-                                : { background: v.bg, color: v.color }
-                              }
-                            >
-                              {v.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-xs font-medium text-ink-secondary mb-1">审稿人</p>
-                      <input
-                        type="text"
-                        placeholder="如：Reviewer 1、AC、Meta-Reviewer"
-                        value={reviewForm.reviewer}
-                        onChange={e => setReviewForm(p => ({ ...p, reviewer: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-xl text-sm"
-                        style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)" }}
-                        autoFocus
-                      />
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-medium text-ink-secondary mb-1">审稿意见 <span style={{ color: "#FF3B30" }}>*</span></p>
-                      <textarea
-                        rows={6}
-                        placeholder="粘贴审稿人的原始意见…"
-                        value={reviewForm.content}
-                        onChange={e => setReviewForm(p => ({ ...p, content: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-xl text-sm resize-none leading-relaxed"
-                        style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)" }}
-                      />
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-medium text-ink-secondary mb-1.5">意见分类</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {REVIEW_TAGS.map(tag => {
-                          const active = reviewForm.tags.includes(tag);
-                          return (
-                            <button
-                              key={tag}
-                              onClick={() => setReviewForm(p => ({
-                                ...p,
-                                tags: active ? p.tags.filter(t => t !== tag) : [...p.tags, tag],
-                              }))}
-                              className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150"
-                              style={active
-                                ? { background: "#007AFF", color: "#fff" }
-                                : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
-                              }
-                            >
-                              {tag}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="px-6 pb-5 flex items-center justify-between">
-                    <p className="text-xs text-ink-tertiary">保存后可继续录入同轮其他审稿人意见</p>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => setShowAddReviewModal(false)}
-                        className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-black/5 transition-colors"
-                        style={{ color: "var(--rc-text-secondary)" as string }}
-                      >
-                        完成
-                      </button>
-                      <button
-                        onClick={handleAddComment}
-                        disabled={!reviewForm.reviewer.trim() || !reviewForm.content.trim()}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
-                        style={{ background: "#007AFF", color: "#fff" }}
-                      >
-                        <Check className="w-4 h-4" />
-                        保存并继续
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>);
-        })()}
+        {tab === "reviews" && (
+          <ReviewWorkspace
+            submissions={submissions}
+            reviewComments={reviewComments}
+            reviewRounds={reviewRounds}
+            reviewSubId={reviewSubId}
+            reviewRound={reviewRound}
+            onSelectSubmission={(submissionId) => {
+              setReviewSubId(submissionId);
+              setReviewRound(1);
+            }}
+            onSelectRound={setReviewRound}
+            onOpenCoverLetter={handleOpenCoverLetter}
+            onOpenAddReview={handleOpenAddReviewModal}
+            onToggleResolved={handleToggleReviewResolved}
+            onUpdateResponse={handleUpdateReviewResponse}
+          />
+        )}
       </div>
 
-      {/* ════════ 新增投稿弹窗 ════════ */}
-      {showAddSubModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.45)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowAddSubModal(false); }}
-        >
-          <div
-            className="w-full max-w-md mx-4 rounded-3xl overflow-hidden flex flex-col"
-            style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)" }}
-          >
-            <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--rc-border)" }}>
-              <h2 className="text-lg font-bold text-ink-primary">新增投稿</h2>
-              <button onClick={() => setShowAddSubModal(false)} className="p-2 rounded-xl hover:bg-black/5 transition-colors">
-                <X className="w-5 h-5 text-ink-tertiary" />
-              </button>
-            </div>
+      <MockReviewModal
+        open={showMockReviewModal}
+        mockReviewInput={mockReviewInput}
+        mockReviewResult={mockReviewResult}
+        mockReviewLoading={mockReviewLoading}
+        mockFileExtracting={mockFileExtracting}
+        mockFileName={mockFileName}
+        onClose={() => setShowMockReviewModal(false)}
+        onSetInput={setMockReviewInput}
+        onPickPdf={handlePickMockReviewPdf}
+        onReset={handleResetMockReview}
+        onImport={handleImportMockReview}
+        onGenerate={handleGenerateMockReview}
+      />
 
-            <div className="p-6 space-y-4">
-              <div>
-                <p className="text-xs font-medium text-ink-secondary mb-1">论文标题 <span style={{ color: "#FF3B30" }}>*</span></p>
-                <input
-                  type="text"
-                  placeholder="输入论文标题…"
-                  value={addSubForm.title}
-                  onChange={e => setAddSubForm(p => ({ ...p, title: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl text-sm"
-                  style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)" }}
-                  autoFocus
-                />
-              </div>
+      <ReviewEntryModal
+        open={showAddReviewModal}
+        currentVenue={submissions.find((submission) => submission.id === reviewSubId)?.venue}
+        reviewRound={reviewRound}
+        reviewRounds={reviewRounds}
+        reviewSubId={reviewSubId}
+        reviewForm={reviewForm}
+        onClose={() => setShowAddReviewModal(false)}
+        onSetReviewForm={setReviewForm}
+        onSubmit={handleAddReviewComment}
+      />
 
-              <div>
-                <p className="text-xs font-medium text-ink-secondary mb-1.5">投稿类型</p>
-                <div className="flex gap-2">
-                  {(["conference", "journal"] as const).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setAddSubForm(p => ({ ...p, venueType: t }))}
-                      className="flex-1 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
-                      style={addSubForm.venueType === t
-                        ? { background: t === "conference" ? "#007AFF" : "#AF52DE", color: "#fff" }
-                        : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
-                      }
-                    >
-                      {t === "conference" ? "会议" : "期刊"}
-                    </button>
-                  ))}
-                </div>
-              </div>
+      <AddSubmissionModal
+        open={showAddSubModal}
+        form={addSubForm}
+        onClose={() => setShowAddSubModal(false)}
+        onSetForm={setAddSubForm}
+        onSubmit={handleAddSubmission}
+      />
 
-              <div>
-                <p className="text-xs font-medium text-ink-secondary mb-1">
-                  {addSubForm.venueType === "conference" ? "会议名称" : "期刊名称"}
-                  <span style={{ color: "#FF3B30" }}> *</span>
-                </p>
-                <input
-                  type="text"
-                  placeholder={addSubForm.venueType === "conference" ? "如：NeurIPS 2026" : "如：JMLR"}
-                  value={addSubForm.venue}
-                  onChange={e => setAddSubForm(p => ({ ...p, venue: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl text-sm"
-                  style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)" }}
-                />
-              </div>
+      <SaveVersionModal
+        open={showSaveModal}
+        versionNextTag={versionNextTag}
+        form={saveForm}
+        onClose={() => setShowSaveModal(false)}
+        onSetForm={setSaveForm}
+        onSubmit={handleSaveVersion}
+      />
 
-              {addSubForm.venueType === "conference" && (
-                <div>
-                  <p className="text-xs font-medium text-ink-secondary mb-1">投稿截止日期</p>
-                  <input
-                    type="date"
-                    value={addSubForm.deadline}
-                    onChange={e => setAddSubForm(p => ({ ...p, deadline: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl text-sm"
-                    style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)" }}
-                  />
-                </div>
-              )}
-            </div>
+      <AddVenueModal
+        open={showAddModal}
+        search={addModalSearch}
+        areaFilter={addModalAreaFilter}
+        typeFilter={addModalTypeFilter}
+        areas={areas}
+        filteredVenueTemplates={filteredVenueTemplates}
+        trackedCount={conferences.length + journals.length}
+        onClose={() => setShowAddModal(false)}
+        onSearchChange={setAddModalSearch}
+        onAreaFilterChange={setAddModalAreaFilter}
+        onTypeFilterChange={setAddModalTypeFilter}
+        isVenueAdded={isVenueAdded}
+        onAddVenue={handleAddVenue}
+      />
 
-            <div className="px-6 pb-5 flex justify-end gap-3">
-              <button
-                onClick={() => setShowAddSubModal(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-black/5 transition-colors"
-                style={{ color: "var(--rc-text-secondary)" as string }}
-              >
-                取消
-              </button>
-              <button
-                onClick={handleAddSubmission}
-                disabled={!addSubForm.title.trim() || !addSubForm.venue.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
-                style={{ background: "#007AFF", color: "#fff" }}
-              >
-                <Check className="w-4 h-4" />
-                添加
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CoverLetterModal
+        open={showCoverLetterModal}
+        text={coverLetterText}
+        loading={coverLetterLoading}
+        onClose={() => setShowCoverLetterModal(false)}
+        onChangeText={setCoverLetterText}
+      />
 
-      {/* ════════ 记录版本弹窗 ════════ */}
-      {showSaveModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.45)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowSaveModal(false); }}
-        >
-          <div
-            className="w-full max-w-xl mx-4 rounded-3xl overflow-hidden flex flex-col"
-            style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)" }}
-          >
-            <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--rc-border)" }}>
-              <div>
-                <h2 className="text-lg font-bold text-ink-primary">记录版本快照</h2>
-                <p className="text-xs text-ink-tertiary mt-0.5">保存当前稿件内容，防止修改丢失</p>
-              </div>
-              <button onClick={() => setShowSaveModal(false)} className="p-2 rounded-xl hover:bg-black/5 transition-colors">
-                <X className="w-5 h-5 text-ink-tertiary" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
-              <div className="flex gap-3">
-                <div>
-                  <p className="text-xs font-medium text-ink-secondary mb-1">版本号</p>
-                  <input
-                    type="text"
-                    placeholder={versionNextTag}
-                    value={saveForm.tag}
-                    onChange={e => setSaveForm(p => ({ ...p, tag: e.target.value }))}
-                    className="w-24 px-3 py-2 rounded-xl text-sm font-bold"
-                    style={{ background: "var(--rc-card-inset-bg)", color: "#007AFF", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)" }}
-                  />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-ink-secondary mb-1">版本标签 <span style={{ color: "#FF3B30" }}>*</span></p>
-                  <input
-                    type="text"
-                    placeholder="如：初稿、按审稿意见修改、camera-ready…"
-                    value={saveForm.label}
-                    onChange={e => setSaveForm(p => ({ ...p, label: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl text-sm"
-                    style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)" }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-ink-secondary mb-1">修改说明</p>
-                <textarea
-                  rows={2}
-                  placeholder="简述本版本的主要改动…"
-                  value={saveForm.notes}
-                  onChange={e => setSaveForm(p => ({ ...p, notes: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl text-sm resize-none"
-                  style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)" }}
-                />
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-ink-secondary mb-1">摘要 / 核心内容 <span style={{ color: "#FF3B30" }}>*</span></p>
-                <textarea
-                  rows={7}
-                  placeholder="粘贴当前版本的摘要或核心内容，用于后续 diff 对比…"
-                  value={saveForm.content}
-                  onChange={e => setSaveForm(p => ({ ...p, content: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl text-sm resize-none font-mono leading-relaxed"
-                  style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)" }}
-                />
-              </div>
-            </div>
-
-            <div className="px-6 pb-5 flex justify-end gap-3">
-              <button
-                onClick={() => setShowSaveModal(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium transition-colors hover:bg-black/5"
-                style={{ color: "var(--rc-text-secondary)" as string }}
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSaveVersion}
-                disabled={!saveForm.label.trim() || !saveForm.content.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
-                style={{ background: "#007AFF", color: "#fff" }}
-              >
-                <Check className="w-4 h-4" />
-                保存版本
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ════════ 添加会议/期刊弹窗 ════════ */}
-      {showAddModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.45)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false); }}
-        >
-          <div
-            className="w-full max-w-3xl max-h-[85vh] mx-4 rounded-3xl overflow-hidden flex flex-col"
-            style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)" }}
-          >
-            {/* Header */}
-            <div className="flex-shrink-0 px-6 py-5 border-b" style={{ borderColor: "var(--rc-border)" }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-ink-primary">添加会议/期刊</h2>
-                  <p className="text-xs text-ink-tertiary mt-0.5">从 CCF 推荐目录中选择要追踪的会议或期刊</p>
-                </div>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="p-2 rounded-xl hover:bg-black/5 transition-colors"
-                >
-                  <X className="w-5 h-5 text-ink-tertiary" />
-                </button>
-              </div>
-
-              {/* Search and filters */}
-              <div className="mt-4 flex gap-3">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-tertiary" />
-                  <input
-                    type="text"
-                    placeholder="搜索会议或期刊…"
-                    value={addModalSearch}
-                    onChange={(e) => setAddModalSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 rounded-xl text-sm"
-                    style={{
-                      background: "var(--rc-card-inset-bg)",
-                      boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)",
-                    }}
-                  />
-                </div>
-                <select
-                  value={addModalAreaFilter}
-                  onChange={(e) => setAddModalAreaFilter(e.target.value)}
-                  className="px-3 py-2 rounded-xl text-sm font-medium cursor-pointer"
-                  style={{
-                    background: "var(--rc-card-bg)",
-                    boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)",
-                  }}
-                >
-                  <option value="all">全部领域</option>
-                  {areas.map(area => (
-                    <option key={area} value={area}>{area}</option>
-                  ))}
-                </select>
-                <div className="flex gap-1">
-                  {(["all", "conference", "journal"] as const).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setAddModalTypeFilter(t)}
-                      className="px-3 py-2 rounded-xl text-xs font-medium transition-all duration-150"
-                      style={addModalTypeFilter === t
-                        ? { background: "#007AFF", color: "#fff" }
-                        : { background: "var(--rc-card-bg)", color: "var(--rc-text-secondary)" as string, boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)" }
-                      }
-                    >
-                      {t === "all" ? "全部" : t === "conference" ? "会议" : "期刊"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {filteredVenueTemplates.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-sm text-ink-tertiary">未找到匹配的会议或期刊</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {filteredVenueTemplates.map(venue => {
-                    const added = isVenueAdded(venue);
-                    return (
-                      <div
-                        key={venue.id}
-                        className="rounded-2xl p-4 transition-all duration-150"
-                        style={{
-                          background: added ? "rgba(52,199,89,0.07)" : "var(--rc-card-bg)",
-                          boxShadow: added ? "none" : "2px 2px 8px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.7)",
-                          opacity: added ? 0.7 : 1,
-                        }}
-                      >
-                        {/* Title row */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            {venue.website ? (
-                              <ExternalLink
-                                href={venue.website}
-                                className="font-bold text-base text-ink-primary truncate hover:text-blue-600 hover:underline block"
-                              >
-                                {venue.name}
-                              </ExternalLink>
-                            ) : (
-                              <p className="font-bold text-base text-ink-primary truncate">{venue.name}</p>
-                            )}
-                            <p className="text-[11px] text-ink-tertiary truncate mt-0.5">{venue.fullName}</p>
-                          </div>
-                          {/* Add button */}
-                          <button
-                            onClick={() => !added && handleAddVenue(venue)}
-                            disabled={added}
-                            className="flex-shrink-0 p-2 rounded-xl transition-all duration-150"
-                            style={added
-                              ? { background: "rgba(52,199,89,0.15)", cursor: "default" }
-                              : { background: "#007AFF", boxShadow: "2px 2px 6px rgba(0,122,255,0.3)" }
-                            }
-                          >
-                            {added
-                              ? <Check className="w-4 h-4" style={{ color: "#34C759" }} />
-                              : <Plus className="w-4 h-4 text-white" />
-                            }
-                          </button>
-                        </div>
-
-                        {/* Tags row */}
-                        <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-                          {/* CCF tag */}
-                          <span
-                            className="text-[11px] font-bold px-2 py-0.5 rounded-md"
-                            style={{
-                              background: venue.ccf === "A" ? "rgba(255,59,48,0.12)" :
-                                venue.ccf === "B" ? "rgba(255,149,0,0.12)" :
-                                venue.ccf === "C" ? "rgba(0,122,255,0.12)" :
-                                "rgba(142,142,147,0.12)",
-                              color: venue.ccf === "A" ? "#FF3B30" :
-                                venue.ccf === "B" ? "#FF9500" :
-                                venue.ccf === "C" ? "#007AFF" : "#8E8E93",
-                            }}
-                          >
-                            CCF {venue.ccf}
-                          </span>
-                          {/* Type tag */}
-                          <span
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
-                            style={{
-                              background: venue.type === "conference" ? "rgba(0,122,255,0.10)" : "rgba(175,82,222,0.10)",
-                              color: venue.type === "conference" ? "#007AFF" : "#AF52DE",
-                            }}
-                          >
-                            {venue.type === "conference" ? "会议" : "期刊"}
-                          </span>
-                          {/* SCI tag */}
-                          {venue.sci && (
-                            <span
-                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
-                              style={{ background: "rgba(52,199,89,0.12)", color: "#34C759" }}
-                            >
-                              SCI{venue.sciQuartile ? ` ${venue.sciQuartile}` : ""}
-                            </span>
-                          )}
-                          {/* EI tag */}
-                          {venue.ei && (
-                            <span
-                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
-                              style={{ background: "rgba(88,86,214,0.12)", color: "#5856D6" }}
-                            >
-                              EI
-                            </span>
-                          )}
-                          {/* Area tag */}
-                          <span className="text-[10px] text-ink-tertiary ml-auto">
-                            {venue.area}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="flex-shrink-0 px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: "var(--rc-border)" }}>
-              <p className="text-xs text-ink-tertiary">
-                共 {filteredVenueTemplates.length} 个结果，已追踪 {conferences.length + journals.length} 个
-              </p>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-5 py-2 rounded-2xl text-sm font-medium transition-all duration-150"
-                style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
-              >
-                完成
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Cover Letter 弹窗 ── */}
-      {showCoverLetterModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.45)" }}
-          onClick={e => { if (e.target === e.currentTarget) setShowCoverLetterModal(false); }}
-        >
-          <div
-            className="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden flex flex-col"
-            style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)", maxHeight: "80vh" }}
-          >
-            <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid var(--rc-border)" }}>
-              <div>
-                <h2 className="text-lg font-bold text-ink-primary">生成 Cover Letter</h2>
-                <p className="text-xs text-ink-tertiary mt-0.5">基于投稿历史与审稿意见自动生成</p>
-              </div>
-              <button onClick={() => setShowCoverLetterModal(false)} className="p-2 rounded-xl hover:bg-black/5">
-                <X className="w-5 h-5 text-ink-tertiary" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              {coverLetterLoading && !coverLetterText ? (
-                <div className="flex items-center gap-2 text-ink-tertiary text-sm">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  正在生成…
-                </div>
-              ) : (
-                <textarea
-                  className="w-full h-80 text-sm font-mono resize-none rounded-xl p-3 outline-none"
-                  style={{ background: "var(--rc-card-inset-bg)", color: "var(--rc-text-primary)" as string, border: "1px solid var(--rc-border)" }}
-                  value={coverLetterText}
-                  onChange={e => setCoverLetterText(e.target.value)}
-                />
-              )}
-            </div>
-            <div className="px-6 py-4 flex-shrink-0 flex justify-end gap-3" style={{ borderTop: "1px solid var(--rc-border)" }}>
-              <button
-                onClick={() => navigator.clipboard.writeText(coverLetterText)}
-                disabled={!coverLetterText}
-                className="px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-40"
-                style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
-              >
-                复制
-              </button>
-              <button
-                onClick={() => setShowCoverLetterModal(false)}
-                className="px-5 py-2 rounded-xl text-sm font-medium"
-                style={{ background: "#007AFF", color: "#fff" }}
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── AI 润色侧边面板 ── */}
-      {showPolishPanel && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.45)" }}
-          onClick={e => { if (e.target === e.currentTarget) setShowPolishPanel(false); }}
-        >
-          <div
-            className="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden flex flex-col"
-            style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)", maxHeight: "80vh" }}
-          >
-            <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid var(--rc-border)" }}>
-              <div>
-                <h2 className="text-lg font-bold text-ink-primary">AI 润色</h2>
-                <p className="text-xs text-ink-tertiary mt-0.5">对版本摘要/核心内容进行学术润色</p>
-              </div>
-              <button onClick={() => setShowPolishPanel(false)} className="p-2 rounded-xl hover:bg-black/5">
-                <X className="w-5 h-5 text-ink-tertiary" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              {polishLoading && !polishText ? (
-                <div className="flex items-center gap-2 text-ink-tertiary text-sm">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  润色中…
-                </div>
-              ) : (
-                <div>
-                  <p className="text-xs font-medium text-ink-secondary mb-2">润色结果</p>
-                  <textarea
-                    className="w-full h-72 text-sm resize-none rounded-xl p-3 outline-none"
-                    style={{ background: "var(--rc-card-inset-bg)", color: "var(--rc-text-primary)" as string, border: "1px solid var(--rc-border)" }}
-                    value={polishText}
-                    onChange={e => setPolishText(e.target.value)}
-                    placeholder={polishLoading ? "生成中…" : "润色结果将显示在此处"}
-                  />
-                  {polishLoading && (
-                    <div className="flex items-center gap-1.5 mt-2 text-xs text-ink-tertiary">
-                      <Loader2 className="w-3 h-3 animate-spin" /> 生成中…
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="px-6 py-4 flex-shrink-0 flex justify-end gap-3" style={{ borderTop: "1px solid var(--rc-border)" }}>
-              <button
-                onClick={() => navigator.clipboard.writeText(polishText)}
-                disabled={!polishText}
-                className="px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-40"
-                style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
-              >
-                复制
-              </button>
-              <button
-                onClick={() => {
-                  if (!polishText || !polishSourceId) return;
-                  setVersions(prev => prev.map(v => v.id === polishSourceId ? { ...v, content: polishText } : v));
-                  setShowPolishPanel(false);
-                }}
-                disabled={!polishText}
-                className="px-5 py-2 rounded-xl text-sm font-medium disabled:opacity-40"
-                style={{ background: "#007AFF", color: "#fff" }}
-              >
-                应用到版本
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PolishPanel
+        open={showPolishPanel}
+        text={polishText}
+        loading={polishLoading}
+        onClose={() => setShowPolishPanel(false)}
+        onChangeText={setPolishText}
+        onApply={handleApplyPolishResult}
+      />
     </div>
   );
 }
