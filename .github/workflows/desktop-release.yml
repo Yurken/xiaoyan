@@ -217,110 +217,15 @@ jobs:
             --repo "${{ github.repository }}" \
             --clobber
 
-  publish-server-installers:
-    name: Upload Server Installers
-    needs: [create-release, build]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Download release installers
-        uses: actions/download-artifact@v4
-        with:
-          pattern: release-*
-          path: .release-assets
-          merge-multiple: true
-
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.UPDATE_SERVER_SSH_PRIVATE_KEY }}
-
-      - name: Upload installers to server
-        env:
-          UPDATE_SERVER_HOST: 66.42.97.41
-          UPDATE_SERVER_PORT: 22
-          UPDATE_SERVER_USER: root
-          UPDATE_SERVER_PATH: /var/www/html/research-copilot-updates
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          ssh-keyscan -p "$UPDATE_SERVER_PORT" -H "$UPDATE_SERVER_HOST" >> ~/.ssh/known_hosts
-          remote_root="${UPDATE_SERVER_PATH%/}"
-          remote_release_dir="${remote_root}/${{ github.ref_name }}/installers"
-          ssh -p "$UPDATE_SERVER_PORT" "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST" "mkdir -p '$remote_release_dir'"
-          rsync -av \
-            --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-            -e "ssh -p $UPDATE_SERVER_PORT" \
-            .release-assets/ \
-            "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST:$remote_release_dir/"
-          ssh -p "$UPDATE_SERVER_PORT" "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST" \
-            "chown -R root:root '$remote_release_dir' && chmod -R a+rX '$remote_release_dir'"
-
-  publish-updater:
-    name: Publish Updater Assets
-    needs: [create-release, build]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - uses: actions/checkout@v4.2.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Download updater artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: updater-*
-          path: .updater-assets
-          merge-multiple: false
-
-      - name: Prepare updater manifest
-        env:
-          UPDATE_BASE_URL: http://66.42.97.41/research-copilot-updates
-        run: |
-          node scripts/generate-updater-manifest.mjs \
-            --input-dir .updater-assets \
-            --base-url "${UPDATE_BASE_URL%/}/${{ github.ref_name }}" \
-            --version "${{ github.ref_name }}" \
-            --pub-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --output .updater-assets/latest.json
-
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.UPDATE_SERVER_SSH_PRIVATE_KEY }}
-
-      - name: Upload updater assets to server
-        env:
-          UPDATE_SERVER_HOST: 66.42.97.41
-          UPDATE_SERVER_PORT: 22
-          UPDATE_SERVER_USER: root
-          UPDATE_SERVER_PATH: /var/www/html/research-copilot-updates
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p "$UPDATE_SERVER_PORT" -H "$UPDATE_SERVER_HOST" >> ~/.ssh/known_hosts
-          remote_root="${UPDATE_SERVER_PATH%/}"
-          remote_tag_dir="${remote_root}/${{ github.ref_name }}"
-          ssh -p "$UPDATE_SERVER_PORT" "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST" "mkdir -p '$remote_tag_dir'"
-          rsync -av \
-            --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-            -e "ssh -p $UPDATE_SERVER_PORT" \
-            .updater-assets/ \
-            "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST:$remote_tag_dir/"
-          ssh -p "$UPDATE_SERVER_PORT" "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST" \
-            "chown -R root:root '$remote_tag_dir' && chmod -R a+rX '$remote_tag_dir'"
-          scp -P "$UPDATE_SERVER_PORT" \
-            .updater-assets/latest.json \
-            "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST:$remote_root/latest.json"
-          ssh -p "$UPDATE_SERVER_PORT" "$UPDATE_SERVER_USER@$UPDATE_SERVER_HOST" \
-            "chown root:root '$remote_root/latest.json' && chmod a+r '$remote_root/latest.json'"
+  # Server publishing is intentionally disabled for now.
+  # Current release policy: only publish installers to GitHub Release.
+  # To restore website/server distribution later, reintroduce the
+  # `publish-server-installers` and `publish-updater` jobs here.
 
   # ── Stage 3: Publish release after all builds succeed ─────────
   publish-release:
     name: Publish Release
-    needs: [create-release, build, publish-github-assets, publish-server-installers, publish-updater]
+    needs: [create-release, build, publish-github-assets]
     runs-on: ubuntu-latest
     steps:
       - name: Publish release (remove draft)

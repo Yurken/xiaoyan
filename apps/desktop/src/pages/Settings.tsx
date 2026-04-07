@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import changelogRaw from "../../../../CHANGELOG.md?raw";
-import { getVersion } from "@tauri-apps/api/app";
 import { relaunch } from "@tauri-apps/plugin-process";
 import {
   AlertCircle,
@@ -17,7 +16,6 @@ import {
   FileSearch,
   Hammer,
   Info,
-  KeyRound,
   Languages,
   LayoutDashboard,
   Loader2,
@@ -33,14 +31,20 @@ import {
   Wifi,
 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
-import { apiClient, formatErrorMessage, type UserMemory } from "../lib/client";
+import { apiClient } from "../lib/client";
+import AboutSection from "../features/settings/AboutSection";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, PAPER_TAG_OPTIONS, parsePaperTagVisibility, togglePaperTagVisibility } from "../lib/paperTags";
 import { getLayoutMode, setLayoutMode, type LayoutMode } from "../lib/layoutMode";
 import { getThemePreference, setTheme, type ThemePreference } from "../lib/themeMode";
 import { getThemeStyle, setThemeStyle, type ThemeStyle } from "../lib/themeStyle";
+import CryptoConfigModal from "../features/settings/CryptoConfigModal";
 import MemorySection from "../features/settings/MemorySection";
 import SkillsSection from "../features/settings/SkillsSection";
-import type { AppSettings, AppUpdateInfo, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
+import TaskSetupSection from "../features/settings/TaskSetupSection";
+import { useSettingsController } from "../features/settings/useSettingsController";
+import { useSettingsCrypto } from "../features/settings/useSettingsCrypto";
+import { useSettingsMemories } from "../features/settings/useSettingsMemories";
+import type { AppSettings, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
 
 function SettingInput({
   label,
@@ -339,7 +343,7 @@ function ToggleRow({
   );
 }
 
-type SettingsSectionKey = "connection" | "paper_tags" | "roles" | "skills" | "memory" | "about" | "layout";
+type SettingsSectionKey = "guided" | "connection" | "paper_tags" | "roles" | "skills" | "memory" | "about" | "layout";
 
 const SETTINGS_SECTIONS: Array<{
   key: SettingsSectionKey;
@@ -349,29 +353,36 @@ const SETTINGS_SECTIONS: Array<{
   color: string;
 }> = [
   {
+    key: "guided",
+    label: "快速开始",
+    description: "先完成三步配置",
+    icon: Compass,
+    color: "#34C759",
+  },
+  {
     key: "connection",
-    label: "连接与检索",
-    description: "小妍主模型与服务商",
+    label: "基础连接",
+    description: "服务商与默认模型",
     icon: Brain,
     color: "#AF52DE",
   },
   {
     key: "roles",
-    label: "小妍能力域",
-    description: "按场景分配专属模型",
-    icon: Sparkles,
+    label: "任务分工",
+    description: "阅读、综述、复现",
+    icon: Route,
     color: "#0A84FF",
   },
   {
     key: "paper_tags",
-    label: "论文库",
-    description: "管理论文显示与导入",
+    label: "论文导入",
+    description: "识别项与标签显示",
     icon: Layers3,
     color: "#FF9F0A",
   },
   {
     key: "skills",
-    label: "小妍技能库",
+    label: "技能模板",
     description: "提示词技能管理",
     icon: Zap,
     color: "#FF9F0A",
@@ -392,8 +403,8 @@ const SETTINGS_SECTIONS: Array<{
   },
   {
     key: "about",
-    label: "更多设置",
-    description: "查看版本与升级",
+    label: "升级与说明",
+    description: "版本、备份与说明",
     icon: Info,
     color: "#5AC8FA",
   },
@@ -1197,10 +1208,6 @@ const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     temperaturePlaceholder: "0.1",
   },
 ];
-type SaveState = "idle" | "saving" | "saved" | "error";
-type TestState = "idle" | "testing" | "ok" | "error";
-type UpdateState = "idle" | "checking" | "ready" | "latest" | "installing" | "disabled" | "error";
-
 function formatUpdateDate(value?: string) {
   if (!value) {
     return "";
@@ -1225,226 +1232,65 @@ function formatUpdateDate(value?: string) {
 }
 
 export default function Settings() {
-  const [form, setForm] = useState<AppSettings>(DEFAULT_SETTINGS);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [testState, setTestState] = useState<TestState>("idle");
-  const [testMsg, setTestMsg] = useState("");
-  const [updateState, setUpdateState] = useState<UpdateState>("idle");
-  const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
-  const [updateMsg, setUpdateMsg] = useState("");
-  const [appVersion, setAppVersion] = useState("");
-  const [activeSection, setActiveSection] = useState<SettingsSectionKey>("connection");
+  const {
+    form,
+    setForm,
+    replaceForm,
+    set,
+    setMany,
+    getSharedValue,
+    hasMixedValue,
+    loading,
+    loadError,
+    saveState,
+    testState,
+    testMsg,
+    updateState,
+    updateInfo,
+    updateMsg,
+    appVersion,
+    markSaved,
+    handleSaveSettings,
+    handleTestConnection,
+    handleCheckUpdate,
+    handleInstallUpdate,
+  } = useSettingsController(DEFAULT_SETTINGS);
+  const [activeSection, setActiveSection] = useState<SettingsSectionKey>("guided");
   const [pendingLayout, setPendingLayout] = useState<LayoutMode>(getLayoutMode());
   const [currentTheme, setCurrentTheme] = useState<ThemePreference>(getThemePreference());
   const [currentStyle, setCurrentStyle] = useState<ThemeStyle>(getThemeStyle());
-  const [memories, setMemories] = useState<UserMemory[]>([]);
-  const [memoriesLoading, setMemoriesLoading] = useState(false);
-  const [clearingAuto, setClearingAuto] = useState(false);
-  // Import / Export
-  type CryptoModal = { mode: "export" } | { mode: "import"; fileData: string } | null;
-  const [cryptoModal, setCryptoModal] = useState<CryptoModal>(null);
-  const [cryptoPassword, setCryptoPassword] = useState("");
-  const [cryptoConfirm, setCryptoConfirm] = useState("");
-  const [cryptoBusy, setCryptoBusy] = useState(false);
-  const [cryptoError, setCryptoError] = useState("");
+  const {
+    memories,
+    loading: memoriesLoading,
+    clearingAuto,
+    enter: enterMemories,
+    deleteMemory,
+    clearAuto: clearAutoMemories,
+  } = useSettingsMemories();
+  const {
+    modal: cryptoModal,
+    password: cryptoPassword,
+    confirm: cryptoConfirm,
+    busy: cryptoBusy,
+    error: cryptoError,
+    setPassword: setCryptoPassword,
+    setConfirm: setCryptoConfirm,
+    closeModal: closeCryptoModal,
+    openExportModal,
+    openImportPicker,
+    handleConfirm: handleCryptoConfirm,
+  } = useSettingsCrypto({
+    onImported: replaceForm,
+    onSaved: () => markSaved(),
+  });
 
   // Ollama models
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [loadingOllamaModels, setLoadingOllamaModels] = useState(false);
 
-  const set = (key: keyof AppSettings) => (value: string) =>
-    setForm((current) => ({ ...current, [key]: value }));
-
-  const setMany = (keys: (keyof AppSettings)[]) => (value: string) =>
-    setForm((current) => {
-      const next = { ...current };
-      keys.forEach((key) => {
-        (next as Record<keyof AppSettings, string>)[key] = value;
-      });
-      return next;
-    });
-
-  const getSharedValue = (keys: (keyof AppSettings)[]) => {
-    const values = keys
-      .map((key) => (form[key] ?? "").trim())
-      .filter(Boolean);
-    if (values.length === 0) {
-      return "";
-    }
-    return new Set(values).size === 1 ? values[0] : "";
-  };
-
-  const hasMixedValue = (keys: (keyof AppSettings)[]) => {
-    const values = keys
-      .map((key) => (form[key] ?? "").trim())
-      .filter(Boolean);
-    return new Set(values).size > 1;
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadSettings = async () => {
-      setLoading(true);
-      setLoadError("");
-
-      try {
-        const [data, version] = await Promise.all([
-          apiClient.settings.get(),
-          getVersion(),
-        ]);
-        if (!cancelled) {
-          setForm({ ...DEFAULT_SETTINGS, ...data });
-          setAppVersion(version);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setLoadError(formatErrorMessage(error));
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void loadSettings();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const openExportModal = () => {
-    setCryptoModal({ mode: "export" });
-    setCryptoPassword("");
-    setCryptoConfirm("");
-    setCryptoError("");
-  };
-
-  const openImportPicker = async () => {
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const file = await open({ filters: [{ name: "配置文件", extensions: ["rcconf"] }], multiple: false });
-      if (!file) return;
-      const filePath = typeof file === "string" ? file : (file as { path: string }).path;
-      const { readTextFile } = await import("@tauri-apps/plugin-fs");
-      const data = await readTextFile(filePath);
-      setCryptoModal({ mode: "import", fileData: data.trim() });
-      setCryptoPassword("");
-      setCryptoError("");
-    } catch (e) {
-      setCryptoError(String(e));
-    }
-  };
-
-  const handleCryptoConfirm = async () => {
-    if (!cryptoModal) return;
-    if (!cryptoPassword.trim()) { setCryptoError("密码不能为空。"); return; }
-    if (cryptoModal.mode === "export" && cryptoPassword !== cryptoConfirm) {
-      setCryptoError("两次密码不一致。"); return;
-    }
-    setCryptoBusy(true);
-    setCryptoError("");
-    try {
-      if (cryptoModal.mode === "export") {
-        const blob = await apiClient.settings.export(cryptoPassword);
-        const { save } = await import("@tauri-apps/plugin-dialog");
-        const savePath = await save({ defaultPath: "settings.rcconf", filters: [{ name: "配置文件", extensions: ["rcconf"] }] });
-        if (savePath) {
-          const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-          await writeTextFile(savePath, blob);
-          setCryptoModal(null);
-          setSaveState("saved");
-          window.setTimeout(() => setSaveState("idle"), 2500);
-          void apiClient.memory.add({ type: "auto", action: "settings.export", summary: "导出了加密配置文件" });
-        } else {
-          setCryptoModal(null);
-        }
-      } else {
-        const keys = await apiClient.settings.import(cryptoModal.fileData, cryptoPassword);
-        // Reload settings into form
-        const fresh = await apiClient.settings.get();
-        setForm(fresh as typeof form);
-        setCryptoModal(null);
-        setSaveState("saved");
-        window.setTimeout(() => setSaveState("idle"), 2500);
-        void apiClient.memory.add({ type: "auto", action: "settings.import", summary: `导入了 ${keys.length} 项配置` });
-      }
-    } catch (e) {
-      setCryptoError(String(e));
-    } finally {
-      setCryptoBusy(false);
-    }
-  };
-
-  const handleSaveSettings = async () => {
-    setSaveState("saving");
-    try {
-      await apiClient.settings.update(form);
-      setSaveState("saved");
-      window.setTimeout(() => setSaveState("idle"), 2500);
-    } catch (error) {
-      setSaveState("error");
-      window.setTimeout(() => setSaveState("idle"), 3000);
-      console.error("save settings failed:", error);
-    }
-  };
-
-  const handleTestConnection = async () => {
-    setTestState("testing");
-    setTestMsg("");
-    try {
-      const reply = await apiClient.settings.test(form);
-      setTestState("ok");
-      setTestMsg(reply.slice(0, 80));
-      window.setTimeout(() => setTestState("idle"), 4000);
-    } catch (error) {
-      setTestState("error");
-      setTestMsg(formatErrorMessage(error).slice(0, 120));
-      window.setTimeout(() => setTestState("idle"), 5000);
-    }
-  };
-
-  const handleCheckUpdate = async () => {
-    setUpdateState("checking");
-    setUpdateMsg("");
-    try {
-      const info = await apiClient.updates.check();
-      setUpdateInfo(info);
-      if (!info.configured) {
-        setUpdateState("disabled");
-        setUpdateMsg("当前构建未配置升级源。开发环境通常会显示这个状态，正式发布版需要在 CI 中注入更新地址和公钥。");
-        return;
-      }
-      if (info.available) {
-        setUpdateState("ready");
-        setUpdateMsg(`检测到新版本 ${info.version ?? ""}，可以直接下载并安装。`);
-        return;
-      }
-      setUpdateState("latest");
-      setUpdateMsg("当前已经是最新版本。");
-    } catch (error) {
-      setUpdateState("error");
-      setUpdateMsg(formatErrorMessage(error));
-    }
-  };
-
-  const handleInstallUpdate = async () => {
-    setUpdateState("installing");
-    setUpdateMsg("正在下载并安装更新，完成后应用会自动重启。");
-    try {
-      await apiClient.updates.install();
-      setUpdateMsg("更新已安装，应用即将重启。");
-    } catch (error) {
-      setUpdateState("error");
-      setUpdateMsg(formatErrorMessage(error));
-    }
-  };
-
   const provider = form.llm_provider as LlmProvider;
   const activePreset = detectPreset(form);
+  const activePresetMeta = PROVIDER_PRESETS.find((preset) => preset.id === activePreset);
 
   const applyPreset = (presetId: ProviderPresetId) => {
     const preset = PROVIDER_PRESETS.find((p) => p.id === presetId);
@@ -1484,6 +1330,29 @@ export default function Settings() {
   const displayVersion = updateInfo?.available ? updateInfo.version : appVersion || updateInfo?.current_version;
   const changelogPublishedAt = getChangelogReleaseDate(changelogRaw, displayVersion);
   const updatePublishedAt = formatUpdateDate(updateInfo?.pub_date || changelogPublishedAt);
+  const connectionReady = provider === "openai"
+    ? Boolean(form.openai_api_key.trim() && form.openai_chat_model.trim())
+    : provider === "anthropic"
+      ? Boolean(form.anthropic_api_key.trim() && form.anthropic_chat_model.trim())
+      : Boolean(
+          form.openai_compatible_chat_model.trim()
+            && (activePreset === "ollama" || form.openai_compatible_base_url.trim() || form.openai_compatible_api_key.trim()),
+        );
+  const rolesReady = Boolean(
+    form.paper_analysis_model.trim()
+      || form.survey_writer_model.trim()
+      || form.paper_reproduction_model.trim()
+      || form.vision_model.trim()
+      || form.multi_agent_supervisor_model.trim(),
+  );
+  const multiAgentReady = form.multi_agent_enabled === "true" && enabledAgents.length > 0;
+  const paperImportReady = [
+    form.paper_import_recognize_title,
+    form.paper_import_recognize_authors,
+    form.paper_import_recognize_year,
+    form.paper_import_recognize_venue,
+    form.paper_import_recognize_keywords,
+  ].some((value) => value !== "false");
 
   return (
     <>
@@ -1627,6 +1496,20 @@ export default function Settings() {
             <AlertCircle className="w-4 h-4" />
             {loadError}
           </Card>
+        ) : null}
+
+        {activeSection === "guided" ? (
+          <TaskSetupSection
+            currentProviderLabel={activePresetMeta?.label ?? "自定义兼容服务"}
+            connectionReady={connectionReady}
+            rolesReady={rolesReady}
+            multiAgentReady={multiAgentReady}
+            paperImportReady={paperImportReady}
+            onOpenConnection={() => setActiveSection("connection")}
+            onOpenRoles={() => setActiveSection("roles")}
+            onOpenPaperLibrary={() => setActiveSection("paper_tags")}
+            onOpenAbout={() => setActiveSection("about")}
+          />
         ) : null}
 
         {activeSection === "connection" ? (
@@ -2296,138 +2179,24 @@ export default function Settings() {
             memories={memories}
             loading={memoriesLoading}
             clearingAuto={clearingAuto}
-            onEnter={() => {
-              setMemoriesLoading(true);
-              apiClient.memory.list().then((data) => {
-                setMemories(data);
-              }).catch(() => {}).finally(() => setMemoriesLoading(false));
-            }}
-            onDelete={(id) => {
-              void apiClient.memory.delete(id).then(() => {
-                setMemories((prev) => prev.filter((m) => m.id !== id));
-              });
-            }}
-            onClearAuto={() => {
-              setClearingAuto(true);
-              void apiClient.memory.clearAuto().then(() => {
-                setMemories((prev) => prev.filter((m) => m.type !== "auto"));
-              }).finally(() => setClearingAuto(false));
-            }}
+            onEnter={enterMemories}
+            onDelete={deleteMemory}
+            onClearAuto={clearAutoMemories}
           />
         ) : null}
 
         {activeSection === "about" ? (
           <div className="space-y-4">
-            <Card padding="md" className="space-y-4">
-              <div className="flex items-center gap-3">
-                <SectionIcon icon={RefreshCw} color="#5AC8FA" />
-                <div>
-                  <h2 className="text-base font-semibold text-ink-primary">桌面端升级</h2>
-                  <p className="text-xs text-ink-tertiary mt-0.5">发布版会从已配置的更新源检查新版本，并支持一键安装。</p>
-                </div>
-              </div>
-
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr),auto] lg:items-center">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-tertiary">当前版本</p>
-                    <p className="mt-1 text-sm font-semibold text-ink-primary">{appVersion || updateInfo?.current_version || "—"}</p>
-                  </div>
-                  <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-tertiary">最新版本</p>
-                    <p className="mt-1 text-sm font-semibold text-ink-primary">
-                      {updateInfo?.available ? updateInfo.version : updateInfo ? "已是最新" : "未检测"}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-tertiary">发布时间</p>
-                    <p className="mt-1 text-sm font-semibold text-ink-primary">{updatePublishedAt || "未提供"}</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 flex-wrap lg:justify-end">
-                  <button
-                    type="button"
-                    onClick={handleCheckUpdate}
-                    disabled={loading || updateState === "checking" || updateState === "installing"}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
-                    style={{
-                      background: "var(--rc-chip-bg)",
-                      color: "var(--rc-text-soft)",
-                      boxShadow: "var(--rc-chip-shadow)",
-                    }}
-                  >
-                    {updateState === "checking" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                    {updateState === "checking" ? "检查中…" : "检查更新"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleInstallUpdate}
-                    disabled={updateState !== "ready"}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-                    style={{
-                      background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-                      boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
-                    }}
-                  >
-                    {updateState === "installing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                    {updateState === "installing" ? "安装中…" : "下载并安装"}
-                  </button>
-                </div>
-              </div>
-
-              {updateMsg ? (
-                <div
-                  className={`rounded-2xl border px-4 py-3 text-xs leading-5 ${
-                    updateState === "error"
-                      ? "border-red-200 bg-red-50 text-red-600"
-                      : updateState === "disabled"
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : updateState === "ready"
-                          ? "border-blue-200 bg-blue-50 text-blue-700"
-                          : "border-nm-dark/10 bg-white/35 text-ink-secondary"
-                  }`}
-                >
-                  {updateMsg}
-                </div>
-              ) : null}
-
-              {updateInfo?.body ? (
-                <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-                  <p className="text-xs font-semibold text-ink-primary">更新说明</p>
-                  <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">{updateInfo.body}</p>
-                </div>
-              ) : null}
-            </Card>
-
-            <Card padding="md" className="space-y-3">
-              <div className="flex items-center gap-3">
-                <SectionIcon icon={Info} color="#5AC8FA" />
-                <div>
-                  <h2 className="text-base font-semibold text-ink-primary">说明</h2>
-                  <p className="text-xs text-ink-tertiary mt-0.5">几条最容易混淆的配置规则</p>
-                </div>
-              </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                {[
-                  "主模型连接是最后的兜底值。没有单独指定的场景，最终都会回退到这里。",
-                  "按场景选模用于独立功能，比如规划提示、综述写作、论文精读和复现指导。",
-                  "多能力域模型的专项覆盖只影响多能力域模型对话流程，不影响独立功能页的模型选择。",
-                  "如果你刚开始配置，建议先填主对话模型、方向提示模型和最终整合模型，其他项之后再细化。",
-                ].map((item) => (
-                  <div key={item} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-                    <p className="text-xs leading-5 text-ink-secondary">{item}</p>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* TODO: Obsidian 导出（暂时注释，待完善路径配置后启用）
-            <Card padding="md" className="space-y-4">
-              ... Obsidian export card ...
-            </Card>
-            */}
-
+            <AboutSection
+              appVersion={appVersion}
+              loading={loading}
+              updateState={updateState}
+              updateInfo={updateInfo}
+              updateMsg={updateMsg}
+              updatePublishedAt={updatePublishedAt}
+              onCheckUpdate={handleCheckUpdate}
+              onInstallUpdate={handleInstallUpdate}
+            />
             <ChangelogCard />
           </div>
         ) : null}
@@ -2436,91 +2205,21 @@ export default function Settings() {
 
     {/* 加密密码弹窗 */}
     {cryptoModal !== null && (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center"
-        style={{ background: "rgba(0,0,0,0.45)" }}
-        onClick={(e) => { if (e.target === e.currentTarget) setCryptoModal(null); }}
-      >
-        <div
-          className="w-full max-w-sm mx-4 rounded-3xl p-6 space-y-4"
-          style={{ background: "var(--rc-card-bg)", boxShadow: "12px 12px 28px rgba(0,0,0,0.45), 0 0 0 1px var(--rc-border)" }}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
-              <KeyRound className="w-5 h-5 text-apple-blue" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-ink-primary">
-                {cryptoModal.mode === "export" ? "加密导出配置" : "解密导入配置"}
-              </h3>
-              <p className="text-xs text-ink-tertiary mt-0.5">
-                {cryptoModal.mode === "export"
-                  ? "设置一个密码保护配置文件，导入时需要输入同一密码。"
-                  : "输入导出时设置的密码解锁配置文件。"}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2.5">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-ink-tertiary ml-1">密码</label>
-              <input
-                type="password"
-                value={cryptoPassword}
-                onChange={(e) => { setCryptoPassword(e.target.value); setCryptoError(""); }}
-                onKeyDown={(e) => { if (e.key === "Enter" && !cryptoBusy) void handleCryptoConfirm(); }}
-                placeholder="输入密码"
-                autoFocus
-                className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
-                style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
-              />
-            </div>
-            {cryptoModal.mode === "export" && (
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-ink-tertiary ml-1">确认密码</label>
-                <input
-                  type="password"
-                  value={cryptoConfirm}
-                  onChange={(e) => { setCryptoConfirm(e.target.value); setCryptoError(""); }}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !cryptoBusy) void handleCryptoConfirm(); }}
-                  placeholder="再次输入密码"
-                  className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
-                  style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
-                />
-              </div>
-            )}
-            {cryptoModal.mode === "export" && (
-              <p className="text-xs text-ink-tertiary leading-relaxed px-1">
-                配置文件包含所有 API Key，请妥善保管，切勿分享给他人。
-              </p>
-            )}
-            {cryptoError && (
-              <p className="text-xs text-apple-red px-1">{cryptoError}</p>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setCryptoModal(null)}
-              className="flex-1 py-2 rounded-2xl text-sm font-medium transition-all duration-150"
-              style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleCryptoConfirm()}
-              disabled={cryptoBusy || !cryptoPassword.trim()}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-              style={{ background: "linear-gradient(145deg, #1A8AFF, #0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3)" }}
-            >
-              {cryptoBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
-              {cryptoBusy ? "处理中…" : cryptoModal.mode === "export" ? "加密并保存" : "解密并导入"}
-            </button>
-          </div>
-        </div>
-      </div>
+      <CryptoConfigModal
+        modal={cryptoModal}
+        password={cryptoPassword}
+        confirm={cryptoConfirm}
+        busy={cryptoBusy}
+        error={cryptoError}
+        onPasswordChange={(value) => {
+          setCryptoPassword(value);
+        }}
+        onConfirmChange={(value) => {
+          setCryptoConfirm(value);
+        }}
+        onClose={closeCryptoModal}
+        onSubmit={handleCryptoConfirm}
+      />
     )}
     </>
   );

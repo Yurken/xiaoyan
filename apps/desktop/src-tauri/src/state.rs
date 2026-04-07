@@ -25,6 +25,8 @@ pub const SENSITIVE_KEYS: &[&str] = &[
     "multi_agent_paper_analyst_api_key",
     "multi_agent_reproduction_api_key",
     "multi_agent_synthesis_api_key",
+    "vision_api_key",
+    "translation_api_key",
 ];
 
 /// All settings keys exposed through the API, with their default values.
@@ -193,6 +195,27 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("paper_import_recognize_year".into(), "true".into());
     m.insert("paper_import_recognize_venue".into(), "true".into());
     m.insert("paper_import_recognize_keywords".into(), "true".into());
+    m.insert("paper_auto_rename_on_import".into(), "false".into());
+    m.insert(
+        "paper_auto_rename_rule".into(),
+        "{first_author} - {title} ({year})".into(),
+    );
+    m.insert("vision_model".into(), "".into());
+    m.insert("vision_base_url".into(), "".into());
+    m.insert("vision_api_key".into(), "".into());
+    m.insert("vision_temperature".into(), "0.2".into());
+    m.insert("vision_top_p".into(), "".into());
+    m.insert("vision_max_tokens".into(), "".into());
+    m.insert("vision_presence_penalty".into(), "".into());
+    m.insert("vision_frequency_penalty".into(), "".into());
+    m.insert("translation_model".into(), "".into());
+    m.insert("translation_base_url".into(), "".into());
+    m.insert("translation_api_key".into(), "".into());
+    m.insert("translation_temperature".into(), "0.1".into());
+    m.insert("translation_top_p".into(), "".into());
+    m.insert("translation_max_tokens".into(), "".into());
+    m.insert("translation_presence_penalty".into(), "".into());
+    m.insert("translation_frequency_penalty".into(), "".into());
     m
 }
 

@@ -2,6 +2,11 @@
 
 面向科研学习与论文工作的桌面端 AI 研究助手。采用 Supervisor 驱动的多 Agent 编排，覆盖研究方向规划、文献调研、论文精读、复现建议、知识库沉淀和带引用的对话问答，并支持按用途自定义大模型分工。
 
+## 开发约束
+
+- 共享开发规范见 [docs/development-principles.md](docs/development-principles.md)
+- Agent 入口规范见 [AGENTS.md](AGENTS.md)、[CLAUDE.md](CLAUDE.md) 与 [CODEX.md](CODEX.md)
+
 ## 功能概览
 
 - **多 Agent 协同**：Supervisor 负责任务拆解，调用检索、规划、文献侦察、综述、论文解析、复现等专长 Agent，最终整合回答。

@@ -7,8 +7,8 @@ on:
     branches: [master, main]
 
 jobs:
-  typecheck:
-    name: Type Check
+  quality:
+    name: Lint And Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
@@ -22,12 +22,27 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
-      # packages expose TypeScript source directly (no build step needed)
-      - name: Type check web
-        run: pnpm --filter "@research-copilot/web" exec tsc --noEmit
+      - name: Lint workspace
+        run: pnpm lint
 
-      - name: Type check desktop
-        run: pnpm --filter "@research-copilot/desktop" exec tsc --noEmit
+      - name: Type check workspace
+        run: pnpm type-check
 
+  desktop-rust-test:
+    name: Desktop Rust Test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./apps/desktop/src-tauri -> target"
+
+      - name: Run desktop Rust tests
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml

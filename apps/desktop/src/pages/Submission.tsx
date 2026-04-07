@@ -5,21 +5,16 @@ import {
   Bell,
   BookOpen,
   Calendar,
-  ChevronDown,
-  ChevronUp,
   CheckCircle2,
   CheckSquare,
   Circle,
   Clock,
-  FilePlus,
   GitBranch,
   History,
   KanbanSquare,
   Plus,
-  Sparkles,
   Star,
   StarOff,
-  Trophy,
   Users,
 } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
@@ -31,13 +26,16 @@ import {
 } from "../data/venues";
 import AddSubmissionModal from "../features/submission/AddSubmissionModal";
 import AddVenueModal from "../features/submission/AddVenueModal";
+import ChecklistWorkspace from "../features/submission/ChecklistWorkspace";
 import CoverLetterModal from "../features/submission/CoverLetterModal";
 import ExternalLink from "../components/ExternalLink";
+import KanbanWorkspace from "../features/submission/KanbanWorkspace";
 import MockReviewModal from "../features/submission/MockReviewModal";
 import PolishPanel from "../features/submission/PolishPanel";
 import ReviewEntryModal from "../features/submission/ReviewEntryModal";
 import ReviewWorkspace from "../features/submission/ReviewWorkspace";
 import SaveVersionModal from "../features/submission/SaveVersionModal";
+import VenueRecommendationsPanel from "../features/submission/VenueRecommendationsPanel";
 import VersionWorkspace from "../features/submission/VersionWorkspace";
 import {
   CCF_STYLE,
@@ -887,177 +885,17 @@ export default function Submission() {
             </div>
 
             {/* ── 智能推荐面板 ── */}
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={{ border: "1px solid var(--rc-border)", background: "var(--rc-card-bg)" }}
-            >
-              {/* 折叠 header */}
-              <button
-                className="w-full flex items-center justify-between px-4 py-3 transition-colors hover:bg-black/[0.02]"
-                onClick={() => setShowRecPanel(p => !p)}
-              >
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4" style={{ color: "#AF52DE" }} />
-                  <span className="text-sm font-semibold text-ink-primary">智能推荐刊会</span>
-                  {recommendations.length > 0 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                      style={{ background: "rgba(175,82,222,0.12)", color: "#AF52DE" }}>
-                      {recommendations.length} 个推荐
-                    </span>
-                  )}
-                  <span className="text-xs text-ink-tertiary">根据研究方向与投稿历史自动匹配</span>
-                </div>
-                {showRecPanel
-                  ? <ChevronUp className="w-4 h-4 text-ink-tertiary flex-shrink-0" />
-                  : <ChevronDown className="w-4 h-4 text-ink-tertiary flex-shrink-0" />
-                }
-              </button>
-
-              {showRecPanel && (
-                <>
-                  {/* 输入区 */}
-                  <div className="px-4 pb-4 pt-1 space-y-3 border-t" style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}>
-                    <div className="grid grid-cols-2 gap-3 pt-3">
-                      <div>
-                        <p className="text-xs font-medium text-ink-secondary mb-1">研究方向 / 论文主题</p>
-                        <textarea
-                          rows={3}
-                          placeholder="告诉小妍你的研究方向或论文主题…"
-                          value={recInput.direction}
-                          onChange={e => setRecInput(p => ({ ...p, direction: e.target.value }))}
-                          className="w-full px-3 py-2 rounded-xl text-xs resize-none leading-relaxed"
-                          style={{ background: "var(--rc-card-bg)", boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.07)" }}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <div>
-                          <p className="text-xs font-medium text-ink-secondary mb-1">关键词</p>
-                          <input
-                            type="text"
-                            placeholder="如：LLM, diffusion, reinforcement learning…"
-                            value={recInput.keywords}
-                            onChange={e => setRecInput(p => ({ ...p, keywords: e.target.value }))}
-                            className="w-full px-3 py-2 rounded-xl text-xs"
-                            style={{ background: "var(--rc-card-bg)", boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.07)" }}
-                          />
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-ink-secondary mb-1">补充说明（可选）</p>
-                          <input
-                            type="text"
-                            placeholder="如：偏理论 / 工程落地 / 希望 CCF A 类…"
-                            value={recInput.extra}
-                            onChange={e => setRecInput(p => ({ ...p, extra: e.target.value }))}
-                            className="w-full px-3 py-2 rounded-xl text-xs"
-                            style={{ background: "var(--rc-card-bg)", boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.07)" }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] text-ink-tertiary">基于投稿历史 · 关键词匹配 · CCF/SCI 评级综合评分</p>
-                      <button
-                        onClick={generateRecommendations}
-                        disabled={recLoading}
-                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 disabled:opacity-60"
-                        style={{ background: "linear-gradient(135deg, #AF52DE, #007AFF)", color: "#fff", boxShadow: "2px 4px 10px rgba(0,122,255,0.25)" }}
-                      >
-                        {recLoading
-                          ? <><span className="animate-spin inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full" />分析中…</>
-                          : <><Sparkles className="w-3 h-3" />生成推荐</>
-                        }
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 推荐结果 */}
-                  {recommendations.length > 0 && (
-                    <div className="p-3 space-y-2 border-t" style={{ borderColor: "var(--rc-border)" }}>
-                      <p className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider px-1">推荐结果</p>
-                      {recommendations.map(rec => {
-                        const ccfS = CCF_STYLE[rec.ccf];
-                        const already = isVenueAdded(rec);
-                        return (
-                          <div
-                            key={rec.id}
-                            className="flex items-start gap-3 p-3 rounded-xl"
-                            style={{ background: "var(--rc-card-inset-bg)" }}
-                          >
-                            {/* Score ring */}
-                            <div className="flex-shrink-0 flex flex-col items-center gap-0.5 w-10">
-                              <span className="text-base font-bold tabular-nums" style={{
-                                color: rec.matchScore >= 80 ? "#34C759" : rec.matchScore >= 55 ? "#007AFF" : "#FF9500"
-                              }}>
-                                {rec.matchScore}
-                              </span>
-                              <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: "var(--rc-border)" }}>
-                                <div className="h-full rounded-full" style={{
-                                  width: `${rec.matchScore}%`,
-                                  background: rec.matchScore >= 80 ? "#34C759" : rec.matchScore >= 55 ? "#007AFF" : "#FF9500"
-                                }} />
-                              </div>
-                              <span className="text-[9px] text-ink-tertiary">匹配度</span>
-                            </div>
-
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-sm font-semibold text-ink-primary">{rec.name}</span>
-                                {rec.ccf !== "none" && (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
-                                    style={{ background: ccfS.bg, color: ccfS.color }}>CCF {rec.ccf}</span>
-                                )}
-                                {rec.sci && (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
-                                    style={{ background: "rgba(52,199,89,0.12)", color: "#1A7F37" }}>SCI</span>
-                                )}
-                                {rec.sciQuartile && (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
-                                    style={{ background: "rgba(88,86,214,0.12)", color: "#5856D6" }}>{rec.sciQuartile}</span>
-                                )}
-                                {rec.ei && (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
-                                    style={{ background: "rgba(0,122,255,0.10)", color: "#007AFF" }}>EI</span>
-                                )}
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-md"
-                                  style={{ background: "rgba(142,142,147,0.10)", color: "#8E8E93" }}>
-                                  {rec.type === "conference" ? "会议" : "期刊"}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-ink-tertiary mt-0.5 truncate">{rec.fullName}</p>
-                              <p className="text-xs text-ink-secondary mt-1 leading-relaxed">{rec.reason}</p>
-                              {rec.matchTags.length > 0 && (
-                                <div className="flex gap-1 mt-1.5 flex-wrap">
-                                  {rec.matchTags.map(t => (
-                                    <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-md"
-                                      style={{ background: "rgba(175,82,222,0.10)", color: "#AF52DE" }}>
-                                      {t}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Action */}
-                            <button
-                              onClick={() => !already && handleAddVenue(rec)}
-                              disabled={already}
-                              className="flex-shrink-0 text-xs font-medium px-2.5 py-1.5 rounded-xl transition-all duration-150 disabled:opacity-40"
-                              style={already
-                                ? { background: "rgba(52,199,89,0.12)", color: "#34C759" }
-                                : { background: "#007AFF", color: "#fff", boxShadow: "1px 2px 6px rgba(0,122,255,0.25)" }
-                              }
-                            >
-                              {already ? "已追踪 ✓" : "+ 追踪"}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            <VenueRecommendationsPanel
+              open={showRecPanel}
+              recommendations={recommendations}
+              loading={recLoading}
+              input={recInput}
+              onToggle={() => setShowRecPanel((prev) => !prev)}
+              onChangeInput={setRecInput}
+              onGenerate={generateRecommendations}
+              isVenueAdded={isVenueAdded}
+              onAddVenue={handleAddVenue}
+            />
 
             <div className="grid gap-2.5">
               {visibleVenues.map(venue => {
@@ -1213,262 +1051,27 @@ export default function Submission() {
 
         {/* ════════ 投稿看板 ════════ */}
         {tab === "kanban" && (
-          <div className="space-y-4 h-full">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-ink-tertiary">点击「推进 →」更新论文投稿进度</p>
-              <Button variant="secondary" size="sm" onClick={() => setShowAddSubModal(true)}>
-                <FilePlus className="w-3.5 h-3.5" />
-                新增投稿
-              </Button>
-            </div>
-
-            <div className="flex gap-4 overflow-x-auto pb-4">
-              {KANBAN_COLS.map(({ key, label }, colIdx) => {
-                const cfg = STATUS_CFG[key];
-                const items = submissions.filter(s => s.status === key);
-                return (
-                  <div key={key} className="flex-shrink-0 w-52">
-                    {/* Column header */}
-                    <div className="flex items-center justify-between mb-3 px-1">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full" style={{ background: cfg.color }} />
-                        <span className="text-sm font-semibold text-ink-primary">{label}</span>
-                      </div>
-                      <span
-                        className="text-xs font-medium px-2 py-0.5 rounded-full"
-                        style={{ background: cfg.bg, color: cfg.color }}
-                      >
-                        {items.length}
-                      </span>
-                    </div>
-
-                    {/* Cards */}
-                    <div className="space-y-2.5 min-h-[120px]">
-                      {items.map(sub => (
-                        <div
-                          key={sub.id}
-                          className="rounded-2xl p-3.5 transition-all duration-150 hover:-translate-y-px cursor-default"
-                          style={{ background: "var(--rc-card-bg)", boxShadow: "2px 2px 8px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.7)" }}
-                        >
-                          <p className="text-sm font-medium text-ink-primary leading-snug line-clamp-3">{sub.title}</p>
-                          <div className="mt-1.5 flex items-center gap-1.5">
-                            <span
-                              className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
-                              style={{
-                                background: sub.venueType === "conference" ? "rgba(0,122,255,0.10)" : "rgba(175,82,222,0.10)",
-                                color: sub.venueType === "conference" ? "#007AFF" : "#AF52DE",
-                              }}
-                            >
-                              {sub.venueType === "conference" ? "会议" : "期刊"}
-                            </span>
-                            <p className="text-[11px] text-ink-tertiary truncate">{sub.venue}</p>
-                          </div>
-                          {sub.deadline && key === "writing" && sub.venueType === "conference" && (
-                            <p className="mt-1 text-[11px]" style={{ color: getDdlStyle(getDaysUntil(sub.deadline)).color }}>
-                              DDL 还剩 {getDaysUntil(sub.deadline)} 天
-                            </p>
-                          )}
-                          {sub.submittedAt && (
-                            <p className="mt-1 text-[11px] text-ink-tertiary">
-                              投稿于 {sub.submittedAt.toLocaleDateString("zh-CN")}
-                            </p>
-                          )}
-                          {key === "accepted" && (
-                            <div className="mt-1.5 flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <Trophy className="w-3 h-3" style={{ color: "#34C759" }} />
-                                <span className="text-[11px] font-medium" style={{ color: "#34C759" }}>已录用</span>
-                              </div>
-                              <button
-                                className="text-[10px] font-medium px-1.5 py-0.5 rounded-md transition-colors"
-                                style={{ background: "rgba(52,199,89,0.12)", color: "#34C759" }}
-                                onClick={() => {
-                                  const year = new Date().getFullYear();
-                                  const vType = sub.venueType === "journal" ? "@article" : "@inproceedings";
-                                  const vKey = sub.venueType === "journal" ? "journal" : "booktitle";
-                                  const key_ = `Author${year}${sub.venue.split(" ")[0]}`;
-                                  const bib = `${vType}{${key_},\n  title={${sub.title}},\n  author={},\n  ${vKey}={${sub.venue}},\n  year={${year}}\n}`;
-                                  navigator.clipboard.writeText(bib);
-                                }}
-                                title="复制 BibTeX"
-                              >
-                                BibTeX
-                              </button>
-                            </div>
-                          )}
-                          {/* Move buttons */}
-                          <div className="mt-2.5 flex gap-1">
-                            {colIdx > 0 && (
-                              <button
-                                className="text-[10px] text-ink-tertiary hover:text-ink-secondary px-1.5 py-0.5 rounded-md hover:bg-black/5 transition-colors"
-                                onClick={() => moveSubmission(sub.id, "prev")}
-                              >
-                                ← 回退
-                              </button>
-                            )}
-                            {key !== "accepted" && key !== "rejected" && (
-                              <button
-                                className="text-[10px] font-medium px-1.5 py-0.5 rounded-md hover:bg-black/5 transition-colors"
-                                style={{ color: "#007AFF" }}
-                                onClick={() => moveSubmission(sub.id, "next")}
-                              >
-                                推进 →
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-
-                      {items.length === 0 && (
-                        <div
-                          className="rounded-2xl p-5 flex items-center justify-center border-2 border-dashed opacity-30"
-                          style={{ borderColor: "var(--rc-border)" }}
-                        >
-                          <p className="text-xs text-ink-tertiary">暂无</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Collaboration placeholder */}
-            <div
-              className="rounded-3xl p-4 flex items-center gap-3 border-2 border-dashed opacity-50"
-              style={{ borderColor: "var(--rc-border)" }}
-            >
-              <Users className="w-5 h-5 text-ink-tertiary flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-ink-secondary">多人协作（即将上线）</p>
-                <p className="text-xs text-ink-tertiary mt-0.5">邀请共同作者加入投稿项目，分配章节任务、标注评论、共享看板进度。</p>
-              </div>
-            </div>
-          </div>
+          <KanbanWorkspace
+            submissions={submissions}
+            onOpenAddSubmission={() => setShowAddSubModal(true)}
+            onMoveSubmission={moveSubmission}
+          />
         )}
 
         {/* ════════ 提交清单 ════════ */}
         {tab === "checklist" && (
-          <div className="space-y-5">
-            {/* Progress header */}
-            <div className="flex items-center gap-6">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold text-ink-primary">提交前检查</p>
-                  <span
-                    className="text-sm font-bold tabular-nums"
-                    style={{ color: progress === 100 ? "#34C759" : "#007AFF" }}
-                  >
-                    {checkedCount} / {checklist.length}
-                  </span>
-                </div>
-                <div
-                  className="h-2 rounded-full overflow-hidden"
-                  style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 1px 1px 3px rgba(0,0,0,0.12)" }}
-                >
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${progress}%`,
-                      background: progress === 100
-                        ? "#34C759"
-                        : "linear-gradient(90deg, #007AFF, #5856D6)",
-                    }}
-                  />
-                </div>
-              </div>
-              {progress === 100 && (
-                <div
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
-                  style={{ background: "rgba(52,199,89,0.10)" }}
-                >
-                  <CheckCircle2 className="w-4 h-4" style={{ color: "#34C759" }} />
-                  <span className="text-xs font-medium" style={{ color: "#34C759" }}>可以投稿了</span>
-                </div>
-              )}
-              <button
-                className="text-xs text-ink-tertiary hover:text-ink-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-black/5"
-                onClick={() => setChecklist(prev => prev.map(i => ({ ...i, checked: false })))}
-              >
-                重置
-              </button>
-            </div>
-
-            {/* Category filter */}
-            <div className="flex flex-wrap items-center gap-2">
-              {categories.map(cat => {
-                const catCount = checklist.filter(i => i.category === cat).length;
-                const catChecked = checklist.filter(i => i.category === cat && i.checked).length;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setChecklistCat(cat)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
-                    style={checklistCat === cat
-                      ? { background: "#007AFF", color: "#fff" }
-                      : { background: "var(--rc-card-bg)", color: "var(--rc-text-secondary)" as string, boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)" }
-                    }
-                  >
-                    {cat === "all" ? "全部" : cat}
-                    {cat !== "all" && (
-                      <span className={checklistCat === cat ? "opacity-70" : "opacity-50"}>
-                        {catChecked}/{catCount}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Items in grid layout */}
-            <div className="grid grid-cols-2 gap-3">
-              {visibleCategories.map(cat => (
-                <div key={cat} className="space-y-2">
-                  <p className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider px-1">
-                    {cat}
-                  </p>
-                  <Card padding="sm" className="space-y-1">
-                    {filteredChecklist
-                      .filter(i => i.category === cat)
-                      .map(item => (
-                        <button
-                          key={item.id}
-                          onClick={() => toggleCheck(item.id)}
-                          className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl text-left transition-all duration-150 hover:bg-black/[0.03]"
-                        >
-                          {item.checked
-                            ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: "#34C759" }} />
-                            : <Circle className="w-4 h-4 flex-shrink-0 text-ink-tertiary" />
-                          }
-                          <span
-                            className="text-[13px] leading-snug transition-all duration-150"
-                            style={{
-                              color: item.checked ? "#34C759" : "var(--rc-text-primary)" as string,
-                              textDecoration: item.checked ? "line-through" : "none",
-                              opacity: item.checked ? 0.6 : 1,
-                            }}
-                          >
-                            {item.label}
-                          </span>
-                        </button>
-                      ))}
-                  </Card>
-                </div>
-              ))}
-            </div>
-
-            {/* Collaboration placeholder */}
-            <div
-              className="rounded-2xl p-3.5 flex items-center gap-3 border-2 border-dashed opacity-50"
-              style={{ borderColor: "var(--rc-border)" }}
-            >
-              <Users className="w-4 h-4 text-ink-tertiary flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-ink-secondary">团队协作清单（即将上线）</p>
-                <p className="text-xs text-ink-tertiary mt-0.5">为每位共同作者分配清单项，追踪各自完成进度。</p>
-              </div>
-            </div>
-          </div>
+          <ChecklistWorkspace
+            checklist={checklist}
+            checklistCat={checklistCat}
+            categories={categories}
+            visibleCategories={visibleCategories}
+            filteredChecklist={filteredChecklist}
+            checkedCount={checkedCount}
+            progress={progress}
+            onReset={() => setChecklist((prev) => prev.map((item) => ({ ...item, checked: false })))}
+            onSelectCategory={setChecklistCat}
+            onToggleCheck={toggleCheck}
+          />
         )}
 
         {/* ════════ 版本控制 ════════ */}

@@ -14,6 +14,8 @@ mod journal_partitions;
 mod llm;
 mod links;
 mod rag;
+mod repositories;
+mod services;
 mod state;
 
 use tauri::Manager;
