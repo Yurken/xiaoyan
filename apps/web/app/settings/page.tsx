@@ -6,8 +6,6 @@ import { Bot, BrainCircuit, ChevronDown, Database, Network, Settings2, Sparkles 
 import { apiClient } from "@/lib/client";
 import type { AppSettings, MultiAgentRoutingMode } from "@research-copilot/types";
 
-const MASK = "***";
-
 const DEFAULT_SETTINGS: AppSettings = {
   llm_provider: "openai_compatible",
   openai_api_key: "",

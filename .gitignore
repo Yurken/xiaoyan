@@ -219,6 +219,8 @@ node_modules/
 **/node_modules/
 **/.next/
 **/.env.local
+**/*.tsbuildinfo
+.turbo/
 
 # macOS
 .DS_Store

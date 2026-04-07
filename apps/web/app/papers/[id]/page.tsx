@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, use, type ReactNode } from "react";
+import { useState, useEffect, use, useCallback, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Sparkles, Code2, FlaskConical, Lightbulb, AlertTriangle,
   CheckCircle, ChevronDown, ChevronUp, MessageSquare
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, Button, Badge } from "@research-copilot/ui";
+import { Card, Button, Badge } from "@research-copilot/ui";
 import { papersApi } from "@/lib/client";
 import type { Paper } from "@research-copilot/types";
 
@@ -69,7 +69,7 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"analysis" | "reproduction">("analysis");
 
-  const fetchPaper = async () => {
+  const fetchPaper = useCallback(async () => {
     try {
       const data = await papersApi.get(id) as Paper;
       setPaper(data);
@@ -78,9 +78,9 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  useEffect(() => { fetchPaper(); }, [id]);
+  useEffect(() => { void fetchPaper(); }, [fetchPaper]);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);

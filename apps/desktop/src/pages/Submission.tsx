@@ -13,14 +13,12 @@ import {
   CheckSquare,
   Circle,
   Clock,
-  Download,
   FilePlus,
   GitBranch,
   History,
   KanbanSquare,
   Loader2,
   Plus,
-  Save,
   Search,
   Sparkles,
   Star,
@@ -38,287 +36,35 @@ import {
   type VenueTemplate,
 } from "../data/venues";
 import ExternalLink from "../components/ExternalLink";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type CcfRating = "A" | "B" | "C" | "none";
-type SubmissionStatus = "writing" | "submitted" | "reviewing" | "accepted" | "rejected";
-type VenueType = "conference" | "journal";
-
-interface Conference {
-  id: string;
-  type: "conference";
-  name: string;
-  fullName: string;
-  website?: string;
-  deadline: Date;
-  notificationDate?: Date;
-  ccf: CcfRating;
-  area: string;
-  starred: boolean;
-  ei?: boolean;
-}
-
-interface Journal {
-  id: string;
-  type: "journal";
-  name: string;
-  fullName: string;
-  website?: string;
-  ccf: CcfRating;
-  area: string;
-  starred: boolean;
-  sci?: boolean;
-  sciQuartile?: "Q1" | "Q2" | "Q3" | "Q4";
-  ei?: boolean;
-  // 期刊特刊截止日期
-  specialIssueDeadline?: Date;
-  specialIssueTitle?: string;
-}
-
-type Venue = Conference | Journal;
-
-interface Submission {
-  id: string;
-  title: string;
-  venue: string;
-  venueType: VenueType;
-  status: SubmissionStatus;
-  deadline?: Date;
-  submittedAt?: Date;
-}
-
-interface ChecklistItem {
-  id: string;
-  label: string;
-  checked: boolean;
-  category: string;
-}
-
-interface VenueRecommendation extends VenueTemplate {
-  reason: string;
-  matchScore: number;
-  matchTags: string[];
-}
-
-type ReviewVerdict = "accept" | "minor_revision" | "major_revision" | "reject";
-
-interface ReviewComment {
-  id: string;
-  submissionId: string;
-  round: number;
-  reviewer: string;     // "Reviewer 1", "AC" 等
-  content: string;      // 审稿意见原文
-  response: string;     // 作者回复（可空）
-  resolved: boolean;    // 是否已处理
-  tags: string[];       // "实验" | "写作" | "方法" | "贡献" 等
-  createdAt: Date;
-}
-
-interface ReviewRound {
-  submissionId: string;
-  round: number;
-  verdict: ReviewVerdict;
-  receivedAt: Date;
-}
-
-interface PaperVersion {
-  id: string;
-  submissionId: string;
-  tag: string;           // e.g. "v1.0"
-  label: string;         // e.g. "初稿", "按审稿意见修改"
-  stage: SubmissionStatus;
-  content: string;       // 摘要或核心内容快照
-  notes: string;         // 本次修改说明
-  createdAt: Date;
-  filePath?: string;     // 论文文件路径
-  fileName?: string;     // 论文文件名
-}
-
-// ─── AI Review Types ──────────────────────────────────────────────────────────
-
-type MockStrictness = "lenient" | "balanced" | "strict";
-
-interface MockReviewerResult {
-  reviewer: string;
-  content: string;
-  tags: string[];
-  verdict: ReviewVerdict;
-}
-
-// ─── Diff ─────────────────────────────────────────────────────────────────────
-
-type DiffLine = { type: "same" | "add" | "remove"; text: string };
-
-function computeLineDiff(oldText: string, newText: string): DiffLine[] {
-  const a = oldText.split("\n").filter(l => l.trim() !== "");
-  const b = newText.split("\n").filter(l => l.trim() !== "");
-  const m = a.length, n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
-      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
-  const result: DiffLine[] = [];
-  let i = m, j = n;
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-      result.unshift({ type: "same",   text: a[i - 1] }); i--; j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      result.unshift({ type: "add",    text: b[j - 1] }); j--;
-    } else {
-      result.unshift({ type: "remove", text: a[i - 1] }); i--;
-    }
-  }
-  return result;
-}
-
-// ─── Helpers for DB → typed objects ──────────────────────────────────────────
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToVenue(r: any): Venue {
-  if (r.type === "journal") {
-    return {
-      id: r.id, type: "journal",
-      name: r.name, fullName: r.fullName ?? "",
-      website: r.website || undefined,
-      ccf: (r.ccf || "none") as CcfRating,
-      area: r.area ?? "",
-      starred: Boolean(r.starred),
-      sci: Boolean(r.sci), sciQuartile: r.sciQuartile || undefined,
-      ei: Boolean(r.ei),
-      specialIssueDeadline: r.specialIssueDeadline ? new Date(r.specialIssueDeadline) : undefined,
-      specialIssueTitle: r.specialIssueTitle || undefined,
-    } satisfies Journal;
-  }
-  return {
-    id: r.id, type: "conference",
-    name: r.name, fullName: r.fullName ?? "",
-    website: r.website || undefined,
-    deadline: r.deadline ? new Date(r.deadline) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-    notificationDate: r.notificationDate ? new Date(r.notificationDate) : undefined,
-    ccf: (r.ccf || "none") as CcfRating,
-    area: r.area ?? "",
-    starred: Boolean(r.starred),
-    ei: Boolean(r.ei),
-  } satisfies Conference;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToSubmission(r: any): Submission {
-  return {
-    id: r.id, title: r.title,
-    venue: r.venueName ?? "",
-    venueType: (r.venueType ?? "conference") as VenueType,
-    status: (r.status ?? "writing") as SubmissionStatus,
-    deadline: r.deadline ? new Date(r.deadline) : undefined,
-    submittedAt: r.submittedAt ? new Date(r.submittedAt) : undefined,
-  };
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToVersion(r: any): PaperVersion {
-  return {
-    id: r.id, submissionId: r.submissionId,
-    tag: r.tag ?? "", label: r.label ?? "",
-    stage: (r.stage ?? "writing") as SubmissionStatus,
-    content: r.content ?? "", notes: r.notes ?? "",
-    createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
-    filePath: r.filePath ?? undefined,
-    fileName: r.fileName ?? undefined,
-  };
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToRound(r: any): ReviewRound {
-  return {
-    submissionId: r.submissionId, round: r.round,
-    verdict: normalizeVerdict(r.verdict),
-    receivedAt: r.receivedAt ? new Date(r.receivedAt) : new Date(),
-  };
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToComment(r: any): ReviewComment {
-  return {
-    id: r.id, submissionId: r.submissionId, round: r.round,
-    reviewer: r.reviewer ?? "", content: r.content ?? "",
-    response: r.response ?? "", resolved: Boolean(r.resolved),
-    tags: Array.isArray(r.tags) ? r.tags : [],
-    createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
-  };
-}
-
-function normalizeVerdict(value: unknown): ReviewVerdict {
-  if (value === "accept" || value === "minor_revision" || value === "major_revision" || value === "reject") {
-    return value;
-  }
-  return "major_revision";
-}
-
-const VERDICT_CFG: Record<ReviewVerdict, { label: string; color: string; bg: string }> = {
-  accept:           { label: "接收",     color: "#34C759", bg: "rgba(52,199,89,0.12)"   },
-  minor_revision:   { label: "小修",     color: "#007AFF", bg: "rgba(0,122,255,0.12)"   },
-  major_revision:   { label: "大修",     color: "#FF9500", bg: "rgba(255,149,0,0.12)"   },
-  reject:           { label: "拒稿",     color: "#FF3B30", bg: "rgba(255,59,48,0.12)"   },
-};
-
-const REVIEW_TAGS = ["实验", "写作", "方法", "贡献", "相关工作", "理论", "复杂度", "消融实验"];
-
-const DEFAULT_CHECKLIST: ChecklistItem[] = [
-  { id: "c1",  label: "标题符合会议主题方向",           checked: false, category: "内容" },
-  { id: "c2",  label: "摘要不超过字数限制",             checked: false, category: "内容" },
-  { id: "c3",  label: "关键词已选择（3–5 个）",         checked: false, category: "内容" },
-  { id: "c4",  label: "页面数量符合要求",               checked: false, category: "格式" },
-  { id: "c5",  label: "字体与字号符合模板",             checked: false, category: "格式" },
-  { id: "c6",  label: "页边距符合规定",                 checked: false, category: "格式" },
-  { id: "c7",  label: "图表清晰可读（≥ 300 DPI）",      checked: false, category: "格式" },
-  { id: "c8",  label: "参考文献格式统一",               checked: false, category: "格式" },
-  { id: "c9",  label: "作者顺序已确认",                 checked: false, category: "提交" },
-  { id: "c10", label: "作者单位信息正确",               checked: false, category: "提交" },
-  { id: "c11", label: "利益冲突声明已填写（如需）",     checked: false, category: "提交" },
-  { id: "c12", label: "补充材料准备完毕（如需）",       checked: false, category: "提交" },
-  { id: "c13", label: "匿名化处理完成（双盲投稿）",     checked: false, category: "合规" },
-  { id: "c14", label: "自查重复率 < 15%",               checked: false, category: "合规" },
-  { id: "c15", label: "AI 使用声明（如需）",            checked: false, category: "合规" },
-];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getDaysUntil(date: Date): number {
-  return Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-}
-
-function getDdlStyle(days: number): { label: string; color: string; bg: string } {
-  if (days < 0)   return { label: "已截止",      color: "#8E8E93", bg: "rgba(142,142,147,0.12)" };
-  if (days <= 7)  return { label: `${days} 天`,  color: "#FF3B30", bg: "rgba(255,59,48,0.12)" };
-  if (days <= 30) return { label: `${days} 天`,  color: "#FF9500", bg: "rgba(255,149,0,0.12)" };
-  return              { label: `${days} 天`,  color: "#34C759", bg: "rgba(52,199,89,0.12)" };
-}
-
-const CCF_STYLE: Record<CcfRating, { color: string; bg: string }> = {
-  A:    { color: "#FF3B30", bg: "rgba(255,59,48,0.10)" },
-  B:    { color: "#FF9500", bg: "rgba(255,149,0,0.10)" },
-  C:    { color: "#007AFF", bg: "rgba(0,122,255,0.10)" },
-  none: { color: "#8E8E93", bg: "rgba(142,142,147,0.10)" },
-};
-
-const STATUS_CFG: Record<SubmissionStatus, { label: string; color: string; bg: string }> = {
-  writing:   { label: "撰写中", color: "#AF52DE", bg: "rgba(175,82,222,0.10)" },
-  submitted: { label: "已投稿", color: "#007AFF", bg: "rgba(0,122,255,0.10)" },
-  reviewing: { label: "审稿中", color: "#FF9500", bg: "rgba(255,149,0,0.10)" },
-  accepted:  { label: "已接收", color: "#34C759", bg: "rgba(52,199,89,0.10)" },
-  rejected:  { label: "已拒绝", color: "#8E8E93", bg: "rgba(142,142,147,0.10)" },
-};
-
-const KANBAN_COLS: { key: SubmissionStatus; label: string }[] = [
-  { key: "writing",   label: "撰写中" },
-  { key: "submitted", label: "已投稿" },
-  { key: "reviewing", label: "审稿中" },
-  { key: "accepted",  label: "已接收" },
-  { key: "rejected",  label: "已拒绝" },
-];
-
-// ─── Component ────────────────────────────────────────────────────────────────
+import VersionWorkspace from "../features/submission/VersionWorkspace";
+import {
+  CCF_STYLE,
+  DEFAULT_CHECKLIST,
+  KANBAN_COLS,
+  REVIEW_TAGS,
+  STATUS_CFG,
+  VERDICT_CFG,
+  getDaysUntil,
+  getDdlStyle,
+  rowToComment,
+  rowToRound,
+  rowToSubmission,
+  rowToVenue,
+  rowToVersion,
+  type ChecklistItem,
+  type Conference,
+  type Journal,
+  type MockReviewerResult,
+  type MockStrictness,
+  type PaperVersion,
+  type ReviewComment,
+  type ReviewRound,
+  type ReviewVerdict,
+  type Submission,
+  type Venue,
+  type VenueRecommendation,
+  type VenueType,
+} from "../features/submission/shared";
 
 export default function Submission() {
   const [tab, setTab] = useState<"conferences" | "kanban" | "checklist" | "versions" | "reviews">("conferences");
@@ -734,6 +480,54 @@ export default function Submission() {
     } catch (e) { console.error(e); }
     setShowSaveModal(false);
     setSaveForm({ tag: "", label: "", notes: "", content: "" });
+  };
+
+  const handleOpenSaveVersionModal = () => {
+    const currentVersions = versions.filter((version) => version.submissionId === versionSubId);
+    setSaveForm({
+      tag: versionNextTag,
+      label: "",
+      notes: "",
+      content: currentVersions[currentVersions.length - 1]?.content ?? "",
+    });
+    setShowSaveModal(true);
+  };
+
+  const handlePolishVersion = (version: PaperVersion) => {
+    if (!version.content.trim()) return;
+    setPolishSourceId(version.id);
+    setPolishText("");
+    setPolishLoading(true);
+    setShowPolishPanel(true);
+    submissionApi.polishAbstract(version.submissionId, version.content).catch((error) => {
+      console.error(error);
+      setPolishLoading(false);
+    });
+  };
+
+  const handleOpenMockReview = async (version: PaperVersion) => {
+    setReviewSubId(version.submissionId);
+    setMockReviewResult(null);
+    setMockFileName(null);
+    setShowMockReviewModal(true);
+
+    if (version.filePath) {
+      setMockFileExtracting(true);
+      setMockReviewInput((currentInput) => ({ ...currentInput, abstract: "" }));
+      try {
+        const { extractTextFromPdf } = await import("../lib/pdfExtract");
+        const text = await extractTextFromPdf(version.filePath);
+        setMockReviewInput((currentInput) => ({ ...currentInput, abstract: text }));
+        setMockFileName(version.fileName ?? "paper.pdf");
+      } catch {
+        setMockReviewInput((currentInput) => ({ ...currentInput, abstract: version.content }));
+      } finally {
+        setMockFileExtracting(false);
+      }
+      return;
+    }
+
+    setMockReviewInput((currentInput) => ({ ...currentInput, abstract: version.content }));
   };
 
   // ── Recommendation state + logic ──
@@ -1470,314 +1264,24 @@ export default function Submission() {
         )}
 
         {/* ════════ 版本控制 ════════ */}
-        {tab === "versions" && (() => {
-          const subVersions = versions.filter(v => v.submissionId === versionSubId);
-          const currentSub = submissions.find(s => s.id === versionSubId);
-
-          const selectForCompare = (id: string, slot: 0 | 1) => {
-            setCompareIds(prev => {
-              const base = prev ?? [subVersions[0]?.id ?? id, subVersions[0]?.id ?? id];
-              const next = [base[0], base[1]] as [string, string];
-              next[slot] = id;
-              return next;
-            });
-          };
-
-          const diffResult = compareIds && compareIds[0] !== compareIds[1]
-            ? (() => {
-                const va = versions.find(v => v.id === compareIds[0]);
-                const vb = versions.find(v => v.id === compareIds[1]);
-                return va && vb ? computeLineDiff(va.content, vb.content) : null;
-              })()
-            : null;
-
-          return (
-            <div className="flex gap-5 h-full min-h-0">
-
-              {/* ── 左侧：投稿列表 ── */}
-              <div className="w-52 flex-shrink-0 flex flex-col gap-2">
-                <p className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider px-1">投稿论文</p>
-                {submissions.map(sub => {
-                  const vCount = versions.filter(v => v.submissionId === sub.id).length;
-                  const cfg = STATUS_CFG[sub.status];
-                  const active = sub.id === versionSubId;
-                  return (
-                    <button
-                      key={sub.id}
-                      onClick={() => { setVersionSubId(sub.id); setCompareIds(null); }}
-                      className="w-full text-left rounded-2xl p-3 transition-all duration-150"
-                      style={active
-                        ? { background: "#007AFF", color: "#fff", boxShadow: "2px 4px 12px rgba(0,122,255,0.3)" }
-                        : { background: "var(--rc-card-bg)", color: "var(--rc-text-primary)" as string, boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)" }
-                      }
-                    >
-                      <p className="text-sm font-medium line-clamp-2 leading-snug">{sub.title}</p>
-                      <div className="mt-1.5 flex items-center justify-between gap-1">
-                        <span className="text-[10px] truncate" style={{ opacity: 0.65 }}>{sub.venue}</span>
-                        <span
-                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                          style={active
-                            ? { background: "rgba(255,255,255,0.25)", color: "#fff" }
-                            : { background: cfg.bg, color: cfg.color }
-                          }
-                        >
-                          {vCount} 版本
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* ── 右侧：版本时间线 + diff ── */}
-              <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto">
-
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-ink-primary line-clamp-1">{currentSub?.title}</p>
-                    <p className="text-xs text-ink-tertiary mt-0.5">
-                      共 {subVersions.length} 个版本
-                      {compareIds && compareIds[0] !== compareIds[1] && "  ·  已选择两个版本对比"}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => { setSaveForm({ tag: versionNextTag, label: "", notes: "", content: subVersions[subVersions.length - 1]?.content ?? "" }); setShowSaveModal(true); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all duration-150 hover:opacity-80"
-                    style={{ background: "#007AFF", color: "#fff", boxShadow: "2px 4px 10px rgba(0,122,255,0.25)" }}
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    记录版本
-                  </button>
-                </div>
-
-                {subVersions.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center gap-3 opacity-50">
-                    <History className="w-10 h-10 text-ink-tertiary" />
-                    <p className="text-sm text-ink-tertiary">暂无版本记录，点击「记录版本」保存论文稿件快照</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* 版本时间线 */}
-                    <div className="space-y-0">
-                      {[...subVersions].reverse().map((ver, idx, arr) => {
-                        const isFirst = idx === 0;
-                        const stageCfg = STATUS_CFG[ver.stage];
-                        const inCompare = compareIds && (compareIds[0] === ver.id || compareIds[1] === ver.id);
-                        return (
-                          <div key={ver.id} className="flex gap-3">
-                            {/* Timeline track */}
-                            <div className="flex flex-col items-center w-8 flex-shrink-0">
-                              <div
-                                className="w-3 h-3 rounded-full border-2 mt-4 flex-shrink-0 z-10"
-                                style={isFirst
-                                  ? { background: "#007AFF", borderColor: "#007AFF" }
-                                  : { background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }
-                                }
-                              />
-                              {idx < arr.length - 1 && (
-                                <div className="w-px flex-1 mt-1" style={{ background: "var(--rc-border)" }} />
-                              )}
-                            </div>
-
-                            {/* Card */}
-                            <div
-                              className="flex-1 mb-3 rounded-2xl p-3.5 transition-all duration-150"
-                              style={{
-                                background: inCompare ? "rgba(0,122,255,0.06)" : "var(--rc-card-bg)",
-                                boxShadow: inCompare
-                                  ? "0 0 0 1.5px #007AFF, 2px 2px 8px rgba(0,0,0,0.06)"
-                                  : "2px 2px 8px rgba(0,0,0,0.07), -1px -1px 4px rgba(255,255,255,0.65)",
-                              }}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-sm font-bold text-ink-primary">{ver.tag}</span>
-                                  <span className="text-sm text-ink-secondary">{ver.label}</span>
-                                  <span
-                                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
-                                    style={{ background: stageCfg.bg, color: stageCfg.color }}
-                                  >
-                                    {stageCfg.label}
-                                  </span>
-                                </div>
-                                <span className="text-[11px] text-ink-tertiary flex-shrink-0">
-                                  {ver.createdAt.toLocaleDateString("zh-CN")}
-                                </span>
-                              </div>
-
-                              {ver.notes && (
-                                <p className="mt-1.5 text-xs text-ink-secondary leading-relaxed">{ver.notes}</p>
-                              )}
-
-                              <p className="mt-2 text-[11px] text-ink-tertiary line-clamp-2 leading-relaxed font-mono">
-                                {ver.content.slice(0, 120)}…
-                              </p>
-
-                              {/* Compare controls */}
-                              <div className="mt-2.5 flex items-center gap-2">
-                                <span className="text-[10px] text-ink-tertiary">对比：</span>
-                                {(["0", "1"] as const).map(slot => (
-                                  <button
-                                    key={slot}
-                                    onClick={() => selectForCompare(ver.id, Number(slot) as 0 | 1)}
-                                    className="text-[10px] font-medium px-2 py-0.5 rounded-lg transition-colors"
-                                    style={compareIds?.[Number(slot)] === ver.id
-                                      ? { background: "#007AFF", color: "#fff" }
-                                      : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-tertiary)" as string }
-                                    }
-                                  >
-                                    {slot === "0" ? "旧" : "新"}
-                                  </button>
-                                ))}
-                              </div>
-
-                              {/* File controls */}
-                              <div className="mt-3 flex items-center gap-2 flex-wrap">
-                                <button
-                                  onClick={() => handleUploadVersionFile(ver.id)}
-                                  className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors"
-                                  style={{ background: "var(--rc-card-inset-bg)", color: "var(--rc-text-tertiary)" as string }}
-                                  title="上传论文 PDF"
-                                >
-                                  <Upload className="w-3 h-3" />
-                                  上传
-                                </button>
-                                {ver.filePath && (
-                                  <button
-                                    onClick={() => handleDownloadVersionFile(ver.filePath)}
-                                    className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors"
-                                    style={{ background: "var(--rc-card-inset-bg)", color: "#007AFF" }}
-                                    title="下载论文 PDF"
-                                  >
-                                    <Download className="w-3 h-3" />
-                                    下载
-                                  </button>
-                                )}
-
-                                {/* AI 润色 */}
-                                {ver.content.trim() && (
-                                  <button
-                                    onClick={() => {
-                                      setPolishSourceId(ver.id);
-                                      setPolishText("");
-                                      setPolishLoading(true);
-                                      setShowPolishPanel(true);
-                                      submissionApi.polishAbstract(ver.submissionId, ver.content).catch(e => {
-                                        console.error(e); setPolishLoading(false);
-                                      });
-                                    }}
-                                    className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-all duration-150"
-                                    style={{ background: "rgba(0,122,255,0.10)", color: "#007AFF" }}
-                                    title="AI 润色摘要/核心内容"
-                                  >
-                                    <Sparkles className="w-3 h-3" />
-                                    AI 润色
-                                  </button>
-                                )}
-
-                                {/* AI 审稿入口 */}
-                                <button
-                                  onClick={async () => {
-                                    // 设置审稿归档目标为当前版本所属投稿
-                                    setReviewSubId(ver.submissionId);
-                                    setMockReviewResult(null);
-                                    setMockFileName(null);
-                                    setShowMockReviewModal(true);
-                                    if (ver.filePath) {
-                                      // 有 PDF 文件：自动提取
-                                      setMockFileExtracting(true);
-                                      setMockReviewInput(p => ({ ...p, abstract: "" }));
-                                      try {
-                                        const { extractTextFromPdf } = await import("../lib/pdfExtract");
-                                        const text = await extractTextFromPdf(ver.filePath);
-                                        setMockReviewInput(p => ({ ...p, abstract: text }));
-                                        setMockFileName(ver.fileName ?? "paper.pdf");
-                                      } catch {
-                                        setMockReviewInput(p => ({ ...p, abstract: ver.content }));
-                                      } finally {
-                                        setMockFileExtracting(false);
-                                      }
-                                    } else {
-                                      // 无文件：使用版本快照文本
-                                      setMockReviewInput(p => ({ ...p, abstract: ver.content }));
-                                    }
-                                  }}
-                                  className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-all duration-150"
-                                  style={ver.filePath
-                                    ? { background: "rgba(175,82,222,0.12)", color: "#AF52DE" }
-                                    : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-tertiary)" as string }
-                                  }
-                                  title={ver.filePath ? "从 PDF 文件生成 AI 审稿意见" : "从版本快照文本生成 AI 审稿意见"}
-                                >
-                                  <Bot className="w-3 h-3" />
-                                  AI 审稿
-                                </button>
-
-                                {ver.filePath && (
-                                  <span className="text-[10px] text-ink-tertiary truncate flex-1">
-                                    {ver.fileName}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Diff 面板 */}
-                    {diffResult && compareIds && (
-                      <div
-                        className="rounded-2xl overflow-hidden"
-                        style={{ border: "1px solid var(--rc-border)" }}
-                      >
-                        <div
-                          className="px-4 py-2.5 flex items-center gap-2"
-                          style={{ background: "var(--rc-card-inset-bg)", borderBottom: "1px solid var(--rc-border)" }}
-                        >
-                          <History className="w-4 h-4 text-ink-tertiary" />
-                          <span className="text-sm font-semibold text-ink-primary">差异对比</span>
-                          <span className="text-xs text-ink-tertiary">
-                            {versions.find(v => v.id === compareIds[0])?.tag}
-                            {" → "}
-                            {versions.find(v => v.id === compareIds[1])?.tag}
-                          </span>
-                          <div className="ml-auto flex items-center gap-3 text-[11px]">
-                            <span style={{ color: "#34C759" }}>
-                              +{diffResult.filter(l => l.type === "add").length} 行新增
-                            </span>
-                            <span style={{ color: "#FF3B30" }}>
-                              -{diffResult.filter(l => l.type === "remove").length} 行删除
-                            </span>
-                          </div>
-                        </div>
-                        <div className="p-1 overflow-x-auto max-h-72 overflow-y-auto">
-                          {diffResult.map((line, i) => (
-                            <div
-                              key={i}
-                              className="flex items-baseline gap-2 px-3 py-0.5 rounded-lg text-xs font-mono leading-relaxed"
-                              style={
-                                line.type === "add"    ? { background: "rgba(52,199,89,0.10)",  color: "#1A7F37" } :
-                                line.type === "remove" ? { background: "rgba(255,59,48,0.10)",  color: "#C0392B" } :
-                                                         { color: "var(--rc-text-secondary)" as string }
-                              }
-                            >
-                              <span className="select-none w-3 flex-shrink-0 text-[10px]">
-                                {line.type === "add" ? "+" : line.type === "remove" ? "−" : " "}
-                              </span>
-                              <span>{line.text}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })()}
+        {tab === "versions" && (
+          <VersionWorkspace
+            submissions={submissions}
+            versions={versions}
+            versionSubId={versionSubId}
+            compareIds={compareIds}
+            onSelectSubmission={(submissionId) => {
+              setVersionSubId(submissionId);
+              setCompareIds(null);
+            }}
+            onSetCompareIds={setCompareIds}
+            onOpenSaveModal={handleOpenSaveVersionModal}
+            onUploadVersionFile={handleUploadVersionFile}
+            onDownloadVersionFile={handleDownloadVersionFile}
+            onPolishVersion={handlePolishVersion}
+            onOpenMockReview={handleOpenMockReview}
+          />
+        )}
 
         {/* ════════ 审稿归档 ════════ */}
         {tab === "reviews" && (() => {

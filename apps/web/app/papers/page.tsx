@@ -24,7 +24,7 @@ export default function PapersPage() {
     try {
       const data = await papersApi.list() as Paper[];
       setPapers(data);
-    } catch (e) {
+    } catch {
       setError("加载失败");
     } finally {
       setLoading(false);
