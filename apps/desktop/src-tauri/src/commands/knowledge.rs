@@ -312,7 +312,7 @@ pub async fn knowledge_generate_plan(
             "id": rid,
             "agent": {
                 "id": analyst_id,
-                "name": "元枢模型",
+                "name": "小妍模型",
                 "role": "拆解研究主题与能力目标",
                 "status": "running"
             }
@@ -333,7 +333,7 @@ pub async fn knowledge_generate_plan(
                     "id": rid,
                     "agent": {
                         "id": analyst_id,
-                        "name": "元枢模型",
+                        "name": "小妍模型",
                         "role": "拆解研究主题与能力目标",
                         "status": "done",
                         "summary": parsed.get("scope").and_then(|v| v.as_str()).unwrap_or("已完成主题拆解")
@@ -346,7 +346,7 @@ pub async fn knowledge_generate_plan(
                     "id": rid,
                     "agent": {
                         "id": analyst_id,
-                        "name": "元枢模型",
+                        "name": "小妍模型",
                         "role": "拆解研究主题与能力目标",
                         "status": "failed",
                         "error": e.to_string()

@@ -135,7 +135,7 @@ function ToggleChip({
       onClick={onClick}
       className={`rounded-full border px-3 py-1 text-xs transition-colors ${
         selected
-          ? "border-apple-blue bg-apple-blue/10 text-apple-blue"
+          ? "rc-accent-chip"
           : "border-nm-dark/15 bg-white/40 text-ink-secondary hover:text-ink-primary"
       }`}
     >
@@ -506,7 +506,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
             disabled={generating}
             className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-xs transition-colors disabled:opacity-50 ${
               advancedOpen
-                ? "border-apple-blue/30 bg-apple-blue/10 text-apple-blue"
+                ? "rc-accent-chip"
                 : "border-nm-dark/15 bg-white/40 text-ink-secondary hover:text-ink-primary"
             }`}
           >

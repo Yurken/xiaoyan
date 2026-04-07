@@ -9,7 +9,12 @@ const variants: Record<BadgeVariant, { text: string; shadow: string; bg: string;
     shadow: "var(--rc-chip-shadow)",
     border: "var(--rc-badge-outline)",
   },
-  info:     { bg: "rgba(0,122,255,0.14)", text: "#007AFF", shadow: "none", border: "transparent" },
+  info:     {
+    bg: "var(--rc-info-chip-bg, rgba(0,122,255,0.14))",
+    text: "var(--rc-info-chip-text, #007AFF)",
+    shadow: "var(--rc-info-chip-shadow, none)",
+    border: "var(--rc-info-chip-border, transparent)",
+  },
   success:  { bg: "rgba(52,199,89,0.14)", text: "#1A9E3F", shadow: "none", border: "transparent" },
   warning:  { bg: "rgba(255,149,0,0.14)", text: "#C07000", shadow: "none", border: "transparent" },
   danger:   { bg: "rgba(255,59,48,0.14)", text: "#D92B21", shadow: "none", border: "transparent" },

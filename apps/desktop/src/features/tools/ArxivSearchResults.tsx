@@ -100,14 +100,14 @@ export function ArxivSearchResults({
                   <div className="flex flex-wrap gap-2">
                     <ExternalLink
                       href={paper.abs_url}
-                      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-apple-blue"
+                      className="rc-accent-chip rc-accent-chip--interactive inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
                       title={detailActionTitle}
                     >
                       {detailActionLabel}
                     </ExternalLink>
                     <ExternalLink
                       href={paper.pdf_url}
-                      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-apple-blue"
+                      className="rc-accent-chip rc-accent-chip--interactive inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
                       title={pdfActionTitle}
                     >
                       {pdfActionLabel}

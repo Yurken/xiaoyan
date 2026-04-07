@@ -461,9 +461,9 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     temperaturePlaceholder: "0.1",
   },
   {
-    title: "元枢 · 默认执行",
-    description: "各方面能力均衡，作为所有专项任务的默认执行基座。",
-    recommendation: "没有单独指定时，多能力域模型工作节点默认回退到这里。选一个稳定均衡的主力模型即可。",
+    title: "小妍 · 默认回退",
+    description: "没有单独指定时，作为各专项任务的统一执行回退。",
+    recommendation: "如果上方的小妍默认模型已经足够稳定，这里可以留空；只有想让工作节点统一切到另一模型时再单独设置。",
     affectedScopes: "多能力域模型通用工作节点",
     icon: Compass,
     iconColor: "#34C759",

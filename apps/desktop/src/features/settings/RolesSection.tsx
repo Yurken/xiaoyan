@@ -41,17 +41,17 @@ export default function RolesSection({
       <div className="flex items-center gap-3">
         <SectionIcon icon={Sparkles} color="#0A84FF" />
         <div>
-          <h2 className="text-base font-semibold text-ink-primary">模型分工</h2>
+          <h2 className="text-base font-semibold text-ink-primary">任务分工</h2>
           <p className="text-xs text-ink-tertiary mt-0.5">
-            将具备不同特征的模型分配给小妍的不同能力模块。完全留空则全部由“默认对话模型”承担。
+            把更合适的模型分给阅读、综述、复现和搜索等高频任务。完全留空时，默认继续由上方的小妍模型承担。
           </p>
         </div>
       </div>
 
       <RecommendationList
         items={[
-          "建议分工：溯源负责向量化与检索，流光负责极速轻量问答，元枢承担均衡主力，探知处理联网检索，谋策负责深度推理，洞见专注长文精读，翰章用于结构化写作，构域用于代码工程，视界主攻多模态解析。按场景分配，效果与成本更优。",
-          "即使全部留空也可正常使用：所有角色会自动回退到“连接与检索”中的默认对话模型。",
+          "建议分工：溯源负责向量化与检索，流光负责极速轻量问答，小妍默认模型承担均衡主力，探知处理联网检索，谋策负责深度推理，洞见专注长文精读，翰章用于结构化写作，构域用于代码工程，视界主攻多模态解析。按场景分配，效果与成本更优。",
+          "即使全部留空也可正常使用：所有角色会自动回退到上方的小妍默认对话模型。",
           "如需让探知联网，可在其卡片中单独配置支持搜索的接口；其余角色仍使用主服务商。",
         ]}
       />
@@ -88,9 +88,9 @@ export default function RolesSection({
         <div className="flex items-center gap-3">
           <SectionIcon icon={Bot} color="#34C759" />
           <div>
-            <h2 className="text-base font-semibold text-ink-primary">多能力域模型编排</h2>
+            <h2 className="text-base font-semibold text-ink-primary">多能力域协作</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">
-              控制小妍的多能力域模型协作心智、选路策略与可用角色。
+              控制小妍在复杂问题上的协作方式、选路策略与可用角色。
             </p>
           </div>
         </div>

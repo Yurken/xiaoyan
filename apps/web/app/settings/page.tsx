@@ -602,7 +602,7 @@ export default function SettingsPage() {
                         setField={setField}
                       />
                       <AgentConfigPanel
-                        title="元枢执行模型"
+                        title="小妍默认执行模型"
                         subtitle="默认执行"
                         agentKey="worker"
                         form={form}

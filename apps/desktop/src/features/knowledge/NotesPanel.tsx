@@ -303,7 +303,7 @@ function NoteDetailModal({
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
                 {note.research_interest_id && interestMap[note.research_interest_id] && (
-                  <span className="rounded-full bg-apple-blue/10 px-2.5 py-0.5 text-[11px] text-apple-blue">
+                  <span className="rc-accent-chip rounded-full px-2.5 py-0.5 text-[11px]">
                     {interestFolderName(interestMap[note.research_interest_id])}
                   </span>
                 )}
@@ -320,7 +320,7 @@ function NoteDetailModal({
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-500">小妍</span>
                   {note.tags.map((tag, i) => (
-                    <span key={`${note.id}-${tag}-${i}`} className="rounded-full bg-apple-blue/10 px-2.5 py-1 text-[11px] text-apple-blue">
+                    <span key={`${note.id}-${tag}-${i}`} className="rc-accent-chip rounded-full px-2.5 py-1 text-[11px]">
                       {tag}
                     </span>
                   ))}
@@ -568,7 +568,7 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-500">小妍</span>
           {note.tags.map((tag, index) => (
-            <span key={`${note.id}-${tag}-${index}`} className="rounded-full bg-apple-blue/10 px-2 py-0.5 text-[11px] text-apple-blue">
+            <span key={`${note.id}-${tag}-${index}`} className="rc-accent-chip rounded-full px-2 py-0.5 text-[11px]">
               {tag}
             </span>
           ))}

@@ -153,8 +153,7 @@ export function ArxivFieldSearchPanel({
                 categories.map((category) => (
                   <span
                     key={category}
-                    className="inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-medium text-apple-blue"
-                    style={{ background: "rgba(0,122,255,0.1)" }}
+                    className="rc-accent-chip inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-medium"
                   >
                     {category}
                     <button

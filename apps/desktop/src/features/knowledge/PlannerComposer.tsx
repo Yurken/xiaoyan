@@ -378,7 +378,7 @@ export default function PlannerComposer({ onCancel, onCreated, initialTopic }: P
             {suggestions.matchedDomains.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {suggestions.matchedDomains.map((item) => (
-                  <span key={item} className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue">
+                  <span key={item} className="rc-accent-chip rounded-full px-2 py-1 text-[11px]">
                     {item}
                   </span>
                 ))}

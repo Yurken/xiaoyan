@@ -59,8 +59,7 @@ export default function UpdateNotification({ updateInfo, installing, install, di
         </span>
         <span className="text-ink-tertiary">→</span>
         <span
-          className="rounded-xl px-2.5 py-1 font-medium text-apple-blue"
-          style={{ background: "rgba(0,122,255,0.08)", boxShadow: "inset 1px 1px 3px rgba(0,62,204,0.1), inset -1px -1px 3px rgba(255,255,255,0.8)" }}
+          className="rc-accent-chip rounded-xl px-2.5 py-1 font-medium"
         >
           {updateInfo.version}
         </span>

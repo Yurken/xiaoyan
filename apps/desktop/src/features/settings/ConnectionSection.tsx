@@ -119,11 +119,11 @@ export default function ConnectionSection({
     : form.openai_compatible_embedding_model;
 
   const embeddingHint = isOpenAI
-    ? "默认用于主模型回退时的向量能力。更细的检索配置仍可在任务分工里单独指定。"
+    ? "默认用于小妍和未单独分工任务的向量能力；需要时仍可在下方分工区单独覆盖。"
     : activePreset === "moonshot" || activePreset === "gemini"
-      ? "该服务商通常不提供向量接口，建议在任务分工里为溯源模型单独配置 embedding。"
+      ? "该服务商通常不提供向量接口，建议在下方分工区为溯源模型单独配置 embedding。"
       : activePreset === "custom"
-        ? "如果当前兼容服务没有 embedding，可留空并在任务分工里单独配置。"
+        ? "如果当前兼容服务没有 embedding，可先留空，后面再在下方分工区补充。"
         : "留空时继续使用当前主服务商对应的默认向量模型。";
 
   return (
@@ -163,7 +163,7 @@ export default function ConnectionSection({
             style={{ background: "var(--rc-card-inset-bg)", border: "1px solid var(--rc-card-inset-outline)" }}
           >
             当前预设：<span className="font-medium text-ink-secondary">{activePresetMeta?.label ?? "自定义兼容服务"}</span>。
-            这里优先关注 URL、API Key 和默认模型；向量模型、本地 Ollama 辅助等内容放在下方高级设置里。
+            这里优先关注 URL、API Key 和默认模型；向量模型、任务分工、本地 Ollama 辅助等内容放在当前分区下方。
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
@@ -214,7 +214,7 @@ export default function ConnectionSection({
                       : "openai_compatible_chat_model",
                 )}
                 placeholder={activePresetMeta?.defaultChatModel || "模型名称"}
-                hint="小妍主对话默认用这个模型；更细的角色分工仍然可以在任务分工页里继续覆盖。"
+                hint="小妍主对话默认用这个模型；阅读、综述、复现等任务可以在下方分工区继续覆盖。"
               />
             </div>
           </div>
@@ -243,7 +243,7 @@ export default function ConnectionSection({
                   className="rounded-2xl px-4 py-3 text-xs leading-5 text-ink-tertiary"
                   style={{ background: "var(--rc-card-inset-bg)", border: "1px solid var(--rc-card-inset-outline)" }}
                 >
-                  Anthropic 主模型本身没有向量模型字段。如果要做检索与 embedding，建议到“任务分工”里为溯源模型单独配置向量接口。
+                  Anthropic 主模型本身没有向量模型字段。如果要做检索与 embedding，建议在下方分工区为溯源模型单独配置向量接口。
                 </div>
               )}
 

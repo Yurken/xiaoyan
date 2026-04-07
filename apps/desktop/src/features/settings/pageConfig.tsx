@@ -5,7 +5,6 @@ import {
   Info,
   LayoutDashboard,
   Layers3,
-  Route,
   Zap,
 } from "lucide-react";
 import type { AppSettings } from "@research-copilot/types";
@@ -13,9 +12,8 @@ import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE } from "../../lib/paperTags";
 
 export type SettingsSectionKey =
   | "guided"
-  | "connection"
+  | "assistant"
   | "paper_tags"
-  | "roles"
   | "skills"
   | "memory"
   | "about"
@@ -36,18 +34,11 @@ export const SETTINGS_SECTIONS: Array<{
     color: "#34C759",
   },
   {
-    key: "connection",
-    label: "基础连接",
-    description: "服务商与默认模型",
+    key: "assistant",
+    label: "小妍",
+    description: "连接、默认模型与任务分工",
     icon: Brain,
     color: "#AF52DE",
-  },
-  {
-    key: "roles",
-    label: "任务分工",
-    description: "阅读、综述、复现",
-    icon: Route,
-    color: "#0A84FF",
   },
   {
     key: "paper_tags",

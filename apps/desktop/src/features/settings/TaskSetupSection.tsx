@@ -7,8 +7,7 @@ interface TaskSetupSectionProps {
   rolesReady: boolean;
   multiAgentReady: boolean;
   paperImportReady: boolean;
-  onOpenConnection: () => void;
-  onOpenRoles: () => void;
+  onOpenAssistant: () => void;
   onOpenPaperLibrary: () => void;
   onOpenAbout: () => void;
 }
@@ -27,30 +26,29 @@ export default function TaskSetupSection({
   rolesReady,
   multiAgentReady,
   paperImportReady,
-  onOpenConnection,
-  onOpenRoles,
+  onOpenAssistant,
   onOpenPaperLibrary,
   onOpenAbout,
 }: TaskSetupSectionProps) {
   const steps = [
     {
-      title: "先接通主模型",
+      title: "先接通小妍",
       description: connectionReady
-        ? `当前入口模型已连到 ${currentProviderLabel}。后续没有单独指定的场景，会先回退到这里。`
-        : "先选一个服务商，填好默认对话模型和密钥。先可用，再谈细分分工。",
+        ? `当前小妍默认模型已连到 ${currentProviderLabel}。没有单独指定的场景，会先回退到这里。`
+        : "先选服务商，填好 URL、API Key 和默认对话模型。先让小妍稳定可用，再看细分分工。",
       ready: connectionReady,
-      action: "去配置基础连接",
-      onClick: onOpenConnection,
+      action: "打开小妍设置",
+      onClick: onOpenAssistant,
       icon: Link2,
     },
     {
-      title: "再按任务分工",
+      title: "再按需要补任务分工",
       description: rolesReady
         ? "阅读、综述、复现或视觉识别里，至少有一类任务已经配置了专用模型。"
-        : "不要一上来填满所有卡片。优先配置论文阅读、综述写作和视觉识别这三类高频任务。",
+        : "这一步不是必填。先从论文阅读、综述写作和视觉识别三类高频任务里挑需要单独提速的场景即可。",
       ready: rolesReady,
-      action: "去配置任务分工",
-      onClick: onOpenRoles,
+      action: "打开小妍设置",
+      onClick: onOpenAssistant,
       icon: Route,
     },
     {
@@ -60,7 +58,7 @@ export default function TaskSetupSection({
         : "如果你只想先稳定使用单模型对话，可以暂时关闭，等基础配置跑顺再打开。",
       ready: multiAgentReady,
       action: "去调整协作模式",
-      onClick: onOpenRoles,
+      onClick: onOpenAssistant,
       icon: Bot,
     },
   ] as const;
@@ -71,7 +69,7 @@ export default function TaskSetupSection({
         <div className="space-y-1">
           <h2 className="text-base font-semibold text-ink-primary">快速开始</h2>
           <p className="text-xs leading-5 text-ink-tertiary">
-            设置页先做三件事就够了：接通主模型、给高频任务分工、决定是否启用多能力域协作。剩下的参数放到后面的高级分区再看。
+            设置页先做三件事就够了：先接通小妍，再按需要补任务分工，最后决定是否启用多能力域协作。剩下的参数放到后面的分区再看。
           </p>
         </div>
 
@@ -115,12 +113,12 @@ export default function TaskSetupSection({
 
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-3xl px-4 py-4" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
-            <p className="text-sm font-semibold text-ink-primary">论文库默认建议</p>
-            <p className="mt-1 text-xs leading-5 text-ink-secondary">
-              {paperImportReady
-                ? "论文导入识别当前已开启。你可以等基础连接稳定后，再去调整标签显示和自动识别范围。"
+              <p className="text-sm font-semibold text-ink-primary">论文库默认建议</p>
+              <p className="mt-1 text-xs leading-5 text-ink-secondary">
+                {paperImportReady
+                ? "论文导入识别当前已开启。你可以等小妍默认连接稳定后，再去调整标签显示和自动识别范围。"
                 : "如果导入结果不稳定，先恢复默认识别项，让小妍自动补标题、作者、年份和来源。"}
-            </p>
+              </p>
             <button
               type="button"
               onClick={onOpenPaperLibrary}

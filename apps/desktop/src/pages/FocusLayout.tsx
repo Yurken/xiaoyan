@@ -72,8 +72,7 @@ function InterestCard({
             {interest.keywords.slice(0, 6).map((kw) => (
               <span
                 key={kw}
-                className="rounded-full px-2 py-0.5 text-[11px] text-apple-blue"
-                style={{ background: "rgba(0,122,255,0.08)" }}
+                className="rc-accent-chip rounded-full px-2 py-0.5 text-[11px]"
               >
                 {kw}
               </span>

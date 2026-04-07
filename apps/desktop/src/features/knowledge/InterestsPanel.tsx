@@ -6,6 +6,7 @@ import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { replaceAgentWording, toCapabilityModelName, type LearningPath, type ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
+import InterestProfilePanel, { type InterestProfileHighlight } from "./InterestProfilePanel";
 import PlannerComposer from "./PlannerComposer";
 import ResearchWorkbench from "./ResearchWorkbench";
 import TopicDiscoveryWizard from "./TopicDiscoveryWizard";
@@ -87,7 +88,7 @@ export function LearningPathView({ path }: { path: LearningPath }) {
                       {stage.topics.map((topic, index) => (
                         <span
                           key={`${stage.stage}-topic-${index}`}
-                          className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue"
+                          className="rc-accent-chip rounded-full px-2 py-1 text-[11px]"
                         >
                           {topic}
                         </span>
@@ -167,7 +168,7 @@ export function LearningPathView({ path }: { path: LearningPath }) {
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">工具与框架</p>
               <div className="flex flex-wrap gap-2">
                 {path.tools_and_frameworks.map((tool) => (
-                  <span key={tool} className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue">
+                  <span key={tool} className="rc-accent-chip rounded-full px-2 py-1 text-[11px]">
                     {tool}
                   </span>
                 ))}
@@ -193,8 +194,8 @@ export function LearningPathView({ path }: { path: LearningPath }) {
   );
 }
 
-function summarizeProfile(interest: ResearchInterest) {
-  const highlights: Array<{ label: string; value: string }> = [];
+function summarizeProfile(interest: ResearchInterest): InterestProfileHighlight[] {
+  const highlights: InterestProfileHighlight[] = [];
 
   if (interest.profile?.goal) {
     highlights.push({ label: "目标", value: interest.profile.goal });
@@ -512,45 +513,17 @@ export default function InterestsPanel() {
                     {interest.keywords && interest.keywords.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {interest.keywords.map((keyword) => (
-                          <span key={`${interest.id}-${keyword}`} className="rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] text-apple-blue">
+                          <span key={`${interest.id}-${keyword}`} className="rc-accent-chip rounded-full px-2 py-1 text-[11px]">
                             {keyword}
                           </span>
                         ))}
                       </div>
                     )}
 
-                    {(profileHighlights.length > 0 || interest.profile?.constraints?.length) && (
-                      <div className="mt-3 rounded-2xl border border-nm-dark/10 bg-white/35 p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">研究画像</p>
-
-                        {profileHighlights.length > 0 && (
-                          <div className="mt-2 grid gap-2 lg:grid-cols-3">
-                            {profileHighlights.map((item) => (
-                              <div
-                                key={`${interest.id}-${item.label}`}
-                                className="rounded-2xl border border-white/60 bg-white/55 px-3 py-2"
-                              >
-                                <p className="text-[11px] uppercase tracking-wide text-ink-tertiary">{item.label}</p>
-                                <p className="mt-1 text-xs leading-5 text-ink-secondary">{item.value}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {interest.profile?.constraints && interest.profile.constraints.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {interest.profile.constraints.map((constraint) => (
-                              <span
-                                key={`${interest.id}-${constraint}`}
-                                className="rounded-full bg-[#D7EEF8] px-2 py-1 text-[11px] text-[#0A84C1]"
-                              >
-                                {constraint}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    <InterestProfilePanel
+                      highlights={profileHighlights}
+                      constraints={interest.profile?.constraints}
+                    />
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">

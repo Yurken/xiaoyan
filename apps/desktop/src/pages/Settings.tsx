@@ -11,14 +11,13 @@ import {
 import { Card } from "@research-copilot/ui";
 import { apiClient } from "../lib/client";
 import AboutSection from "../features/settings/AboutSection";
-import ConnectionSection from "../features/settings/ConnectionSection";
+import AssistantSettingsSection from "../features/settings/AssistantSettingsSection";
 import { PAPER_TAG_OPTIONS, parsePaperTagVisibility, togglePaperTagVisibility } from "../lib/paperTags";
 import { getLayoutMode, setLayoutMode, type LayoutMode } from "../lib/layoutMode";
 import { getThemePreference, setTheme, type ThemePreference } from "../lib/themeMode";
 import { getThemeStyle, setThemeStyle, type ThemeStyle } from "../lib/themeStyle";
 import CryptoConfigModal from "../features/settings/CryptoConfigModal";
 import MemorySection from "../features/settings/MemorySection";
-import RolesSection from "../features/settings/RolesSection";
 import SkillsSection from "../features/settings/SkillsSection";
 import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from "../features/settings/SettingsChangelogCard";
 import TaskSetupSection from "../features/settings/TaskSetupSection";
@@ -305,25 +304,30 @@ export default function Settings() {
             rolesReady={rolesReady}
             multiAgentReady={multiAgentReady}
             paperImportReady={paperImportReady}
-            onOpenConnection={() => setActiveSection("connection")}
-            onOpenRoles={() => setActiveSection("roles")}
+            onOpenAssistant={() => setActiveSection("assistant")}
             onOpenPaperLibrary={() => setActiveSection("paper_tags")}
             onOpenAbout={() => setActiveSection("about")}
           />
         ) : null}
 
-        {activeSection === "connection" ? (
-          <ConnectionSection
+        {activeSection === "assistant" ? (
+          <AssistantSettingsSection
             contentUnavailable={contentUnavailable}
             provider={provider}
             activePreset={activePreset}
             form={form}
             ollamaModels={ollamaModels}
             loadingOllamaModels={loadingOllamaModels}
+            routingMode={routingMode}
+            enabledAgents={enabledAgents}
             setForm={setForm}
             set={set}
+            setMany={setMany}
+            getSharedValue={getSharedValue}
+            hasMixedValue={hasMixedValue}
             applyPreset={applyPreset}
             loadOllamaModels={loadOllamaModels}
+            toggleAgent={toggleAgent}
           />
         ) : null}
 
@@ -406,19 +410,6 @@ export default function Settings() {
           </div>
         ) : null}
 
-        {activeSection === "roles" && !contentUnavailable ? (
-          <RolesSection
-            form={form}
-            routingMode={routingMode}
-            enabledAgents={enabledAgents}
-            set={set}
-            setMany={setMany}
-            getSharedValue={getSharedValue}
-            hasMixedValue={hasMixedValue}
-            toggleAgent={toggleAgent}
-          />
-        ) : null}
-
         {activeSection === "layout" ? (
           <LayoutSettingsSection
             currentTheme={currentTheme}
@@ -472,7 +463,7 @@ export default function Settings() {
               onCheckUpdate={handleCheckUpdate}
               onInstallUpdate={handleInstallUpdate}
             />
-            <ChangelogCard />
+            <SettingsChangelogCard />
           </div>
         ) : null}
       </div>
