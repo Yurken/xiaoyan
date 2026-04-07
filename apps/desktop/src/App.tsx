@@ -26,6 +26,7 @@ import FocusApp from "./pages/FocusLayout";
 import hitLogo from "./assets/hit-logo.svg";
 import { getLayoutMode } from "./lib/layoutMode";
 import { applyTheme, getTheme, watchSystemTheme } from "./lib/themeMode";
+import { applyThemeStyle, getThemeStyle } from "./lib/themeStyle";
 import { useAutoUpdate } from "./lib/useAutoUpdate";
 import UpdateNotification from "./components/UpdateNotification";
 import XiaoYanPet from "./components/XiaoYanPet";
@@ -50,6 +51,7 @@ export default function App() {
 
   useEffect(() => {
     applyTheme(getTheme());
+    applyThemeStyle(getThemeStyle());
     const unwatch = watchSystemTheme(() => { });
     const root = document.getElementById("root");
     if (!root) return () => unwatch();
@@ -76,9 +78,7 @@ export default function App() {
       {/* Sidebar */}
       <aside
         className="w-[80px] flex-shrink-0 flex flex-col items-center py-4 gap-0.5 border-r border-black/30"
-        style={{
-          background: "linear-gradient(180deg, color-mix(in srgb, var(--rc-elevated) 50%, white) 0%, color-mix(in srgb, var(--rc-surface) 50%, white) 100%)",
-        }}
+        style={{ background: "var(--rc-sidebar-bg, linear-gradient(180deg, color-mix(in srgb, var(--rc-elevated) 50%, white) 0%, color-mix(in srgb, var(--rc-surface) 50%, white) 100%))" }}
       >
         {/* Logo */}
         <NavLink to="/" className="mb-3 mt-1">

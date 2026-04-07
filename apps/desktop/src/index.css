@@ -80,6 +80,73 @@ html[data-theme="light"] {
   --rc-header-bg: #EEF1F5;
 }
 
+/* ── Modern Minimal Theme ─────────────────────────────────────── */
+
+html[data-style="modern-minimal"] {
+  color-scheme: dark;
+  --rc-bg: #000000;
+  --rc-bg-rgb: 0 0 0;
+  --rc-surface: #0a0a0a;
+  --rc-surface-rgb: 10 10 10;
+  --rc-elevated: #111111;
+  --rc-elevated-rgb: 17 17 17;
+  --rc-border: #262626;
+  --rc-border-rgb: 38 38 38;
+  --rc-border-strong-rgb: 63 63 70;
+  --rc-sidebar-divider-rgb: 38 38 38;
+  --rc-sidebar-shadow-rgb: 0 0 0;
+  --rc-text: #fafafa;
+  --rc-text-rgb: 250 250 250;
+  --rc-text-soft: #a1a1aa;
+  --rc-text-soft-rgb: 161 161 170;
+  --rc-text-muted: #52525b;
+  --rc-text-muted-rgb: 82 82 91;
+  --rc-inset-shadow: none;
+  --rc-raised-shadow: none;
+  --rc-card-bg: #0a0a0a;
+  --rc-card-inset-bg: #111111;
+  --rc-chip-bg: #111111;
+  --rc-chip-shadow: none;
+  --rc-chip-inset-bg: #111111;
+  --rc-chip-inset-shadow: none;
+  --rc-header-bg: #0a0a0a;
+  --rc-sidebar-bg: #000000;
+}
+
+html[data-style="modern-minimal"][data-theme="light"] {
+  color-scheme: light;
+  /* 页面底色：浅灰，让白色卡片浮出 */
+  --rc-bg: #f4f4f5;
+  --rc-bg-rgb: 244 244 245;
+  /* 白色表面 / 卡片 */
+  --rc-surface: #f4f4f5;
+  --rc-surface-rgb: 244 244 245;
+  --rc-elevated: #ffffff;
+  --rc-elevated-rgb: 255 255 255;
+  --rc-border: #e2e2e5;
+  --rc-border-rgb: 226 226 229;
+  --rc-border-strong-rgb: 200 200 206;
+  --rc-sidebar-divider-rgb: 226 226 229;
+  --rc-sidebar-shadow-rgb: 180 180 185;
+  --rc-text: #09090b;
+  --rc-text-rgb: 9 9 11;
+  --rc-text-soft: #52525b;
+  --rc-text-soft-rgb: 82 82 91;
+  --rc-text-muted: #a1a1aa;
+  --rc-text-muted-rgb: 161 161 170;
+  --rc-inset-shadow: none;
+  --rc-raised-shadow: none;
+  /* 卡片白色，内陷区域用灰色 */
+  --rc-card-bg: #ffffff;
+  --rc-card-inset-bg: #f4f4f5;
+  --rc-chip-bg: #f4f4f5;
+  --rc-chip-shadow: none;
+  --rc-chip-inset-bg: #f4f4f5;
+  --rc-chip-inset-shadow: none;
+  --rc-header-bg: #ffffff;
+  --rc-sidebar-bg: #ffffff;
+}
+
 @layer base {
   html,
   body,
@@ -321,6 +388,182 @@ html[data-theme="light"] {
   html[data-theme="light"] .shadow-nm-sm {
     box-shadow: 3px 3px 8px #C8CDD3, -3px -3px 8px #FFFFFF !important;
   }
+
+  /* ── Modern Minimal: strip neumorphic shadows ─────────────────── */
+
+  /* Card 外框：用 1px 边框替代拟态阴影 */
+  html[data-style="modern-minimal"] .shadow-nm-card,
+  html[data-style="modern-minimal"] .shadow-nm-raised,
+  html[data-style="modern-minimal"] .shadow-nm-flat {
+    box-shadow: none !important;
+    border: 1px solid var(--rc-border) !important;
+  }
+
+  html[data-style="modern-minimal"] .shadow-nm-pressed,
+  html[data-style="modern-minimal"] .shadow-nm-inset,
+  html[data-style="modern-minimal"] .shadow-nm-sm {
+    box-shadow: none !important;
+  }
+
+  /* Modern Minimal: flat inputs (no inset shadow) */
+  html[data-style="modern-minimal"] input,
+  html[data-style="modern-minimal"] textarea,
+  html[data-style="modern-minimal"] select {
+    box-shadow: none !important;
+    border: 1px solid var(--rc-border) !important;
+  }
+
+  /* Modern Minimal: agent-flow components – remove glassmorphism */
+  html[data-style="modern-minimal"] .agent-flow-shell {
+    background: var(--rc-surface) !important;
+    border: 1px solid var(--rc-border) !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-shell::before,
+  html[data-style="modern-minimal"] .agent-flow-shell::after {
+    display: none !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-card {
+    background: var(--rc-elevated) !important;
+    border: 1px solid var(--rc-border) !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-card::before,
+  html[data-style="modern-minimal"] .agent-flow-card::after {
+    display: none !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-card__beam {
+    display: none !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-track__line {
+    background: var(--rc-border) !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-track__signal {
+    background: var(--rc-text-muted) !important;
+    filter: none !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-progress {
+    background: var(--rc-border) !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-card--running .agent-flow-progress__bar {
+    background: var(--rc-text) !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-card--done .agent-flow-progress__bar {
+    background: #16a34a !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-card--failed .agent-flow-progress__bar {
+    background: #dc2626 !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-dot--running {
+    box-shadow: none !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-dot--done {
+    background: #16a34a !important;
+    box-shadow: none !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-dot--failed {
+    background: #dc2626 !important;
+    box-shadow: none !important;
+  }
+  html[data-style="modern-minimal"] .agent-flow-step {
+    background: transparent !important;
+    color: var(--rc-text-muted) !important;
+    border: 1px solid var(--rc-border) !important;
+    border-radius: 4px !important;
+  }
+
+  /* ── Modern Minimal: strip hardcoded neumorphic inline shadows ── */
+
+  /* Light neumorphic shadow colors (#C8CDD3, #CBD0D7 etc.) */
+  html[data-style="modern-minimal"] [style*="#C8CDD3"],
+  html[data-style="modern-minimal"] [style*="#CBD0D7"],
+  html[data-style="modern-minimal"] [style*="#C0C6CC"],
+  html[data-style="modern-minimal"] [style*="#C0C5CB"] {
+    box-shadow: none !important;
+  }
+
+  /* Any box-shadow containing white (#FFFFFF or rgba 255,255,255) */
+  html[data-style="modern-minimal"] [style*="box-shadow"][style*="#FFFFFF"],
+  html[data-style="modern-minimal"] [style*="box-shadow"][style*="255,255,255"],
+  html[data-style="modern-minimal"] [style*="box-shadow"][style*="255, 255, 255"] {
+    box-shadow: none !important;
+  }
+
+  /* Inset shadows containing white */
+  html[data-style="modern-minimal"] [style*="inset"][style*="#FFFFFF"],
+  html[data-style="modern-minimal"] [style*="inset"][style*="255,255,255"],
+  html[data-style="modern-minimal"] [style*="inset"][style*="255, 255, 255"] {
+    box-shadow: none !important;
+  }
+
+  /* Override dark mode's drop-shadow replacement for neumorphic colors */
+  html[data-style="modern-minimal"][data-theme="dark"] [style*="#C8CDD3"]:not(input):not(textarea):not(select),
+  html[data-style="modern-minimal"][data-theme="dark"] [style*="#CBD0D7"]:not(input):not(textarea):not(select),
+  html[data-style="modern-minimal"][data-theme="dark"] [style*="#C0C6CC"]:not(input):not(textarea):not(select),
+  html[data-style="modern-minimal"][data-theme="dark"] [style*="#D0D6DC"]:not(input):not(textarea):not(select) {
+    box-shadow: none !important;
+  }
+
+  /* MM: strip apple-blue directional button shadow */
+  html[data-style="modern-minimal"] .shadow-apple-blue,
+  html[data-style="modern-minimal"] .shadow-apple-blue-pressed {
+    box-shadow: none !important;
+  }
+
+  /* MM: input focus — clean border, no glow */
+  html[data-style="modern-minimal"] input:focus,
+  html[data-style="modern-minimal"] textarea:focus {
+    box-shadow: none !important;
+    outline: none !important;
+    border-color: var(--rc-text-muted) !important;
+  }
+
+  /* MM: sidebar divider — replace black/30 with theme border color */
+  html[data-style="modern-minimal"] .border-black\/30 {
+    border-color: var(--rc-border) !important;
+  }
+
+  /* ── Modern Minimal Light: opacity-based borders/backgrounds ─── */
+
+  /* nm-dark/10、/15、/20 等超低不透明度边框 → 实色边框 */
+  html[data-style="modern-minimal"][data-theme="light"] .border-nm-dark\/10,
+  html[data-style="modern-minimal"][data-theme="light"] .border-nm-dark\/15,
+  html[data-style="modern-minimal"][data-theme="light"] .border-nm-dark\/20 {
+    border-color: var(--rc-border) !important;
+  }
+
+  /* 白色边框 → 实色边框（白色边框在浅色背景上不可见） */
+  html[data-style="modern-minimal"][data-theme="light"] .border-white\/50,
+  html[data-style="modern-minimal"][data-theme="light"] .border-white\/55,
+  html[data-style="modern-minimal"][data-theme="light"] .border-white\/60,
+  html[data-style="modern-minimal"][data-theme="light"] .border-white\/70,
+  html[data-style="modern-minimal"][data-theme="light"] .border-white\/80 {
+    border-color: var(--rc-border) !important;
+  }
+
+  /* 无显式边框类的半透明白色容器 → 加上边框 */
+  html[data-style="modern-minimal"][data-theme="light"] .bg-white\/25:not([class*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] .bg-white\/30:not([class*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] .bg-white\/35:not([class*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] .bg-white\/40:not([class*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] .bg-white\/45:not([class*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] .bg-white\/50:not([class*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] .bg-white\/55:not([class*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] .bg-white\/60:not([class*="border"]) {
+    border: 1px solid var(--rc-border) !important;
+  }
+
+  /* 硬编码拟态背景色的内联元素（无内联 border）→ 加边框 */
+  html[data-style="modern-minimal"][data-theme="light"] [style*="#E8ECF0"]:not([style*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] [style*="#EEF1F5"]:not([style*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] [style*="#F0F4F8"]:not([style*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] [style*="#F2F6FA"]:not([style*="border"]),
+  html[data-style="modern-minimal"][data-theme="light"] [style*="#E0E5EA"]:not([style*="border"]) {
+    border: 1px solid var(--rc-border) !important;
+  }
+
 
   .agent-flow-shell {
     position: relative;

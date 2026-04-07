@@ -43,6 +43,7 @@ import { apiClient, formatErrorMessage, type UserMemory } from "../lib/client";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, PAPER_TAG_OPTIONS, parsePaperTagVisibility, togglePaperTagVisibility } from "../lib/paperTags";
 import { getLayoutMode, setLayoutMode, type LayoutMode } from "../lib/layoutMode";
 import { getThemePreference, setTheme, type ThemePreference } from "../lib/themeMode";
+import { getThemeStyle, setThemeStyle, type ThemeStyle } from "../lib/themeStyle";
 import type { AppSettings, AppUpdateInfo, LlmProvider, MultiAgentRoutingMode, Skill } from "@research-copilot/types";
 
 function SettingInput({
@@ -1920,6 +1921,7 @@ export default function Settings() {
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>("connection");
   const [pendingLayout, setPendingLayout] = useState<LayoutMode>(getLayoutMode());
   const [currentTheme, setCurrentTheme] = useState<ThemePreference>(getThemePreference());
+  const [currentStyle, setCurrentStyle] = useState<ThemeStyle>(getThemeStyle());
   const [memories, setMemories] = useState<UserMemory[]>([]);
   const [memoriesLoading, setMemoriesLoading] = useState(false);
   const [clearingAuto, setClearingAuto] = useState(false);
@@ -2797,6 +2799,94 @@ export default function Settings() {
                       {currentTheme === mode && (
                         <span
                           className="w-4 h-4 rounded-full flex items-center justify-center"
+                          style={{ background: "#007AFF" }}
+                        >
+                          <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                            <path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs leading-5 text-ink-secondary">{description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Style preset picker */}
+            <div>
+              <p className="text-xs font-medium text-ink-tertiary mb-2 ml-1">界面风格</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {([
+                  {
+                    style: "neumorphic" as ThemeStyle,
+                    label: "拟态",
+                    description: "柔和的软投影与渐变质感，营造沉浸的科技氛围。",
+                    preview: (
+                      <svg width="48" height="32" viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="48" height="32" rx="6" fill="#1D2430"/>
+                        <rect x="6" y="6" width="36" height="20" rx="4" fill="url(#nm-grad)" filter="url(#nm-shadow)"/>
+                        <rect x="10" y="11" width="16" height="3" rx="1.5" fill="#C7D0DC" opacity="0.6"/>
+                        <rect x="10" y="17" width="10" height="2" rx="1" fill="#8D99AA" opacity="0.5"/>
+                        <defs>
+                          <linearGradient id="nm-grad" x1="6" y1="6" x2="42" y2="26" gradientUnits="userSpaceOnUse">
+                            <stop stopColor="#2A3448"/>
+                            <stop offset="1" stopColor="#141A22"/>
+                          </linearGradient>
+                          <filter id="nm-shadow" x="-4" y="-4" width="56" height="36">
+                            <feDropShadow dx="3" dy="3" stdDeviation="2" floodColor="#000" floodOpacity="0.5"/>
+                            <feDropShadow dx="-2" dy="-2" stdDeviation="2" floodColor="#fff" floodOpacity="0.04"/>
+                          </filter>
+                        </defs>
+                      </svg>
+                    ),
+                  },
+                  {
+                    style: "modern-minimal" as ThemeStyle,
+                    label: "极简",
+                    description: "纯色底面、1px 分割线，克制而精密的生产力界面。",
+                    preview: (
+                      <svg width="48" height="32" viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="48" height="32" rx="6" fill="#000"/>
+                        <rect x="6" y="6" width="36" height="20" rx="3" fill="#111" stroke="#262626" strokeWidth="0.75"/>
+                        <rect x="10" y="11" width="16" height="2.5" rx="1" fill="#fafafa" opacity="0.8"/>
+                        <rect x="10" y="17" width="10" height="1.5" rx="0.75" fill="#52525b"/>
+                        <rect x="6" y="26" width="36" height="0.5" fill="#262626"/>
+                      </svg>
+                    ),
+                  },
+                ] as const).map(({ style, label, description, preview }) => (
+                  <button
+                    key={style}
+                    type="button"
+                    onClick={() => {
+                      if (style === currentStyle) return;
+                      setCurrentStyle(style);
+                      setThemeStyle(style);
+                    }}
+                    className="rounded-[24px] p-4 text-left transition-all duration-150"
+                    style={
+                      currentStyle === style
+                        ? {
+                            background: "rgb(0 122 255 / 0.16)",
+                            border: "1px solid rgb(0 122 255 / 0.42)",
+                            boxShadow: "0 10px 24px rgb(0 122 255 / 0.18)",
+                          }
+                        : {
+                            background: "var(--rc-elevated)",
+                            border: "1px solid var(--rc-border)",
+                            boxShadow: "0 8px 18px rgb(var(--rc-sidebar-shadow-rgb) / 0.16)",
+                          }
+                    }
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2.5">
+                        {preview}
+                        <p className="text-sm font-semibold text-ink-primary">{label}</p>
+                      </div>
+                      {currentStyle === style && (
+                        <span
+                          className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
                           style={{ background: "#007AFF" }}
                         >
                           <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
