@@ -3,6 +3,7 @@ import { AlertCircle, FileText, FlaskConical, Loader2, MessageSquare, Send, Uplo
 import { listen } from "@tauri-apps/api/event";
 import { Badge, Button, Input, MarkdownRenderer } from "@research-copilot/ui";
 import NotesPanel from "./NotesPanel";
+import KnowledgeDropdown from "./KnowledgeDropdown";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
 import AgentStateGraphPanel from "../copilot/AgentStateGraphPanel";
@@ -414,17 +415,18 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
             </div>
             <div className="flex items-center gap-2">
               {sessions.length > 0 && (
-                <select
+                <KnowledgeDropdown
                   value={selectedSessionId ?? ""}
-                  onChange={(e) => setSelectedSessionId(e.target.value || null)}
-                  className="max-w-[200px] rounded-2xl border-0 px-3 py-2 text-xs text-ink-primary outline-none"
-                  style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
-                >
-                  <option value="">新建会话</option>
-                  {sessions.map((s) => (
-                    <option key={s.id} value={s.id}>{s.title || "新建会话"}</option>
-                  ))}
-                </select>
+                  onChange={(value) => setSelectedSessionId(value || null)}
+                  className="w-[200px]"
+                  options={[
+                    { value: "", label: "新建会话" },
+                    ...sessions.map((session) => ({
+                      value: session.id,
+                      label: session.title || "新建会话",
+                    })),
+                  ]}
+                />
               )}
               <Button size="sm" variant="secondary" onClick={handleNewSession}>新建会话</Button>
             </div>

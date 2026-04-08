@@ -17,8 +17,8 @@ interface Point {
 }
 
 const NODE_SIZE = {
-  regular: { width: 168, height: 82, canvasWidth: 760, canvasHeight: 312, workerGap: 74 },
-  compact: { width: 152, height: 72, canvasWidth: 700, canvasHeight: 272, workerGap: 66 },
+  regular: { width: 156, height: 78, canvasWidth: 700, canvasHeight: 292, workerGap: 68 },
+  compact: { width: 136, height: 66, canvasWidth: 620, canvasHeight: 240, workerGap: 58 },
 };
 
 export default function AgentStateGraphPanel({
@@ -37,7 +37,7 @@ export default function AgentStateGraphPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className={compact ? "space-y-3" : "space-y-4"}>
       <div className="overflow-x-auto pb-1">
         <div
           className="relative"
@@ -101,7 +101,7 @@ export default function AgentStateGraphPanel({
             return (
               <div
                 key={node.id}
-                className="absolute rounded-[24px] px-4 py-3 transition-all duration-200"
+                className="absolute rounded-[22px] px-3 py-2.5 transition-all duration-200"
                 style={{
                   width: preset.width,
                   minHeight: preset.height,
@@ -114,9 +114,9 @@ export default function AgentStateGraphPanel({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-ink-primary">{node.title}</div>
+                    <div className={`truncate font-semibold text-ink-primary ${compact ? "text-[13px]" : "text-sm"}`}>{node.title}</div>
                     {node.agentName && (
-                      <div className="mt-1 truncate text-[11px] text-ink-tertiary">
+                      <div className="mt-0.5 truncate text-[10px] text-ink-tertiary">
                         {toCapabilityModelName(node.agentName)}
                       </div>
                     )}
@@ -132,14 +132,14 @@ export default function AgentStateGraphPanel({
                     {tone.label}
                   </div>
                 </div>
-                <p className="mt-3 line-clamp-2 text-[11px] leading-5 text-ink-tertiary">{node.goal}</p>
+                <p className={`mt-2 line-clamp-2 text-ink-tertiary ${compact ? "text-[10px] leading-4" : "text-[11px] leading-5"}`}>{node.goal}</p>
               </div>
             );
           })}
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className={compact ? "space-y-1.5" : "space-y-2"}>
         <div className="flex items-center justify-between gap-3">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-tertiary">边流转</div>
           <div className="text-[11px] text-ink-tertiary">
@@ -153,7 +153,7 @@ export default function AgentStateGraphPanel({
             return (
               <div
                 key={`${edge.id}-row`}
-                className="rounded-2xl px-3 py-2.5"
+                className={`rounded-2xl px-3 ${compact ? "py-2" : "py-2.5"}`}
                 style={{
                   background: "var(--rc-card-inset-bg, rgba(255,255,255,0.56))",
                   boxShadow: "var(--rc-inset-shadow, inset 1px 1px 3px rgba(15, 23, 42, 0.08))",

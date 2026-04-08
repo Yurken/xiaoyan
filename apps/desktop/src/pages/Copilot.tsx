@@ -471,9 +471,9 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   return (
     <>
-    <div className="flex h-full" style={{ background: "linear-gradient(180deg, #F3F6FA 0%, #E8ECF0 100%)" }}>
+    <div className="flex h-full overflow-hidden" style={{ background: "linear-gradient(180deg, #F3F6FA 0%, #E8ECF0 100%)" }}>
       <div
-        className="w-56 flex-shrink-0 flex flex-col"
+        className="w-52 flex-shrink-0 flex flex-col"
         style={{
           background: "linear-gradient(180deg, #F0F4F8 0%, #E8ECF0 100%)",
           boxShadow: "4px 0 10px rgba(0,0,0,0.04)",
@@ -652,7 +652,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       <div className="flex-1 min-w-0 flex">
         <div className="flex-1 flex flex-col min-w-0 bg-nm-bg">
           <div
-            className="h-14 flex items-center px-5 justify-between"
+            className="flex h-[52px] items-center justify-between px-4"
             style={{
               background: "linear-gradient(180deg, #F0F4F8, #E8ECF0)",
               boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
@@ -767,7 +767,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full gap-4 pb-12">
                 <div
@@ -928,7 +928,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             <div ref={bottomRef} />
           </div>
 
-          <div className="p-4 flex gap-3 items-end">
+          <div className="p-4 pt-3 flex gap-3 items-end">
             <div className="flex-1 space-y-2">
               {/* 技能选择器 */}
               <div className="flex items-center gap-2 flex-wrap">
@@ -1120,7 +1120,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         </div>
 
         <div
-          className="w-[340px] flex-shrink-0 p-4 space-y-4"
+          className="w-[300px] flex-shrink-0 p-3.5 space-y-3.5"
           style={{
             background: "linear-gradient(180deg, var(--rc-elevated) 0%, var(--rc-surface) 100%)",
             boxShadow: "-6px 0 16px rgba(0,0,0,0.35)",
@@ -1155,6 +1155,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               plan={plan}
               runs={displayedRuns}
               sending={sending}
+              compact
               emptyText="提交问题后，小妍会在这里展示状态图中的节点状态与边流转。"
             />
           </div>

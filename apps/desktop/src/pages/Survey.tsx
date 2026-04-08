@@ -2,7 +2,7 @@ import SurveyPanel from "../features/knowledge/SurveyPanel";
 
 export default function Survey({ hideFolders = false }: { hideFolders?: boolean }) {
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-5">
+    <div className="rc-app-page space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-ink-primary">文献综述</h1>
         <p className="mt-1 text-sm text-ink-tertiary">

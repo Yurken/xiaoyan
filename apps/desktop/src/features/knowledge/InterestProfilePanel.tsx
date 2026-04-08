@@ -28,22 +28,22 @@ export default function InterestProfilePanel({ highlights, constraints }: Intere
   }
 
   return (
-    <section className="mt-3 rounded-[28px] p-4" style={shellStyle}>
+    <section className="mt-3 rounded-[24px] p-3.5" style={shellStyle}>
       <div className="flex items-center gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-tertiary">研究画像</p>
         <span className="h-1.5 w-1.5 rounded-full bg-apple-blue/70" aria-hidden="true" />
       </div>
 
       {highlights.length > 0 && (
-        <div className="mt-3 grid gap-3 lg:grid-cols-3">
+        <div className="mt-3 grid gap-2.5 lg:grid-cols-3">
           {highlights.map((item) => (
             <div
               key={item.label}
-              className="rounded-[24px] px-4 py-3"
+              className="rounded-[20px] px-3.5 py-3"
               style={highlightStyle}
             >
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-tertiary">{item.label}</p>
-              <p className="mt-2 text-sm leading-6 text-ink-secondary">{item.value}</p>
+              <p className="mt-1.5 text-sm leading-5 text-ink-secondary">{item.value}</p>
             </div>
           ))}
         </div>

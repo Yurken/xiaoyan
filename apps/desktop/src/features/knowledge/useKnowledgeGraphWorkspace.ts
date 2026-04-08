@@ -1,9 +1,37 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { buildKnowledgeGraphView } from "./graphView";
 import { type KnowledgeClaimStatus, type KnowledgeEvidenceRelationKind, type KnowledgeGraphSnapshot, type KnowledgeGraphSourceKind } from "./shared";
 
-export function useKnowledgeGraphWorkspace() {
+export interface KnowledgeGraphWorkspaceController {
+  snapshot: KnowledgeGraphSnapshot | null;
+  view: ReturnType<typeof buildKnowledgeGraphView> | null;
+  loading: boolean;
+  busy: boolean;
+  error: string | null;
+  activeInterestId: string | null;
+  setActiveInterestId: Dispatch<SetStateAction<string | null>>;
+  refresh: () => Promise<void>;
+  createClaim: (data: {
+    title: string;
+    statement: string;
+    researchInterestId?: string;
+    status?: KnowledgeClaimStatus;
+  }) => Promise<boolean>;
+  deleteClaim: (id: string) => Promise<boolean>;
+  createEvidence: (data: {
+    claimId: string;
+    sourceKind: KnowledgeGraphSourceKind;
+    sourceId: string;
+    relationKind?: KnowledgeEvidenceRelationKind;
+    evidenceSummary?: string;
+  }) => Promise<boolean>;
+  deleteEvidence: (id: string) => Promise<boolean>;
+  createCitation: (data: { citingPaperId: string; citedPaperId: string; context?: string }) => Promise<boolean>;
+  deleteCitation: (id: string) => Promise<boolean>;
+}
+
+export function useKnowledgeGraphWorkspace(): KnowledgeGraphWorkspaceController {
   const [snapshot, setSnapshot] = useState<KnowledgeGraphSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);

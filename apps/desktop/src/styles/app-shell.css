@@ -3,19 +3,21 @@
     position: relative;
     display: flex;
     height: 100%;
+    box-sizing: border-box;
+    padding-top: 18px;
     background: transparent;
   }
 
   .app-sidebar {
     position: relative;
     z-index: 1;
-    width: 92px;
+    width: 76px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 4px;
-    padding: 16px 10px 14px;
+    gap: 2px;
+    padding: 12px 8px 12px;
     border-right: 1px solid var(--rc-border);
     background:
       linear-gradient(
@@ -27,10 +29,10 @@
   }
 
   .app-sidebar__logo {
-    margin: 0 auto 6px;
-    width: 44px;
-    height: 44px;
-    border-radius: 16px;
+    margin: 0 auto 4px;
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -50,9 +52,9 @@
   }
 
   .app-sidebar__divider {
-    width: calc(100% - 22px);
+    width: calc(100% - 18px);
     height: 1px;
-    margin: 0 auto 4px;
+    margin: 0 auto 2px;
     background:
       linear-gradient(
         90deg,
@@ -73,9 +75,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
-    padding: 8px 6px;
-    border-radius: 18px;
+    gap: 4px;
+    padding: 7px 4px;
+    border-radius: 16px;
     border: 1px solid transparent;
     color: var(--rc-text-muted);
     transition:
@@ -100,7 +102,7 @@
   }
 
   .app-nav-item__marker {
-    width: 24px;
+    width: 20px;
     height: 2px;
     border-radius: 999px;
     background: transparent;
@@ -115,13 +117,26 @@
     background: color-mix(in srgb, var(--rc-accent) 72%, transparent);
   }
 
+  html:not([data-style="modern-minimal"]) .app-nav-item.is-active {
+    color: color-mix(in srgb, var(--rc-accent) 72%, white 28%);
+    background: color-mix(in srgb, var(--rc-sidebar-bg) 88%, white 12%);
+    border-color: rgba(200, 205, 211, 0.18);
+    box-shadow:
+      inset 2px 2px 5px rgba(200, 205, 211, 0.85),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.92);
+  }
+
+  html:not([data-style="modern-minimal"]) .app-nav-item.is-active .app-nav-item__marker {
+    opacity: 0;
+  }
+
   .app-nav-item__icon {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
   }
 
   .app-nav-item__label {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 600;
     line-height: 1.1;
     letter-spacing: -0.01em;
@@ -129,7 +144,7 @@
 
   .app-sidebar__pet {
     margin-top: auto;
-    padding-top: 8px;
+    padding-top: 4px;
     display: flex;
     justify-content: center;
   }
@@ -162,6 +177,12 @@
     padding: 24px;
   }
 
+  .rc-app-page {
+    height: 100%;
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+  }
+
   .rc-subtle-rule {
     height: 1px;
     width: 100%;
@@ -191,8 +212,8 @@
 
   @media (max-width: 1024px) {
     .app-sidebar {
-      width: 84px;
-      padding-inline: 8px;
+      width: 70px;
+      padding-inline: 6px;
     }
   }
 }
