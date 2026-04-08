@@ -4,10 +4,10 @@ type BadgeVariant = "default" | "success" | "warning" | "info" | "purple" | "dan
 
 const variants: Record<BadgeVariant, { text: string; shadow: string; bg: string; border: string }> = {
   default:  {
-    bg: "var(--rc-chip-inset-bg)",
-    text: "var(--rc-text-soft, #3C4655)",
-    shadow: "var(--rc-chip-shadow)",
-    border: "var(--rc-badge-outline)",
+    bg: "var(--rc-badge-bg)",
+    text: "var(--rc-badge-text, #3C4655)",
+    shadow: "var(--rc-badge-shadow)",
+    border: "var(--rc-badge-border)",
   },
   info:     {
     bg: "var(--rc-info-chip-bg, rgba(0,122,255,0.14))",

@@ -1,4 +1,5 @@
 import { Check, Plus, Search, X } from "lucide-react";
+import { Select } from "@research-copilot/ui";
 import type { VenueTemplate } from "../../data/venues";
 import ExternalLink from "../../components/ExternalLink";
 
@@ -72,22 +73,15 @@ export default function AddVenueModal({
                 style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.08)" }}
               />
             </div>
-            <select
+            <Select
               value={areaFilter}
-              onChange={(event) => onAreaFilterChange(event.target.value)}
-              className="px-3 py-2 rounded-xl text-sm font-medium cursor-pointer"
-              style={{
-                background: "var(--rc-card-bg)",
-                boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)",
-              }}
-            >
-              <option value="all">全部领域</option>
-              {areas.map((area) => (
-                <option key={area} value={area}>
-                  {area}
-                </option>
-              ))}
-            </select>
+              onChange={onAreaFilterChange}
+              className="min-w-[148px]"
+              options={[
+                { value: "all", label: "全部领域" },
+                ...areas.map((area) => ({ value: area, label: area })),
+              ]}
+            />
             <div className="flex gap-1">
               {(["all", "conference", "journal"] as const).map((venueType) => (
                 <button

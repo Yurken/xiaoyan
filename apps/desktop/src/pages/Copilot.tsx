@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useClickOutside } from "../hooks/useClickOutside";
 import {
   AlertCircle,
   BookMarked,
   Bot,
   BrainCircuit,
   CheckCircle2,
-  ChevronDown,
   Clock3,
   MessageSquare,
   Plus,
@@ -18,7 +16,7 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
-import { MarkdownRenderer } from "@research-copilot/ui";
+import { MarkdownRenderer, Select } from "@research-copilot/ui";
 import {
   MAIN_ASSISTANT_INPUT_PLACEHOLDER,
   MAIN_ASSISTANT_NAME,
@@ -94,10 +92,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [selectedInterestId, setSelectedInterestId] = useState("");
-  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
-  const [sessionFolderPickerOpen, setSessionFolderPickerOpen] = useState(false);
-  const folderPickerRef = useClickOutside(folderPickerOpen, () => setFolderPickerOpen(false));
-  const sessionFolderPickerRef = useClickOutside(sessionFolderPickerOpen, () => setSessionFolderPickerOpen(false));
   const [updatingSessionContext, setUpdatingSessionContext] = useState(false);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
@@ -492,67 +486,20 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             新建对话
           </button>
           {!hideFolders && (
-          <div
-            ref={folderPickerRef}
-            className="relative mt-2"
-          >
-            <label className="mb-1 ml-1 block text-[11px] font-medium text-ink-tertiary">新对话主题文件夹</label>
-            <button
-              type="button"
-              onClick={() => setFolderPickerOpen((prev) => !prev)}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-2xl text-xs text-ink-primary transition-all duration-150"
-              style={{
-                background: "#E8ECF0",
-                boxShadow: folderPickerOpen
-                  ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
-                  : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
-              }}
-            >
-              <span className="truncate">
-                {selectedInterestId
-                  ? (interests.find((i) => i.id === selectedInterestId)?.folder_name?.trim() ||
-                     interests.find((i) => i.id === selectedInterestId)?.topic ||
-                     "未归档")
-                  : "未归档"}
-              </span>
-              <ChevronDown
-                className="h-3.5 w-3.5 flex-shrink-0 text-ink-tertiary transition-transform duration-150"
-                style={{ transform: folderPickerOpen ? "rotate(180deg)" : "rotate(0deg)" }}
-              />
-            </button>
-
-            {folderPickerOpen && (
-              <div
-                className="absolute left-0 right-0 top-full mt-1 z-20 rounded-2xl py-1 overflow-hidden"
-                style={{
-                  background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
-                  boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF",
-                }}
-              >
-                {[{ id: "", label: "未归档" }, ...interests.map((i) => ({
-                  id: i.id,
-                  label: i.folder_name?.trim() || i.topic,
-                }))].map(({ id, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setSelectedInterestId(id);
-                      setFolderPickerOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-1.5 text-xs transition-colors duration-100"
-                    style={{
-                      color: selectedInterestId === id ? "#007AFF" : "#1C1C1E",
-                      background: selectedInterestId === id ? "rgba(0,122,255,0.08)" : "transparent",
-                      fontWeight: selectedInterestId === id ? 600 : 400,
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="mt-2">
+            <Select
+              label="新对话主题文件夹"
+              value={selectedInterestId}
+              onChange={setSelectedInterestId}
+              className="text-xs"
+              options={[
+                { value: "", label: "未归档" },
+                ...interests.map((interest) => ({
+                  value: interest.id,
+                  label: interest.folder_name?.trim() || interest.topic,
+                })),
+              ]}
+            />
           </div>
           )}
         </div>
@@ -675,69 +622,19 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             </div>
             <div className="flex items-center gap-3">
               {currentSession && (
-                <div
-                  ref={sessionFolderPickerRef}
-                  className="relative flex items-center gap-2"
-                >
-                  {/* <span className="text-xs text-ink-tertiary flex-shrink-0">所属研究方向</span> */}
-                  {/* <button
-                    type="button"
-                    disabled={updatingSessionContext}
-                    onClick={() => setSessionFolderPickerOpen((prev) => !prev)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs text-ink-primary transition-all duration-150 disabled:opacity-50 min-w-[140px]"
-                    style={{
-                      background: "#E8ECF0",
-                      boxShadow: sessionFolderPickerOpen
-                        ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
-                        : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
-                    }}
-                  >
-                    <span className="truncate flex-1 text-left">
-                      {selectedInterestId
-                        ? (interests.find((i) => i.id === selectedInterestId)?.folder_name?.trim() ||
-                           interests.find((i) => i.id === selectedInterestId)?.topic ||
-                           "未归档")
-                        : "未归档"}
-                    </span>
-                    <ChevronDown
-                      className="h-3 w-3 flex-shrink-0 text-ink-tertiary transition-transform duration-150"
-                      style={{ transform: sessionFolderPickerOpen ? "rotate(180deg)" : "rotate(0deg)" }}
-                    />
-                  </button> */}
-
-                  {sessionFolderPickerOpen && (
-                    <div
-                      className="absolute left-[calc(100%-140px)] top-full mt-1 z-20 rounded-2xl py-1 overflow-hidden min-w-[160px]"
-                      style={{
-                        background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
-                        boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF",
-                      }}
-                    >
-                      {[{ id: "", label: "未归档" }, ...interests.map((i) => ({
-                        id: i.id,
-                        label: i.folder_name?.trim() || i.topic,
-                      }))].map(({ id, label }) => (
-                        <button
-                          key={id}
-                          type="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            setSessionFolderPickerOpen(false);
-                            void handleSessionInterestChange(id);
-                          }}
-                          className="w-full text-left px-3 py-1.5 text-xs transition-colors duration-100"
-                          style={{
-                            color: selectedInterestId === id ? "#007AFF" : "#1C1C1E",
-                            background: selectedInterestId === id ? "rgba(0,122,255,0.08)" : "transparent",
-                            fontWeight: selectedInterestId === id ? 600 : 400,
-                          }}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <Select
+                  value={selectedInterestId}
+                  onChange={(value) => void handleSessionInterestChange(value)}
+                  disabled={updatingSessionContext}
+                  className="min-w-[160px]"
+                  options={[
+                    { value: "", label: "未归档" },
+                    ...interests.map((interest) => ({
+                      value: interest.id,
+                      label: interest.folder_name?.trim() || interest.topic,
+                    })),
+                  ]}
+                />
               )}
               <div
                 className="px-3 py-1.5 rounded-full text-xs font-medium"
@@ -936,13 +833,10 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setSkillPickerOpen((prev) => !prev); }}
-                    className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150"
+                    data-open={skillPickerOpen}
+                    className="rc-dropdown-trigger inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150"
                     style={{
-                      background: skillPickerOpen ? "rgba(0,122,255,0.12)" : "#E8ECF0",
                       color: skillPickerOpen ? "#007AFF" : "#636366",
-                      boxShadow: skillPickerOpen
-                        ? "inset 2px 2px 4px rgba(0,62,204,0.15)"
-                        : "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF",
                     }}
                   >
                     <Zap className="w-3 h-3" />
@@ -957,11 +851,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                     >
                       {/* 左：技能列表 */}
                       <div
-                        className="w-44 flex-shrink-0 py-2 max-h-[420px] overflow-y-auto rounded-2xl"
-                        style={{
-                          background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
-                          boxShadow: "8px 8px 20px #C0C6CC, -4px -4px 12px #FFFFFF",
-                        }}
+                        className="rc-dropdown-menu w-44 max-h-[420px] flex-shrink-0 overflow-y-auto rounded-2xl py-2"
                       >
                         <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">技能库</p>
                         <button
@@ -1005,11 +895,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
                       {/* 右：预览面板 */}
                       <div
-                        className="w-56 flex-shrink-0 p-3 flex flex-col gap-2 self-start rounded-2xl"
-                        style={{
-                          background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
-                          boxShadow: "8px 8px 20px #C0C6CC, -4px -4px 12px #FFFFFF",
-                        }}
+                        className="rc-dropdown-menu flex w-56 flex-shrink-0 flex-col gap-2 self-start rounded-2xl p-3"
                       >
                         {previewSkill ? (
                           <>

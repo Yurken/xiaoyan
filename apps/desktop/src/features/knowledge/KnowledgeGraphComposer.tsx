@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Network, Plus } from "lucide-react";
-import { Button, Card, CardHeader, CardTitle, Input, Textarea } from "@research-copilot/ui";
-import KnowledgeDropdown from "./KnowledgeDropdown";
+import { Button, Card, CardHeader, CardTitle, Input, Select, Textarea } from "@research-copilot/ui";
 import { interestDisplayName, type KnowledgeClaimStatus, type KnowledgeEvidenceRelationKind, type KnowledgeGraphSnapshot, type KnowledgeGraphSourceKind } from "./shared";
 
 export default function KnowledgeGraphComposer({
@@ -187,7 +186,7 @@ export default function KnowledgeGraphComposer({
             value={claimStatement}
             onChange={(event) => setClaimStatement(event.target.value)}
           />
-          <KnowledgeDropdown
+          <Select
             label="状态"
             value={claimStatus}
             onChange={(value) => setClaimStatus(value as KnowledgeClaimStatus)}
@@ -215,13 +214,13 @@ export default function KnowledgeGraphComposer({
           <CardTitle>绑定证据</CardTitle>
         </CardHeader>
         <div className="space-y-3">
-          <KnowledgeDropdown
+          <Select
             label="挂到哪条结论"
             value={evidenceClaimId}
             onChange={setEvidenceClaimId}
             options={claimOptions}
           />
-          <KnowledgeDropdown
+          <Select
             label="来源类型"
             value={evidenceSourceKind}
             onChange={(value) => {
@@ -234,13 +233,13 @@ export default function KnowledgeGraphComposer({
               { value: "note", label: "笔记" },
             ]}
           />
-          <KnowledgeDropdown
+          <Select
             label="证据来源"
             value={evidenceSourceId}
             onChange={setEvidenceSourceId}
             options={sourceOptions}
           />
-          <KnowledgeDropdown
+          <Select
             label="关系"
             value={evidenceRelationKind}
             onChange={(value) => setEvidenceRelationKind(value as KnowledgeEvidenceRelationKind)}
@@ -274,13 +273,13 @@ export default function KnowledgeGraphComposer({
           <CardTitle>记录引用</CardTitle>
         </CardHeader>
         <div className="space-y-3">
-          <KnowledgeDropdown
+          <Select
             label="引用方论文"
             value={citingPaperId}
             onChange={setCitingPaperId}
             options={citationPaperOptions}
           />
-          <KnowledgeDropdown
+          <Select
             label="被引论文"
             value={citedPaperId}
             onChange={setCitedPaperId}

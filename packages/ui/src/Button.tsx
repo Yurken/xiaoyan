@@ -25,14 +25,14 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
               background: "var(--rc-button-secondary-bg)",
               borderColor: "var(--rc-button-secondary-border)",
               boxShadow: inactive ? "none" : "var(--rc-button-secondary-shadow)",
-              color: "var(--rc-text-soft)",
+              color: "var(--rc-button-secondary-text)",
             }
           : variant === "ghost"
             ? {
                 background: "transparent",
                 borderColor: "transparent",
                 boxShadow: "none",
-                color: "var(--rc-text-muted)",
+                color: "var(--rc-button-ghost-text)",
               }
             : {
                 background: "linear-gradient(180deg, #ff655b, #d92b21)",

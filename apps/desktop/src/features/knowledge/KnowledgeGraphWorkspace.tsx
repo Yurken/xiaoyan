@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Maximize2, Minimize2, RefreshCw } from "lucide-react";
-import { Card, CardHeader, CardTitle } from "@research-copilot/ui";
+import { Card, CardHeader, CardTitle, IconButton } from "@research-copilot/ui";
 import KnowledgeClaimPanel from "./KnowledgeClaimPanel";
 import KnowledgeCitationPanel from "./KnowledgeCitationPanel";
 import KnowledgeGraphCanvas from "./KnowledgeGraphCanvas";
@@ -91,22 +91,15 @@ export default function KnowledgeGraphWorkspace({
         </div>
 
         <div className="flex justify-end">
-          <button
-            type="button"
+          <IconButton
             onClick={() => void refresh()}
             disabled={loading || busy}
             aria-label="刷新图谱"
             title="刷新图谱"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              background: "var(--rc-control-bg)",
-              border: "1px solid var(--rc-control-border)",
-              boxShadow: "var(--rc-control-shadow)",
-              color: "var(--rc-text)",
-            }}
+            size="md"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
+          </IconButton>
         </div>
       </div>
 
@@ -131,20 +124,14 @@ export default function KnowledgeGraphWorkspace({
         <Card padding="md">
           <CardHeader>
             <CardTitle>关系总览</CardTitle>
-            <button
-              type="button"
+            <IconButton
               onClick={() => setIsCanvasExpanded(true)}
               aria-label="最大化关系总览"
               title="最大化关系总览"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl transition-colors"
-              style={{
-                background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.6))",
-                border: "1px solid var(--rc-border)",
-                color: "var(--rc-text-secondary, var(--rc-text))",
-              }}
+              size="sm"
             >
               <Maximize2 className="h-3.5 w-3.5" />
-            </button>
+            </IconButton>
           </CardHeader>
           <KnowledgeGraphCanvas
             nodes={view.nodes}
@@ -205,20 +192,14 @@ export default function KnowledgeGraphWorkspace({
                 <p className="text-base font-semibold text-ink-primary">关系总览</p>
                 <p className="mt-1 text-xs text-ink-tertiary">滚轮缩放，拖动画布平移。</p>
               </div>
-              <button
-                type="button"
+              <IconButton
                 onClick={() => setIsCanvasExpanded(false)}
                 aria-label="退出最大化"
                 title="退出最大化"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-2xl transition-colors"
-                style={{
-                  background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.6))",
-                  border: "1px solid var(--rc-border)",
-                  color: "var(--rc-text-secondary, var(--rc-text))",
-                }}
+                size="sm"
               >
                 <Minimize2 className="h-3.5 w-3.5" />
-              </button>
+              </IconButton>
             </div>
 
             <div className="min-h-0 flex-1">

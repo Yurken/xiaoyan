@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowLeft, Eye, Globe, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
-import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
+import { Badge, Button, Card, Input, MarkdownRenderer, Select } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
-import KnowledgeDropdown from "./KnowledgeDropdown";
 
 function MarkdownEditor({
   label,
@@ -285,7 +284,7 @@ function NoteDetailModal({
               />
               <div className="space-y-1">
                 <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
-                <KnowledgeDropdown
+                <Select
                   value={draft.research_interest_id}
                   onChange={(value) => setDraft((prev) => ({ ...prev, research_interest_id: value }))}
                   options={[{ value: "", label: "未归档" }, ...interests.map((item) => ({
@@ -611,7 +610,7 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
             {!researchInterestId && (
               <div className="space-y-1">
                 <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究方向</label>
-                <KnowledgeDropdown
+                <Select
                   value={selectedInterestId}
                   onChange={setSelectedInterestId}
                   options={[{ value: "", label: "不关联" }, ...interests.map((item) => ({
@@ -668,7 +667,7 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
             {!researchInterestId && (
               <div className="space-y-1">
                 <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究方向（可选）</label>
-                <KnowledgeDropdown
+                <Select
                   value={selectedInterestId}
                   onChange={setSelectedInterestId}
                   options={[{ value: "", label: "不关联" }, ...interests.map((item) => ({

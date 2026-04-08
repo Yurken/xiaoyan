@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import KnowledgeDropdown from "../features/knowledge/KnowledgeDropdown";
+import { Select } from "@research-copilot/ui";
 import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspace";
 import { interestDisplayName } from "../features/knowledge/shared";
 import { useKnowledgeGraphWorkspace } from "../features/knowledge/useKnowledgeGraphWorkspace";
@@ -64,7 +64,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
           </div>
 
           {view === "graph" ? (
-            <KnowledgeDropdown
+            <Select
               className="w-full lg:w-[260px]"
               prefix="聚焦："
               value={graphController.activeInterestId ?? ""}

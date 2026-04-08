@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, FileText, FlaskConical, Loader2, MessageSquare, Send, Upload, Wrench } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
-import { Badge, Button, Input, MarkdownRenderer } from "@research-copilot/ui";
+import { Badge, Button, Input, MarkdownRenderer, Select } from "@research-copilot/ui";
 import NotesPanel from "./NotesPanel";
-import KnowledgeDropdown from "./KnowledgeDropdown";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
 import AgentStateGraphPanel from "../copilot/AgentStateGraphPanel";
@@ -415,7 +414,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
             </div>
             <div className="flex items-center gap-2">
               {sessions.length > 0 && (
-                <KnowledgeDropdown
+                <Select
                   value={selectedSessionId ?? ""}
                   onChange={(value) => setSelectedSessionId(value || null)}
                   className="w-[200px]"

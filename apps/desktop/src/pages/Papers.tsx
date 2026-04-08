@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
-import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
+import { Badge, Button, Card, Input, MarkdownRenderer, Select } from "@research-copilot/ui";
 import type { Paper, ResearchInterest } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, VenueTypeBadge, WosIndexBadge } from "../components/CcfBadges";
 import CollapsibleGroup from "../components/CollapsibleGroup";
@@ -71,8 +71,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [deletingPaperId, setDeletingPaperId] = useState<string | null>(null);
   const [visiblePaperTags, setVisiblePaperTags] = useState(() => parsePaperTagVisibility(DEFAULT_PAPER_TAG_VISIBILITY_VALUE));
   const [selectedInterestId, setSelectedInterestId] = useState("");
-  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
-  const [editFolderPickerOpen, setEditFolderPickerOpen] = useState(false);
   const [recognizeOpen, setRecognizeOpen] = useState(false);
   type RecognizeFlags = { title: boolean; authors: boolean; year: boolean; venue: boolean; keywords: boolean };
   const [recognizeFlags, setRecognizeFlags] = useState<RecognizeFlags>({
@@ -81,8 +79,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [paperFigures, setPaperFigures] = useState<Record<string, Array<{ id: string; fig_index: number; caption: string | null; data_url: string }>>>({});
 
   const recognizeRef = useClickOutside(recognizeOpen, () => setRecognizeOpen(false));
-  const folderPickerRef = useClickOutside(folderPickerOpen, () => setFolderPickerOpen(false));
-  const editFolderPickerRef = useClickOutside(editFolderPickerOpen, () => setEditFolderPickerOpen(false));
 
   const handleToggleRecognize = async (key: keyof RecognizeFlags) => {
     const next = { ...recognizeFlags, [key]: !recognizeFlags[key] };
@@ -882,66 +878,18 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             onChange={(event) => setEditDraft((prev) => ({ ...prev, year: event.target.value }))}
             placeholder="例如：2024"
           />
-          <div
-            ref={editFolderPickerRef}
-            className="relative space-y-1"
-          >
-            <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
-            <button
-              type="button"
-              onClick={() => setEditFolderPickerOpen((prev) => !prev)}
-              className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl text-sm text-ink-primary transition-all duration-150"
-              style={{
-                background: "#E8ECF0",
-                boxShadow: editFolderPickerOpen
-                  ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
-                  : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
-              }}
-            >
-              <span className="truncate">
-                {editDraft.research_interest_id
-                  ? interestFolderName(interests.find((i) => i.id === editDraft.research_interest_id)!)
-                  : "未归档"}
-              </span>
-              <ChevronDown
-                className="h-4 w-4 flex-shrink-0 text-ink-tertiary transition-transform duration-150"
-                style={{ transform: editFolderPickerOpen ? "rotate(180deg)" : "rotate(0deg)" }}
-              />
-            </button>
-
-            {editFolderPickerOpen && (
-              <div
-                className="absolute left-0 right-0 top-full mt-1 z-20 rounded-2xl py-1 overflow-hidden"
-                style={{
-                  background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
-                  boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF",
-                }}
-              >
-                {[{ id: "", label: "未归档" }, ...interests.map((i) => ({
-                  id: i.id,
-                  label: interestFolderName(i),
-                }))].map(({ id, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setEditDraft((prev) => ({ ...prev, research_interest_id: id }));
-                      setEditFolderPickerOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm transition-colors duration-100"
-                    style={{
-                      color: editDraft.research_interest_id === id ? "#007AFF" : "#1C1C1E",
-                      background: editDraft.research_interest_id === id ? "rgba(0,122,255,0.08)" : "transparent",
-                      fontWeight: editDraft.research_interest_id === id ? 600 : 400,
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <Select
+            label="主题文件夹"
+            value={editDraft.research_interest_id}
+            onChange={(value) => setEditDraft((prev) => ({ ...prev, research_interest_id: value }))}
+            options={[
+              { value: "", label: "未归档" },
+              ...interests.map((interest) => ({
+                value: interest.id,
+                label: interestFolderName(interest),
+              })),
+            ]}
+          />
           <div className="md:col-span-2">
             <Input
               label="DOI"
@@ -1140,13 +1088,8 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             <button
               type="button"
               onClick={() => setRecognizeOpen((v) => !v)}
-              className="flex items-center gap-1.5 rounded-2xl px-3 py-2 transition-all duration-150"
-              style={{
-                background: "#E8ECF0",
-                boxShadow: recognizeOpen
-                  ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
-                  : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
-              }}
+              data-open={recognizeOpen}
+              className="rc-dropdown-trigger flex items-center gap-1.5 rounded-2xl px-3 py-2 transition-all duration-150"
               title="导入时自动识别论文内容"
             >
               <span className="text-xs font-medium text-ink-secondary">自动识别</span>
@@ -1155,8 +1098,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
 
             {recognizeOpen && (
               <div
-                className="absolute left-0 top-full mt-1.5 z-30 rounded-2xl py-2 min-w-[160px]"
-                style={{ background: "#E8ECF0", boxShadow: "6px 6px 14px #C0C5CB, -4px -4px 10px #FFFFFF" }}
+                className="rc-dropdown-menu absolute left-0 top-full mt-1.5 z-30 min-w-[160px] rounded-2xl py-2"
               >
                 {(
                   [
@@ -1193,66 +1135,21 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             )}
           </div>
 
-          {!hideFolders && <div
-            ref={folderPickerRef}
-            className="relative min-w-[200px]"
-          >
-            <button
-              type="button"
-              onClick={() => setFolderPickerOpen((prev) => !prev)}
-              className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl text-sm text-ink-primary transition-all duration-150"
-              style={{
-                background: "#E8ECF0",
-                boxShadow: folderPickerOpen
-                  ? "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF"
-                  : "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
-              }}
-            >
-              <span className="truncate">
-                <span className="text-ink-tertiary">文件夹：</span>
-                {selectedInterestId
-                  ? interestFolderName(interests.find((i) => i.id === selectedInterestId)!)
-                  : "未归档"}
-              </span>
-              <ChevronDown
-                className="h-4 w-4 flex-shrink-0 text-ink-tertiary transition-transform duration-150"
-                style={{ transform: folderPickerOpen ? "rotate(180deg)" : "rotate(0deg)" }}
-              />
-            </button>
-
-            {folderPickerOpen && (
-              <div
-                className="absolute left-0 right-0 top-full mt-1 z-20 rounded-2xl py-1 overflow-hidden"
-                style={{
-                  background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
-                  boxShadow: "6px 6px 14px #C0C6CC, -4px -4px 10px #FFFFFF",
-                }}
-              >
-                {[{ id: "", label: "未归档" }, ...interests.map((i) => ({
-                  id: i.id,
-                  label: interestFolderName(i),
-                }))].map(({ id, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setSelectedInterestId(id);
-                      setFolderPickerOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm transition-colors duration-100"
-                    style={{
-                      color: selectedInterestId === id ? "#007AFF" : "#1C1C1E",
-                      background: selectedInterestId === id ? "rgba(0,122,255,0.08)" : "transparent",
-                      fontWeight: selectedInterestId === id ? 600 : 400,
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>}
+          {!hideFolders && (
+            <Select
+              className="min-w-[200px]"
+              prefix="文件夹："
+              value={selectedInterestId}
+              onChange={setSelectedInterestId}
+              options={[
+                { value: "", label: "未归档" },
+                ...interests.map((interest) => ({
+                  value: interest.id,
+                  label: interestFolderName(interest),
+                })),
+              ]}
+            />
+          )}
           <Button onClick={handleUpload} loading={uploading} size="md">
             <Upload className="w-4 h-4" />
             {batchProgress ? `导入中 (${batchProgress.done}/${batchProgress.total})` : "导入 PDF"}

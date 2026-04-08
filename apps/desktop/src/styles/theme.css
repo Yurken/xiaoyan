@@ -35,6 +35,9 @@
   --rc-card-shadow: 6px 6px 14px #05070B, -6px -6px 14px #171E28;
   --rc-card-flat-shadow: 5px 5px 12px #05070B, -5px -5px 12px #161C25;
   --rc-card-inset-shadow: var(--rc-inset-shadow);
+  --rc-panel-bg-soft: rgba(23, 27, 33, 0.82);
+  --rc-panel-border: rgba(36, 45, 58, 0.92);
+  --rc-panel-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02), var(--rc-flat-shadow);
   --rc-control-bg: #11151C;
   --rc-control-border: rgba(255, 255, 255, 0.05);
   --rc-control-shadow: var(--rc-chip-inset-shadow);
@@ -42,6 +45,13 @@
     var(--rc-chip-inset-shadow),
     0 0 0 1px rgba(0, 122, 255, 0.34),
     0 0 0 4px rgba(0, 122, 255, 0.12);
+  --rc-dropdown-trigger-bg: var(--rc-chip-bg);
+  --rc-dropdown-trigger-border: rgba(255, 255, 255, 0.04);
+  --rc-dropdown-trigger-shadow: var(--rc-chip-shadow);
+  --rc-dropdown-trigger-shadow-active: var(--rc-chip-inset-shadow);
+  --rc-dropdown-menu-bg: var(--rc-card-bg);
+  --rc-dropdown-menu-border: rgba(255, 255, 255, 0.06);
+  --rc-dropdown-menu-shadow: var(--rc-card-shadow);
   --rc-button-primary-bg: linear-gradient(145deg, #1A8AFF, #0062CC);
   --rc-button-primary-bg-hover: linear-gradient(145deg, #2992FF, #0A7AFF);
   --rc-button-primary-border: transparent;
@@ -52,8 +62,20 @@
   --rc-button-secondary-border: transparent;
   --rc-button-secondary-shadow: 5px 5px 12px #05070B, -5px -5px 12px #161C25;
   --rc-button-secondary-shadow-hover: 10px 10px 20px #05070B, -10px -10px 20px #171E28;
+  --rc-button-secondary-text: var(--rc-text-soft);
   --rc-button-ghost-bg-hover: rgba(255, 255, 255, 0.05);
   --rc-button-ghost-shadow-hover: none;
+  --rc-button-ghost-text: var(--rc-text-muted);
+  --rc-icon-button-bg: var(--rc-chip-bg);
+  --rc-icon-button-border: rgba(255, 255, 255, 0.04);
+  --rc-icon-button-shadow: var(--rc-chip-shadow);
+  --rc-icon-button-shadow-hover: var(--rc-raised-shadow);
+  --rc-icon-button-shadow-active: var(--rc-chip-inset-shadow);
+  --rc-icon-button-color: var(--rc-text-soft);
+  --rc-badge-bg: var(--rc-chip-bg);
+  --rc-badge-text: var(--rc-text-soft);
+  --rc-badge-shadow: var(--rc-chip-shadow);
+  --rc-badge-border: var(--rc-badge-outline);
   --rc-badge-outline: transparent;
   --rc-info-chip-bg: rgba(0, 122, 255, 0.14);
   --rc-info-chip-text: #007AFF;
@@ -103,6 +125,9 @@ html[data-theme="light"] {
   --rc-card-shadow: 6px 6px 14px #C8CDD3, -6px -6px 14px #FFFFFF;
   --rc-card-flat-shadow: 5px 5px 12px #C8CDD3, -5px -5px 12px #FFFFFF;
   --rc-card-inset-shadow: var(--rc-inset-shadow);
+  --rc-panel-bg-soft: rgba(255, 255, 255, 0.46);
+  --rc-panel-border: rgba(200, 205, 211, 0.55);
+  --rc-panel-shadow: 4px 4px 10px rgba(200, 205, 211, 0.34), -4px -4px 10px rgba(255, 255, 255, 0.74);
   --rc-control-bg: #E8ECF0;
   --rc-control-border: rgba(200, 205, 211, 0.6);
   --rc-control-shadow: var(--rc-chip-inset-shadow);
@@ -110,6 +135,13 @@ html[data-theme="light"] {
     var(--rc-chip-inset-shadow),
     0 0 0 1px rgba(0, 122, 255, 0.34),
     0 0 0 4px rgba(0, 122, 255, 0.1);
+  --rc-dropdown-trigger-bg: var(--rc-chip-bg);
+  --rc-dropdown-trigger-border: rgba(200, 205, 211, 0.34);
+  --rc-dropdown-trigger-shadow: var(--rc-chip-shadow);
+  --rc-dropdown-trigger-shadow-active: var(--rc-chip-inset-shadow);
+  --rc-dropdown-menu-bg: var(--rc-card-bg);
+  --rc-dropdown-menu-border: rgba(200, 205, 211, 0.28);
+  --rc-dropdown-menu-shadow: var(--rc-card-shadow);
   --rc-button-primary-bg: linear-gradient(145deg, #1A8AFF, #0062CC);
   --rc-button-primary-bg-hover: linear-gradient(145deg, #2992FF, #0A7AFF);
   --rc-button-primary-border: transparent;
@@ -120,8 +152,20 @@ html[data-theme="light"] {
   --rc-button-secondary-border: transparent;
   --rc-button-secondary-shadow: 5px 5px 12px #C8CDD3, -5px -5px 12px #FFFFFF;
   --rc-button-secondary-shadow-hover: 10px 10px 20px #C8CDD3, -10px -10px 20px #FFFFFF;
+  --rc-button-secondary-text: var(--rc-text-soft);
   --rc-button-ghost-bg-hover: rgba(0, 0, 0, 0.04);
   --rc-button-ghost-shadow-hover: none;
+  --rc-button-ghost-text: var(--rc-text-muted);
+  --rc-icon-button-bg: var(--rc-chip-bg);
+  --rc-icon-button-border: rgba(200, 205, 211, 0.38);
+  --rc-icon-button-shadow: var(--rc-chip-shadow);
+  --rc-icon-button-shadow-hover: var(--rc-flat-shadow);
+  --rc-icon-button-shadow-active: var(--rc-chip-inset-shadow);
+  --rc-icon-button-color: var(--rc-text-soft);
+  --rc-badge-bg: var(--rc-chip-bg);
+  --rc-badge-text: var(--rc-text-soft);
+  --rc-badge-shadow: var(--rc-chip-shadow);
+  --rc-badge-border: var(--rc-badge-outline);
   --rc-badge-outline: transparent;
   --rc-info-chip-bg: rgba(0, 122, 255, 0.14);
   --rc-info-chip-text: #007AFF;
@@ -173,12 +217,22 @@ html[data-style="modern-minimal"] {
   --rc-card-shadow: var(--rc-raised-shadow);
   --rc-card-flat-shadow: var(--rc-flat-shadow);
   --rc-card-inset-shadow: none;
+  --rc-panel-bg-soft: rgba(23, 27, 33, 0.84);
+  --rc-panel-border: var(--rc-border);
+  --rc-panel-shadow: none;
   --rc-control-bg: rgba(19, 23, 29, 0.78);
   --rc-control-border: rgba(255, 255, 255, 0.06);
   --rc-control-shadow: none;
   --rc-control-focus-shadow:
     0 0 0 1px rgba(0, 122, 255, 0.38),
     0 0 0 4px rgba(0, 122, 255, 0.12);
+  --rc-dropdown-trigger-bg: var(--rc-control-bg);
+  --rc-dropdown-trigger-border: var(--rc-control-border);
+  --rc-dropdown-trigger-shadow: none;
+  --rc-dropdown-trigger-shadow-active: none;
+  --rc-dropdown-menu-bg: var(--rc-card-bg);
+  --rc-dropdown-menu-border: var(--rc-card-outline);
+  --rc-dropdown-menu-shadow: var(--rc-flat-shadow);
   --rc-button-primary-bg: #0a84ff;
   --rc-button-primary-bg-hover: #2992ff;
   --rc-button-primary-border: rgba(255, 255, 255, 0.08);
@@ -189,8 +243,20 @@ html[data-style="modern-minimal"] {
   --rc-button-secondary-border: rgba(255, 255, 255, 0.06);
   --rc-button-secondary-shadow: none;
   --rc-button-secondary-shadow-hover: 0 10px 22px rgba(0, 0, 0, 0.14);
+  --rc-button-secondary-text: var(--rc-text-soft);
   --rc-button-ghost-bg-hover: rgba(255, 255, 255, 0.04);
   --rc-button-ghost-shadow-hover: none;
+  --rc-button-ghost-text: var(--rc-text-muted);
+  --rc-icon-button-bg: var(--rc-button-secondary-bg);
+  --rc-icon-button-border: var(--rc-button-secondary-border);
+  --rc-icon-button-shadow: var(--rc-button-secondary-shadow);
+  --rc-icon-button-shadow-hover: var(--rc-button-secondary-shadow-hover);
+  --rc-icon-button-shadow-active: none;
+  --rc-icon-button-color: var(--rc-text-soft);
+  --rc-badge-bg: var(--rc-chip-bg);
+  --rc-badge-text: var(--rc-text-soft);
+  --rc-badge-shadow: none;
+  --rc-badge-border: var(--rc-badge-outline);
   --rc-badge-outline: rgba(255, 255, 255, 0.06);
   --rc-info-chip-bg: rgba(10, 132, 255, 0.1);
   --rc-info-chip-text: #0A84FF;
@@ -242,12 +308,22 @@ html[data-style="modern-minimal"][data-theme="light"] {
   --rc-card-shadow: var(--rc-raised-shadow);
   --rc-card-flat-shadow: var(--rc-flat-shadow);
   --rc-card-inset-shadow: none;
+  --rc-panel-bg-soft: rgba(252, 250, 246, 0.88);
+  --rc-panel-border: var(--rc-border);
+  --rc-panel-shadow: none;
   --rc-control-bg: rgba(247, 243, 235, 0.82);
   --rc-control-border: rgba(171, 159, 136, 0.18);
   --rc-control-shadow: none;
   --rc-control-focus-shadow:
     0 0 0 1px rgba(0, 122, 255, 0.34),
     0 0 0 4px rgba(0, 122, 255, 0.1);
+  --rc-dropdown-trigger-bg: var(--rc-control-bg);
+  --rc-dropdown-trigger-border: var(--rc-control-border);
+  --rc-dropdown-trigger-shadow: none;
+  --rc-dropdown-trigger-shadow-active: none;
+  --rc-dropdown-menu-bg: var(--rc-card-bg);
+  --rc-dropdown-menu-border: var(--rc-card-outline);
+  --rc-dropdown-menu-shadow: var(--rc-flat-shadow);
   --rc-button-primary-bg: #0a84ff;
   --rc-button-primary-bg-hover: #2992ff;
   --rc-button-primary-border: rgba(0, 122, 255, 0.18);
@@ -258,7 +334,19 @@ html[data-style="modern-minimal"][data-theme="light"] {
   --rc-button-secondary-border: rgba(171, 159, 136, 0.16);
   --rc-button-secondary-shadow: none;
   --rc-button-secondary-shadow-hover: 0 12px 24px rgba(110, 96, 72, 0.06);
+  --rc-button-secondary-text: var(--rc-text-soft);
   --rc-button-ghost-bg-hover: rgba(23, 25, 29, 0.04);
+  --rc-button-ghost-text: var(--rc-text-muted);
+  --rc-icon-button-bg: var(--rc-button-secondary-bg);
+  --rc-icon-button-border: var(--rc-button-secondary-border);
+  --rc-icon-button-shadow: var(--rc-button-secondary-shadow);
+  --rc-icon-button-shadow-hover: var(--rc-button-secondary-shadow-hover);
+  --rc-icon-button-shadow-active: none;
+  --rc-icon-button-color: var(--rc-text-soft);
+  --rc-badge-bg: var(--rc-chip-bg);
+  --rc-badge-text: var(--rc-text-soft);
+  --rc-badge-shadow: none;
+  --rc-badge-border: var(--rc-badge-outline);
   --rc-badge-outline: rgba(171, 159, 136, 0.16);
   --rc-info-chip-bg: rgba(10, 132, 255, 0.08);
   --rc-info-chip-text: #0A6FE8;
@@ -588,6 +676,97 @@ html[data-style="modern-minimal"][data-theme="light"] {
   html[data-style="modern-minimal"][data-theme="light"] [style*="#F2F6FA"]:not([style*="border"]),
   html[data-style="modern-minimal"][data-theme="light"] [style*="#E0E5EA"]:not([style*="border"]) {
     border: 1px solid var(--rc-border) !important;
+  }
+
+  .rc-panel-soft {
+    background: var(--rc-panel-bg-soft);
+    border: 1px solid var(--rc-panel-border);
+    box-shadow: var(--rc-panel-shadow);
+  }
+
+  .rc-panel-soft--dashed {
+    border-style: dashed;
+  }
+
+  .rc-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 1rem;
+    border: 1px solid var(--rc-icon-button-border);
+    background: var(--rc-icon-button-bg);
+    box-shadow: var(--rc-icon-button-shadow);
+    color: var(--rc-icon-button-color);
+    transition:
+      transform 160ms ease,
+      background 160ms ease,
+      box-shadow 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease;
+  }
+
+  .rc-icon-button:hover:not(:disabled) {
+    box-shadow: var(--rc-icon-button-shadow-hover);
+    transform: translateY(-1px);
+  }
+
+  .rc-icon-button:active:not(:disabled),
+  .rc-icon-button[data-pressed="true"] {
+    box-shadow: var(--rc-icon-button-shadow-active);
+    transform: translateY(0);
+  }
+
+  .rc-icon-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .rc-dropdown-trigger {
+    border: 1px solid var(--rc-dropdown-trigger-border);
+    background: var(--rc-dropdown-trigger-bg);
+    box-shadow: var(--rc-dropdown-trigger-shadow);
+  }
+
+  .rc-dropdown-trigger[data-open="true"] {
+    box-shadow: var(--rc-dropdown-trigger-shadow-active);
+  }
+
+  .rc-dropdown-menu {
+    border: 1px solid var(--rc-dropdown-menu-border);
+    background: var(--rc-dropdown-menu-bg);
+    box-shadow: var(--rc-dropdown-menu-shadow);
+  }
+
+  html:not([data-style="modern-minimal"]) [class*="rounded-2xl"][class*="border-nm-dark/10"][class*="bg-white/25"],
+  html:not([data-style="modern-minimal"]) [class*="rounded-2xl"][class*="border-nm-dark/10"][class*="bg-white/30"],
+  html:not([data-style="modern-minimal"]) [class*="rounded-2xl"][class*="border-nm-dark/10"][class*="bg-white/35"],
+  html:not([data-style="modern-minimal"]) [class*="rounded-2xl"][class*="border-nm-dark/10"][class*="bg-white/40"],
+  html:not([data-style="modern-minimal"]) [class*="rounded-3xl"][class*="border-nm-dark/10"][class*="bg-white/30"] {
+    background: var(--rc-panel-bg-soft);
+    border-color: var(--rc-panel-border);
+    box-shadow: var(--rc-panel-shadow);
+  }
+
+  html:not([data-style="modern-minimal"])[data-theme="light"] button[style*="#E8ECF0"][style*="#C8CDD3"]:not([style*="inset"]):not([style*="linear-gradient"]),
+  html:not([data-style="modern-minimal"])[data-theme="light"] button[style*="#E4E8ED"][style*="#C8CDD3"]:not([style*="inset"]):not([style*="linear-gradient"]),
+  html:not([data-style="modern-minimal"])[data-theme="light"] button[style*="#EEF1F5"][style*="#C8CDD3"]:not([style*="inset"]):not([style*="linear-gradient"]) {
+    background: var(--rc-dropdown-trigger-bg) !important;
+    border-color: var(--rc-dropdown-trigger-border) !important;
+    box-shadow: var(--rc-dropdown-trigger-shadow) !important;
+  }
+
+  html:not([data-style="modern-minimal"])[data-theme="light"] button[style*="#E8ECF0"][style*="inset"][style*="#C8CDD3"],
+  html:not([data-style="modern-minimal"])[data-theme="light"] button[style*="#EEF1F5"][style*="inset"][style*="#C8CDD3"],
+  html:not([data-style="modern-minimal"])[data-theme="light"] div[style*="#E8ECF0"][style*="inset"][style*="#C8CDD3"] {
+    background: var(--rc-control-bg) !important;
+    box-shadow: var(--rc-inset-shadow) !important;
+  }
+
+  html:not([data-style="modern-minimal"])[data-theme="light"] div[style*="linear-gradient(145deg, #F2F6FA, #E8ECF0)"],
+  html:not([data-style="modern-minimal"])[data-theme="light"] div[style*="linear-gradient(145deg, #F2F6FA, #E8ECF0)"][style*="#C0C6CC"] {
+    background: var(--rc-dropdown-menu-bg) !important;
+    border: 1px solid var(--rc-dropdown-menu-border) !important;
+    box-shadow: var(--rc-dropdown-menu-shadow) !important;
   }
 
   .rc-accent-chip {

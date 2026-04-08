@@ -10,7 +10,7 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
-import { Button, Card, Input, Textarea } from "@research-copilot/ui";
+import { Button, Card, Input, Select, Textarea } from "@research-copilot/ui";
 import { experimentApi, submissionApi, formatErrorMessage, type ExperimentAttachment } from "../lib/client";
 
 interface ExperimentRecord {
@@ -448,20 +448,15 @@ export default function Experiment() {
                 />
 
                 {/* Linked submission */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-ink-tertiary ml-1">关联投稿（可选）</label>
-                  <select
-                    value={editLinked}
-                    onChange={(e) => setEditLinked(e.target.value)}
-                    className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary outline-none border-0 appearance-none transition-shadow duration-150"
-                    style={{ background: "#E8ECF0", boxShadow: nmInset }}
-                    onFocus={(e) => { e.currentTarget.style.boxShadow = nmInsetFocus; }}
-                    onBlur={(e) => { e.currentTarget.style.boxShadow = nmInset; }}
-                  >
-                    <option value="">— 不关联 —</option>
-                    {submissions.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
-                  </select>
-                </div>
+                <Select
+                  label="关联投稿（可选）"
+                  value={editLinked}
+                  onChange={setEditLinked}
+                  options={[
+                    { value: "", label: "— 不关联 —" },
+                    ...submissions.map((submission) => ({ value: submission.id, label: submission.title })),
+                  ]}
+                />
 
                 {/* Config JSON */}
                 <Card variant="inset" padding="sm" className="space-y-2">
