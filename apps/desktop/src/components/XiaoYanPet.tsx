@@ -603,7 +603,7 @@ export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}
                cursor: isDragging.current ? "grabbing" : "grab", touchAction: "none" }}
     >
       <div
-        className="absolute right-full mr-2 bottom-1/2 translate-y-1/2 pointer-events-none
+        className="absolute right-full mr-2 bottom-1/2 translate-y-1/2 z-[60] pointer-events-none
                    whitespace-nowrap px-3 py-2 text-xs leading-relaxed
                    text-ink-primary opacity-0 group-hover:opacity-100
                    transition-opacity duration-200"

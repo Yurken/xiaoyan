@@ -596,7 +596,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         </div>
       </div>
 
-      <div className="flex-1 min-w-0 flex">
+      <div className="flex-1 min-w-0 flex overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0 bg-nm-bg">
           <div
             className="flex h-[52px] items-center justify-between px-4"
@@ -1006,7 +1006,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         </div>
 
         <div
-          className="w-[300px] flex-shrink-0 p-3.5 space-y-3.5"
+          className="w-[300px] flex-shrink-0 flex flex-col overflow-y-auto p-3.5 space-y-3.5"
           style={{
             background: "linear-gradient(180deg, var(--rc-elevated) 0%, var(--rc-surface) 100%)",
             boxShadow: "-6px 0 16px rgba(0,0,0,0.35)",
