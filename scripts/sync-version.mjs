@@ -83,13 +83,6 @@ updateJson("apps/desktop/src-tauri/tauri.conf.json", (json) => {
   json.version = version;
 }, touched);
 
-updateJson("apps/web/package-lock.json", (json) => {
-  json.version = version;
-  if (json.packages?.[""]) {
-    json.packages[""].version = version;
-  }
-}, touched);
-
 updateText("apps/desktop/src-tauri/Cargo.toml", (text) => {
   return text.replace(/^version = ".*"$/m, `version = "${version}"`);
 }, touched);
