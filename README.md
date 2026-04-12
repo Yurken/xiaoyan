@@ -17,9 +17,11 @@
 - **小妍解读（论文精读）**：点击解读后自动提取 PDF 图表（lopdf 位图 + 视觉模型扫描矢量图/表格），AI 分析时积极引用图表编号，结果以文字 + 图片并排呈现。
 - **视界·视觉模型**：独立配置视觉模型（`vision_model` / `vision_base_url` / `vision_api_key`），小妍解读自动调用，扫描 PDF 各页识别 lopdf 无法提取的矢量图与表格。
 - **记忆管理**：支持手动录入和 AI 自动提取用户操作记忆，小妍对话时自动注入相关上下文。
+- **知识图谱与 Graph RAG**：论文引用关系自动构建图结构（`citation_graph.rs`），知识库检索时融合图邻域上下文（`graph_rag.rs`），提升多跳关联问题的回答质量。
 - **知识卡片**：创建笔记，自动生成 Embedding，支持语义搜索。
 - **研究规划**：输入研究方向，AI 生成系统化学习路线（前置知识、阶段、经典论文、开放问题）。
 - **文献综述**：基于知识库 RAG + LLM 流式生成结构化综述。
+- **PPT 生成与预览**：基于研究内容一键生成 PPT，内置幻灯片预览面板，可在工作区直接翻页浏览，支持导出为 `.pptx`。
 - **投稿管理**：统一追踪会议与期刊截止日期（DDL 日历）、投稿状态看板、提交前检查清单、论文版本控制（含 PDF 上传 / 下载）、审稿意见归档与作者回复跟踪；支持智能推荐刊会。
 - **AI 模拟审稿**：在版本控制中对任意已上传 PDF（或版本快照文本）一键触发，使用 `pdfjs-dist` 本地提取全文，基于研究领域、方法关键词生成 2–4 位模拟审稿人意见（含分类标签与大修 / 小修 / 接收 / 拒稿结论），结果可直接导入审稿归档进行跟踪回复。
 - **实用工具**：
@@ -39,7 +41,7 @@
 | `/planner` | 研究方向规划 |
 | `/survey` | 文献调研与结构化综述 |
 | `/papers` | 论文库与 PDF 分析 |
-| `/knowledge` | 知识卡片与语义检索 |
+| `/knowledge` | 知识卡片、语义检索与知识图谱 |
 | `/copilot` | 小妍多 Agent 协同工作台 |
 | `/submission` | 投稿管理：DDL 日历、投稿看板、提交清单、版本控制（PDF 上传 + AI 模拟审稿）、审稿归档 |
 | `/tools` | arXiv 检索、期刊分区查询、CCF 查询、科研友链 |
@@ -55,19 +57,25 @@
 Rust 后端 (Tauri Commands)
     ├── llm.rs                LLM 客户端（OpenAI / Anthropic / 兼容接口，SSE 流式；含视觉模型 chat_with_image）
     ├── rag.rs                文本分块 + 余弦相似度向量检索
+    ├── citation_graph.rs     论文引用关系图（节点 + 有向边）
+    ├── graph_rag.rs          Graph RAG：检索时融合图邻域上下文
+    ├── agent_graph.rs        Copilot Agent 状态图（显式状态机）
+    ├── agent_nodes.rs        各 Agent 节点实现
     ├── ccf.rs                CCF 目录索引与查询（679 条）
     ├── journal_partitions.rs 期刊分区索引与查询（WoS / JCR / 中科院，22804 条）
     ├── db.rs                 SQLite 初始化与 Schema 迁移
     ├── state.rs              AppState（线程安全 Arc<RwLock>）
     └── commands/
-        ├── settings   设置读写（事务）、加密导入/导出
-        ├── papers     PDF 上传、解析、图表提取（lopdf + 视觉扫描）、分析、复现、AI 重命名
-        ├── knowledge  研究方向 + 知识笔记
-        ├── memory     记忆管理（手动 / 自动提取 / 上下文构建）
-        ├── chat       多 Agent 编排与流式对话
-        ├── arxiv      arXiv 检索与 LLM 重排
-        ├── journal    期刊分区查询 + 按等级/学科过滤（journal_rank_filter）
-        └── misc       规划器、综述生成、搜索
+        ├── settings        设置读写（事务）、加密导入/导出
+        ├── papers          PDF 上传、解析、图表提取（lopdf + 视觉扫描）、分析、复现、AI 重命名
+        ├── knowledge       研究方向 + 知识笔记
+        ├── knowledge_graph 知识图谱构建与查询
+        ├── memory          记忆管理（手动 / 自动提取 / 上下文构建）
+        ├── chat            多 Agent 编排与流式对话
+        ├── arxiv           arXiv 检索与 LLM 重排
+        ├── journal         期刊分区查询 + 按等级/学科过滤（journal_rank_filter）
+        ├── submission      投稿管理、版本控制、审稿归档
+        └── misc            规划器、综述生成、搜索
 SQLite（本地嵌入式，无需独立服务）
 ```
 
@@ -283,7 +291,7 @@ node scripts/sync-version.mjs --tag v1.2.3
 - `apps/desktop/package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`
 - `apps/desktop/src-tauri/src/commands/arxiv.rs`（User-Agent 常量）
 - `apps/mobile/package.json` / `app.json`
-- `apps/web/package.json` / `package-lock.json`
+- `apps/web/package.json`
 - `packages/*/package.json` 及根 `package.json`
 
 ## 发布
@@ -292,8 +300,10 @@ node scripts/sync-version.mjs --tag v1.2.3
 
 1. **create-release**：创建草稿 Release
 2. **build**（矩阵并行）：`macos-latest` / `windows-latest` 分别编译并上传产物
-3. **publish-updater**：下载 updater 产物，重写 `latest.json` 中的下载地址，并同步到自有更新服务器
+3. **publish-github-assets**：将安装包（`.dmg` / `.msi` / `.exe`）上传到 GitHub Release
 4. **publish-release**：所有构建完成后正式发布
+
+> 自有更新服务器分发（`publish-updater`）当前已禁用，安装包仅通过 GitHub Release 分发。
 
 > **macOS 首次打开**：发布的 `.dmg` 使用 ad-hoc 签名，未经 Apple 公证。执行以下命令后重新打开：
 > ```bash
