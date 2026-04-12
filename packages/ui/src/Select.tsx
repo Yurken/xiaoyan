@@ -1,3 +1,5 @@
+"use client";
+
 import { clsx } from "clsx";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
