@@ -5,7 +5,7 @@ export type ThemeStyle = "neumorphic" | "modern-minimal";
 export function getThemeStyle(): ThemeStyle {
   const stored = localStorage.getItem(KEY);
   if (stored === "neumorphic" || stored === "modern-minimal") return stored;
-  return "modern-minimal";
+  return "neumorphic";
 }
 
 export function setThemeStyle(style: ThemeStyle): void {
