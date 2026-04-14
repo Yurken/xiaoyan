@@ -511,8 +511,12 @@ export default function PlannerComposer({ onCancel, onCreated, initialTopic }: P
                 <Input
                   value={form.constraintsRaw}
                   onChange={(event) => set("constraintsRaw", event.target.value)}
-                  placeholder="例如：单卡 24G、公开数据集、中文资源优先"
+                  placeholder="例如：单卡 24G，公开数据集，中文资源优先"
                 />
+                <p className="mt-2 text-[11px] leading-5 text-ink-tertiary">
+                  支持用英文逗号、中文逗号、分号或换行分隔。这里填写的是研究过程中的限制条件，
+                  例如算力/显存、时间周期、数据是否公开、论文来源、复现要求、语言偏好等。
+                </p>
                 {suggestions.constraintSuggestions.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {suggestions.constraintSuggestions.slice(0, 6).map((constraint) => (

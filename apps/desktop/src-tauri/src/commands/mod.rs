@@ -10,6 +10,7 @@ pub mod knowledge_graph;
 pub mod memory;
 pub mod misc;
 pub mod paper_search;
+pub mod paper_text;
 pub mod papers;
 pub mod settings;
 pub mod skills;

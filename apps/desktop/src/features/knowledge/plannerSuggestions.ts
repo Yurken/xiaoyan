@@ -346,7 +346,7 @@ export function mergePlannerSuggestions(
 }
 
 export function parseTagInput(value: string) {
-  return unique(value.split(/[,，\n]/).map((item) => item.trim()).filter(Boolean));
+  return unique(value.split(/[,，;\n；]/).map((item) => item.trim()).filter(Boolean));
 }
 
 export function appendTag(raw: string, nextTag: string) {

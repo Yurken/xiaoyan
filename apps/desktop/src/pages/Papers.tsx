@@ -558,6 +558,8 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     return "小妍解读";
   };
 
+  const hasLoadedContent = papers.length > 0 || interests.length > 0;
+
   const SORT_LABELS: Record<SortKey, string> = { created_at: "导入时间", title: "名称", importance: "重要性" };
 
   const renderSortControl = (groupId: string) => (
@@ -1157,6 +1159,16 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         </div>
       </div>
 
+      {loadError && hasLoadedContent && (
+        <Card className="flex items-start gap-3 border border-apple-red/10 bg-[#F7ECEA] px-4 py-3">
+          <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-apple-red" />
+          <div>
+            <p className="text-sm font-medium text-ink-secondary">操作未完成</p>
+            <p className="mt-1 break-all text-sm text-apple-red">{loadError}</p>
+          </div>
+        </Card>
+      )}
+
       {loading ? (
         <div className="flex flex-col items-center justify-center gap-3 py-24">
           <div
@@ -1167,7 +1179,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           </div>
           <p className="text-sm text-ink-tertiary">加载中…</p>
         </div>
-      ) : loadError ? (
+      ) : loadError && !hasLoadedContent ? (
         <Card className="flex flex-col items-center gap-4 py-20 text-center">
           <div
             className="flex h-16 w-16 items-center justify-center rounded-3xl"
@@ -1176,7 +1188,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             <AlertCircle className="h-8 w-8 text-apple-red" />
           </div>
           <div>
-            <p className="font-medium text-ink-secondary">无法连接后端</p>
+            <p className="font-medium text-ink-secondary">加载失败</p>
             <p className="mt-1 break-all text-sm text-apple-red">{loadError}</p>
           </div>
         </Card>

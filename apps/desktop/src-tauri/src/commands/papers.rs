@@ -1,4 +1,5 @@
 use crate::assistant_prompts::specialist_system;
+use crate::commands::paper_text::{extract_pdf_preview_text, extract_pdf_text_with_filtered_stderr};
 use crate::ccf::{infer_from_text, match_venue};
 use crate::journal_partitions::match_journal;
 use crate::links::paper_reference_url;
@@ -9,7 +10,6 @@ use base64::{engine::general_purpose, Engine as _};
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::Row;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tauri::{Emitter, Manager, State};
@@ -650,6 +650,25 @@ pub async fn papers_upload(
             full_text_started_at.elapsed().as_millis()
         );
 
+        if text.trim().is_empty() {
+            let now = chrono::Utc::now().to_rfc3339();
+            let _ = sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
+                .bind(&now)
+                .bind(&pid)
+                .execute(&db)
+                .await;
+            let _ = app.emit(
+                "paper:status",
+                json!({
+                    "paper_id": pid,
+                    "status": "failed",
+                    "error": "PDF 未解析到可用正文，请重新导入或更换可复制文本的 PDF。"
+                }),
+            );
+            eprintln!("[paper-import][{}] full_text empty after extraction", pid);
+            return;
+        }
+
         let refreshed_keywords = extract_keywords_from_text(&text);
         let refreshed_tags = serde_json::to_string(&refreshed_keywords).unwrap_or_else(|_| "[]".to_string());
         let parsed_now = chrono::Utc::now().to_rfc3339();
@@ -897,13 +916,21 @@ fn agent4_system() -> String {
     )
 }
 
+fn missing_full_text_message(status: &str) -> &'static str {
+    match status {
+        "uploaded" | "parsing" => "论文仍在解析中，请稍后再试。",
+        "failed" | "error" => "论文解析失败，请重新导入 PDF 后再试。",
+        _ => "论文正文为空，请重新导入或更换可复制文本的 PDF。",
+    }
+}
+
 #[tauri::command]
 pub async fn papers_analyze(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
-    let row = sqlx::query("SELECT file_path, full_text FROM papers WHERE id = ?")
+    let row = sqlx::query("SELECT file_path, full_text, status FROM papers WHERE id = ?")
         .bind(&id)
         .fetch_optional(&state.db)
         .await
@@ -911,8 +938,9 @@ pub async fn papers_analyze(
         .ok_or("未找到对应论文。")?;
     let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
     let file_path_for_spawn: Option<String> = row.get("file_path");
+    let status = row.get::<Option<String>, _>("status").unwrap_or_default();
     if full_text.trim().is_empty() {
-        return Err("论文仍在解析中，请稍后再试。".to_string());
+        return Err(missing_full_text_message(&status).to_string());
     }
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
@@ -1179,15 +1207,16 @@ pub async fn papers_reproduce(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
-    let row = sqlx::query("SELECT full_text FROM papers WHERE id = ?")
+    let row = sqlx::query("SELECT full_text, status FROM papers WHERE id = ?")
         .bind(&id)
         .fetch_optional(&state.db)
         .await
         .map_err(|e| e.to_string())?
         .ok_or("未找到对应论文。")?;
     let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
+    let status = row.get::<Option<String>, _>("status").unwrap_or_default();
     if full_text.trim().is_empty() {
-        return Err("论文仍在解析中，请稍后再试。".to_string());
+        return Err(missing_full_text_message(&status).to_string());
     }
     let text_preview = safe_text_preview(&full_text, 12000);
     let settings = state.settings.read().await.clone();
@@ -2065,54 +2094,6 @@ fn copy_to_managed_papers_dir(app: &tauri::AppHandle, src: &Path, desired_stem: 
     }
     std::fs::copy(src, &candidate).map_err(|e| format!("复制 PDF 到工作目录失败：{e}"))?;
     Ok(candidate)
-}
-
-fn extract_pdf_preview_text(path: &Path, max_pages: usize, max_chars: usize) -> Option<String> {
-    if max_pages == 0 || max_chars == 0 {
-        return None;
-    }
-
-    let doc = lopdf::Document::load(path).ok()?;
-    let mut page_numbers: Vec<u32> = doc.get_pages().keys().copied().collect();
-    if page_numbers.is_empty() {
-        return None;
-    }
-    page_numbers.sort_unstable();
-    page_numbers.truncate(max_pages);
-
-    let text = doc.extract_text(&page_numbers).ok()?;
-    let preview = safe_text_preview(&text, max_chars).trim().to_string();
-    if preview.is_empty() {
-        None
-    } else {
-        Some(preview)
-    }
-}
-
-fn should_suppress_pdf_stderr_line(line: &str) -> bool {
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return true;
-    }
-    trimmed.contains("Unicode mismatch")
-}
-
-fn extract_pdf_text_with_filtered_stderr(path: &Path) -> Result<String, String> {
-    let mut redirect = gag::BufferRedirect::stderr().ok();
-    let result = pdf_extract::extract_text(path).map_err(|e| e.to_string());
-
-    if let Some(ref mut handle) = redirect {
-        let mut captured = String::new();
-        let _ = handle.read_to_string(&mut captured);
-        for line in captured.lines() {
-            if should_suppress_pdf_stderr_line(line) {
-                continue;
-            }
-            eprintln!("{line}");
-        }
-    }
-
-    result
 }
 
 async fn embed_in_batches(

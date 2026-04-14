@@ -1,4 +1,5 @@
 use crate::assistant_prompts::specialist_system;
+use crate::commands::paper_search::search_survey_candidates;
 use crate::ccf::match_venue;
 use crate::links::{doi_url, paper_reference_url, paper_search_url};
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
@@ -302,21 +303,15 @@ pub async fn survey_generate(
 
         let paper_limit = i64::from(max_papers.unwrap_or(20).max(1));
         let pinned_ids = paper_ids.as_ref().map(|v| v.iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>()).unwrap_or_default();
-        let papers = if !pinned_ids.is_empty() {
+        let (mut papers, mut retrieval_summary) = if !pinned_ids.is_empty() {
             // 用户已从论文库中手动选择论文，直接按 ID 加载，跳过文本检索
             match fetch_papers_by_ids(&db, &pinned_ids).await {
                 Ok(list) => {
-                    let _ = app.emit("survey:agent_complete", json!({
-                        "request_id": request_id,
-                        "agent": {
-                            "id": retrieval_agent_id,
-                            "name": "文献检索 Agent",
-                            "role": "检索候选文献",
-                            "status": "done",
-                            "summary": format!("已加载论文库中选定的 {} 篇论文", list.len())
-                        }
-                    }));
-                    list
+                    let count = list.len();
+                    (
+                        list,
+                        format!("已加载论文库中选定的 {} 篇论文", count),
+                    )
                 }
                 Err(e) => {
                     let _ = app.emit("survey:agent_error", json!({
@@ -329,44 +324,93 @@ pub async fn survey_generate(
                             "error": e.clone()
                         }
                     }));
-                    Vec::new()
+                    let _ = app.emit("survey:error", json!({ "request_id": request_id, "error": e }));
+                    return;
                 }
             }
         } else {
             match retrieve_papers(&db, &query, &search_queries, paper_limit, time_from, time_to).await {
                 Ok(list) => {
+                    let count = list.len();
                     let filter_desc = if time_from.is_some() || time_to.is_some() {
                         format!("（时间范围：{}）", time_range_str)
                     } else {
                         String::new()
                     };
-                    let _ = app.emit("survey:agent_complete", json!({
-                        "request_id": request_id,
-                        "agent": {
-                            "id": retrieval_agent_id,
-                            "name": "文献检索 Agent",
-                            "role": "检索候选文献",
-                            "status": "done",
-                            "summary": format!("已检索到 {} 篇候选文献{}", list.len(), filter_desc)
-                        }
-                    }));
-                    list
+                    (
+                        list,
+                        format!("已从论文库检索到 {} 篇候选文献{}", count, filter_desc),
+                    )
                 }
                 Err(e) => {
-                    let _ = app.emit("survey:agent_error", json!({
-                        "request_id": request_id,
-                        "agent": {
-                            "id": retrieval_agent_id,
-                            "name": "文献检索 Agent",
-                            "role": "检索候选文献",
-                            "status": "failed",
-                            "error": e.clone()
-                        }
-                    }));
-                    Vec::new()
+                    (
+                        Vec::new(),
+                        format!("论文库检索失败，已切换外部学术源补充：{}", e),
+                    )
                 }
             }
         };
+
+        if pinned_ids.is_empty() && papers.len() < paper_limit as usize {
+            let external_limit = (paper_limit as usize).saturating_sub(papers.len()).max(6);
+            match search_survey_candidates(
+                &settings,
+                &query,
+                &search_queries,
+                external_limit,
+                time_from,
+                time_to,
+            )
+            .await
+            {
+                Ok(external_papers) => {
+                    let external_added = merge_survey_papers(&mut papers, external_papers, paper_limit as usize);
+                    if external_added > 0 {
+                        retrieval_summary = if papers.len() == external_added {
+                            format!("已从外部学术源检索到 {} 篇候选文献", external_added)
+                        } else {
+                            format!(
+                                "{}，并从外部学术源补充 {} 篇候选文献",
+                                retrieval_summary,
+                                external_added
+                            )
+                        };
+                    }
+                }
+                Err(error) => {
+                    if papers.is_empty() {
+                        retrieval_summary = format!("论文库与外部学术源均未完成检索：{}", error);
+                    }
+                }
+            }
+        }
+
+        if papers.is_empty() {
+            let message = "未检索到候选文献，请调整研究问题、放宽时间范围，或先在论文库中导入几篇相关论文后重试。";
+            let _ = app.emit("survey:agent_error", json!({
+                "request_id": request_id,
+                "agent": {
+                    "id": retrieval_agent_id,
+                    "name": "文献检索 Agent",
+                    "role": "检索候选文献",
+                    "status": "failed",
+                    "error": message
+                }
+            }));
+            let _ = app.emit("survey:error", json!({ "request_id": request_id, "error": message }));
+            return;
+        }
+
+        let _ = app.emit("survey:agent_complete", json!({
+            "request_id": request_id,
+            "agent": {
+                "id": retrieval_agent_id,
+                "name": "文献检索 Agent",
+                "role": "检索候选文献",
+                "status": "done",
+                "summary": retrieval_summary
+            }
+        }));
 
         // RAG evidence
         let rag_context = if let Ok(embed_client) = LlmClient::embed_client_from_settings(&settings) {
@@ -701,6 +745,55 @@ async fn fetch_papers_by_ids(
         papers.push(paper);
     }
     Ok(papers)
+}
+
+fn merge_survey_papers(
+    target: &mut Vec<serde_json::Value>,
+    incoming: Vec<serde_json::Value>,
+    limit: usize,
+) -> usize {
+    if target.len() >= limit {
+        return 0;
+    }
+
+    let mut seen = target
+        .iter()
+        .filter_map(survey_paper_identity)
+        .collect::<HashSet<_>>();
+    let before_len = target.len();
+
+    for paper in incoming {
+        if target.len() >= limit {
+            break;
+        }
+        let Some(key) = survey_paper_identity(&paper) else {
+            continue;
+        };
+        if !seen.insert(key) {
+            continue;
+        }
+        target.push(paper);
+    }
+
+    target.len().saturating_sub(before_len)
+}
+
+fn survey_paper_identity(paper: &serde_json::Value) -> Option<String> {
+    if let Some(doi) = paper
+        .get("doi")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Some(format!("doi:{}", doi.to_lowercase()));
+    }
+
+    paper
+        .get("title")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_lowercase())
 }
 
 // ── Translate ─────────────────────────────────────────────────────

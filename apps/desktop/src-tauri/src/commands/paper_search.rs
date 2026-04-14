@@ -1,3 +1,4 @@
+use crate::ccf::match_venue;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::state::AppState;
 use anyhow::Context;
@@ -267,6 +268,93 @@ pub async fn paper_search(
     };
 
     Ok(json!(response))
+}
+
+pub async fn search_survey_candidates(
+    settings: &HashMap<String, String>,
+    query: &str,
+    search_queries: &[String],
+    limit: usize,
+    year_from: Option<i32>,
+    year_to: Option<i32>,
+) -> anyhow::Result<Vec<serde_json::Value>> {
+    let mut seen_terms = HashSet::new();
+    let search_terms = std::iter::once(query.to_string())
+        .chain(search_queries.iter().cloned())
+        .map(|term| clean_whitespace(&term))
+        .filter(|term| {
+            if term.is_empty() {
+                return false;
+            }
+            seen_terms.insert(term.to_lowercase())
+        })
+        .take(8)
+        .collect::<Vec<_>>();
+
+    if search_terms.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let max_results = candidate_pool_size(limit.max(1)).max(12);
+    let candidates = fetch_semantic_scholar_candidates(
+        settings,
+        &search_terms.join(" "),
+        &[],
+        36_500,
+        max_results,
+    )
+    .await?;
+
+    let lower_terms = search_terms
+        .iter()
+        .map(|term| term.to_lowercase())
+        .collect::<Vec<_>>();
+    let mut seen_titles = HashSet::new();
+    let mut filtered = candidates
+        .into_iter()
+        .filter(|candidate| matches_year_range(candidate.year, year_from, year_to))
+        .filter(|candidate| {
+            let normalized = candidate.title.trim().to_lowercase();
+            !normalized.is_empty() && seen_titles.insert(normalized)
+        })
+        .collect::<Vec<_>>();
+
+    filtered.sort_by(|left, right| {
+        score_survey_candidate(right, &lower_terms)
+            .cmp(&score_survey_candidate(left, &lower_terms))
+            .then_with(|| right.citation_count.cmp(&left.citation_count))
+    });
+
+    Ok(filtered
+        .into_iter()
+        .take(limit.max(1))
+        .map(|candidate| {
+            let mut paper = json!({
+                "id": candidate.id,
+                "title": candidate.title,
+                "authors": candidate.authors,
+                "abstract": candidate.abstract_text,
+                "year": candidate.year.map(i64::from),
+                "venue": candidate.venue,
+                "doi": "",
+                "paper_url": candidate.detail_url,
+                "status": "external",
+            });
+
+            if let Some(venue) = paper.get("venue").and_then(|value| value.as_str()) {
+                if let Some(tag) = match_venue(venue) {
+                    paper["ccf_rating"] = json!(tag.rating);
+                    paper["ccf_area"] = json!(tag.area);
+                    paper["ccf_type"] = json!(tag.kind);
+                    paper["ccf_label"] = json!(tag.label);
+                    paper["ccf_publisher"] = json!(tag.publisher);
+                    paper["venue_url"] = json!(tag.url);
+                }
+            }
+
+            paper
+        })
+        .collect())
 }
 
 async fn fetch_semantic_scholar_candidates(
@@ -584,6 +672,30 @@ fn heuristic_rank_papers(
             paper
         })
         .collect()
+}
+
+fn matches_year_range(year: Option<i32>, year_from: Option<i32>, year_to: Option<i32>) -> bool {
+    match year {
+        Some(value) if year_from.is_some_and(|from| value < from) => false,
+        Some(value) if year_to.is_some_and(|to| value > to) => false,
+        _ => true,
+    }
+}
+
+fn score_survey_candidate(candidate: &PaperCandidate, query_terms: &[String]) -> i32 {
+    let haystack = format!(
+        "{}\n{}\n{}\n{}",
+        candidate.title, candidate.abstract_text, candidate.authors, candidate.venue
+    )
+    .to_lowercase();
+
+    let keyword_score = query_terms
+        .iter()
+        .filter(|term| !term.is_empty() && haystack.contains(term.as_str()))
+        .count() as i32
+        * 12;
+
+    (50 + keyword_score + (candidate.citation_count / 150).clamp(0, 16)).clamp(0, 100)
 }
 
 fn describe_request(request: &PaperSearchRequest) -> String {

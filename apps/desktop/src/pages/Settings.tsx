@@ -4,6 +4,7 @@ import {
   AlertCircle,
   CheckCircle,
   Download,
+  FileSearch,
   Loader2,
   Upload,
   Wifi,
