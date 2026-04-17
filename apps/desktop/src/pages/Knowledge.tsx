@@ -22,7 +22,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
   );
 
   return (
-    <div className="rc-app-page space-y-5">
+    <div className="rc-app-page h-full flex flex-col">
       <div className="space-y-4">
         <div>
           <h1 className="text-2xl font-bold text-ink-primary">知识库</h1>

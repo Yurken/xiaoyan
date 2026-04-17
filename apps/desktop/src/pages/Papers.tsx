@@ -1064,7 +1064,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   );
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-5">
+    <div className="rc-app-page space-y-5">
       <style>{`
         @keyframes thinking-dot {
           0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
@@ -1074,10 +1074,10 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-ink-primary">论文库</h1>
-          <p className="mt-0.5 text-sm text-ink-tertiary">
+          <p className="mt-1 text-sm text-ink-tertiary">
             {`共 ${papers.length} 篇论文 · ${interests.length} 个主题分组`}
           </p>
-          <p className="mt-1 text-xs text-ink-tertiary">
+          <p className="mt-1 text-sm text-ink-tertiary">
             上传 PDF，小妍帮你精读、提取图表、生成复现指南。
           </p>
         </div>

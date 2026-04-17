@@ -327,14 +327,9 @@ export default function Experiment() {
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center gap-3 px-6 py-4 flex-shrink-0 border-b border-nm-dark/10">
-          <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(0,122,255,0.12)", color: "#007AFF" }}>
-            <FlaskConical className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-ink-primary">实验记录</h1>
-            <p className="text-xs text-ink-tertiary mt-0.5">记录实验配置与结果，上传截图，关联投稿同步进度。</p>
-          </div>
+        <div className="flex-shrink-0 px-6 pt-5 pb-5 border-b border-nm-dark/10">
+          <h1 className="text-2xl font-bold text-ink-primary">实验记录</h1>
+          <p className="mt-1 text-sm text-ink-tertiary">记录实验配置与结果，上传截图，关联投稿同步进度。</p>
         </div>
 
         <div className="flex flex-1 overflow-hidden">

@@ -105,7 +105,7 @@ export default function Tools() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="shrink-0 px-6 pt-6 pb-4">
+      <div className="shrink-0 px-6 pt-5 pb-5">
         <h1 className="text-2xl font-bold text-ink-primary">实用工具</h1>
         <p className="mt-1 text-sm text-ink-tertiary">
           小妍为你准备了一批科研实用工具，涵盖论文检索、期刊查询、工具生成等场景。

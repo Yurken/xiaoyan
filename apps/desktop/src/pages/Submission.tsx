@@ -785,13 +785,13 @@ export default function Submission() {
 
       {/* ── Header ── */}
       <div
-        className="flex-shrink-0 px-6 pt-5 pb-0"
+        className="flex-shrink-0 px-6 pt-5 pb-5"
         style={{ borderBottom: "1px solid var(--rc-border)" }}
       >
-        <div className="flex items-start justify-between mb-5">
+        <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold text-ink-primary">投稿管理</h1>
-            <p className="mt-0.5 text-sm text-ink-tertiary">追踪会议期刊DDL，管理论文投稿全流程。</p>
+            <p className="mt-1 text-sm text-ink-tertiary">追踪会议期刊DDL，管理论文投稿全流程。</p>
           </div>
           <div className="flex gap-3">
             {[
