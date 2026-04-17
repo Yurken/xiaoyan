@@ -1,10 +1,13 @@
 @layer components {
   .app-shell {
+    --rc-shell-sidebar-top-gap: 8px;
+    --rc-page-inline-gap: 24px;
+    --rc-page-top-gap: 16px;
+    --rc-page-bottom-gap: 24px;
     position: relative;
     display: flex;
     height: 100%;
     box-sizing: border-box;
-    padding-top: 18px;
     background: transparent;
   }
 
@@ -17,7 +20,7 @@
     flex-direction: column;
     align-items: stretch;
     gap: 2px;
-    padding: 12px 8px 12px;
+    padding: var(--rc-shell-sidebar-top-gap) 8px 12px;
     border-right: 1px solid var(--rc-border);
     background:
       linear-gradient(
@@ -176,13 +179,13 @@
   .rc-page-scroll {
     height: 100%;
     overflow-y: auto;
-    padding: 24px;
+    padding: var(--rc-page-top-gap) var(--rc-page-inline-gap) var(--rc-page-bottom-gap);
   }
 
   .rc-app-page {
     height: 100%;
     overflow-y: auto;
-    padding: 20px 24px 24px;
+    padding: calc(var(--rc-page-top-gap) - 2px) var(--rc-page-inline-gap) var(--rc-page-bottom-gap);
   }
 
   .rc-subtle-rule {
@@ -213,6 +216,13 @@
   }
 
   @media (max-width: 1024px) {
+    .app-shell {
+      --rc-shell-sidebar-top-gap: 6px;
+      --rc-page-inline-gap: 20px;
+      --rc-page-top-gap: 14px;
+      --rc-page-bottom-gap: 20px;
+    }
+
     .app-sidebar {
       width: 70px;
       padding-inline: 6px;
