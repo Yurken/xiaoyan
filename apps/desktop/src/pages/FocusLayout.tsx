@@ -56,7 +56,7 @@ function InterestCard({
     <div
       className="rounded-[28px] p-5 flex items-center justify-between gap-4"
       style={{
-        background: "#EEF1F5",
+        background: "var(--rc-surface)",
         boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF",
       }}
     >
@@ -106,7 +106,7 @@ function FreeTopicCard({ onEnter }: { onEnter: () => void }) {
     <div
       className="rounded-[28px] p-5 flex items-center justify-between gap-4"
       style={{
-        background: "#EEF1F5",
+        background: "var(--rc-surface)",
         boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF",
       }}
     >
@@ -122,9 +122,9 @@ function FreeTopicCard({ onEnter }: { onEnter: () => void }) {
         onClick={onEnter}
         className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95 flex-shrink-0"
         style={{
-          background: "#E8ECF0",
+          background: "var(--rc-surface)",
           color: "#3C3C43",
-          boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+          boxShadow: "var(--rc-chip-shadow)",
         }}
       >
         工作台
@@ -173,7 +173,7 @@ function FocusHome() {
       <div
         className="flex-shrink-0 flex items-center justify-between px-6 py-4"
         style={{
-          background: "linear-gradient(180deg, #F0F4F8 0%, #E8ECF0 100%)",
+          background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
         }}
       >
@@ -188,8 +188,8 @@ function FocusHome() {
             type="button"
             className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-150"
             style={{
-              background: "#E8ECF0",
-              boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+              background: "var(--rc-surface)",
+              boxShadow: "var(--rc-chip-shadow)",
               color: "#8E8E93",
             }}
           >
@@ -212,7 +212,7 @@ function FocusHome() {
             {/* ── 规划入口（研究主题上方） ── */}
             <div
               className="rounded-[28px] overflow-hidden"
-              style={{ background: "#EEF1F5", boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF" }}
+              style={{ background: "var(--rc-surface)", boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF" }}
             >
               {/* 收起态：标题 + 操作按钮 */}
               {!creating && !discovering && (
@@ -228,7 +228,7 @@ function FocusHome() {
                       type="button"
                       onClick={() => setDiscovering(true)}
                       className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-medium transition-all duration-150"
-                      style={{ background: "#E0E5EA", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+                      style={{ background: "var(--rc-surface)", color: "#3C3C43", boxShadow: "var(--rc-chip-shadow)" }}
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       没想好要做什么？
@@ -311,7 +311,7 @@ function FocusHome() {
             {interests.length === 0 ? (
               <div
                 className="rounded-[28px] p-10 text-center"
-                style={{ background: "#EEF1F5", boxShadow: "inset 3px 3px 7px #C8CDD3, inset -3px -3px 7px #FFFFFF" }}
+                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
               >
                 <Microscope className="w-10 h-10 text-ink-tertiary mx-auto mb-3" />
                 <p className="text-sm font-semibold text-ink-primary">还没有研究主题</p>
@@ -404,7 +404,7 @@ function StatChip({ label, value }: { label: string; value: number }) {
   return (
     <div
       className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs"
-      style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF" }}
+      style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
     >
       <span className="text-ink-tertiary">{label}</span>
       <span className="font-semibold text-ink-primary">{value}</span>
@@ -478,7 +478,7 @@ function FocusWorkbench() {
       <div
         className="flex-shrink-0 flex items-center gap-2 px-4 h-12"
         style={{
-          background: "linear-gradient(180deg, #F0F4F8 0%, #E8ECF0 100%)",
+          background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
         }}
       >
@@ -487,7 +487,7 @@ function FocusWorkbench() {
           type="button"
           onClick={() => navigate("/")}
           className="w-8 h-8 flex-shrink-0 rounded-xl flex items-center justify-center"
-          style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF", color: "#007AFF" }}
+          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)", color: "#007AFF" }}
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -539,7 +539,7 @@ function FocusWorkbench() {
             type="button"
             onClick={() => navigate("/workbench/free/planner")}
             className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium ml-1"
-            style={{ background: "#E8ECF0", color: "#3C3C43", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+            style={{ background: "var(--rc-surface)", color: "#3C3C43", boxShadow: "var(--rc-chip-shadow)" }}
           >
             自由主题
           </button>
@@ -559,7 +559,7 @@ function FocusWorkbench() {
           <div className="flex h-full items-center justify-center p-6">
             <div
               className="w-full max-w-md rounded-[28px] p-6 text-center"
-              style={{ background: "#EEF1F5", boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF" }}
+              style={{ background: "var(--rc-surface)", boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF" }}
             >
               <p className="text-sm font-semibold text-ink-primary">无法打开主题工作台</p>
               <p className="mt-2 text-xs leading-6 text-apple-red break-all">{interestError}</p>
@@ -587,7 +587,7 @@ function FocusSettingsWrapper() {
       <div
         className="flex-shrink-0 flex items-center gap-3 px-4 h-12"
         style={{
-          background: "linear-gradient(180deg, #F0F4F8 0%, #E8ECF0 100%)",
+          background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
         }}
       >
@@ -596,8 +596,8 @@ function FocusSettingsWrapper() {
           onClick={() => navigate("/")}
           className="w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150"
           style={{
-            background: "#E8ECF0",
-            boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF",
+            background: "var(--rc-surface)",
+            boxShadow: "var(--rc-chip-shadow)",
             color: "#007AFF",
           }}
         >

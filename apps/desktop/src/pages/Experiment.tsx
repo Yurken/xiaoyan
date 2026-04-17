@@ -49,7 +49,7 @@ function rowToExperiment(row: unknown): ExperimentRecord {
   };
 }
 
-const nmInset = "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF";
+const nmInset = "var(--rc-inset-shadow)";
 const nmInsetFocus = "inset 3px 3px 7px #C0C5CB, inset -3px -3px 7px #FFFFFF, 0 0 0 2px rgba(0,122,255,0.25)";
 
 /** Lightbox for viewing an attachment at full size */
@@ -145,7 +145,7 @@ function AttachmentPanel({ experimentId }: { experimentId: string }) {
       {attachments.length === 0 ? (
         <div
           className="flex flex-col items-center justify-center gap-2 rounded-2xl py-8 text-center cursor-pointer transition-shadow duration-150"
-          style={{ background: "#E8ECF0", boxShadow: nmInset }}
+          style={{ background: "var(--rc-surface)", boxShadow: nmInset }}
           onClick={handleUpload}
         >
           <ImagePlus className="w-8 h-8 text-ink-tertiary" />
@@ -157,7 +157,7 @@ function AttachmentPanel({ experimentId }: { experimentId: string }) {
             <div
               key={att.id}
               className="relative group rounded-2xl overflow-hidden"
-              style={{ aspectRatio: "4/3", background: "#E8ECF0", boxShadow: nmInset }}
+              style={{ aspectRatio: "4/3", background: "var(--rc-surface)", boxShadow: nmInset }}
             >
               <img
                 src={att.dataUrl}
@@ -324,17 +324,12 @@ export default function Experiment() {
   }
 
   return (
-    <div className="h-full overflow-hidden p-5">
-      <div className="h-full flex flex-col rounded-3xl overflow-hidden shadow-nm-card" style={{ background: "var(--rc-card-bg)" }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+      <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center gap-3 px-6 py-4 flex-shrink-0 border-b border-nm-dark/10">
-          <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(0,122,255,0.12)", color: "#007AFF" }}>
-            <FlaskConical className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-ink-primary">实验记录</h1>
-            <p className="text-xs text-ink-tertiary mt-0.5">记录实验配置与结果，上传截图，关联投稿同步进度。</p>
-          </div>
+        <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-nm-dark/10">
+          <h1 className="text-2xl font-bold text-ink-primary">实验记录</h1>
+          <p className="mt-1 text-sm text-ink-tertiary">记录实验配置与结果，上传截图，关联投稿同步进度。</p>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
@@ -367,19 +362,19 @@ export default function Experiment() {
                     className="w-full text-left rounded-2xl px-3 py-2.5 transition-all duration-150 group"
                     style={
                       selectedId === exp.id
-                        ? { background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF", borderLeft: "3px solid #007AFF" }
-                        : { background: "rgba(255,255,255,0.55)", boxShadow: "2px 2px 6px rgba(0,0,0,0.06), -1px -1px 4px rgba(255,255,255,0.9)" }
+                        ? { background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)", borderLeft: "3px solid #007AFF" }
+                        : { background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }
                     }
                     onMouseEnter={(e) => {
                       if (exp.id !== selectedId) {
-                        e.currentTarget.style.boxShadow = "3px 3px 8px rgba(0,0,0,0.1), -2px -2px 5px rgba(255,255,255,1)";
-                        e.currentTarget.style.background = "rgba(255,255,255,0.75)";
+                        e.currentTarget.style.boxShadow = "var(--rc-inset-shadow)";
+                        e.currentTarget.style.background = "var(--rc-card-inset-bg)";
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (exp.id !== selectedId) {
-                        e.currentTarget.style.boxShadow = "2px 2px 6px rgba(0,0,0,0.06), -1px -1px 4px rgba(255,255,255,0.9)";
-                        e.currentTarget.style.background = "rgba(255,255,255,0.55)";
+                        e.currentTarget.style.boxShadow = "var(--rc-chip-shadow)";
+                        e.currentTarget.style.background = "var(--rc-surface)";
                       }
                     }}
                   >
@@ -413,7 +408,7 @@ export default function Experiment() {
             {!selected ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center space-y-2">
-                  <div className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 6px #C8CDD3, inset -2px -2px 6px #FFFFFF" }}>
+                  <div className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}>
                     <FlaskConical className="w-7 h-7 text-ink-tertiary/50" />
                   </div>
                   <p className="text-sm text-ink-tertiary">从左侧选择记录，或新建一条</p>

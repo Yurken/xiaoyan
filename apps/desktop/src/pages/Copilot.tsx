@@ -437,13 +437,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       style={
         currentSession?.id === session.id
           ? {
-              background: "#E8ECF0",
-              boxShadow: "inset 3px 3px 6px #C8CDD3, inset -3px -3px 6px #FFFFFF",
+              background: "var(--rc-surface)",
+              boxShadow: "var(--rc-inset-shadow)",
               color: "#007AFF",
             }
           : {
-              background: "rgba(255,255,255,0.6)",
-              boxShadow: "2px 2px 6px #D0D6DC, -2px -2px 5px #FFFFFF",
+              background: "var(--rc-surface)",
+              boxShadow: "var(--rc-chip-shadow)",
               color: "#3C3C43",
             }
       }
@@ -465,11 +465,11 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   return (
     <>
-    <div className="flex h-full overflow-hidden" style={{ background: "linear-gradient(180deg, #F3F6FA 0%, #E8ECF0 100%)" }}>
+    <div className="flex h-full overflow-hidden" style={{ background: "linear-gradient(180deg, #F3F6FA 0%, var(--rc-surface) 100%)" }}>
       <div
         className="w-52 flex-shrink-0 flex flex-col"
         style={{
-          background: "linear-gradient(180deg, #F0F4F8 0%, #E8ECF0 100%)",
+          background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
           boxShadow: "4px 0 10px rgba(0,0,0,0.04)",
         }}
       >
@@ -601,7 +601,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           <div
             className="flex h-[52px] items-center justify-between px-4"
             style={{
-              background: "linear-gradient(180deg, #F0F4F8, #E8ECF0)",
+              background: "linear-gradient(180deg, var(--rc-surface), var(--rc-surface))",
               boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
             }}
           >
@@ -639,9 +639,9 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               <div
                 className="px-3 py-1.5 rounded-full text-xs font-medium"
                 style={{
-                  background: "#E8ECF0",
+                  background: "var(--rc-surface)",
                   color: updatingSessionContext ? "#007AFF" : sending ? "#FF9500" : "#34C759",
-                  boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                  boxShadow: "var(--rc-inset-shadow)",
                 }}
               >
                 {updatingSessionContext ? "正在更新归属" : sending ? "处理中" : "就绪"}
@@ -748,8 +748,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                                         key={`${step.agent_name}-${index}`}
                                         className="rounded-xl px-3 py-2"
                                         style={{
-                                          background: "#E8ECF0",
-                                          boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                                          background: "var(--rc-surface)",
+                                          boxShadow: "var(--rc-inset-shadow)",
                                         }}
                                       >
                                         <div className="flex items-center justify-between gap-2">
@@ -772,7 +772,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                           className="rounded-3xl px-4 py-3 text-sm"
                           style={{
                             background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)",
-                            boxShadow: "4px 4px 10px #C8CDD3, -4px -4px 10px #FFFFFF",
+                            boxShadow: "var(--rc-chip-shadow)",
                             color: "#1C1C1E",
                           }}
                         >
@@ -809,8 +809,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                           <span
                             className="rounded-full px-2.5 py-1"
                             style={{
-                              background: "#E8ECF0",
-                              boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                              background: "var(--rc-surface)",
+                              boxShadow: "var(--rc-inset-shadow)",
                             }}
                           >
                             {source.source || `来源 ${index + 1}`}
@@ -984,8 +984,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                 placeholder={MAIN_ASSISTANT_INPUT_PLACEHOLDER}
                 className="w-full rounded-3xl px-5 py-3 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none transition-shadow duration-150"
                 style={{
-                  background: "#E8ECF0",
-                  boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                  background: "var(--rc-surface)",
+                  boxShadow: "var(--rc-inset-shadow)",
                 }}
               />
             </div>
@@ -1150,8 +1150,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         style={{
           left: contextMenu.x,
           top: contextMenu.y,
-          background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)",
-          boxShadow: "6px 6px 16px #C8CDD3, -4px -4px 12px #FFFFFF",
+          background: "linear-gradient(145deg, #F2F6FA, var(--rc-surface))",
+          boxShadow: "var(--rc-chip-shadow)",
         }}
         onClick={(e) => e.stopPropagation()}
       >

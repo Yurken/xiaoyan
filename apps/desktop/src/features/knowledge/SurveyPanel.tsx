@@ -357,7 +357,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
             style={
               !selectedInterestId
                 ? { background: "rgba(0,122,255,0.15)", color: "rgb(0,122,255)" }
-                : { background: "#E8ECF0", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF", color: "var(--color-ink-tertiary)" }
+                : { background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)", color: "var(--color-ink-tertiary)" }
             }
           >
             <Search className="h-3 w-3" />
@@ -389,7 +389,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
                 style={
                   isSelected
                     ? { background: "rgba(0,122,255,0.15)", color: "rgb(0,122,255)" }
-                    : { background: "#E8ECF0", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF", color: "var(--color-ink-tertiary)" }
+                    : { background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)", color: "var(--color-ink-tertiary)" }
                 }
               >
                 <Folder className="h-3 w-3" />
@@ -665,7 +665,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
                     <div
                       key={agent.id}
                       className="rounded-2xl p-3"
-                      style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+                      style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
@@ -1026,7 +1026,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
           <div
             className="flex h-14 w-14 items-center justify-center rounded-3xl"
-            style={{ background: "#E8ECF0", boxShadow: "inset 4px 4px 8px #C8CDD3, inset -4px -4px 8px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
           >
             <FileSearch className="h-7 w-7 text-ink-tertiary" />
           </div>

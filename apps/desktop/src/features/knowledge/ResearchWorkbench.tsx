@@ -473,7 +473,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
                       <div className="mt-2 flex flex-wrap gap-2">
                         {message.sources.map((source, index) => (
                           <ExternalLink key={`${source.source}-${index}`} href={source.url} title={source.content} className="rounded-full px-2.5 py-1 text-[11px] text-ink-tertiary">
-                            <span style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }} className="inline-flex rounded-full px-2.5 py-1 hover:text-apple-blue">
+                            <span style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }} className="inline-flex rounded-full px-2.5 py-1 hover:text-apple-blue">
                               {source.source || `来源 ${index + 1}`}
                             </span>
                           </ExternalLink>

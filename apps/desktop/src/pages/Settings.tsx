@@ -5,6 +5,7 @@ import {
   CheckCircle,
   Download,
   FileSearch,
+  Layers3,
   Loader2,
   Upload,
   Wifi,
@@ -24,7 +25,7 @@ import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from
 import TaskSetupSection from "../features/settings/TaskSetupSection";
 import LayoutSettingsSection from "../features/settings/LayoutSettingsSection";
 import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, SettingsSectionTab, type SettingsSectionKey } from "../features/settings/pageConfig";
-import { SectionIcon } from "../features/settings/shared";
+import { AgentChip, SectionIcon } from "../features/settings/shared";
 import { applyProviderPreset, detectPreset, PROVIDER_PRESETS, type ProviderPresetId } from "../features/settings/providerPresets";
 import { useSettingsController } from "../features/settings/useSettingsController";
 import { useSettingsCrypto } from "../features/settings/useSettingsCrypto";
@@ -156,14 +157,13 @@ export default function Settings() {
 
   return (
     <>
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" style={{ background: "var(--rc-surface)" }}>
       <div
-        className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b"
-        style={{ background: "var(--rc-header-bg)", borderColor: "var(--rc-border)" }}
+        className="flex-shrink-0 flex items-center justify-between px-6 pt-5 pb-4 border-b"
+        style={{ borderColor: "var(--rc-border)" }}
       >
         <div>
-          <h1 className="text-lg font-bold text-ink-primary leading-tight">设置</h1>
-          <p className="text-xs text-ink-tertiary">按用途配置小妍能力域、检索参数和多能力域模型协作策略</p>
+          <h1 className="text-2xl font-bold text-ink-primary">设置</h1>
         </div>
         <div className="flex items-center gap-2">
           {/* 导出配置 */}

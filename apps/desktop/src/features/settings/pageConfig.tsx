@@ -101,23 +101,23 @@ export function SettingsSectionTab({
           ? {
               background: "var(--rc-elevated)",
               border: "1px solid rgba(10,132,255,0.35)",
-              boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+              boxShadow: "var(--rc-raised-shadow)",
             }
           : {
               background: "var(--rc-surface)",
               border: "1px solid var(--rc-border)",
-              boxShadow: "0 8px 18px rgba(0,0,0,0.3)",
+              boxShadow: "var(--rc-flat-shadow)",
             }
       }
     >
       <div className="flex items-center gap-3">
         <div
-          className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+          className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-shadow"
           style={{
             background: "var(--rc-card-inset-bg)",
             border: "1px solid var(--rc-border)",
             color,
-            boxShadow: "var(--rc-inset-shadow)",
+            boxShadow: "var(--rc-chip-inset-shadow)",
           }}
         >
           <Icon className="w-5 h-5" />

@@ -22,9 +22,9 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
   );
 
   return (
-    <div className="rc-app-page space-y-5">
+    <div className="rc-app-page h-full flex flex-col" style={{ background: "var(--rc-surface)" }}>
       <div className="space-y-4">
-        <div>
+        <div className="shrink-0">
           <h1 className="text-2xl font-bold text-ink-primary">知识库</h1>
           <p className="mt-1 text-sm text-ink-tertiary">
             不只是存笔记。把论文、观点、证据和实验组织成可追溯知识图谱，随时回答“这个结论从哪里来”。

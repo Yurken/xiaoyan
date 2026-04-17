@@ -187,7 +187,7 @@ export function ToggleRow({
         type="button"
         onClick={onToggle}
         className="w-16 h-9 rounded-full relative transition-colors flex-shrink-0 overflow-hidden"
-        style={{ background: checked ? "#34C759" : "#C8CDD3" }}
+        style={{ background: checked ? "#34C759" : "var(--rc-chip-inset-bg)" }}
       >
         <span
           className="absolute left-1 top-1 h-7 w-7 rounded-full bg-white transition-transform"
