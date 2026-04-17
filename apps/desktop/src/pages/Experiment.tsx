@@ -327,7 +327,7 @@ export default function Experiment() {
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex-shrink-0 px-8 pt-7 pb-5 border-b border-nm-dark/10">
+        <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-nm-dark/10">
           <h1 className="text-2xl font-bold text-ink-primary">实验记录</h1>
           <p className="mt-1 text-sm text-ink-tertiary">记录实验配置与结果，上传截图，关联投稿同步进度。</p>
         </div>

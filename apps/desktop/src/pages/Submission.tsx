@@ -785,7 +785,7 @@ export default function Submission() {
 
       {/* ── Header ── */}
       <div
-        className="flex-shrink-0 px-8 pt-7 pb-5"
+        className="flex-shrink-0 px-6 pt-5 pb-4"
         style={{ borderBottom: "1px solid var(--rc-border)" }}
       >
         <div className="flex items-start justify-between">
