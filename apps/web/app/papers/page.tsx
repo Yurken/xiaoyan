@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import Link from "next/link";
 import { FileText, Upload, Plus, Trash2, Eye, Clock } from "lucide-react";
-import { Card, Button, Badge } from "@research-copilot/ui";
+import { Card, Button, Badge, ConfirmDialog } from "@research-copilot/ui";
 import { papersApi } from "@/lib/client";
 import type { Paper } from "@research-copilot/types";
 
@@ -17,6 +17,8 @@ export default function PapersPage() {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [deletingPaperId, setDeletingPaperId] = useState<string | null>(null);
+  const [pendingDeletePaper, setPendingDeletePaper] = useState<Paper | null>(null);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -49,13 +51,17 @@ export default function PapersPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("确认删除这篇论文？")) return;
+  const handleDelete = async () => {
+    if (!pendingDeletePaper) return;
+    setDeletingPaperId(pendingDeletePaper.id);
     try {
-      await papersApi.delete(id);
-      setPapers((prev) => prev.filter((p) => p.id !== id));
+      await papersApi.delete(pendingDeletePaper.id);
+      setPapers((prev) => prev.filter((p) => p.id !== pendingDeletePaper.id));
+      setPendingDeletePaper(null);
     } catch {
       setError("删除失败");
+    } finally {
+      setDeletingPaperId(null);
     }
   };
 
@@ -131,7 +137,12 @@ export default function PapersPage() {
                         精读
                       </Button>
                     </Link>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(paper.id)}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`删除论文 ${paper.title}`}
+                      title="删除论文"
+                      onClick={() => setPendingDeletePaper(paper)}
                       className="text-red-400 hover:text-red-600 hover:bg-red-50">
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -142,6 +153,24 @@ export default function PapersPage() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDeletePaper !== null}
+        title="删除论文"
+        description={
+          pendingDeletePaper
+            ? `确认删除《${pendingDeletePaper.title}》吗？删除后无法恢复。`
+            : ""
+        }
+        confirmLabel="确认删除"
+        tone="danger"
+        loading={deletingPaperId !== null}
+        onClose={() => {
+          if (deletingPaperId) return;
+          setPendingDeletePaper(null);
+        }}
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   );
 }

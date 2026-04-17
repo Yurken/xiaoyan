@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { InputHTMLAttributes, TextareaHTMLAttributes, forwardRef } from "react";
+import { InputHTMLAttributes, TextareaHTMLAttributes, forwardRef, useId } from "react";
 
 const nmInset = "var(--rc-control-shadow)";
 const nmInsetError = "0 0 0 1px rgba(255, 59, 48, 0.45), 0 0 0 4px rgba(255, 59, 48, 0.12)";
@@ -11,16 +11,23 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className, style, onFocus, onBlur, ...props }, ref) => {
+  ({ label, error, id, className, style, onFocus, onBlur, ...props }, ref) => {
+    const generatedId = useId();
+    const controlId = id ?? generatedId;
+    const errorId = `${controlId}-error`;
+
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-xs font-medium text-ink-tertiary mb-1.5 ml-1">
+          <label htmlFor={controlId} className="block text-xs font-medium text-ink-tertiary mb-1.5 ml-1">
             {label}
           </label>
         )}
         <input
           ref={ref}
+          id={controlId}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           className={clsx(
             "w-full rounded-2xl border px-4 py-2.5 text-sm outline-none",
             "text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]",
@@ -45,7 +52,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           }}
           {...props}
         />
-        {error && <p className="mt-1 text-xs text-apple-red ml-1">{error}</p>}
+        {error && <p id={errorId} role="alert" className="mt-1 text-xs text-apple-red ml-1">{error}</p>}
       </div>
     );
   }
@@ -58,16 +65,23 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ label, error, className, style, onFocus, onBlur, ...props }, ref) => {
+  ({ label, error, id, className, style, onFocus, onBlur, ...props }, ref) => {
+    const generatedId = useId();
+    const controlId = id ?? generatedId;
+    const errorId = `${controlId}-error`;
+
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-xs font-medium text-ink-tertiary mb-1.5 ml-1">
+          <label htmlFor={controlId} className="block text-xs font-medium text-ink-tertiary mb-1.5 ml-1">
             {label}
           </label>
         )}
         <textarea
           ref={ref}
+          id={controlId}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           className={clsx(
             "w-full rounded-2xl border px-4 py-2.5 text-sm outline-none resize-none",
             "text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]",
@@ -92,7 +106,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           }}
           {...props}
         />
-        {error && <p className="mt-1 text-xs text-apple-red ml-1">{error}</p>}
+        {error && <p id={errorId} role="alert" className="mt-1 text-xs text-apple-red ml-1">{error}</p>}
       </div>
     );
   }
