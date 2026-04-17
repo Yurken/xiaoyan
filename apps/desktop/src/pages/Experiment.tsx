@@ -368,18 +368,18 @@ export default function Experiment() {
                     style={
                       selectedId === exp.id
                         ? { background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)", borderLeft: "3px solid #007AFF" }
-                        : { background: "rgba(255,255,255,0.55)", boxShadow: "2px 2px 6px rgba(0,0,0,0.06), -1px -1px 4px rgba(255,255,255,0.9)" }
+                        : { background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }
                     }
                     onMouseEnter={(e) => {
                       if (exp.id !== selectedId) {
-                        e.currentTarget.style.boxShadow = "3px 3px 8px rgba(0,0,0,0.1), -2px -2px 5px rgba(255,255,255,1)";
-                        e.currentTarget.style.background = "rgba(255,255,255,0.75)";
+                        e.currentTarget.style.boxShadow = "var(--rc-inset-shadow)";
+                        e.currentTarget.style.background = "var(--rc-card-inset-bg)";
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (exp.id !== selectedId) {
-                        e.currentTarget.style.boxShadow = "2px 2px 6px rgba(0,0,0,0.06), -1px -1px 4px rgba(255,255,255,0.9)";
-                        e.currentTarget.style.background = "rgba(255,255,255,0.55)";
+                        e.currentTarget.style.boxShadow = "var(--rc-chip-shadow)";
+                        e.currentTarget.style.background = "var(--rc-surface)";
                       }
                     }}
                   >

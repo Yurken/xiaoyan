@@ -442,8 +442,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               color: "#007AFF",
             }
           : {
-              background: "rgba(255,255,255,0.6)",
-              boxShadow: "2px 2px 6px #D0D6DC, -2px -2px 5px #FFFFFF",
+              background: "var(--rc-surface)",
+              boxShadow: "var(--rc-chip-shadow)",
               color: "#3C3C43",
             }
       }
