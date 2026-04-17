@@ -324,8 +324,8 @@ export default function Experiment() {
   }
 
   return (
-    <div className="h-full overflow-hidden p-5">
-      <div className="h-full flex flex-col rounded-3xl overflow-hidden shadow-nm-card" style={{ background: "var(--rc-card-bg)" }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+      <div className="flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center gap-3 px-6 py-4 flex-shrink-0 border-b border-nm-dark/10">
           <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(0,122,255,0.12)", color: "#007AFF" }}>
