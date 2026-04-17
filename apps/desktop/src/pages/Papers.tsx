@@ -1064,15 +1064,15 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   );
 
   return (
-    <div className="rc-app-page space-y-5">
+    <div className="rc-app-page space-y-5" style={{ background: "var(--rc-surface)" }}>
       <style>{`
         @keyframes thinking-dot {
           0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
           30% { transform: translateY(-5px); opacity: 1; }
         }
       `}</style>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between shrink-0 px-2">
+        <div className="pt-2">
           <h1 className="text-2xl font-bold text-ink-primary">论文库</h1>
           <p className="mt-1 text-sm text-ink-tertiary">
             {`共 ${papers.length} 篇论文 · ${interests.length} 个主题分组`}

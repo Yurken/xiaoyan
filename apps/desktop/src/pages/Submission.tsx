@@ -781,11 +781,11 @@ export default function Submission() {
   const acceptedCount = submissions.filter(s => s.status === "accepted").length;
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
 
       {/* ── Header ── */}
       <div
-        className="flex-shrink-0 px-6 pt-5 pb-5"
+        className="flex-shrink-0 px-8 pt-7 pb-5"
         style={{ borderBottom: "1px solid var(--rc-border)" }}
       >
         <div className="flex items-start justify-between">
