@@ -56,7 +56,7 @@ export default function TopicDiscoveryWizard({ onSelect, onClose }: Props) {
   return (
     <div
       className="rounded-2xl p-4 space-y-4"
-      style={{ background: "linear-gradient(145deg, #F2F6FA, #E8ECF0)", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+      style={{ background: "linear-gradient(145deg, #F2F6FA, var(--rc-surface))", boxShadow: "var(--rc-inset-shadow)" }}
     >
       {/* 头部 */}
       <div className="flex items-start justify-between gap-3">
@@ -90,11 +90,11 @@ export default function TopicDiscoveryWizard({ onSelect, onClose }: Props) {
               }}
               className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
               style={{
-                background: field === f ? "#007AFF" : "#E8ECF0",
+                background: field === f ? "#007AFF" : "var(--rc-surface)",
                 color: field === f ? "#fff" : "#3C3C43",
                 boxShadow: field === f
                   ? "inset 1px 1px 3px rgba(0,0,0,0.2)"
-                  : "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF",
+                  : "var(--rc-chip-shadow)",
               }}
             >
               {f}
@@ -118,11 +118,11 @@ export default function TopicDiscoveryWizard({ onSelect, onClose }: Props) {
                 }}
                 className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
                 style={{
-                  background: goalType === g ? "#007AFF" : "#E8ECF0",
+                  background: goalType === g ? "#007AFF" : "var(--rc-surface)",
                   color: goalType === g ? "#fff" : "#3C3C43",
                   boxShadow: goalType === g
                     ? "inset 1px 1px 3px rgba(0,0,0,0.2)"
-                    : "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF",
+                    : "var(--rc-chip-shadow)",
                 }}
               >
                 {g}
@@ -145,7 +145,7 @@ export default function TopicDiscoveryWizard({ onSelect, onClose }: Props) {
             placeholder="例如：硕士在读，熟悉 Python，对 NLP 和医疗数据感兴趣…"
             rows={2}
             className="w-full resize-none rounded-xl px-3 py-2 text-xs text-ink-primary placeholder:text-ink-tertiary outline-none"
-            style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
           />
           {step === "background" && (
             <div className="flex justify-end">
@@ -188,7 +188,7 @@ export default function TopicDiscoveryWizard({ onSelect, onClose }: Props) {
                   type="button"
                   onClick={() => onSelect(topic)}
                   className="w-full text-left px-3 py-2.5 rounded-xl text-xs text-ink-primary transition-all duration-150 hover:text-apple-blue"
-                  style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
+                  style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
                 >
                   {topic}
                 </button>

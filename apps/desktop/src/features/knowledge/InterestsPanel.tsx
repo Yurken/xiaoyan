@@ -408,10 +408,10 @@ export default function InterestsPanel() {
               }}
               className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-ink-secondary transition-all duration-150 hover:text-apple-blue"
               style={{
-                background: "#E8ECF0",
+                background: "var(--rc-chip-bg)",
                 boxShadow: discovering
-                  ? "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF"
-                  : "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF",
+                  ? "var(--rc-inset-shadow)"
+                  : "var(--rc-chip-shadow)",
                 color: discovering ? "#007AFF" : undefined,
               }}
             >
@@ -480,7 +480,7 @@ export default function InterestsPanel() {
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
           <div
             className="flex h-14 w-14 items-center justify-center rounded-3xl"
-            style={{ background: "#E8ECF0", boxShadow: "inset 4px 4px 8px #C8CDD3, inset -4px -4px 8px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-inset-shadow)" }}
           >
             <Sparkles className="h-7 w-7 text-ink-tertiary" />
           </div>
@@ -548,7 +548,7 @@ export default function InterestsPanel() {
                         type="button"
                         onClick={() => setExpanded((prev) => (prev === interest.id ? null : interest.id))}
                         className="rounded-xl p-1.5 text-ink-tertiary transition-colors hover:text-ink-primary"
-                        style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
+                        style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
                       >
                         {expanded === interest.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </button>

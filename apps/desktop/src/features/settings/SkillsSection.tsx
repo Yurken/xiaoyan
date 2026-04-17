@@ -308,7 +308,7 @@ function SkillCard({
             onClick={onEdit}
             title="编辑"
             className="w-6 h-6 rounded-lg flex items-center justify-center text-ink-tertiary hover:text-ink-secondary transition-colors"
-            style={{ background: "#E4E8ED", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
+            style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }}
           >
             <Pencil className="w-3 h-3" />
           </button>
@@ -318,7 +318,7 @@ function SkillCard({
               onClick={onDelete}
               title="删除"
               className="w-6 h-6 rounded-lg flex items-center justify-center text-ink-tertiary hover:text-red-500 transition-colors"
-              style={{ background: "#E4E8ED", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
+              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }}
             >
               <Trash2 className="w-3 h-3" />
             </button>
@@ -332,7 +332,7 @@ function SkillCard({
               background: skill.is_enabled ? "linear-gradient(145deg,#34C759,#28A844)" : "#DDE1E6",
               boxShadow: skill.is_enabled
                 ? "inset 1px 1px 3px rgba(0,0,0,0.1)"
-                : "inset 2px 2px 4px #C8CDD3, inset -1px -1px 3px #FFFFFF",
+                : "var(--rc-inset-shadow)",
             }}
           >
             <span

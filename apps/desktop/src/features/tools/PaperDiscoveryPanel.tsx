@@ -357,7 +357,7 @@ export function PaperDiscoveryPanel({
                       className="rounded-xl px-2.5 py-1 text-xs font-semibold transition-all duration-100 active:scale-95"
                       style={
                         selected
-                          ? { background: color, color: "#fff", boxShadow: `0 2px 6px ${color}55` }
+                          ? { background: color, color: "#fff", boxShadow: "var(--rc-chip-shadow)" }
                           : { background: `${color}15`, color, border: `1px solid ${color}40` }
                       }
                     >

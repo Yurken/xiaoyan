@@ -37,7 +37,7 @@ function MarkdownEditor({
                 className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium transition-all duration-100"
                 style={
                   tab === t
-                    ? { background: "#E8ECF0", boxShadow: "inset 1px 1px 3px #C8CDD3, inset -1px -1px 3px #FFFFFF", color: "#1C1C1E" }
+                    ? { background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)", color: "#1C1C1E" }
                     : { color: "#8E8E93" }
                 }
               >
@@ -55,12 +55,12 @@ function MarkdownEditor({
           rows={rows}
           placeholder={placeholder}
           className="w-full resize-none rounded-2xl px-4 py-3 text-sm text-ink-primary outline-none placeholder:text-ink-tertiary/60 leading-relaxed"
-          style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF", fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: "12px" }}
+          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)", fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: "12px" }}
         />
       ) : (
         <div
           className="min-h-[120px] rounded-2xl px-4 py-3 text-sm"
-          style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF" }}
+          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
         >
           {value.trim() ? (
             <MarkdownRenderer content={value} />
@@ -160,7 +160,7 @@ function NoteDetailModal({
       <div
         className="relative flex h-full w-full max-w-2xl flex-col overflow-hidden"
         style={{
-          background: "linear-gradient(160deg, #F3F6FA 0%, #E8ECF0 100%)",
+          background: "linear-gradient(160deg, #F3F6FA 0%, var(--rc-surface) 100%)",
           boxShadow: "-8px 0 32px rgba(0,0,0,0.1)",
           transform: visible ? "translateX(0)" : "translateX(100%)",
           transition: "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)",
@@ -169,7 +169,7 @@ function NoteDetailModal({
         {/* Header */}
         <div
           className="flex flex-shrink-0 items-center justify-between px-6 py-4"
-          style={{ background: "linear-gradient(180deg, #F0F4F8, #E8ECF0)", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
+          style={{ background: "linear-gradient(180deg, var(--rc-surface), var(--rc-surface))", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
         >
           <button
             type="button"
@@ -265,7 +265,7 @@ function NoteDetailModal({
               {/* Content */}
               <div
                 className="rounded-3xl px-5 py-4 text-sm leading-relaxed"
-                style={{ background: "#E8ECF0", boxShadow: "inset 3px 3px 7px #C8CDD3, inset -3px -3px 7px #FFFFFF" }}
+                style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
               >
                 {note.content.trim() ? (
                   <MarkdownRenderer content={note.content} />
@@ -713,7 +713,7 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
           <div
             className="flex h-14 w-14 items-center justify-center rounded-3xl"
-            style={{ background: "#E8ECF0", boxShadow: "inset 4px 4px 8px #C8CDD3, inset -4px -4px 8px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
           >
             <StickyNote className="h-7 w-7 text-ink-tertiary" />
           </div>

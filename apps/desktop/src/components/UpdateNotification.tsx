@@ -15,7 +15,7 @@ export default function UpdateNotification({ updateInfo, installing, install, di
     <div
       className="fixed bottom-5 right-5 z-50 w-[320px] rounded-[28px] p-5 space-y-4"
       style={{
-        background: "linear-gradient(145deg, #F0F4F8, #E8ECF0)",
+        background: "linear-gradient(145deg, var(--rc-surface), var(--rc-surface))",
         boxShadow: "10px 10px 24px rgba(183,190,199,0.75), -10px -10px 24px rgba(255,255,255,0.9)",
       }}
     >
@@ -43,7 +43,7 @@ export default function UpdateNotification({ updateInfo, installing, install, di
           type="button"
           onClick={dismiss}
           className="w-7 h-7 flex-shrink-0 rounded-xl flex items-center justify-center text-ink-tertiary hover:text-ink-secondary transition-colors"
-          style={{ background: "#E8ECF0", boxShadow: "2px 2px 5px #C8CDD3, -2px -2px 5px #FFFFFF" }}
+          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
         >
           <X className="w-3.5 h-3.5" />
         </button>
@@ -53,7 +53,7 @@ export default function UpdateNotification({ updateInfo, installing, install, di
       <div className="flex items-center gap-2 text-xs">
         <span
           className="rounded-xl px-2.5 py-1 text-ink-tertiary"
-          style={{ background: "#E8ECF0", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF" }}
+          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
         >
           当前 {updateInfo.current_version}
         </span>
@@ -89,7 +89,7 @@ export default function UpdateNotification({ updateInfo, installing, install, di
           type="button"
           onClick={dismiss}
           className="px-4 py-2.5 rounded-2xl text-sm font-medium text-ink-secondary transition-all duration-150 active:scale-95"
-          style={{ background: "#E8ECF0", boxShadow: "3px 3px 6px #C8CDD3, -3px -3px 6px #FFFFFF" }}
+          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
         >
           稍后
         </button>

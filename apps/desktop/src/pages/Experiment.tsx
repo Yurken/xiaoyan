@@ -49,7 +49,7 @@ function rowToExperiment(row: unknown): ExperimentRecord {
   };
 }
 
-const nmInset = "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF";
+const nmInset = "var(--rc-inset-shadow)";
 const nmInsetFocus = "inset 3px 3px 7px #C0C5CB, inset -3px -3px 7px #FFFFFF, 0 0 0 2px rgba(0,122,255,0.25)";
 
 /** Lightbox for viewing an attachment at full size */
@@ -145,7 +145,7 @@ function AttachmentPanel({ experimentId }: { experimentId: string }) {
       {attachments.length === 0 ? (
         <div
           className="flex flex-col items-center justify-center gap-2 rounded-2xl py-8 text-center cursor-pointer transition-shadow duration-150"
-          style={{ background: "#E8ECF0", boxShadow: nmInset }}
+          style={{ background: "var(--rc-surface)", boxShadow: nmInset }}
           onClick={handleUpload}
         >
           <ImagePlus className="w-8 h-8 text-ink-tertiary" />
@@ -157,7 +157,7 @@ function AttachmentPanel({ experimentId }: { experimentId: string }) {
             <div
               key={att.id}
               className="relative group rounded-2xl overflow-hidden"
-              style={{ aspectRatio: "4/3", background: "#E8ECF0", boxShadow: nmInset }}
+              style={{ aspectRatio: "4/3", background: "var(--rc-surface)", boxShadow: nmInset }}
             >
               <img
                 src={att.dataUrl}
@@ -367,7 +367,7 @@ export default function Experiment() {
                     className="w-full text-left rounded-2xl px-3 py-2.5 transition-all duration-150 group"
                     style={
                       selectedId === exp.id
-                        ? { background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF", borderLeft: "3px solid #007AFF" }
+                        ? { background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)", borderLeft: "3px solid #007AFF" }
                         : { background: "rgba(255,255,255,0.55)", boxShadow: "2px 2px 6px rgba(0,0,0,0.06), -1px -1px 4px rgba(255,255,255,0.9)" }
                     }
                     onMouseEnter={(e) => {
@@ -413,7 +413,7 @@ export default function Experiment() {
             {!selected ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center space-y-2">
-                  <div className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 6px #C8CDD3, inset -2px -2px 6px #FFFFFF" }}>
+                  <div className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}>
                     <FlaskConical className="w-7 h-7 text-ink-tertiary/50" />
                   </div>
                   <p className="text-sm text-ink-tertiary">从左侧选择记录，或新建一条</p>

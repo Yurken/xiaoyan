@@ -573,9 +573,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             onClick={(e) => { e.stopPropagation(); setSortKey(groupId, key); }}
             className="rounded-lg px-2 py-0.5 text-[10px] transition-all"
             style={{
-              background: active ? "#007AFF" : "#E8ECF0",
+              background: active ? "#007AFF" : "var(--rc-surface)",
               color: active ? "#fff" : "#999",
-              boxShadow: active ? "inset 1px 1px 2px rgba(0,0,0,0.2)" : "1px 1px 3px #C8CDD3, -1px -1px 3px #FFFFFF",
+              boxShadow: active ? "inset 1px 1px 2px rgba(0,0,0,0.2)" : "var(--rc-chip-shadow)",
               fontWeight: active ? 600 : 400,
             }}
           >
@@ -587,12 +587,12 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   );
 
   const inputStyle = (active: boolean) => ({
-    background: active ? "rgba(0,122,255,0.1)" : "#E8ECF0",
+    background: active ? "rgba(0,122,255,0.1)" : "var(--rc-surface)",
     color: active ? "#007AFF" : "#8E8E93",
     fontWeight: active ? 600 : 400,
     boxShadow: active
       ? "inset 1px 1px 2px rgba(0,122,255,0.15)"
-      : "1px 1px 3px #C8CDD3, -1px -1px 3px #FFFFFF",
+      : "var(--rc-chip-shadow)",
   });
 
   const renderGroupControls = (groupId: string) => {
@@ -629,7 +629,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         {/* 状态图标 */}
         <div
           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl mt-0.5"
-          style={{ background: "#F0F4F8", boxShadow: "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF" }}
+          style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
         >
           {statusIcon(paper.status)}
         </div>
@@ -735,10 +735,10 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               editingId === paper.id ? "text-apple-blue" : "text-ink-tertiary hover:text-ink-primary",
             ].join(" ")}
             style={{
-              background: "#EEF1F5",
+              background: "var(--rc-surface)",
               boxShadow: editingId === paper.id
-                ? "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF"
-                : "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF",
+                ? "var(--rc-inset-shadow)"
+                : "var(--rc-chip-shadow)",
             }}
             title={editingId === paper.id ? "收起编辑" : "编辑信息"}
           >
@@ -753,10 +753,10 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               confirmDeletePaperId === paper.id ? "text-apple-red" : "text-ink-tertiary/50 hover:text-apple-red",
             ].join(" ")}
             style={{
-              background: "#EEF1F5",
+              background: "var(--rc-surface)",
               boxShadow: confirmDeletePaperId === paper.id
-                ? "inset 2px 2px 4px #C8CDD3, inset -2px -2px 4px #FFFFFF"
-                : "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF",
+                ? "var(--rc-inset-shadow)"
+                : "var(--rc-chip-shadow)",
             }}
             title="删除论文"
           >
@@ -796,7 +796,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                 }
               }}
               className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-tertiary hover:text-ink-primary transition-colors"
-              style={{ background: "#EEF1F5", boxShadow: "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF" }}
+              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }}
             >
               {expanded === paper.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
@@ -919,11 +919,11 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                   onClick={() => setEditDraft((prev) => ({ ...prev, importance_color: color }))}
                   className="flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs transition-all"
                   style={{
-                    background: editDraft.importance_color === color ? (color || "rgba(0,0,0,0.08)") : "#E8ECF0",
+                    background: editDraft.importance_color === color ? (color || "rgba(0,0,0,0.08)") : "var(--rc-surface)",
                     color: editDraft.importance_color === color && color ? "#fff" : "#666",
                     boxShadow: editDraft.importance_color === color
                       ? "inset 1px 1px 3px rgba(0,0,0,0.2)"
-                      : "2px 2px 4px #C8CDD3, -2px -2px 4px #FFFFFF",
+                      : "var(--rc-chip-shadow)",
                     fontWeight: editDraft.importance_color === color ? 600 : 400,
                   }}
                 >
@@ -943,8 +943,8 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               rows={2}
               className="w-full resize-none rounded-2xl px-4 py-2.5 text-sm text-ink-primary outline-none transition-all duration-150"
               style={{
-                background: "#E8ECF0",
-                boxShadow: "inset 2px 2px 5px #C8CDD3, inset -2px -2px 5px #FFFFFF",
+                background: "var(--rc-surface)",
+                boxShadow: "var(--rc-inset-shadow)",
               }}
             />
           </div>
@@ -1173,7 +1173,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         <div className="flex flex-col items-center justify-center gap-3 py-24">
           <div
             className="flex h-14 w-14 items-center justify-center rounded-3xl"
-            style={{ background: "#E8ECF0", boxShadow: "5px 5px 10px #C8CDD3, -5px -5px 10px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
           >
             <Loader2 className="h-7 w-7 animate-spin text-apple-blue" />
           </div>
@@ -1183,7 +1183,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         <Card className="flex flex-col items-center gap-4 py-20 text-center">
           <div
             className="flex h-16 w-16 items-center justify-center rounded-3xl"
-            style={{ background: "#E8ECF0", boxShadow: "inset 4px 4px 8px #C8CDD3, inset -4px -4px 8px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
           >
             <AlertCircle className="h-8 w-8 text-apple-red" />
           </div>
@@ -1196,7 +1196,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         <Card className="flex flex-col items-center gap-4 py-20 text-center">
           <div
             className="flex h-16 w-16 items-center justify-center rounded-3xl"
-            style={{ background: "#E8ECF0", boxShadow: "inset 4px 4px 8px #C8CDD3, inset -4px -4px 8px #FFFFFF" }}
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
           >
             <FileText className="h-8 w-8 text-ink-tertiary" />
           </div>

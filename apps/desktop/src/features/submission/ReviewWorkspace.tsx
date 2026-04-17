@@ -134,7 +134,7 @@ export default function ReviewWorkspace({
                       ? {
                           background: verdictStyle.bg,
                           color: verdictStyle.color,
-                          boxShadow: `0 0 0 1.5px ${verdictStyle.color}40`,
+                          boxShadow: "var(--rc-chip-shadow)",
                         }
                       : {
                           background: "var(--rc-card-bg)",
