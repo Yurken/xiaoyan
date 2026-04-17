@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowLeft, Eye, Globe, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
 import { Badge, Button, Card, Input, MarkdownRenderer, Select } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
-import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
+import { useKnowledgeNotesWorkspace } from "./useKnowledgeNotesWorkspace";
 
 function MarkdownEditor({
   label,
@@ -100,6 +100,7 @@ function interestFolderName(interest: ResearchInterest) {
 
 function NoteDetailModal({
   note,
+  linkedClaimCount,
   interests,
   interestMap,
   onClose,
@@ -107,6 +108,7 @@ function NoteDetailModal({
   onDelete,
 }: {
   note: KnowledgeNote;
+  linkedClaimCount: number;
   interests: ResearchInterest[];
   interestMap: Record<string, ResearchInterest>;
   onClose: () => void;
@@ -137,6 +139,8 @@ function NoteDetailModal({
     try {
       await onSave(note.id, draft);
       setMode("read");
+    } catch {
+      // Error state is rendered by the parent workspace.
     } finally {
       setSaving(false);
     }
@@ -147,8 +151,12 @@ function NoteDetailModal({
       setConfirmDelete(true);
       return;
     }
-    await onDelete(note.id);
-    handleClose();
+    try {
+      await onDelete(note.id);
+      handleClose();
+    } catch {
+      // Error state is rendered by the parent workspace.
+    }
   };
 
   return (
@@ -237,6 +245,9 @@ function NoteDetailModal({
               {/* Meta row */}
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
+                {linkedClaimCount > 0 ? (
+                  <Badge variant="info">支撑 {linkedClaimCount} 条结论</Badge>
+                ) : null}
                 {note.research_interest_id && interestMap[note.research_interest_id] && (
                   <span className="rc-accent-chip rounded-full px-2.5 py-0.5 text-[11px]">
                     {interestFolderName(interestMap[note.research_interest_id])}
@@ -308,13 +319,43 @@ function NoteDetailModal({
   );
 }
 
-export default function NotesPanel({ hideFolders = false, researchInterestId }: { hideFolders?: boolean; researchInterestId?: string }) {
-  const [notes, setNotes] = useState<KnowledgeNote[]>([]);
-  const [interests, setInterests] = useState<ResearchInterest[]>([]);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+export default function NotesPanel({
+  hideFolders = false,
+  researchInterestId,
+  initialNotes,
+  initialInterests,
+  linkedNoteClaimCounts,
+  onNotesChanged,
+}: {
+  hideFolders?: boolean;
+  researchInterestId?: string;
+  initialNotes?: KnowledgeNote[];
+  initialInterests?: ResearchInterest[];
+  linkedNoteClaimCounts?: Record<string, number>;
+  onNotesChanged?: () => void | Promise<void>;
+}) {
+  const {
+    interests,
+    search,
+    setSearch,
+    loading,
+    error,
+    clearError,
+    interestMap,
+    scopedNotes,
+    noteGroups,
+    ungroupedNotes,
+    createNote,
+    deleteNote,
+    saveNote,
+    deleteInterestGroup,
+    clipWebPage,
+  } = useKnowledgeNotesWorkspace({
+    researchInterestId,
+    initialNotes,
+    initialInterests,
+    onNotesChanged,
+  });
   const [creating, setCreating] = useState(false);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
@@ -329,81 +370,15 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
   const [webClipLoading, setWebClipLoading] = useState(false);
   const [webClipError, setWebClipError] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-
-    apiClient.knowledge.listInterests()
-      .then((data) => {
-        if (!cancelled) {
-          setInterests(data);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 350);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-
-    apiClient.knowledge.listNotes(debouncedSearch || undefined)
-      .then((data) => {
-        if (!cancelled) {
-          setNotes(data);
-          setError("");
-          setLoading(false);
-        }
-      })
-      .catch((nextError) => {
-        if (!cancelled) {
-          setError(formatErrorMessage(nextError));
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedSearch]);
-
-  const interestMap = useMemo(
-    () => Object.fromEntries(interests.map((item) => [item.id, item])),
-    [interests]
-  );
-  const noteGroups = useMemo(() => {
-    return interests.map((interest) => ({
-      key: interest.id,
-      title: interestFolderName(interest),
-      subtitle: interest.topic,
-      notes: notes.filter((note) => note.research_interest_id === interest.id),
-    }));
-  }, [interests, notes]);
-  const ungroupedNotes = useMemo(() => (
-    notes.filter((note) => {
-      if (!note.research_interest_id) return true;
-      return !(note.research_interest_id in interestMap);
-    })
-  ), [interestMap, notes]);
-  const displayNotes = useMemo(
-    () => researchInterestId != null
-      ? notes.filter((n) => n.research_interest_id === researchInterestId)
-      : notes,
-    [notes, researchInterestId],
-  );
-
   const resetDraft = () => {
     setNoteTitle("");
     setNoteContent("");
     setSelectedInterestId(researchInterestId ?? "");
   };
+
+  useEffect(() => {
+    setSelectedInterestId(researchInterestId ?? "");
+  }, [researchInterestId]);
 
   const handleCreateNote = async () => {
     if (!noteTitle.trim() || !noteContent.trim()) return;
@@ -411,24 +386,15 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
     setSaving(true);
 
     try {
-      const note = await apiClient.knowledge.createNote({
+      await createNote({
         title: noteTitle.trim(),
         content: noteContent.trim(),
         research_interest_id: selectedInterestId || undefined,
       });
-
-      setNotes((prev) => [note, ...prev]);
       resetDraft();
       setCreating(false);
-      setError("");
-      void apiClient.memory.add({
-        type: "auto",
-        action: "note.create",
-        summary: `创建了笔记：「${note.title}」`,
-        detail: JSON.stringify({ note_id: note.id }),
-      });
-    } catch (nextError) {
-      setError(formatErrorMessage(nextError));
+    } catch {
+      // Error state is handled in the workspace hook.
     } finally {
       setSaving(false);
     }
@@ -441,10 +407,9 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
     }
     try {
       setConfirmDeleteNoteId(null);
-      await apiClient.knowledge.deleteNote(id);
-      setNotes((prev) => prev.filter((item) => item.id !== id));
-    } catch (nextError) {
-      setError(formatErrorMessage(nextError));
+      await deleteNote(id);
+    } catch {
+      // Error state is handled in the workspace hook.
     }
   };
 
@@ -452,112 +417,118 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
     id: string,
     draft: { title: string; content: string; research_interest_id: string },
   ) => {
-    const title = draft.title.trim();
-    const content = draft.content.trim();
-    await apiClient.knowledge.updateNote(id, { title, content });
-    const moved = await apiClient.knowledge.moveNote(id, draft.research_interest_id || undefined);
-    setNotes((prev) => prev.map((note) => (note.id === id ? moved : note)));
+    const moved = await saveNote(id, draft);
     setViewingNote(moved);
   };
 
   const handleDeleteInterestGroup = async (interestId: string, deleteAll: boolean) => {
     try {
       setDeletingGroupId(interestId);
-      if (deleteAll) {
-        await apiClient.knowledge.deleteInterestBundle(interestId);
-        setNotes((prev) => prev.filter((n) => n.research_interest_id !== interestId));
-      } else {
-        await apiClient.knowledge.deleteInterestOnly(interestId);
-      }
-      setInterests((prev) => prev.filter((item) => item.id !== interestId));
+      await deleteInterestGroup(interestId, deleteAll);
       setConfirmDeleteGroupId(null);
-      setError("");
-    } catch (nextError) {
-      setError(formatErrorMessage(nextError));
+    } catch {
+      // Error state is handled in the workspace hook.
     } finally {
       setDeletingGroupId(null);
     }
   };
 
-  const renderNoteCard = (note: KnowledgeNote) => (
-    <Card key={note.id} padding="sm" className="group relative flex flex-col gap-3">
-      <div className="pr-10">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setViewingNote(note)}
-            className="line-clamp-2 text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
-          >
-            {note.title}
-          </button>
-          <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
-        </div>
-        {note.research_interest_id && interestMap[note.research_interest_id] && (
-          <p className="mt-1.5 text-[11px] text-apple-blue">
-            {interestFolderName(interestMap[note.research_interest_id])}
-          </p>
-        )}
-      </div>
+  const useFlatList = hideFolders || researchInterestId != null;
+  const hasGraphCoverage = linkedNoteClaimCounts != null;
+  const linkedVisibleNoteCount = useMemo(
+    () => {
+      if (!linkedNoteClaimCounts) return 0;
+      return scopedNotes.filter((note) => (linkedNoteClaimCounts[note.id] ?? 0) > 0).length;
+    },
+    [linkedNoteClaimCounts, scopedNotes],
+  );
 
-      <p className="line-clamp-4 text-xs leading-relaxed text-ink-secondary">{stripMarkdown(note.content)}</p>
+  const renderNoteCard = (note: KnowledgeNote) => {
+    const linkedClaimCount = linkedNoteClaimCounts?.[note.id] ?? 0;
 
-      {note.source_type !== "manual" && note.tags && note.tags.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-500">小妍</span>
-          {note.tags.map((tag, index) => (
-            <span key={`${note.id}-${tag}-${index}`} className="rc-accent-chip rounded-full px-2 py-0.5 text-[11px]">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <p className="mt-auto pt-1 text-xs text-ink-tertiary">
-        {new Date(note.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
-      </p>
-
-      <div className="absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        {confirmDeleteNoteId === note.id ? (
-          <>
-            <span className="text-[10px] text-ink-tertiary">确认删除？</span>
-            <button
-              type="button"
-              onClick={() => void handleDelete(note.id)}
-              className="rounded-lg bg-apple-red/10 px-2 py-0.5 text-[11px] font-medium text-apple-red hover:bg-apple-red/20"
-            >
-              确认
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmDeleteNoteId(null)}
-              className="text-ink-tertiary hover:text-ink-primary"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </>
-        ) : (
-          <>
+    return (
+      <Card key={note.id} padding="sm" className="group relative flex flex-col gap-3">
+        <div className="pr-10">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setViewingNote(note)}
-              className="text-ink-tertiary hover:text-ink-primary"
-              aria-label={`编辑 ${note.title}`}
+              className="line-clamp-2 text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
             >
-              <Pencil className="h-3.5 w-3.5" />
+              {note.title}
             </button>
-            <button
-              type="button"
-              onClick={() => void handleDelete(note.id)}
-              className="text-ink-tertiary hover:text-apple-red"
-              aria-label={`删除 ${note.title}`}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </>
+            <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
+            {linkedClaimCount > 0 ? (
+              <Badge variant="info">图谱 {linkedClaimCount}</Badge>
+            ) : null}
+          </div>
+          {note.research_interest_id && interestMap[note.research_interest_id] && (
+            <p className="mt-1.5 text-[11px] text-apple-blue">
+              {interestFolderName(interestMap[note.research_interest_id])}
+            </p>
+          )}
+        </div>
+
+        <p className="line-clamp-4 text-xs leading-relaxed text-ink-secondary">{stripMarkdown(note.content)}</p>
+
+        {note.source_type !== "manual" && note.tags && note.tags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-500">小妍</span>
+            {note.tags.map((tag, index) => (
+              <span key={`${note.id}-${tag}-${index}`} className="rc-accent-chip rounded-full px-2 py-0.5 text-[11px]">
+                {tag}
+              </span>
+            ))}
+          </div>
         )}
-      </div>
-    </Card>
-  );
+
+        <p className="mt-auto pt-1 text-xs text-ink-tertiary">
+          {new Date(note.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
+        </p>
+
+        <div className="absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          {confirmDeleteNoteId === note.id ? (
+            <>
+              <span className="text-[10px] text-ink-tertiary">确认删除？</span>
+              <button
+                type="button"
+                onClick={() => void handleDelete(note.id)}
+                className="rounded-lg bg-apple-red/10 px-2 py-0.5 text-[11px] font-medium text-apple-red hover:bg-apple-red/20"
+              >
+                确认
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteNoteId(null)}
+                className="text-ink-tertiary hover:text-ink-primary"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setViewingNote(note)}
+                className="text-ink-tertiary hover:text-ink-primary"
+                aria-label={`编辑 ${note.title}`}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete(note.id)}
+                className="text-ink-tertiary hover:text-apple-red"
+                aria-label={`删除 ${note.title}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+      </Card>
+    );
+  };
 
   return (
     <>
@@ -569,6 +540,14 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
             <p className="mt-1 text-xs leading-5 text-ink-tertiary">
               支持语义搜索、标签归档，并可把笔记关联到具体研究方向。
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {researchInterestId ? <Badge variant="default">已按研究方向聚焦</Badge> : null}
+              {hasGraphCoverage && scopedNotes.length > 0 ? (
+                <Badge variant={linkedVisibleNoteCount > 0 ? "info" : "default"}>
+                  图谱关联 {linkedVisibleNoteCount}/{scopedNotes.length}
+                </Badge>
+              ) : null}
+            </div>
           </div>
           <div className="flex w-full flex-col gap-2 lg:w-[520px] lg:flex-row">
             <div className="relative flex-1">
@@ -580,11 +559,21 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
                 className="pl-10"
               />
             </div>
-            <Button size="sm" variant="secondary" onClick={() => { setShowWebClip((prev) => !prev); setCreating(false); setWebClipError(""); setWebClipUrl(""); }}>
+            <Button size="sm" variant="secondary" onClick={() => {
+              clearError();
+              setShowWebClip((prev) => !prev);
+              setCreating(false);
+              setWebClipError("");
+              setWebClipUrl("");
+            }}>
               <Globe className="h-4 w-4" />
               剪辑网页
             </Button>
-            <Button size="sm" onClick={() => { setCreating((prev) => !prev); setShowWebClip(false); }}>
+            <Button size="sm" onClick={() => {
+              clearError();
+              setCreating((prev) => !prev);
+              setShowWebClip(false);
+            }}>
               <Plus className="h-4 w-4" />
               {creating ? "收起" : "新建笔记"}
             </Button>
@@ -686,12 +675,11 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
                   setWebClipLoading(true);
                   setWebClipError("");
                   try {
-                    const note = await apiClient.knowledge.webClip(webClipUrl.trim(), researchInterestId || selectedInterestId || undefined);
-                    setNotes((prev) => [note, ...prev]);
+                    await clipWebPage(webClipUrl.trim(), researchInterestId || selectedInterestId || undefined);
                     setShowWebClip(false);
                     setWebClipUrl("");
-                  } catch (err) {
-                    setWebClipError(formatErrorMessage(err));
+                  } catch (nextError) {
+                    setWebClipError(nextError instanceof Error ? nextError.message : "网页剪辑失败。");
                   } finally {
                     setWebClipLoading(false);
                   }
@@ -709,7 +697,7 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
         <div className="flex justify-center py-16">
           <Loader2 className="h-7 w-7 animate-spin text-apple-blue" />
         </div>
-      ) : (researchInterestId != null ? displayNotes.length === 0 : notes.length === 0 && interests.length === 0) ? (
+      ) : (researchInterestId != null ? scopedNotes.length === 0 : scopedNotes.length === 0 && interests.length === 0) ? (
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
           <div
             className="flex h-14 w-14 items-center justify-center rounded-3xl"
@@ -724,9 +712,9 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
             </p>
           </div>
         </Card>
-      ) : hideFolders ? (
+      ) : useFlatList ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {displayNotes.map(renderNoteCard)}
+          {scopedNotes.map(renderNoteCard)}
         </div>
       ) : (
         <div className="space-y-4">
@@ -806,6 +794,7 @@ export default function NotesPanel({ hideFolders = false, researchInterestId }: 
     {viewingNote && (
       <NoteDetailModal
         note={viewingNote}
+        linkedClaimCount={linkedNoteClaimCounts?.[viewingNote.id] ?? 0}
         interests={interests}
         interestMap={interestMap}
         onClose={() => setViewingNote(null)}

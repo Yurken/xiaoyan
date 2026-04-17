@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Select } from "@research-copilot/ui";
 import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspace";
-import { interestDisplayName } from "../features/knowledge/shared";
+import { buildNoteClaimCountMap, interestDisplayName } from "../features/knowledge/shared";
 import { useKnowledgeGraphWorkspace } from "../features/knowledge/useKnowledgeGraphWorkspace";
 import NotesPanel from "../features/knowledge/NotesPanel";
 
@@ -12,13 +12,53 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
   const graphController = useKnowledgeGraphWorkspace();
   const interestOptions = useMemo(
     () => [
-      { id: "", label: "全部研究方向" },
+      { value: "", label: "全部研究方向" },
       ...(graphController.snapshot?.interests ?? []).map((item) => ({
-        id: item.id,
+        value: item.id,
         label: interestDisplayName(item),
       })),
     ],
     [graphController.snapshot?.interests],
+  );
+  const initialInterests = useMemo(
+    () => {
+      if (!graphController.snapshot) return undefined;
+      return graphController.snapshot.interests.map((item) => ({
+        id: item.id,
+        topic: item.topic,
+        folder_name: item.folderName ?? undefined,
+        keywords: item.keywords,
+        status: item.status,
+        created_at: item.createdAt,
+      }));
+    },
+    [graphController.snapshot],
+  );
+  const initialNotes = useMemo(
+    () => {
+      if (!graphController.snapshot) return undefined;
+      return graphController.snapshot.notes.map((item) => ({
+        id: item.id,
+        title: item.title,
+        content: item.content,
+        source_type: item.sourceType,
+        source_id: item.sourceId ?? undefined,
+        tags: item.tags,
+        research_interest_id: item.researchInterestId ?? undefined,
+        created_at: item.createdAt,
+        updated_at: item.updatedAt,
+      }));
+    },
+    [graphController.snapshot],
+  );
+  const linkedNoteClaimCounts = useMemo(
+    () => {
+      if (!graphController.snapshot) return undefined;
+      return buildNoteClaimCountMap(
+        graphController.view?.visibleEvidenceLinks ?? graphController.snapshot.evidenceLinks,
+      );
+    },
+    [graphController.snapshot?.evidenceLinks, graphController.view?.visibleEvidenceLinks],
   );
 
   return (
@@ -63,7 +103,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
             })}
           </div>
 
-          {view === "graph" ? (
+          {graphController.snapshot ? (
             <Select
               className="w-full lg:w-[260px]"
               prefix="聚焦："
@@ -79,7 +119,14 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
       {view === "graph" ? (
         <KnowledgeGraphWorkspace controller={graphController} />
       ) : (
-        <NotesPanel hideFolders={hideFolders} />
+        <NotesPanel
+          hideFolders={hideFolders}
+          researchInterestId={graphController.activeInterestId ?? undefined}
+          initialNotes={initialNotes}
+          initialInterests={initialInterests}
+          linkedNoteClaimCounts={linkedNoteClaimCounts}
+          onNotesChanged={() => graphController.refresh()}
+        />
       )}
     </div>
   );

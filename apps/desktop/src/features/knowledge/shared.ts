@@ -170,3 +170,11 @@ export function sourceKindLabel(kind: KnowledgeGraphSourceKind) {
   if (kind === "experiment") return "实验";
   return "笔记";
 }
+
+export function buildNoteClaimCountMap(evidenceLinks: KnowledgeGraphEvidenceLink[]) {
+  return evidenceLinks.reduce<Record<string, number>>((acc, item) => {
+    if (item.sourceKind !== "note") return acc;
+    acc[item.sourceId] = (acc[item.sourceId] ?? 0) + 1;
+    return acc;
+  }, {});
+}
