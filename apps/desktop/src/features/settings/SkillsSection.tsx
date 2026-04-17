@@ -11,7 +11,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { Card } from "@research-copilot/ui";
+import { Card, ConfirmDialog } from "@research-copilot/ui";
 import type { Skill } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 
@@ -73,11 +73,11 @@ function SkillEditModal({
   const [tagsInput, setTagsInput] = useState(skill?.tags.join("、") ?? "");
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [error, setError] = useState("");
 
   const handleReset = async () => {
     if (!skill?.is_builtin) return;
-    if (!window.confirm(`重置「${skill.title}」为默认内容？当前编辑将被覆盖。`)) return;
     setResetting(true);
     setError("");
     try {
@@ -89,6 +89,7 @@ function SkillEditModal({
         setPrompt(original.prompt);
         setTagsInput(original.tags.join("、"));
       }
+      setConfirmResetOpen(false);
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
     } finally {
@@ -213,7 +214,7 @@ function SkillEditModal({
             {!isCreate && skill?.is_builtin ? (
               <button
                 type="button"
-                onClick={handleReset}
+                onClick={() => setConfirmResetOpen(true)}
                 disabled={resetting}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium text-ink-tertiary hover:text-ink-secondary transition-all disabled:opacity-50"
                 style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
@@ -248,6 +249,20 @@ function SkillEditModal({
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmResetOpen}
+        title="重置技能内容"
+        description={skill ? `确认将「${skill.title}」恢复为默认内容吗？当前编辑中的标题、描述、提示词和标签会被覆盖。` : ""}
+        confirmLabel="确认重置"
+        tone="danger"
+        loading={resetting}
+        onClose={() => {
+          if (resetting) return;
+          setConfirmResetOpen(false);
+        }}
+        onConfirm={() => void handleReset()}
+      />
     </div>
   );
 }
@@ -307,6 +322,7 @@ function SkillCard({
             type="button"
             onClick={onEdit}
             title="编辑"
+            aria-label={`编辑技能 ${skill.title}`}
             className="w-6 h-6 rounded-lg flex items-center justify-center text-ink-tertiary hover:text-ink-secondary transition-colors"
             style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }}
           >
@@ -317,6 +333,7 @@ function SkillCard({
               type="button"
               onClick={onDelete}
               title="删除"
+              aria-label={`删除技能 ${skill.title}`}
               className="w-6 h-6 rounded-lg flex items-center justify-center text-ink-tertiary hover:text-red-500 transition-colors"
               style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }}
             >
@@ -326,6 +343,9 @@ function SkillCard({
           <button
             type="button"
             onClick={onToggle}
+            role="switch"
+            aria-checked={skill.is_enabled}
+            aria-label={`${skill.is_enabled ? "禁用" : "启用"}技能 ${skill.title}`}
             title={skill.is_enabled ? "禁用" : "启用"}
             className="relative w-9 h-5 rounded-full transition-all duration-200 flex-shrink-0 overflow-hidden"
             style={{
@@ -357,6 +377,8 @@ export default function SkillsSection() {
   const [editingSkill, setEditingSkill] = useState<Skill | "new" | null>(null);
   const [resetting, setResetting] = useState(false);
   const [enablingAll, setEnablingAll] = useState(false);
+  const [confirmingAction, setConfirmingAction] = useState(false);
+  const [confirmState, setConfirmState] = useState<{ type: "delete"; skill: Skill } | { type: "resetBuiltins" } | null>(null);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -403,12 +425,15 @@ export default function SkillsSection() {
   };
 
   const handleDelete = async (skill: Skill) => {
-    if (!window.confirm(`确定要删除技能「${skill.title}」吗？`)) return;
+    setConfirmingAction(true);
     try {
       await apiClient.skills.delete(skill.id);
       setSkills((current) => current.filter((item) => item.id !== skill.id));
+      setConfirmState(null);
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
+    } finally {
+      setConfirmingAction(false);
     }
   };
 
@@ -436,7 +461,7 @@ export default function SkillsSection() {
   };
 
   const handleResetBuiltins = async () => {
-    if (!window.confirm("重置所有内置技能为默认内容？您对内置技能的编辑将被覆盖，自定义技能不受影响。")) return;
+    setConfirmingAction(true);
     setResetting(true);
     try {
       const updated = await apiClient.skills.resetBuiltins();
@@ -444,9 +469,11 @@ export default function SkillsSection() {
         const customSkills = current.filter((skill) => !skill.is_builtin);
         return [...updated, ...customSkills];
       });
+      setConfirmState(null);
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
     } finally {
+      setConfirmingAction(false);
       setResetting(false);
     }
   };
@@ -460,6 +487,31 @@ export default function SkillsSection() {
           onClose={() => setEditingSkill(null)}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={confirmState !== null}
+        title={confirmState?.type === "delete" ? "删除技能" : "重置内置技能"}
+        description={
+          confirmState?.type === "delete"
+            ? `确认删除技能「${confirmState.skill.title}」吗？删除后无法恢复。`
+            : "确认将所有内置技能恢复为默认内容吗？你对内置技能的修改会被覆盖，自定义技能不受影响。"
+        }
+        confirmLabel={confirmState?.type === "delete" ? "确认删除" : "确认重置"}
+        tone="danger"
+        loading={confirmingAction}
+        onClose={() => {
+          if (confirmingAction) return;
+          setConfirmState(null);
+        }}
+        onConfirm={() => {
+          if (!confirmState) return;
+          if (confirmState.type === "delete") {
+            void handleDelete(confirmState.skill);
+            return;
+          }
+          void handleResetBuiltins();
+        }}
+      />
 
       <Card padding="md" className="space-y-4">
         <div className="flex items-center justify-between gap-3">
@@ -485,7 +537,7 @@ export default function SkillsSection() {
             </button>
             <button
               type="button"
-              onClick={handleResetBuiltins}
+              onClick={() => setConfirmState({ type: "resetBuiltins" })}
               disabled={resetting}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-ink-secondary transition-all hover:text-ink-primary disabled:opacity-50"
               style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
@@ -522,6 +574,7 @@ export default function SkillsSection() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
+                aria-label="搜索技能"
                 placeholder="搜索技能名称、标签或描述…"
                 className="w-full rounded-2xl pl-9 pr-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
                 style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
@@ -536,9 +589,9 @@ export default function SkillsSection() {
                     <SkillCard
                       key={skill.id}
                       skill={skill}
-                      onToggle={() => handleToggle(skill)}
+                      onToggle={() => void handleToggle(skill)}
                       onEdit={() => setEditingSkill(skill)}
-                      onDelete={() => handleDelete(skill)}
+                      onDelete={() => setConfirmState({ type: "delete", skill })}
                     />
                   ))}
                 </div>
@@ -555,9 +608,9 @@ export default function SkillsSection() {
                     <SkillCard
                       key={skill.id}
                       skill={skill}
-                      onToggle={() => handleToggle(skill)}
+                      onToggle={() => void handleToggle(skill)}
                       onEdit={() => setEditingSkill(skill)}
-                      onDelete={() => handleDelete(skill)}
+                      onDelete={() => setConfirmState({ type: "delete", skill })}
                     />
                   ))}
                 </div>

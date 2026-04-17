@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type ReactNode } from "react";
 import { Library, Plus, Search, Trash2, Tag, Clock, Sparkles, Map, FileText } from "lucide-react";
-import { Card, CardHeader, CardTitle, Input, Textarea, Button, Badge } from "@research-copilot/ui";
+import { Card, CardHeader, CardTitle, Input, Textarea, Button, Badge, ConfirmDialog } from "@research-copilot/ui";
 import { knowledgeApi } from "@/lib/client";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 
@@ -36,6 +36,8 @@ export default function KnowledgePage() {
   const [activeTab, setActiveTab] = useState<"notes" | "interests">("notes");
   const [searchResults, setSearchResults] = useState<KnowledgeNote[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [pendingDeleteNote, setPendingDeleteNote] = useState<KnowledgeNote | null>(null);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -128,12 +130,19 @@ export default function KnowledgePage() {
     }
   };
 
-  const handleDeleteNote = async (id: string) => {
-    if (!confirm("确认删除？")) return;
+  const handleDeleteNote = async () => {
+    if (!pendingDeleteNote) return;
+    setDeletingNoteId(pendingDeleteNote.id);
     try {
-      await knowledgeApi.deleteNote(id);
-      setNotes((prev) => prev.filter((n) => n.id !== id));
-    } catch {}
+      await knowledgeApi.deleteNote(pendingDeleteNote.id);
+      setNotes((prev) => prev.filter((n) => n.id !== pendingDeleteNote.id));
+      setSearchResults((prev) => prev?.filter((n) => n.id !== pendingDeleteNote.id) ?? null);
+      setPendingDeleteNote(null);
+    } catch {
+      // Keep the current error handling behavior for this page.
+    } finally {
+      setDeletingNoteId(null);
+    }
   };
 
   const displayedNotes = searchResults !== null ? searchResults : notes;
@@ -167,9 +176,9 @@ export default function KnowledgePage() {
         <Card className="mb-5">
           <CardHeader><CardTitle>新增笔记</CardTitle></CardHeader>
           <div className="space-y-3">
-            <Input placeholder="请输入笔记标题" value={newNote.title} onChange={(e) => setNewNote({ ...newNote, title: e.target.value })} />
-            <Textarea rows={5} placeholder="请输入笔记内容（支持 Markdown）" value={newNote.content} onChange={(e) => setNewNote({ ...newNote, content: e.target.value })} />
-            <Input placeholder="请输入标签，多个标签用逗号分隔" value={newNote.tags} onChange={(e) => setNewNote({ ...newNote, tags: e.target.value })} />
+            <Input label="标题" placeholder="请输入笔记标题" value={newNote.title} onChange={(e) => setNewNote({ ...newNote, title: e.target.value })} />
+            <Textarea label="内容" rows={5} placeholder="请输入笔记内容（支持 Markdown）" value={newNote.content} onChange={(e) => setNewNote({ ...newNote, content: e.target.value })} />
+            <Input label="标签" placeholder="请输入标签，多个标签用逗号分隔" value={newNote.tags} onChange={(e) => setNewNote({ ...newNote, tags: e.target.value })} />
             <div className="flex gap-2">
               <Button onClick={handleAddNote} loading={saving} size="sm">保存</Button>
               <Button variant="ghost" size="sm" onClick={() => setShowAddNote(false)}>取消</Button>
@@ -182,8 +191,8 @@ export default function KnowledgePage() {
         <Card className="mb-5">
           <CardHeader><CardTitle>新增研究方向</CardTitle></CardHeader>
           <div className="space-y-3">
-            <Input placeholder="请输入研究方向" value={newInterest.topic} onChange={(e) => setNewInterest({ ...newInterest, topic: e.target.value })} />
-            <Input placeholder="请输入关键词，多个关键词用逗号分隔" value={newInterest.keywords} onChange={(e) => setNewInterest({ ...newInterest, keywords: e.target.value })} />
+            <Input label="研究方向" placeholder="请输入研究方向" value={newInterest.topic} onChange={(e) => setNewInterest({ ...newInterest, topic: e.target.value })} />
+            <Input label="关键词" placeholder="请输入关键词，多个关键词用逗号分隔" value={newInterest.keywords} onChange={(e) => setNewInterest({ ...newInterest, keywords: e.target.value })} />
             <div className="flex gap-2">
               <Button onClick={handleAddInterest} loading={saving} size="sm">保存</Button>
               <Button variant="ghost" size="sm" onClick={() => setShowAddInterest(false)}>取消</Button>
@@ -195,13 +204,14 @@ export default function KnowledgePage() {
       {/* Search */}
       <div className="flex gap-2 mb-5">
         <Input
+          aria-label="搜索知识库"
           placeholder="请输入关键词搜索知识库"
           value={search}
           onChange={(e) => { setSearch(e.target.value); if (!e.target.value) setSearchResults(null); }}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           className="flex-1"
         />
-        <Button variant="secondary" onClick={handleSearch} loading={searching}>
+        <Button variant="secondary" aria-label="搜索知识库" title="搜索知识库" onClick={handleSearch} loading={searching}>
           <Search className="w-4 h-4" />
         </Button>
       </div>
@@ -258,7 +268,12 @@ export default function KnowledgePage() {
                       )}
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => handleDeleteNote(note.id)}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`删除笔记 ${note.title}`}
+                    title="删除笔记"
+                    onClick={() => setPendingDeleteNote(note)}
                     className="text-gray-300 hover:text-red-500 hover:bg-red-50 flex-shrink-0">
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
@@ -314,6 +329,24 @@ export default function KnowledgePage() {
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDeleteNote !== null}
+        title="删除笔记"
+        description={
+          pendingDeleteNote
+            ? `确认删除笔记《${pendingDeleteNote.title}》吗？这会同时从当前列表中移除它。`
+            : ""
+        }
+        confirmLabel="确认删除"
+        tone="danger"
+        loading={deletingNoteId !== null}
+        onClose={() => {
+          if (deletingNoteId) return;
+          setPendingDeleteNote(null);
+        }}
+        onConfirm={() => void handleDeleteNote()}
+      />
     </div>
   );
 }
