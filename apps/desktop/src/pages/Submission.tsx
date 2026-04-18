@@ -24,6 +24,7 @@ import PolishPanel from "../features/submission/PolishPanel";
 import ReviewEntryModal from "../features/submission/ReviewEntryModal";
 import ReviewWorkspace from "../features/submission/ReviewWorkspace";
 import SaveVersionModal from "../features/submission/SaveVersionModal";
+import { useSubmissionVersions } from "../features/submission/useSubmissionVersions";
 import VenueTrackerWorkspace from "../features/submission/VenueTrackerWorkspace";
 import VersionWorkspace from "../features/submission/VersionWorkspace";
 import {
@@ -36,7 +37,6 @@ import {
   rowToRound,
   rowToSubmission,
   rowToVenue,
-  rowToVersion,
   type AddSubmissionFormState,
   type ChecklistItem,
   type Conference,
@@ -86,8 +86,8 @@ export default function Submission() {
   });
 
   // Version control state
-  const [versions, setVersions] = useState<PaperVersion[]>([]);
   const [versionSubId, setVersionSubId] = useState<string>("");
+  const { versions, versionCounts, appendVersion, updateVersion } = useSubmissionVersions(submissions, versionSubId);
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveForm, setSaveForm] = useState<SaveVersionFormState>({ tag: "", label: "", notes: "", content: "" });
@@ -143,15 +143,6 @@ export default function Submission() {
     }).catch(console.error);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Reload versions when selected submission changes
-  useEffect(() => {
-    if (!versionSubId) return;
-    submissionApi.listVersions(versionSubId).then(res => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setVersions((res.versions as any[]).map(rowToVersion));
-    }).catch(console.error);
-  }, [versionSubId]);
 
   // Reload rounds + comments when selected review submission changes
   useEffect(() => {
@@ -274,13 +265,7 @@ export default function Submission() {
       });
       if (typeof selected === "string" && selected) {
         const fileName = selected.split("/").pop() || "paper.pdf";
-        setVersions(prev =>
-          prev.map(v =>
-            v.id === versionId
-              ? { ...v, filePath: selected, fileName }
-              : v
-          )
-        );
+        updateVersion(versionId, (version) => ({ ...version, filePath: selected, fileName }));
       }
     } catch (error) {
       console.error("Upload file failed:", error);
@@ -444,9 +429,8 @@ export default function Submission() {
 
   // ── Version helpers ──
   const versionNextTag = (() => {
-    const vList = versions.filter(v => v.submissionId === versionSubId);
-    if (vList.length === 0) return "v1.0";
-    const last = vList[vList.length - 1].tag;
+    if (versions.length === 0) return "v1.0";
+    const last = versions[versions.length - 1].tag;
     const [major, minor] = last.replace("v", "").split(".").map(Number);
     return `v${major}.${(minor ?? 0) + 1}`;
   })();
@@ -463,26 +447,25 @@ export default function Submission() {
         content: saveForm.content.trim(),
         notes: saveForm.notes.trim(),
       });
-      setVersions(prev => [...prev, {
+      appendVersion({
         id: res.id, submissionId: versionSubId, tag,
         label: saveForm.label.trim(),
         stage: currentSub?.status ?? "writing",
         content: saveForm.content.trim(),
         notes: saveForm.notes.trim(),
         createdAt: new Date(),
-      }]);
+      });
     } catch (e) { console.error(e); }
     setShowSaveModal(false);
     setSaveForm({ tag: "", label: "", notes: "", content: "" });
   };
 
   const handleOpenSaveVersionModal = () => {
-    const currentVersions = versions.filter((version) => version.submissionId === versionSubId);
     setSaveForm({
       tag: versionNextTag,
       label: "",
       notes: "",
-      content: currentVersions[currentVersions.length - 1]?.content ?? "",
+      content: versions[versions.length - 1]?.content ?? "",
     });
     setShowSaveModal(true);
   };
@@ -716,9 +699,7 @@ export default function Submission() {
 
   const handleApplyPolishResult = () => {
     if (!polishText || !polishSourceId) return;
-    setVersions((currentVersions) =>
-      currentVersions.map((version) => (version.id === polishSourceId ? { ...version, content: polishText } : version))
-    );
+    updateVersion(polishSourceId, (version) => ({ ...version, content: polishText }));
     setShowPolishPanel(false);
   };
 
@@ -897,6 +878,7 @@ export default function Submission() {
           <VersionWorkspace
             submissions={submissions}
             versions={versions}
+            versionCounts={versionCounts}
             versionSubId={versionSubId}
             compareIds={compareIds}
             onSelectSubmission={(submissionId) => {

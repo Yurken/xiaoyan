@@ -1,0 +1,85 @@
+import { useEffect, useState } from "react";
+import { submissionApi } from "../../lib/client";
+import { rowToVersion, type PaperVersion, type Submission as SubmissionItem } from "./shared";
+
+type VersionsBySubmission = Record<string, PaperVersion[]>;
+
+export function useSubmissionVersions(submissions: SubmissionItem[], selectedSubmissionId: string) {
+  const [versionsBySubmission, setVersionsBySubmission] = useState<VersionsBySubmission>({});
+
+  useEffect(() => {
+    if (submissions.length === 0) {
+      setVersionsBySubmission({});
+      return;
+    }
+
+    let cancelled = false;
+
+    Promise.allSettled(
+      submissions.map(async (submission) => {
+        const response = await submissionApi.listVersions(submission.id);
+        return {
+          submissionId: submission.id,
+          versions: (response.versions as unknown[]).map(rowToVersion),
+        };
+      })
+    )
+      .then((results) => {
+        if (cancelled) {
+          return;
+        }
+
+        setVersionsBySubmission((currentVersions) => {
+          const nextVersions: VersionsBySubmission = {};
+
+          results.forEach((result, index) => {
+            const submissionId = submissions[index]?.id;
+            if (!submissionId) {
+              return;
+            }
+
+            if (result.status === "fulfilled") {
+              nextVersions[submissionId] = result.value.versions;
+              return;
+            }
+
+            console.error(result.reason);
+            nextVersions[submissionId] = currentVersions[submissionId] ?? [];
+          });
+
+          return nextVersions;
+        });
+      })
+      .catch(console.error);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [submissions]);
+
+  const versions = selectedSubmissionId ? versionsBySubmission[selectedSubmissionId] ?? [] : [];
+  const versionCounts = submissions.reduce<Record<string, number>>((counts, submission) => {
+    counts[submission.id] = versionsBySubmission[submission.id]?.length ?? 0;
+    return counts;
+  }, {});
+
+  const appendVersion = (version: PaperVersion) => {
+    setVersionsBySubmission((currentVersions) => ({
+      ...currentVersions,
+      [version.submissionId]: [...(currentVersions[version.submissionId] ?? []), version],
+    }));
+  };
+
+  const updateVersion = (versionId: string, updater: (version: PaperVersion) => PaperVersion) => {
+    setVersionsBySubmission((currentVersions) =>
+      Object.fromEntries(
+        Object.entries(currentVersions).map(([submissionId, versions]) => [
+          submissionId,
+          versions.map((version) => (version.id === versionId ? updater(version) : version)),
+        ])
+      ) as VersionsBySubmission
+    );
+  };
+
+  return { versions, versionCounts, appendVersion, updateVersion };
+}

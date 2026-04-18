@@ -6,6 +6,7 @@ import { STATUS_CFG, computeLineDiff } from "./shared";
 interface VersionWorkspaceProps {
   submissions: SubmissionItem[];
   versions: PaperVersion[];
+  versionCounts: Record<string, number>;
   versionSubId: string;
   compareIds: [string, string] | null;
   onSelectSubmission: (submissionId: string) => void;
@@ -20,6 +21,7 @@ interface VersionWorkspaceProps {
 export default function VersionWorkspace({
   submissions,
   versions,
+  versionCounts,
   versionSubId,
   compareIds,
   onSelectSubmission,
@@ -30,13 +32,9 @@ export default function VersionWorkspace({
   onPolishVersion,
   onOpenMockReview,
 }: VersionWorkspaceProps) {
-  const subVersions = versions.filter((version) => version.submissionId === versionSubId);
+  const subVersions = versions;
   const currentSub = submissions.find((submission) => submission.id === versionSubId);
   const versionMap = new Map(versions.map((version) => [version.id, version]));
-  const versionCounts = versions.reduce<Record<string, number>>((counts, version) => {
-    counts[version.submissionId] = (counts[version.submissionId] ?? 0) + 1;
-    return counts;
-  }, {});
 
   const selectForCompare = (versionId: string, slot: 0 | 1) => {
     onSetCompareIds((currentCompareIds) => {
