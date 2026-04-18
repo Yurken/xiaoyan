@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import changelogRaw from "../../../../../CHANGELOG.md?raw";
 import { RefreshCw } from "lucide-react";
-import { Card } from "@research-copilot/ui";
+import { Card, Select } from "@research-copilot/ui";
 import { SectionIcon } from "./shared";
 
 function parseChangelog(raw: string) {
@@ -84,59 +84,72 @@ export function formatUpdateDate(value?: string) {
 
 export default function SettingsChangelogCard() {
   const versions = useMemo(() => parseChangelog(changelogRaw), []);
-  const [expanded, setExpanded] = useState<string | null>(versions[0]?.version ?? null);
+  const [selectedVersion, setSelectedVersion] = useState<string>(versions[0]?.version ?? "");
+
+  const versionOptions = useMemo(
+    () => versions.map(({ version }) => ({
+      value: version,
+      label: version === "未发布" ? "开发中" : `v${version}`,
+    })),
+    [versions],
+  );
+
+  const selectedEntry = versions.find(({ version }) => version === selectedVersion) ?? versions[0] ?? null;
 
   return (
     <Card padding="md" className="space-y-3">
-      <div className="flex items-center gap-3">
-        <SectionIcon icon={RefreshCw} color="#34C759" />
-        <div>
-          <h2 className="text-base font-semibold text-ink-primary">更新日志</h2>
-          <p className="text-xs text-ink-tertiary mt-0.5">各版本功能变更记录</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <SectionIcon icon={RefreshCw} color="#34C759" />
+          <div>
+            <h2 className="text-base font-semibold text-ink-primary">更新日志</h2>
+            <p className="text-xs text-ink-tertiary mt-0.5">各版本功能变更记录</p>
+          </div>
         </div>
+
+        {versionOptions.length > 0 ? (
+          <Select
+            className="w-full sm:w-[220px]"
+            value={selectedEntry?.version ?? ""}
+            onChange={setSelectedVersion}
+            options={versionOptions}
+            prefix="版本："
+            aria-label="选择更新日志版本"
+          />
+        ) : null}
       </div>
-      <div className="space-y-2">
-        {versions.map(({ version, sections }) => {
-          const isOpen = expanded === version;
-          return (
-            <div key={version} className="overflow-hidden rounded-2xl border border-nm-dark/10 bg-white/30">
-              <button
-                type="button"
-                onClick={() => setExpanded(isOpen ? null : version)}
-                className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-white/20"
-              >
-                <span className="text-sm font-semibold text-ink-primary">
-                  {version === "未发布" ? "开发中" : `v${version}`}
-                </span>
-                <svg
-                  className="h-3.5 w-3.5 flex-shrink-0 text-ink-tertiary transition-transform duration-150"
-                  style={{ transform: isOpen ? "rotate(180deg)" : "none" }}
-                  viewBox="0 0 12 12" fill="none"
-                >
-                  <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              {isOpen ? (
-                <div className="border-t border-nm-dark/10 px-4 pb-4 pt-3 space-y-3">
-                  {sections.map(({ label, items }) => (
-                    <div key={label}>
-                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-tertiary">{label}</p>
-                      <ul className="space-y-1">
-                        {items.map((item, index) => (
-                          <li key={index} className="flex gap-2 text-xs leading-5 text-ink-secondary">
-                            <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-ink-tertiary/50" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+
+      {selectedEntry ? (
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-nm-dark/10 bg-white/30 px-4 pb-4 pt-3 space-y-3">
+            {selectedEntry.sections.length === 0 ? (
+              <p className="text-xs leading-5 text-ink-tertiary">当前版本暂无可展示的更新项。</p>
+            ) : (
+              selectedEntry.sections.map(({ label, items }) => (
+                <div key={label}>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-tertiary">{label}</p>
+                  {items.length > 0 ? (
+                    <ul className="space-y-1">
+                      {items.map((item, index) => (
+                        <li key={index} className="flex gap-2 text-xs leading-5 text-ink-secondary">
+                          <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-ink-tertiary/50" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs leading-5 text-ink-tertiary">暂无条目</p>
+                  )}
                 </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+              ))
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-nm-dark/10 bg-white/30 px-4 py-3">
+          <p className="text-xs leading-5 text-ink-tertiary">未读取到更新日志内容。</p>
+        </div>
+      )}
     </Card>
   );
 }
