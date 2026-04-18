@@ -12,6 +12,16 @@ from pathlib import Path
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
 
+README_CONTENT = """# MarkItDown Runtime
+
+This directory is reserved for the bundled MarkItDown runtime.
+
+- CI and fresh clones keep this placeholder so Tauri's resource path exists.
+- The prepare script replaces the directory contents with a generated runtime and
+  writes this README back afterwards.
+- Runtime binaries and copied dependencies are intentionally ignored by Git.
+"""
+
 
 def normalize(name: str) -> str:
     return name.lower().replace("-", "_").replace(".", "_")
@@ -96,6 +106,11 @@ def resolve_runtime_dir() -> Path:
     return runtime_dir
 
 
+def write_runtime_readme(runtime_dir: Path) -> None:
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    (runtime_dir / "README.md").write_text(README_CONTENT, encoding="utf-8")
+
+
 def resolve_relative_executable(python_home: Path, runtime_dir: Path) -> str:
     executable = Path(sys.executable).resolve()
     try:
@@ -149,6 +164,7 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
+    write_runtime_readme(runtime_dir)
 
     print(f"MarkItDown runtime generated: {runtime_dir}")
 
