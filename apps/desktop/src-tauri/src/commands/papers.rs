@@ -1,4 +1,5 @@
-use crate::commands::paper_analysis_text::build_analysis_slices;
+use crate::commands::paper_analysis_text::{build_analysis_slices, build_reproduction_context};
+use crate::commands::paper_artifacts::{paper_figures_dir, save_markitdown_markdown};
 use crate::assistant_prompts::specialist_system;
 use crate::ccf::{infer_from_text, match_venue};
 use crate::commands::paper_text::{
@@ -74,7 +75,7 @@ pub async fn papers_list(
             let mut v = paper_row_to_json(r, false);
             // Attach analysis inline if any field is present
             let rq: Option<String> = r.try_get("research_question").ok().flatten();
-            if rq.is_some() {
+            if rq.as_deref().is_some_and(|value| !value.trim().is_empty()) {
                 v["analysis"] = json!({
                     "research_question": r.try_get::<Option<String>, _>("research_question").ok().flatten(),
                     "core_method": r.try_get::<Option<String>, _>("core_method").ok().flatten(),
@@ -86,7 +87,7 @@ pub async fn papers_list(
                 });
             }
             let env: Option<String> = r.try_get("environment_setup").ok().flatten();
-            if env.is_some() {
+            if env.as_deref().is_some_and(|value| !value.trim().is_empty()) {
                 v["reproduction_guide"] = json!({
                     "code_repository": r.try_get::<Option<String>, _>("code_repository").ok().flatten(),
                     "environment_setup": r.try_get::<Option<String>, _>("environment_setup").ok().flatten(),
@@ -130,10 +131,17 @@ pub async fn papers_get(
     .await
     .ok()
     .flatten()
-    .map(|a: sqlx::sqlite::SqliteRow| {
-        json!({
+    .and_then(|a: sqlx::sqlite::SqliteRow| {
+        let research_question = a.get::<Option<String>, _>("research_question");
+        if research_question
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty())
+        {
+            return None;
+        }
+        Some(json!({
             "id": a.get::<String, _>("id"),
-            "research_question": a.get::<Option<String>, _>("research_question"),
+            "research_question": research_question,
             "core_method": a.get::<Option<String>, _>("core_method"),
             "experiment_design": a.get::<Option<String>, _>("experiment_design"),
             "experiment_results": a.get::<Option<String>, _>("experiment_results"),
@@ -141,7 +149,7 @@ pub async fn papers_get(
             "limitations": a.get::<Option<String>, _>("limitations"),
             "key_conclusions": a.get::<Option<String>, _>("key_conclusions"),
             "created_at": a.get::<String, _>("created_at"),
-        })
+        }))
     });
 
     let guide = sqlx::query(
@@ -153,11 +161,18 @@ pub async fn papers_get(
     .await
     .ok()
     .flatten()
-    .map(|g: sqlx::sqlite::SqliteRow| {
-        json!({
+    .and_then(|g: sqlx::sqlite::SqliteRow| {
+        let environment_setup = g.get::<Option<String>, _>("environment_setup");
+        if environment_setup
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty())
+        {
+            return None;
+        }
+        Some(json!({
             "id": g.get::<String, _>("id"),
             "code_repository": g.get::<Option<String>, _>("code_repository"),
-            "environment_setup": g.get::<Option<String>, _>("environment_setup"),
+            "environment_setup": environment_setup,
             "dependencies": g.get::<Option<String>, _>("dependencies"),
             "dataset_preparation": g.get::<Option<String>, _>("dataset_preparation"),
             "training_process": g.get::<Option<String>, _>("training_process"),
@@ -165,7 +180,7 @@ pub async fn papers_get(
             "evaluation_metrics": g.get::<Option<String>, _>("evaluation_metrics"),
             "risks_and_notes": g.get::<Option<String>, _>("risks_and_notes"),
             "created_at": g.get::<String, _>("created_at"),
-        })
+        }))
     });
 
     let mut paper = paper_row_to_json(&row, true);
@@ -652,6 +667,17 @@ pub async fn papers_upload(
             text.chars().count(),
             full_text_started_at.elapsed().as_millis()
         );
+        match save_markitdown_markdown(&app, &pid, &text) {
+            Ok(path) => eprintln!(
+                "[paper-import][{}] markitdown markdown saved: {}",
+                pid,
+                path.display()
+            ),
+            Err(error) => eprintln!(
+                "[paper-import][{}] failed to save markitdown markdown: {}",
+                pid, error
+            ),
+        }
 
         if preview_text.is_empty() {
             preview_text = preview_from_text(&text, 12_000).unwrap_or_default();
@@ -1068,6 +1094,7 @@ pub async fn papers_analyze(
     let db = state.db.clone();
     let pid = id.clone();
     let app_for_spawn = app.clone();
+    let previous_status = status.clone();
 
     let analysis_slices = build_analysis_slices(&full_text);
     let intro_text = analysis_slices.intro_text;
@@ -1086,6 +1113,7 @@ pub async fn papers_analyze(
         let client = match LlmClient::from_settings(&settings) {
             Ok(c) => c,
             Err(e) => {
+                restore_paper_status(&db, &pid, &previous_status).await;
                 let _ = app.emit(
                     "paper:status",
                     json!({ "paper_id": pid, "status": "error", "error": e.to_string() }),
@@ -1187,6 +1215,7 @@ pub async fn papers_analyze(
         ];
         let research_question = match client.chat(&msgs1, model.as_deref(), temperature).await {
             Ok(resp) => {
+                eprintln!("[paper-analyze][{}] agent1 response chars={}", pid, resp.chars().count());
                 let v: serde_json::Value =
                     serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
                 v["research_question"].as_str().unwrap_or("").to_string()
@@ -1208,6 +1237,7 @@ pub async fn papers_analyze(
         ];
         let core_method = match client.chat(&msgs2, model.as_deref(), temperature).await {
             Ok(resp) => {
+                eprintln!("[paper-analyze][{}] agent2 response chars={}", pid, resp.chars().count());
                 let v: serde_json::Value =
                     serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
                 v["core_method"].as_str().unwrap_or("").to_string()
@@ -1230,6 +1260,7 @@ pub async fn papers_analyze(
         let (experiment_design, experiment_results) =
             match client.chat(&msgs3, model.as_deref(), temperature).await {
                 Ok(resp) => {
+                    eprintln!("[paper-analyze][{}] agent3 response chars={}", pid, resp.chars().count());
                     let v: serde_json::Value =
                         serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
                     (
@@ -1260,6 +1291,7 @@ pub async fn papers_analyze(
         let (innovations, limitations, key_conclusions) =
             match client.chat(&msgs4, model.as_deref(), temperature).await {
                 Ok(resp) => {
+                    eprintln!("[paper-analyze][{}] agent4 response chars={}", pid, resp.chars().count());
                     let v: serde_json::Value =
                         serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
                     (
@@ -1270,6 +1302,31 @@ pub async fn papers_analyze(
                 }
                 Err(_) => (String::new(), String::new(), String::new()),
             };
+
+        if [
+            research_question.trim(),
+            core_method.trim(),
+            experiment_design.trim(),
+            experiment_results.trim(),
+            innovations.trim(),
+            limitations.trim(),
+            key_conclusions.trim(),
+        ]
+        .iter()
+        .all(|value| value.is_empty())
+        {
+            restore_paper_status(&db, &pid, &previous_status).await;
+            let _ = app.emit(
+                "paper:status",
+                json!({
+                    "paper_id": pid,
+                    "status": "error",
+                    "error": "??????????????????????????"
+                }),
+            );
+            eprintln!("[paper-analyze][{}] all agent outputs empty; skip persist", pid);
+            return;
+        }
 
         // ── Persist ───────────────────────────────────────────────
         let analysis_id = Uuid::new_v4().to_string();
@@ -1400,11 +1457,12 @@ pub async fn papers_reproduce(
     if full_text.trim().is_empty() {
         return Err(missing_full_text_message(&status).to_string());
     }
-    let text_preview = safe_text_preview(&full_text, 12000);
+    let reproduction_context = build_reproduction_context(&full_text, 24_000);
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
     let pid = id.clone();
-    let prompt = REPRODUCE_PROMPT.replace("{text}", text_preview);
+    let prompt = REPRODUCE_PROMPT.replace("{text}", &reproduction_context);
+    let previous_status = status.clone();
 
     let now_pre = chrono::Utc::now().to_rfc3339();
     let _ = sqlx::query("UPDATE papers SET status = 'analyzing', updated_at = ? WHERE id = ?")
@@ -1417,6 +1475,7 @@ pub async fn papers_reproduce(
         let client = match LlmClient::from_settings(&settings) {
             Ok(c) => c,
             Err(e) => {
+                restore_paper_status(&db, &pid, &previous_status).await;
                 let _ = app.emit(
                     "paper:status",
                     json!({ "paper_id": pid, "status": "error", "error": e.to_string() }),
@@ -1440,11 +1499,43 @@ pub async fn papers_reproduce(
 
         match client.chat(&msgs, model.as_deref(), temperature).await {
             Ok(response) => {
-                let v: serde_json::Value =
-                    serde_json::from_str(&extract_json(&response)).unwrap_or_default();
+                eprintln!(
+                    "[paper-reproduce][{}] response received: chars={}",
+                    pid,
+                    response.chars().count()
+                );
+                let v = match parse_llm_json_value(&response) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        restore_paper_status(&db, &pid, &previous_status).await;
+                        let _ = app.emit(
+                            "paper:status",
+                            json!({ "paper_id": pid, "status": "error", "error": error }),
+                        );
+                        return;
+                    }
+                };
+                let fields = reproduction_guide_fields_from_value(&v);
+                if !fields.has_meaningful_content() {
+                    restore_paper_status(&db, &pid, &previous_status).await;
+                    let _ = app.emit(
+                        "paper:status",
+                        json!({
+                            "paper_id": pid,
+                            "status": "error",
+                            "error": "复现指南生成结果为空，请检查模型配置或稍后重试。"
+                        }),
+                    );
+                    eprintln!(
+                        "[paper-reproduce][{}] empty guide after parsing: {}",
+                        pid,
+                        extract_json(&response)
+                    );
+                    return;
+                }
                 let guide_id = Uuid::new_v4().to_string();
                 let now = chrono::Utc::now().to_rfc3339();
-                let raw = serde_json::to_string(&v).unwrap_or_default();
+                let raw = response.clone();
                 let _ = sqlx::query(
                     "INSERT INTO reproduction_guides (id, paper_id, code_repository, environment_setup, dependencies, dataset_preparation, training_process, inference_process, evaluation_metrics, risks_and_notes, raw_guide, created_at)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1456,10 +1547,10 @@ pub async fn papers_reproduce(
                        risks_and_notes = excluded.risks_and_notes, raw_guide = excluded.raw_guide",
                 )
                 .bind(&guide_id).bind(&pid)
-                .bind(v["code_repository"].as_str()).bind(v["environment_setup"].as_str())
-                .bind(v["dependencies"].as_str()).bind(v["dataset_preparation"].as_str())
-                .bind(v["training_process"].as_str()).bind(v["inference_process"].as_str())
-                .bind(v["evaluation_metrics"].as_str()).bind(v["risks_and_notes"].as_str())
+                .bind(fields.code_repository.as_deref()).bind(fields.environment_setup.as_deref())
+                .bind(fields.dependencies.as_deref()).bind(fields.dataset_preparation.as_deref())
+                .bind(fields.training_process.as_deref()).bind(fields.inference_process.as_deref())
+                .bind(fields.evaluation_metrics.as_deref()).bind(fields.risks_and_notes.as_deref())
                 .bind(&raw).bind(&now)
                 .execute(&db).await;
                 let _ = sqlx::query(
@@ -1475,6 +1566,7 @@ pub async fn papers_reproduce(
                 );
             }
             Err(e) => {
+                restore_paper_status(&db, &pid, &previous_status).await;
                 let _ = app.emit(
                     "paper:status",
                     json!({ "paper_id": pid, "status": "error", "error": e.to_string() }),
@@ -1513,6 +1605,78 @@ pub(crate) fn extract_json(s: &str) -> String {
     let start = s.find('{').unwrap_or(0);
     let end = s.rfind('}').map(|i| i + 1).unwrap_or(s.len());
     s[start..end].to_string()
+}
+
+async fn restore_paper_status(db: &sqlx::SqlitePool, paper_id: &str, fallback_status: &str) {
+    let next_status = if fallback_status.trim().is_empty() {
+        "parsed"
+    } else {
+        fallback_status
+    };
+    let now = chrono::Utc::now().to_rfc3339();
+    let _ = sqlx::query("UPDATE papers SET status = ?, updated_at = ? WHERE id = ?")
+        .bind(next_status)
+        .bind(&now)
+        .bind(paper_id)
+        .execute(db)
+        .await;
+}
+
+fn parse_llm_json_value(response: &str) -> Result<serde_json::Value, String> {
+    let clean = extract_json(response);
+    serde_json::from_str::<serde_json::Value>(&clean)
+        .map_err(|e| format!("模型返回的 JSON 解析失败：{e}"))
+}
+
+#[derive(Default)]
+struct ReproductionGuideFields {
+    code_repository: Option<String>,
+    environment_setup: Option<String>,
+    dependencies: Option<String>,
+    dataset_preparation: Option<String>,
+    training_process: Option<String>,
+    inference_process: Option<String>,
+    evaluation_metrics: Option<String>,
+    risks_and_notes: Option<String>,
+}
+
+impl ReproductionGuideFields {
+    fn has_meaningful_content(&self) -> bool {
+        [
+            self.code_repository.as_deref(),
+            self.environment_setup.as_deref(),
+            self.dependencies.as_deref(),
+            self.dataset_preparation.as_deref(),
+            self.training_process.as_deref(),
+            self.inference_process.as_deref(),
+            self.evaluation_metrics.as_deref(),
+            self.risks_and_notes.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|value| !value.trim().is_empty())
+    }
+}
+
+fn reproduction_guide_fields_from_value(value: &serde_json::Value) -> ReproductionGuideFields {
+    ReproductionGuideFields {
+        code_repository: json_text_field(value, "code_repository"),
+        environment_setup: json_text_field(value, "environment_setup"),
+        dependencies: json_text_field(value, "dependencies"),
+        dataset_preparation: json_text_field(value, "dataset_preparation"),
+        training_process: json_text_field(value, "training_process"),
+        inference_process: json_text_field(value, "inference_process"),
+        evaluation_metrics: json_text_field(value, "evaluation_metrics"),
+        risks_and_notes: json_text_field(value, "risks_and_notes"),
+    }
+}
+
+fn json_text_field(value: &serde_json::Value, key: &str) -> Option<String> {
+    value
+        .get(key)
+        .and_then(|item| item.as_str())
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty() && item != "暂无")
 }
 
 async fn extract_import_metadata(
@@ -1737,14 +1901,10 @@ async fn ensure_figures_extracted(
         return Vec::new();
     }
 
-    let data_dir = match app.path().app_data_dir() {
-        Ok(d) => d,
+    let figures_dir = match paper_figures_dir(app, paper_id) {
+        Ok(dir) => dir,
         Err(_) => return Vec::new(),
     };
-    let figures_dir = data_dir.join("papers").join(paper_id).join("figures");
-    if std::fs::create_dir_all(&figures_dir).is_err() {
-        return Vec::new();
-    }
 
     // Phase 1: lopdf bitmap extraction (CPU-bound → spawn_blocking)
     let captions = extract_figure_captions(full_text);
