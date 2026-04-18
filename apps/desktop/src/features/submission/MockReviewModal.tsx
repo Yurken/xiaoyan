@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Bot, Check, CheckCircle2, Loader2, Sparkles, Upload, X } from "lucide-react";
+import { MarkdownRenderer } from "@research-copilot/ui";
 import {
   VERDICT_CFG,
   countVerdicts,
@@ -8,6 +9,7 @@ import {
   type MockReviewerResult,
   type ReviewVerdict,
 } from "./shared";
+import { openLink } from "../../lib/links";
 
 interface MockReviewModalProps {
   open: boolean;
@@ -244,7 +246,11 @@ export default function MockReviewModal({
                       </span>
                     </div>
                     <div className="px-4 py-3">
-                      <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap">{result.content}</p>
+                      <MarkdownRenderer
+                        content={result.content}
+                        className="text-sm leading-7 text-ink-secondary"
+                        onLinkClick={openLink}
+                      />
                     </div>
                   </div>
                 );
