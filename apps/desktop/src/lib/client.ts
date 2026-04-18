@@ -43,6 +43,10 @@ export function formatErrorMessage(error: unknown): string {
 
   if (!normalized) return "操作未完成，请稍后重试。";
 
+  if (/<!doctype html|<html/i.test(normalized)) {
+    return "接口返回了网页 HTML，而不是模型 API JSON。请检查自定义 base_url 是否填写为 OpenAI 兼容 API 根地址（通常以 /v1 结尾）。";
+  }
+
   const directMap: Record<string, string> = {
     "Session not found": "未找到对应会话。",
     "Research interest not found": "未找到对应研究方向。",

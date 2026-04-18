@@ -27,9 +27,21 @@ pub enum LlmClient {
         embed_model: String,
     },
     Anthropic {
+        base_url: String,
         api_key: String,
         chat_model: String,
     },
+}
+
+const DEFAULT_ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
+
+fn normalize_base_url(url: &str) -> String {
+    url.trim().trim_end_matches('/').to_string()
+}
+
+fn is_anthropic_compatible_base_url(base_url: &str) -> bool {
+    let lower = base_url.to_ascii_lowercase();
+    lower.contains("/anthropic/") || lower.contains("api.anthropic.com")
 }
 
 impl LlmClient {
@@ -42,6 +54,7 @@ impl LlmClient {
                     return Err(anyhow!("Anthropic API key not configured"));
                 }
                 Ok(LlmClient::Anthropic {
+                    base_url: DEFAULT_ANTHROPIC_BASE_URL.to_string(),
                     api_key,
                     chat_model: s
                         .get("anthropic_chat_model")
@@ -57,12 +70,23 @@ impl LlmClient {
                 if base_url.is_empty() {
                     return Err(anyhow!("OpenAI-compatible base URL not configured"));
                 }
+                let normalized_base_url = normalize_base_url(&base_url);
                 let api_key = s
                     .get("openai_compatible_api_key")
                     .cloned()
                     .unwrap_or_default();
+                if is_anthropic_compatible_base_url(&normalized_base_url) {
+                    return Ok(LlmClient::Anthropic {
+                        base_url: normalized_base_url,
+                        api_key,
+                        chat_model: s
+                            .get("openai_compatible_chat_model")
+                            .cloned()
+                            .unwrap_or_else(|| "claude-3-5-haiku-20241022".into()),
+                    });
+                }
                 Ok(LlmClient::OpenAI {
-                    base_url,
+                    base_url: normalized_base_url,
                     api_key,
                     chat_model: s
                         .get("openai_compatible_chat_model")
@@ -116,7 +140,11 @@ impl LlmClient {
             }
         } else if !api_key.is_empty() {
             // Likely Anthropic (api_key only, no base_url)
-            LlmClient::Anthropic { api_key, chat_model: model.clone() }
+            LlmClient::Anthropic {
+                base_url: DEFAULT_ANTHROPIC_BASE_URL.to_string(),
+                api_key,
+                chat_model: model.clone(),
+            }
         } else {
             // No dedicated key — reuse main provider with vision model override
             match Self::from_settings(s) {
@@ -191,7 +219,7 @@ impl LlmClient {
                 let json: serde_json::Value = resp.json().await?;
                 Ok(json["choices"][0]["message"]["content"].as_str().unwrap_or("").to_string())
             }
-            LlmClient::Anthropic { api_key, chat_model } => {
+            LlmClient::Anthropic { base_url, api_key, chat_model } => {
                 let client = reqwest::Client::new();
                 let body = json!({
                     "model": model.unwrap_or(chat_model),
@@ -206,7 +234,7 @@ impl LlmClient {
                     }]
                 });
                 let resp = client
-                    .post("https://api.anthropic.com/v1/messages")
+                    .post(format!("{}/messages", base_url.trim_end_matches('/')))
                     .header("x-api-key", api_key)
                     .header("anthropic-version", "2023-06-01")
                     .json(&body)
@@ -240,8 +268,9 @@ impl LlmClient {
                 )
                 .await
             }
-            LlmClient::Anthropic { api_key, chat_model } => {
+            LlmClient::Anthropic { base_url, api_key, chat_model } => {
                 anthropic_chat(
+                    base_url,
                     api_key,
                     model.unwrap_or(chat_model),
                     messages,
@@ -274,8 +303,9 @@ impl LlmClient {
                 )
                 .await
             }
-            LlmClient::Anthropic { api_key, chat_model } => {
+            LlmClient::Anthropic { base_url, api_key, chat_model } => {
                 stream_anthropic(
+                    base_url,
                     api_key,
                     model.unwrap_or(chat_model),
                     messages,
@@ -332,6 +362,33 @@ pub fn resolve_temperature_chain(
 
 const USER_AGENT: &str = "claude-code/1.0";
 
+fn compact_preview(text: &str, max_chars: usize) -> String {
+    text
+        .chars()
+        .take(max_chars)
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn format_openai_http_error(status: reqwest::StatusCode, body: &str, base_url: &str, label: &str) -> String {
+    let preview = compact_preview(body.trim(), 240);
+    let lower = preview.to_ascii_lowercase();
+    let is_html = lower.contains("<html") || lower.contains("<!doctype html");
+
+    if is_html {
+        return format!(
+            "{}: HTTP {}，服务返回了 HTML 页面。请检查 base_url 是否为 OpenAI 兼容 API 根地址（通常应以 /v1 结尾），而不是网站首页或文档页。当前 base_url: {}",
+            label,
+            status.as_u16(),
+            base_url.trim_end_matches('/'),
+        );
+    }
+
+    format!("{}: HTTP {} {}", label, status.as_u16(), preview)
+}
+
 fn build_message_array(messages: &[LlmMessage]) -> serde_json::Value {
     json!(messages
         .iter()
@@ -363,8 +420,9 @@ async fn openai_chat(
         .await?;
 
     if !resp.status().is_success() {
+        let status = resp.status();
         let text = resp.text().await?;
-        return Err(anyhow!("OpenAI error: {}", text));
+        return Err(anyhow!(format_openai_http_error(status, &text, base_url, "LLM API error")));
     }
     let json: serde_json::Value = resp.json().await?;
     Ok(json["choices"][0]["message"]["content"]
@@ -400,8 +458,14 @@ async fn stream_openai(
         .await?;
 
     if !resp.status().is_success() {
+        let status = resp.status();
         let text = resp.text().await?;
-        return Err(anyhow!("OpenAI streaming error: {}", text));
+        return Err(anyhow!(format_openai_http_error(
+            status,
+            &text,
+            base_url,
+            "LLM streaming API error",
+        )));
     }
 
     let mut full = String::new();
@@ -453,8 +517,9 @@ async fn embed_openai(
         .await?;
 
     if !resp.status().is_success() {
+        let status = resp.status();
         let text = resp.text().await?;
-        return Err(anyhow!("Embedding error: {}", text));
+        return Err(anyhow!(format_openai_http_error(status, &text, base_url, "Embedding error")));
     }
     let json: serde_json::Value = resp.json().await?;
     let data = json["data"].as_array().ok_or_else(|| anyhow!("no data in embed response"))?;
@@ -474,6 +539,7 @@ async fn embed_openai(
 // ── Anthropic helpers ───────────────────────────────────────────
 
 async fn anthropic_chat(
+    base_url: &str,
     api_key: &str,
     model: &str,
     messages: &[LlmMessage],
@@ -500,7 +566,7 @@ async fn anthropic_chat(
         body["system"] = json!(s);
     }
     let resp = client
-        .post("https://api.anthropic.com/v1/messages")
+        .post(format!("{}/messages", base_url.trim_end_matches('/')))
         .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
         .json(&body)
@@ -516,6 +582,7 @@ async fn anthropic_chat(
 }
 
 async fn stream_anthropic(
+    base_url: &str,
     api_key: &str,
     model: &str,
     messages: &[LlmMessage],
@@ -544,7 +611,7 @@ async fn stream_anthropic(
         body["system"] = json!(s);
     }
     let resp = client
-        .post("https://api.anthropic.com/v1/messages")
+        .post(format!("{}/messages", base_url.trim_end_matches('/')))
         .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
         .json(&body)
