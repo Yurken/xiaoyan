@@ -17,6 +17,7 @@ mod graph_rag;
 mod journal_partitions;
 mod llm;
 mod links;
+mod markitdown_runtime;
 mod rag;
 mod repositories;
 mod services;

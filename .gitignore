@@ -230,3 +230,5 @@ node_modules/
 
 .idea/
 system-review*.md
+apps/desktop/src-tauri/markitdown-runtime/*
+!apps/desktop/src-tauri/markitdown-runtime/README.md
