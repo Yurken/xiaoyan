@@ -138,6 +138,22 @@ pub(crate) fn build_analysis_slices(full_text: &str) -> PaperAnalysisSlices {
     }
 }
 
+pub(crate) fn build_reproduction_context(full_text: &str, max_bytes: usize) -> String {
+    let slices = build_analysis_slices(full_text);
+    let mut sections = Vec::new();
+
+    push_context_section(&mut sections, "引言与问题定义", &slices.intro_text);
+    push_context_section(&mut sections, "方法细节", &slices.method_text);
+    push_context_section(&mut sections, "实验与结果", &slices.experiment_text);
+
+    if sections.is_empty() {
+        return safe_text_preview_owned(full_text, max_bytes);
+    }
+
+    let joined = sections.join("\n\n");
+    safe_text_preview_owned(&joined, max_bytes)
+}
+
 pub(crate) fn extract_keywords_from_text(full_text: &str) -> Vec<String> {
     let search_area = safe_text_preview_owned(full_text, 6_000);
     let lower = search_area.to_ascii_lowercase();
@@ -154,6 +170,17 @@ pub(crate) fn extract_keywords_from_text(full_text: &str) -> Vec<String> {
     }
 
     Vec::new()
+}
+
+fn push_context_section(sections: &mut Vec<String>, title: &str, body: &str) {
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    if sections.iter().any(|existing| existing.contains(trimmed)) {
+        return;
+    }
+    sections.push(format!("## {title}\n{trimmed}"));
 }
 
 fn clean_analysis_text(text: &str) -> String {
