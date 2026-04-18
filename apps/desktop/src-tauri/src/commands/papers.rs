@@ -1,3 +1,4 @@
+use crate::commands::paper_analysis_text::build_analysis_slices;
 use crate::assistant_prompts::specialist_system;
 use crate::ccf::{infer_from_text, match_venue};
 use crate::commands::paper_text::{
@@ -664,7 +665,8 @@ pub async fn papers_upload(
         // ④ 基于有效预览文本做本地快速识别并更新初始字段
         let venue_and_kw_started_at = Instant::now();
         let inferred_venue = infer_from_text(&preview_text).map(|tag| tag.full_name);
-        let preview_keywords = extract_keywords_from_text(&preview_text);
+        let preview_keywords =
+            crate::commands::paper_analysis_text::extract_keywords_from_text(&preview_text);
         let preview_tags =
             serde_json::to_string(&preview_keywords).unwrap_or_else(|_| "[]".to_string());
         if inferred_venue.is_some() || !preview_keywords.is_empty() {
@@ -762,7 +764,8 @@ pub async fn papers_upload(
             return;
         }
 
-        let refreshed_keywords = extract_keywords_from_text(&text);
+        let refreshed_keywords =
+            crate::commands::paper_analysis_text::extract_keywords_from_text(&text);
         let refreshed_tags =
             serde_json::to_string(&refreshed_keywords).unwrap_or_else(|_| "[]".to_string());
         let parsed_now = chrono::Utc::now().to_rfc3339();
@@ -1049,18 +1052,27 @@ pub async fn papers_analyze(
         return Err(missing_full_text_message(&status).to_string());
     }
     let settings = state.settings.read().await.clone();
+    let refreshed_keywords =
+        crate::commands::paper_analysis_text::extract_keywords_from_text(&full_text);
+    if !refreshed_keywords.is_empty() {
+        let tags_json =
+            serde_json::to_string(&refreshed_keywords).unwrap_or_else(|_| "[]".to_string());
+        let now = chrono::Utc::now().to_rfc3339();
+        let _ = sqlx::query("UPDATE papers SET tags = ?, updated_at = ? WHERE id = ?")
+            .bind(&tags_json)
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await;
+    }
     let db = state.db.clone();
     let pid = id.clone();
     let app_for_spawn = app.clone();
 
-    // Slice the paper into three overlapping windows for different agents.
-    // Each window covers a different region so together they span the full paper.
-    const CHUNK: usize = 18_000;
-    let text_len = full_text.len();
-    let intro_text = safe_text_slice(&full_text, 0, CHUNK).to_string();
-    let method_text = safe_text_slice(&full_text, text_len / 4, CHUNK).to_string();
-    let experiment_text =
-        safe_text_slice(&full_text, text_len.saturating_sub(CHUNK), CHUNK).to_string();
+    let analysis_slices = build_analysis_slices(&full_text);
+    let intro_text = analysis_slices.intro_text;
+    let method_text = analysis_slices.method_text;
+    let experiment_text = analysis_slices.experiment_text;
 
     let now_pre = chrono::Utc::now().to_rfc3339();
     let _ = sqlx::query("UPDATE papers SET status = 'analyzing', updated_at = ? WHERE id = ?")
@@ -1484,25 +1496,6 @@ fn safe_text_preview(text: &str, max_bytes: usize) -> &str {
         end -= 1;
     }
     &text[..end]
-}
-
-/// Return a slice of `text` starting at `start_bytes`, up to `max_bytes` long.
-/// Always returns a valid UTF-8 slice by snapping to char boundaries.
-fn safe_text_slice(text: &str, start_bytes: usize, max_bytes: usize) -> &str {
-    let len = text.len();
-    if start_bytes >= len {
-        return safe_text_preview(text, max_bytes);
-    }
-    let mut start = start_bytes;
-    while start > 0 && !text.is_char_boundary(start) {
-        start -= 1;
-    }
-    let raw_end = (start + max_bytes).min(len);
-    let mut end = raw_end;
-    while end > start && !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    &text[start..end]
 }
 
 pub fn extract_json_pub(s: &str) -> String {

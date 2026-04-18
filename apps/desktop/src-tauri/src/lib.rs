@@ -172,7 +172,7 @@ pub fn run() {
                 // Backfill keywords for existing papers that have full_text but empty tags
                 tauri::async_runtime::spawn(async move {
                     use sqlx::Row;
-                    use commands::papers::extract_keywords_from_text;
+                    use commands::paper_analysis_text::extract_keywords_from_text;
                     let rows = sqlx::query(
                         "SELECT id, full_text FROM papers WHERE (tags IS NULL OR tags = '[]') AND full_text IS NOT NULL AND full_text != ''",
                     )

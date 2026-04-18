@@ -11,6 +11,7 @@ pub mod knowledge_notes;
 pub mod memory;
 pub mod misc;
 pub mod paper_search;
+pub mod paper_analysis_text;
 pub mod paper_text;
 pub mod papers;
 pub mod settings;
