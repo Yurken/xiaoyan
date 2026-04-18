@@ -3,14 +3,11 @@ import { submissionApi } from "../lib/client";
 import { listen } from "@tauri-apps/api/event";
 import {
   Calendar,
-  CheckCircle2,
   CheckSquare,
-  Circle,
   GitBranch,
   History,
   KanbanSquare,
 } from "lucide-react";
-import { Card } from "@research-copilot/ui";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   POPULAR_VENUES,
@@ -31,7 +28,9 @@ import VenueTrackerWorkspace from "../features/submission/VenueTrackerWorkspace"
 import VersionWorkspace from "../features/submission/VersionWorkspace";
 import {
   DEFAULT_CHECKLIST,
+  KANBAN_COLS,
   countVerdicts,
+  getDaysUntil,
   getDominantVerdict,
   rowToComment,
   rowToRound,
@@ -40,6 +39,8 @@ import {
   rowToVersion,
   type AddSubmissionFormState,
   type ChecklistItem,
+  type Conference,
+  type Journal,
   type MockReviewInput,
   type MockReviewerResult,
   type PaperVersion,
