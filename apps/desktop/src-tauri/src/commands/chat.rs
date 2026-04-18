@@ -285,8 +285,16 @@ async fn run_chat(
 ) -> anyhow::Result<()> {
     let client = LlmClient::from_settings(settings)?;
     let multi_agent = settings.get("multi_agent_enabled").map(|v| v == "true").unwrap_or(true);
+    let long_term_memory_enabled = settings
+        .get("xiaoyan_long_term_memory_enabled")
+        .map(|value| value != "false")
+        .unwrap_or(true);
     let base_context = load_context_summary(db, context_type, context_id).await;
-    let memory_ctx = crate::commands::memory::build_memory_context(db).await;
+    let memory_ctx = if long_term_memory_enabled {
+        crate::commands::memory::build_memory_context(db).await
+    } else {
+        String::new()
+    };
     let context_summary = if memory_ctx.is_empty() {
         base_context
     } else if base_context.is_empty() {
