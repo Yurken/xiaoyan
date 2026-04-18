@@ -1,9 +1,14 @@
 use crate::commands::paper_analysis_text::{build_analysis_slices, build_reproduction_context};
-use crate::commands::paper_artifacts::{paper_figures_dir, save_markitdown_markdown};
+use crate::commands::paper_artifacts::{
+    paper_figures_dir, save_fixed_source_markdown, save_markitdown_markdown,
+    save_plain_source_text,
+};
+use crate::commands::paper_source_fix::generate_fixed_source_markdown;
 use crate::assistant_prompts::specialist_system;
 use crate::ccf::{infer_from_text, match_venue};
 use crate::commands::paper_text::{
-    extract_pdf_preview_text, extract_pdf_text_with_filtered_stderr, preview_from_text,
+    extract_lopdf_full_text, extract_markitdown_text, extract_pdf_preview_text,
+    extract_pdf_text_with_filtered_stderr, preview_from_text,
 };
 use crate::journal_partitions::match_journal;
 use crate::links::paper_reference_url;
@@ -600,11 +605,15 @@ pub async fn papers_upload(
         // ① 尽早启动全文提取（慢，CPU 密集，先开始但不等待）
         let preview_path = path_for_parse.clone();
         let full_text_started_at = Instant::now();
-        eprintln!("[paper-import][{}] full_text extraction start", pid);
-        let app_for_full_text = app.clone();
-        let full_text_handle = tokio::task::spawn_blocking(move || {
-            extract_pdf_text_with_filtered_stderr(&app_for_full_text, &path_for_parse)
+        eprintln!("[paper-import][{}] dual-source extraction start", pid);
+        let app_for_markitdown = app.clone();
+        let path_for_markitdown = path_for_parse.clone();
+        let markitdown_handle = tokio::task::spawn_blocking(move || {
+            extract_markitdown_text(&app_for_markitdown, &path_for_markitdown)
         });
+        let path_for_lopdf = path_for_parse.clone();
+        let lopdf_handle =
+            tokio::task::spawn_blocking(move || extract_lopdf_full_text(&path_for_lopdf));
 
         // ② 提取前3页预览文本（相对快），与①并发进行
         let preview_started_at = Instant::now();
@@ -627,56 +636,77 @@ pub async fn papers_upload(
             );
         }
 
-        // ③ 等待全文提取完成（此时①可能已基本完成）
-        let text = match full_text_handle.await {
-            Ok(Ok(value)) => value,
+        let source_md = match markitdown_handle.await {
+            Ok(Ok(value)) => Some(value),
             Ok(Err(error)) => {
-                let now = chrono::Utc::now().to_rfc3339();
-                let _ =
-                    sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
-                        .bind(&now)
-                        .bind(&pid)
-                        .execute(&db)
-                        .await;
-                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 解析失败：{error}") }));
-                eprintln!(
-                    "[paper-import][{}] full_text extraction failed: {}",
-                    pid, error
-                );
-                return;
+                eprintln!("[paper-import][{}] source.md extraction failed: {}", pid, error);
+                None
             }
             Err(join_error) => {
-                let now = chrono::Utc::now().to_rfc3339();
-                let _ =
-                    sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
-                        .bind(&now)
-                        .bind(&pid)
-                        .execute(&db)
-                        .await;
-                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 后台解析任务失败：{join_error}") }));
                 eprintln!(
-                    "[paper-import][{}] full_text extraction join failed: {}",
+                    "[paper-import][{}] source.md extraction join failed: {}",
                     pid, join_error
                 );
-                return;
+                None
             }
         };
+        let source_txt = match lopdf_handle.await {
+            Ok(value) => value,
+            Err(join_error) => {
+                eprintln!(
+                    "[paper-import][{}] source.txt extraction join failed: {}",
+                    pid, join_error
+                );
+                None
+            }
+        };
+        let mut text = source_md.clone().or_else(|| source_txt.clone()).unwrap_or_default();
         eprintln!(
-            "[paper-import][{}] full_text extracted: chars={} elapsed_ms={}",
+            "[paper-import][{}] dual-source extracted: md_chars={} txt_chars={} chosen_chars={} elapsed_ms={}",
             pid,
+            source_md.as_ref().map(|value| value.chars().count()).unwrap_or(0),
+            source_txt.as_ref().map(|value| value.chars().count()).unwrap_or(0),
             text.chars().count(),
             full_text_started_at.elapsed().as_millis()
         );
-        match save_markitdown_markdown(&app, &pid, &text) {
-            Ok(path) => eprintln!(
-                "[paper-import][{}] markitdown markdown saved: {}",
-                pid,
-                path.display()
-            ),
-            Err(error) => eprintln!(
-                "[paper-import][{}] failed to save markitdown markdown: {}",
-                pid, error
-            ),
+        if let Some(markdown) = source_md.as_ref() {
+            match save_markitdown_markdown(&app, &pid, markdown) {
+                Ok(path) => eprintln!("[paper-import][{}] source.md saved: {}", pid, path.display()),
+                Err(error) => eprintln!("[paper-import][{}] failed to save source.md: {}", pid, error),
+            }
+        }
+        if let Some(plain_text) = source_txt.as_ref() {
+            match save_plain_source_text(&app, &pid, plain_text) {
+                Ok(path) => eprintln!("[paper-import][{}] source.txt saved: {}", pid, path.display()),
+                Err(error) => eprintln!("[paper-import][{}] failed to save source.txt: {}", pid, error),
+            }
+        }
+        if let (Some(markdown), Some(plain_text)) = (source_md.as_ref(), source_txt.as_ref()) {
+            if let Some(fixed_markdown) =
+                generate_fixed_source_markdown(&settings, &file_name_owned, markdown, plain_text)
+                    .await
+            {
+                match save_fixed_source_markdown(&app, &pid, &fixed_markdown) {
+                    Ok(path) => eprintln!("[paper-import][{}] source_fix.md saved: {}", pid, path.display()),
+                    Err(error) => eprintln!("[paper-import][{}] failed to save source_fix.md: {}", pid, error),
+                }
+                text = fixed_markdown;
+            }
+        }
+        if text.trim().is_empty() {
+            let now = chrono::Utc::now().to_rfc3339();
+            let _ =
+                sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
+                    .bind(&now)
+                    .bind(&pid)
+                    .execute(&db)
+                    .await;
+            let _ = app.emit(
+                "paper:status",
+                json!({ "paper_id": pid, "status": "failed", "error": "PDF 解析失败，source.md 和 source.txt 都不可用" }),
+            );
+            eprintln!("[paper-import][{}] both source.md and source.txt unavailable", pid);
+            return;
         }
 
         if preview_text.is_empty() {

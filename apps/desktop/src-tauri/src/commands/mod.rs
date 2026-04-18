@@ -13,6 +13,7 @@ pub mod misc;
 pub mod paper_search;
 pub mod paper_analysis_text;
 pub mod paper_artifacts;
+pub mod paper_source_fix;
 pub mod paper_text;
 pub mod papers;
 pub mod settings;
