@@ -6,7 +6,11 @@ use tauri::State;
 
 fn sanitize_file_stem(name: &str) -> String {
     let trimmed = name.trim();
-    let normalized = if trimmed.is_empty() { "Untitled" } else { trimmed };
+    let normalized = if trimmed.is_empty() {
+        "Untitled"
+    } else {
+        trimmed
+    };
     normalized
         .chars()
         .map(|c| if r#"\/:*?\"<>|"#.contains(c) { '_' } else { c })

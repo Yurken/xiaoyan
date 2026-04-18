@@ -90,7 +90,8 @@ pub async fn skills_create(
 
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
-    let tags_json = serde_json::to_string(&tags.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string());
+    let tags_json =
+        serde_json::to_string(&tags.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string());
 
     sqlx::query(
         "INSERT INTO skills (id, name, title, description, prompt, tags, is_builtin, is_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, 1, ?, ?)",
@@ -123,10 +124,17 @@ pub async fn skills_update(
     let existing = get_skill_by_id(&state.db, &id).await?;
     let now = chrono::Utc::now().to_rfc3339();
 
-    let new_title = title.map(|s| s.trim().to_string()).unwrap_or(existing.title);
-    let new_description = description.map(|s| s.trim().to_string()).unwrap_or(existing.description);
-    let new_prompt = prompt.map(|s| s.trim().to_string()).unwrap_or(existing.prompt);
-    let new_tags_json = serde_json::to_string(&tags.unwrap_or(existing.tags)).unwrap_or_else(|_| "[]".to_string());
+    let new_title = title
+        .map(|s| s.trim().to_string())
+        .unwrap_or(existing.title);
+    let new_description = description
+        .map(|s| s.trim().to_string())
+        .unwrap_or(existing.description);
+    let new_prompt = prompt
+        .map(|s| s.trim().to_string())
+        .unwrap_or(existing.prompt);
+    let new_tags_json =
+        serde_json::to_string(&tags.unwrap_or(existing.tags)).unwrap_or_else(|_| "[]".to_string());
     let new_enabled: i64 = is_enabled.unwrap_or(existing.is_enabled) as i64;
 
     sqlx::query(
@@ -176,7 +184,9 @@ pub async fn skills_reset_builtins(state: State<'_, AppState>) -> Result<Vec<Ski
         .await
         .map_err(|e| e.to_string())?;
 
-    seed_builtin_skills(&state.db).await.map_err(|e| e.to_string())?;
+    seed_builtin_skills(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let rows = sqlx::query(
         "SELECT id, name, title, description, prompt, tags, is_builtin, is_enabled, created_at, updated_at FROM skills ORDER BY is_builtin DESC, title ASC",

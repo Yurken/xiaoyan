@@ -7,6 +7,7 @@ pub mod export;
 pub mod journal;
 pub mod knowledge;
 pub mod knowledge_graph;
+pub mod knowledge_notes;
 pub mod memory;
 pub mod misc;
 pub mod paper_search;

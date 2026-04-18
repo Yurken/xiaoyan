@@ -130,7 +130,11 @@ fn parse_string_array(raw: Option<String>) -> Vec<String> {
 fn normalize_optional_id(value: Option<String>) -> Option<String> {
     value.and_then(|item| {
         let trimmed = item.trim().to_string();
-        if trimmed.is_empty() { None } else { Some(trimmed) }
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
     })
 }
 
@@ -316,7 +320,9 @@ pub async fn knowledge_graph_snapshot(
             source_kind: row.get("source_kind"),
             source_id: row.get("source_id"),
             relation_kind: row.get("relation_kind"),
-            evidence_summary: row.get::<Option<String>, _>("evidence_summary").unwrap_or_default(),
+            evidence_summary: row
+                .get::<Option<String>, _>("evidence_summary")
+                .unwrap_or_default(),
             created_at: row.get("created_at"),
         })
         .collect::<Vec<_>>();
@@ -341,9 +347,18 @@ pub async fn knowledge_graph_snapshot(
         })
         .collect::<Vec<_>>();
 
-    let claim_ids = claims.iter().map(|item| item.id.clone()).collect::<HashSet<_>>();
-    let paper_ids = papers.iter().map(|item| item.id.clone()).collect::<HashSet<_>>();
-    let note_ids = notes.iter().map(|item| item.id.clone()).collect::<HashSet<_>>();
+    let claim_ids = claims
+        .iter()
+        .map(|item| item.id.clone())
+        .collect::<HashSet<_>>();
+    let paper_ids = papers
+        .iter()
+        .map(|item| item.id.clone())
+        .collect::<HashSet<_>>();
+    let note_ids = notes
+        .iter()
+        .map(|item| item.id.clone())
+        .collect::<HashSet<_>>();
     let experiment_ids = experiments
         .iter()
         .map(|item| item.id.clone())

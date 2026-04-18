@@ -278,19 +278,33 @@ async fn ensure_performance_indexes(pool: &SqlitePool) -> Result<()> {
 }
 
 async fn ensure_papers_importance_color_column(pool: &SqlitePool) -> Result<()> {
-    let columns = sqlx::query("PRAGMA table_info(papers)").fetch_all(pool).await?;
-    let has = columns.iter().any(|row| { let name: String = sqlx::Row::get(row, "name"); name == "importance_color" });
+    let columns = sqlx::query("PRAGMA table_info(papers)")
+        .fetch_all(pool)
+        .await?;
+    let has = columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == "importance_color"
+    });
     if !has {
-        sqlx::query("ALTER TABLE papers ADD COLUMN importance_color TEXT NOT NULL DEFAULT ''").execute(pool).await?;
+        sqlx::query("ALTER TABLE papers ADD COLUMN importance_color TEXT NOT NULL DEFAULT ''")
+            .execute(pool)
+            .await?;
     }
     Ok(())
 }
 
 async fn ensure_papers_notes_column(pool: &SqlitePool) -> Result<()> {
-    let columns = sqlx::query("PRAGMA table_info(papers)").fetch_all(pool).await?;
-    let has = columns.iter().any(|row| { let name: String = sqlx::Row::get(row, "name"); name == "notes" });
+    let columns = sqlx::query("PRAGMA table_info(papers)")
+        .fetch_all(pool)
+        .await?;
+    let has = columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == "notes"
+    });
     if !has {
-        sqlx::query("ALTER TABLE papers ADD COLUMN notes TEXT").execute(pool).await?;
+        sqlx::query("ALTER TABLE papers ADD COLUMN notes TEXT")
+            .execute(pool)
+            .await?;
     }
     Ok(())
 }

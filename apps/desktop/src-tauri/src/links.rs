@@ -38,5 +38,7 @@ pub fn paper_reference_url(
         .filter(|value| !value.is_empty())
         .map(str::to_string);
 
-    local_path.or_else(|| doi_url(doi)).or_else(|| paper_search_url(title))
+    local_path
+        .or_else(|| doi_url(doi))
+        .or_else(|| paper_search_url(title))
 }

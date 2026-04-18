@@ -141,9 +141,6 @@ pub async fn delete_submission_venue(state: &AppState, id: &str) -> Result<(), S
     delete_venue(&state.db, id).await
 }
 
-pub async fn toggle_submission_venue_star(
-    state: &AppState,
-    id: &str,
-) -> Result<(), String> {
+pub async fn toggle_submission_venue_star(state: &AppState, id: &str) -> Result<(), String> {
     toggle_venue_star(&state.db, id).await
 }

@@ -61,10 +61,15 @@ pub fn chunk_text(text: &str, chunk_size: usize, overlap: usize) -> Vec<Chunk> {
 
         let content = text[start_idx..end].trim().to_string();
         if !content.is_empty() {
-            chunks.push(Chunk { chunk_index: idx, content });
+            chunks.push(Chunk {
+                chunk_index: idx,
+                content,
+            });
             idx += 1;
         }
-        if end >= text.len() { break; }
+        if end >= text.len() {
+            break;
+        }
         let next = end.saturating_sub(overlap);
         start = if next <= start_idx { end } else { next };
     }
@@ -78,7 +83,9 @@ fn normalize(text: &str) -> String {
         let t = line.trim_end();
         if t.is_empty() {
             blank += 1;
-            if blank <= 2 { out.push('\n'); }
+            if blank <= 2 {
+                out.push('\n');
+            }
         } else {
             blank = 0;
             out.push_str(t);
@@ -94,7 +101,11 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
     let na: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
     let nb: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if na == 0.0 || nb == 0.0 { 0.0 } else { dot / (na * nb) }
+    if na == 0.0 || nb == 0.0 {
+        0.0
+    } else {
+        dot / (na * nb)
+    }
 }
 
 pub fn parse_embedding(json_str: &str) -> Vec<f32> {
@@ -175,7 +186,9 @@ pub async fn search_paper_chunks(
         .into_iter()
         .filter_map(|(id, paper_id, content, source, emb_opt, url)| {
             let emb = parse_embedding(emb_opt?.as_str());
-            if emb.is_empty() { return None; }
+            if emb.is_empty() {
+                return None;
+            }
             let score = cosine_similarity(query_embedding, &emb);
             Some(SearchResult {
                 id,
@@ -189,7 +202,11 @@ pub async fn search_paper_chunks(
         })
         .collect();
 
-    results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     results.truncate(top_k);
     Ok(results)
 }
@@ -213,7 +230,9 @@ pub async fn search_knowledge_notes(
             let title: String = r.get("title");
             let emb_opt: Option<String> = r.get("embedding");
             let emb = parse_embedding(emb_opt?.as_str());
-            if emb.is_empty() { return None; }
+            if emb.is_empty() {
+                return None;
+            }
             let score = cosine_similarity(query_embedding, &emb);
             Some(SearchResult {
                 id: id.clone(),
@@ -227,7 +246,11 @@ pub async fn search_knowledge_notes(
         })
         .collect();
 
-    results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     results.truncate(top_k);
     Ok(results)
 }
@@ -240,7 +263,11 @@ pub async fn combined_search(
     let mut results = Vec::new();
     results.extend(search_paper_chunks(db, query_embedding, None, top_k).await?);
     results.extend(search_knowledge_notes(db, query_embedding, top_k).await?);
-    results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     results.truncate(top_k);
     Ok(results)
 }

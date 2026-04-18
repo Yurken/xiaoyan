@@ -34,11 +34,7 @@ pub fn supervisor_system() -> String {
     )
 }
 
-pub fn specialist_system(
-    role: &str,
-    responsibility: &str,
-    extra_rules: Option<&str>,
-) -> String {
+pub fn specialist_system(role: &str, responsibility: &str, extra_rules: Option<&str>) -> String {
     let mut prompt = format!(
         "你是主 AI 助手{}的{}。\n\
 职责：{}\n\
@@ -48,7 +44,11 @@ pub fn specialist_system(
 
     if let Some(rules) = extra_rules.and_then(|value| {
         let trimmed = value.trim();
-        if trimmed.is_empty() { None } else { Some(trimmed) }
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
     }) {
         prompt.push_str("\n额外约束：");
         prompt.push_str(rules);
@@ -57,7 +57,13 @@ pub fn specialist_system(
     prompt
 }
 
-pub fn ai_review_prompt(text: &str, reviewer: &str, strictness_desc: &str, index: u8, total: u8) -> String {
+pub fn ai_review_prompt(
+    text: &str,
+    reviewer: &str,
+    strictness_desc: &str,
+    index: u8,
+    total: u8,
+) -> String {
     format!(
         "你是第 {index}/{total} 位审稿人（{reviewer}），审稿风格：{strictness_desc}。\n\
 请对以下论文全文（或摘要）进行学术审稿，输出严格的JSON格式（不要有任何 markdown 代码块）：\n\
@@ -92,7 +98,11 @@ pub fn cover_letter_prompt(
     rounds_info: &str,
     comments_info: &str,
 ) -> String {
-    let venue_label = if venue_type == "journal" { "期刊" } else { "会议" };
+    let venue_label = if venue_type == "journal" {
+        "期刊"
+    } else {
+        "会议"
+    };
     let has_revision = !rounds_info.is_empty() && !comments_info.is_empty();
 
     if has_revision {

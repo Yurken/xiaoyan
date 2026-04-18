@@ -141,7 +141,11 @@ async fn interest_context_summary(db: &SqlitePool, context_id: &Option<String>) 
     if !keywords.is_empty() {
         lines.push(format!("关键词：{}", keywords.join("、")));
     }
-    if let Some(goal) = profile.goal.as_deref().filter(|value| !value.trim().is_empty()) {
+    if let Some(goal) = profile
+        .goal
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
         lines.push(format!("研究目标：{}", goal));
     }
     if let Some(background) = profile
@@ -172,7 +176,11 @@ async fn interest_context_summary(db: &SqlitePool, context_id: &Option<String>) 
     {
         lines.push(format!("已知论文/方法：{}", known_context));
     }
-    if let Some(constraints) = profile.constraints.as_ref().filter(|value| !value.is_empty()) {
+    if let Some(constraints) = profile
+        .constraints
+        .as_ref()
+        .filter(|value| !value.is_empty())
+    {
         lines.push(format!("约束条件：{}", constraints.join("、")));
     }
 

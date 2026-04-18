@@ -106,10 +106,7 @@ pub async fn submission_update_venue(
 }
 
 #[tauri::command]
-pub async fn submission_delete_venue(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn submission_delete_venue(state: State<'_, AppState>, id: String) -> Result<(), String> {
     submission_service::delete_submission_venue(&state, &id).await
 }
 
@@ -126,9 +123,7 @@ pub async fn submission_toggle_venue_star(
 // ══════════════════════════════════════════════════════════════════════════
 
 #[tauri::command]
-pub async fn submission_list(
-    state: State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
+pub async fn submission_list(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let rows = sqlx::query(
         "SELECT id, title, venue_name, venue_type, status, deadline, submitted_at, created_at, updated_at
          FROM submissions ORDER BY updated_at DESC",
@@ -203,33 +198,66 @@ pub async fn submission_update(
 ) -> Result<(), String> {
     let ts = now();
     if let Some(v) = &title {
-        sqlx::query("UPDATE submissions SET title = ?, updated_at = ? WHERE id = ?").bind(v).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE submissions SET title = ?, updated_at = ? WHERE id = ?")
+            .bind(v)
+            .bind(&ts)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &venue_name {
-        sqlx::query("UPDATE submissions SET venue_name = ?, updated_at = ? WHERE id = ?").bind(v).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE submissions SET venue_name = ?, updated_at = ? WHERE id = ?")
+            .bind(v)
+            .bind(&ts)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &venue_type {
-        sqlx::query("UPDATE submissions SET venue_type = ?, updated_at = ? WHERE id = ?").bind(v).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE submissions SET venue_type = ?, updated_at = ? WHERE id = ?")
+            .bind(v)
+            .bind(&ts)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &status {
-        sqlx::query("UPDATE submissions SET status = ?, updated_at = ? WHERE id = ?").bind(v).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE submissions SET status = ?, updated_at = ? WHERE id = ?")
+            .bind(v)
+            .bind(&ts)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &deadline {
         let val: Option<&str> = if v.is_empty() { None } else { Some(v) };
-        sqlx::query("UPDATE submissions SET deadline = ?, updated_at = ? WHERE id = ?").bind(val).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE submissions SET deadline = ?, updated_at = ? WHERE id = ?")
+            .bind(val)
+            .bind(&ts)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &submitted_at {
         let val: Option<&str> = if v.is_empty() { None } else { Some(v) };
-        sqlx::query("UPDATE submissions SET submitted_at = ?, updated_at = ? WHERE id = ?").bind(val).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE submissions SET submitted_at = ?, updated_at = ? WHERE id = ?")
+            .bind(val)
+            .bind(&ts)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
 #[tauri::command]
-pub async fn submission_delete(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn submission_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
     sqlx::query("DELETE FROM submissions WHERE id = ?")
         .bind(&id)
         .execute(&state.db)
@@ -258,18 +286,20 @@ pub async fn submission_list_versions(
 
     let items: Vec<serde_json::Value> = rows
         .iter()
-        .map(|row| json!({
-            "id": row.get::<String, _>("id"),
-            "submissionId": row.get::<String, _>("submission_id"),
-            "tag": row.get::<String, _>("tag"),
-            "label": row.get::<String, _>("label"),
-            "stage": row.get::<String, _>("stage"),
-            "content": row.get::<String, _>("content"),
-            "notes": row.get::<String, _>("notes"),
-            "filePath": row.get::<Option<String>, _>("file_path"),
-            "fileName": row.get::<Option<String>, _>("file_name"),
-            "createdAt": row.get::<String, _>("created_at"),
-        }))
+        .map(|row| {
+            json!({
+                "id": row.get::<String, _>("id"),
+                "submissionId": row.get::<String, _>("submission_id"),
+                "tag": row.get::<String, _>("tag"),
+                "label": row.get::<String, _>("label"),
+                "stage": row.get::<String, _>("stage"),
+                "content": row.get::<String, _>("content"),
+                "notes": row.get::<String, _>("notes"),
+                "filePath": row.get::<Option<String>, _>("file_path"),
+                "fileName": row.get::<Option<String>, _>("file_name"),
+                "createdAt": row.get::<String, _>("created_at"),
+            })
+        })
         .collect();
 
     Ok(json!({ "versions": items }))
@@ -309,8 +339,11 @@ pub async fn submission_create_version(
 
     // update submission updated_at
     sqlx::query("UPDATE submissions SET updated_at = ? WHERE id = ?")
-        .bind(&ts).bind(&submission_id)
-        .execute(&state.db).await.ok();
+        .bind(&ts)
+        .bind(&submission_id)
+        .execute(&state.db)
+        .await
+        .ok();
 
     Ok(json!({ "id": id }))
 }
@@ -345,13 +378,18 @@ pub async fn submission_list_rounds(
     .await
     .map_err(|e| e.to_string())?;
 
-    let items: Vec<serde_json::Value> = rows.iter().map(|row| json!({
-        "id": row.get::<String, _>("id"),
-        "submissionId": row.get::<String, _>("submission_id"),
-        "round": row.get::<i64, _>("round"),
-        "verdict": row.get::<String, _>("verdict"),
-        "receivedAt": row.get::<Option<String>, _>("received_at"),
-    })).collect();
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|row| {
+            json!({
+                "id": row.get::<String, _>("id"),
+                "submissionId": row.get::<String, _>("submission_id"),
+                "round": row.get::<i64, _>("round"),
+                "verdict": row.get::<String, _>("verdict"),
+                "receivedAt": row.get::<Option<String>, _>("received_at"),
+            })
+        })
+        .collect();
 
     Ok(json!({ "rounds": items }))
 }
@@ -381,14 +419,12 @@ pub async fn submission_upsert_round(
     .await
     .map_err(|e| e.to_string())?;
 
-    let row = sqlx::query(
-        "SELECT id FROM review_rounds WHERE submission_id = ? AND round = ?",
-    )
-    .bind(&submission_id)
-    .bind(round)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| e.to_string())?;
+    let row = sqlx::query("SELECT id FROM review_rounds WHERE submission_id = ? AND round = ?")
+        .bind(&submission_id)
+        .bind(round)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(json!({ "id": row.get::<String, _>("id") }))
 }
@@ -420,21 +456,25 @@ pub async fn submission_list_comments(
     }
     .map_err(|e| e.to_string())?;
 
-    let items: Vec<serde_json::Value> = rows.iter().map(|row| {
-        let tags_raw: String = row.get("tags");
-        let tags: serde_json::Value = serde_json::from_str(&tags_raw).unwrap_or_else(|_| json!([]));
-        json!({
-            "id": row.get::<String, _>("id"),
-            "submissionId": row.get::<String, _>("submission_id"),
-            "round": row.get::<i64, _>("round"),
-            "reviewer": row.get::<String, _>("reviewer"),
-            "content": row.get::<String, _>("content"),
-            "response": row.get::<String, _>("response"),
-            "resolved": row.get::<i64, _>("resolved") == 1,
-            "tags": tags,
-            "createdAt": row.get::<String, _>("created_at"),
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|row| {
+            let tags_raw: String = row.get("tags");
+            let tags: serde_json::Value =
+                serde_json::from_str(&tags_raw).unwrap_or_else(|_| json!([]));
+            json!({
+                "id": row.get::<String, _>("id"),
+                "submissionId": row.get::<String, _>("submission_id"),
+                "round": row.get::<i64, _>("round"),
+                "reviewer": row.get::<String, _>("reviewer"),
+                "content": row.get::<String, _>("content"),
+                "response": row.get::<String, _>("response"),
+                "resolved": row.get::<i64, _>("resolved") == 1,
+                "tags": tags,
+                "createdAt": row.get::<String, _>("created_at"),
+            })
         })
-    }).collect();
+        .collect();
 
     Ok(json!({ "comments": items }))
 }
@@ -451,7 +491,8 @@ pub async fn submission_create_comment(
 ) -> Result<serde_json::Value, String> {
     let id = Uuid::new_v4().to_string();
     let ts = now();
-    let tags_json = serde_json::to_string(&tags.unwrap_or_default()).unwrap_or_else(|_| "[]".into());
+    let tags_json =
+        serde_json::to_string(&tags.unwrap_or_default()).unwrap_or_else(|_| "[]".into());
     sqlx::query(
         "INSERT INTO review_comments (id, submission_id, round, reviewer, content, response, tags, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -481,17 +522,37 @@ pub async fn submission_update_comment(
     tags: Option<Vec<String>>,
 ) -> Result<(), String> {
     if let Some(v) = &content {
-        sqlx::query("UPDATE review_comments SET content = ? WHERE id = ?").bind(v).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE review_comments SET content = ? WHERE id = ?")
+            .bind(v)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &response {
-        sqlx::query("UPDATE review_comments SET response = ? WHERE id = ?").bind(v).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE review_comments SET response = ? WHERE id = ?")
+            .bind(v)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = resolved {
-        sqlx::query("UPDATE review_comments SET resolved = ? WHERE id = ?").bind(v as i64).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE review_comments SET resolved = ? WHERE id = ?")
+            .bind(v as i64)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &tags {
         let tags_json = serde_json::to_string(v).unwrap_or_else(|_| "[]".into());
-        sqlx::query("UPDATE review_comments SET tags = ? WHERE id = ?").bind(&tags_json).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE review_comments SET tags = ? WHERE id = ?")
+            .bind(&tags_json)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -513,7 +574,10 @@ pub async fn submission_delete_comment(
 //  Checklist
 // ══════════════════════════════════════════════════════════════════════════
 
-async fn init_default_checklist(pool: &sqlx::SqlitePool, submission_id: &str) -> Result<(), String> {
+async fn init_default_checklist(
+    pool: &sqlx::SqlitePool,
+    submission_id: &str,
+) -> Result<(), String> {
     let defaults = vec![
         ("摘要完整", "写作"),
         ("图表标注清晰", "写作"),
@@ -557,14 +621,19 @@ pub async fn submission_get_checklist(
     .await
     .map_err(|e| e.to_string())?;
 
-    let items: Vec<serde_json::Value> = rows.iter().map(|row| json!({
-        "id": row.get::<String, _>("id"),
-        "submissionId": row.get::<String, _>("submission_id"),
-        "label": row.get::<String, _>("label"),
-        "checked": row.get::<i64, _>("checked") == 1,
-        "category": row.get::<String, _>("category"),
-        "sortOrder": row.get::<i64, _>("sort_order"),
-    })).collect();
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|row| {
+            json!({
+                "id": row.get::<String, _>("id"),
+                "submissionId": row.get::<String, _>("submission_id"),
+                "label": row.get::<String, _>("label"),
+                "checked": row.get::<i64, _>("checked") == 1,
+                "category": row.get::<String, _>("category"),
+                "sortOrder": row.get::<i64, _>("sort_order"),
+            })
+        })
+        .collect();
 
     Ok(json!({ "checklist": items }))
 }
@@ -587,9 +656,7 @@ pub async fn submission_toggle_checklist(
 // ══════════════════════════════════════════════════════════════════════════
 
 #[tauri::command]
-pub async fn submission_stats(
-    state: State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
+pub async fn submission_stats(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let active_row = sqlx::query(
         "SELECT COUNT(*) as cnt FROM submissions WHERE status IN ('writing','submitted','reviewing')",
     )
@@ -598,12 +665,10 @@ pub async fn submission_stats(
     .map_err(|e| e.to_string())?;
     let active: i64 = active_row.get("cnt");
 
-    let pending_row = sqlx::query(
-        "SELECT COUNT(*) as cnt FROM review_comments WHERE resolved = 0",
-    )
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| e.to_string())?;
+    let pending_row = sqlx::query("SELECT COUNT(*) as cnt FROM review_comments WHERE resolved = 0")
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
     let pending_reviews: i64 = pending_row.get("cnt");
 
     let ddl_rows = sqlx::query(
@@ -613,10 +678,15 @@ pub async fn submission_stats(
     .await
     .map_err(|e| e.to_string())?;
 
-    let upcoming_ddls: Vec<serde_json::Value> = ddl_rows.iter().map(|row| json!({
-        "name": row.get::<String, _>("name"),
-        "deadline": row.get::<String, _>("deadline"),
-    })).collect();
+    let upcoming_ddls: Vec<serde_json::Value> = ddl_rows
+        .iter()
+        .map(|row| {
+            json!({
+                "name": row.get::<String, _>("name"),
+                "deadline": row.get::<String, _>("deadline"),
+            })
+        })
+        .collect();
 
     Ok(json!({
         "active": active,
@@ -655,7 +725,13 @@ pub async fn submission_ai_review(
     tauri::async_runtime::spawn(async move {
         for i in 0..count {
             let reviewer = format!("Reviewer {}", i + 1);
-            let prompt = crate::assistant_prompts::ai_review_prompt(&text, &reviewer, strictness_desc, i + 1, count);
+            let prompt = crate::assistant_prompts::ai_review_prompt(
+                &text,
+                &reviewer,
+                strictness_desc,
+                i + 1,
+                count,
+            );
             let messages = vec![
                 LlmMessage::system("你是一位资深学术论文审稿人。请严格按照JSON格式输出审稿意见。"),
                 LlmMessage::user(prompt),
@@ -682,7 +758,10 @@ pub async fn submission_ai_review(
                 }
             }
         }
-        let _ = app.emit("submission:ai_review:done", json!({ "submissionId": submission_id }));
+        let _ = app.emit(
+            "submission:ai_review:done",
+            json!({ "submissionId": submission_id }),
+        );
     });
 
     Ok(())
@@ -758,13 +837,11 @@ pub async fn submission_generate_cover_letter(
     let temperature = resolve_temperature_chain(&settings, &["paper_analysis_temperature"], 0.5);
 
     // gather context
-    let sub_row = sqlx::query(
-        "SELECT title, venue_name, venue_type FROM submissions WHERE id = ?",
-    )
-    .bind(&submission_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| e.to_string())?;
+    let sub_row = sqlx::query("SELECT title, venue_name, venue_type FROM submissions WHERE id = ?")
+        .bind(&submission_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let (title, venue_name, venue_type) = if let Some(row) = sub_row {
         (
@@ -825,7 +902,9 @@ pub async fn submission_generate_cover_letter(
     );
 
     let messages = vec![
-        LlmMessage::system("你是一位经验丰富的学术写作助手，擅长撰写论文投稿/修改说明信 (Cover Letter)。"),
+        LlmMessage::system(
+            "你是一位经验丰富的学术写作助手，擅长撰写论文投稿/修改说明信 (Cover Letter)。",
+        ),
         LlmMessage::user(prompt),
     ];
 

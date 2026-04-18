@@ -86,10 +86,7 @@ pub async fn list_venues(pool: &SqlitePool) -> Result<Vec<VenueRow>, String> {
         .collect())
 }
 
-pub async fn create_venue(
-    pool: &SqlitePool,
-    input: &CreateVenueInput<'_>,
-) -> Result<(), String> {
+pub async fn create_venue(pool: &SqlitePool, input: &CreateVenueInput<'_>) -> Result<(), String> {
     sqlx::query(
         "INSERT INTO venues (id, type, name, full_name, website, ccf, area, ei, sci, sci_quartile,
                              deadline, notification_date, special_issue_deadline, special_issue_title)
