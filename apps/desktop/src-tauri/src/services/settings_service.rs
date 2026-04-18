@@ -41,7 +41,9 @@ fn encrypt_blob(plaintext: &[u8], password: &str) -> Result<String, String> {
 }
 
 fn decrypt_blob(b64_data: &str, password: &str) -> Result<Vec<u8>, String> {
-    let blob = B64.decode(b64_data).map_err(|_| "文件格式无效。".to_string())?;
+    let blob = B64
+        .decode(b64_data)
+        .map_err(|_| "文件格式无效。".to_string())?;
     let min_len = MAGIC.len() + SALT_LEN + NONCE_LEN + 16;
     if blob.len() < min_len {
         return Err("文件格式无效或已损坏。".to_string());
@@ -80,7 +82,10 @@ pub async fn get_exposed_settings(state: &AppState) -> Result<HashMap<String, St
     let mut result = HashMap::new();
 
     for (key, default) in &defaults {
-        let value = cache.get(key).map(|item| item.as_str()).unwrap_or(default.as_str());
+        let value = cache
+            .get(key)
+            .map(|item| item.as_str())
+            .unwrap_or(default.as_str());
         result.insert(key.clone(), mask_value(key, value));
     }
 
@@ -171,10 +176,7 @@ pub async fn import_settings(
     Ok(to_save.keys().cloned().collect())
 }
 
-pub async fn test_settings(
-    state: &AppState,
-    data: &serde_json::Value,
-) -> Result<String, String> {
+pub async fn test_settings(state: &AppState, data: &serde_json::Value) -> Result<String, String> {
     let saved = state.settings.read().await.clone();
     let mut merged = saved;
     if let Some(map) = data.as_object() {

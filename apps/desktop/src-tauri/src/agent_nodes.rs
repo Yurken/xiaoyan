@@ -1,6 +1,8 @@
 use crate::assistant_prompts::specialist_system;
 use crate::graph_rag::build_graph_rag_context;
-use crate::llm::{resolve_model, resolve_temperature, resolve_temperature_chain, LlmClient, LlmMessage};
+use crate::llm::{
+    resolve_model, resolve_temperature, resolve_temperature_chain, LlmClient, LlmMessage,
+};
 use crate::rag::combined_search;
 use anyhow::Result;
 use sqlx::Row;
@@ -26,7 +28,11 @@ pub async fn execute_agent_node(
         "retrieval" => retrieval_context(client, db, settings, message).await,
         "paper_analyst" => {
             let text = paper_text(db, context_id).await;
-            let preview = if text.len() > 6000 { &text[..6000] } else { &text };
+            let preview = if text.len() > 6000 {
+                &text[..6000]
+            } else {
+                &text
+            };
             let prompt = format!("请基于以下论文内容回答用户问题，结论应客观、准确、可追溯。\n\n用户问题：{}\n\n论文内容：\n{}", message, preview);
             let msgs = vec![
                 LlmMessage::system(specialist_system(
@@ -36,7 +42,9 @@ pub async fn execute_agent_node(
                 )),
                 LlmMessage::user(&prompt),
             ];
-            client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
+            client
+                .chat(&msgs, agent_model.as_deref(), agent_temperature)
+                .await
         }
         "planner" => {
             let prompt = if context_type == "interest" && !prior_context.is_empty() {
@@ -46,7 +54,11 @@ pub async fn execute_agent_node(
                     message,
                 )
             } else {
-                format!("请为研究方向「{}」设计学习路径。补充背景：{}", message, prior_context.join("; "))
+                format!(
+                    "请为研究方向「{}」设计学习路径。补充背景：{}",
+                    message,
+                    prior_context.join("; ")
+                )
             };
             let msgs = vec![
                 LlmMessage::system(specialist_system(
@@ -56,7 +68,9 @@ pub async fn execute_agent_node(
                 )),
                 LlmMessage::user(&prompt),
             ];
-            client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
+            client
+                .chat(&msgs, agent_model.as_deref(), agent_temperature)
+                .await
         }
         "literature_scout" => {
             let prompt = if context_type == "interest" && !prior_context.is_empty() {
@@ -66,7 +80,10 @@ pub async fn execute_agent_node(
                     message,
                 )
             } else {
-                format!("请列出与「{}」最相关的核心论文，并说明标题、作者、年份和核心贡献。", message)
+                format!(
+                    "请列出与「{}」最相关的核心论文，并说明标题、作者、年份和核心贡献。",
+                    message
+                )
             };
             let msgs = vec![
                 LlmMessage::system(specialist_system(
@@ -76,7 +93,9 @@ pub async fn execute_agent_node(
                 )),
                 LlmMessage::user(&prompt),
             ];
-            client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
+            client
+                .chat(&msgs, agent_model.as_deref(), agent_temperature)
+                .await
         }
         "survey" => {
             let prompt = if context_type == "interest" && !prior_context.is_empty() {
@@ -99,12 +118,21 @@ pub async fn execute_agent_node(
                 )),
                 LlmMessage::user(&prompt),
             ];
-            client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
+            client
+                .chat(&msgs, agent_model.as_deref(), agent_temperature)
+                .await
         }
         "reproduction" => {
             let text = paper_text(db, context_id).await;
-            let preview = if text.len() > 6000 { &text[..6000] } else { &text };
-            let prompt = format!("请给出论文复现指南，并重点回答以下问题：{}\n\n论文内容：{}", message, preview);
+            let preview = if text.len() > 6000 {
+                &text[..6000]
+            } else {
+                &text
+            };
+            let prompt = format!(
+                "请给出论文复现指南，并重点回答以下问题：{}\n\n论文内容：{}",
+                message, preview
+            );
             let msgs = vec![
                 LlmMessage::system(specialist_system(
                     "论文复现子 Agent",
@@ -113,7 +141,9 @@ pub async fn execute_agent_node(
                 )),
                 LlmMessage::user(&prompt),
             ];
-            client.chat(&msgs, agent_model.as_deref(), agent_temperature).await
+            client
+                .chat(&msgs, agent_model.as_deref(), agent_temperature)
+                .await
         }
         _ => Ok(String::new()),
     }
@@ -136,7 +166,10 @@ async fn retrieval_context(
     };
 
     let Some(embedding) = embedding else {
-        let prompt = format!("请围绕问题「{}」提炼出你认为最需要检索的证据类型与关键词。", message);
+        let prompt = format!(
+            "请围绕问题「{}」提炼出你认为最需要检索的证据类型与关键词。",
+            message
+        );
         let messages = vec![
             LlmMessage::system(specialist_system(
                 "检索子 Agent",
@@ -154,8 +187,12 @@ async fn retrieval_context(
         .and_then(|v| v.parse().ok())
         .unwrap_or(5);
 
-    let graph_context = build_graph_rag_context(db, &embedding, top_k).await.unwrap_or_default();
-    let retrievals = combined_search(db, &embedding, top_k).await.unwrap_or_default();
+    let graph_context = build_graph_rag_context(db, &embedding, top_k)
+        .await
+        .unwrap_or_default();
+    let retrievals = combined_search(db, &embedding, top_k)
+        .await
+        .unwrap_or_default();
     let semantic_context = if retrievals.is_empty() {
         String::new()
     } else {
@@ -176,7 +213,10 @@ async fn retrieval_context(
         .join("\n\n");
 
     if merged.trim().is_empty() {
-        let prompt = format!("请围绕问题「{}」提炼出你认为最需要检索的证据类型与关键词。", message);
+        let prompt = format!(
+            "请围绕问题「{}」提炼出你认为最需要检索的证据类型与关键词。",
+            message
+        );
         let messages = vec![
             LlmMessage::system(specialist_system(
                 "检索子 Agent",
@@ -227,7 +267,11 @@ fn resolve_agent_model_config(
         ),
         "survey" => resolve_model(
             settings,
-            &["multi_agent_survey_model", "survey_writer_model", "survey_planner_model"],
+            &[
+                "multi_agent_survey_model",
+                "survey_writer_model",
+                "survey_planner_model",
+            ],
         ),
         "paper_analyst" => resolve_model(
             settings,

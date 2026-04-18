@@ -36,7 +36,7 @@ export const SETTINGS_SECTIONS: Array<{
   {
     key: "assistant",
     label: "小妍",
-    description: "连接、默认模型与任务分工",
+    description: "连接、默认模型、任务分工与长期记忆",
     icon: Brain,
     color: "#AF52DE",
   },
@@ -211,6 +211,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   copilot_simple_max_tokens: "",
   copilot_simple_presence_penalty: "",
   copilot_simple_frequency_penalty: "",
+  xiaoyan_long_term_memory_enabled: "true",
   multi_agent_enabled: "true",
   multi_agent_routing_mode: "hybrid",
   multi_agent_enabled_agents: "retrieval,planner,literature_scout,survey,paper_analyst,reproduction,synthesis",

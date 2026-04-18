@@ -6,18 +6,18 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-mod assistant_prompts;
 mod agent_graph;
 mod agent_nodes;
+mod assistant_prompts;
 mod ccf;
 mod citation_graph;
 mod commands;
 mod db;
 mod graph_rag;
 mod journal_partitions;
-mod llm;
 mod links;
 mod markitdown_runtime;
+mod llm;
 mod rag;
 mod repositories;
 mod services;
@@ -36,38 +36,55 @@ use commands::{
         knowledge_graph_citation_centrality, knowledge_graph_citation_shortest_path,
         knowledge_graph_citation_subgraph,
     },
-    experiment::{experiment_list, experiment_get, experiment_create, experiment_update, experiment_delete, experiment_add_attachment, experiment_list_attachments, experiment_delete_attachment, experiment_update_attachment_label},
+    experiment::{
+        experiment_add_attachment, experiment_create, experiment_delete,
+        experiment_delete_attachment, experiment_get, experiment_list, experiment_list_attachments,
+        experiment_update, experiment_update_attachment_label,
+    },
     export::export_to_obsidian,
     journal::{journal_lookup, journal_rank_filter},
     knowledge::{
-        knowledge_create_interest, knowledge_create_note, knowledge_delete_interest_bundle,
-        knowledge_delete_interest_only, knowledge_delete_note, knowledge_generate_interest_hints,
-        knowledge_generate_plan, knowledge_list_interests, knowledge_list_notes, knowledge_search,
-        knowledge_move_note, knowledge_suggest_topics, knowledge_update_interest_folder, knowledge_update_note,
+        knowledge_create_interest, knowledge_delete_interest_bundle,
+        knowledge_delete_interest_only, knowledge_generate_interest_hints, knowledge_generate_plan,
+        knowledge_list_interests, knowledge_suggest_topics, knowledge_update_interest_folder,
         knowledge_web_clip,
     },
     knowledge_graph::{
-        knowledge_graph_create_claim, knowledge_graph_create_citation, knowledge_graph_create_evidence,
-        knowledge_graph_delete_claim, knowledge_graph_delete_citation, knowledge_graph_delete_evidence,
-        knowledge_graph_snapshot,
+        knowledge_graph_create_citation, knowledge_graph_create_claim,
+        knowledge_graph_create_evidence, knowledge_graph_delete_citation,
+        knowledge_graph_delete_claim, knowledge_graph_delete_evidence, knowledge_graph_snapshot,
     },
-    memory::{memory_add, memory_list, memory_delete, memory_clear_auto, memory_build_context},
-    misc::{markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text},
+    knowledge_notes::{
+        knowledge_create_note, knowledge_delete_note, knowledge_list_notes, knowledge_move_note,
+        knowledge_search, knowledge_update_note,
+    },
+    memory::{
+        memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list,
+        memory_list_observations, memory_search_observations,
+    },
+    misc::{
+        markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text,
+    },
     paper_search::paper_search,
-    papers::{papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list, papers_list_figures, papers_open_pdf, papers_reproduce, papers_update, papers_upload},
-    settings::{settings_get, settings_test, settings_update, settings_export, settings_import, settings_list_ollama_models},
+    papers::{
+        papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list,
+        papers_list_figures, papers_open_pdf, papers_reproduce, papers_update, papers_upload,
+    },
+    settings::{
+        settings_export, settings_get, settings_import, settings_list_ollama_models, settings_test,
+        settings_update,
+    },
     skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
     source::source_lookup,
     submission::{
-        submission_list_venues, submission_create_venue, submission_update_venue,
-        submission_delete_venue, submission_toggle_venue_star,
-        submission_list, submission_create, submission_update, submission_delete,
-        submission_list_versions, submission_create_version, submission_delete_version,
-        submission_list_rounds, submission_upsert_round,
-        submission_list_comments, submission_create_comment, submission_update_comment, submission_delete_comment,
-        submission_get_checklist, submission_toggle_checklist,
-        submission_stats,
-        submission_ai_review, submission_polish_abstract, submission_generate_cover_letter,
+        submission_ai_review, submission_create, submission_create_comment,
+        submission_create_venue, submission_create_version, submission_delete,
+        submission_delete_comment, submission_delete_venue, submission_delete_version,
+        submission_generate_cover_letter, submission_get_checklist, submission_list,
+        submission_list_comments, submission_list_rounds, submission_list_venues,
+        submission_list_versions, submission_polish_abstract, submission_stats,
+        submission_toggle_checklist, submission_toggle_venue_star, submission_update,
+        submission_update_comment, submission_update_venue, submission_upsert_round,
     },
     update::{update_check, update_install, PendingUpdate},
 };
@@ -258,6 +275,8 @@ pub fn run() {
             // Memory
             memory_add,
             memory_list,
+            memory_list_observations,
+            memory_search_observations,
             memory_delete,
             memory_clear_auto,
             memory_build_context,

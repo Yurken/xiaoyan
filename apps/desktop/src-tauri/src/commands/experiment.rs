@@ -11,9 +11,7 @@ fn now() -> String {
 }
 
 #[tauri::command]
-pub async fn experiment_list(
-    state: State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
+pub async fn experiment_list(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let rows = sqlx::query(
         "SELECT id, title, config, result, notes, linked_submission_id, created_at, updated_at
          FROM experiment_records ORDER BY updated_at DESC",
@@ -89,7 +87,8 @@ pub async fn experiment_create(
 ) -> Result<serde_json::Value, String> {
     let id = Uuid::new_v4().to_string();
     let ts = now();
-    let config_json = serde_json::to_string(&config.unwrap_or_else(|| json!({}))).unwrap_or_else(|_| "{}".into());
+    let config_json =
+        serde_json::to_string(&config.unwrap_or_else(|| json!({}))).unwrap_or_else(|_| "{}".into());
     sqlx::query(
         "INSERT INTO experiment_records (id, title, config, result, notes, linked_submission_id, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -122,34 +121,58 @@ pub async fn experiment_update(
     let ts = now();
     if let Some(v) = &title {
         sqlx::query("UPDATE experiment_records SET title = ?, updated_at = ? WHERE id = ?")
-            .bind(v).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+            .bind(v)
+            .bind(&ts)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &config {
         let json_str = serde_json::to_string(v).unwrap_or_else(|_| "{}".into());
         sqlx::query("UPDATE experiment_records SET config = ?, updated_at = ? WHERE id = ?")
-            .bind(&json_str).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+            .bind(&json_str)
+            .bind(&ts)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &result {
         sqlx::query("UPDATE experiment_records SET result = ?, updated_at = ? WHERE id = ?")
-            .bind(v).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+            .bind(v)
+            .bind(&ts)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &notes {
         sqlx::query("UPDATE experiment_records SET notes = ?, updated_at = ? WHERE id = ?")
-            .bind(v).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+            .bind(v)
+            .bind(&ts)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if let Some(v) = &linked_submission_id {
         let val: Option<&str> = if v.is_empty() { None } else { Some(v) };
-        sqlx::query("UPDATE experiment_records SET linked_submission_id = ?, updated_at = ? WHERE id = ?")
-            .bind(val).bind(&ts).bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        sqlx::query(
+            "UPDATE experiment_records SET linked_submission_id = ?, updated_at = ? WHERE id = ?",
+        )
+        .bind(val)
+        .bind(&ts)
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
 #[tauri::command]
-pub async fn experiment_delete(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn experiment_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
     sqlx::query("DELETE FROM experiment_records WHERE id = ?")
         .bind(&id)
         .execute(&state.db)

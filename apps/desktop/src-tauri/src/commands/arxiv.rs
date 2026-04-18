@@ -128,7 +128,6 @@ impl RankingMode {
             Self::Quality => "quality",
         }
     }
-
 }
 
 impl ArxivSearchRequest {
@@ -177,9 +176,13 @@ pub async fn arxiv_search(
     let keywords = collect_keywords(&request);
     let search_expression = build_search_query(&request, day_window);
 
-    let candidates = fetch_arxiv_candidates(&search_expression, day_window, candidate_pool_size(result_limit))
-        .await
-        .map_err(|error| error.to_string())?;
+    let candidates = fetch_arxiv_candidates(
+        &search_expression,
+        day_window,
+        candidate_pool_size(result_limit),
+    )
+    .await
+    .map_err(|error| error.to_string())?;
 
     if candidates.is_empty() {
         let empty = ArxivSearchResponse {
@@ -271,11 +274,11 @@ pub async fn search_recent_paper_hints(
         return Ok(Vec::new());
     }
 
-    let ranked = match rerank_with_llm(settings, &query, &request, mode, result_limit, &candidates).await
-    {
-        Ok(Some((_, _, papers))) => papers,
-        _ => heuristic_rank_papers(&candidates, &request, mode, result_limit),
-    };
+    let ranked =
+        match rerank_with_llm(settings, &query, &request, mode, result_limit, &candidates).await {
+            Ok(Some((_, _, papers))) => papers,
+            _ => heuristic_rank_papers(&candidates, &request, mode, result_limit),
+        };
 
     let mut hints = Vec::new();
     for paper in ranked.into_iter().take(result_limit) {
@@ -508,9 +511,11 @@ async fn rerank_with_llm(
         LlmMessage::user(prompt),
     ];
 
-    let response = client.chat(&messages, model.as_deref(), temperature).await?;
-    let parsed: LlmRankingResponse = serde_json::from_str(&extract_json(&response))
-        .context("解析论文筛选 JSON 失败")?;
+    let response = client
+        .chat(&messages, model.as_deref(), temperature)
+        .await?;
+    let parsed: LlmRankingResponse =
+        serde_json::from_str(&extract_json(&response)).context("解析论文筛选 JSON 失败")?;
 
     let mut candidate_map = candidates
         .iter()
@@ -589,7 +594,9 @@ fn heuristic_rank_papers(
             let title_zh = None;
             let tldr_zh = Some(match mode {
                 RankingMode::Relevance => "按字段级关键词命中度和时间新近度排序。".to_string(),
-                RankingMode::Quality => "按字段命中、摘要信息密度和实验信号做启发式质量预测。".to_string(),
+                RankingMode::Quality => {
+                    "按字段命中、摘要信息密度和实验信号做启发式质量预测。".to_string()
+                }
             });
             let tags = heuristic_tags(paper, request, mode);
 
@@ -726,7 +733,11 @@ fn heuristic_reason(paper: &ArxivPaper, request: &ArxivSearchRequest, mode: Rank
     )
 }
 
-fn heuristic_tags(paper: &ArxivPaper, request: &ArxivSearchRequest, mode: RankingMode) -> Vec<String> {
+fn heuristic_tags(
+    paper: &ArxivPaper,
+    request: &ArxivSearchRequest,
+    mode: RankingMode,
+) -> Vec<String> {
     let mut tags = Vec::new();
     let title = paper.title.to_lowercase();
     let abstract_text = paper.abstract_text.to_lowercase();
@@ -735,11 +746,23 @@ fn heuristic_tags(paper: &ArxivPaper, request: &ArxivSearchRequest, mode: Rankin
 
     if mode == RankingMode::Relevance {
         push_unique_values(&mut tags, &match_terms(&title, &request.title_terms));
-        push_unique_values(&mut tags, &match_terms(&abstract_text, &request.abstract_terms));
-        push_unique_values(&mut tags, &match_terms(&format!("{title} {abstract_text}"), &request.all_terms));
-        push_unique_values(&mut tags, &matched_categories(&paper.category, &request.categories));
+        push_unique_values(
+            &mut tags,
+            &match_terms(&abstract_text, &request.abstract_terms),
+        );
+        push_unique_values(
+            &mut tags,
+            &match_terms(&format!("{title} {abstract_text}"), &request.all_terms),
+        );
+        push_unique_values(
+            &mut tags,
+            &matched_categories(&paper.category, &request.categories),
+        );
         push_unique_values(&mut tags, &match_terms(&comment, &request.comments_terms));
-        push_unique_values(&mut tags, &match_terms(&journal_ref, &request.journal_ref_terms));
+        push_unique_values(
+            &mut tags,
+            &match_terms(&journal_ref, &request.journal_ref_terms),
+        );
     } else {
         tags.extend(collect_quality_signals(&abstract_text));
     }
@@ -789,7 +812,11 @@ fn recency_score(published_at: &str) -> i32 {
 }
 
 fn signal_score(text: &str, needles: &[&str], cap: i32) -> i32 {
-    let raw = needles.iter().filter(|needle| text.contains(**needle)).count() as i32 * 4;
+    let raw = needles
+        .iter()
+        .filter(|needle| text.contains(**needle))
+        .count() as i32
+        * 4;
     raw.min(cap)
 }
 
@@ -817,7 +844,10 @@ fn describe_request(request: &ArxivSearchRequest) -> String {
         sections.push(format!("备注关键词：{}", request.comments_terms.join("、")));
     }
     if !request.journal_ref_terms.is_empty() {
-        sections.push(format!("期刊/会议信息：{}", request.journal_ref_terms.join("、")));
+        sections.push(format!(
+            "期刊/会议信息：{}",
+            request.journal_ref_terms.join("、")
+        ));
     }
     if !request.exclude_terms.is_empty() {
         sections.push(format!("排除词：{}", request.exclude_terms.join("、")));
@@ -833,13 +863,22 @@ fn structured_filter_summary(request: &ArxivSearchRequest) -> String {
         format!("- 研究主题：{}", request.topic)
     });
     if !request.all_terms.is_empty() {
-        lines.push(format!("- 通用关键词(all)：{}", request.all_terms.join("、")));
+        lines.push(format!(
+            "- 通用关键词(all)：{}",
+            request.all_terms.join("、")
+        ));
     }
     if !request.title_terms.is_empty() {
-        lines.push(format!("- 标题关键词(ti)：{}", request.title_terms.join("、")));
+        lines.push(format!(
+            "- 标题关键词(ti)：{}",
+            request.title_terms.join("、")
+        ));
     }
     if !request.abstract_terms.is_empty() {
-        lines.push(format!("- 摘要关键词(abs)：{}", request.abstract_terms.join("、")));
+        lines.push(format!(
+            "- 摘要关键词(abs)：{}",
+            request.abstract_terms.join("、")
+        ));
     }
     if !request.authors.is_empty() {
         lines.push(format!("- 作者(au)：{}", request.authors.join("、")));
@@ -851,10 +890,16 @@ fn structured_filter_summary(request: &ArxivSearchRequest) -> String {
         lines.push(format!("- 备注(co)：{}", request.comments_terms.join("、")));
     }
     if !request.journal_ref_terms.is_empty() {
-        lines.push(format!("- 期刊/会议信息(jr)：{}", request.journal_ref_terms.join("、")));
+        lines.push(format!(
+            "- 期刊/会议信息(jr)：{}",
+            request.journal_ref_terms.join("、")
+        ));
     }
     if !request.exclude_terms.is_empty() {
-        lines.push(format!("- 排除词(ANDNOT)：{}", request.exclude_terms.join("、")));
+        lines.push(format!(
+            "- 排除词(ANDNOT)：{}",
+            request.exclude_terms.join("、")
+        ));
     }
     lines.join("\n")
 }
@@ -917,7 +962,10 @@ fn has_excluded_match(paper: &ArxivPaper, exclude_terms: &[String]) -> bool {
 
 fn push_unique_values(target: &mut Vec<String>, values: &[String]) {
     for value in values {
-        if !target.iter().any(|existing| existing.eq_ignore_ascii_case(value)) {
+        if !target
+            .iter()
+            .any(|existing| existing.eq_ignore_ascii_case(value))
+        {
             target.push(value.clone());
         }
     }
@@ -1111,7 +1159,9 @@ fn mode_prompt(mode: RankingMode) -> &'static str {
 fn fallback_ranking_note(mode: RankingMode) -> &'static str {
     match mode {
         RankingMode::Relevance => "当前按字段匹配度与发布时间进行启发式排序。",
-        RankingMode::Quality => "当前按字段匹配、摘要信息密度、实验信号与发布时间进行启发式质量预测排序。",
+        RankingMode::Quality => {
+            "当前按字段匹配、摘要信息密度、实验信号与发布时间进行启发式质量预测排序。"
+        }
     }
 }
 
@@ -1128,7 +1178,9 @@ fn fallback_overall_summary(mode: RankingMode, candidate_count: usize, limit: us
 
 fn disclaimer_for_mode(mode: RankingMode) -> &'static str {
     match mode {
-        RankingMode::Relevance => "arXiv 结果来自实时检索；推荐优先级由当前项目模型设置或本地启发式规则生成。",
+        RankingMode::Relevance => {
+            "arXiv 结果来自实时检索；推荐优先级由当前项目模型设置或本地启发式规则生成。"
+        }
         RankingMode::Quality => {
             "“质量最高”是基于标题和摘要做的质量预测，不等同于真实引用、录用结果或社区长期共识。"
         }
@@ -1169,7 +1221,10 @@ mod tests {
     #[test]
     fn parse_multi_value_input_supports_multiple_separators() {
         let keywords = parse_multi_value_input("agent memory，rag\nplanning; benchmark");
-        assert_eq!(keywords, vec!["agent memory", "rag", "planning", "benchmark"]);
+        assert_eq!(
+            keywords,
+            vec!["agent memory", "rag", "planning", "benchmark"]
+        );
     }
 
     #[test]
@@ -1196,7 +1251,10 @@ mod tests {
 
     #[test]
     fn normalize_arxiv_id_removes_version() {
-        assert_eq!(normalize_arxiv_id("https://arxiv.org/abs/2503.01234v2"), "2503.01234");
+        assert_eq!(
+            normalize_arxiv_id("https://arxiv.org/abs/2503.01234v2"),
+            "2503.01234"
+        );
     }
 
     #[test]

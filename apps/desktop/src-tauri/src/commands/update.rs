@@ -44,7 +44,8 @@ pub async fn update_check(
         updater_builder = updater_builder.pubkey(pubkey);
     }
     if let Some(endpoint) = updater_endpoint() {
-        let endpoint = Url::parse(&endpoint).map_err(|error| format!("invalid update endpoint: {error}"))?;
+        let endpoint =
+            Url::parse(&endpoint).map_err(|error| format!("invalid update endpoint: {error}"))?;
         updater_builder = updater_builder
             .endpoints(vec![endpoint])
             .map_err(|error| error.to_string())?;

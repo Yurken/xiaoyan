@@ -24,10 +24,7 @@ pub async fn journal_lookup(
 /// Filter journal titles by wos_category keywords and one or more rank criteria.
 /// Returns deduplicated titles sorted by quality, capped at 150 per rank tier.
 #[tauri::command]
-pub async fn journal_rank_filter(
-    wos_cat_keywords: Vec<String>,
-    ranks: Vec<String>,
-) -> Vec<String> {
+pub async fn journal_rank_filter(wos_cat_keywords: Vec<String>, ranks: Vec<String>) -> Vec<String> {
     let mut seen: HashSet<String> = HashSet::new();
     let mut results: Vec<String> = Vec::new();
     for rank in &ranks {

@@ -241,7 +241,9 @@ pub async fn paper_search(
 
     let heuristic = heuristic_rank_papers(&candidates, &request, mode, result_limit);
     let (llm_used, ranking_note, overall_summary, papers) =
-        match rerank_with_xiaoyan(&settings, &query, &request, mode, result_limit, &candidates).await {
+        match rerank_with_xiaoyan(&settings, &query, &request, mode, result_limit, &candidates)
+            .await
+        {
             Ok(Some((note, summary, ranked))) => (true, note, summary, ranked),
             Ok(None) | Err(_) => (
                 false,
@@ -414,10 +416,8 @@ async fn fetch_semantic_scholar_candidates(
         return Err(anyhow::anyhow!("联网检索返回错误 {status}: {body}"));
     }
 
-    let payload: SemanticScholarSearchResponse = response
-        .json()
-        .await
-        .context("解析联网检索结果失败")?;
+    let payload: SemanticScholarSearchResponse =
+        response.json().await.context("解析联网检索结果失败")?;
 
     let min_year = Utc::now().year() - ((days as f64 / 365.0).ceil() as i32) - 1;
 
@@ -504,7 +504,8 @@ async fn rerank_with_xiaoyan(
             "copilot_simple_model",
         ],
     );
-    let temperature = resolve_temperature(settings, "multi_agent_literature_scout_temperature", 0.2);
+    let temperature =
+        resolve_temperature(settings, "multi_agent_literature_scout_temperature", 0.2);
 
     let payload = candidates
         .iter()
@@ -540,7 +541,9 @@ async fn rerank_with_xiaoyan(
         LlmMessage::user(prompt),
     ];
 
-    let raw = client.chat(&messages, model.as_deref(), temperature).await?;
+    let raw = client
+        .chat(&messages, model.as_deref(), temperature)
+        .await?;
     let clean = crate::commands::papers::extract_json_pub(&raw);
     let parsed: LlmRankingResponse = match serde_json::from_str(&clean) {
         Ok(v) => v,
@@ -577,7 +580,9 @@ async fn rerank_with_xiaoyan(
             abs_url: candidate.detail_url.clone(),
             pdf_url: candidate.pdf_url.clone(),
             score: item.score.unwrap_or(75).clamp(0, 100),
-            reason: item.reason.unwrap_or_else(|| "与当前研究主题相关".to_string()),
+            reason: item
+                .reason
+                .unwrap_or_else(|| "与当前研究主题相关".to_string()),
             tldr_zh: item.tldr_zh,
             tags: item.tags.unwrap_or_default(),
         });
@@ -653,7 +658,9 @@ fn heuristic_rank_papers(
                     score: 0,
                     reason: match mode {
                         RankingMode::Relevance => "与当前检索条件的关键词匹配度较高。".to_string(),
-                        RankingMode::Quality => "在候选论文中具备更强的影响力与研究信号。".to_string(),
+                        RankingMode::Quality => {
+                            "在候选论文中具备更强的影响力与研究信号。".to_string()
+                        }
                     },
                     tldr_zh: None,
                     tags: Vec::new(),

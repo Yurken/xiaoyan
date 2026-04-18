@@ -11,10 +11,16 @@ pub struct LlmMessage {
 
 impl LlmMessage {
     pub fn system(content: impl Into<String>) -> Self {
-        Self { role: "system".into(), content: content.into() }
+        Self {
+            role: "system".into(),
+            content: content.into(),
+        }
     }
     pub fn user(content: impl Into<String>) -> Self {
-        Self { role: "user".into(), content: content.into() }
+        Self {
+            role: "user".into(),
+            content: content.into(),
+        }
     }
 }
 
@@ -46,7 +52,10 @@ fn is_anthropic_compatible_base_url(base_url: &str) -> bool {
 
 impl LlmClient {
     pub fn from_settings(s: &HashMap<String, String>) -> Result<Self> {
-        let provider = s.get("llm_provider").map(|v| v.as_str()).unwrap_or("openai");
+        let provider = s
+            .get("llm_provider")
+            .map(|v| v.as_str())
+            .unwrap_or("openai");
         match provider {
             "anthropic" => {
                 let api_key = s.get("anthropic_api_key").cloned().unwrap_or_default();
@@ -125,10 +134,21 @@ impl LlmClient {
 
     /// Build a client specifically for vision tasks using the "视界" (vision) model settings.
     /// Falls back to the main LLM provider if vision-specific settings are not configured.
-    pub fn vision_client_from_settings(s: &HashMap<String, String>) -> Option<(Self, Option<String>)> {
-        let model = s.get("vision_model").map(|v| v.trim().to_string()).filter(|v| !v.is_empty())?;
-        let base_url = s.get("vision_base_url").map(|v| v.trim().to_string()).unwrap_or_default();
-        let api_key = s.get("vision_api_key").map(|v| v.trim().to_string()).unwrap_or_default();
+    pub fn vision_client_from_settings(
+        s: &HashMap<String, String>,
+    ) -> Option<(Self, Option<String>)> {
+        let model = s
+            .get("vision_model")
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())?;
+        let base_url = s
+            .get("vision_base_url")
+            .map(|v| v.trim().to_string())
+            .unwrap_or_default();
+        let api_key = s
+            .get("vision_api_key")
+            .map(|v| v.trim().to_string())
+            .unwrap_or_default();
 
         let client = if !base_url.is_empty() && !api_key.is_empty() {
             // Dedicated vision endpoint (OpenAI-compatible)
@@ -159,9 +179,18 @@ impl LlmClient {
     /// If `embedding_base_url` + `embedding_api_key` are set, use those.
     /// Otherwise fall back to the main LLM provider.
     pub fn embed_client_from_settings(s: &HashMap<String, String>) -> Result<Self> {
-        let base_url = s.get("embedding_base_url").map(|v| v.trim().to_string()).unwrap_or_default();
-        let api_key = s.get("embedding_api_key").map(|v| v.trim().to_string()).unwrap_or_default();
-        let model = s.get("embedding_model").map(|v| v.trim().to_string()).unwrap_or_default();
+        let base_url = s
+            .get("embedding_base_url")
+            .map(|v| v.trim().to_string())
+            .unwrap_or_default();
+        let api_key = s
+            .get("embedding_api_key")
+            .map(|v| v.trim().to_string())
+            .unwrap_or_default();
+        let model = s
+            .get("embedding_model")
+            .map(|v| v.trim().to_string())
+            .unwrap_or_default();
 
         if !base_url.is_empty() && !api_key.is_empty() {
             let embed_model = if model.is_empty() {
@@ -192,7 +221,12 @@ impl LlmClient {
         temperature: f32,
     ) -> Result<String> {
         match self {
-            LlmClient::OpenAI { base_url, api_key, chat_model, .. } => {
+            LlmClient::OpenAI {
+                base_url,
+                api_key,
+                chat_model,
+                ..
+            } => {
                 let client = reqwest::Client::new();
                 let body = json!({
                     "model": model.unwrap_or(chat_model),
@@ -207,7 +241,10 @@ impl LlmClient {
                     }]
                 });
                 let resp = client
-                    .post(format!("{}/chat/completions", base_url.trim_end_matches('/')))
+                    .post(format!(
+                        "{}/chat/completions",
+                        base_url.trim_end_matches('/')
+                    ))
                     .header("Authorization", format!("Bearer {}", api_key))
                     .header("User-Agent", USER_AGENT)
                     .json(&body)
@@ -217,9 +254,16 @@ impl LlmClient {
                     return Err(anyhow!("Vision API error: {}", resp.text().await?));
                 }
                 let json: serde_json::Value = resp.json().await?;
-                Ok(json["choices"][0]["message"]["content"].as_str().unwrap_or("").to_string())
+                Ok(json["choices"][0]["message"]["content"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string())
             }
-            LlmClient::Anthropic { base_url, api_key, chat_model } => {
+            LlmClient::Anthropic {
+                base_url,
+                api_key,
+                chat_model,
+            } => {
                 let client = reqwest::Client::new();
                 let body = json!({
                     "model": model.unwrap_or(chat_model),
@@ -244,7 +288,10 @@ impl LlmClient {
                     return Err(anyhow!("Anthropic vision error: {}", resp.text().await?));
                 }
                 let json: serde_json::Value = resp.json().await?;
-                Ok(json["content"][0]["text"].as_str().unwrap_or("").to_string())
+                Ok(json["content"][0]["text"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string())
             }
         }
     }
@@ -257,7 +304,12 @@ impl LlmClient {
         temperature: f32,
     ) -> Result<String> {
         match self {
-            LlmClient::OpenAI { base_url, api_key, chat_model, .. } => {
+            LlmClient::OpenAI {
+                base_url,
+                api_key,
+                chat_model,
+                ..
+            } => {
                 openai_chat(
                     base_url,
                     api_key,
@@ -268,7 +320,11 @@ impl LlmClient {
                 )
                 .await
             }
-            LlmClient::Anthropic { base_url, api_key, chat_model } => {
+            LlmClient::Anthropic {
+                base_url,
+                api_key,
+                chat_model,
+            } => {
                 anthropic_chat(
                     base_url,
                     api_key,
@@ -291,7 +347,12 @@ impl LlmClient {
         on_delta: impl Fn(String) + Send + Sync,
     ) -> Result<String> {
         match self {
-            LlmClient::OpenAI { base_url, api_key, chat_model, .. } => {
+            LlmClient::OpenAI {
+                base_url,
+                api_key,
+                chat_model,
+                ..
+            } => {
                 stream_openai(
                     base_url,
                     api_key,
@@ -303,7 +364,11 @@ impl LlmClient {
                 )
                 .await
             }
-            LlmClient::Anthropic { base_url, api_key, chat_model } => {
+            LlmClient::Anthropic {
+                base_url,
+                api_key,
+                chat_model,
+            } => {
                 stream_anthropic(
                     base_url,
                     api_key,
@@ -321,12 +386,15 @@ impl LlmClient {
     /// Generate embeddings for a batch of texts.
     pub async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         match self {
-            LlmClient::OpenAI { base_url, api_key, embed_model, .. } => {
-                embed_openai(base_url, api_key, embed_model, texts).await
-            }
-            LlmClient::Anthropic { .. } => {
-                Err(anyhow!("Anthropic does not support embeddings; use OpenAI-compatible endpoint"))
-            }
+            LlmClient::OpenAI {
+                base_url,
+                api_key,
+                embed_model,
+                ..
+            } => embed_openai(base_url, api_key, embed_model, texts).await,
+            LlmClient::Anthropic { .. } => Err(anyhow!(
+                "Anthropic does not support embeddings; use OpenAI-compatible endpoint"
+            )),
         }
     }
 }
@@ -412,7 +480,10 @@ async fn openai_chat(
         "max_tokens": max_tokens,
     });
     let resp = client
-        .post(format!("{}/chat/completions", base_url.trim_end_matches('/')))
+        .post(format!(
+            "{}/chat/completions",
+            base_url.trim_end_matches('/')
+        ))
         .header("Authorization", format!("Bearer {}", api_key))
         .header("User-Agent", USER_AGENT)
         .json(&body)
@@ -449,7 +520,10 @@ async fn stream_openai(
         "stream": true,
     });
     let resp = client
-        .post(format!("{}/chat/completions", base_url.trim_end_matches('/')))
+        .post(format!(
+            "{}/chat/completions",
+            base_url.trim_end_matches('/')
+        ))
         .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .header("User-Agent", USER_AGENT)
@@ -522,7 +596,9 @@ async fn embed_openai(
         return Err(anyhow!(format_openai_http_error(status, &text, base_url, "Embedding error")));
     }
     let json: serde_json::Value = resp.json().await?;
-    let data = json["data"].as_array().ok_or_else(|| anyhow!("no data in embed response"))?;
+    let data = json["data"]
+        .as_array()
+        .ok_or_else(|| anyhow!("no data in embed response"))?;
     let mut result = Vec::with_capacity(data.len());
     for item in data {
         let vec = item["embedding"]
@@ -578,7 +654,10 @@ async fn anthropic_chat(
         return Err(anyhow!("Anthropic error: {}", text));
     }
     let json: serde_json::Value = resp.json().await?;
-    Ok(json["content"][0]["text"].as_str().unwrap_or("").to_string())
+    Ok(json["content"][0]["text"]
+        .as_str()
+        .unwrap_or("")
+        .to_string())
 }
 
 async fn stream_anthropic(

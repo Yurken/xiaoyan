@@ -103,7 +103,11 @@ pub fn infer_from_text(text: &str) -> Option<CcfTag> {
             }
 
             let score = alias_compact.len();
-            if best.as_ref().map(|(current, _)| score > *current).unwrap_or(true) {
+            if best
+                .as_ref()
+                .map(|(current, _)| score > *current)
+                .unwrap_or(true)
+            {
                 best = Some((score, entry));
             }
         }
@@ -129,7 +133,9 @@ fn scored_lookup(query: &str, limit: usize) -> Vec<CcfTag> {
 
             let score = if query_compact == *alias_compact || query_words == *alias_words {
                 Some(10_000 + alias_compact.len() as i32)
-            } else if alias_compact.contains(&query_compact) || query_compact.contains(alias_compact) {
+            } else if alias_compact.contains(&query_compact)
+                || query_compact.contains(alias_compact)
+            {
                 Some(7_000 + alias_compact.len() as i32)
             } else if alias_words.contains(&query_words) || query_words.contains(alias_words) {
                 Some(5_000 + alias_words.len() as i32)
@@ -143,7 +149,11 @@ fn scored_lookup(query: &str, limit: usize) -> Vec<CcfTag> {
             };
 
             if let Some(next_score) = score {
-                best_score = Some(best_score.map(|value| value.max(next_score)).unwrap_or(next_score));
+                best_score = Some(
+                    best_score
+                        .map(|value| value.max(next_score))
+                        .unwrap_or(next_score),
+                );
             }
         }
 
@@ -253,8 +263,10 @@ mod tests {
 
     #[test]
     fn infer_from_text_detects_known_venue() {
-        let result = infer_from_text("This paper appears in the ACM SIGMOD Conference and focuses on databases.")
-            .expect("expected SIGMOD to be detected");
+        let result = infer_from_text(
+            "This paper appears in the ACM SIGMOD Conference and focuses on databases.",
+        )
+        .expect("expected SIGMOD to be detected");
         assert_eq!(result.label, "SIGMOD");
         assert_eq!(result.rating, "A");
     }

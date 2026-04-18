@@ -184,7 +184,9 @@ pub async fn search_claim_provenance(
         let source_kind: String = row.get("source_kind");
         let source_id: String = row.get("source_id");
         let relation_kind: String = row.get("relation_kind");
-        let evidence_summary = row.get::<Option<String>, _>("evidence_summary").unwrap_or_default();
+        let evidence_summary = row
+            .get::<Option<String>, _>("evidence_summary")
+            .unwrap_or_default();
         let source_key = (source_kind.clone(), source_id.clone());
         let base_score = source_scores.get(&source_key).copied().unwrap_or(0.0);
         let relation_weight = if relation_kind == "supports" {
@@ -211,13 +213,20 @@ pub async fn search_claim_provenance(
             .map(|item| item.source.clone())
             .unwrap_or_else(|| format!("{} {}", source_kind_label(&source_kind), source_id));
 
-        claim_sources.entry(claim_id).or_default().push(GraphRagSource {
-            title: source_title,
-            source_id,
-            source_kind,
-            relation_kind,
-            detail: if evidence_summary.trim().is_empty() { fallback } else { evidence_summary },
-        });
+        claim_sources
+            .entry(claim_id)
+            .or_default()
+            .push(GraphRagSource {
+                title: source_title,
+                source_id,
+                source_kind,
+                relation_kind,
+                detail: if evidence_summary.trim().is_empty() {
+                    fallback
+                } else {
+                    evidence_summary
+                },
+            });
     }
 
     let claim_ids = claim_meta.keys().cloned().collect::<Vec<_>>();
@@ -225,23 +234,36 @@ pub async fn search_claim_provenance(
     for row in experiment_rows {
         let claim_id: String = row.get("claim_id");
         let relation_kind: String = row.get("relation_kind");
-        let evidence_summary = row.get::<Option<String>, _>("evidence_summary").unwrap_or_default();
+        let evidence_summary = row
+            .get::<Option<String>, _>("evidence_summary")
+            .unwrap_or_default();
         let title: String = row.get("title");
         let result: String = row.get("result");
         let notes: String = row.get("notes");
-        claim_sources.entry(claim_id.clone()).or_default().push(GraphRagSource {
-            title,
-            source_id: row.get("id"),
-            source_kind: "experiment".to_string(),
-            relation_kind: relation_kind.clone(),
-            detail: if evidence_summary.trim().is_empty() {
-                let raw = if result.trim().is_empty() { notes } else { result };
-                raw.replace('\n', " ").chars().take(120).collect()
-            } else {
-                evidence_summary
-            },
-        });
-        *claim_scores.entry(claim_id).or_insert(0.0) += if relation_kind == "supports" { 0.24 } else { 0.14 };
+        claim_sources
+            .entry(claim_id.clone())
+            .or_default()
+            .push(GraphRagSource {
+                title,
+                source_id: row.get("id"),
+                source_kind: "experiment".to_string(),
+                relation_kind: relation_kind.clone(),
+                detail: if evidence_summary.trim().is_empty() {
+                    let raw = if result.trim().is_empty() {
+                        notes
+                    } else {
+                        result
+                    };
+                    raw.replace('\n', " ").chars().take(120).collect()
+                } else {
+                    evidence_summary
+                },
+            });
+        *claim_scores.entry(claim_id).or_insert(0.0) += if relation_kind == "supports" {
+            0.24
+        } else {
+            0.14
+        };
     }
 
     let mut claims = claim_meta
@@ -256,7 +278,11 @@ pub async fn search_claim_provenance(
         })
         .collect::<Vec<_>>();
 
-    claims.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    claims.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     claims.truncate(4);
     Ok(claims)
 }
@@ -341,7 +367,14 @@ pub async fn collect_graph_rag_sources(
                 .sources
                 .iter()
                 .take(3)
-                .map(|source| format!("{}{}：{}", relation_label(&source.relation_kind), source_kind_label(&source.source_kind), source.title))
+                .map(|source| {
+                    format!(
+                        "{}{}：{}",
+                        relation_label(&source.relation_kind),
+                        source_kind_label(&source.source_kind),
+                        source.title
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join("；");
             serde_json::json!({

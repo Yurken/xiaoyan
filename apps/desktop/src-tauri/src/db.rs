@@ -180,6 +180,38 @@ CREATE TABLE IF NOT EXISTS user_memories (
 CREATE INDEX IF NOT EXISTS idx_user_memories_type_created ON user_memories(type, created_at DESC);
 ";
 
+pub const MEMORY_PIPELINE_DDL: &str = "
+CREATE TABLE IF NOT EXISTS memory_events (
+    id           TEXT PRIMARY KEY,
+    session_id   TEXT REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    run_id       TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
+    event_type   TEXT NOT NULL,
+    source       TEXT NOT NULL,
+    summary      TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_memory_events_source_created ON memory_events(source, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_memory_events_session_created ON memory_events(session_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS memory_observations (
+    id          TEXT PRIMARY KEY,
+    event_id    TEXT NOT NULL UNIQUE REFERENCES memory_events(id) ON DELETE CASCADE,
+    session_id  TEXT REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    run_id      TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
+    source      TEXT NOT NULL,
+    event_type  TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    summary     TEXT NOT NULL,
+    narrative   TEXT NOT NULL DEFAULT '',
+    importance  INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_memory_observations_created ON memory_observations(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_memory_observations_source_created ON memory_observations(source, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_memory_observations_session_created ON memory_observations(session_id, created_at DESC);
+";
+
 pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     std::fs::create_dir_all(app_data_dir)?;
     let db_path = app_data_dir.join("research_copilot.db");
@@ -208,6 +240,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_performance_indexes(&pool).await?;
     ensure_skills_table(&pool).await?;
     ensure_user_memories_table(&pool).await?;
+    ensure_memory_pipeline_tables(&pool).await?;
     ensure_submission_tables(&pool).await?;
     ensure_experiment_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
@@ -245,19 +278,33 @@ async fn ensure_performance_indexes(pool: &SqlitePool) -> Result<()> {
 }
 
 async fn ensure_papers_importance_color_column(pool: &SqlitePool) -> Result<()> {
-    let columns = sqlx::query("PRAGMA table_info(papers)").fetch_all(pool).await?;
-    let has = columns.iter().any(|row| { let name: String = sqlx::Row::get(row, "name"); name == "importance_color" });
+    let columns = sqlx::query("PRAGMA table_info(papers)")
+        .fetch_all(pool)
+        .await?;
+    let has = columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == "importance_color"
+    });
     if !has {
-        sqlx::query("ALTER TABLE papers ADD COLUMN importance_color TEXT NOT NULL DEFAULT ''").execute(pool).await?;
+        sqlx::query("ALTER TABLE papers ADD COLUMN importance_color TEXT NOT NULL DEFAULT ''")
+            .execute(pool)
+            .await?;
     }
     Ok(())
 }
 
 async fn ensure_papers_notes_column(pool: &SqlitePool) -> Result<()> {
-    let columns = sqlx::query("PRAGMA table_info(papers)").fetch_all(pool).await?;
-    let has = columns.iter().any(|row| { let name: String = sqlx::Row::get(row, "name"); name == "notes" });
+    let columns = sqlx::query("PRAGMA table_info(papers)")
+        .fetch_all(pool)
+        .await?;
+    let has = columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == "notes"
+    });
     if !has {
-        sqlx::query("ALTER TABLE papers ADD COLUMN notes TEXT").execute(pool).await?;
+        sqlx::query("ALTER TABLE papers ADD COLUMN notes TEXT")
+            .execute(pool)
+            .await?;
     }
     Ok(())
 }
@@ -387,6 +434,11 @@ pub async fn ensure_skills_table(pool: &SqlitePool) -> Result<()> {
 
 pub async fn ensure_user_memories_table(pool: &SqlitePool) -> Result<()> {
     sqlx::raw_sql(USER_MEMORIES_DDL).execute(pool).await?;
+    Ok(())
+}
+
+pub async fn ensure_memory_pipeline_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(MEMORY_PIPELINE_DDL).execute(pool).await?;
     Ok(())
 }
 

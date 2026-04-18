@@ -157,13 +157,17 @@ fn scored_lookup(query: &str, limit: usize) -> Vec<JournalPartitionTag> {
         {
             Some(7_000 + entry.title_compact.len() as i32)
         } else if !query_words.is_empty()
-            && (entry.title_words.contains(&query_words) || query_words.contains(&entry.title_words))
+            && (entry.title_words.contains(&query_words)
+                || query_words.contains(&entry.title_words))
         {
             Some(5_000 + entry.title_words.len() as i32)
         } else if !query_words.is_empty()
-            && query_words
-                .split_whitespace()
-                .all(|term| entry.title_words.split_whitespace().any(|item| item == term))
+            && query_words.split_whitespace().all(|term| {
+                entry
+                    .title_words
+                    .split_whitespace()
+                    .any(|item| item == term)
+            })
         {
             Some(2_000 + entry.title_words.len() as i32)
         } else {

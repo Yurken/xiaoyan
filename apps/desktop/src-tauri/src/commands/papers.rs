@@ -1,6 +1,8 @@
 use crate::assistant_prompts::specialist_system;
-use crate::commands::paper_text::{extract_pdf_preview_text, extract_pdf_text_with_filtered_stderr, preview_from_text};
 use crate::ccf::{infer_from_text, match_venue};
+use crate::commands::paper_text::{
+    extract_pdf_preview_text, extract_pdf_text_with_filtered_stderr, preview_from_text,
+};
 use crate::journal_partitions::match_journal;
 use crate::links::paper_reference_url;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
@@ -27,7 +29,9 @@ pub async fn papers_list(
 ) -> Result<serde_json::Value, String> {
     let offset = offset.unwrap_or(0);
     let limit = limit.unwrap_or(20);
-    let rows = if let Some(interest_id) = research_interest_id.filter(|value| !value.trim().is_empty()) {
+    let rows = if let Some(interest_id) =
+        research_interest_id.filter(|value| !value.trim().is_empty())
+    {
         sqlx::query(
             "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.importance_color, p.notes, p.research_interest_id, p.status, p.created_at, p.updated_at,
                     a.research_question, a.core_method, a.experiment_design, a.experiment_results, a.innovations, a.limitations, a.key_conclusions,
@@ -165,8 +169,14 @@ pub async fn papers_get(
 
     let mut paper = paper_row_to_json(&row, true);
     if let Some(obj) = paper.as_object_mut() {
-        obj.insert("analysis".into(), analysis.unwrap_or(serde_json::Value::Null));
-        obj.insert("reproduction_guide".into(), guide.unwrap_or(serde_json::Value::Null));
+        obj.insert(
+            "analysis".into(),
+            analysis.unwrap_or(serde_json::Value::Null),
+        );
+        obj.insert(
+            "reproduction_guide".into(),
+            guide.unwrap_or(serde_json::Value::Null),
+        );
     }
     Ok(paper)
 }
@@ -203,7 +213,11 @@ pub async fn papers_update(
     if let Some(value) = authors {
         let next = value.trim();
         sqlx::query("UPDATE papers SET authors = ?, updated_at = ? WHERE id = ?")
-            .bind(if next.is_empty() { None::<String> } else { Some(next.to_string()) })
+            .bind(if next.is_empty() {
+                None::<String>
+            } else {
+                Some(next.to_string())
+            })
             .bind(&now)
             .bind(&id)
             .execute(&state.db)
@@ -214,7 +228,11 @@ pub async fn papers_update(
     if let Some(value) = venue {
         let next = value.trim();
         sqlx::query("UPDATE papers SET venue = ?, updated_at = ? WHERE id = ?")
-            .bind(if next.is_empty() { None::<String> } else { Some(next.to_string()) })
+            .bind(if next.is_empty() {
+                None::<String>
+            } else {
+                Some(next.to_string())
+            })
             .bind(&now)
             .bind(&id)
             .execute(&state.db)
@@ -235,7 +253,11 @@ pub async fn papers_update(
     if let Some(value) = doi {
         let next = value.trim();
         sqlx::query("UPDATE papers SET doi = ?, updated_at = ? WHERE id = ?")
-            .bind(if next.is_empty() { None::<String> } else { Some(next.to_string()) })
+            .bind(if next.is_empty() {
+                None::<String>
+            } else {
+                Some(next.to_string())
+            })
             .bind(&now)
             .bind(&id)
             .execute(&state.db)
@@ -246,7 +268,11 @@ pub async fn papers_update(
     if let Some(value) = research_interest_id {
         let next = value.trim();
         sqlx::query("UPDATE papers SET research_interest_id = ?, updated_at = ? WHERE id = ?")
-            .bind(if next.is_empty() { None::<String> } else { Some(next.to_string()) })
+            .bind(if next.is_empty() {
+                None::<String>
+            } else {
+                Some(next.to_string())
+            })
             .bind(&now)
             .bind(&id)
             .execute(&state.db)
@@ -266,7 +292,11 @@ pub async fn papers_update(
 
     if let Some(value) = notes {
         sqlx::query("UPDATE papers SET notes = ?, updated_at = ? WHERE id = ?")
-            .bind(if value.trim().is_empty() { None::<String> } else { Some(value.trim().to_string()) })
+            .bind(if value.trim().is_empty() {
+                None::<String>
+            } else {
+                Some(value.trim().to_string())
+            })
             .bind(&now)
             .bind(&id)
             .execute(&state.db)
@@ -376,7 +406,9 @@ pub async fn papers_extract_pdf_text(
 
     let preview = safe_text_preview(&text, max_chars).trim().to_string();
     if preview.is_empty() {
-        return Err(format!("{file_name} 未解析到可用正文，请确认文件内容可复制。"));
+        return Err(format!(
+            "{file_name} 未解析到可用正文，请确认文件内容可复制。"
+        ));
     }
     Ok(preview)
 }
@@ -470,14 +502,18 @@ pub async fn papers_upload(
     let detected_venue: Option<String> = None;
     let detected_doi: Option<String> = None;
     let tags_json = "[]".to_string();
-    let any_recognition = recognize_title || recognize_authors || recognize_year || recognize_venue || recognize_keywords;
+    let any_recognition = recognize_title
+        || recognize_authors
+        || recognize_year
+        || recognize_venue
+        || recognize_keywords;
     let file_name_owned = file_name.to_string();
 
     // Always copy into the app-managed papers directory so the file survives
     // even if the user deletes or moves the original in Finder.
     let copy_started_at = Instant::now();
-    let final_path = copy_to_managed_papers_dir(&app, &path, &original_stem)
-        .unwrap_or_else(|_| path.clone());
+    let final_path =
+        copy_to_managed_papers_dir(&app, &path, &original_stem).unwrap_or_else(|_| path.clone());
     eprintln!(
         "[paper-import] copy_pdf done: source={} target={} elapsed_ms={}",
         path.display(),
@@ -521,8 +557,14 @@ pub async fn papers_upload(
     let db = state.db.clone();
     let pid = paper_id.clone();
     let path_for_parse = final_path.clone();
-    let chunk_size: usize = settings.get("chunk_size").and_then(|v| v.parse().ok()).unwrap_or(800);
-    let chunk_overlap: usize = settings.get("chunk_overlap").and_then(|v| v.parse().ok()).unwrap_or(150);
+    let chunk_size: usize = settings
+        .get("chunk_size")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(800);
+    let chunk_overlap: usize = settings
+        .get("chunk_overlap")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(150);
 
     tokio::spawn(async move {
         let pipeline_started_at = Instant::now();
@@ -533,7 +575,10 @@ pub async fn papers_upload(
             .bind(&pid)
             .execute(&db)
             .await;
-        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "parsing" }));
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": pid, "status": "parsing" }),
+        );
         eprintln!("[paper-import][{}] status=parsing emitted", pid);
 
         // ① 尽早启动全文提取（慢，CPU 密集，先开始但不等待）
@@ -565,24 +610,32 @@ pub async fn papers_upload(
             Ok(Ok(value)) => value,
             Ok(Err(error)) => {
                 let now = chrono::Utc::now().to_rfc3339();
-                let _ = sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
-                    .bind(&now)
-                    .bind(&pid)
-                    .execute(&db)
-                    .await;
+                let _ =
+                    sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
+                        .bind(&now)
+                        .bind(&pid)
+                        .execute(&db)
+                        .await;
                 let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 解析失败：{error}") }));
-                eprintln!("[paper-import][{}] full_text extraction failed: {}", pid, error);
+                eprintln!(
+                    "[paper-import][{}] full_text extraction failed: {}",
+                    pid, error
+                );
                 return;
             }
             Err(join_error) => {
                 let now = chrono::Utc::now().to_rfc3339();
-                let _ = sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
-                    .bind(&now)
-                    .bind(&pid)
-                    .execute(&db)
-                    .await;
+                let _ =
+                    sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
+                        .bind(&now)
+                        .bind(&pid)
+                        .execute(&db)
+                        .await;
                 let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 后台解析任务失败：{join_error}") }));
-                eprintln!("[paper-import][{}] full_text extraction join failed: {}", pid, join_error);
+                eprintln!(
+                    "[paper-import][{}] full_text extraction join failed: {}",
+                    pid, join_error
+                );
                 return;
             }
         };
@@ -688,7 +741,8 @@ pub async fn papers_upload(
         }
 
         let refreshed_keywords = extract_keywords_from_text(&text);
-        let refreshed_tags = serde_json::to_string(&refreshed_keywords).unwrap_or_else(|_| "[]".to_string());
+        let refreshed_tags =
+            serde_json::to_string(&refreshed_keywords).unwrap_or_else(|_| "[]".to_string());
         let parsed_now = chrono::Utc::now().to_rfc3339();
         let _ = sqlx::query("UPDATE papers SET full_text = ?, tags = ?, status = 'parsed', updated_at = ? WHERE id = ?")
             .bind(&text)
@@ -698,7 +752,10 @@ pub async fn papers_upload(
             .execute(&db)
             .await;
         // 全文已写入，立即通知前端 parsed，后续 embedding 在后台静默完成
-        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "parsed" }));
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": pid, "status": "parsed" }),
+        );
         eprintln!(
             "[paper-import][{}] status=parsed emitted (full_text ready) elapsed_ms={}",
             pid,
@@ -732,11 +789,12 @@ pub async fn papers_upload(
             embedding_batch_size,
             embedding_batches
         );
-        let embeddings: Option<Vec<Vec<f32>>> = if let Ok(client) = LlmClient::embed_client_from_settings(&settings) {
-            embed_in_batches(&client, &contents, embedding_batch_size).await
-        } else {
-            None
-        };
+        let embeddings: Option<Vec<Vec<f32>>> =
+            if let Ok(client) = LlmClient::embed_client_from_settings(&settings) {
+                embed_in_batches(&client, &contents, embedding_batch_size).await
+            } else {
+                None
+            };
         match embeddings.as_ref() {
             Some(values) => {
                 eprintln!(
@@ -762,7 +820,10 @@ pub async fn papers_upload(
             let mut tx_failed = false;
             for (i, chunk) in chunks.iter().enumerate() {
                 let chunk_id = Uuid::new_v4().to_string();
-                let emb_str: Option<String> = embeddings.as_ref().and_then(|v| v.get(i)).map(|e| serialize_embedding(e));
+                let emb_str: Option<String> = embeddings
+                    .as_ref()
+                    .and_then(|v| v.get(i))
+                    .map(|e| serialize_embedding(e));
                 let idx = chunk.chunk_index as i64;
                 if sqlx::query(
                     "INSERT INTO paper_chunks (id, paper_id, chunk_index, content, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -792,7 +853,10 @@ pub async fn papers_upload(
         if !inserted_with_tx {
             for (i, chunk) in chunks.iter().enumerate() {
                 let chunk_id = Uuid::new_v4().to_string();
-                let emb_str: Option<String> = embeddings.as_ref().and_then(|v| v.get(i)).map(|e| serialize_embedding(e));
+                let emb_str: Option<String> = embeddings
+                    .as_ref()
+                    .and_then(|v| v.get(i))
+                    .map(|e| serialize_embedding(e));
                 let idx = chunk.chunk_index as i64;
                 let _ = sqlx::query(
                     "INSERT INTO paper_chunks (id, paper_id, chunk_index, content, embedding, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -954,7 +1018,9 @@ pub async fn papers_analyze(
         .await
         .map_err(|e| e.to_string())?
         .ok_or("未找到对应论文。")?;
-    let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
+    let full_text: String = row
+        .get::<Option<String>, _>("full_text")
+        .unwrap_or_default();
     let file_path_for_spawn: Option<String> = row.get("file_path");
     let status = row.get::<Option<String>, _>("status").unwrap_or_default();
     if full_text.trim().is_empty() {
@@ -969,9 +1035,10 @@ pub async fn papers_analyze(
     // Each window covers a different region so together they span the full paper.
     const CHUNK: usize = 18_000;
     let text_len = full_text.len();
-    let intro_text    = safe_text_slice(&full_text, 0,                           CHUNK).to_string();
-    let method_text   = safe_text_slice(&full_text, text_len / 4,                CHUNK).to_string();
-    let experiment_text = safe_text_slice(&full_text, text_len.saturating_sub(CHUNK), CHUNK).to_string();
+    let intro_text = safe_text_slice(&full_text, 0, CHUNK).to_string();
+    let method_text = safe_text_slice(&full_text, text_len / 4, CHUNK).to_string();
+    let experiment_text =
+        safe_text_slice(&full_text, text_len.saturating_sub(CHUNK), CHUNK).to_string();
 
     let now_pre = chrono::Utc::now().to_rfc3339();
     let _ = sqlx::query("UPDATE papers SET status = 'analyzing', updated_at = ? WHERE id = ?")
@@ -985,15 +1052,28 @@ pub async fn papers_analyze(
         let client = match LlmClient::from_settings(&settings) {
             Ok(c) => c,
             Err(e) => {
-                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "error", "error": e.to_string() }));
+                let _ = app.emit(
+                    "paper:status",
+                    json!({ "paper_id": pid, "status": "error", "error": e.to_string() }),
+                );
                 return;
             }
         };
-        let model = resolve_model(&settings, &["paper_analysis_model", "multi_agent_paper_analyst_model", "multi_agent_worker_model"]);
+        let model = resolve_model(
+            &settings,
+            &[
+                "paper_analysis_model",
+                "multi_agent_paper_analyst_model",
+                "multi_agent_worker_model",
+            ],
+        );
         let temperature = resolve_temperature(&settings, "paper_analysis_temperature", 0.3);
 
         // ── Phase 0: Figure extraction ────────────────────────────
-        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "图表提取中…" }));
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": pid, "status": "analyzing", "step": "图表提取中…" }),
+        );
         // Prefer the dedicated "视界" vision model; fall back to the main analysis model
         let (vision_ref, vision_model_owned);
         let (vision_client_opt, vision_model_opt): (Option<&LlmClient>, Option<&str>) =
@@ -1047,74 +1127,115 @@ pub async fn papers_analyze(
         let figure_context = if extracted_figures.is_empty() {
             String::new()
         } else {
-            let list = extracted_figures.iter().map(|(idx, cap)| {
-                if let Some(c) = cap { format!("  • Figure {idx}: {c}") } else { format!("  • Figure {idx}") }
-            }).collect::<Vec<_>>().join("\n");
+            let list = extracted_figures
+                .iter()
+                .map(|(idx, cap)| {
+                    if let Some(c) = cap {
+                        format!("  • Figure {idx}: {c}")
+                    } else {
+                        format!("  • Figure {idx}")
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
             format!("【论文图表（共 {} 个，已成功提取，请在分析中积极用编号引用，如: Figure 1 所示、Table 2 中）】\n{}\n\n", extracted_figures.len(), list)
         };
 
         // ── Agent 1: Problem & Background ────────────────────────
-        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "问题背景分析中（1/4）…" }));
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": pid, "status": "analyzing", "step": "问题背景分析中（1/4）…" }),
+        );
         let prompt1 = AGENT1_PROMPT.replace("{text}", &format!("{figure_context}{intro_text}"));
-        let msgs1 = vec![LlmMessage::system(agent1_system()), LlmMessage::user(&prompt1)];
+        let msgs1 = vec![
+            LlmMessage::system(agent1_system()),
+            LlmMessage::user(&prompt1),
+        ];
         let research_question = match client.chat(&msgs1, model.as_deref(), temperature).await {
             Ok(resp) => {
-                let v: serde_json::Value = serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
+                let v: serde_json::Value =
+                    serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
                 v["research_question"].as_str().unwrap_or("").to_string()
             }
             Err(_) => String::new(),
         };
 
         // ── Agent 2: Method Deep-Dive ─────────────────────────────
-        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "方法深度解析中（2/4）…" }));
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": pid, "status": "analyzing", "step": "方法深度解析中（2/4）…" }),
+        );
         let prompt2 = AGENT2_PROMPT
             .replace("{problem_summary}", &research_question)
             .replace("{text}", &format!("{figure_context}{method_text}"));
-        let msgs2 = vec![LlmMessage::system(agent2_system()), LlmMessage::user(&prompt2)];
+        let msgs2 = vec![
+            LlmMessage::system(agent2_system()),
+            LlmMessage::user(&prompt2),
+        ];
         let core_method = match client.chat(&msgs2, model.as_deref(), temperature).await {
             Ok(resp) => {
-                let v: serde_json::Value = serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
+                let v: serde_json::Value =
+                    serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
                 v["core_method"].as_str().unwrap_or("").to_string()
             }
             Err(_) => String::new(),
         };
 
         // ── Agent 3: Experiment Analysis ──────────────────────────
-        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "实验结果分析中（3/4）…" }));
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": pid, "status": "analyzing", "step": "实验结果分析中（3/4）…" }),
+        );
         let prompt3 = AGENT3_PROMPT
             .replace("{method_summary}", &core_method)
             .replace("{text}", &format!("{figure_context}{experiment_text}"));
-        let msgs3 = vec![LlmMessage::system(agent3_system()), LlmMessage::user(&prompt3)];
-        let (experiment_design, experiment_results) = match client.chat(&msgs3, model.as_deref(), temperature).await {
-            Ok(resp) => {
-                let v: serde_json::Value = serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
-                (
-                    v["experiment_design"].as_str().unwrap_or("").to_string(),
-                    v["experiment_results"].as_str().unwrap_or("").to_string(),
-                )
-            }
-            Err(_) => (String::new(), String::new()),
-        };
+        let msgs3 = vec![
+            LlmMessage::system(agent3_system()),
+            LlmMessage::user(&prompt3),
+        ];
+        let (experiment_design, experiment_results) =
+            match client.chat(&msgs3, model.as_deref(), temperature).await {
+                Ok(resp) => {
+                    let v: serde_json::Value =
+                        serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
+                    (
+                        v["experiment_design"].as_str().unwrap_or("").to_string(),
+                        v["experiment_results"].as_str().unwrap_or("").to_string(),
+                    )
+                }
+                Err(_) => (String::new(), String::new()),
+            };
 
         // ── Agent 4: Synthesis & Critique ─────────────────────────
-        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzing", "step": "综合评审中（4/4）…" }));
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": pid, "status": "analyzing", "step": "综合评审中（4/4）…" }),
+        );
         let experiment_summary = format!("{}\n\n{}", experiment_design, experiment_results);
         let prompt4 = AGENT4_PROMPT
-            .replace("{problem_summary}", &format!("{figure_context}{research_question}"))
+            .replace(
+                "{problem_summary}",
+                &format!("{figure_context}{research_question}"),
+            )
             .replace("{method_summary}", &core_method)
             .replace("{experiment_summary}", &experiment_summary);
-        let msgs4 = vec![LlmMessage::system(agent4_system()), LlmMessage::user(&prompt4)];
-        let (innovations, limitations, key_conclusions) = match client.chat(&msgs4, model.as_deref(), temperature).await {
-            Ok(resp) => {
-                let v: serde_json::Value = serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
-                (
-                    v["innovations"].as_str().unwrap_or("").to_string(),
-                    v["limitations"].as_str().unwrap_or("").to_string(),
-                    v["key_conclusions"].as_str().unwrap_or("").to_string(),
-                )
-            }
-            Err(_) => (String::new(), String::new(), String::new()),
-        };
+        let msgs4 = vec![
+            LlmMessage::system(agent4_system()),
+            LlmMessage::user(&prompt4),
+        ];
+        let (innovations, limitations, key_conclusions) =
+            match client.chat(&msgs4, model.as_deref(), temperature).await {
+                Ok(resp) => {
+                    let v: serde_json::Value =
+                        serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
+                    (
+                        v["innovations"].as_str().unwrap_or("").to_string(),
+                        v["limitations"].as_str().unwrap_or("").to_string(),
+                        v["key_conclusions"].as_str().unwrap_or("").to_string(),
+                    )
+                }
+                Err(_) => (String::new(), String::new(), String::new()),
+            };
 
         // ── Persist ───────────────────────────────────────────────
         let analysis_id = Uuid::new_v4().to_string();
@@ -1127,7 +1248,8 @@ pub async fn papers_analyze(
             "innovations": innovations,
             "limitations": limitations,
             "key_conclusions": key_conclusions,
-        })).unwrap_or_default();
+        }))
+        .unwrap_or_default();
 
         let _ = sqlx::query(
             "INSERT INTO paper_analyses (id, paper_id, research_question, core_method, experiment_design, experiment_results, innovations, limitations, key_conclusions, raw_analysis, created_at)
@@ -1146,8 +1268,14 @@ pub async fn papers_analyze(
         .execute(&db).await;
 
         let _ = sqlx::query("UPDATE papers SET status = 'analyzed', updated_at = ? WHERE id = ?")
-            .bind(&now).bind(&pid).execute(&db).await;
-        let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "analyzed" }));
+            .bind(&now)
+            .bind(&pid)
+            .execute(&db)
+            .await;
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": pid, "status": "analyzed" }),
+        );
     });
     Ok(())
 }
@@ -1231,7 +1359,9 @@ pub async fn papers_reproduce(
         .await
         .map_err(|e| e.to_string())?
         .ok_or("未找到对应论文。")?;
-    let full_text: String = row.get::<Option<String>, _>("full_text").unwrap_or_default();
+    let full_text: String = row
+        .get::<Option<String>, _>("full_text")
+        .unwrap_or_default();
     let status = row.get::<Option<String>, _>("status").unwrap_or_default();
     if full_text.trim().is_empty() {
         return Err(missing_full_text_message(&status).to_string());
@@ -1253,17 +1383,31 @@ pub async fn papers_reproduce(
         let client = match LlmClient::from_settings(&settings) {
             Ok(c) => c,
             Err(e) => {
-                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "error", "error": e.to_string() }));
+                let _ = app.emit(
+                    "paper:status",
+                    json!({ "paper_id": pid, "status": "error", "error": e.to_string() }),
+                );
                 return;
             }
         };
-        let model = resolve_model(&settings, &["paper_reproduction_model", "multi_agent_reproduction_model", "multi_agent_worker_model"]);
+        let model = resolve_model(
+            &settings,
+            &[
+                "paper_reproduction_model",
+                "multi_agent_reproduction_model",
+                "multi_agent_worker_model",
+            ],
+        );
         let temperature = resolve_temperature(&settings, "paper_reproduction_temperature", 0.25);
-        let msgs = vec![LlmMessage::system(reproduce_system()), LlmMessage::user(&prompt)];
+        let msgs = vec![
+            LlmMessage::system(reproduce_system()),
+            LlmMessage::user(&prompt),
+        ];
 
         match client.chat(&msgs, model.as_deref(), temperature).await {
             Ok(response) => {
-                let v: serde_json::Value = serde_json::from_str(&extract_json(&response)).unwrap_or_default();
+                let v: serde_json::Value =
+                    serde_json::from_str(&extract_json(&response)).unwrap_or_default();
                 let guide_id = Uuid::new_v4().to_string();
                 let now = chrono::Utc::now().to_rfc3339();
                 let raw = serde_json::to_string(&v).unwrap_or_default();
@@ -1284,12 +1428,23 @@ pub async fn papers_reproduce(
                 .bind(v["evaluation_metrics"].as_str()).bind(v["risks_and_notes"].as_str())
                 .bind(&raw).bind(&now)
                 .execute(&db).await;
-                let _ = sqlx::query("UPDATE papers SET status = 'reproduced', updated_at = ? WHERE id = ?")
-                    .bind(&now).bind(&pid).execute(&db).await;
-                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "reproduced" }));
+                let _ = sqlx::query(
+                    "UPDATE papers SET status = 'reproduced', updated_at = ? WHERE id = ?",
+                )
+                .bind(&now)
+                .bind(&pid)
+                .execute(&db)
+                .await;
+                let _ = app.emit(
+                    "paper:status",
+                    json!({ "paper_id": pid, "status": "reproduced" }),
+                );
             }
             Err(e) => {
-                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "error", "error": e.to_string() }));
+                let _ = app.emit(
+                    "paper:status",
+                    json!({ "paper_id": pid, "status": "error", "error": e.to_string() }),
+                );
             }
         }
     });
@@ -1363,7 +1518,10 @@ async fn extract_import_metadata(
     ];
     let model = resolve_model(settings, &["planner_hint_model"]);
     let temperature = resolve_temperature(settings, "planner_hint_temperature", 0.2);
-    let response = client.chat(&messages, model.as_deref(), temperature).await.ok()?;
+    let response = client
+        .chat(&messages, model.as_deref(), temperature)
+        .await
+        .ok()?;
     let clean = extract_json(&response);
     serde_json::from_str::<ImportRenameMetadata>(&clean).ok()
 }
@@ -1378,10 +1536,15 @@ fn render_import_file_stem(
         return sanitize_file_stem(original_stem);
     }
 
-    let title = clean_optional_text(metadata.title.clone()).unwrap_or_else(|| fallback_title.trim().to_string());
+    let title = clean_optional_text(metadata.title.clone())
+        .unwrap_or_else(|| fallback_title.trim().to_string());
     let authors = clean_optional_text(metadata.authors.clone()).unwrap_or_default();
     let first_author = extract_first_author(&authors);
-    let year = metadata.year.filter(|value| *value > 0).map(|value| value.to_string()).unwrap_or_default();
+    let year = metadata
+        .year
+        .filter(|value| *value > 0)
+        .map(|value| value.to_string())
+        .unwrap_or_default();
     let venue = clean_optional_text(metadata.venue.clone()).unwrap_or_default();
     let doi = clean_optional_text(metadata.doi.clone()).unwrap_or_default();
 
@@ -1475,12 +1638,19 @@ pub(crate) fn extract_keywords_from_text(full_text: &str) -> Vec<String> {
     let lower = search_area.to_ascii_lowercase();
 
     let markers = [
-        "keywords—", "keywords:", "key words:", "key words—",
-        "index terms—", "index terms:", "index terms\n",
+        "keywords—",
+        "keywords:",
+        "key words:",
+        "key words—",
+        "index terms—",
+        "index terms:",
+        "index terms\n",
         "keywords\n",
     ];
 
-    let kw_start = markers.iter().find_map(|m| lower.find(m).map(|p| p + m.len()));
+    let kw_start = markers
+        .iter()
+        .find_map(|m| lower.find(m).map(|p| p + m.len()));
     let start = match kw_start {
         Some(s) => s,
         None => return Vec::new(),
@@ -1531,14 +1701,16 @@ async fn ensure_figures_extracted(
         .await
         .unwrap_or(0);
     if existing > 0 {
-        return sqlx::query("SELECT fig_index, caption FROM paper_figures WHERE paper_id = ? ORDER BY fig_index")
-            .bind(paper_id)
-            .fetch_all(db)
-            .await
-            .unwrap_or_default()
-            .iter()
-            .map(|r| (r.get::<i64, _>("fig_index") as u32, r.get("caption")))
-            .collect();
+        return sqlx::query(
+            "SELECT fig_index, caption FROM paper_figures WHERE paper_id = ? ORDER BY fig_index",
+        )
+        .bind(paper_id)
+        .fetch_all(db)
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|r| (r.get::<i64, _>("fig_index") as u32, r.get("caption")))
+        .collect();
     }
 
     let fp = match file_path.filter(|f| !f.trim().is_empty()) {
@@ -1546,14 +1718,18 @@ async fn ensure_figures_extracted(
         None => return Vec::new(),
     };
     let pdf_path = PathBuf::from(fp);
-    if !pdf_path.exists() { return Vec::new(); }
+    if !pdf_path.exists() {
+        return Vec::new();
+    }
 
     let data_dir = match app.path().app_data_dir() {
         Ok(d) => d,
         Err(_) => return Vec::new(),
     };
     let figures_dir = data_dir.join("papers").join(paper_id).join("figures");
-    if std::fs::create_dir_all(&figures_dir).is_err() { return Vec::new(); }
+    if std::fs::create_dir_all(&figures_dir).is_err() {
+        return Vec::new();
+    }
 
     // Phase 1: lopdf bitmap extraction (CPU-bound → spawn_blocking)
     let captions = extract_figure_captions(full_text);
@@ -1604,7 +1780,9 @@ async fn ensure_figures_extracted(
                 Err(_) => Vec::new(),
             };
             for (fig_idx, _) in identified {
-                if extracted.contains(&fig_idx) { continue; }
+                if extracted.contains(&fig_idx) {
+                    continue;
+                }
                 // Use the rendered page image as the figure file
                 let dest = figures_dir.join(format!("fig_{fig_idx}_p{}.png", page_no + 1));
                 if std::fs::copy(page_path, &dest).is_ok() {
@@ -1625,27 +1803,36 @@ async fn ensure_figures_extracted(
         let _ = std::fs::remove_dir_all(&pages_dir);
     }
 
-    sqlx::query("SELECT fig_index, caption FROM paper_figures WHERE paper_id = ? ORDER BY fig_index")
-        .bind(paper_id)
-        .fetch_all(db)
-        .await
-        .unwrap_or_default()
-        .iter()
-        .map(|r| (r.get::<i64, _>("fig_index") as u32, r.get("caption")))
-        .collect()
+    sqlx::query(
+        "SELECT fig_index, caption FROM paper_figures WHERE paper_id = ? ORDER BY fig_index",
+    )
+    .bind(paper_id)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|r| (r.get::<i64, _>("fig_index") as u32, r.get("caption")))
+    .collect()
 }
 
 /// Render up to `max_pages` pages of a PDF to PNG images in `output_dir`.
 /// Tries pdftoppm (Poppler) first for per-page quality; falls back to qlmanage (macOS built-in).
 fn render_pdf_pages(pdf_path: &Path, output_dir: &Path, max_pages: usize) -> Vec<PathBuf> {
-    let stem = pdf_path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let stem = pdf_path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
     let page_prefix = output_dir.join(format!("{stem}_pg"));
 
     // Try pdftoppm (Poppler) — produces per-page PNG files
     let pdftoppm_ok = std::process::Command::new("pdftoppm")
         .args([
-            "-r", "120", "-png",
-            "-l", &max_pages.to_string(),
+            "-r",
+            "120",
+            "-png",
+            "-l",
+            &max_pages.to_string(),
             pdf_path.to_str().unwrap_or(""),
             page_prefix.to_str().unwrap_or(""),
         ])
@@ -1655,28 +1842,48 @@ fn render_pdf_pages(pdf_path: &Path, output_dir: &Path, max_pages: usize) -> Vec
 
     if pdftoppm_ok {
         let mut pages: Vec<PathBuf> = std::fs::read_dir(output_dir)
-            .ok().into_iter().flatten()
+            .ok()
+            .into_iter()
+            .flatten()
             .filter_map(|e| {
                 let p = e.ok()?.path();
                 let name = p.file_name()?.to_string_lossy().to_string();
-                if name.starts_with(&format!("{stem}_pg")) && name.ends_with(".png") { Some(p) } else { None }
+                if name.starts_with(&format!("{stem}_pg")) && name.ends_with(".png") {
+                    Some(p)
+                } else {
+                    None
+                }
             })
             .collect();
         pages.sort();
-        if !pages.is_empty() { return pages; }
+        if !pages.is_empty() {
+            return pages;
+        }
     }
 
     // Fall back to qlmanage (macOS built-in) — produces a single preview image
     let ql_ok = std::process::Command::new("qlmanage")
-        .args(["-t", "-s", "1200", "-o", output_dir.to_str().unwrap_or(""), pdf_path.to_str().unwrap_or("")])
+        .args([
+            "-t",
+            "-s",
+            "1200",
+            "-o",
+            output_dir.to_str().unwrap_or(""),
+            pdf_path.to_str().unwrap_or(""),
+        ])
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
 
     if ql_ok {
         // qlmanage outputs <filename>.pdf.png (appends .png to the full input filename)
-        let ql_out = output_dir.join(format!("{}.png", pdf_path.file_name().unwrap_or_default().to_string_lossy()));
-        if ql_out.exists() { return vec![ql_out]; }
+        let ql_out = output_dir.join(format!(
+            "{}.png",
+            pdf_path.file_name().unwrap_or_default().to_string_lossy()
+        ));
+        if ql_out.exists() {
+            return vec![ql_out];
+        }
     }
 
     Vec::new()
@@ -1701,20 +1908,30 @@ async fn vision_scan_page(
 只返回严格合法的 JSON，格式：{\"items\": [{\"index\": 1, \"type\": \"figure\"}, {\"index\": 2, \"type\": \"table\"}]}\
 如果该页面没有图或表，返回：{\"items\": []}";
 
-    let resp = match client.chat_with_image(&b64, "image/png", PROMPT, model, 0.1).await {
+    let resp = match client
+        .chat_with_image(&b64, "image/png", PROMPT, model, 0.1)
+        .await
+    {
         Ok(r) => r,
         Err(_) => return Vec::new(),
     };
 
     let json_str = extract_json(&resp);
     let v: serde_json::Value = serde_json::from_str(&json_str).unwrap_or_default();
-    v["items"].as_array()
+    v["items"]
+        .as_array()
         .map(|arr| {
-            arr.iter().filter_map(|item| {
-                let idx = item["index"].as_u64()? as u32;
-                let t = item["type"].as_str().unwrap_or("figure").to_string();
-                if idx > 0 && idx <= 100 { Some((idx, t)) } else { None }
-            }).collect()
+            arr.iter()
+                .filter_map(|item| {
+                    let idx = item["index"].as_u64()? as u32;
+                    let t = item["type"].as_str().unwrap_or("figure").to_string();
+                    if idx > 0 && idx <= 100 {
+                        Some((idx, t))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
         })
         .unwrap_or_default()
 }
@@ -1728,14 +1945,25 @@ fn extract_figure_captions(full_text: &str) -> std::collections::HashMap<u32, St
             continue;
         }
         let lower = t.to_lowercase();
-        let num_start = if lower.starts_with("figure ") { Some(7) }
-            else if lower.starts_with("fig. ") { Some(5) }
-            else if lower.starts_with("fig ") { Some(4) }
-            else if lower.starts_with("table ") { Some(6) }
-            else { None };
+        let num_start = if lower.starts_with("figure ") {
+            Some(7)
+        } else if lower.starts_with("fig. ") {
+            Some(5)
+        } else if lower.starts_with("fig ") {
+            Some(4)
+        } else if lower.starts_with("table ") {
+            Some(6)
+        } else {
+            None
+        };
         if let Some(start) = num_start {
-            if start >= t.len() { continue; }
-            let digits: String = t[start..].chars().take_while(|c| c.is_ascii_digit()).collect();
+            if start >= t.len() {
+                continue;
+            }
+            let digits: String = t[start..]
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
             if let Ok(n) = digits.parse::<u32>() {
                 if n > 0 && n <= 100 {
                     captions.entry(n).or_insert_with(|| t.to_string());
@@ -1751,9 +1979,9 @@ fn stream_has_filter(stream: &lopdf::Stream, filter_name: &[u8]) -> bool {
     use lopdf::Object;
     match stream.dict.get(b"Filter") {
         Ok(Object::Name(n)) => n.as_slice() == filter_name,
-        Ok(Object::Array(arr)) => arr.iter().any(|o| {
-            matches!(o, Object::Name(n) if n.as_slice() == filter_name)
-        }),
+        Ok(Object::Array(arr)) => arr
+            .iter()
+            .any(|o| matches!(o, Object::Name(n) if n.as_slice() == filter_name)),
         _ => false,
     }
 }
@@ -1772,20 +2000,43 @@ fn colorspace_channels(stream: &lopdf::Stream, doc: &lopdf::Document) -> u32 {
             match arr.first() {
                 Some(Object::Name(n)) if n.as_slice() == b"ICCBased" => {
                     // Read N (number of components) from the ICC profile stream
-                    let n = arr.get(1)
-                        .and_then(|o| if let Object::Reference(r) = o { Some(*r) } else { None })
+                    let n = arr
+                        .get(1)
+                        .and_then(|o| {
+                            if let Object::Reference(r) = o {
+                                Some(*r)
+                            } else {
+                                None
+                            }
+                        })
                         .and_then(|r| doc.get_object(r).ok())
-                        .and_then(|o| if let Object::Stream(s) = o { Some(s.dict.clone()) } else { None })
+                        .and_then(|o| {
+                            if let Object::Stream(s) = o {
+                                Some(s.dict.clone())
+                            } else {
+                                None
+                            }
+                        })
                         .and_then(|d| d.get(b"N").ok().cloned())
-                        .and_then(|o| if let Object::Integer(n) = o { Some(n as u32) } else { None })
+                        .and_then(|o| {
+                            if let Object::Integer(n) = o {
+                                Some(n as u32)
+                            } else {
+                                None
+                            }
+                        })
                         .unwrap_or(3);
-                    if n == 1 || n == 3 { n } else { 0 }
-                },
+                    if n == 1 || n == 3 {
+                        n
+                    } else {
+                        0
+                    }
+                }
                 Some(Object::Name(n)) if n.as_slice() == b"CalRGB" => 3,
                 Some(Object::Name(n)) if n.as_slice() == b"CalGray" => 1,
                 _ => 0,
             }
-        },
+        }
         _ => 0,
     }
 }
@@ -1797,7 +2048,13 @@ fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
     let pa = (p - a).abs();
     let pb = (p - b).abs();
     let pc = (p - c).abs();
-    if pa <= pb && pa <= pc { a as u8 } else if pb <= pc { b as u8 } else { c as u8 }
+    if pa <= pb && pa <= pc {
+        a as u8
+    } else if pb <= pc {
+        b as u8
+    } else {
+        c as u8
+    }
 }
 
 /// Apply PNG row de-prediction to raw decompressed FlateDecode data.
@@ -1810,15 +2067,25 @@ fn apply_png_predictor(data: &[u8], width: u32, channels: u32) -> Vec<u8> {
 
     for r in 0..num_rows {
         let base = r * row_bytes;
-        if base + row_bytes > data.len() { break; }
+        if base + row_bytes > data.len() {
+            break;
+        }
         let filter = data[base];
         let src = &data[base + 1..base + row_bytes];
         let mut row = vec![0u8; stride];
 
         for i in 0..stride {
-            let left  = if i >= channels as usize { row[i - channels as usize] } else { 0 };
-            let up    = prev[i];
-            let upleft = if i >= channels as usize { prev[i - channels as usize] } else { 0 };
+            let left = if i >= channels as usize {
+                row[i - channels as usize]
+            } else {
+                0
+            };
+            let up = prev[i];
+            let upleft = if i >= channels as usize {
+                prev[i - channels as usize]
+            } else {
+                0
+            };
             row[i] = match filter {
                 0 => src[i],
                 1 => src[i].wrapping_add(left),
@@ -1859,14 +2126,24 @@ fn extract_pdf_images(
     };
 
     // Collect image object IDs and sort for deterministic ordering
-    let mut image_oids: Vec<lopdf::ObjectId> = doc.objects.iter()
+    let mut image_oids: Vec<lopdf::ObjectId> = doc
+        .objects
+        .iter()
         .filter_map(|(oid, obj)| {
             if let Object::Stream(s) = obj {
-                let is_img = s.dict.get(b"Subtype")
+                let is_img = s
+                    .dict
+                    .get(b"Subtype")
                     .map(|o| matches!(o, Object::Name(n) if n.as_slice() == b"Image"))
                     .unwrap_or(false);
-                if is_img { Some(*oid) } else { None }
-            } else { None }
+                if is_img {
+                    Some(*oid)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         })
         .collect();
     image_oids.sort();
@@ -1875,7 +2152,9 @@ fn extract_pdf_images(
     let mut idx: u32 = 1;
 
     for (scanned, &oid) in image_oids.iter().enumerate() {
-        if scanned >= 400 || idx > 30 { break; }
+        if scanned >= 400 || idx > 30 {
+            break;
+        }
 
         let stream = match doc.objects.get(&oid) {
             Some(Object::Stream(s)) => s,
@@ -1890,7 +2169,9 @@ fn extract_pdf_images(
             Ok(Object::Integer(n)) => *n as u32,
             _ => 0,
         };
-        if width < 80 || height < 80 { continue; }
+        if width < 80 || height < 80 {
+            continue;
+        }
 
         if stream_has_filter(stream, b"DCTDecode") {
             // JPEG: raw stream bytes are valid JPEG data
@@ -1905,10 +2186,14 @@ fn extract_pdf_images(
                 Ok(Object::Integer(n)) => *n as u32,
                 _ => 8,
             };
-            if bits != 8 { continue; }
+            if bits != 8 {
+                continue;
+            }
 
             let channels = colorspace_channels(stream, &doc);
-            if channels != 1 && channels != 3 { continue; }
+            if channels != 1 && channels != 3 {
+                continue;
+            }
 
             let raw = match zlib_decompress(&stream.content) {
                 Some(d) => d,
@@ -1931,7 +2216,9 @@ fn extract_pdf_images(
             };
 
             let expected = (width * height * channels) as usize;
-            if pixels.len() < expected { continue; }
+            if pixels.len() < expected {
+                continue;
+            }
             let pixel_data = pixels[..expected].to_vec();
 
             let fp = output_dir.join(format!("fig_{idx}.png"));
@@ -1971,7 +2258,8 @@ pub async fn papers_list_figures(
     let (paper_file_path, paper_full_text) = if let Some(row) = paper_row {
         (
             row.try_get::<Option<String>, _>("file_path").ok().flatten(),
-            row.get::<Option<String>, _>("full_text").unwrap_or_default(),
+            row.get::<Option<String>, _>("full_text")
+                .unwrap_or_default(),
         )
     } else {
         (None, String::new())
@@ -1988,12 +2276,15 @@ pub async fn papers_list_figures(
     if rows.is_empty() {
         // Lazy fallback extraction (no vision LLM — used for papers analyzed before this change)
         ensure_figures_extracted(
-            &app, &state.db, &paper_id,
+            &app,
+            &state.db,
+            &paper_id,
             paper_file_path.as_deref(),
             &paper_full_text,
-            None,  // no vision client in lazy path
+            None, // no vision client in lazy path
             None,
-        ).await;
+        )
+        .await;
 
         rows = sqlx::query(
             "SELECT id, paper_id, fig_index, caption, file_path FROM paper_figures WHERE paper_id = ? ORDER BY fig_index",
@@ -2009,7 +2300,11 @@ pub async fn papers_list_figures(
         let mut caption_updated = false;
         for row in &rows {
             let current_caption: Option<String> = row.get("caption");
-            if current_caption.as_deref().map(|value| value.trim().is_empty()).unwrap_or(true) {
+            if current_caption
+                .as_deref()
+                .map(|value| value.trim().is_empty())
+                .unwrap_or(true)
+            {
                 let fig_index: i64 = row.get("fig_index");
                 if let Some(next_caption) = captions.get(&(fig_index as u32)) {
                     let figure_id: String = row.get("id");
@@ -2043,13 +2338,15 @@ pub async fn papers_list_figures(
     // Collect metadata first (sync), then read all files concurrently (async)
     let row_meta: Vec<(String, String, i64, Option<String>, String)> = rows
         .iter()
-        .map(|r| (
-            r.get::<String, _>("id"),
-            r.get::<String, _>("paper_id"),
-            r.get::<i64, _>("fig_index"),
-            r.get::<Option<String>, _>("caption"),
-            r.get::<String, _>("file_path"),
-        ))
+        .map(|r| {
+            (
+                r.get::<String, _>("id"),
+                r.get::<String, _>("paper_id"),
+                r.get::<i64, _>("fig_index"),
+                r.get::<Option<String>, _>("caption"),
+                r.get::<String, _>("file_path"),
+            )
+        })
         .collect();
 
     use futures_util::StreamExt as _;
@@ -2060,8 +2357,15 @@ pub async fn papers_list_figures(
             match tokio::fs::read(&file_path).await {
                 Ok(data) => {
                     let b64 = general_purpose::STANDARD.encode(&data);
-                    let ext = Path::new(&file_path).extension().and_then(|e| e.to_str()).unwrap_or("jpg");
-                    let mime = if ext == "png" { "image/png" } else { "image/jpeg" };
+                    let ext = Path::new(&file_path)
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("jpg");
+                    let mime = if ext == "png" {
+                        "image/png"
+                    } else {
+                        "image/jpeg"
+                    };
                     Some(json!({
                         "id": id,
                         "paper_id": paper_id,
@@ -2091,7 +2395,11 @@ fn managed_papers_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(papers_dir)
 }
 
-fn copy_to_managed_papers_dir(app: &tauri::AppHandle, src: &Path, desired_stem: &str) -> Result<PathBuf, String> {
+fn copy_to_managed_papers_dir(
+    app: &tauri::AppHandle,
+    src: &Path,
+    desired_stem: &str,
+) -> Result<PathBuf, String> {
     let papers_dir = managed_papers_dir(app)?;
     let stem = sanitize_file_stem(desired_stem);
     let extension = src.extension().and_then(|v| v.to_str()).unwrap_or("pdf");
@@ -2134,7 +2442,9 @@ async fn embed_in_batches(
 }
 
 fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> serde_json::Value {
-    let tags_str: String = r.get::<Option<String>, _>("tags").unwrap_or_else(|| "[]".into());
+    let tags_str: String = r
+        .get::<Option<String>, _>("tags")
+        .unwrap_or_else(|| "[]".into());
     // "abstract" is a Rust reserved keyword; fetch into a variable first
     let paper_abstract: Option<String> = r.get("abstract");
     let paper_venue: Option<String> = r.get("venue");
@@ -2224,7 +2534,10 @@ mod tests {
             "fallback",
             "old-name",
         );
-        assert_eq!(rendered, "Ashish Vaswani - Attention Is All You Need (2017)");
+        assert_eq!(
+            rendered,
+            "Ashish Vaswani - Attention Is All You Need (2017)"
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use crate::assistant_prompts::specialist_system;
-use crate::commands::paper_search::search_survey_candidates;
 use crate::ccf::match_venue;
+use crate::commands::paper_search::search_survey_candidates;
 use crate::links::{doi_url, paper_reference_url, paper_search_url};
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::state::AppState;
@@ -49,13 +49,22 @@ pub async fn planner_generate(
         let prompt = PLANNER_TPL
             .replace("{topic}", &topic)
             .replace("{keywords}", &keywords.join("、"));
-        let msgs = vec![LlmMessage::system(planner_system()), LlmMessage::user(&prompt)];
+        let msgs = vec![
+            LlmMessage::system(planner_system()),
+            LlmMessage::user(&prompt),
+        ];
         let planner_model = resolve_model(&settings, &["planner_generation_model"]);
-        let planner_temperature = resolve_temperature(&settings, "planner_generation_temperature", 0.3);
-        match client.chat(&msgs, planner_model.as_deref(), planner_temperature).await {
+        let planner_temperature =
+            resolve_temperature(&settings, "planner_generation_temperature", 0.3);
+        match client
+            .chat(&msgs, planner_model.as_deref(), planner_temperature)
+            .await
+        {
             Ok(resp) => {
                 let clean = extract_json(&resp);
-                let v: serde_json::Value = enrich_planner_result(serde_json::from_str(&clean).unwrap_or(json!({"raw": resp})));
+                let v: serde_json::Value = enrich_planner_result(
+                    serde_json::from_str(&clean).unwrap_or(json!({"raw": resp})),
+                );
                 let _ = app.emit("planner:result", json!({ "topic": topic, "plan": v }));
             }
             Err(e) => {
@@ -208,7 +217,10 @@ pub async fn survey_generate(
         let client = match LlmClient::from_settings(&settings) {
             Ok(c) => c,
             Err(e) => {
-                let _ = app.emit("survey:error", json!({ "request_id": request_id, "error": e.to_string() }));
+                let _ = app.emit(
+                    "survey:error",
+                    json!({ "request_id": request_id, "error": e.to_string() }),
+                );
                 return;
             }
         };
@@ -219,37 +231,54 @@ pub async fn survey_generate(
             (None, Some(to)) => format!("{} 年以前", to),
             (None, None) => "不限".to_string(),
         };
-        let lit_types_str = lit_types.as_ref()
+        let lit_types_str = lit_types
+            .as_ref()
             .map(|v| v.join("、"))
             .unwrap_or_else(|| "不限".to_string());
-        let databases_str = databases.as_ref()
+        let databases_str = databases
+            .as_ref()
             .map(|v| v.join("、"))
             .unwrap_or_else(|| "不限".to_string());
 
         // ── Agent 1: Intent Planner ──────────────────────────────────────
 
         let plan_agent_id = uuid::Uuid::new_v4().to_string();
-        let _ = app.emit("survey:agent_start", json!({
-            "request_id": request_id,
-            "agent": {
-                "id": plan_agent_id,
-                "name": "检索规划 Agent",
-                "role": "规划研究范围与检索策略",
-                "status": "running"
-            }
-        }));
+        let _ = app.emit(
+            "survey:agent_start",
+            json!({
+                "request_id": request_id,
+                "agent": {
+                    "id": plan_agent_id,
+                    "name": "检索规划 Agent",
+                    "role": "规划研究范围与检索策略",
+                    "status": "running"
+                }
+            }),
+        );
 
         let plan_prompt = SURVEY_PLANNER_TPL
             .replace("{query}", &query)
             .replace("{time_range}", &time_range_str)
             .replace("{lit_types}", &lit_types_str)
             .replace("{databases}", &databases_str);
-        let plan_msgs = vec![LlmMessage::system(survey_planner_system()), LlmMessage::user(plan_prompt)];
+        let plan_msgs = vec![
+            LlmMessage::system(survey_planner_system()),
+            LlmMessage::user(plan_prompt),
+        ];
         let survey_planner_model = resolve_model(&settings, &["survey_planner_model"]);
-        let survey_planner_temperature = resolve_temperature(&settings, "survey_planner_temperature", 0.2);
-        let plan_json = match client.chat(&plan_msgs, survey_planner_model.as_deref(), survey_planner_temperature).await {
+        let survey_planner_temperature =
+            resolve_temperature(&settings, "survey_planner_temperature", 0.2);
+        let plan_json = match client
+            .chat(
+                &plan_msgs,
+                survey_planner_model.as_deref(),
+                survey_planner_temperature,
+            )
+            .await
+        {
             Ok(resp) => {
-                let parsed = serde_json::from_str::<serde_json::Value>(&extract_json(&resp)).unwrap_or(json!({}));
+                let parsed = serde_json::from_str::<serde_json::Value>(&extract_json(&resp))
+                    .unwrap_or(json!({}));
                 let _ = app.emit("survey:agent_complete", json!({
                     "request_id": request_id,
                     "agent": {
@@ -263,16 +292,19 @@ pub async fn survey_generate(
                 parsed
             }
             Err(e) => {
-                let _ = app.emit("survey:agent_error", json!({
-                    "request_id": request_id,
-                    "agent": {
-                        "id": plan_agent_id,
-                        "name": "检索规划 Agent",
-                        "role": "规划研究范围与检索策略",
-                        "status": "failed",
-                        "error": e.to_string()
-                    }
-                }));
+                let _ = app.emit(
+                    "survey:agent_error",
+                    json!({
+                        "request_id": request_id,
+                        "agent": {
+                            "id": plan_agent_id,
+                            "name": "检索规划 Agent",
+                            "role": "规划研究范围与检索策略",
+                            "status": "failed",
+                            "error": e.to_string()
+                        }
+                    }),
+                );
                 json!({
                     "scope": format!("围绕{}进行文献综述", query),
                     "search_queries": [query.clone()],
@@ -285,51 +317,78 @@ pub async fn survey_generate(
         let search_queries = plan_json
             .get("search_queries")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect::<Vec<String>>())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect::<Vec<String>>()
+            })
             .unwrap_or_else(|| vec![query.clone()]);
 
         // ── Agent 2: Literature Retriever ──────────────────────────────────
 
         let retrieval_agent_id = uuid::Uuid::new_v4().to_string();
-        let _ = app.emit("survey:agent_start", json!({
-            "request_id": request_id,
-            "agent": {
-                "id": retrieval_agent_id,
-                "name": "文献检索 Agent",
-                "role": "检索候选文献",
-                "status": "running"
-            }
-        }));
+        let _ = app.emit(
+            "survey:agent_start",
+            json!({
+                "request_id": request_id,
+                "agent": {
+                    "id": retrieval_agent_id,
+                    "name": "文献检索 Agent",
+                    "role": "检索候选文献",
+                    "status": "running"
+                }
+            }),
+        );
 
         let paper_limit = i64::from(max_papers.unwrap_or(20).max(1));
-        let pinned_ids = paper_ids.as_ref().map(|v| v.iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>()).unwrap_or_default();
+        let pinned_ids = paper_ids
+            .as_ref()
+            .map(|v| {
+                v.iter()
+                    .filter(|s| !s.is_empty())
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         let (mut papers, mut retrieval_summary) = if !pinned_ids.is_empty() {
             // 用户已从论文库中手动选择论文，直接按 ID 加载，跳过文本检索
             match fetch_papers_by_ids(&db, &pinned_ids).await {
                 Ok(list) => {
                     let count = list.len();
-                    (
-                        list,
-                        format!("已加载论文库中选定的 {} 篇论文", count),
-                    )
+                    (list, format!("已加载论文库中选定的 {} 篇论文", count))
                 }
                 Err(e) => {
-                    let _ = app.emit("survey:agent_error", json!({
-                        "request_id": request_id,
-                        "agent": {
-                            "id": retrieval_agent_id,
-                            "name": "文献检索 Agent",
-                            "role": "检索候选文献",
-                            "status": "failed",
-                            "error": e.clone()
-                        }
-                    }));
-                    let _ = app.emit("survey:error", json!({ "request_id": request_id, "error": e }));
+                    let _ = app.emit(
+                        "survey:agent_error",
+                        json!({
+                            "request_id": request_id,
+                            "agent": {
+                                "id": retrieval_agent_id,
+                                "name": "文献检索 Agent",
+                                "role": "检索候选文献",
+                                "status": "failed",
+                                "error": e.clone()
+                            }
+                        }),
+                    );
+                    let _ = app.emit(
+                        "survey:error",
+                        json!({ "request_id": request_id, "error": e }),
+                    );
                     return;
                 }
             }
         } else {
-            match retrieve_papers(&db, &query, &search_queries, paper_limit, time_from, time_to).await {
+            match retrieve_papers(
+                &db,
+                &query,
+                &search_queries,
+                paper_limit,
+                time_from,
+                time_to,
+            )
+            .await
+            {
                 Ok(list) => {
                     let count = list.len();
                     let filter_desc = if time_from.is_some() || time_to.is_some() {
@@ -342,12 +401,10 @@ pub async fn survey_generate(
                         format!("已从论文库检索到 {} 篇候选文献{}", count, filter_desc),
                     )
                 }
-                Err(e) => {
-                    (
-                        Vec::new(),
-                        format!("论文库检索失败，已切换外部学术源补充：{}", e),
-                    )
-                }
+                Err(e) => (
+                    Vec::new(),
+                    format!("论文库检索失败，已切换外部学术源补充：{}", e),
+                ),
             }
         };
 
@@ -364,15 +421,15 @@ pub async fn survey_generate(
             .await
             {
                 Ok(external_papers) => {
-                    let external_added = merge_survey_papers(&mut papers, external_papers, paper_limit as usize);
+                    let external_added =
+                        merge_survey_papers(&mut papers, external_papers, paper_limit as usize);
                     if external_added > 0 {
                         retrieval_summary = if papers.len() == external_added {
                             format!("已从外部学术源检索到 {} 篇候选文献", external_added)
                         } else {
                             format!(
                                 "{}，并从外部学术源补充 {} 篇候选文献",
-                                retrieval_summary,
-                                external_added
+                                retrieval_summary, external_added
                             )
                         };
                     }
@@ -387,33 +444,43 @@ pub async fn survey_generate(
 
         if papers.is_empty() {
             let message = "未检索到候选文献，请调整研究问题、放宽时间范围，或先在论文库中导入几篇相关论文后重试。";
-            let _ = app.emit("survey:agent_error", json!({
+            let _ = app.emit(
+                "survey:agent_error",
+                json!({
+                    "request_id": request_id,
+                    "agent": {
+                        "id": retrieval_agent_id,
+                        "name": "文献检索 Agent",
+                        "role": "检索候选文献",
+                        "status": "failed",
+                        "error": message
+                    }
+                }),
+            );
+            let _ = app.emit(
+                "survey:error",
+                json!({ "request_id": request_id, "error": message }),
+            );
+            return;
+        }
+
+        let _ = app.emit(
+            "survey:agent_complete",
+            json!({
                 "request_id": request_id,
                 "agent": {
                     "id": retrieval_agent_id,
                     "name": "文献检索 Agent",
                     "role": "检索候选文献",
-                    "status": "failed",
-                    "error": message
+                    "status": "done",
+                    "summary": retrieval_summary
                 }
-            }));
-            let _ = app.emit("survey:error", json!({ "request_id": request_id, "error": message }));
-            return;
-        }
-
-        let _ = app.emit("survey:agent_complete", json!({
-            "request_id": request_id,
-            "agent": {
-                "id": retrieval_agent_id,
-                "name": "文献检索 Agent",
-                "role": "检索候选文献",
-                "status": "done",
-                "summary": retrieval_summary
-            }
-        }));
+            }),
+        );
 
         // RAG evidence
-        let rag_context = if let Ok(embed_client) = LlmClient::embed_client_from_settings(&settings) {
+        let rag_context = if let Ok(embed_client) = LlmClient::embed_client_from_settings(&settings)
+        {
             if let Ok(embeddings) = embed_client.embed(&[query.clone()]).await {
                 if let Some(emb) = embeddings.into_iter().next() {
                     let top_k = max_papers.unwrap_or(10) as usize;
@@ -421,64 +488,96 @@ pub async fn survey_generate(
                         .await
                         .ok()
                         .map(|results| {
-                            results.iter()
+                            results
+                                .iter()
                                 .map(|r| format!("【{}】\n{}", r.source, r.content))
                                 .collect::<Vec<_>>()
                                 .join("\n\n")
                         })
                         .unwrap_or_default()
-                } else { String::new() }
-            } else { String::new() }
-        } else { String::new() };
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
 
         // ── Agent 3: Timeline Analyst ──────────────────────────────────────
 
         let timeline_agent_id = uuid::Uuid::new_v4().to_string();
-        let _ = app.emit("survey:agent_start", json!({
-            "request_id": request_id,
-            "agent": {
-                "id": timeline_agent_id,
-                "name": "时序分析 Agent",
-                "role": "梳理领域发展脉络与演进阶段",
-                "status": "running"
-            }
-        }));
+        let _ = app.emit(
+            "survey:agent_start",
+            json!({
+                "request_id": request_id,
+                "agent": {
+                    "id": timeline_agent_id,
+                    "name": "时序分析 Agent",
+                    "role": "梳理领域发展脉络与演进阶段",
+                    "status": "running"
+                }
+            }),
+        );
 
         let papers_by_year_text = build_papers_by_year_text(&papers);
         let timeline_prompt = SURVEY_TIMELINE_TPL
             .replace("{query}", &query)
             .replace("{papers_by_year}", &papers_by_year_text);
-        let timeline_msgs = vec![LlmMessage::system(survey_timeline_system()), LlmMessage::user(timeline_prompt)];
+        let timeline_msgs = vec![
+            LlmMessage::system(survey_timeline_system()),
+            LlmMessage::user(timeline_prompt),
+        ];
         let timeline_model = resolve_model(&settings, &["survey_planner_model"]);
-        let timeline_temperature = resolve_temperature(&settings, "survey_planner_temperature", 0.2);
-        let (timeline_json, timeline_text) = match client.chat(&timeline_msgs, timeline_model.as_deref(), timeline_temperature).await {
+        let timeline_temperature =
+            resolve_temperature(&settings, "survey_planner_temperature", 0.2);
+        let (timeline_json, timeline_text) = match client
+            .chat(
+                &timeline_msgs,
+                timeline_model.as_deref(),
+                timeline_temperature,
+            )
+            .await
+        {
             Ok(resp) => {
-                let parsed = serde_json::from_str::<serde_json::Value>(&extract_json(&resp)).unwrap_or(json!({}));
-                let stages = parsed.get("timeline").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
-                let _ = app.emit("survey:agent_complete", json!({
-                    "request_id": request_id,
-                    "agent": {
-                        "id": timeline_agent_id,
-                        "name": "时序分析 Agent",
-                        "role": "梳理领域发展脉络与演进阶段",
-                        "status": "done",
-                        "summary": format!("已识别 {} 个发展阶段", stages)
-                    }
-                }));
+                let parsed = serde_json::from_str::<serde_json::Value>(&extract_json(&resp))
+                    .unwrap_or(json!({}));
+                let stages = parsed
+                    .get("timeline")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.len())
+                    .unwrap_or(0);
+                let _ = app.emit(
+                    "survey:agent_complete",
+                    json!({
+                        "request_id": request_id,
+                        "agent": {
+                            "id": timeline_agent_id,
+                            "name": "时序分析 Agent",
+                            "role": "梳理领域发展脉络与演进阶段",
+                            "status": "done",
+                            "summary": format!("已识别 {} 个发展阶段", stages)
+                        }
+                    }),
+                );
                 let text = build_timeline_text(&parsed);
                 (parsed, text)
             }
             Err(e) => {
-                let _ = app.emit("survey:agent_error", json!({
-                    "request_id": request_id,
-                    "agent": {
-                        "id": timeline_agent_id,
-                        "name": "时序分析 Agent",
-                        "role": "梳理领域发展脉络与演进阶段",
-                        "status": "failed",
-                        "error": e.to_string()
-                    }
-                }));
+                let _ = app.emit(
+                    "survey:agent_error",
+                    json!({
+                        "request_id": request_id,
+                        "agent": {
+                            "id": timeline_agent_id,
+                            "name": "时序分析 Agent",
+                            "role": "梳理领域发展脉络与演进阶段",
+                            "status": "failed",
+                            "error": e.to_string()
+                        }
+                    }),
+                );
                 (json!({}), String::new())
             }
         };
@@ -486,38 +585,79 @@ pub async fn survey_generate(
         // ── Agent 4: Survey Writer ──────────────────────────────────────
 
         let writer_agent_id = uuid::Uuid::new_v4().to_string();
-        let _ = app.emit("survey:agent_start", json!({
-            "request_id": request_id,
-            "agent": {
-                "id": writer_agent_id,
-                "name": "综述写作 Agent",
-                "role": "生成全面结构化文献综述",
-                "status": "running"
-            }
-        }));
+        let _ = app.emit(
+            "survey:agent_start",
+            json!({
+                "request_id": request_id,
+                "agent": {
+                    "id": writer_agent_id,
+                    "name": "综述写作 Agent",
+                    "role": "生成全面结构化文献综述",
+                    "status": "running"
+                }
+            }),
+        );
 
         let papers_text = build_papers_text(&papers);
         let writer_prompt = SURVEY_WRITER_TPL
             .replace("{query}", &query)
-            .replace("{scope}", plan_json.get("scope").and_then(|v| v.as_str()).unwrap_or("围绕用户研究问题给出入门综述"))
+            .replace(
+                "{scope}",
+                plan_json
+                    .get("scope")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("围绕用户研究问题给出入门综述"),
+            )
             .replace("{time_range}", &time_range_str)
             .replace("{lit_types}", &lit_types_str)
-            .replace("{must_cover}", &plan_json.get("must_cover").and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join("、"))
-                .unwrap_or_else(|| "研究背景、主要方法、研究趋势".to_string()))
-            .replace("{expected_methods}", &plan_json.get("expected_methods").and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join("、"))
-                .unwrap_or_default())
+            .replace(
+                "{must_cover}",
+                &plan_json
+                    .get("must_cover")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str())
+                            .collect::<Vec<_>>()
+                            .join("、")
+                    })
+                    .unwrap_or_else(|| "研究背景、主要方法、研究趋势".to_string()),
+            )
+            .replace(
+                "{expected_methods}",
+                &plan_json
+                    .get("expected_methods")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str())
+                            .collect::<Vec<_>>()
+                            .join("、")
+                    })
+                    .unwrap_or_default(),
+            )
             .replace("{timeline}", &timeline_text)
             .replace("{papers}", &papers_text)
             .replace("{evidence}", &rag_context);
 
-        let writer_msgs = vec![LlmMessage::system(survey_writer_system()), LlmMessage::user(writer_prompt)];
+        let writer_msgs = vec![
+            LlmMessage::system(survey_writer_system()),
+            LlmMessage::user(writer_prompt),
+        ];
         let survey_writer_model = resolve_model(&settings, &["survey_writer_model"]);
-        let survey_writer_temperature = resolve_temperature(&settings, "survey_writer_temperature", 0.3);
-        match client.chat(&writer_msgs, survey_writer_model.as_deref(), survey_writer_temperature).await {
+        let survey_writer_temperature =
+            resolve_temperature(&settings, "survey_writer_temperature", 0.3);
+        match client
+            .chat(
+                &writer_msgs,
+                survey_writer_model.as_deref(),
+                survey_writer_temperature,
+            )
+            .await
+        {
             Ok(resp) => {
-                let mut report = serde_json::from_str::<serde_json::Value>(&extract_json(&resp)).unwrap_or(json!({}));
+                let mut report = serde_json::from_str::<serde_json::Value>(&extract_json(&resp))
+                    .unwrap_or(json!({}));
                 if !report.is_object() {
                     report = json!({ "overall_summary": resp });
                 }
@@ -541,22 +681,34 @@ pub async fn survey_generate(
                     .map(|(idx, p)| format!("[{}] {}", idx + 1, format_citation(p, cite_format)))
                     .collect();
 
-                let markdown = build_survey_markdown(&query, &report, &papers, &formatted_citations, cite_format);
-                let _ = app.emit("survey:delta", json!({ "request_id": request_id, "delta": markdown }));
-                let _ = app.emit("survey:structured", json!({
-                    "request_id": request_id,
-                    "query": query,
-                    "report": report,
-                    "papers": papers,
-                    "formatted_citations": formatted_citations,
-                    "citation_format": cite_format,
-                    "meta": {
-                        "time_range": time_range_str,
-                        "lit_types": lit_types_str,
-                        "databases": databases_str,
-                        "language": language.as_deref().unwrap_or("both")
-                    }
-                }));
+                let markdown = build_survey_markdown(
+                    &query,
+                    &report,
+                    &papers,
+                    &formatted_citations,
+                    cite_format,
+                );
+                let _ = app.emit(
+                    "survey:delta",
+                    json!({ "request_id": request_id, "delta": markdown }),
+                );
+                let _ = app.emit(
+                    "survey:structured",
+                    json!({
+                        "request_id": request_id,
+                        "query": query,
+                        "report": report,
+                        "papers": papers,
+                        "formatted_citations": formatted_citations,
+                        "citation_format": cite_format,
+                        "meta": {
+                            "time_range": time_range_str,
+                            "lit_types": lit_types_str,
+                            "databases": databases_str,
+                            "language": language.as_deref().unwrap_or("both")
+                        }
+                    }),
+                );
                 let _ = app.emit("survey:agent_complete", json!({
                     "request_id": request_id,
                     "agent": {
@@ -567,20 +719,29 @@ pub async fn survey_generate(
                         "summary": "已完成综述（背景、发展脉络、方法、趋势、挑战、研究缺口与建议方向）"
                     }
                 }));
-                let _ = app.emit("survey:done", json!({ "request_id": request_id, "content": markdown }));
+                let _ = app.emit(
+                    "survey:done",
+                    json!({ "request_id": request_id, "content": markdown }),
+                );
             }
             Err(e) => {
-                let _ = app.emit("survey:agent_error", json!({
-                    "request_id": request_id,
-                    "agent": {
-                        "id": writer_agent_id,
-                        "name": "综述写作 Agent",
-                        "role": "生成全面结构化文献综述",
-                        "status": "failed",
-                        "error": e.to_string()
-                    }
-                }));
-                let _ = app.emit("survey:error", json!({ "request_id": request_id, "error": e.to_string() }));
+                let _ = app.emit(
+                    "survey:agent_error",
+                    json!({
+                        "request_id": request_id,
+                        "agent": {
+                            "id": writer_agent_id,
+                            "name": "综述写作 Agent",
+                            "role": "生成全面结构化文献综述",
+                            "status": "failed",
+                            "error": e.to_string()
+                        }
+                    }),
+                );
+                let _ = app.emit(
+                    "survey:error",
+                    json!({ "request_id": request_id, "error": e.to_string() }),
+                );
             }
         }
     });
@@ -650,17 +811,25 @@ fn build_papers_text(papers: &[serde_json::Value]) -> String {
     if papers.is_empty() {
         return "无匹配论文。".to_string();
     }
-    papers.iter().enumerate().map(|(idx, p)| {
-        format!(
-            "[{}] {} | {} | {} | {}\n摘要: {}",
-            idx + 1,
-            p.get("title").and_then(|v| v.as_str()).unwrap_or(""),
-            p.get("authors").and_then(|v| v.as_str()).unwrap_or(""),
-            p.get("year").and_then(|v| v.as_i64()).map(|y| y.to_string()).unwrap_or_default(),
-            p.get("venue").and_then(|v| v.as_str()).unwrap_or(""),
-            p.get("abstract").and_then(|v| v.as_str()).unwrap_or("")
-        )
-    }).collect::<Vec<_>>().join("\n\n")
+    papers
+        .iter()
+        .enumerate()
+        .map(|(idx, p)| {
+            format!(
+                "[{}] {} | {} | {} | {}\n摘要: {}",
+                idx + 1,
+                p.get("title").and_then(|v| v.as_str()).unwrap_or(""),
+                p.get("authors").and_then(|v| v.as_str()).unwrap_or(""),
+                p.get("year")
+                    .and_then(|v| v.as_i64())
+                    .map(|y| y.to_string())
+                    .unwrap_or_default(),
+                p.get("venue").and_then(|v| v.as_str()).unwrap_or(""),
+                p.get("abstract").and_then(|v| v.as_str()).unwrap_or("")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 fn build_papers_by_year_text(papers: &[serde_json::Value]) -> String {
@@ -669,29 +838,45 @@ fn build_papers_by_year_text(papers: &[serde_json::Value]) -> String {
     }
     let mut sorted = papers.to_vec();
     sorted.sort_by_key(|p| p.get("year").and_then(|v| v.as_i64()).unwrap_or(0));
-    sorted.iter().map(|p| {
-        format!(
-            "[{}] {} ({})",
-            p.get("year").and_then(|v| v.as_i64()).map(|y| y.to_string()).unwrap_or_else(|| "年份未知".to_string()),
-            p.get("title").and_then(|v| v.as_str()).unwrap_or(""),
-            p.get("venue").and_then(|v| v.as_str()).unwrap_or("")
-        )
-    }).collect::<Vec<_>>().join("\n")
+    sorted
+        .iter()
+        .map(|p| {
+            format!(
+                "[{}] {} ({})",
+                p.get("year")
+                    .and_then(|v| v.as_i64())
+                    .map(|y| y.to_string())
+                    .unwrap_or_else(|| "年份未知".to_string()),
+                p.get("title").and_then(|v| v.as_str()).unwrap_or(""),
+                p.get("venue").and_then(|v| v.as_str()).unwrap_or("")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn build_timeline_text(timeline_json: &serde_json::Value) -> String {
     let mut out = String::new();
-    if let Some(ep) = timeline_json.get("earliest_period").and_then(|v| v.as_str()) {
+    if let Some(ep) = timeline_json
+        .get("earliest_period")
+        .and_then(|v| v.as_str())
+    {
         out.push_str(&format!("起源：{}\n\n", ep));
     }
     if let Some(stages) = timeline_json.get("timeline").and_then(|v| v.as_array()) {
         for stage in stages {
             let period = stage.get("period").and_then(|v| v.as_str()).unwrap_or("");
-            let milestone = stage.get("milestone").and_then(|v| v.as_str()).unwrap_or("");
+            let milestone = stage
+                .get("milestone")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             out.push_str(&format!("• {}：{}\n", period, milestone));
         }
     }
-    if let Some(frontier) = timeline_json.get("current_frontier").and_then(|v| v.as_str()) {
+    if let Some(frontier) = timeline_json
+        .get("current_frontier")
+        .and_then(|v| v.as_str())
+    {
         out.push_str(&format!("\n当前前沿：{}", frontier));
     }
     out
@@ -812,17 +997,22 @@ pub async fn translate_text(
     let temperature = resolve_temperature(&settings, "translation_temperature", 0.1);
 
     let lang_map: &[(&str, &str)] = &[
-        ("zh", "简体中文"), ("en", "English"), ("ja", "日本語"),
-        ("de", "Deutsch"), ("fr", "Français"),
+        ("zh", "简体中文"),
+        ("en", "English"),
+        ("ja", "日本語"),
+        ("de", "Deutsch"),
+        ("fr", "Français"),
     ];
-    let target_display = lang_map.iter()
+    let target_display = lang_map
+        .iter()
         .find(|(code, _)| *code == target_lang.as_str())
         .map(|(_, name)| *name)
         .unwrap_or(target_lang.as_str());
 
     let source_hint = match &source_lang {
         Some(src) => {
-            let src_display = lang_map.iter()
+            let src_display = lang_map
+                .iter()
                 .find(|(code, _)| *code == src.as_str())
                 .map(|(_, name)| *name)
                 .unwrap_or(src.as_str());
@@ -837,12 +1027,13 @@ pub async fn translate_text(
         Some("只返回译文，不加任何解释、标注或前缀。"),
     );
 
-    let user = format!(
-        "{source_hint}目标语言：{target_display}\n\n原文：\n{text}"
-    );
+    let user = format!("{source_hint}目标语言：{target_display}\n\n原文：\n{text}");
 
     let msgs = vec![LlmMessage::system(system), LlmMessage::user(&user)];
-    client.chat(&msgs, model.as_deref(), temperature).await.map_err(|e| e.to_string())
+    client
+        .chat(&msgs, model.as_deref(), temperature)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 // ── Markdown Format ───────────────────────────────────────────────
@@ -876,7 +1067,10 @@ pub async fn markdown_format_chunk(
     );
 
     let msgs = vec![LlmMessage::system(system), LlmMessage::user(&user)];
-    let raw = client.chat(&msgs, model.as_deref(), temperature).await.map_err(|e| e.to_string())?;
+    let raw = client
+        .chat(&msgs, model.as_deref(), temperature)
+        .await
+        .map_err(|e| e.to_string())?;
     let clean = extract_json(&raw);
     serde_json::from_str::<serde_json::Value>(&clean)
         .map_err(|e| format!("JSON parse error: {e}\nraw: {raw}"))
@@ -894,7 +1088,10 @@ async fn retrieve_papers(
     terms.extend(search_queries.iter().cloned());
 
     let year_clause = match (year_from, year_to) {
-        (Some(from), Some(to)) => format!(" AND (year IS NULL OR (year >= {} AND year <= {}))", from, to),
+        (Some(from), Some(to)) => format!(
+            " AND (year IS NULL OR (year >= {} AND year <= {}))",
+            from, to
+        ),
         (Some(from), None) => format!(" AND (year IS NULL OR year >= {})", from),
         (None, Some(to)) => format!(" AND (year IS NULL OR year <= {})", to),
         (None, None) => String::new(),
@@ -963,52 +1160,101 @@ async fn retrieve_papers(
 }
 
 fn format_citation(paper: &serde_json::Value, format: &str) -> String {
-    let title = paper.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown Title");
+    let title = paper
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Unknown Title");
     let authors = paper.get("authors").and_then(|v| v.as_str()).unwrap_or("");
-    let year = paper.get("year").and_then(|v| v.as_i64()).map(|y| y.to_string()).unwrap_or_default();
+    let year = paper
+        .get("year")
+        .and_then(|v| v.as_i64())
+        .map(|y| y.to_string())
+        .unwrap_or_default();
     let venue = paper.get("venue").and_then(|v| v.as_str()).unwrap_or("");
-    let doi = paper.get("doi").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+    let doi = paper
+        .get("doi")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
     let is_journal = paper.get("ccf_type").and_then(|v| v.as_str()) == Some("journal");
 
     match format {
         "apa" => {
             let mut s = String::new();
-            if !authors.is_empty() { s.push_str(authors); s.push_str(". "); }
-            if !year.is_empty() { s.push_str(&format!("({}). ", year)); }
-            s.push_str(title); s.push('.');
-            if !venue.is_empty() { s.push_str(&format!(" {}", venue)); }
-            if let Some(d) = doi { s.push_str(&format!(". https://doi.org/{}", d)); }
+            if !authors.is_empty() {
+                s.push_str(authors);
+                s.push_str(". ");
+            }
+            if !year.is_empty() {
+                s.push_str(&format!("({}). ", year));
+            }
+            s.push_str(title);
+            s.push('.');
+            if !venue.is_empty() {
+                s.push_str(&format!(" {}", venue));
+            }
+            if let Some(d) = doi {
+                s.push_str(&format!(". https://doi.org/{}", d));
+            }
             s
         }
         "mla" => {
             let mut s = String::new();
-            if !authors.is_empty() { s.push_str(authors); s.push_str(". "); }
+            if !authors.is_empty() {
+                s.push_str(authors);
+                s.push_str(". ");
+            }
             s.push_str(&format!("\"{}\"", title));
-            if !venue.is_empty() { s.push_str(&format!(", {}", venue)); }
-            if !year.is_empty() { s.push_str(&format!(", {}", year)); }
+            if !venue.is_empty() {
+                s.push_str(&format!(", {}", venue));
+            }
+            if !year.is_empty() {
+                s.push_str(&format!(", {}", year));
+            }
             s.push('.');
-            if let Some(d) = doi { s.push_str(&format!(" doi:{}", d)); }
+            if let Some(d) = doi {
+                s.push_str(&format!(" doi:{}", d));
+            }
             s
         }
         "ieee" => {
             let mut s = String::new();
-            if !authors.is_empty() { s.push_str(authors); s.push_str(", "); }
+            if !authors.is_empty() {
+                s.push_str(authors);
+                s.push_str(", ");
+            }
             s.push_str(&format!("\"{}\"", title));
-            if !venue.is_empty() { s.push_str(&format!(", {}", venue)); }
-            if !year.is_empty() { s.push_str(&format!(", {}", year)); }
+            if !venue.is_empty() {
+                s.push_str(&format!(", {}", venue));
+            }
+            if !year.is_empty() {
+                s.push_str(&format!(", {}", year));
+            }
             s.push('.');
-            if let Some(d) = doi { s.push_str(&format!(" doi: {}", d)); }
+            if let Some(d) = doi {
+                s.push_str(&format!(" doi: {}", d));
+            }
             s
         }
         _ => {
             // GB/T 7714
             let lit_mark = if is_journal { "J" } else { "C" };
             let mut s = String::new();
-            if !authors.is_empty() { s.push_str(authors); s.push_str(". "); }
+            if !authors.is_empty() {
+                s.push_str(authors);
+                s.push_str(". ");
+            }
             s.push_str(&format!("{}[{}]", title, lit_mark));
-            if !venue.is_empty() { s.push_str(&format!(". {}", venue)); }
-            if !year.is_empty() { s.push_str(&format!(", {}", year)); }
-            if let Some(d) = doi { s.push_str(&format!(". DOI:{}", d)); } else { s.push('.'); }
+            if !venue.is_empty() {
+                s.push_str(&format!(". {}", venue));
+            }
+            if !year.is_empty() {
+                s.push_str(&format!(", {}", year));
+            }
+            if let Some(d) = doi {
+                s.push_str(&format!(". DOI:{}", d));
+            } else {
+                s.push('.');
+            }
             s
         }
     }
@@ -1030,7 +1276,10 @@ fn build_survey_markdown(
         out.push_str("\n\n");
     }
 
-    if let Some(stages) = report.get("development_timeline").and_then(|v| v.as_array()) {
+    if let Some(stages) = report
+        .get("development_timeline")
+        .and_then(|v| v.as_array())
+    {
         if !stages.is_empty() {
             out.push_str("## 发展脉络\n\n");
             if let Some(ep) = report.get("earliest_period").and_then(|v| v.as_str()) {
@@ -1038,12 +1287,22 @@ fn build_survey_markdown(
             }
             for stage in stages {
                 let period = stage.get("period").and_then(|v| v.as_str()).unwrap_or("");
-                let milestone = stage.get("milestone").and_then(|v| v.as_str()).unwrap_or("");
+                let milestone = stage
+                    .get("milestone")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 out.push_str(&format!("**{}**：{}\n", period, milestone));
                 if let Some(works) = stage.get("key_works").and_then(|v| v.as_array()) {
-                    let works_str = works.iter().filter_map(|w| w.as_str())
-                        .map(|t| paper_search_url(Some(t)).map(|u| format!("[{}]({})", t, u)).unwrap_or_else(|| t.to_string()))
-                        .collect::<Vec<_>>().join("；");
+                    let works_str = works
+                        .iter()
+                        .filter_map(|w| w.as_str())
+                        .map(|t| {
+                            paper_search_url(Some(t))
+                                .map(|u| format!("[{}]({})", t, u))
+                                .unwrap_or_else(|| t.to_string())
+                        })
+                        .collect::<Vec<_>>()
+                        .join("；");
                     if !works_str.is_empty() {
                         out.push_str(&format!("  - 代表工作：{}\n", works_str));
                     }
@@ -1062,15 +1321,34 @@ fn build_survey_markdown(
     if let Some(methods) = report.get("major_methods").and_then(|v| v.as_array()) {
         out.push_str("## 主要方法\n\n");
         for (idx, m) in methods.iter().enumerate() {
-            out.push_str(&format!("### {}. {}\n", idx + 1, m.get("name").and_then(|v| v.as_str()).unwrap_or("未命名")));
-            if let Some(desc) = m.get("description").and_then(|v| v.as_str()) { out.push_str(&format!("- 核心思想：{}\n", desc)); }
-            if let Some(pros) = m.get("pros").and_then(|v| v.as_str()) { out.push_str(&format!("- 优势：{}\n", pros)); }
-            if let Some(cons) = m.get("cons").and_then(|v| v.as_str()) { out.push_str(&format!("- 局限：{}\n", cons)); }
+            out.push_str(&format!(
+                "### {}. {}\n",
+                idx + 1,
+                m.get("name").and_then(|v| v.as_str()).unwrap_or("未命名")
+            ));
+            if let Some(desc) = m.get("description").and_then(|v| v.as_str()) {
+                out.push_str(&format!("- 核心思想：{}\n", desc));
+            }
+            if let Some(pros) = m.get("pros").and_then(|v| v.as_str()) {
+                out.push_str(&format!("- 优势：{}\n", pros));
+            }
+            if let Some(cons) = m.get("cons").and_then(|v| v.as_str()) {
+                out.push_str(&format!("- 局限：{}\n", cons));
+            }
             if let Some(reps) = m.get("representative_papers").and_then(|v| v.as_array()) {
-                let rep_titles = reps.iter().filter_map(|v| v.as_str())
-                    .map(|t| paper_search_url(Some(t)).map(|u| format!("[{}]({})", t, u)).unwrap_or_else(|| t.to_string()))
-                    .collect::<Vec<_>>().join("；");
-                if !rep_titles.is_empty() { out.push_str(&format!("- 代表论文：{}\n", rep_titles)); }
+                let rep_titles = reps
+                    .iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|t| {
+                        paper_search_url(Some(t))
+                            .map(|u| format!("[{}]({})", t, u))
+                            .unwrap_or_else(|| t.to_string())
+                    })
+                    .collect::<Vec<_>>()
+                    .join("；");
+                if !rep_titles.is_empty() {
+                    out.push_str(&format!("- 代表论文：{}\n", rep_titles));
+                }
             }
             out.push('\n');
         }
@@ -1080,13 +1358,24 @@ fn build_survey_markdown(
         if !schools.is_empty() {
             out.push_str("## 主要学派与流派\n\n");
             for school in schools {
-                let name = school.get("name").and_then(|v| v.as_str()).unwrap_or("未命名");
+                let name = school
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("未命名");
                 out.push_str(&format!("**{}**", name));
-                if let Some(desc) = school.get("description").and_then(|v| v.as_str()) { out.push_str(&format!("：{}", desc)); }
+                if let Some(desc) = school.get("description").and_then(|v| v.as_str()) {
+                    out.push_str(&format!("：{}", desc));
+                }
                 out.push('\n');
                 if let Some(reps) = school.get("representatives").and_then(|v| v.as_array()) {
-                    let rep_str = reps.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join("、");
-                    if !rep_str.is_empty() { out.push_str(&format!("  - 代表：{}\n", rep_str)); }
+                    let rep_str = reps
+                        .iter()
+                        .filter_map(|v| v.as_str())
+                        .collect::<Vec<_>>()
+                        .join("、");
+                    if !rep_str.is_empty() {
+                        out.push_str(&format!("  - 代表：{}\n", rep_str));
+                    }
                 }
             }
             out.push('\n');
@@ -1094,11 +1383,22 @@ fn build_survey_markdown(
     }
 
     if let Some(ms) = report.get("methodology_summary") {
-        if ms.get("mainstream").or(ms.get("emerging")).or(ms.get("comparison")).is_some() {
+        if ms
+            .get("mainstream")
+            .or(ms.get("emerging"))
+            .or(ms.get("comparison"))
+            .is_some()
+        {
             out.push_str("## 研究方法总结\n\n");
-            if let Some(v) = ms.get("mainstream").and_then(|v| v.as_str()) { out.push_str(&format!("- **主流方法**：{}\n", v)); }
-            if let Some(v) = ms.get("emerging").and_then(|v| v.as_str()) { out.push_str(&format!("- **新兴方法**：{}\n", v)); }
-            if let Some(v) = ms.get("comparison").and_then(|v| v.as_str()) { out.push_str(&format!("- **方法对比**：{}\n", v)); }
+            if let Some(v) = ms.get("mainstream").and_then(|v| v.as_str()) {
+                out.push_str(&format!("- **主流方法**：{}\n", v));
+            }
+            if let Some(v) = ms.get("emerging").and_then(|v| v.as_str()) {
+                out.push_str(&format!("- **新兴方法**：{}\n", v));
+            }
+            if let Some(v) = ms.get("comparison").and_then(|v| v.as_str()) {
+                out.push_str(&format!("- **方法对比**：{}\n", v));
+            }
             out.push('\n');
         }
     }
@@ -1121,7 +1421,9 @@ fn build_survey_markdown(
                 out.push_str(&format!("**{}**\n", topic));
                 if let Some(positions) = c.get("positions").and_then(|v| v.as_array()) {
                     for pos in positions {
-                        if let Some(s) = pos.as_str() { out.push_str(&format!("  - {}\n", s)); }
+                        if let Some(s) = pos.as_str() {
+                            out.push_str(&format!("  - {}\n", s));
+                        }
                     }
                 }
                 out.push('\n');
@@ -1132,7 +1434,9 @@ fn build_survey_markdown(
     if let Some(challenges) = report.get("challenges").and_then(|v| v.as_array()) {
         out.push_str("## 当前挑战\n\n");
         for c in challenges {
-            if let Some(text) = c.as_str() { out.push_str(&format!("- {}\n", text)); }
+            if let Some(text) = c.as_str() {
+                out.push_str(&format!("- {}\n", text));
+            }
         }
         out.push('\n');
     }
@@ -1141,7 +1445,9 @@ fn build_survey_markdown(
         if !gaps.is_empty() {
             out.push_str("## 研究缺口\n\n");
             for (idx, g) in gaps.iter().enumerate() {
-                if let Some(text) = g.as_str() { out.push_str(&format!("{}. {}\n", idx + 1, text)); }
+                if let Some(text) = g.as_str() {
+                    out.push_str(&format!("{}. {}\n", idx + 1, text));
+                }
             }
             out.push('\n');
         }
@@ -1151,7 +1457,9 @@ fn build_survey_markdown(
         if !futures.is_empty() {
             out.push_str("## 未来研究方向\n\n");
             for f in futures {
-                if let Some(text) = f.as_str() { out.push_str(&format!("- {}\n", text)); }
+                if let Some(text) = f.as_str() {
+                    out.push_str(&format!("- {}\n", text));
+                }
             }
             out.push('\n');
         }
@@ -1160,9 +1468,19 @@ fn build_survey_markdown(
     if let Some(topics) = report.get("recommended_topics").and_then(|v| v.as_array()) {
         out.push_str("## 建议研究主题\n\n");
         for (idx, t) in topics.iter().enumerate() {
-            out.push_str(&format!("{}. {}\n", idx + 1, t.get("topic").and_then(|v| v.as_str()).unwrap_or("未命名主题")));
-            if let Some(why) = t.get("why").and_then(|v| v.as_str()) { out.push_str(&format!("   - 推荐理由：{}\n", why)); }
-            if let Some(step) = t.get("first_step").and_then(|v| v.as_str()) { out.push_str(&format!("   - 第一步：{}\n", step)); }
+            out.push_str(&format!(
+                "{}. {}\n",
+                idx + 1,
+                t.get("topic")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("未命名主题")
+            ));
+            if let Some(why) = t.get("why").and_then(|v| v.as_str()) {
+                out.push_str(&format!("   - 推荐理由：{}\n", why));
+            }
+            if let Some(step) = t.get("first_step").and_then(|v| v.as_str()) {
+                out.push_str(&format!("   - 第一步：{}\n", step));
+            }
         }
         out.push('\n');
     }
@@ -1176,22 +1494,63 @@ fn build_survey_markdown(
     if !papers.is_empty() {
         out.push_str("## 检索到的候选论文\n\n");
         for (idx, p) in papers.iter().enumerate() {
-            let title = p.get("title").and_then(|v| v.as_str()).unwrap_or("未知标题");
+            let title = p
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("未知标题");
             let authors = p.get("authors").and_then(|v| v.as_str()).unwrap_or("");
-            let year = p.get("year").and_then(|v| v.as_i64()).map(|y| y.to_string()).unwrap_or_default();
+            let year = p
+                .get("year")
+                .and_then(|v| v.as_i64())
+                .map(|y| y.to_string())
+                .unwrap_or_default();
             let venue = p.get("venue").and_then(|v| v.as_str()).unwrap_or("");
-            let ccf = p.get("ccf_rating").and_then(|v| v.as_str()).map(|v| format!(" [CCF {}]", v)).unwrap_or_default();
-            let venue_type = p.get("ccf_type").and_then(|v| v.as_str()).map(|v| if v == "journal" { " [期刊]" } else { " [会议]" }).unwrap_or("");
-            let link = p.get("doi").and_then(|v| v.as_str()).filter(|s| !s.is_empty())
-                .and_then(|d| doi_url(Some(d))).or_else(|| paper_search_url(Some(title)));
-            let linked_title = link.map(|u| format!("[{}]({})", title, u)).unwrap_or_else(|| title.to_string());
-            out.push_str(&format!("{}. {} {} {} {}{}{}\n", idx + 1, linked_title, authors, year, venue, ccf, venue_type));
+            let ccf = p
+                .get("ccf_rating")
+                .and_then(|v| v.as_str())
+                .map(|v| format!(" [CCF {}]", v))
+                .unwrap_or_default();
+            let venue_type = p
+                .get("ccf_type")
+                .and_then(|v| v.as_str())
+                .map(|v| {
+                    if v == "journal" {
+                        " [期刊]"
+                    } else {
+                        " [会议]"
+                    }
+                })
+                .unwrap_or("");
+            let link = p
+                .get("doi")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .and_then(|d| doi_url(Some(d)))
+                .or_else(|| paper_search_url(Some(title)));
+            let linked_title = link
+                .map(|u| format!("[{}]({})", title, u))
+                .unwrap_or_else(|| title.to_string());
+            out.push_str(&format!(
+                "{}. {} {} {} {}{}{}\n",
+                idx + 1,
+                linked_title,
+                authors,
+                year,
+                venue,
+                ccf,
+                venue_type
+            ));
         }
         out.push('\n');
     }
 
     if !formatted_citations.is_empty() {
-        let format_name = match cite_format { "apa" => "APA", "mla" => "MLA", "ieee" => "IEEE", _ => "GB/T 7714" };
+        let format_name = match cite_format {
+            "apa" => "APA",
+            "mla" => "MLA",
+            "ieee" => "IEEE",
+            _ => "GB/T 7714",
+        };
         out.push_str(&format!("## 参考文献（{} 格式）\n\n", format_name));
         for cite in formatted_citations {
             out.push_str(cite);
@@ -1203,7 +1562,10 @@ fn build_survey_markdown(
 }
 
 fn enrich_planner_result(mut value: serde_json::Value) -> serde_json::Value {
-    if let Some(papers) = value.get_mut("classic_papers").and_then(|item| item.as_array_mut()) {
+    if let Some(papers) = value
+        .get_mut("classic_papers")
+        .and_then(|item| item.as_array_mut())
+    {
         for paper in papers {
             if let Some(venue) = paper.get("venue").and_then(|item| item.as_str()) {
                 if let Some(tag) = match_venue(venue) {

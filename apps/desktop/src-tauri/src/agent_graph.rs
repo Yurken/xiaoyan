@@ -1,5 +1,8 @@
 use crate::agent_nodes::{agent_title, execute_agent_node};
 use crate::assistant_prompts::synthesis_system;
+use crate::commands::memory::{
+    is_long_term_memory_enabled, record_agent_run_completion_event, record_agent_run_failure_event,
+};
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use anyhow::Result;
 use serde_json::json;
@@ -66,7 +69,10 @@ impl AgentGraphState {
     }
 
     fn status(&self, node: AgentNode) -> NodeStatus {
-        self.statuses.get(&node).copied().unwrap_or(NodeStatus::Pending)
+        self.statuses
+            .get(&node)
+            .copied()
+            .unwrap_or(NodeStatus::Pending)
     }
 }
 
@@ -155,9 +161,12 @@ fn is_node_ready(node: AgentNode, active: &HashSet<AgentNode>, state: &AgentGrap
     if !active.contains(&node) || state.status(node) != NodeStatus::Pending {
         return false;
     }
-    predecessors(node, active)
-        .into_iter()
-        .all(|dependency| matches!(state.status(dependency), NodeStatus::Done | NodeStatus::Failed))
+    predecessors(node, active).into_iter().all(|dependency| {
+        matches!(
+            state.status(dependency),
+            NodeStatus::Done | NodeStatus::Failed
+        )
+    })
 }
 
 pub async fn run_agentic_graph(
@@ -175,6 +184,7 @@ pub async fn run_agentic_graph(
     selected_agents: Vec<String>,
 ) -> Result<String> {
     let active = active_nodes(&selected_agents);
+    let long_term_memory_enabled = is_long_term_memory_enabled(settings);
     let initial_context = if context_summary.trim().is_empty() {
         Vec::new()
     } else {
@@ -205,7 +215,8 @@ pub async fn run_agentic_graph(
                     .selected_agents
                     .iter()
                     .position(|item| item == "synthesis")
-                    .unwrap_or(state.selected_agents.len()) as i64;
+                    .unwrap_or(state.selected_agents.len())
+                    as i64;
 
                 sqlx::query(
                     "INSERT INTO agent_runs (id, session_id, request_id, agent_name, step_name, status, order_index, created_at, updated_at)
@@ -220,23 +231,27 @@ pub async fn run_agentic_graph(
                 .bind(&started_at)
                 .execute(db)
                 .await?;
-                let _ = app.emit("chat:agent_start", json!({
-                    "request_id": request_id,
-                    "value": {
-                        "id": run_id,
-                        "session_id": session_id,
+                let _ = app.emit(
+                    "chat:agent_start",
+                    json!({
                         "request_id": request_id,
-                        "agent_name": "synthesis",
-                        "step_name": agent_title("synthesis"),
-                        "status": "running",
-                        "order_index": order_index,
-                        "created_at": started_at,
-                        "updated_at": started_at,
-                        "artifacts": [],
-                    }
-                }));
+                        "value": {
+                            "id": run_id,
+                            "session_id": session_id,
+                            "request_id": request_id,
+                            "agent_name": "synthesis",
+                            "step_name": agent_title("synthesis"),
+                            "status": "running",
+                            "order_index": order_index,
+                            "created_at": started_at,
+                            "updated_at": started_at,
+                            "artifacts": [],
+                        }
+                    }),
+                );
 
-                let synthesis_temp = resolve_temperature(settings, "multi_agent_synthesis_temperature", 0.4);
+                let synthesis_temp =
+                    resolve_temperature(settings, "multi_agent_synthesis_temperature", 0.4);
                 let synthesis_model = resolve_model(settings, &["multi_agent_synthesis_model"]);
                 let ctx = state.context_parts.join("\n\n---\n\n");
                 let synthesis_prompt = if ctx.is_empty() {
@@ -255,9 +270,15 @@ pub async fn run_agentic_graph(
                 let rid = request_id.to_string();
                 let app_clone = app.clone();
                 let result = client
-                    .stream_chat(&synthesis_msgs, synthesis_model.as_deref(), synthesis_temp, move |delta| {
-                        let _ = app_clone.emit("chat:delta", json!({ "request_id": rid, "delta": delta }));
-                    })
+                    .stream_chat(
+                        &synthesis_msgs,
+                        synthesis_model.as_deref(),
+                        synthesis_temp,
+                        move |delta| {
+                            let _ = app_clone
+                                .emit("chat:delta", json!({ "request_id": rid, "delta": delta }));
+                        },
+                    )
                     .await;
 
                 match result {
@@ -270,22 +291,25 @@ pub async fn run_agentic_graph(
                             .bind(&run_id)
                             .execute(db)
                             .await?;
-                        let _ = app.emit("chat:agent_complete", json!({
-                            "request_id": request_id,
-                            "value": {
-                                "id": run_id,
-                                "session_id": session_id,
+                        let _ = app.emit(
+                            "chat:agent_complete",
+                            json!({
                                 "request_id": request_id,
-                                "agent_name": "synthesis",
-                                "step_name": agent_title("synthesis"),
-                                "status": "done",
-                                "summary": output,
-                                "order_index": order_index,
-                                "created_at": started_at,
-                                "updated_at": finished_at,
-                                "artifacts": [],
-                            }
-                        }));
+                                "value": {
+                                    "id": run_id,
+                                    "session_id": session_id,
+                                    "request_id": request_id,
+                                    "agent_name": "synthesis",
+                                    "step_name": agent_title("synthesis"),
+                                    "status": "done",
+                                    "summary": output,
+                                    "order_index": order_index,
+                                    "created_at": started_at,
+                                    "updated_at": finished_at,
+                                    "artifacts": [],
+                                }
+                            }),
+                        );
                         return Ok(output);
                     }
                     Err(error) => {
@@ -298,22 +322,25 @@ pub async fn run_agentic_graph(
                             .bind(&run_id)
                             .execute(db)
                             .await?;
-                        let _ = app.emit("chat:agent_complete", json!({
-                            "request_id": request_id,
-                            "value": {
-                                "id": run_id,
-                                "session_id": session_id,
+                        let _ = app.emit(
+                            "chat:agent_complete",
+                            json!({
                                 "request_id": request_id,
-                                "agent_name": "synthesis",
-                                "step_name": agent_title("synthesis"),
-                                "status": "failed",
-                                "error": err_str,
-                                "order_index": order_index,
-                                "created_at": started_at,
-                                "updated_at": finished_at,
-                                "artifacts": [],
-                            }
-                        }));
+                                "value": {
+                                    "id": run_id,
+                                    "session_id": session_id,
+                                    "request_id": request_id,
+                                    "agent_name": "synthesis",
+                                    "step_name": agent_title("synthesis"),
+                                    "status": "failed",
+                                    "error": err_str,
+                                    "order_index": order_index,
+                                    "created_at": started_at,
+                                    "updated_at": finished_at,
+                                    "artifacts": [],
+                                }
+                            }),
+                        );
                         return Err(error);
                     }
                 }
@@ -356,7 +383,10 @@ pub async fn run_agentic_graph(
                         "updated_at": started_at,
                         "artifacts": [],
                     });
-                    let _ = app.emit("chat:agent_start", json!({ "request_id": request_id, "value": payload }));
+                    let _ = app.emit(
+                        "chat:agent_start",
+                        json!({ "request_id": request_id, "value": payload }),
+                    );
 
                     let output = execute_agent_node(
                         client,
@@ -375,10 +405,12 @@ pub async fn run_agentic_graph(
                     match output {
                         Ok(result) => {
                             if !result.trim().is_empty() {
-                                state
-                                    .outputs
-                                    .insert(agent_name.to_string(), result.clone());
-                                state.context_parts.push(format!("[{}]\n{}", agent_title(agent_name), result));
+                                state.outputs.insert(agent_name.to_string(), result.clone());
+                                state.context_parts.push(format!(
+                                    "[{}]\n{}",
+                                    agent_title(agent_name),
+                                    result
+                                ));
                             }
                             state.mark(worker_node, NodeStatus::Done);
                             sqlx::query("UPDATE agent_runs SET status = 'done', summary = ?, updated_at = ? WHERE id = ?")
@@ -387,22 +419,36 @@ pub async fn run_agentic_graph(
                                 .bind(&run_id)
                                 .execute(db)
                                 .await?;
-                            let _ = app.emit("chat:agent_complete", json!({
-                                "request_id": request_id,
-                                "value": {
-                                    "id": run_id,
-                                    "session_id": session_id,
+                            if long_term_memory_enabled {
+                                let _ = record_agent_run_completion_event(
+                                    db,
+                                    session_id,
+                                    &run_id,
+                                    agent_name,
+                                    agent_title(agent_name),
+                                    &result,
+                                )
+                                .await;
+                            }
+                            let _ = app.emit(
+                                "chat:agent_complete",
+                                json!({
                                     "request_id": request_id,
-                                    "agent_name": agent_name,
-                                    "step_name": agent_title(agent_name),
-                                    "status": "done",
-                                    "summary": result,
-                                    "order_index": order_index,
-                                    "created_at": started_at,
-                                    "updated_at": finished_at,
-                                    "artifacts": [],
-                                }
-                            }));
+                                    "value": {
+                                        "id": run_id,
+                                        "session_id": session_id,
+                                        "request_id": request_id,
+                                        "agent_name": agent_name,
+                                        "step_name": agent_title(agent_name),
+                                        "status": "done",
+                                        "summary": result,
+                                        "order_index": order_index,
+                                        "created_at": started_at,
+                                        "updated_at": finished_at,
+                                        "artifacts": [],
+                                    }
+                                }),
+                            );
                         }
                         Err(error) => {
                             let err_str = error.to_string();
@@ -414,18 +460,32 @@ pub async fn run_agentic_graph(
                                 .bind(&run_id)
                                 .execute(db)
                                 .await?;
-                            let _ = app.emit("chat:agent_complete", json!({
-                                "request_id": request_id,
-                                "value": {
-                                    "id": run_id,
-                                    "agent_name": agent_name,
-                                    "step_name": agent_title(agent_name),
-                                    "status": "failed",
-                                    "error": err_str,
-                                    "created_at": started_at,
-                                    "updated_at": finished_at,
-                                }
-                            }));
+                            if long_term_memory_enabled {
+                                let _ = record_agent_run_failure_event(
+                                    db,
+                                    session_id,
+                                    &run_id,
+                                    agent_name,
+                                    agent_title(agent_name),
+                                    &err_str,
+                                )
+                                .await;
+                            }
+                            let _ = app.emit(
+                                "chat:agent_complete",
+                                json!({
+                                    "request_id": request_id,
+                                    "value": {
+                                        "id": run_id,
+                                        "agent_name": agent_name,
+                                        "step_name": agent_title(agent_name),
+                                        "status": "failed",
+                                        "error": err_str,
+                                        "created_at": started_at,
+                                        "updated_at": finished_at,
+                                    }
+                                }),
+                            );
                         }
                     }
                 }
@@ -443,7 +503,9 @@ pub async fn run_agentic_graph(
 
 #[cfg(test)]
 mod tests {
-    use super::{active_nodes, is_node_ready, predecessors, AgentGraphState, AgentNode, NodeStatus};
+    use super::{
+        active_nodes, is_node_ready, predecessors, AgentGraphState, AgentNode, NodeStatus,
+    };
 
     #[test]
     fn synthesis_waits_for_all_active_workers() {
@@ -473,6 +535,9 @@ mod tests {
     #[test]
     fn workers_depend_on_retrieval_when_present() {
         let active = active_nodes(&["retrieval".to_string(), "planner".to_string()]);
-        assert_eq!(predecessors(AgentNode::Planner, &active), vec![AgentNode::Retrieval]);
+        assert_eq!(
+            predecessors(AgentNode::Planner, &active),
+            vec![AgentNode::Retrieval]
+        );
     }
 }

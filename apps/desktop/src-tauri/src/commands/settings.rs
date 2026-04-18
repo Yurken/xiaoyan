@@ -4,9 +4,7 @@ use std::collections::HashMap;
 use tauri::State;
 
 #[tauri::command]
-pub async fn settings_get(
-    state: State<'_, AppState>,
-) -> Result<HashMap<String, String>, String> {
+pub async fn settings_get(state: State<'_, AppState>) -> Result<HashMap<String, String>, String> {
     settings_service::get_exposed_settings(state.inner()).await
 }
 
@@ -45,8 +43,6 @@ pub async fn settings_test(
 }
 
 #[tauri::command]
-pub async fn settings_list_ollama_models(
-    base_url: Option<String>,
-) -> Result<Vec<String>, String> {
+pub async fn settings_list_ollama_models(base_url: Option<String>) -> Result<Vec<String>, String> {
     settings_service::list_ollama_models(base_url).await
 }

@@ -453,6 +453,21 @@ export interface UserMemory {
   created_at: string;
 }
 
+export interface MemoryObservation {
+  id: string;
+  event_id: string;
+  session_id: string | null;
+  run_id: string | null;
+  source: string;
+  event_type: string;
+  title: string;
+  summary: string;
+  narrative: string;
+  importance: number;
+  created_at: string;
+  score?: number;
+}
+
 export const memoryApi = {
   add: (data: { type: MemoryType; action?: string; summary: string; detail?: string }): Promise<{ id: string }> =>
     invoke("memory_add", {
@@ -466,6 +481,16 @@ export const memoryApi = {
       memType: params?.mem_type ?? null,
       limit: params?.limit ?? 50,
       offset: params?.offset ?? 0,
+    }),
+  listObservations: (params?: { limit?: number; offset?: number }): Promise<MemoryObservation[]> =>
+    invoke("memory_list_observations", {
+      limit: params?.limit ?? 30,
+      offset: params?.offset ?? 0,
+    }),
+  searchObservations: (query: string, limit = 6): Promise<MemoryObservation[]> =>
+    invoke("memory_search_observations", {
+      query,
+      limit,
     }),
   delete: (id: string): Promise<void> =>
     invoke("memory_delete", { id }),

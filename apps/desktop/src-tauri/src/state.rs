@@ -36,13 +36,25 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("openai_api_key".into(), "".into());
     m.insert("openai_base_url".into(), "https://api.openai.com/v1".into());
     m.insert("openai_chat_model".into(), "gpt-4o-mini".into());
-    m.insert("openai_embedding_model".into(), "text-embedding-3-small".into());
+    m.insert(
+        "openai_embedding_model".into(),
+        "text-embedding-3-small".into(),
+    );
     m.insert("anthropic_api_key".into(), "".into());
-    m.insert("anthropic_chat_model".into(), "claude-3-5-haiku-20241022".into());
+    m.insert(
+        "anthropic_chat_model".into(),
+        "claude-3-5-haiku-20241022".into(),
+    );
     m.insert("openai_compatible_base_url".into(), "".into());
     m.insert("openai_compatible_api_key".into(), "".into());
-    m.insert("openai_compatible_chat_model".into(), "deepseek-chat".into());
-    m.insert("openai_compatible_embedding_model".into(), "BAAI/bge-m3".into());
+    m.insert(
+        "openai_compatible_chat_model".into(),
+        "deepseek-chat".into(),
+    );
+    m.insert(
+        "openai_compatible_embedding_model".into(),
+        "BAAI/bge-m3".into(),
+    );
     m.insert("chunk_size".into(), "800".into());
     m.insert("chunk_overlap".into(), "150".into());
     m.insert("rag_top_k".into(), "5".into());
@@ -114,6 +126,7 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("copilot_simple_max_tokens".into(), "".into());
     m.insert("copilot_simple_presence_penalty".into(), "".into());
     m.insert("copilot_simple_frequency_penalty".into(), "".into());
+    m.insert("xiaoyan_long_term_memory_enabled".into(), "true".into());
     m.insert("multi_agent_enabled".into(), "true".into());
     m.insert("multi_agent_routing_mode".into(), "hybrid".into());
     m.insert(
@@ -152,8 +165,14 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("multi_agent_literature_scout_temperature".into(), "".into());
     m.insert("multi_agent_literature_scout_top_p".into(), "".into());
     m.insert("multi_agent_literature_scout_max_tokens".into(), "".into());
-    m.insert("multi_agent_literature_scout_presence_penalty".into(), "".into());
-    m.insert("multi_agent_literature_scout_frequency_penalty".into(), "".into());
+    m.insert(
+        "multi_agent_literature_scout_presence_penalty".into(),
+        "".into(),
+    );
+    m.insert(
+        "multi_agent_literature_scout_frequency_penalty".into(),
+        "".into(),
+    );
     m.insert("multi_agent_survey_model".into(), "".into());
     m.insert("multi_agent_survey_base_url".into(), "".into());
     m.insert("multi_agent_survey_api_key".into(), "".into());
@@ -168,16 +187,28 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("multi_agent_paper_analyst_temperature".into(), "".into());
     m.insert("multi_agent_paper_analyst_top_p".into(), "".into());
     m.insert("multi_agent_paper_analyst_max_tokens".into(), "".into());
-    m.insert("multi_agent_paper_analyst_presence_penalty".into(), "".into());
-    m.insert("multi_agent_paper_analyst_frequency_penalty".into(), "".into());
+    m.insert(
+        "multi_agent_paper_analyst_presence_penalty".into(),
+        "".into(),
+    );
+    m.insert(
+        "multi_agent_paper_analyst_frequency_penalty".into(),
+        "".into(),
+    );
     m.insert("multi_agent_reproduction_model".into(), "".into());
     m.insert("multi_agent_reproduction_base_url".into(), "".into());
     m.insert("multi_agent_reproduction_api_key".into(), "".into());
     m.insert("multi_agent_reproduction_temperature".into(), "".into());
     m.insert("multi_agent_reproduction_top_p".into(), "".into());
     m.insert("multi_agent_reproduction_max_tokens".into(), "".into());
-    m.insert("multi_agent_reproduction_presence_penalty".into(), "".into());
-    m.insert("multi_agent_reproduction_frequency_penalty".into(), "".into());
+    m.insert(
+        "multi_agent_reproduction_presence_penalty".into(),
+        "".into(),
+    );
+    m.insert(
+        "multi_agent_reproduction_frequency_penalty".into(),
+        "".into(),
+    );
     m.insert("multi_agent_synthesis_model".into(), "".into());
     m.insert("multi_agent_synthesis_base_url".into(), "".into());
     m.insert("multi_agent_synthesis_api_key".into(), "".into());
@@ -232,5 +263,4 @@ impl AppState {
             settings: Arc::new(RwLock::new(settings)),
         }
     }
-
 }

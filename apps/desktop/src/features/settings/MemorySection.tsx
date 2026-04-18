@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 import { Loader2, Trash2, X } from "lucide-react";
 import { Card } from "@research-copilot/ui";
-import type { UserMemory } from "../../lib/client";
+import type { MemoryObservation, UserMemory } from "../../lib/client";
 
 interface MemorySectionProps {
   memories: UserMemory[];
+  observations: MemoryObservation[];
   loading: boolean;
   clearingAuto: boolean;
   onEnter: () => void;
@@ -14,6 +15,7 @@ interface MemorySectionProps {
 
 export default function MemorySection({
   memories,
+  observations,
   loading,
   clearingAuto,
   onEnter,
@@ -43,6 +45,19 @@ export default function MemorySection({
     }
   };
 
+  const formatObservationSource = (source: string) => {
+    if (source === "chat") return "聊天";
+    if (source === "agent") return "能力域模型";
+    if (source === "knowledge_note") return "知识笔记";
+    return source;
+  };
+
+  const formatImportance = (importance: number) => {
+    if (importance >= 3) return "高相关";
+    if (importance >= 2) return "常规";
+    return "记录";
+  };
+
   return (
     <div className="space-y-4">
       {loading ? (
@@ -57,7 +72,7 @@ export default function MemorySection({
           <div>
             <h2 className="text-base font-semibold text-ink-primary">手动备忘</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">
-              在「小妍」页侧边栏的「添加记忆」面板中写入，永久保留，每次对话均会参考。
+              在「小妍」页侧边栏的「添加记忆」面板中写入，永久保留；启用长期记忆时，每次对话都会参考。
             </p>
           </div>
           <span className="text-xs text-ink-tertiary">{manualList.length} 条</span>
@@ -97,7 +112,7 @@ export default function MemorySection({
           <div>
             <h2 className="text-base font-semibold text-ink-primary">自动操作记录</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">
-              系统自动记录的操作轨迹，最近3小时逐条、近7天按天聚合后注入对话。最多保留1000条。
+              系统自动记录的操作轨迹；启用长期记忆时，最近3小时逐条、近7天按天聚合后注入对话。最多保留1000条。
             </p>
           </div>
           <button
@@ -136,6 +151,48 @@ export default function MemorySection({
                 >
                   <X className="w-3 h-3" />
                 </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card padding="md" className="space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-ink-primary">长期记忆观察</h2>
+            <p className="text-xs text-ink-tertiary mt-0.5">
+              当前已接入聊天主链路、能力域模型运行和知识笔记操作。高价值过程会沉淀为结构化观察，并在对话时按当前问题做相关召回。
+            </p>
+          </div>
+          <span className="text-xs text-ink-tertiary">{observations.length} 条</span>
+        </div>
+        {observations.length === 0 ? (
+          <p className="text-xs text-ink-tertiary">暂无长期记忆观察。先和小妍对话几轮后，这里会开始出现过程记录。</p>
+        ) : (
+          <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+            {observations.map((observation) => (
+              <div
+                key={observation.id}
+                className="rounded-2xl px-3.5 py-3"
+                style={{
+                  background: "rgba(10,132,255,0.05)",
+                  border: "1px solid rgba(10,132,255,0.12)",
+                }}
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    style={{ background: "rgba(10,132,255,0.12)", color: "#0A84FF" }}
+                  >
+                    {formatObservationSource(observation.source)}
+                  </span>
+                  <span className="text-xs font-semibold text-ink-primary">{observation.title}</span>
+                  <span className="text-[11px] text-ink-tertiary">{formatTimestamp(observation.created_at)}</span>
+                  <span className="text-[11px] text-ink-tertiary">· {formatImportance(observation.importance)}</span>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-ink-primary">{observation.summary}</p>
+                <p className="mt-1.5 text-[11px] leading-5 text-ink-tertiary">{observation.narrative}</p>
               </div>
             ))}
           </div>

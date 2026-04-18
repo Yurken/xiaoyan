@@ -1,10 +1,9 @@
 use crate::agent_graph::run_agentic_graph;
 use crate::agent_nodes::{agent_goal, agent_title};
 use crate::assistant_prompts::{main_chat_system, supervisor_system};
-use crate::commands::knowledge::ResearchInterestProfilePayload;
-use crate::graph_rag::collect_graph_rag_sources;
+use crate::commands::memory::is_long_term_memory_enabled;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
-use crate::rag::combined_search;
+use crate::services::chat_context_service::{build_chat_context_summary, collect_chat_sources};
 use crate::state::AppState;
 use serde::Deserialize;
 use serde_json::json;
@@ -16,9 +15,7 @@ use uuid::Uuid;
 // ── Session management ──────────────────────────────────────────
 
 #[tauri::command]
-pub async fn chat_list_sessions(
-    state: State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
+pub async fn chat_list_sessions(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let rows = sqlx::query(
         "SELECT id, title, context_type, context_id, created_at, updated_at FROM chat_sessions ORDER BY updated_at DESC",
     )
@@ -28,14 +25,16 @@ pub async fn chat_list_sessions(
 
     let list: Vec<serde_json::Value> = rows
         .iter()
-        .map(|r| json!({
-            "id": r.get::<String, _>("id"),
-            "title": r.get::<String, _>("title"),
-            "context_type": r.get::<String, _>("context_type"),
-            "context_id": r.get::<Option<String>, _>("context_id"),
-            "created_at": r.get::<String, _>("created_at"),
-            "updated_at": r.get::<Option<String>, _>("updated_at"),
-        }))
+        .map(|r| {
+            json!({
+                "id": r.get::<String, _>("id"),
+                "title": r.get::<String, _>("title"),
+                "context_type": r.get::<String, _>("context_type"),
+                "context_id": r.get::<Option<String>, _>("context_id"),
+                "created_at": r.get::<String, _>("created_at"),
+                "updated_at": r.get::<Option<String>, _>("updated_at"),
+            })
+        })
         .collect();
     Ok(json!(list))
 }
@@ -88,12 +87,12 @@ pub async fn chat_get_session(
 }
 
 #[tauri::command]
-pub async fn chat_delete_session(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn chat_delete_session(state: State<'_, AppState>, id: String) -> Result<(), String> {
     sqlx::query("DELETE FROM chat_sessions WHERE id = ?")
-        .bind(&id).execute(&state.db).await.map_err(|e| e.to_string())?;
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -107,7 +106,11 @@ pub async fn chat_update_session_context(
     let now = chrono::Utc::now().to_rfc3339();
     let normalized_context_id = context_id.and_then(|value| {
         let trimmed = value.trim().to_string();
-        if trimmed.is_empty() { None } else { Some(trimmed) }
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
     });
     let normalized_context_type = if context_type == "interest" && normalized_context_id.is_some() {
         "interest".to_string()
@@ -217,9 +220,14 @@ pub async fn chat_stream(
     let now = chrono::Utc::now().to_rfc3339();
     let normalized_context_id = context_id.and_then(|value| {
         let trimmed = value.trim().to_string();
-        if trimmed.is_empty() { None } else { Some(trimmed) }
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
     });
-    let ctx_type = if context_type.as_deref() == Some("interest") && normalized_context_id.is_some() {
+    let ctx_type = if context_type.as_deref() == Some("interest") && normalized_context_id.is_some()
+    {
         "interest".to_string()
     } else {
         "general".to_string()
@@ -239,7 +247,11 @@ pub async fn chat_stream(
     } else {
         let id = Uuid::new_v4().to_string();
         let title: String = message.chars().take(40).collect::<String>()
-            + if message.chars().count() > 40 { "…" } else { "" };
+            + if message.chars().count() > 40 {
+                "…"
+            } else {
+                ""
+            };
         sqlx::query(
             "INSERT INTO chat_sessions (id, title, context_type, context_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
         )
@@ -254,16 +266,60 @@ pub async fn chat_stream(
         .bind(&msg_id).bind(&sid).bind(&message).bind(&now)
         .execute(&state.db).await.map_err(|e| e.to_string())?;
 
-    let history = fetch_history(&state.db, &sid, 10).await.map_err(|e| e.to_string())?;
+    let history = fetch_history(&state.db, &sid, 10)
+        .await
+        .map_err(|e| e.to_string())?;
     let settings = state.settings.read().await.clone();
+    let long_term_memory_enabled = is_long_term_memory_enabled(&settings);
+    if long_term_memory_enabled {
+        let _ = crate::commands::memory::record_chat_prompt_event(
+            &state.db,
+            &sid,
+            &ctx_type,
+            normalized_context_id.as_deref(),
+            &message,
+        )
+        .await;
+    }
     let db = state.db.clone();
     let rid = request_id.clone();
     let sid_clone = sid.clone();
+    let message_clone = message.clone();
+    let ctx_type_clone = ctx_type.clone();
+    let context_id_clone = normalized_context_id.clone();
 
     tokio::spawn(async move {
-        match run_chat(&app, &db, &settings, &rid, &sid_clone, &message, &ctx_type, &normalized_context_id, history).await {
+        match run_chat(
+            &app,
+            &db,
+            &settings,
+            &rid,
+            &sid_clone,
+            &message,
+            &ctx_type,
+            &normalized_context_id,
+            history,
+        )
+        .await
+        {
             Ok(()) => {}
-            Err(e) => { let _ = app.emit("chat:error", json!({ "request_id": rid, "error": e.to_string() })); }
+            Err(e) => {
+                if long_term_memory_enabled {
+                    let _ = crate::commands::memory::record_chat_failure_event(
+                        &db,
+                        &sid_clone,
+                        &ctx_type_clone,
+                        context_id_clone.as_deref(),
+                        &message_clone,
+                        &e.to_string(),
+                    )
+                    .await;
+                }
+                let _ = app.emit(
+                    "chat:error",
+                    json!({ "request_id": rid, "error": e.to_string() }),
+                );
+            }
         }
     });
 
@@ -284,16 +340,14 @@ async fn run_chat(
     history: Vec<LlmMessage>,
 ) -> anyhow::Result<()> {
     let client = LlmClient::from_settings(settings)?;
-    let multi_agent = settings.get("multi_agent_enabled").map(|v| v == "true").unwrap_or(true);
-    let base_context = load_context_summary(db, context_type, context_id).await;
-    let memory_ctx = crate::commands::memory::build_memory_context(db).await;
-    let context_summary = if memory_ctx.is_empty() {
-        base_context
-    } else if base_context.is_empty() {
-        format!("【用户记忆与近期操作】\n{memory_ctx}")
-    } else {
-        format!("{base_context}\n\n【用户记忆与近期操作】\n{memory_ctx}")
-    };
+    let multi_agent = settings
+        .get("multi_agent_enabled")
+        .map(|v| v == "true")
+        .unwrap_or(true);
+    let long_term_memory_enabled = is_long_term_memory_enabled(settings);
+    let context_summary =
+        build_chat_context_summary(db, context_type, context_id, message, long_term_memory_enabled)
+            .await;
 
     let full = if multi_agent {
         run_agentic(
@@ -311,10 +365,19 @@ async fn run_chat(
         )
         .await?
     } else {
-        run_simple(app, &client, settings, request_id, message, &context_summary, &history).await?
+        run_simple(
+            app,
+            &client,
+            settings,
+            request_id,
+            message,
+            &context_summary,
+            &history,
+        )
+        .await?
     };
 
-    let sources = collect_sources(db, settings, message).await;
+    let sources = collect_chat_sources(db, settings, message).await;
     let sources_json = if sources.is_empty() {
         None
     } else {
@@ -327,49 +390,27 @@ async fn run_chat(
         .bind(&msg_id).bind(session_id).bind(&full).bind(&sources_json).bind(&now)
         .execute(db).await?;
 
+    if long_term_memory_enabled {
+        let _ = crate::commands::memory::record_chat_completion_event(
+            db,
+            session_id,
+            context_type,
+            context_id.as_deref(),
+            message,
+            &full,
+            sources.len(),
+        )
+        .await;
+    }
+
     if !sources.is_empty() {
-        let _ = app.emit("chat:sources", json!({ "request_id": request_id, "value": sources }));
+        let _ = app.emit(
+            "chat:sources",
+            json!({ "request_id": request_id, "value": sources }),
+        );
     }
     let _ = app.emit("chat:done", json!({ "request_id": request_id }));
     Ok(())
-}
-
-async fn collect_sources(
-    db: &sqlx::SqlitePool,
-    settings: &HashMap<String, String>,
-    message: &str,
-) -> Vec<serde_json::Value> {
-    let embed_client = match LlmClient::embed_client_from_settings(settings) {
-        Ok(client) => client,
-        Err(_) => return Vec::new(),
-    };
-
-    let embeddings = match embed_client.embed(&[message.to_string()]).await {
-        Ok(value) => value,
-        Err(_) => return Vec::new(),
-    };
-
-    let embedding = match embeddings.into_iter().next() {
-        Some(value) => value,
-        None => return Vec::new(),
-    };
-
-    let top_k = settings.get("rag_top_k").and_then(|v| v.parse().ok()).unwrap_or(5);
-    let results = match combined_search(db, &embedding, top_k).await {
-        Ok(value) => value,
-        Err(_) => return Vec::new(),
-    };
-
-    let mut merged = results
-        .into_iter()
-        .map(|item| json!({ "content": item.content, "source": item.source, "url": item.url }))
-        .collect::<Vec<_>>();
-
-    if let Ok(graph_sources) = collect_graph_rag_sources(db, &embedding, top_k).await {
-        merged.extend(graph_sources);
-    }
-
-    merged
 }
 
 async fn run_simple(
@@ -389,9 +430,11 @@ async fn run_simple(
     let model = resolve_model(settings, &["copilot_simple_model"]);
     let rid = request_id.to_string();
     let app = app.clone();
-    client.stream_chat(&msgs, model.as_deref(), temperature, move |delta| {
-        let _ = app.emit("chat:delta", json!({ "request_id": rid, "delta": delta }));
-    }).await
+    client
+        .stream_chat(&msgs, model.as_deref(), temperature, move |delta| {
+            let _ = app.emit("chat:delta", json!({ "request_id": rid, "delta": delta }));
+        })
+        .await
 }
 
 async fn run_agentic(
@@ -436,10 +479,14 @@ async fn run_agentic(
     )
     .await;
 
-    let plan: Vec<serde_json::Value> = selected.iter()
+    let plan: Vec<serde_json::Value> = selected
+        .iter()
         .map(|a| json!({ "agent_name": a, "title": agent_title(a), "goal": agent_goal(a) }))
         .collect();
-    let _ = app.emit("chat:plan", json!({ "request_id": request_id, "plan": plan }));
+    let _ = app.emit(
+        "chat:plan",
+        json!({ "request_id": request_id, "plan": plan }),
+    );
 
     run_agentic_graph(
         app,
@@ -456,163 +503,6 @@ async fn run_agentic(
         selected,
     )
     .await
-}
-
-async fn load_context_summary(
-    db: &sqlx::SqlitePool,
-    context_type: &str,
-    context_id: &Option<String>,
-) -> String {
-    match context_type {
-        "interest" => interest_context_summary(db, context_id).await,
-        "paper" => paper_context_summary(db, context_id).await,
-        _ => String::new(),
-    }
-}
-
-async fn paper_context_summary(
-    db: &sqlx::SqlitePool,
-    context_id: &Option<String>,
-) -> String {
-    let Some(paper_id) = context_id.as_deref() else {
-        return String::new();
-    };
-
-    let row = match sqlx::query(
-        "SELECT title, abstract, status FROM papers WHERE id = ?",
-    )
-    .bind(paper_id)
-    .fetch_optional(db)
-    .await
-    {
-        Ok(Some(row)) => row,
-        _ => return String::new(),
-    };
-
-    let mut lines = vec![format!("当前论文：{}", row.get::<String, _>("title"))];
-
-    if let Some(status) = row.get::<Option<String>, _>("status") {
-        lines.push(format!("论文状态：{}", status));
-    }
-    if let Some(abstract_text) = row.get::<Option<String>, _>("abstract") {
-        let preview = if abstract_text.chars().count() > 240 {
-            abstract_text.chars().take(240).collect::<String>() + "…"
-        } else {
-            abstract_text
-        };
-        lines.push(format!("摘要：{}", preview));
-    }
-
-    lines.join("\n")
-}
-
-async fn interest_context_summary(
-    db: &sqlx::SqlitePool,
-    context_id: &Option<String>,
-) -> String {
-    let Some(interest_id) = context_id.as_deref() else {
-        return String::new();
-    };
-
-    let row = match sqlx::query(
-        "SELECT topic, keywords, profile, learning_path FROM research_interests WHERE id = ?",
-    )
-    .bind(interest_id)
-    .fetch_optional(db)
-    .await
-    {
-        Ok(Some(row)) => row,
-        _ => return String::new(),
-    };
-
-    let topic: String = row.get("topic");
-    let keywords_str: String = row
-        .get::<Option<String>, _>("keywords")
-        .unwrap_or_else(|| "[]".into());
-    let keywords: Vec<String> = serde_json::from_str(&keywords_str).unwrap_or_default();
-    let profile = row
-        .get::<Option<String>, _>("profile")
-        .and_then(|value| serde_json::from_str::<ResearchInterestProfilePayload>(&value).ok())
-        .unwrap_or_default();
-    let learning_path = row
-        .get::<Option<String>, _>("learning_path")
-        .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
-        .unwrap_or_default();
-
-    let mut lines = vec![format!("当前研究方向：{}", topic)];
-    if !keywords.is_empty() {
-        lines.push(format!("关键词：{}", keywords.join("、")));
-    }
-    if let Some(goal) = profile.goal.as_deref().filter(|value| !value.trim().is_empty()) {
-        lines.push(format!("研究目标：{}", goal));
-    }
-    if let Some(background) = profile.background.as_deref().filter(|value| !value.trim().is_empty()) {
-        lines.push(format!("当前基础：{}", background));
-    }
-    if let Some(time_budget) = profile.time_budget.as_deref().filter(|value| !value.trim().is_empty()) {
-        lines.push(format!("时间预算：{}", time_budget));
-    }
-    if let Some(preferred_output) = profile.preferred_output.as_deref().filter(|value| !value.trim().is_empty()) {
-        lines.push(format!("期望输出：{}", preferred_output));
-    }
-    if let Some(known_context) = profile.known_context.as_deref().filter(|value| !value.trim().is_empty()) {
-        lines.push(format!("已知论文/方法：{}", known_context));
-    }
-    if let Some(constraints) = profile.constraints.as_ref().filter(|value| !value.is_empty()) {
-        lines.push(format!("约束条件：{}", constraints.join("、")));
-    }
-
-    let stage_titles = learning_path
-        .get("learning_stages")
-        .and_then(|value| value.as_array())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.get("title").and_then(|value| value.as_str()))
-                .take(4)
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    if !stage_titles.is_empty() {
-        lines.push(format!("当前路线阶段：{}", stage_titles.join(" -> ")));
-    }
-
-    let paper_rows = sqlx::query(
-        "SELECT title, status FROM papers WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 5",
-    )
-    .bind(interest_id)
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
-    if !paper_rows.is_empty() {
-        let related_papers = paper_rows
-            .iter()
-            .map(|item| {
-                let title: String = item.get("title");
-                let status: Option<String> = item.get("status");
-                format!("{}{}", title, status.map(|value| format!("（{}）", value)).unwrap_or_default())
-            })
-            .collect::<Vec<_>>();
-        lines.push(format!("已关联论文：{}", related_papers.join("；")));
-    }
-
-    let note_rows = sqlx::query(
-        "SELECT title FROM knowledge_notes WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 5",
-    )
-    .bind(interest_id)
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
-    if !note_rows.is_empty() {
-        let note_titles = note_rows
-            .iter()
-            .map(|item| item.get::<String, _>("title"))
-            .collect::<Vec<_>>();
-        lines.push(format!("已沉淀笔记：{}", note_titles.join("；")));
-    }
-
-    lines.join("\n")
 }
 
 // ── Agent selection ─────────────────────────────────────────────
@@ -726,21 +616,58 @@ fn select_agents_by_rule(
     );
     let asks_for_survey = contains_any(
         message,
-        &["综述", "survey", "领域现状", "调研", "相关工作", "趋势", "脉络", "对比"],
+        &[
+            "综述",
+            "survey",
+            "领域现状",
+            "调研",
+            "相关工作",
+            "趋势",
+            "脉络",
+            "对比",
+        ],
     );
     let asks_for_related_work = contains_any(
         message,
-        &["相关工作", "benchmark", "baseline", "领域定位", "脉络", "对比工作"],
+        &[
+            "相关工作",
+            "benchmark",
+            "baseline",
+            "领域定位",
+            "脉络",
+            "对比工作",
+        ],
     );
     let asks_for_paper_analysis = is_paper_context
         && contains_any(
             message,
-            &["论文", "创新点", "方法", "实验", "局限", "精读", "ablation", "消融", "细节"],
+            &[
+                "论文",
+                "创新点",
+                "方法",
+                "实验",
+                "局限",
+                "精读",
+                "ablation",
+                "消融",
+                "细节",
+            ],
         );
     let asks_for_reproduction = is_paper_context
         && contains_any(
             message,
-            &["复现", "reproduce", "训练", "实验配置", "实现", "代码", "工程", "跑通", "环境", "超参数"],
+            &[
+                "复现",
+                "reproduce",
+                "训练",
+                "实验配置",
+                "实现",
+                "代码",
+                "工程",
+                "跑通",
+                "环境",
+                "超参数",
+            ],
         );
     let is_research_workbench_task = is_interest_context
         || (asks_for_planning && asks_for_literature)
@@ -754,7 +681,8 @@ fn select_agents_by_rule(
     if is_interest_context || asks_for_literature || asks_for_survey || asks_for_related_work {
         add(&mut agents, enabled, "literature_scout");
     }
-    if is_research_workbench_task || asks_for_survey || (is_paper_context && asks_for_related_work) {
+    if is_research_workbench_task || asks_for_survey || (is_paper_context && asks_for_related_work)
+    {
         add(&mut agents, enabled, "survey");
     }
     if asks_for_paper_analysis || is_paper_context {
@@ -816,7 +744,9 @@ async fn select_agents_by_llm(
         LlmMessage::system(supervisor_system()),
         LlmMessage::user(prompt),
     ];
-    let response = client.chat(&messages, model.as_deref(), temperature).await?;
+    let response = client
+        .chat(&messages, model.as_deref(), temperature)
+        .await?;
     let selected = parse_routing_decision(&response).unwrap_or_default();
     Ok(normalize_selected_agents(selected, enabled, max_steps))
 }
@@ -887,13 +817,23 @@ fn append_synthesis(mut selected: Vec<String>, enabled: &[String]) -> Vec<String
 
 // ── History helper ──────────────────────────────────────────────
 
-async fn fetch_history(db: &sqlx::SqlitePool, session_id: &str, limit: i64) -> anyhow::Result<Vec<LlmMessage>> {
+async fn fetch_history(
+    db: &sqlx::SqlitePool,
+    session_id: &str,
+    limit: i64,
+) -> anyhow::Result<Vec<LlmMessage>> {
     let rows = sqlx::query(
         "SELECT role, content FROM (SELECT role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC",
     )
     .bind(session_id).bind(limit)
     .fetch_all(db).await?;
-    Ok(rows.iter().map(|r| LlmMessage { role: r.get("role"), content: r.get("content") }).collect())
+    Ok(rows
+        .iter()
+        .map(|r| LlmMessage {
+            role: r.get("role"),
+            content: r.get("content"),
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -981,7 +921,8 @@ mod tests {
 
     #[test]
     fn zero_step_budget_still_keeps_one_worker() {
-        let selected = normalize_selected_agents(vec!["retrieval".to_string()], &enabled_agents(), 0);
+        let selected =
+            normalize_selected_agents(vec!["retrieval".to_string()], &enabled_agents(), 0);
         assert_eq!(selected, vec!["retrieval".to_string()]);
     }
 }

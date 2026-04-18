@@ -151,8 +151,14 @@ impl CitationGraph {
             .node_indices()
             .map(|index| {
                 let node = &self.graph[index];
-                let in_degree = self.graph.neighbors_directed(index, petgraph::Direction::Incoming).count();
-                let out_degree = self.graph.neighbors_directed(index, petgraph::Direction::Outgoing).count();
+                let in_degree = self
+                    .graph
+                    .neighbors_directed(index, petgraph::Direction::Incoming)
+                    .count();
+                let out_degree = self
+                    .graph
+                    .neighbors_directed(index, petgraph::Direction::Outgoing)
+                    .count();
                 let degree_centrality = if denominator == 0 {
                     0.0
                 } else {
@@ -192,7 +198,13 @@ impl CitationGraph {
     ) -> Option<CitationPathResult> {
         let start = *self.indices.get(from_paper_id)?;
         let goal = *self.indices.get(to_paper_id)?;
-        let (_, path) = astar(&self.graph, start, |node| node == goal, |_| 1usize, |_| 0usize)?;
+        let (_, path) = astar(
+            &self.graph,
+            start,
+            |node| node == goal,
+            |_| 1usize,
+            |_| 0usize,
+        )?;
 
         let nodes = path
             .iter()
@@ -243,7 +255,10 @@ impl CitationGraph {
             let neighbors = self
                 .graph
                 .neighbors_directed(current, petgraph::Direction::Outgoing)
-                .chain(self.graph.neighbors_directed(current, petgraph::Direction::Incoming))
+                .chain(
+                    self.graph
+                        .neighbors_directed(current, petgraph::Direction::Incoming),
+                )
                 .collect::<Vec<_>>();
 
             for neighbor in neighbors {
@@ -293,7 +308,11 @@ impl CitationGraph {
         }
 
         let mut edges = self
-            .export_subgraph(seed_paper_ids, 1, max_edges.saturating_add(seed_paper_ids.len()))
+            .export_subgraph(
+                seed_paper_ids,
+                1,
+                max_edges.saturating_add(seed_paper_ids.len()),
+            )
             .edges;
         edges.truncate(max_edges);
         edges
@@ -368,7 +387,10 @@ mod tests {
     #[test]
     fn centrality_ranks_hub_paper_first() {
         let ranked = sample_graph().centrality(3);
-        assert_eq!(ranked.first().map(|item| item.paper_id.as_str()), Some("paper-b"));
+        assert_eq!(
+            ranked.first().map(|item| item.paper_id.as_str()),
+            Some("paper-b")
+        );
         assert_eq!(ranked.first().map(|item| item.in_degree), Some(2));
     }
 
