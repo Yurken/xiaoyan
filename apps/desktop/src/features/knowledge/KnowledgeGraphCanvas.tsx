@@ -1,5 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
-import { type KnowledgeGraphCanvasEdge, type KnowledgeGraphCanvasNode } from "./graphView";
+import { type KnowledgeGraphCanvasEdge } from "./graphView";
+import { computeKnowledgeGraphCanvasHeight, type KnowledgeGraphCanvasNode } from "./knowledgeGraphLayout";
 
 const KIND_STYLES = {
   interest: { fill: "rgba(0, 122, 255, 0.12)", border: "rgba(0, 122, 255, 0.26)", color: "#0F4FA8" },
@@ -30,7 +31,7 @@ export default function KnowledgeGraphCanvas({
   const [scale, setScale] = useState(1);
   const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
   const nodeMap = new Map(nodes.map((item) => [item.id, item]));
-  const height = nodes.length === 0 ? 320 : Math.max(320, Math.max(...nodes.map((item) => item.y)) + 96);
+  const height = computeKnowledgeGraphCanvasHeight(nodes);
   const viewWidth = 1000;
   const laneLabels = [
     { key: "interest", label: "研究方向", x: "12%" },
@@ -137,9 +138,9 @@ export default function KnowledgeGraphCanvas({
             if (!from || !to) return null;
 
             const startX = (from.x / 100) * viewWidth;
-            const startY = from.y + 28;
+            const startY = from.y + from.height / 2;
             const endX = (to.x / 100) * viewWidth;
-            const endY = to.y + 28;
+            const endY = to.y + to.height / 2;
             const controlX = ((from.x + to.x) / 200) * viewWidth;
             const controlY = from.kind === "paper" && to.kind === "paper"
               ? Math.min(startY, endY) - 36
@@ -171,8 +172,10 @@ export default function KnowledgeGraphCanvas({
                 if (dragStateRef.current?.moved) return;
                 onSelectNode?.(node.id);
               }}
-              className="absolute w-[188px] -translate-x-1/2 rounded-2xl border px-4 py-3 text-left transition-all duration-150 hover:-translate-y-0.5"
+              className="absolute -translate-x-1/2 rounded-2xl border px-4 py-3 text-left transition-all duration-150 hover:-translate-y-0.5"
               style={{
+                width: node.width,
+                minHeight: node.height,
                 left: `${node.x}%`,
                 top: node.y,
                 background: kindStyle.fill,

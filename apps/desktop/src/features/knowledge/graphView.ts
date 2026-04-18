@@ -7,20 +7,9 @@ import {
   type KnowledgeGraphEvidenceLink,
   type KnowledgeGraphSnapshot,
   type KnowledgeGraphSourceKind,
-  type KnowledgeGraphNodeKind,
   type KnowledgeGraphEdgeKind,
 } from "./shared";
-
-export interface KnowledgeGraphCanvasNode {
-  id: string;
-  entityId: string;
-  lane: "interest" | "claim" | "evidence";
-  kind: KnowledgeGraphNodeKind;
-  title: string;
-  subtitle?: string;
-  x: number;
-  y: number;
-}
+import { buildKnowledgeGraphCanvasLayout, type KnowledgeGraphCanvasNode, type KnowledgeGraphLayoutInputNode } from "./knowledgeGraphLayout";
 
 export interface KnowledgeGraphCanvasEdge {
   id: string;
@@ -152,20 +141,9 @@ export function buildKnowledgeGraphView(
         subtitle: item.sourceType === "web_clip" ? "网页摘录" : "知识笔记",
       })),
     ],
-  };
+  } satisfies Record<"interest" | "claim" | "evidence", KnowledgeGraphLayoutInputNode[]>;
 
-  const laneX = { interest: 12, claim: 42, evidence: 75 };
-  const laneSpacing = 68;
-
-  const nodes = (Object.values(nodeOrder).flat() as Omit<KnowledgeGraphCanvasNode, "x" | "y">[]).map((item) => {
-    const laneItems = nodeOrder[item.lane];
-    const index = laneItems.findIndex((candidate) => candidate.id === item.id);
-    return {
-      ...item,
-      x: laneX[item.lane],
-      y: 44 + index * laneSpacing,
-    };
-  });
+  const nodes = buildKnowledgeGraphCanvasLayout(nodeOrder);
 
   const edges: KnowledgeGraphCanvasEdge[] = [];
 
