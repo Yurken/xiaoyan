@@ -7,6 +7,7 @@ import {
   Clock3,
   MessageSquare,
   Plus,
+  Send,
   Sparkles,
   Trash2,
   User,
