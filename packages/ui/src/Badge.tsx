@@ -32,7 +32,7 @@ export default function Badge({ children, variant = "default", className }: Badg
   return (
     <span
       className={clsx(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+        "inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold",
         "transition-shadow duration-150",
         className
       )}

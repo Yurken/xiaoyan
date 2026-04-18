@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { ArrowRight, CheckCircle2, Clock3, Loader2, Sparkles, XCircle } from "lucide-react";
 import { toCapabilityModelName, type AgentPlanStep, type AgentRun } from "@research-copilot/types";
 import { buildAgentExecutionGraph, type AgentExecutionGraphView, type AgentGraphEdgeStatus, type AgentGraphNodeStatus } from "./shared";
+import { AGENT_GRAPH_LAYOUT_PRESETS, buildAgentGraphLayout } from "./agentGraphLayout";
 
 interface AgentStateGraphPanelProps {
   plan: AgentPlanStep[];
@@ -16,11 +17,6 @@ interface Point {
   y: number;
 }
 
-const NODE_SIZE = {
-  regular: { width: 156, height: 78, canvasWidth: 700, canvasHeight: 292, workerGap: 68 },
-  compact: { width: 136, height: 66, canvasWidth: 620, canvasHeight: 240, workerGap: 58 },
-};
-
 export default function AgentStateGraphPanel({
   plan,
   runs,
@@ -29,31 +25,109 @@ export default function AgentStateGraphPanel({
   emptyText = "提交问题后，这里会展示状态图中的节点状态与边流转。",
 }: AgentStateGraphPanelProps) {
   const graph = useMemo(() => buildAgentExecutionGraph(plan, runs, sending), [plan, runs, sending]);
-  const preset = compact ? NODE_SIZE.compact : NODE_SIZE.regular;
-  const positions = useMemo(() => buildNodePositions(graph, preset), [graph, preset]);
+  const interactive = !compact;
+  const layout = useMemo(
+    () => buildAgentGraphLayout(graph, compact ? AGENT_GRAPH_LAYOUT_PRESETS.compact : AGENT_GRAPH_LAYOUT_PRESETS.regular),
+    [graph, compact]
+  );
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(1);
+  const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
+
+  useEffect(() => {
+    setOffset({ x: 0, y: 0 });
+    setScale(1);
+  }, [compact, graph.nodes.length, graph.edges.length]);
 
   if (graph.nodes.length === 0) {
     return <p className="text-xs leading-5 text-ink-tertiary">{emptyText}</p>;
   }
 
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!interactive || event.button !== 0) return;
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: offset.x,
+      originY: offset.y,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    const nextX = dragState.originX + event.clientX - dragState.startX;
+    const nextY = dragState.originY + event.clientY - dragState.startY;
+    if (!dragState.moved && (Math.abs(nextX - dragState.originX) > 3 || Math.abs(nextY - dragState.originY) > 3)) {
+      dragState.moved = true;
+    }
+    setOffset({ x: nextX, y: nextY });
+  };
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    dragStateRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    if (!interactive) return;
+    event.preventDefault();
+    const delta = event.deltaY < 0 ? 0.08 : -0.08;
+    setScale((previousScale) => Math.max(0.72, Math.min(1.8, Number((previousScale + delta).toFixed(2)))));
+  };
+
   return (
     <div className={compact ? "space-y-3" : "space-y-4"}>
-      <div className="overflow-x-auto pb-1">
+      <div
+        className={interactive ? "relative overflow-hidden rounded-[26px] border" : "overflow-auto pb-1"}
+        onPointerDown={handlePointerDown}
+        onPointerMove={interactive ? handlePointerMove : undefined}
+        onPointerUp={interactive ? handlePointerUp : undefined}
+        onPointerCancel={interactive ? handlePointerUp : undefined}
+        onWheel={interactive ? handleWheel : undefined}
+        style={
+          interactive
+            ? {
+                height: layout.viewportHeight,
+                borderColor: "var(--rc-border)",
+                background:
+                  "radial-gradient(circle at top left, rgba(0,122,255,0.05), transparent 30%), linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.64))",
+                cursor: dragStateRef.current ? "grabbing" : "grab",
+              }
+            : undefined
+        }
+      >
+        {interactive ? (
+          <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-full px-2.5 py-1 text-[11px] text-ink-tertiary" style={{ background: "rgba(255,255,255,0.84)", boxShadow: "0 8px 20px rgba(15,23,42,0.08)" }}>
+            拖动画布，滚轮缩放
+          </div>
+        ) : null}
+
         <div
           className="relative"
           style={{
-            minWidth: preset.canvasWidth,
-            height: preset.canvasHeight,
+            width: layout.canvasWidth,
+            height: layout.canvasHeight,
+            transform: interactive ? `translate(${offset.x}px, ${offset.y}px) scale(${scale})` : undefined,
+            transformOrigin: "top left",
+            transition: dragStateRef.current ? "none" : "transform 0.08s ease-out",
           }}
         >
           <svg
             className="absolute inset-0 h-full w-full"
-            viewBox={`0 0 ${preset.canvasWidth} ${preset.canvasHeight}`}
+            viewBox={`0 0 ${layout.canvasWidth} ${layout.canvasHeight}`}
             fill="none"
           >
             {graph.edges.map((edge) => {
-              const source = positions.get(edge.from);
-              const target = positions.get(edge.to);
+              const source = layout.positions.get(edge.from);
+              const target = layout.positions.get(edge.to);
               if (!source || !target) return null;
               const path = buildEdgePath(source, target);
               const tone = edgeTone(edge.status);
@@ -76,8 +150,8 @@ export default function AgentStateGraphPanel({
           {graph.edges
             .filter((edge) => edge.status === "active")
             .map((edge) => {
-              const source = positions.get(edge.from);
-              const target = positions.get(edge.to);
+              const source = layout.positions.get(edge.from);
+              const target = layout.positions.get(edge.to);
               if (!source || !target) return null;
               return (
                 <span
@@ -94,7 +168,7 @@ export default function AgentStateGraphPanel({
             })}
 
           {graph.nodes.map((node) => {
-            const position = positions.get(node.id);
+            const position = layout.positions.get(node.id);
             if (!position) return null;
             const tone = nodeTone(node.status);
 
@@ -103,10 +177,10 @@ export default function AgentStateGraphPanel({
                 key={node.id}
                 className="absolute rounded-[22px] px-3 py-2.5 transition-all duration-200"
                 style={{
-                  width: preset.width,
-                  minHeight: preset.height,
-                  left: position.x - preset.width / 2,
-                  top: position.y - preset.height / 2,
+                  width: layout.nodeWidth,
+                  minHeight: layout.nodeHeight,
+                  left: position.x - layout.nodeWidth / 2,
+                  top: position.y - layout.nodeHeight / 2,
                   background: tone.background,
                   boxShadow: tone.shadow,
                   border: `1px solid ${tone.border}`,
@@ -114,7 +188,7 @@ export default function AgentStateGraphPanel({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className={`truncate font-semibold text-ink-primary ${compact ? "text-[13px]" : "text-sm"}`}>{node.title}</div>
+                    <div className={`font-semibold text-ink-primary ${compact ? "truncate text-[13px]" : "line-clamp-2 text-sm leading-5"}`}>{node.title}</div>
                     {node.agentName && (
                       <div className="mt-0.5 truncate text-[10px] text-ink-tertiary">
                         {toCapabilityModelName(node.agentName)}
@@ -122,7 +196,7 @@ export default function AgentStateGraphPanel({
                     )}
                   </div>
                   <div
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium"
+                    className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-medium leading-none"
                     style={{
                       color: tone.badgeColor,
                       background: tone.badgeBackground,
@@ -132,7 +206,7 @@ export default function AgentStateGraphPanel({
                     {tone.label}
                   </div>
                 </div>
-                <p className={`mt-2 line-clamp-2 text-ink-tertiary ${compact ? "text-[10px] leading-4" : "text-[11px] leading-5"}`}>{node.goal}</p>
+                <p className={`mt-2 text-ink-tertiary ${compact ? "line-clamp-2 text-[10px] leading-4" : "line-clamp-3 text-[11px] leading-5"}`}>{node.goal}</p>
               </div>
             );
           })}
@@ -166,7 +240,7 @@ export default function AgentStateGraphPanel({
                     <span className="truncate font-medium">{edge.targetTitle}</span>
                   </div>
                   <span
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium"
+                    className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-medium leading-none"
                     style={{ color: tone.stroke, background: tone.background }}
                   >
                     {tone.icon}
@@ -180,33 +254,6 @@ export default function AgentStateGraphPanel({
       </div>
     </div>
   );
-}
-
-function buildNodePositions(
-  graph: AgentExecutionGraphView,
-  preset: typeof NODE_SIZE.regular,
-) {
-  const positions = new Map<string, Point>();
-  const centerY = preset.canvasHeight / 2;
-  const hasRetrieval = graph.nodes.some((node) => node.id === "retrieval");
-  const workerNodes = graph.nodes.filter((node) => node.lane === "worker");
-  const workerX = hasRetrieval ? 418 : 320;
-  const synthesisX = hasRetrieval ? 648 : 584;
-  const baseY =
-    centerY - ((Math.max(workerNodes.length, 1) - 1) * preset.workerGap) / 2;
-
-  positions.set("start", { x: 88, y: centerY });
-  if (hasRetrieval) {
-    positions.set("retrieval", { x: 246, y: centerY });
-  }
-  workerNodes.forEach((node, index) => {
-    positions.set(node.id, { x: workerX, y: baseY + index * preset.workerGap });
-  });
-  if (graph.nodes.some((node) => node.id === "synthesis")) {
-    positions.set("synthesis", { x: synthesisX, y: centerY });
-  }
-
-  return positions;
 }
 
 function buildEdgePath(source: Point, target: Point) {
