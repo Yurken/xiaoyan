@@ -38,6 +38,19 @@ export interface AgentExecutionGraphView {
   edges: AgentExecutionEdgeView[];
 }
 
+export interface CopilotAttachmentPayload {
+  name: string;
+  extension: string;
+  mediaTypeLabel: string;
+  content: string;
+}
+
+export interface CopilotMessageAttachmentView {
+  name: string;
+  extension: string;
+  mediaTypeLabel: string;
+}
+
 const NODE_ORDER: AgentGraphNodeKey[] = [
   "retrieval",
   "planner",
@@ -92,6 +105,76 @@ export function upsertAgentRun(runs: AgentRun[], next: AgentRun) {
     return [...runs, next];
   }
   return runs.map((item) => (item.id === next.id ? next : item));
+}
+
+const ATTACHMENT_META_REGEX = /<copilot-attachments data="([^"]+)"><\/copilot-attachments>/;
+const ATTACHMENT_CONTEXT_REGEX = /\n*<copilot-file-context>[\s\S]*?<\/copilot-file-context>/g;
+
+export function buildCopilotMessageContent(
+  text: string,
+  attachments: CopilotAttachmentPayload[],
+) {
+  if (attachments.length === 0) {
+    return text;
+  }
+
+  const metadata = encodeURIComponent(JSON.stringify({
+    attachments: attachments.map((attachment) => ({
+      name: attachment.name,
+      extension: attachment.extension,
+      mediaTypeLabel: attachment.mediaTypeLabel,
+    })),
+  }));
+
+  const attachmentContext = attachments
+    .map((attachment, index) => {
+      const extensionLabel = attachment.extension ? `.${attachment.extension}` : "unknown";
+      return [
+        `[文件 ${index + 1}] ${attachment.name}`,
+        `类型：${attachment.mediaTypeLabel} (${extensionLabel})`,
+        "以下是文件中提取出的可读内容片段：",
+        attachment.content,
+      ].join("\n");
+    })
+    .join("\n\n---\n\n");
+
+  return [
+    text,
+    "",
+    `<copilot-attachments data="${metadata}"></copilot-attachments>`,
+    "",
+    "<copilot-file-context>",
+    "用户本轮补充上传了文件。回答时请结合这些文件内容；如果文件内容不足以支撑结论，请明确说明不足之处。",
+    "",
+    attachmentContext,
+    "</copilot-file-context>",
+  ].join("\n");
+}
+
+export function parseCopilotMessageContent(content: string): {
+  text: string;
+  attachments: CopilotMessageAttachmentView[];
+} {
+  const metaMatch = content.match(ATTACHMENT_META_REGEX);
+  let attachments: CopilotMessageAttachmentView[] = [];
+
+  if (metaMatch?.[1]) {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(metaMatch[1])) as {
+        attachments?: CopilotMessageAttachmentView[];
+      };
+      attachments = Array.isArray(parsed.attachments) ? parsed.attachments : [];
+    } catch {
+      attachments = [];
+    }
+  }
+
+  const text = content
+    .replace(ATTACHMENT_META_REGEX, "")
+    .replace(ATTACHMENT_CONTEXT_REGEX, "")
+    .trim();
+
+  return { text, attachments };
 }
 
 export function buildAgentExecutionGraph(

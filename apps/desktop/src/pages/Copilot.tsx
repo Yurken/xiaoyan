@@ -7,7 +7,6 @@ import {
   Clock3,
   MessageSquare,
   Plus,
-  Send,
   Sparkles,
   Trash2,
   User,
@@ -28,7 +27,12 @@ import {
 import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
-import { upsertAgentRun } from "../features/copilot/shared";
+import {
+  buildCopilotMessageContent,
+  parseCopilotMessageContent,
+  upsertAgentRun,
+} from "../features/copilot/shared";
+import { useCopilotAttachments } from "../features/copilot/useCopilotAttachments";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, ResearchInterest, Skill } from "@research-copilot/types";
@@ -78,6 +82,8 @@ function interestFolderName(interest: ResearchInterest) {
   return interest.folder_name?.trim() || interest.topic;
 }
 
+const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
+
 export default function Copilot({ hideFolders = false }: { hideFolders?: boolean }) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
@@ -103,6 +109,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [savingMemory, setSavingMemory] = useState(false);
   const [memorySaved, setMemorySaved] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const {
+    attachments,
+    uploading: uploadingAttachments,
+    pickAttachments,
+    removeAttachment,
+    clearAttachments,
+  } = useCopilotAttachments(setLoadError);
 
   useEffect(() => {
     let cancelled = false;
@@ -313,12 +326,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   };
 
   const handleSend = async () => {
-    if (!input.trim() || sending) return;
-    const rawText = input.trim();
+    if ((!input.trim() && attachments.length === 0) || sending || uploadingAttachments) return;
+    const rawText = input.trim() || DEFAULT_ATTACHMENT_PROMPT;
     const selectedSkill = skills.find((s) => s.id === selectedSkillId);
     const text = selectedSkill
       ? `[技能指令 · ${selectedSkill.title}]\n${selectedSkill.prompt}\n\n---\n\n${rawText}`
       : rawText;
+    const submittedText = buildCopilotMessageContent(text, attachments);
     const assistantId = `${Date.now()}_a`;
 
     // 埋点：记录提问内容（取前60字）
@@ -329,6 +343,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     });
 
     setInput("");
+    clearAttachments();
     setSending(true);
     setLoadError("");
     setPlan([]);
@@ -339,7 +354,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: text,
+      content: submittedText,
       created_at: new Date().toISOString(),
     };
     const assistantMsg: ChatMessage = {
@@ -355,7 +370,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
       for await (const chunk of apiClient.chat.stream({
         session_id: currentSession?.id,
-        message: text,
+        message: submittedText,
         context_type: selectedInterestId ? "interest" : "general",
         context_id: selectedInterestId || undefined,
       })) {
@@ -800,18 +815,38 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                     );
                   })()}
 
-                  {message.role === "user" && (
-                    <div
-                      className="rounded-3xl px-4 py-3 text-sm"
-                      style={{
-                        background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                        boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
-                        color: "#FFFFFF",
-                      }}
-                    >
-                      <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                    </div>
-                  )}
+                  {message.role === "user" && (() => {
+                    const parsedUserMessage = parseCopilotMessageContent(message.content);
+
+                    return (
+                      <div
+                        className="rounded-3xl px-4 py-3 text-sm"
+                        style={{
+                          background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                          boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
+                          color: "#FFFFFF",
+                        }}
+                      >
+                        {parsedUserMessage.attachments.length > 0 && (
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            {parsedUserMessage.attachments.map((attachment, index) => (
+                              <span
+                                key={`${attachment.name}-${index}`}
+                                className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-medium"
+                                style={{ background: "rgba(255,255,255,0.18)", color: "#FFFFFF" }}
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                                {attachment.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <p className="whitespace-pre-wrap leading-relaxed">
+                          {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
+                        </p>
+                      </div>
+                    );
+                  })()}
                   {message.role === "assistant" && message.sources && message.sources.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {message.sources.map((source, index) => (
@@ -984,6 +1019,41 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                     </div>
                   );
                 })()}
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => void pickAttachments()}
+                    disabled={sending || uploadingAttachments}
+                    className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{
+                      color: "#636366",
+                      background: "var(--rc-surface)",
+                      boxShadow: "var(--rc-inset-shadow)",
+                    }}
+                  >
+                    <MessageSquare className="w-3 h-3" />
+                    {uploadingAttachments ? "读取文件中" : "上传文件"}
+                  </button>
+
+                  {attachments.map((attachment) => (
+                    <div
+                      key={attachment.id}
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium"
+                      style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
+                    >
+                      <MessageSquare className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate max-w-[220px]">{attachment.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(attachment.id)}
+                        className="ml-0.5 hover:opacity-60 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <textarea
@@ -1006,11 +1076,11 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             </div>
             <button
               onClick={() => void handleSend()}
-              disabled={!input.trim() || sending}
+              disabled={(!input.trim() && attachments.length === 0) || sending || uploadingAttachments}
               className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-white transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
                 background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                boxShadow: input.trim() && !sending
+                boxShadow: (input.trim() || attachments.length > 0) && !sending && !uploadingAttachments
                   ? "4px 4px 10px rgba(0,62,204,0.4), -3px -3px 8px rgba(58,155,255,0.25)"
                   : "none",
               }}
