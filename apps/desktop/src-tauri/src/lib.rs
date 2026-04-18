@@ -50,7 +50,7 @@ use commands::{
         knowledge_graph_delete_claim, knowledge_graph_delete_citation, knowledge_graph_delete_evidence,
         knowledge_graph_snapshot,
     },
-    memory::{memory_add, memory_list, memory_delete, memory_clear_auto, memory_build_context},
+    memory::{memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list, memory_list_observations},
     misc::{markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text},
     paper_search::paper_search,
     papers::{papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list, papers_list_figures, papers_open_pdf, papers_reproduce, papers_update, papers_upload},
@@ -257,6 +257,7 @@ pub fn run() {
             // Memory
             memory_add,
             memory_list,
+            memory_list_observations,
             memory_delete,
             memory_clear_auto,
             memory_build_context,

@@ -39,14 +39,14 @@ function LongTermMemorySection({
         <div>
           <h2 className="text-base font-semibold text-ink-primary">长期记忆</h2>
           <p className="mt-0.5 text-xs text-ink-tertiary">
-            控制小妍是否在新对话中读取手动备忘和近期操作摘要。关闭后不会删除已保存记忆，只是不再自动注入。
+            控制小妍是否继续写入自动长期记忆，并在新对话中读取手动备忘、近期操作和过程观察。关闭后不会删除已保存记忆。
           </p>
         </div>
       </div>
 
       <ToggleRow
         title="启用小妍长期记忆"
-        description="开启后，小妍会在对话开始时结合记忆管理中的手动备忘和近期操作；关闭后仅保留当前工作台上下文。"
+        description="开启后，小妍会持续沉淀聊天过程观察，并在对话开始时结合手动备忘与近期记忆；关闭后不会自动写入新的长期记忆，也不会在对话中注入。"
         checked={enabled}
         onToggle={() => set("xiaoyan_long_term_memory_enabled")(enabled ? "false" : "true")}
       />

@@ -62,6 +62,7 @@ export default function Settings() {
   const [currentStyle, setCurrentStyle] = useState<ThemeStyle>(getThemeStyle());
   const {
     memories,
+    observations,
     loading: memoriesLoading,
     clearingAuto,
     enter: enterMemories,
@@ -444,6 +445,7 @@ export default function Settings() {
         {activeSection === "memory" ? (
           <MemorySection
             memories={memories}
+            observations={observations}
             loading={memoriesLoading}
             clearingAuto={clearingAuto}
             onEnter={enterMemories}
