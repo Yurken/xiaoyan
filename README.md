@@ -6,6 +6,7 @@
 
 - 共享开发规范见 [docs/development-principles.md](docs/development-principles.md)
 - Agent 入口规范见 [AGENTS.md](AGENTS.md)、[CLAUDE.md](CLAUDE.md) 与 [CODEX.md](CODEX.md)
+- 桌面端系统介绍见 [docs/system-introduction-desktop.md](docs/system-introduction-desktop.md)
 
 ## 功能概览
 
@@ -153,6 +154,40 @@ pnpm tauri build
 cd apps/desktop
 pnpm tauri dev
 pnpm tauri build
+```
+
+### 4. 开发自检（建议每次修改后执行）
+
+```bash
+# 仅校验桌面端
+pnpm --filter @research-copilot/desktop type-check
+
+# 校验整个仓库
+pnpm type-check
+pnpm lint
+```
+
+## 常见问题排查
+
+### 1. 小妍页面报错：`Can't find variable: Send`
+
+**现象**
+- 打开小妍页面后白屏或控制台报错：`Can't find variable: Send`
+
+**原因**
+- 页面中使用了 `<Send />` 图标组件，但对应文件没有从 `lucide-react` 导入 `Send`。
+
+**解决**
+- 在报错页面顶部导入中补充 `Send`：
+
+```ts
+import { ..., Send, ... } from "lucide-react";
+```
+
+- 然后执行类型检查确认无遗漏：
+
+```bash
+pnpm --filter @research-copilot/desktop type-check
 ```
 
 ## 设置配置
