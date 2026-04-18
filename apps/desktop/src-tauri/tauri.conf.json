@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "pnpm dev:vite",
-    "beforeBuildCommand": "pnpm build"
+    "beforeBuildCommand": "pnpm build:tauri"
   },
   "bundle": {
     "active": true,
@@ -18,6 +18,7 @@
       "infoPlist": "./Info.plist"
     },
     "resources": {
+      "markitdown-runtime": "markitdown-runtime",
       "zh-Hans.lproj": "zh-Hans.lproj",
       "zh_CN.lproj": "zh_CN.lproj"
     },

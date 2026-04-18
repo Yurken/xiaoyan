@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "vite build",
+    "build:tauri": "vite build && node ./scripts/prepare-markitdown-runtime.mjs",
     "dev:vite": "vite",
     "preview": "vite preview",
     "type-check": "tsc --noEmit"

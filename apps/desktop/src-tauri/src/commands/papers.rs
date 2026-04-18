@@ -345,6 +345,7 @@ pub async fn papers_open_pdf(
 
 #[tauri::command]
 pub async fn papers_extract_pdf_text(
+    app: tauri::AppHandle,
     file_path: tauri_plugin_fs::FilePath,
     max_chars: Option<usize>,
 ) -> Result<String, String> {
@@ -359,7 +360,10 @@ pub async fn papers_extract_pdf_text(
     let extract_started_at = Instant::now();
     eprintln!("[pdf-extract] start: path={}", path.display());
     let path_for_extract = path.clone();
-    let text = tokio::task::spawn_blocking(move || extract_pdf_text_with_filtered_stderr(&path_for_extract))
+    let app_for_extract = app.clone();
+    let text = tokio::task::spawn_blocking(move || {
+        extract_pdf_text_with_filtered_stderr(&app_for_extract, &path_for_extract)
+    })
         .await
         .map_err(|error| format!("PDF 解析任务失败：{error}"))?
         .map_err(|error| format!("PDF 解析失败：{error}"))?;
@@ -536,7 +540,10 @@ pub async fn papers_upload(
         let preview_path = path_for_parse.clone();
         let full_text_started_at = Instant::now();
         eprintln!("[paper-import][{}] full_text extraction start", pid);
-        let full_text_handle = tokio::task::spawn_blocking(move || extract_pdf_text_with_filtered_stderr(&path_for_parse));
+        let app_for_full_text = app.clone();
+        let full_text_handle = tokio::task::spawn_blocking(move || {
+            extract_pdf_text_with_filtered_stderr(&app_for_full_text, &path_for_parse)
+        });
 
         // ② 提取前3页预览文本（相对快），与①并发进行
         let preview_started_at = Instant::now();

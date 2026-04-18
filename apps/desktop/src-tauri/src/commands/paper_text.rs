@@ -1,4 +1,3 @@
-use std::io::Read;
 use std::path::Path;
 
 pub fn extract_pdf_preview_text(path: &Path, max_pages: usize, max_chars: usize) -> Option<String> {
@@ -23,22 +22,11 @@ pub fn extract_pdf_preview_text(path: &Path, max_pages: usize, max_chars: usize)
     }
 }
 
-pub fn extract_pdf_text_with_filtered_stderr(path: &Path) -> Result<String, String> {
-    let mut redirect = gag::BufferRedirect::stderr().ok();
-    let result = pdf_extract::extract_text(path).map_err(|e| e.to_string());
-
-    if let Some(ref mut handle) = redirect {
-        let mut captured = String::new();
-        let _ = handle.read_to_string(&mut captured);
-        for line in captured.lines() {
-            if should_suppress_pdf_stderr_line(line) {
-                continue;
-            }
-            eprintln!("{line}");
-        }
-    }
-
-    result
+pub fn extract_pdf_text_with_filtered_stderr(
+    app: &tauri::AppHandle,
+    path: &Path,
+) -> Result<String, String> {
+    crate::markitdown_runtime::extract_pdf_text(app, path)
 }
 
 fn safe_text_preview(text: &str, max_bytes: usize) -> &str {
@@ -50,12 +38,4 @@ fn safe_text_preview(text: &str, max_bytes: usize) -> &str {
         end -= 1;
     }
     &text[..end]
-}
-
-fn should_suppress_pdf_stderr_line(line: &str) -> bool {
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return true;
-    }
-    trimmed.contains("Unicode mismatch")
 }
