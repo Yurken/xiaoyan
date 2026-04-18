@@ -1,5 +1,5 @@
 use crate::assistant_prompts::specialist_system;
-use crate::commands::paper_text::{extract_pdf_preview_text, extract_pdf_text_with_filtered_stderr};
+use crate::commands::paper_text::{extract_pdf_preview_text, extract_pdf_text_with_filtered_stderr, preview_from_text};
 use crate::ccf::{infer_from_text, match_venue};
 use crate::journal_partitions::match_journal;
 use crate::links::paper_reference_url;
@@ -547,7 +547,7 @@ pub async fn papers_upload(
 
         // ② 提取前3页预览文本（相对快），与①并发进行
         let preview_started_at = Instant::now();
-        let preview_text = tokio::task::spawn_blocking(move || {
+        let mut preview_text = tokio::task::spawn_blocking(move || {
             extract_pdf_preview_text(&preview_path, 3, 12_000)
         }).await.ok().flatten().unwrap_or_default();
         eprintln!(
@@ -556,75 +556,11 @@ pub async fn papers_upload(
             preview_text.chars().count(),
             preview_started_at.elapsed().as_millis()
         );
-
-        // ③ 基于预览文本做本地快速识别并更新初始字段
-        let venue_and_kw_started_at = Instant::now();
-        let inferred_venue = infer_from_text(&preview_text).map(|tag| tag.full_name);
-        let preview_keywords = extract_keywords_from_text(&preview_text);
-        let preview_tags = serde_json::to_string(&preview_keywords).unwrap_or_else(|_| "[]".to_string());
-        if inferred_venue.is_some() || !preview_keywords.is_empty() {
-            let now = chrono::Utc::now().to_rfc3339();
-            let _ = sqlx::query(
-                "UPDATE papers SET venue = COALESCE(?, venue), tags = ?, updated_at = ? WHERE id = ?"
-            )
-            .bind(&inferred_venue)
-            .bind(&preview_tags)
-            .bind(&now)
-            .bind(&pid)
-            .execute(&db)
-            .await;
-        }
-        eprintln!(
-            "[paper-import][{}] preview infer done: venue={} keywords={} elapsed_ms={}",
-            pid,
-            inferred_venue.is_some(),
-            preview_keywords.len(),
-            venue_and_kw_started_at.elapsed().as_millis()
-        );
-
-        // ④ LLM 元数据识别（与①的全文提取并发进行）
-        let metadata_started_at = Instant::now();
-        let metadata_opt = if any_recognition && !preview_text.is_empty() {
-            extract_import_metadata(&settings, &file_name_owned, &title_guess, &preview_text).await
-        } else {
-            None
-        };
-        eprintln!(
-            "[paper-import][{}] metadata step done: recognized={} elapsed_ms={}",
-            pid,
-            metadata_opt.is_some(),
-            metadata_started_at.elapsed().as_millis()
-        );
-
-        // 元数据到位后立即写库并通知前端
-        if let Some(ref metadata) = metadata_opt {
-            let meta_title = if recognize_title { clean_optional_text(metadata.title.clone()) } else { None };
-            let meta_authors = if recognize_authors { clean_optional_text(metadata.authors.clone()) } else { None };
-            let meta_year: Option<i64> = if recognize_year { metadata.year.filter(|v| *v > 0) } else { None };
-            let meta_venue = if recognize_venue {
-                clean_optional_text(metadata.venue.clone()).or(inferred_venue)
-            } else {
-                None
-            };
-            let meta_doi = clean_optional_text(metadata.doi.clone());
-            let meta_now = chrono::Utc::now().to_rfc3339();
-            let _ = sqlx::query(
-                "UPDATE papers SET title = COALESCE(?, title), authors = COALESCE(?, authors), year = COALESCE(?, year), venue = COALESCE(?, venue), doi = COALESCE(?, doi), updated_at = ? WHERE id = ?"
-            )
-            .bind(meta_title)
-            .bind(meta_authors)
-            .bind(meta_year)
-            .bind(meta_venue)
-            .bind(meta_doi)
-            .bind(&meta_now)
-            .bind(&pid)
-            .execute(&db)
-            .await;
-            let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "metadata" }));
-            eprintln!("[paper-import][{}] status=metadata emitted", pid);
+        if preview_text.is_empty() {
+            eprintln!("[paper-import][{}] preview unavailable: lopdf preview extraction returned empty", pid);
         }
 
-        // ⑤ 等待全文提取完成（此时①可能已基本完成）
+        // ③ 等待全文提取完成（此时①可能已基本完成）
         let text = match full_text_handle.await {
             Ok(Ok(value)) => value,
             Ok(Err(error)) => {
@@ -656,6 +592,81 @@ pub async fn papers_upload(
             text.chars().count(),
             full_text_started_at.elapsed().as_millis()
         );
+
+        if preview_text.is_empty() {
+            preview_text = preview_from_text(&text, 12_000).unwrap_or_default();
+            eprintln!(
+                "[paper-import][{}] preview fallback from full_text: chars={}",
+                pid,
+                preview_text.chars().count()
+            );
+        }
+
+        // ④ 基于有效预览文本做本地快速识别并更新初始字段
+        let venue_and_kw_started_at = Instant::now();
+        let inferred_venue = infer_from_text(&preview_text).map(|tag| tag.full_name);
+        let preview_keywords = extract_keywords_from_text(&preview_text);
+        let preview_tags = serde_json::to_string(&preview_keywords).unwrap_or_else(|_| "[]".to_string());
+        if inferred_venue.is_some() || !preview_keywords.is_empty() {
+            let now = chrono::Utc::now().to_rfc3339();
+            let _ = sqlx::query(
+                "UPDATE papers SET venue = COALESCE(?, venue), tags = ?, updated_at = ? WHERE id = ?"
+            )
+            .bind(&inferred_venue)
+            .bind(&preview_tags)
+            .bind(&now)
+            .bind(&pid)
+            .execute(&db)
+            .await;
+        }
+        eprintln!(
+            "[paper-import][{}] preview infer done: venue={} keywords={} elapsed_ms={}",
+            pid,
+            inferred_venue.is_some(),
+            preview_keywords.len(),
+            venue_and_kw_started_at.elapsed().as_millis()
+        );
+
+        // ⑤ LLM 元数据识别
+        let metadata_started_at = Instant::now();
+        let metadata_opt = if any_recognition && !preview_text.is_empty() {
+            extract_import_metadata(&settings, &file_name_owned, &title_guess, &preview_text).await
+        } else {
+            None
+        };
+        eprintln!(
+            "[paper-import][{}] metadata step done: recognized={} elapsed_ms={}",
+            pid,
+            metadata_opt.is_some(),
+            metadata_started_at.elapsed().as_millis()
+        );
+
+        if let Some(ref metadata) = metadata_opt {
+            let meta_title = if recognize_title { clean_optional_text(metadata.title.clone()) } else { None };
+            let meta_authors = if recognize_authors { clean_optional_text(metadata.authors.clone()) } else { None };
+            let meta_year: Option<i64> = if recognize_year { metadata.year.filter(|v| *v > 0) } else { None };
+            let meta_venue = if recognize_venue {
+                clean_optional_text(metadata.venue.clone()).or(inferred_venue.clone())
+            } else {
+                None
+            };
+            let meta_doi = clean_optional_text(metadata.doi.clone());
+            let meta_now = chrono::Utc::now().to_rfc3339();
+            let _ = sqlx::query(
+                "UPDATE papers SET title = COALESCE(?, title), authors = COALESCE(?, authors), year = COALESCE(?, year), venue = COALESCE(?, venue), doi = COALESCE(?, doi), updated_at = ? WHERE id = ?"
+            )
+            .bind(meta_title)
+            .bind(meta_authors)
+            .bind(meta_year)
+            .bind(meta_venue)
+            .bind(meta_doi)
+            .bind(&meta_now)
+            .bind(&pid)
+            .execute(&db)
+            .await;
+            let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "metadata" }));
+            eprintln!("[paper-import][{}] status=metadata emitted", pid);
+        }
 
         if text.trim().is_empty() {
             let now = chrono::Utc::now().to_rfc3339();
