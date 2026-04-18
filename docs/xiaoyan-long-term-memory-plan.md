@@ -1,5 +1,30 @@
 # 小妍长期记忆规划
 
+## 当前进度（2026-04-18）
+
+### 已完成
+
+- `设置 -> 小妍` 已增加长期记忆总开关，关闭后不再自动写入和注入长期记忆。
+- 已落地 `memory_events` 与 `memory_observations` 两层数据结构。
+- 已接入聊天主链路：提问、回答完成、回答失败。
+- 已接入 `agent_runs` 完成 / 失败事件。
+- 已接入知识笔记创建、更新、移动、删除，以及 `web_clip` 导入事件。
+- 记忆管理页已能查看长期记忆 observation。
+- 聊天注入已从“只看最近 observation”升级为“按当前问题做相关召回，再回退到近期高价值 observation”。
+
+### 进行中
+
+- observation 仍是模板化压缩，尚未引入异步 AI 压缩 worker。
+- 召回已具备 query-aware 能力，但还不是 FTS5 / embedding 混合检索。
+- 还没有 session checkpoint summary，也没有 `memory_links`。
+
+### 下一步优先级
+
+1. 引入 `memory_session_summaries`，沉淀阶段性 checkpoint。
+2. 为 observation 建立更稳的检索层：FTS5 和向量召回二选一或组合。
+3. 把 papers / knowledge graph / submission 关键动作接入统一事件流。
+4. 为 observation 增加“提升为笔记 / claim / 待办”的升级路径。
+
 ## 背景
 
 当前仓库已经有两类“记忆”能力：
@@ -14,21 +39,24 @@
 ### 已存在能力
 
 - `apps/desktop/src-tauri/src/commands/memory.rs`
-  负责从 `user_memories` 聚合手动备忘、最近自动记录和近七天摘要。
+  负责统一写入长期记忆事件、结构化 observation，并聚合手动备忘、自动记录与 observation 上下文。
 - `apps/desktop/src-tauri/src/commands/chat.rs`
-  在 `run_chat()` 中把长期记忆拼进系统上下文。
+  在 `run_chat()` 中触发聊天事件沉淀，并把 query-aware 的长期记忆上下文拼进系统提示。
+- `apps/desktop/src-tauri/src/services/memory_retrieval_service.rs`
+  负责 observation 的相关召回和上下文压缩。
 - `apps/desktop/src-tauri/src/db.rs`
-  已保存 `chat_messages`、`agent_runs`、`agent_artifacts` 等过程数据，可作为未来 observation 的原始事件源。
+  已包含 `memory_events`、`memory_observations`，并保留 `chat_messages`、`agent_runs`、`agent_artifacts` 等过程源数据。
 - `apps/desktop/src-tauri/src/commands/knowledge.rs`
+  `apps/desktop/src-tauri/src/commands/knowledge_notes.rs`
   `apps/desktop/src-tauri/src/commands/knowledge_graph.rs`
   已具备语义知识层，不需要被长期记忆替代。
 
 ### 当前短板
 
-1. 记忆结构过粗：只有 `summary/detail` 风格，缺少 observation、checkpoint summary、关联实体等结构化层次。
-2. 记忆采集分散：不少自动记忆靠前端页面手写 `memory.add()`，来源不统一。
-3. 检索方式偏弱：目前是统一摘要注入，没有 index-first / 按需召回。
-4. 过程知识与语义知识未打通：会话里的关键决策、失败路线、待办事项不会提升到知识图谱或工作台。
+1. 记忆结构还不完整：已具备 observation，但还缺 checkpoint summary、关联实体、升级路径。
+2. 记忆采集仍不够全：chat / agent / notes 已接入，但 papers / graph / submission 还没有统一接入。
+3. 检索刚进入 query-aware 阶段：目前是本地词法相关召回，还不是 FTS5 / embedding / index-first 组合。
+4. 过程知识与语义知识未打通：会话里的关键决策、失败路线、待办事项还不会自动提升到知识图谱或工作台。
 
 ## 目标
 
@@ -62,7 +90,17 @@
 
 ## 数据模型建议
 
-建议保留现有 `user_memories` 兼容层，并新增以下表：
+建议保留现有 `user_memories` 兼容层，并新增以下表。
+
+目前已落地：
+
+- `memory_events`
+- `memory_observations`
+
+尚未落地：
+
+- `memory_session_summaries`
+- `memory_links`
 
 ### `memory_events`
 
@@ -150,11 +188,11 @@
 
 ## 检索与注入策略
 
-第一阶段采用本地混合检索：
+当前采用本地 query-aware 词法召回，下一阶段升级为本地混合检索：
 
-- FTS5：负责关键词和短语检索。
-- 现有 embedding：负责 observation / summary 语义召回。
-- 组合排序：兼顾新近性、重要度、语义相关性。
+- 现阶段：基于 observation 标题/摘要/叙事与当前问题的词法相关性评分，并叠加重要度、时间衰减。
+- 下一阶段：引入 FTS5 和 / 或 embedding 召回。
+- 目标：兼顾新近性、重要度、语义相关性。
 
 注入策略从“全文摘要拼接”升级为“目录优先”：
 
@@ -181,8 +219,8 @@
 
 作用：
 
-- 开启：小妍在对话开始时注入长期记忆摘要
-- 关闭：只使用当前工作台上下文，不读取长期记忆
+- 开启：小妍会继续写入自动长期记忆，并在对话开始时按问题召回相关 observation
+- 关闭：只使用当前工作台上下文，不读取长期记忆，也不再自动写入新的长期记忆
 - 关闭不会删除已有记忆数据
 
 ### 后续建议
@@ -195,21 +233,24 @@
 
 ### Phase 0
 
-- 增加长期记忆总开关
-- 用开关控制当前 `build_memory_context()` 注入
-- 保持现有 `user_memories` 行为不变
+- [x] 增加长期记忆总开关
+- [x] 用开关控制当前 `build_memory_context()` 注入
+- [x] 保持现有 `user_memories` 兼容行为
 
 ### Phase 1
 
-- 引入 `memory_events`
-- 从 chat / agent / papers / notes / graph 统一采集事件
-- 增加异步压缩队列
+- [x] 引入 `memory_events`
+- [x] 引入 `memory_observations`
+- [x] 从 chat / agent / notes 统一采集事件
+- [ ] 从 papers / graph / submission 统一采集事件
+- [ ] 增加异步压缩队列
 
 ### Phase 2
 
-- 引入 `memory_observations` 与 `memory_session_summaries`
-- 增加 FTS5 和 embedding 检索
-- 把注入逻辑改成 index-first
+- [ ] 引入 `memory_session_summaries`
+- [ ] 增加 FTS5 和 embedding 检索
+- [ ] 把注入逻辑改成 index-first
+- [x] 先把注入逻辑升级为 query-aware observation 召回
 
 ### Phase 3
 
@@ -241,10 +282,10 @@
 
 ## 建议的下一步
 
-优先做 Phase 1：
+下一步优先做 Phase 2 的基础层：
 
-1. 统一事件采集接口
-2. 新增 `memory_events` 与 `memory_observations`
-3. 让聊天入口从固定摘要注入升级为“轻量索引 + 少量详情”
+1. 新增 `memory_session_summaries`
+2. 让 observation 检索从当前词法相关召回升级为 FTS5 / embedding 混合检索
+3. 把 papers / graph / submission 也接入统一事件流
 
 完成后，再把高价值 observation 推到知识图谱和笔记体系中，形成真正可连续推进研究的长期记忆内核。

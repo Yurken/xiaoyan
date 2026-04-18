@@ -162,7 +162,7 @@ export default function MemorySection({
           <div>
             <h2 className="text-base font-semibold text-ink-primary">长期记忆观察</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">
-              当前已接入聊天主链路、能力域模型运行和知识笔记操作。高价值过程会沉淀为结构化观察，作为后续长期记忆检索骨架。
+              当前已接入聊天主链路、能力域模型运行和知识笔记操作。高价值过程会沉淀为结构化观察，并在对话时按当前问题做相关召回。
             </p>
           </div>
           <span className="text-xs text-ink-tertiary">{observations.length} 条</span>

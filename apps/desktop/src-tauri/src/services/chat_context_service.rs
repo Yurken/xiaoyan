@@ -12,6 +12,7 @@ pub async fn build_chat_context_summary(
     db: &SqlitePool,
     context_type: &str,
     context_id: &Option<String>,
+    user_message: &str,
     include_long_term_memory: bool,
 ) -> String {
     let base_context = match context_type {
@@ -21,7 +22,7 @@ pub async fn build_chat_context_summary(
     };
 
     let memory_context = if include_long_term_memory {
-        memory::build_memory_context(db).await
+        memory::build_memory_context_for_query(db, user_message).await
     } else {
         String::new()
     };

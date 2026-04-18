@@ -59,7 +59,7 @@ use commands::{
     },
     memory::{
         memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list,
-        memory_list_observations,
+        memory_list_observations, memory_search_observations,
     },
     misc::{
         markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text,
@@ -275,6 +275,7 @@ pub fn run() {
             memory_add,
             memory_list,
             memory_list_observations,
+            memory_search_observations,
             memory_delete,
             memory_clear_auto,
             memory_build_context,

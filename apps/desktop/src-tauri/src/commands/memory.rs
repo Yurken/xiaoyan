@@ -1,3 +1,4 @@
+use crate::services::memory_retrieval_service;
 use crate::state::AppState;
 use anyhow::Result as AnyhowResult;
 use serde_json::{json, Value};
@@ -5,8 +6,6 @@ use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use tauri::State;
 use uuid::Uuid;
-
-const CONTEXT_BUDGET: usize = 4000;
 
 /// Safely truncate a UTF-8 string to at most `max_bytes` bytes,
 /// never splitting a multi-byte character.
@@ -43,14 +42,6 @@ fn format_context_label(context_type: &str) -> &'static str {
         "interest" => "研究方向会话",
         "paper" => "论文会话",
         _ => "通用会话",
-    }
-}
-
-fn format_short_timestamp(timestamp: &str) -> String {
-    if timestamp.len() >= 16 {
-        timestamp[5..16].to_string()
-    } else {
-        timestamp.to_string()
     }
 }
 
@@ -575,6 +566,18 @@ pub async fn memory_list_observations(
     Ok(json!(items))
 }
 
+#[tauri::command]
+pub async fn memory_search_observations(
+    state: State<'_, AppState>,
+    query: String,
+    limit: Option<i64>,
+) -> Result<serde_json::Value, String> {
+    let lim = limit.unwrap_or(6).clamp(1, 20) as usize;
+    let items =
+        memory_retrieval_service::search_relevant_observations(&state.db, &query, lim).await;
+    Ok(json!(items))
+}
+
 // ── Delete ────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -599,121 +602,11 @@ pub async fn memory_clear_auto(state: State<'_, AppState>) -> Result<(), String>
 // ── Build context ────────────────────────────────────────────────
 
 pub async fn build_memory_context(db: &SqlitePool) -> String {
-    let manual_rows = sqlx::query(
-        "SELECT summary FROM user_memories WHERE type = 'manual'
-         ORDER BY created_at DESC LIMIT 10",
-    )
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
+    memory_retrieval_service::build_memory_context(db).await
+}
 
-    let manual_lines: Vec<String> = manual_rows
-        .iter()
-        .map(|row| format!("• {}", row.get::<String, _>("summary")))
-        .collect();
-
-    let observation_rows = sqlx::query(
-        "SELECT summary, created_at FROM memory_observations
-         WHERE importance >= 2
-           AND created_at >= datetime('now', '-3 days')
-         ORDER BY importance DESC, created_at DESC LIMIT 8",
-    )
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
-
-    let observation_lines: Vec<String> = observation_rows
-        .iter()
-        .map(|row| {
-            let summary: String = row.get("summary");
-            let created_at: String = row.get("created_at");
-            format!("  {} {}", format_short_timestamp(&created_at), summary)
-        })
-        .collect();
-
-    let recent_rows = sqlx::query(
-        "SELECT summary, created_at FROM user_memories
-         WHERE type = 'auto'
-           AND created_at >= datetime('now', '-3 hours')
-         ORDER BY created_at DESC LIMIT 20",
-    )
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
-
-    let recent_lines: Vec<String> = recent_rows
-        .iter()
-        .map(|row| {
-            let summary: String = row.get("summary");
-            let created_at: String = row.get("created_at");
-            let time = if created_at.len() >= 16 {
-                created_at[11..16].to_string()
-            } else {
-                created_at
-            };
-            format!("  {time} {summary}")
-        })
-        .collect();
-
-    let hist_rows = sqlx::query(
-        "SELECT date(created_at) AS day, group_concat(summary, '；') AS summaries
-         FROM user_memories
-         WHERE type = 'auto'
-           AND created_at < datetime('now', '-3 hours')
-           AND created_at >= datetime('now', '-7 days')
-         GROUP BY date(created_at)
-         ORDER BY day DESC LIMIT 7",
-    )
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
-
-    let hist_lines: Vec<String> = hist_rows
-        .iter()
-        .map(|row| {
-            let day: String = row.get("day");
-            let summaries: String = row.get("summaries");
-            let truncated = if summaries.len() > 200 {
-                format!("{}…", safe_truncate(&summaries, 200))
-            } else {
-                summaries
-            };
-            format!("  {day}: {truncated}")
-        })
-        .collect();
-
-    if manual_lines.is_empty()
-        && observation_lines.is_empty()
-        && recent_lines.is_empty()
-        && hist_lines.is_empty()
-    {
-        return String::new();
-    }
-
-    let mut parts: Vec<String> = Vec::new();
-
-    if !manual_lines.is_empty() {
-        parts.push(format!("[用户备忘]\n{}", manual_lines.join("\n")));
-    }
-    if !observation_lines.is_empty() {
-        parts.push(format!("[近期过程记忆]\n{}", observation_lines.join("\n")));
-    }
-    if !recent_lines.is_empty() {
-        parts.push(format!(
-            "[近期操作（最近3小时）]\n{}",
-            recent_lines.join("\n")
-        ));
-    }
-    if !hist_lines.is_empty() {
-        parts.push(format!("[历史摘要（近7天）]\n{}", hist_lines.join("\n")));
-    }
-
-    let result = parts.join("\n\n");
-    if result.len() > CONTEXT_BUDGET {
-        format!("{}…", safe_truncate(&result, CONTEXT_BUDGET))
-    } else {
-        result
-    }
+pub async fn build_memory_context_for_query(db: &SqlitePool, query: &str) -> String {
+    memory_retrieval_service::build_memory_context_for_query(db, query).await
 }
 
 #[tauri::command]

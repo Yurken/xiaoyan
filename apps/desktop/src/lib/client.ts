@@ -461,6 +461,7 @@ export interface MemoryObservation {
   narrative: string;
   importance: number;
   created_at: string;
+  score?: number;
 }
 
 export const memoryApi = {
@@ -481,6 +482,11 @@ export const memoryApi = {
     invoke("memory_list_observations", {
       limit: params?.limit ?? 30,
       offset: params?.offset ?? 0,
+    }),
+  searchObservations: (query: string, limit = 6): Promise<MemoryObservation[]> =>
+    invoke("memory_search_observations", {
+      query,
+      limit,
     }),
   delete: (id: string): Promise<void> =>
     invoke("memory_delete", { id }),
