@@ -394,9 +394,9 @@ pub async fn papers_extract_pdf_text(
     let text = tokio::task::spawn_blocking(move || {
         extract_pdf_text_with_filtered_stderr(&app_for_extract, &path_for_extract)
     })
-        .await
-        .map_err(|error| format!("PDF 解析任务失败：{error}"))?
-        .map_err(|error| format!("PDF 解析失败：{error}"))?;
+    .await
+    .map_err(|error| format!("PDF 解析任务失败：{error}"))?
+    .map_err(|error| format!("PDF 解析失败：{error}"))?;
     eprintln!(
         "[pdf-extract] done: path={} chars={} elapsed_ms={}",
         path.display(),
@@ -592,9 +592,12 @@ pub async fn papers_upload(
 
         // ② 提取前3页预览文本（相对快），与①并发进行
         let preview_started_at = Instant::now();
-        let mut preview_text = tokio::task::spawn_blocking(move || {
-            extract_pdf_preview_text(&preview_path, 3, 12_000)
-        }).await.ok().flatten().unwrap_or_default();
+        let mut preview_text =
+            tokio::task::spawn_blocking(move || extract_pdf_preview_text(&preview_path, 3, 12_000))
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or_default();
         eprintln!(
             "[paper-import][{}] preview extracted: chars={} elapsed_ms={}",
             pid,
@@ -602,7 +605,10 @@ pub async fn papers_upload(
             preview_started_at.elapsed().as_millis()
         );
         if preview_text.is_empty() {
-            eprintln!("[paper-import][{}] preview unavailable: lopdf preview extraction returned empty", pid);
+            eprintln!(
+                "[paper-import][{}] preview unavailable: lopdf preview extraction returned empty",
+                pid
+            );
         }
 
         // ③ 等待全文提取完成（此时①可能已基本完成）
@@ -659,7 +665,8 @@ pub async fn papers_upload(
         let venue_and_kw_started_at = Instant::now();
         let inferred_venue = infer_from_text(&preview_text).map(|tag| tag.full_name);
         let preview_keywords = extract_keywords_from_text(&preview_text);
-        let preview_tags = serde_json::to_string(&preview_keywords).unwrap_or_else(|_| "[]".to_string());
+        let preview_tags =
+            serde_json::to_string(&preview_keywords).unwrap_or_else(|_| "[]".to_string());
         if inferred_venue.is_some() || !preview_keywords.is_empty() {
             let now = chrono::Utc::now().to_rfc3339();
             let _ = sqlx::query(
@@ -695,9 +702,21 @@ pub async fn papers_upload(
         );
 
         if let Some(ref metadata) = metadata_opt {
-            let meta_title = if recognize_title { clean_optional_text(metadata.title.clone()) } else { None };
-            let meta_authors = if recognize_authors { clean_optional_text(metadata.authors.clone()) } else { None };
-            let meta_year: Option<i64> = if recognize_year { metadata.year.filter(|v| *v > 0) } else { None };
+            let meta_title = if recognize_title {
+                clean_optional_text(metadata.title.clone())
+            } else {
+                None
+            };
+            let meta_authors = if recognize_authors {
+                clean_optional_text(metadata.authors.clone())
+            } else {
+                None
+            };
+            let meta_year: Option<i64> = if recognize_year {
+                metadata.year.filter(|v| *v > 0)
+            } else {
+                None
+            };
             let meta_venue = if recognize_venue {
                 clean_optional_text(metadata.venue.clone()).or(inferred_venue.clone())
             } else {
@@ -717,7 +736,10 @@ pub async fn papers_upload(
             .bind(&pid)
             .execute(&db)
             .await;
-            let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "metadata" }));
+            let _ = app.emit(
+                "paper:status",
+                json!({ "paper_id": pid, "status": "metadata" }),
+            );
             eprintln!("[paper-import][{}] status=metadata emitted", pid);
         }
 

@@ -27,18 +27,20 @@ fn assert_runtime_ready_for_release() {
     );
     let runtime_dir = manifest_dir.join("markitdown-runtime");
     let runtime_metadata_path = runtime_dir.join("_runtime.json");
-    let metadata_contents = std::fs::read_to_string(&runtime_metadata_path).unwrap_or_else(|error| {
-        panic!(
-            "failed to read markitdown runtime metadata at {}: {error}",
-            runtime_metadata_path.display()
-        )
-    });
-    let metadata: RuntimeMetadata = serde_json::from_str(&metadata_contents).unwrap_or_else(|error| {
-        panic!(
-            "failed to parse markitdown runtime metadata at {}: {error}",
-            runtime_metadata_path.display()
-        )
-    });
+    let metadata_contents =
+        std::fs::read_to_string(&runtime_metadata_path).unwrap_or_else(|error| {
+            panic!(
+                "failed to read markitdown runtime metadata at {}: {error}",
+                runtime_metadata_path.display()
+            )
+        });
+    let metadata: RuntimeMetadata =
+        serde_json::from_str(&metadata_contents).unwrap_or_else(|error| {
+            panic!(
+                "failed to parse markitdown runtime metadata at {}: {error}",
+                runtime_metadata_path.display()
+            )
+        });
 
     if metadata.python_executable.trim().is_empty() || metadata.site_packages.trim().is_empty() {
         panic!(

@@ -431,8 +431,7 @@ pub fn resolve_temperature_chain(
 const USER_AGENT: &str = "claude-code/1.0";
 
 fn compact_preview(text: &str, max_chars: usize) -> String {
-    text
-        .chars()
+    text.chars()
         .take(max_chars)
         .collect::<String>()
         .split_whitespace()
@@ -440,7 +439,12 @@ fn compact_preview(text: &str, max_chars: usize) -> String {
         .join(" ")
 }
 
-fn format_openai_http_error(status: reqwest::StatusCode, body: &str, base_url: &str, label: &str) -> String {
+fn format_openai_http_error(
+    status: reqwest::StatusCode,
+    body: &str,
+    base_url: &str,
+    label: &str,
+) -> String {
     let preview = compact_preview(body.trim(), 240);
     let lower = preview.to_ascii_lowercase();
     let is_html = lower.contains("<html") || lower.contains("<!doctype html");
@@ -493,7 +497,12 @@ async fn openai_chat(
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await?;
-        return Err(anyhow!(format_openai_http_error(status, &text, base_url, "LLM API error")));
+        return Err(anyhow!(format_openai_http_error(
+            status,
+            &text,
+            base_url,
+            "LLM API error"
+        )));
     }
     let json: serde_json::Value = resp.json().await?;
     Ok(json["choices"][0]["message"]["content"]
@@ -593,7 +602,12 @@ async fn embed_openai(
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await?;
-        return Err(anyhow!(format_openai_http_error(status, &text, base_url, "Embedding error")));
+        return Err(anyhow!(format_openai_http_error(
+            status,
+            &text,
+            base_url,
+            "Embedding error"
+        )));
     }
     let json: serde_json::Value = resp.json().await?;
     let data = json["data"]

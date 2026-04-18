@@ -345,9 +345,14 @@ async fn run_chat(
         .map(|v| v == "true")
         .unwrap_or(true);
     let long_term_memory_enabled = is_long_term_memory_enabled(settings);
-    let context_summary =
-        build_chat_context_summary(db, context_type, context_id, message, long_term_memory_enabled)
-            .await;
+    let context_summary = build_chat_context_summary(
+        db,
+        context_type,
+        context_id,
+        message,
+        long_term_memory_enabled,
+    )
+    .await;
 
     let full = if multi_agent {
         run_agentic(

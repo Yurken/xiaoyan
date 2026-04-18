@@ -103,7 +103,9 @@ fn extract_search_tokens(text: &str) -> Vec<String> {
 }
 
 fn compact_query_text(text: &str) -> String {
-    text.chars().filter(|ch| !ch.is_whitespace()).collect::<String>()
+    text.chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>()
 }
 
 fn score_field(field: &str, token: &str, base_score: i64) -> i64 {
@@ -118,7 +120,11 @@ fn score_field(field: &str, token: &str, base_score: i64) -> i64 {
     }
 }
 
-fn score_candidate(candidate: &MemoryObservationCandidate, query: &str, query_tokens: &[String]) -> i64 {
+fn score_candidate(
+    candidate: &MemoryObservationCandidate,
+    query: &str,
+    query_tokens: &[String],
+) -> i64 {
     let title = candidate.title.to_lowercase();
     let summary = candidate.summary.to_lowercase();
     let narrative = candidate.narrative.to_lowercase();
@@ -284,7 +290,14 @@ async fn build_memory_context_internal(db: &SqlitePool, query: Option<&str>) -> 
 
     let observation_lines = relevant_observations
         .iter()
-        .map(|item| format!("  {} [{}] {}", format_short_timestamp(&item.created_at), item.source, item.summary))
+        .map(|item| {
+            format!(
+                "  {} [{}] {}",
+                format_short_timestamp(&item.created_at),
+                item.source,
+                item.summary
+            )
+        })
         .collect::<Vec<_>>();
 
     let recent_rows = sqlx::query(
@@ -359,7 +372,10 @@ async fn build_memory_context_internal(db: &SqlitePool, query: Option<&str>) -> 
         parts.push(format!("{section_title}\n{}", observation_lines.join("\n")));
     }
     if !recent_lines.is_empty() {
-        parts.push(format!("[近期操作（最近3小时）]\n{}", recent_lines.join("\n")));
+        parts.push(format!(
+            "[近期操作（最近3小时）]\n{}",
+            recent_lines.join("\n")
+        ));
     }
     if !hist_lines.is_empty() {
         parts.push(format!("[历史摘要（近7天）]\n{}", hist_lines.join("\n")));
