@@ -25,6 +25,9 @@
       "webviewInstallMode": {
         "silent": true,
         "type": "offlineInstaller"
+      },
+      "wix": {
+        "language": "zh-CN"
       }
     },
     "icon": [
