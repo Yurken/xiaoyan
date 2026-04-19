@@ -4,7 +4,7 @@ import {
   AlertCircle,
   CheckCircle,
   ChevronDown,
-  ChevronUp,
+  Eye,
   FileText,
   Loader2,
   Pencil,
@@ -13,43 +13,18 @@ import {
   X,
 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
-import { Badge, Button, Card, Input, MarkdownRenderer, Select } from "@research-copilot/ui";
+import { Badge, Button, Card, Input, Select } from "@research-copilot/ui";
 import type { Paper, ResearchInterest } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, VenueTypeBadge, WosIndexBadge } from "../components/CcfBadges";
 import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
+import PaperDetailModal from "../features/papers/PaperDetailModal";
+import type { PaperFigure } from "../features/papers/shared";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, parsePaperTagVisibility } from "../lib/paperTags";
 
 function interestFolderName(interest: ResearchInterest) {
   return interest.folder_name?.trim() || interest.topic;
-}
-
-type PaperFigure = { id: string; fig_index: number; caption: string | null; data_url: string };
-
-/** Parse figure/table reference numbers from analysis text and match against extracted figures. */
-function findReferencedFigures(text: string, figures: PaperFigure[]): PaperFigure[] {
-  if (!figures.length || !text) return [];
-  const refs = new Set<number>();
-  const patterns = [/\bfig(?:ure)?\.?\s*(\d+)/gi, /\b图\s*(\d+)/g, /\btable\s*(\d+)/gi, /\b表\s*(\d+)/g];
-  for (const pat of patterns) {
-    const re = new RegExp(pat.source, pat.flags);
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) refs.add(parseInt(m[1], 10));
-  }
-  if (!refs.size) return [];
-  const result: PaperFigure[] = [];
-  const usedIds = new Set<string>();
-  for (const n of refs) {
-    const byCaption = figures.find(f => {
-      if (!f.caption || usedIds.has(f.id)) return false;
-      const c = f.caption.toLowerCase();
-      return [`figure ${n}`, `fig. ${n}`, `fig ${n}`, `table ${n}`, `图${n}`, `表${n}`].some(p => c.includes(p));
-    });
-    const match = byCaption ?? figures.find(f => f.fig_index === n && !usedIds.has(f.id));
-    if (match) { usedIds.add(match.id); result.push(match); }
-  }
-  return result;
 }
 
 export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
@@ -63,7 +38,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [uploading, setUploading] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [detailPaperId, setDetailPaperId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [confirmDeletePaperId, setConfirmDeletePaperId] = useState<string | null>(null);
@@ -76,7 +51,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [recognizeFlags, setRecognizeFlags] = useState<RecognizeFlags>({
     title: true, authors: true, year: true, venue: true, keywords: true,
   });
-  const [paperFigures, setPaperFigures] = useState<Record<string, Array<{ id: string; fig_index: number; caption: string | null; data_url: string }>>>({});
+  const [paperFigures, setPaperFigures] = useState<Record<string, PaperFigure[]>>({});
 
   const recognizeRef = useClickOutside(recognizeOpen, () => setRecognizeOpen(false));
 
@@ -246,27 +221,10 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ungroupedBase, sortKeys, keywordFilters, titleFilters]);
 
-  // Pre-compute figure-to-section mapping for the expanded paper to avoid
-  // re-running regex on every render. Keyed by paper id + figures identity.
-  const expandedSectionFigs = useMemo(() => {
-    if (!expanded) return null;
-    const figs = paperFigures[expanded];
-    if (!figs) return null;
-    const paper = papers.find((p) => p.id === expanded);
-    if (!paper?.analysis) return null;
-    type AnalysisKey = "research_question" | "core_method" | "experiment_design" |
-      "experiment_results" | "innovations" | "limitations" | "key_conclusions";
-    const SECTION_KEYS: AnalysisKey[] = [
-      "research_question", "core_method", "experiment_design",
-      "experiment_results", "innovations", "limitations", "key_conclusions",
-    ];
-    const result: Record<string, PaperFigure[]> = {};
-    for (const key of SECTION_KEYS) {
-      const text = String(paper.analysis[key] ?? "");
-      result[key] = findReferencedFigures(text, figs);
-    }
-    return result;
-  }, [expanded, paperFigures, papers]);
+  const detailPaper = useMemo(
+    () => papers.find((paper) => paper.id === detailPaperId) ?? null,
+    [detailPaperId, papers],
+  );
 
   const toFilePath = (item: unknown): string => {
     if (typeof item === "string") return item;
@@ -393,15 +351,15 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     };
   }, []);
 
-  // Fetch figures when a paper is expanded for the first time
+  // Fetch figures when the detail modal opens for the first time.
   useEffect(() => {
-    if (!expanded || paperFigures[expanded] !== undefined) return;
-    void apiClient.papers.listFigures(expanded).then((figs) => {
-      setPaperFigures((prev) => ({ ...prev, [expanded]: figs }));
+    if (!detailPaperId || paperFigures[detailPaperId] !== undefined) return;
+    void apiClient.papers.listFigures(detailPaperId).then((figs) => {
+      setPaperFigures((prev) => ({ ...prev, [detailPaperId]: figs }));
     }).catch(() => {
-      setPaperFigures((prev) => ({ ...prev, [expanded]: [] }));
+      setPaperFigures((prev) => ({ ...prev, [detailPaperId]: [] }));
     });
-  }, [expanded]);
+  }, [detailPaperId, paperFigures]);
 
   const handleAnalyze = async (id: string) => {
     try {
@@ -784,8 +742,8 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             <button
               type="button"
               onClick={() => {
-                const isOpening = expanded !== paper.id;
-                setExpanded(expanded === paper.id ? null : paper.id);
+                const isOpening = detailPaperId !== paper.id;
+                setDetailPaperId(isOpening ? paper.id : null);
                 if (isOpening) {
                   void apiClient.memory.add({
                     type: "auto",
@@ -795,10 +753,15 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                   });
                 }
               }}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-tertiary hover:text-ink-primary transition-colors"
-              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }}
+              className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
+              style={{
+                background: "var(--rc-surface)",
+                boxShadow: detailPaperId === paper.id ? "var(--rc-inset-shadow)" : "var(--rc-chip-shadow)",
+                color: detailPaperId === paper.id ? "#007AFF" : "var(--rc-text-secondary)",
+              }}
+              title={detailPaperId === paper.id ? "关闭详情" : "查看详情"}
             >
-              {expanded === paper.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              <Eye className="h-4 w-4" />
             </button>
           )}
           </div>
@@ -963,103 +926,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         <p className="mt-2 border-t border-black/5 pt-2 text-[11px] leading-relaxed text-ink-tertiary/80">{paper.notes}</p>
       )}
 
-      {expanded === paper.id && (paper.analysis || paper.reproduction_guide) && (
-        <div className="mt-3 border-t border-nm-dark/10 pt-3 space-y-5">
-          {paper.analysis && (() => {
-            const SECTIONS: Array<{ key: keyof typeof paper.analysis; label: string; color: string; bg: string }> = [
-              { key: "research_question", label: "研究问题", color: "#007AFF", bg: "rgba(0,122,255,0.05)" },
-              { key: "core_method",       label: "核心方法", color: "#AF52DE", bg: "rgba(175,82,222,0.05)" },
-              { key: "experiment_design", label: "实验设计", color: "#5856D6", bg: "rgba(88,86,214,0.05)" },
-              { key: "experiment_results",label: "实验结果", color: "#34C759", bg: "rgba(52,199,89,0.05)" },
-              { key: "innovations",       label: "创新点",   color: "#FF9500", bg: "rgba(255,149,0,0.05)" },
-              { key: "limitations",       label: "局限性",   color: "#FF3B30", bg: "rgba(255,59,48,0.05)" },
-              { key: "key_conclusions",   label: "关键结论", color: "#00C7BE", bg: "rgba(0,199,190,0.05)" },
-            ];
-            const filled = SECTIONS.filter(({ key }) => paper.analysis![key]);
-            if (filled.length === 0) return null;
-            const figs = paperFigures[paper.id] ?? [];
-            const sectionFigs = filled.map(({ key }) =>
-              (paper.id === expanded && expandedSectionFigs)
-                ? (expandedSectionFigs[key] ?? [])
-                : findReferencedFigures(String(paper.analysis![key] ?? ""), figs)
-            );
-            return (
-              <div className="space-y-2.5">
-                <p className="text-[11px] font-semibold text-ink-tertiary tracking-widest uppercase pl-0.5">小妍解读</p>
-                {filled.map(({ key, label, color, bg }, i) => (
-                  <div
-                    key={key}
-                    className="rounded-2xl overflow-hidden"
-                    style={{ background: bg, borderLeft: `3px solid ${color}` }}
-                  >
-                    <div className="px-3 pt-2.5 pb-0.5">
-                      <span
-                        className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                        style={{ background: `${color}18`, color }}
-                      >
-                        {label}
-                      </span>
-                    </div>
-                    <div className="px-3 pt-1 pb-3">
-                      <MarkdownRenderer content={String(paper.analysis![key] ?? "")} />
-                      {sectionFigs[i].length > 0 && (
-                        <div
-                          className="mt-2.5 pt-2.5 space-y-3"
-                          style={{ borderTop: `1px solid ${color}20` }}
-                        >
-                          {sectionFigs[i].map(fig => (
-                            <div key={fig.id} className="flex flex-col items-center gap-1.5">
-                              <img
-                                src={fig.data_url}
-                                alt={fig.caption ?? `图 ${fig.fig_index}`}
-                                title={fig.caption ?? undefined}
-                                loading="lazy"
-                                className="rounded-xl object-contain mx-auto"
-                                style={{ maxWidth: "100%", maxHeight: 400, background: "rgba(0,0,0,0.03)", border: `1px solid ${color}30` }}
-                              />
-                              {fig.caption && (
-                                <span className="text-[10px] text-ink-tertiary text-center leading-snug px-2">{fig.caption}</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-          {paper.reproduction_guide && (
-            <div className="space-y-3">
-              <p className="text-[11px] font-semibold text-ink-tertiary tracking-widest uppercase pl-0.5">复现指南</p>
-              {(
-                [
-                  ["代码仓库", paper.reproduction_guide.code_repository],
-                  ["环境配置", paper.reproduction_guide.environment_setup],
-                  ["依赖安装", paper.reproduction_guide.dependencies],
-                  ["数据准备", paper.reproduction_guide.dataset_preparation],
-                  ["训练流程", paper.reproduction_guide.training_process],
-                  ["推理流程", paper.reproduction_guide.inference_process],
-                  ["评估指标", paper.reproduction_guide.evaluation_metrics],
-                  ["风险与注意事项", paper.reproduction_guide.risks_and_notes],
-                ] as [string, string | undefined][]
-              )
-                .filter(([, value]) => value && value !== "暂无")
-                .map(([label, value]) => (
-                  <div key={label} className="rounded-2xl overflow-hidden" style={{ background: "rgba(0,122,255,0.04)", borderLeft: "3px solid rgba(0,122,255,0.4)" }}>
-                    <div className="px-3 pt-2.5 pb-0.5">
-                      <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}>{label}</span>
-                    </div>
-                    <div className="px-3 pt-1 pb-3">
-                      <MarkdownRenderer content={value ?? ""} />
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )}
-        </div>
-      )}
     </Card>
   );
 
@@ -1286,6 +1152,11 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           )}
         </div>
       )}
+      <PaperDetailModal
+        paper={detailPaper}
+        figures={detailPaper ? (paperFigures[detailPaper.id] ?? []) : []}
+        onClose={() => setDetailPaperId(null)}
+      />
     </div>
     </>
   );
