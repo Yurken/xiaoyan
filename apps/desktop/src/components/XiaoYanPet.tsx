@@ -180,6 +180,7 @@ export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}
   const isDragging    = useRef(false);
   const dragStart     = useRef({ x: 0, y: 0, right: 16, bottom: 16 });
 
+  const containerRef  = useRef<HTMLDivElement>(null);
   const objectRef     = useRef<HTMLObjectElement>(null);
 
   // ── 核心：SVG 切换 ────────────────────────────────────────────────────────
@@ -448,10 +449,23 @@ export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}
   useEffect(() => {
     let raf: number;
     let tx = 0, ty = 0, cx = 0, cy = 0;
+
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(max, Math.max(min, value));
+
     const onMove = (e: MouseEvent) => {
-      tx = (e.clientX / window.innerWidth)  * 2 - 1;
-      ty = (e.clientY / window.innerHeight) * 2 - 1;
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return;
+
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const normalizedX = (e.clientX - centerX) / (rect.width / 2);
+      const normalizedY = (e.clientY - centerY) / (rect.height / 2);
+
+      tx = clamp(normalizedX, -1, 1);
+      ty = clamp(normalizedY, -1, 1);
     };
+
     const tick = () => {
       raf = requestAnimationFrame(tick);
       if (currentShown.current !== SVG.idle) return;
@@ -577,7 +591,10 @@ export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}
 
   if (inline) {
     return (
-      <div className="w-full flex justify-center py-2 select-none relative group">
+      <div
+        ref={containerRef}
+        className="w-full flex justify-center py-2 select-none relative group"
+      >
         {tooltip}
         <object
           ref={objectRef}
@@ -595,6 +612,7 @@ export default function XiaoYanPet({ inline = false }: { inline?: boolean } = {}
 
   return (
     <div
+      ref={containerRef}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
