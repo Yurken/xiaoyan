@@ -13,7 +13,7 @@
 
 - PDF、图片、DOCX、PPTX、XLSX 等多种输入格式
 - Markdown、JSON 等结构化输出
-- OCR / VLM / pipeline 等多后端模式
+- OCR、VLM、pipeline 等多后端模式
 - 本地、CLI、REST API、Docker 等多种接入方式
 
 本规划的目标不是立刻替换现有解析链路，而是为后续把 MinerU 逐步接入小妍系统提供一份可执行的路线图。
@@ -29,10 +29,10 @@
 
 ### 非目标
 
-- 不在第一阶段直接删除现有 `lopdf`、MarkItDown、图片抽取链路。
+- 不在第一阶段直接删除现有 `pdf_extract`、`lopdf` 与图片抽取链路。
 - 不把 MinerU 接成“唯一解析路径”，避免一次性切换导致整体回退困难。
 - 不在第一阶段引入重型远程服务依赖，桌面端仍以本地优先为原则。
-- 不把本规划等同于立即上线 OCR / VLM 全量能力，模型与算力问题要单独评估。
+- 不把本规划等同于立即上线 OCR 或 VLM 全量能力，模型与算力问题要单独评估。
 
 ## 当前系统中的接入位点
 
@@ -41,30 +41,28 @@
 - `apps/desktop/src-tauri/src/commands/papers.rs`
   - `papers_upload`
   - `papers_extract_pdf_text`
-  - 导入后的 source 文件落盘、分析、chunk、embedding、figure 提取
+  - 导入后的预览提取、全文写库、分析、chunk、embedding、figure 提取
 - `apps/desktop/src-tauri/src/commands/paper_text.rs`
   - 预览文本提取
   - 正文提取
-  - 多提取器质量比较与回退
+  - `pdf_extract` 与 `lopdf` 的回退策略
+- `apps/desktop/src-tauri/src/commands/paper_analysis_text.rs`
+  - 关键词抽取、分析用文本清洗与章节切分
 - `apps/desktop/src-tauri/src/commands/paper_artifacts.rs`
-  - `source.md`、`source.txt`、`source_fix.md` 等产物落盘
-- `apps/desktop/src-tauri/src/commands/paper_source_fix.rs`
-  - 多源文本互证与修正
-- `apps/desktop/src-tauri/src/markitdown_runtime.rs`
-  - 当前内置文档转 Markdown 运行时
+  - 论文目录与 `figures/` 产物目录管理
 
-从职责边界看，MinerU 最适合先接到“文档解析能力层”，而不是直接侵入页面或上层产品流程。也就是说，未来应新增一个面向文档解析的 adapter / runtime 层，由它决定：
+从职责边界看，MinerU 最适合先接到“文档解析能力层”，而不是直接侵入页面或上层产品流程。也就是说，未来应新增一个面向文档解析的 adapter 或 runtime 层，由它决定：
 
 - 使用哪一个解析器
-- 输出哪些源文件
-- 是否需要 OCR / 版面分析 / 表格公式恢复
+- 输出哪些原始产物
+- 是否需要 OCR、版面分析、表格公式恢复
 - 哪个结果作为下游分析输入
 
 ## 建议的接入原则
 
 ### 1. 先并行，后切换
 
-MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf` / MarkItDown 共存，而不是立刻替换主链路。
+MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `pdf_extract` 和 `lopdf` 链路共存，而不是立刻替换主链路。
 
 ### 2. 先能力层，后产品层
 
@@ -74,7 +72,7 @@ MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf
 
 桌面端仍然坚持本地优先：
 
-- 开发与实验阶段优先接本地 CLI / Python runtime
+- 开发与实验阶段优先接本地 CLI 或 Python runtime
 - 只有在本地封装成本过高时，才考虑 sidecar API 或独立服务进程
 
 ### 4. 先保真，后增量
@@ -90,18 +88,18 @@ MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf
 
 ### 方案 A：本地 CLI 适配
 
-由桌面端在本地直接调用 `F:/MinerU` 或封装后的 MinerU 运行时，读取 Markdown / JSON 结果。
+由桌面端在本地直接调用 `F:/MinerU` 或封装后的 MinerU 运行时，读取 Markdown 或 JSON 结果。
 
 优点：
 
-- 与当前 MarkItDown runtime 的接入方式最接近
+- 与当前桌面端本地解析命令层的接入方式最接近
 - 便于本地调试与灰度
 - 不必立刻维护常驻服务
 
 风险：
 
 - Python 依赖、模型依赖、平台差异带来的打包复杂度较高
-- Windows / macOS / Linux 的运行时封装成本可能明显高于 MarkItDown
+- Windows、macOS、Linux 的运行时封装成本可能明显高于当前轻量 PDF 解析链路
 
 适用阶段：
 
@@ -143,7 +141,7 @@ MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf
 
 适用阶段：
 
-- 明确有多人协作或重型 OCR / VLM 需求后再考虑
+- 明确有多人协作或重型 OCR、VLM 需求后再考虑
 
 ## 分阶段路线
 
@@ -159,10 +157,10 @@ MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf
   - 扫描版 PDF
   - 表格密集文档
   - 含大量公式的论文
-  - DOCX / PPTX / XLSX 示例文档
+  - DOCX、PPTX、XLSX 示例文档
 - 对比以下结果
+  - `pdf_extract`
   - `lopdf`
-  - MarkItDown
   - MinerU
 - 统一评估维度
   - 标题与段落保真
@@ -188,9 +186,9 @@ MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf
   - `document_parse_runtime.rs`
   - `mineru_runtime.rs`
 - 在 `papers_upload` 中增加解析器选择能力
-  - 继续保留现有双源 `source.md` / `source.txt`
-  - 新增 MinerU 产物，例如 `source_mineru.md`、`source_mineru.json`
-- 将 MinerU 的输出纳入现有“多源互证 + source_fix”流程
+  - 继续保留现有 `preview_text` 与 `full_text` 主流程
+  - 新增 MinerU 产物，例如 `mineru.md`、`mineru.json`
+- 将 MinerU 的输出接入统一的文本归一化与质量选择流程
 - 在设置中增加实验开关
   - 关闭：完全不影响现有用户
   - 开启：导入时并行生成 MinerU 结果
@@ -199,7 +197,7 @@ MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf
 
 - 不影响现有论文导入成功率
 - 新增产物可稳定落盘
-- 对复杂论文样本，`source_fix` 的质量明显提升
+- 对复杂论文样本，最终进入分析链路的正文质量明显提升
 
 ### Phase 2：把 MinerU 结果接入下游能力
 
@@ -210,8 +208,8 @@ MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf
 - 关键词生成
 - 小妍解读
 - 复现指南
-- chunk / embedding 输入文本
-- figure / table / formula 的引用上下文
+- chunk、embedding 输入文本
+- figure、table、formula 的引用上下文
 
 策略建议：
 
@@ -223,11 +221,10 @@ MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf
 
 - `source bundle`
   - 原始 PDF
-  - `source.txt`
-  - `source.md`
-  - `source_mineru.md`
-  - `source_mineru.json`
-  - `source_fix.md`
+  - `preview_text`
+  - `full_text`
+  - `mineru.md`
+  - `mineru.json`
   - 图片与图表资产
 
 阶段标准：
@@ -252,7 +249,7 @@ MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf
 产品侧可能衍生的能力：
 
 - 非 PDF 研究资料统一纳入知识资产体系
-- 表格 / 幻灯片内容进入长期知识库
+- 表格与幻灯片内容进入长期知识库
 - 跨文档检索与引用体验更一致
 
 ### Phase 4：是否升级为长期默认方案
@@ -275,16 +272,16 @@ MinerU 第一阶段应作为“并行候选解析器”接入，与现有 `lopdf
 
 ### 1. 运行时与打包复杂度
 
-MinerU 的依赖体量与模型能力明显重于当前 MarkItDown runtime。接入前必须评估：
+MinerU 的依赖体量与模型能力明显重于当前 `pdf_extract` 和 `lopdf` 链路。接入前必须评估：
 
-- Windows / macOS 的可封装性
+- Windows、macOS 的可封装性
 - 首次安装体积
 - 更新策略
 - 是否允许按需下载
 
 ### 2. 性能与超时
 
-复杂解析能力通常更慢，尤其在 OCR / VLM 模式下。需要提前定义：
+复杂解析能力通常更慢，尤其在 OCR 或 VLM 模式下。需要提前定义：
 
 - 导入阶段的超时策略
 - 前台与后台任务分工
@@ -294,8 +291,8 @@ MinerU 的依赖体量与模型能力明显重于当前 MarkItDown runtime。接
 
 MinerU 可能同时输出 Markdown、JSON、图片与中间结构。必须提前定义：
 
-- 哪个文件是“原始结果”
-- 哪个文件是“修正版”
+- 哪个文件是原始结果
+- 哪个文件是归一化结果
 - 哪个文件进入下游分析
 
 ### 4. 权限与隐私
@@ -310,11 +307,10 @@ MinerU 可能同时输出 Markdown、JSON、图片与中间结构。必须提前
 
 如果未来正式接入 MinerU，建议在论文目录下统一保存解析产物，而不是散落到单一路径中：
 
-- `source.txt`
-- `source.md`
-- `source_fix.md`
-- `source_mineru.md`
-- `source_mineru.json`
+- `preview.txt`
+- `full_text.txt`
+- `mineru.md`
+- `mineru.json`
 - `figures/`
 - `tables/`
 - `artifacts.json`
