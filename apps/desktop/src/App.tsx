@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Routes, Route, NavLink } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate } from "react-router-dom";
 import {
   BookOpen,
   FileText,
@@ -39,7 +39,7 @@ const navItems = [
   { to: "/survey", icon: BookOpen, label: "综述" },
   { to: "/papers", icon: FileText, label: "论文" },
   { to: "/knowledge", icon: Library, label: "知识" },
-  { to: "/copilot", icon: MessageSquare, label: "小妍" },
+  { to: "/xiaoyan", icon: MessageSquare, label: "小妍" },
   { to: "/experiment", icon: FlaskConical, label: "实验" },
   { to: "/submission", icon: Send, label: "投稿" },
   { to: "/tools", icon: Wrench, label: "工具" },
@@ -115,7 +115,8 @@ export default function App() {
           <Route path="/submission" element={<Submission />} />
           <Route path="/experiment" element={<Experiment />} />
           <Route path="/tools" element={<Tools />} />
-          <Route path="/copilot" element={<Copilot />} />
+          <Route path="/xiaoyan" element={<Copilot />} />
+          <Route path="/copilot" element={<Navigate to="/xiaoyan" replace />} />
           <Route path="/knowledge" element={<Knowledge />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>

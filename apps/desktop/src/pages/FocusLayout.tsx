@@ -344,13 +344,15 @@ function FocusHome() {
 
 // ─── Focus Workbench ─────────────────────────────────────────────────────────
 
-type FreeTab = "survey" | "papers" | "knowledge" | "copilot" | "tools";
+type FreeTab = "survey" | "papers" | "knowledge" | "xiaoyan" | "tools";
+
+type LegacyFreeTab = FreeTab | "copilot";
 
 const FREE_TABS: Array<{ key: FreeTab; label: string; icon: typeof Sparkles }> = [
   { key: "survey",    label: "综述",    icon: BookOpen },
   { key: "papers",    label: "论文",    icon: FileText },
   { key: "knowledge", label: "知识",    icon: Library },
-  { key: "copilot",   label: "对话",    icon: MessageSquare },
+  { key: "xiaoyan",   label: "小妍",    icon: MessageSquare },
   { key: "tools",     label: "工具",    icon: Wrench },
 ];
 
@@ -358,9 +360,14 @@ function isFreeTab(value?: string): value is FreeTab {
   return FREE_TABS.some((item) => item.key === value);
 }
 
+function normalizeFreeTab(value?: string): FreeTab {
+  if (value === "copilot") return "xiaoyan";
+  return isFreeTab(value) ? value : "survey";
+}
+
 const BASE_INTEREST_TABS: Array<{ key: InterestTab; label: string; icon: typeof Sparkles }> = [
   { key: "papers",  label: "论文", icon: FileText },
-  { key: "copilot", label: "对话", icon: MessageSquare },
+  { key: "xiaoyan", label: "小妍", icon: MessageSquare },
   { key: "notes",   label: "笔记", icon: Library },
   { key: "tools",   label: "工具", icon: Wrench },
 ];
@@ -421,7 +428,7 @@ function FocusWorkbench() {
   const [interestTab, setInterestTab] = useState<InterestTab>("papers");
   const [stats, setStats] = useState({ papers: 0, sessions: 0, notes: 0 });
   const isFree = interestId === "free";
-  const freeTab = isFreeTab(tab) ? tab : "survey";
+  const freeTab = normalizeFreeTab(tab);
 
   const interestTabs = interest?.status === "planned"
     ? [PLANNER_TAB, ...BASE_INTEREST_TABS]
@@ -467,7 +474,7 @@ function FocusWorkbench() {
       case "survey":    return <Survey hideFolders />;
       case "papers":    return <Papers hideFolders />;
       case "knowledge": return <Knowledge hideFolders />;
-      case "copilot":   return <Copilot hideFolders />;
+      case "xiaoyan":   return <Copilot hideFolders />;
       case "tools":     return <Tools />;
     }
   })();
@@ -612,8 +619,9 @@ function FocusSettingsWrapper() {
   );
 }
 
-function FocusLegacyRouteRedirect({ tab }: { tab: WorkbenchTab }) {
-  return <Navigate to={`/workbench/free/${tab}`} replace />;
+function FocusLegacyRouteRedirect({ tab }: { tab: LegacyFreeTab }) {
+  const normalized = tab === "copilot" ? "xiaoyan" : tab;
+  return <Navigate to={`/workbench/free/${normalized}`} replace />;
 }
 
 // ─── Focus App (top-level) ────────────────────────────────────────────────────
@@ -630,6 +638,7 @@ export default function FocusApp() {
           <Route path="/survey" element={<FocusLegacyRouteRedirect tab="survey" />} />
           <Route path="/papers" element={<FocusLegacyRouteRedirect tab="papers" />} />
           <Route path="/knowledge" element={<FocusLegacyRouteRedirect tab="knowledge" />} />
+          <Route path="/xiaoyan" element={<FocusLegacyRouteRedirect tab="xiaoyan" />} />
           <Route path="/copilot" element={<FocusLegacyRouteRedirect tab="copilot" />} />
           <Route path="/tools" element={<FocusLegacyRouteRedirect tab="tools" />} />
           <Route path="/settings" element={<FocusSettingsWrapper />} />

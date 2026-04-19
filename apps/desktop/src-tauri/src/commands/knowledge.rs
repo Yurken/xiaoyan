@@ -1019,7 +1019,7 @@ pub async fn knowledge_web_clip(
 ) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
-        .user_agent("Mozilla/5.0 (compatible; ResearchCopilot/1.0)")
+        .user_agent("Mozilla/5.0 (compatible; XiaoYan/1.0)")
         .build()
         .map_err(|e| e.to_string())?;
 

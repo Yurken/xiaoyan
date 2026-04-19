@@ -1,4 +1,4 @@
-# GitHub Copilot Instructions — 小妍 Copilot
+# GitHub Copilot Instructions — 小妍
 
 ## Design Context
 

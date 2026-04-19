@@ -44,7 +44,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-export default function CopilotScreen() {
+export default function XiaoYanScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);

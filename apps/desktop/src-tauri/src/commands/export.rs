@@ -43,7 +43,13 @@ pub async fn export_to_obsidian(
         return Err(format!("Vault path does not exist: {}", vault_path));
     }
 
-    let rc_dir = vault.join("ResearchCopilot");
+    let xiaoyan_dir = vault.join("小妍");
+    let legacy_dir = vault.join("ResearchCopilot");
+    let rc_dir = if xiaoyan_dir.exists() || !legacy_dir.exists() {
+        xiaoyan_dir
+    } else {
+        legacy_dir
+    };
     let notes_dir = rc_dir.join("Notes");
     let papers_dir = rc_dir.join("Papers");
 

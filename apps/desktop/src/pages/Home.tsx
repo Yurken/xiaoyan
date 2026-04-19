@@ -49,7 +49,7 @@ const quickActions = [
     iconBg: "rgba(139,92,246,0.08)",
   },
   {
-    to: "/copilot",
+    to: "/xiaoyan",
     icon: MessageSquare,
     title: `和${MAIN_ASSISTANT_NAME}对话`,
     description: "遇到研究问题时直接发问，把论文带进对话里一起讨论。",
@@ -145,7 +145,7 @@ export default function Home() {
         <div className="grid gap-6 xl:grid-cols-[1.28fr_0.92fr]">
           <div className="space-y-6">
             <div className="space-y-3">
-              <p className="rc-kicker">Research Copilot Desk</p>
+              <p className="rc-kicker">小妍研究工作台</p>
               <div className="space-y-3">
                 <h1 className="max-w-2xl text-[clamp(2rem,3.2vw,3.3rem)] font-semibold tracking-[-0.05em] text-ink-primary">
                   {PRODUCT_NAME}
@@ -163,7 +163,7 @@ export default function Home() {
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to="/copilot">
+              <Link to="/xiaoyan">
                 <Button variant="secondary">进入{MAIN_ASSISTANT_WORKSPACE_NAME}</Button>
               </Link>
             </div>
@@ -224,11 +224,7 @@ export default function Home() {
               {heroMetrics.map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-[22px] p-3"
-                  style={{
-                    background: "rgb(var(--rc-bg-rgb) / 0.16)",
-                    border: "1px solid rgb(var(--rc-border-rgb) / 0.65)",
-                  }}
+                  className="rc-home-metric-item rounded-[22px] p-3"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -313,7 +309,7 @@ export default function Home() {
               ) : (
                 <div className="space-y-2">
                   {state.interests.slice(0, 3).map((interest) => (
-                    <div key={interest.id} className="flex items-center justify-between gap-3 rounded-2xl px-3 py-2" style={{ background: "rgb(var(--rc-bg-rgb) / 0.14)" }}>
+                    <div key={interest.id} className="rc-home-asset-item flex items-center justify-between gap-3 rounded-2xl px-3 py-2">
                       <span className="truncate text-sm text-ink-secondary">{interest.topic}</span>
                       <Badge variant={interest.status === "planned" ? "success" : interest.status === "planning" ? "info" : "default"}>
                         {interest.status === "planned" ? "已规划" : interest.status === "planning" ? "处理中" : "待处理"}
@@ -341,7 +337,7 @@ export default function Home() {
               ) : (
                 <div className="space-y-2">
                   {state.notes.slice(0, 3).map((note) => (
-                    <div key={note.id} className="rounded-2xl px-3 py-2" style={{ background: "rgb(var(--rc-bg-rgb) / 0.14)" }}>
+                    <div key={note.id} className="rc-home-asset-item rounded-2xl px-3 py-2">
                       <p className="truncate text-sm font-medium text-ink-primary">{note.title}</p>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink-tertiary">{note.content}</p>
                     </div>
@@ -367,7 +363,7 @@ export default function Home() {
               ) : (
                 <div className="space-y-2">
                   {state.sessions.slice(0, 3).map((session) => (
-                    <div key={session.id} className="rounded-2xl px-3 py-2" style={{ background: "rgb(var(--rc-bg-rgb) / 0.14)" }}>
+                    <div key={session.id} className="rc-home-asset-item rounded-2xl px-3 py-2">
                       <p className="truncate text-sm font-medium text-ink-primary">{session.title || "新对话"}</p>
                       <p className="mt-1 text-xs text-ink-tertiary">
                         {new Date(session.updated_at || session.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}

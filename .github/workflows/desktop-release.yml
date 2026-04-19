@@ -30,8 +30,8 @@ jobs:
             const tag = process.env.TAG_NAME;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const releaseName = `小妍 Copilot ${tag}`;
-            const body = `## 小妍 Copilot ${tag}
+            const releaseName = `小妍 ${tag}`;
+            const body = `## 小妍 ${tag}
 
             ### 下载说明
             - **macOS Apple Silicon** -> .dmg (aarch64)

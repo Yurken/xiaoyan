@@ -779,6 +779,22 @@ html[data-style="modern-minimal"][data-theme="light"] {
       transform 160ms ease;
   }
 
+  .rc-home-metric-item {
+    background: rgb(var(--rc-bg-rgb) / 0.16);
+    border: 1px solid rgb(var(--rc-border-rgb) / 0.65);
+  }
+
+  .rc-home-asset-item {
+    background: rgb(var(--rc-bg-rgb) / 0.14);
+  }
+
+  html:not([data-style="modern-minimal"]) .rc-home-metric-item,
+  html:not([data-style="modern-minimal"]) .rc-home-asset-item {
+    background: var(--rc-chip-inset-bg);
+    box-shadow: var(--rc-chip-inset-shadow);
+    border: 1px solid var(--rc-card-inset-outline);
+  }
+
   .rc-accent-chip--interactive:hover {
     background: var(--rc-info-chip-bg-hover);
     box-shadow: var(--rc-info-chip-shadow-hover);

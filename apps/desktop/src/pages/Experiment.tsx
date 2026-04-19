@@ -10,7 +10,7 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
-import { Button, Card, Input, Select, Textarea } from "@research-copilot/ui";
+import { Button, Card, ConfirmDialog, Input, Select, Textarea } from "@research-copilot/ui";
 import { experimentApi, submissionApi, formatErrorMessage, type ExperimentAttachment } from "../lib/client";
 
 interface ExperimentRecord {
@@ -221,8 +221,10 @@ export default function Experiment() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState("");
   const [newlyCreatedId, setNewlyCreatedId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const [editTitle, setEditTitle] = useState("");
   const [editConfig, setEditConfig] = useState("{}");
@@ -313,13 +315,23 @@ export default function Experiment() {
     }
   }
 
-  async function handleDelete(id: string) {
+  function requestDelete(id: string) {
+    setPendingDeleteId(id);
+  }
+
+  async function confirmDelete() {
+    if (!pendingDeleteId) return;
     try {
-      await experimentApi.delete(id);
-      setExperiments((prev) => prev.filter((e) => e.id !== id));
-      if (selectedId === id) setSelectedId(null);
+      setDeleting(true);
+      await experimentApi.delete(pendingDeleteId);
+      setExperiments((prev) => prev.filter((e) => e.id !== pendingDeleteId));
+      if (selectedId === pendingDeleteId) setSelectedId(null);
+      if (newlyCreatedId === pendingDeleteId) setNewlyCreatedId(null);
+      setPendingDeleteId(null);
     } catch (err) {
       showToast(formatErrorMessage(err));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -382,7 +394,7 @@ export default function Experiment() {
                       <p className="text-sm font-semibold text-ink-primary truncate leading-5">{exp.title}</p>
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); void handleDelete(exp.id); }}
+                        onClick={(e) => { e.stopPropagation(); requestDelete(exp.id); }}
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-ink-tertiary hover:text-apple-red flex-shrink-0 mt-0.5"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -421,7 +433,7 @@ export default function Experiment() {
                   {newlyCreatedId === selected.id && (
                     <Button
                       variant="secondary"
-                      onClick={() => { void handleDelete(selected.id); setNewlyCreatedId(null); }}
+                      onClick={() => requestDelete(selected.id)}
                     >
                       <X className="w-4 h-4" />
                       取消
@@ -510,6 +522,22 @@ export default function Experiment() {
           {toast}
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingDeleteId)}
+        title="删除实验记录"
+        description={`确认删除「${experiments.find((item) => item.id === pendingDeleteId)?.title ?? "该实验记录"}」？此操作无法撤销。`}
+        confirmLabel="确认删除"
+        cancelLabel="取消"
+        tone="danger"
+        loading={deleting}
+        onClose={() => {
+          if (!deleting) setPendingDeleteId(null);
+        }}
+        onConfirm={() => {
+          void confirmDelete();
+        }}
+      />
     </div>
   );
 }

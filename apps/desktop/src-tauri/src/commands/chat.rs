@@ -727,7 +727,7 @@ async fn select_agents_by_llm(
     };
 
     let prompt = format!(
-        "请为一次科研 Copilot 对话选择最合适的专项 Agent。\n\
+        "请为一次小妍科研对话选择最合适的专项 Agent。\n\
 用户问题：{message}\n\
 上下文类型：{context_type}\n\
 可选 Agent：{candidates}\n\

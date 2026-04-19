@@ -133,7 +133,7 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            <Link href={`/copilot?context_type=paper&context_id=${id}&title=${encodeURIComponent(paper.title)}`}>
+            <Link href={`/xiaoyan?context_type=paper&context_id=${id}&title=${encodeURIComponent(paper.title)}`}>
               <Button variant="secondary" size="sm">
                 <MessageSquare className="w-4 h-4" />
                 对话

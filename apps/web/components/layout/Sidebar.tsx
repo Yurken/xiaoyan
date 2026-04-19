@@ -21,7 +21,7 @@ const navItems = [
   { href: "/survey", icon: BookOpen, label: "文献调研" },
   { href: "/papers", icon: FileText, label: "论文库" },
   { href: "/knowledge", icon: Library, label: "知识库" },
-  { href: "/copilot", icon: MessageSquare, label: MAIN_ASSISTANT_NAME },
+  { href: "/xiaoyan", icon: MessageSquare, label: MAIN_ASSISTANT_NAME },
   { href: "/settings", icon: SlidersHorizontal, label: "设置中心" },
 ];
 
@@ -58,7 +58,7 @@ export default function Sidebar() {
                 {PRODUCT_NAME}
               </p>
               <p className="mt-1 text-xs" style={{ color: "var(--rc-text-muted)" }}>
-                Research Copilot Desk
+                小妍研究工作台
               </p>
             </div>
           </div>

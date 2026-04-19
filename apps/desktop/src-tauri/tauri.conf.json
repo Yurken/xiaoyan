@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ResearchCopilot",
+  "productName": "小妍",
   "identifier": "com.researchcopilot.desktop",
   "version": "0.3.0",
   "build": {
@@ -39,7 +39,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "小妍 Copilot",
+        "title": "小妍",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

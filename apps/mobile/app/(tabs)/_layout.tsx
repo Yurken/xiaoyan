@@ -13,7 +13,7 @@ const tabs: {
   activeIcon: IconName;
 }[] = [
   { name: "index",     title: "论文库",    icon: "document-text-outline",    activeIcon: "document-text" },
-  { name: "copilot",   title: MAIN_ASSISTANT_NAME, icon: "chatbubble-ellipses-outline", activeIcon: "chatbubble-ellipses" },
+  { name: "xiaoyan",   title: MAIN_ASSISTANT_NAME, icon: "chatbubble-ellipses-outline", activeIcon: "chatbubble-ellipses" },
   { name: "knowledge", title: "知识库",    icon: "book-outline",              activeIcon: "book" },
   { name: "settings",  title: "设置",      icon: "settings-outline",          activeIcon: "settings" },
 ];

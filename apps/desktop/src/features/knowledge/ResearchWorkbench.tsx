@@ -13,7 +13,7 @@ import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, KnowledgeNote, 
 import Tools from "../../pages/Tools";
 import { LearningPathView } from "./InterestsPanel";
 
-export type InterestTab = "planner" | "papers" | "copilot" | "notes" | "tools";
+export type InterestTab = "planner" | "papers" | "xiaoyan" | "notes" | "tools";
 
 interface ResearchWorkbenchProps {
   interest: ResearchInterest;
@@ -404,8 +404,8 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
         </div>
       )}
 
-      {/* ── Copilot ── */}
-      {activeTab === "copilot" && (
+      {/* ── 小妍 ── */}
+      {activeTab === "xiaoyan" && (
         <div className="flex flex-col flex-1 min-h-0 p-5 gap-3">
           <div className="flex items-center justify-between gap-3 flex-shrink-0">
             <div className="flex items-center gap-2">

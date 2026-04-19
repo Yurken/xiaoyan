@@ -41,7 +41,7 @@ const features = [
     bg: "bg-amber-50",
   },
   {
-    href: "/copilot",
+    href: "/xiaoyan",
     icon: MessageSquare,
     title: MAIN_ASSISTANT_WORKSPACE_NAME,
     description: `${MAIN_ASSISTANT_NAME}会先拆解你的目标，再联动检索、综述、论文解析与复现建议形成可观测链路`,
@@ -65,7 +65,7 @@ export default function HomePage() {
         <div className="space-y-6">
           <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--rc-text-muted)" }}>
-              Research Copilot Desk
+              小妍研究工作台
             </p>
             <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.05em]" style={{ color: "var(--rc-text)" }}>
               {PRODUCT_NAME}
@@ -82,7 +82,7 @@ export default function HomePage() {
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
-            <Link href="/copilot">
+            <Link href="/xiaoyan">
               <Button variant="secondary">进入{MAIN_ASSISTANT_WORKSPACE_NAME}</Button>
             </Link>
           </div>
