@@ -15,39 +15,3 @@ pub(crate) fn paper_figures_dir(app: &AppHandle, paper_id: &str) -> Result<PathB
     fs::create_dir_all(&figures_dir).map_err(|e| format!("无法创建论文图片目录：{e}"))?;
     Ok(figures_dir)
 }
-
-pub(crate) fn save_markitdown_markdown(
-    app: &AppHandle,
-    paper_id: &str,
-    markdown: &str,
-) -> Result<PathBuf, String> {
-    save_paper_artifact(app, paper_id, "source.md", markdown)
-}
-
-pub(crate) fn save_plain_source_text(
-    app: &AppHandle,
-    paper_id: &str,
-    text: &str,
-) -> Result<PathBuf, String> {
-    save_paper_artifact(app, paper_id, "source.txt", text)
-}
-
-pub(crate) fn save_fixed_source_markdown(
-    app: &AppHandle,
-    paper_id: &str,
-    markdown: &str,
-) -> Result<PathBuf, String> {
-    save_paper_artifact(app, paper_id, "source_fix.md", markdown)
-}
-
-fn save_paper_artifact(
-    app: &AppHandle,
-    paper_id: &str,
-    filename: &str,
-    content: &str,
-) -> Result<PathBuf, String> {
-    let artifact_path = paper_dir(app, paper_id)?.join(filename);
-    fs::write(&artifact_path, content)
-        .map_err(|e| format!("无法写入论文产物文件 {}：{e}", artifact_path.display()))?;
-    Ok(artifact_path)
-}
