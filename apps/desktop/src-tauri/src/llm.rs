@@ -288,10 +288,7 @@ impl LlmClient {
                     return Err(anyhow!("Anthropic vision error: {}", resp.text().await?));
                 }
                 let json: serde_json::Value = resp.json().await?;
-                Ok(json["content"][0]["text"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string())
+                extract_anthropic_response_text(&json, "Anthropic vision error")
             }
         }
     }
@@ -302,6 +299,17 @@ impl LlmClient {
         messages: &[LlmMessage],
         model: Option<&str>,
         temperature: f32,
+    ) -> Result<String> {
+        self.chat_with_max_tokens(messages, model, temperature, 16_384)
+            .await
+    }
+
+    pub async fn chat_with_max_tokens(
+        &self,
+        messages: &[LlmMessage],
+        model: Option<&str>,
+        temperature: f32,
+        max_tokens: u32,
     ) -> Result<String> {
         match self {
             LlmClient::OpenAI {
@@ -316,7 +324,7 @@ impl LlmClient {
                     model.unwrap_or(chat_model),
                     messages,
                     temperature,
-                    4096,
+                    max_tokens,
                 )
                 .await
             }
@@ -331,7 +339,7 @@ impl LlmClient {
                     model.unwrap_or(chat_model),
                     messages,
                     temperature,
-                    4096,
+                    max_tokens,
                 )
                 .await
             }
@@ -359,7 +367,7 @@ impl LlmClient {
                     model.unwrap_or(chat_model),
                     messages,
                     temperature,
-                    4096,
+                    16_384,
                     &on_delta,
                 )
                 .await
@@ -375,7 +383,7 @@ impl LlmClient {
                     model.unwrap_or(chat_model),
                     messages,
                     temperature,
-                    4096,
+                    16_384,
                     &on_delta,
                 )
                 .await
@@ -426,6 +434,19 @@ pub fn resolve_temperature_chain(
         .unwrap_or(default)
 }
 
+pub fn resolve_max_tokens(
+    settings: &HashMap<String, String>,
+    keys: &[&str],
+    default: u32,
+) -> u32 {
+    keys.iter()
+        .filter_map(|key| settings.get(*key))
+        .map(|value| value.trim())
+        .find_map(|value| value.parse::<u32>().ok())
+        .unwrap_or(default)
+        .clamp(256, 32_768)
+}
+
 // ── OpenAI helpers ──────────────────────────────────────────────
 
 const USER_AGENT: &str = "claude-code/1.0";
@@ -437,6 +458,75 @@ fn compact_preview(text: &str, max_chars: usize) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn collect_text_blocks(blocks: &[serde_json::Value]) -> String {
+    blocks
+        .iter()
+        .filter_map(|block| block.get("text").and_then(|value| value.as_str()))
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+fn extract_anthropic_response_text(
+    json: &serde_json::Value,
+    label: &str,
+) -> Result<String> {
+    if let Some(content) = json.get("content").and_then(|value| value.as_str()) {
+        let content = content.trim();
+        if !content.is_empty() {
+            return Ok(content.to_string());
+        }
+    }
+
+    if let Some(blocks) = json.get("content").and_then(|value| value.as_array()) {
+        let text = collect_text_blocks(blocks);
+        if !text.is_empty() {
+            return Ok(text);
+        }
+    }
+
+    if let Some(content) = json["choices"][0]["message"]["content"].as_str() {
+        let content = content.trim();
+        if !content.is_empty() {
+            return Ok(content.to_string());
+        }
+    }
+
+    if let Some(blocks) = json["choices"][0]["message"]["content"].as_array() {
+        let text = collect_text_blocks(blocks);
+        if !text.is_empty() {
+            return Ok(text);
+        }
+    }
+
+    let stop_reason = json
+        .get("stop_reason")
+        .and_then(|value| value.as_str())
+        .unwrap_or("unknown");
+    let block_types = json
+        .get("content")
+        .and_then(|value| value.as_array())
+        .map(|blocks| {
+            blocks
+                .iter()
+                .filter_map(|block| block.get("type").and_then(|value| value.as_str()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "none".to_string());
+    let preview = compact_preview(&json.to_string(), 320);
+
+    Err(anyhow!(
+        "{}: 响应中未找到可读取的文本内容。stop_reason={}, content_types={}, body={}",
+        label,
+        stop_reason,
+        block_types,
+        preview
+    ))
 }
 
 fn format_openai_http_error(
@@ -668,10 +758,7 @@ async fn anthropic_chat(
         return Err(anyhow!("Anthropic error: {}", text));
     }
     let json: serde_json::Value = resp.json().await?;
-    Ok(json["content"][0]["text"]
-        .as_str()
-        .unwrap_or("")
-        .to_string())
+    extract_anthropic_response_text(&json, "Anthropic error")
 }
 
 async fn stream_anthropic(

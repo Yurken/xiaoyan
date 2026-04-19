@@ -42,6 +42,9 @@ export function formatErrorMessage(error: unknown): string {
   const normalized = raw.trim();
 
   if (!normalized) return "操作未完成，请稍后重试。";
+  if (/^\?+$/.test(normalized)) {
+    return "论文解读未生成有效内容，请检查模型配置或稍后重试。";
+  }
 
   if (/<!doctype html|<html/i.test(normalized)) {
     return "接口返回了网页 HTML，而不是模型 API JSON。请检查自定义 base_url 是否填写为 OpenAI 兼容 API 根地址（通常以 /v1 结尾）。";

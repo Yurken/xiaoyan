@@ -1,18 +1,13 @@
-use crate::commands::paper_analysis_text::{build_analysis_slices, build_reproduction_context};
-use crate::commands::paper_artifacts::{
-    paper_figures_dir, save_fixed_source_markdown, save_markitdown_markdown,
-    save_plain_source_text,
-};
-use crate::commands::paper_source_fix::generate_fixed_source_markdown;
 use crate::assistant_prompts::specialist_system;
 use crate::ccf::{infer_from_text, match_venue};
+use crate::commands::paper_analysis_text::{build_analysis_slices, build_reproduction_context};
+use crate::commands::paper_artifacts::paper_figures_dir;
 use crate::commands::paper_text::{
-    extract_lopdf_full_text, extract_markitdown_text, extract_pdf_preview_text,
-    extract_pdf_text_with_filtered_stderr, preview_from_text,
+    extract_pdf_preview_text, extract_pdf_text_with_filtered_stderr, preview_from_text,
 };
 use crate::journal_partitions::match_journal;
 use crate::links::paper_reference_url;
-use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
+use crate::llm::{resolve_max_tokens, resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{chunk_text, serialize_embedding};
 use crate::state::AppState;
 use base64::{engine::general_purpose, Engine as _};
@@ -24,6 +19,45 @@ use std::time::Instant;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
+
+fn has_meaningful_text(value: Option<&str>) -> bool {
+    value.is_some_and(|text| !text.trim().is_empty())
+}
+
+fn analysis_json_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<serde_json::Value> {
+    let research_question = row.get::<Option<String>, _>("research_question");
+    let core_method = row.get::<Option<String>, _>("core_method");
+    let experiment_design = row.get::<Option<String>, _>("experiment_design");
+    let experiment_results = row.get::<Option<String>, _>("experiment_results");
+    let innovations = row.get::<Option<String>, _>("innovations");
+    let limitations = row.get::<Option<String>, _>("limitations");
+    let key_conclusions = row.get::<Option<String>, _>("key_conclusions");
+
+    if ![
+        research_question.as_deref(),
+        core_method.as_deref(),
+        experiment_design.as_deref(),
+        experiment_results.as_deref(),
+        innovations.as_deref(),
+        limitations.as_deref(),
+        key_conclusions.as_deref(),
+    ]
+    .into_iter()
+    .any(has_meaningful_text)
+    {
+        return None;
+    }
+
+    Some(json!({
+        "research_question": research_question,
+        "core_method": core_method,
+        "experiment_design": experiment_design,
+        "experiment_results": experiment_results,
+        "innovations": innovations,
+        "limitations": limitations,
+        "key_conclusions": key_conclusions,
+    }))
+}
 
 // ── List ────────────────────────────────────────────────────────
 
@@ -78,18 +112,8 @@ pub async fn papers_list(
         .iter()
         .map(|r| {
             let mut v = paper_row_to_json(r, false);
-            // Attach analysis inline if any field is present
-            let rq: Option<String> = r.try_get("research_question").ok().flatten();
-            if rq.as_deref().is_some_and(|value| !value.trim().is_empty()) {
-                v["analysis"] = json!({
-                    "research_question": r.try_get::<Option<String>, _>("research_question").ok().flatten(),
-                    "core_method": r.try_get::<Option<String>, _>("core_method").ok().flatten(),
-                    "experiment_design": r.try_get::<Option<String>, _>("experiment_design").ok().flatten(),
-                    "experiment_results": r.try_get::<Option<String>, _>("experiment_results").ok().flatten(),
-                    "innovations": r.try_get::<Option<String>, _>("innovations").ok().flatten(),
-                    "limitations": r.try_get::<Option<String>, _>("limitations").ok().flatten(),
-                    "key_conclusions": r.try_get::<Option<String>, _>("key_conclusions").ok().flatten(),
-                });
+            if let Some(analysis) = analysis_json_from_row(r) {
+                v["analysis"] = analysis;
             }
             let env: Option<String> = r.try_get("environment_setup").ok().flatten();
             if env.as_deref().is_some_and(|value| !value.trim().is_empty()) {
@@ -137,24 +161,12 @@ pub async fn papers_get(
     .ok()
     .flatten()
     .and_then(|a: sqlx::sqlite::SqliteRow| {
-        let research_question = a.get::<Option<String>, _>("research_question");
-        if research_question
-            .as_deref()
-            .is_none_or(|value| value.trim().is_empty())
-        {
-            return None;
-        }
-        Some(json!({
-            "id": a.get::<String, _>("id"),
-            "research_question": research_question,
-            "core_method": a.get::<Option<String>, _>("core_method"),
-            "experiment_design": a.get::<Option<String>, _>("experiment_design"),
-            "experiment_results": a.get::<Option<String>, _>("experiment_results"),
-            "innovations": a.get::<Option<String>, _>("innovations"),
-            "limitations": a.get::<Option<String>, _>("limitations"),
-            "key_conclusions": a.get::<Option<String>, _>("key_conclusions"),
-            "created_at": a.get::<String, _>("created_at"),
-        }))
+        analysis_json_from_row(&a).map(|value| {
+            let mut object = value.as_object().cloned().unwrap_or_default();
+            object.insert("id".into(), json!(a.get::<String, _>("id")));
+            object.insert("created_at".into(), json!(a.get::<String, _>("created_at")));
+            serde_json::Value::Object(object)
+        })
     });
 
     let guide = sqlx::query(
@@ -396,7 +408,6 @@ pub async fn papers_open_pdf(
 
 #[tauri::command]
 pub async fn papers_extract_pdf_text(
-    app: tauri::AppHandle,
     file_path: tauri_plugin_fs::FilePath,
     max_chars: Option<usize>,
 ) -> Result<String, String> {
@@ -411,9 +422,8 @@ pub async fn papers_extract_pdf_text(
     let extract_started_at = Instant::now();
     eprintln!("[pdf-extract] start: path={}", path.display());
     let path_for_extract = path.clone();
-    let app_for_extract = app.clone();
     let text = tokio::task::spawn_blocking(move || {
-        extract_pdf_text_with_filtered_stderr(&app_for_extract, &path_for_extract)
+        extract_pdf_text_with_filtered_stderr(&path_for_extract)
     })
     .await
     .map_err(|error| format!("PDF 解析任务失败：{error}"))?
@@ -605,15 +615,10 @@ pub async fn papers_upload(
         // ① 尽早启动全文提取（慢，CPU 密集，先开始但不等待）
         let preview_path = path_for_parse.clone();
         let full_text_started_at = Instant::now();
-        eprintln!("[paper-import][{}] dual-source extraction start", pid);
-        let app_for_markitdown = app.clone();
-        let path_for_markitdown = path_for_parse.clone();
-        let markitdown_handle = tokio::task::spawn_blocking(move || {
-            extract_markitdown_text(&app_for_markitdown, &path_for_markitdown)
+        eprintln!("[paper-import][{}] full_text extraction start", pid);
+        let full_text_handle = tokio::task::spawn_blocking(move || {
+            extract_pdf_text_with_filtered_stderr(&path_for_parse)
         });
-        let path_for_lopdf = path_for_parse.clone();
-        let lopdf_handle =
-            tokio::task::spawn_blocking(move || extract_lopdf_full_text(&path_for_lopdf));
 
         // ② 提取前3页预览文本（相对快），与①并发进行
         let preview_started_at = Instant::now();
@@ -636,78 +641,45 @@ pub async fn papers_upload(
             );
         }
 
-        let source_md = match markitdown_handle.await {
-            Ok(Ok(value)) => Some(value),
+        let text = match full_text_handle.await {
+            Ok(Ok(value)) => value,
             Ok(Err(error)) => {
-                eprintln!("[paper-import][{}] source.md extraction failed: {}", pid, error);
-                None
+                let now = chrono::Utc::now().to_rfc3339();
+                let _ =
+                    sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
+                        .bind(&now)
+                        .bind(&pid)
+                        .execute(&db)
+                        .await;
+                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 解析失败：{error}") }));
+                eprintln!(
+                    "[paper-import][{}] full_text extraction failed: {}",
+                    pid, error
+                );
+                return;
             }
             Err(join_error) => {
+                let now = chrono::Utc::now().to_rfc3339();
+                let _ =
+                    sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
+                        .bind(&now)
+                        .bind(&pid)
+                        .execute(&db)
+                        .await;
+                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 后台解析任务失败：{join_error}") }));
                 eprintln!(
-                    "[paper-import][{}] source.md extraction join failed: {}",
+                    "[paper-import][{}] full_text extraction join failed: {}",
                     pid, join_error
                 );
-                None
+                return;
             }
         };
-        let source_txt = match lopdf_handle.await {
-            Ok(value) => value,
-            Err(join_error) => {
-                eprintln!(
-                    "[paper-import][{}] source.txt extraction join failed: {}",
-                    pid, join_error
-                );
-                None
-            }
-        };
-        let mut text = source_md.clone().or_else(|| source_txt.clone()).unwrap_or_default();
         eprintln!(
-            "[paper-import][{}] dual-source extracted: md_chars={} txt_chars={} chosen_chars={} elapsed_ms={}",
+            "[paper-import][{}] full_text extracted: chars={} elapsed_ms={}",
             pid,
-            source_md.as_ref().map(|value| value.chars().count()).unwrap_or(0),
-            source_txt.as_ref().map(|value| value.chars().count()).unwrap_or(0),
             text.chars().count(),
             full_text_started_at.elapsed().as_millis()
         );
-        if let Some(markdown) = source_md.as_ref() {
-            match save_markitdown_markdown(&app, &pid, markdown) {
-                Ok(path) => eprintln!("[paper-import][{}] source.md saved: {}", pid, path.display()),
-                Err(error) => eprintln!("[paper-import][{}] failed to save source.md: {}", pid, error),
-            }
-        }
-        if let Some(plain_text) = source_txt.as_ref() {
-            match save_plain_source_text(&app, &pid, plain_text) {
-                Ok(path) => eprintln!("[paper-import][{}] source.txt saved: {}", pid, path.display()),
-                Err(error) => eprintln!("[paper-import][{}] failed to save source.txt: {}", pid, error),
-            }
-        }
-        if let (Some(markdown), Some(plain_text)) = (source_md.as_ref(), source_txt.as_ref()) {
-            if let Some(fixed_markdown) =
-                generate_fixed_source_markdown(&settings, &file_name_owned, markdown, plain_text)
-                    .await
-            {
-                match save_fixed_source_markdown(&app, &pid, &fixed_markdown) {
-                    Ok(path) => eprintln!("[paper-import][{}] source_fix.md saved: {}", pid, path.display()),
-                    Err(error) => eprintln!("[paper-import][{}] failed to save source_fix.md: {}", pid, error),
-                }
-                text = fixed_markdown;
-            }
-        }
-        if text.trim().is_empty() {
-            let now = chrono::Utc::now().to_rfc3339();
-            let _ =
-                sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
-                    .bind(&now)
-                    .bind(&pid)
-                    .execute(&db)
-                    .await;
-            let _ = app.emit(
-                "paper:status",
-                json!({ "paper_id": pid, "status": "failed", "error": "PDF 解析失败，source.md 和 source.txt 都不可用" }),
-            );
-            eprintln!("[paper-import][{}] both source.md and source.txt unavailable", pid);
-            return;
-        }
 
         if preview_text.is_empty() {
             preview_text = preview_from_text(&text, 12_000).unwrap_or_default();
@@ -1160,6 +1132,16 @@ pub async fn papers_analyze(
             ],
         );
         let temperature = resolve_temperature(&settings, "paper_analysis_temperature", 0.3);
+        let max_tokens = resolve_max_tokens(
+            &settings,
+            &[
+                "paper_analysis_max_tokens",
+                "multi_agent_paper_analyst_max_tokens",
+                "multi_agent_worker_max_tokens",
+            ],
+            16_384,
+        );
+        let mut agent_errors: Vec<String> = Vec::new();
 
         // ── Phase 0: Figure extraction ────────────────────────────
         let _ = app.emit(
@@ -1243,14 +1225,35 @@ pub async fn papers_analyze(
             LlmMessage::system(agent1_system()),
             LlmMessage::user(&prompt1),
         ];
-        let research_question = match client.chat(&msgs1, model.as_deref(), temperature).await {
+        log_llm_request(
+            "paper-analyze",
+            &pid,
+            "agent1",
+            model.as_deref(),
+            temperature,
+            max_tokens,
+            &msgs1,
+        );
+        let research_question = match client
+            .chat_with_max_tokens(&msgs1, model.as_deref(), temperature, max_tokens)
+            .await
+        {
             Ok(resp) => {
-                eprintln!("[paper-analyze][{}] agent1 response chars={}", pid, resp.chars().count());
-                let v: serde_json::Value =
-                    serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
-                v["research_question"].as_str().unwrap_or("").to_string()
+                log_llm_response("paper-analyze", &pid, "agent1", &resp);
+                match parse_llm_json_value(&resp) {
+                    Ok(value) => value["research_question"].as_str().unwrap_or("").to_string(),
+                    Err(error) => {
+                        eprintln!("[paper-analyze][{}] agent1 parse failed: {}", pid, error);
+                        agent_errors.push(format!("问题背景分析返回格式错误：{error}"));
+                        String::new()
+                    }
+                }
             }
-            Err(_) => String::new(),
+            Err(error) => {
+                eprintln!("[paper-analyze][{}] agent1 failed: {}", pid, error);
+                agent_errors.push(format!("问题背景分析失败：{error}"));
+                String::new()
+            }
         };
 
         // ── Agent 2: Method Deep-Dive ─────────────────────────────
@@ -1265,14 +1268,35 @@ pub async fn papers_analyze(
             LlmMessage::system(agent2_system()),
             LlmMessage::user(&prompt2),
         ];
-        let core_method = match client.chat(&msgs2, model.as_deref(), temperature).await {
+        log_llm_request(
+            "paper-analyze",
+            &pid,
+            "agent2",
+            model.as_deref(),
+            temperature,
+            max_tokens,
+            &msgs2,
+        );
+        let core_method = match client
+            .chat_with_max_tokens(&msgs2, model.as_deref(), temperature, max_tokens)
+            .await
+        {
             Ok(resp) => {
-                eprintln!("[paper-analyze][{}] agent2 response chars={}", pid, resp.chars().count());
-                let v: serde_json::Value =
-                    serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
-                v["core_method"].as_str().unwrap_or("").to_string()
+                log_llm_response("paper-analyze", &pid, "agent2", &resp);
+                match parse_llm_json_value(&resp) {
+                    Ok(value) => value["core_method"].as_str().unwrap_or("").to_string(),
+                    Err(error) => {
+                        eprintln!("[paper-analyze][{}] agent2 parse failed: {}", pid, error);
+                        agent_errors.push(format!("方法解析返回格式错误：{error}"));
+                        String::new()
+                    }
+                }
             }
-            Err(_) => String::new(),
+            Err(error) => {
+                eprintln!("[paper-analyze][{}] agent2 failed: {}", pid, error);
+                agent_errors.push(format!("方法解析失败：{error}"));
+                String::new()
+            }
         };
 
         // ── Agent 3: Experiment Analysis ──────────────────────────
@@ -1287,18 +1311,39 @@ pub async fn papers_analyze(
             LlmMessage::system(agent3_system()),
             LlmMessage::user(&prompt3),
         ];
+        log_llm_request(
+            "paper-analyze",
+            &pid,
+            "agent3",
+            model.as_deref(),
+            temperature,
+            max_tokens,
+            &msgs3,
+        );
         let (experiment_design, experiment_results) =
-            match client.chat(&msgs3, model.as_deref(), temperature).await {
+            match client
+                .chat_with_max_tokens(&msgs3, model.as_deref(), temperature, max_tokens)
+                .await
+            {
                 Ok(resp) => {
-                    eprintln!("[paper-analyze][{}] agent3 response chars={}", pid, resp.chars().count());
-                    let v: serde_json::Value =
-                        serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
-                    (
-                        v["experiment_design"].as_str().unwrap_or("").to_string(),
-                        v["experiment_results"].as_str().unwrap_or("").to_string(),
-                    )
+                    log_llm_response("paper-analyze", &pid, "agent3", &resp);
+                    match parse_llm_json_value(&resp) {
+                        Ok(value) => (
+                            value["experiment_design"].as_str().unwrap_or("").to_string(),
+                            value["experiment_results"].as_str().unwrap_or("").to_string(),
+                        ),
+                        Err(error) => {
+                            eprintln!("[paper-analyze][{}] agent3 parse failed: {}", pid, error);
+                            agent_errors.push(format!("实验分析返回格式错误：{error}"));
+                            (String::new(), String::new())
+                        }
+                    }
                 }
-                Err(_) => (String::new(), String::new()),
+                Err(error) => {
+                    eprintln!("[paper-analyze][{}] agent3 failed: {}", pid, error);
+                    agent_errors.push(format!("实验分析失败：{error}"));
+                    (String::new(), String::new())
+                }
             };
 
         // ── Agent 4: Synthesis & Critique ─────────────────────────
@@ -1318,19 +1363,40 @@ pub async fn papers_analyze(
             LlmMessage::system(agent4_system()),
             LlmMessage::user(&prompt4),
         ];
+        log_llm_request(
+            "paper-analyze",
+            &pid,
+            "agent4",
+            model.as_deref(),
+            temperature,
+            max_tokens,
+            &msgs4,
+        );
         let (innovations, limitations, key_conclusions) =
-            match client.chat(&msgs4, model.as_deref(), temperature).await {
+            match client
+                .chat_with_max_tokens(&msgs4, model.as_deref(), temperature, max_tokens)
+                .await
+            {
                 Ok(resp) => {
-                    eprintln!("[paper-analyze][{}] agent4 response chars={}", pid, resp.chars().count());
-                    let v: serde_json::Value =
-                        serde_json::from_str(&extract_json(&resp)).unwrap_or_default();
-                    (
-                        v["innovations"].as_str().unwrap_or("").to_string(),
-                        v["limitations"].as_str().unwrap_or("").to_string(),
-                        v["key_conclusions"].as_str().unwrap_or("").to_string(),
-                    )
+                    log_llm_response("paper-analyze", &pid, "agent4", &resp);
+                    match parse_llm_json_value(&resp) {
+                        Ok(value) => (
+                            value["innovations"].as_str().unwrap_or("").to_string(),
+                            value["limitations"].as_str().unwrap_or("").to_string(),
+                            value["key_conclusions"].as_str().unwrap_or("").to_string(),
+                        ),
+                        Err(error) => {
+                            eprintln!("[paper-analyze][{}] agent4 parse failed: {}", pid, error);
+                            agent_errors.push(format!("综合评审返回格式错误：{error}"));
+                            (String::new(), String::new(), String::new())
+                        }
+                    }
                 }
-                Err(_) => (String::new(), String::new(), String::new()),
+                Err(error) => {
+                    eprintln!("[paper-analyze][{}] agent4 failed: {}", pid, error);
+                    agent_errors.push(format!("综合评审失败：{error}"));
+                    (String::new(), String::new(), String::new())
+                }
             };
 
         if [
@@ -1346,15 +1412,22 @@ pub async fn papers_analyze(
         .all(|value| value.is_empty())
         {
             restore_paper_status(&db, &pid, &previous_status).await;
+            let error_message = agent_errors
+                .into_iter()
+                .find(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| "论文解读未生成有效内容，请检查模型配置或稍后重试。".to_string());
             let _ = app.emit(
                 "paper:status",
                 json!({
                     "paper_id": pid,
                     "status": "error",
-                    "error": "??????????????????????????"
+                    "error": error_message
                 }),
             );
-            eprintln!("[paper-analyze][{}] all agent outputs empty; skip persist", pid);
+            eprintln!(
+                "[paper-analyze][{}] all agent outputs empty; skip persist",
+                pid
+            );
             return;
         }
 
@@ -1408,7 +1481,10 @@ const REPRODUCE_PROMPT: &str = r#"请根据以下论文内容生成详尽的复�
 核心原则：
 - 所有字段内容使用中文，URL 除外
 - 字段值使用 Markdown 格式：有序列表用 `1. 2. 3.`，子项用缩进，重点用 **加粗**，代码/命令/库名用 `反引号`
-- 不限制字数，宁可详尽也不要省略关键步骤
+- 内容要完整但克制，优先给最小可执行步骤，不要写成长篇背景综述
+- 单个字段尽量控制在 300-800 中文字；确需更长时，优先保留步骤、版本、命令和链接，删去解释性赘述
+- 不要使用 Markdown 表格
+- 不要输出超过 10 行的长代码块，不要给大段 Python 脚本；如需示例，只给最小命令骨架或 3-6 行伪代码
 - **若论文未开源代码**：不要填"暂无"，而是主动给出替代复现方案（可参考的社区实现、相似开源项目链接等）
 
 各字段要求：
@@ -1428,22 +1504,26 @@ dependencies：
 - 逐项列出核心依赖库及推荐版本号
 - 附上官方文档或下载链接（尤其是冷门库）
 - 给出一键安装命令示例
+- 优先用项目列表，不要输出表格
 
 dataset_preparation：
 - 论文使用的数据集：名称、规模、获取链接（官方下载页、Kaggle、HuggingFace Datasets 等）
 - 若数据集不公开，提供相似的替代公开数据集及下载链接
 - 给出数据预处理步骤（格式转换、划分方式、关键参数）
+- 不要提供长篇数据处理脚本，必要时只给命令骨架或极短伪代码
 
 training_process：
 - 分阶段描述完整训练流程
 - 列出关键超参数及论文给出的值（或合理推荐值）
 - 给出参考训练命令结构（如 `python train.py --lr 1e-4 --epochs 100`）
 - 说明预期训练时长和资源需求（GPU 显存、内存）
+- 不要贴完整训练脚本
 
 inference_process：
 - 模型加载与推理步骤
 - 输入格式要求和输出解读方式
 - 给出推理命令示例
+- 不要贴完整推理脚本
 
 evaluation_metrics：
 - 列出所有评估指标及计算方式
@@ -1522,18 +1602,35 @@ pub async fn papers_reproduce(
             ],
         );
         let temperature = resolve_temperature(&settings, "paper_reproduction_temperature", 0.25);
+        let max_tokens = resolve_max_tokens(
+            &settings,
+            &[
+                "paper_reproduction_max_tokens",
+                "multi_agent_reproduction_max_tokens",
+                "multi_agent_worker_max_tokens",
+            ],
+            16_384,
+        );
         let msgs = vec![
             LlmMessage::system(reproduce_system()),
             LlmMessage::user(&prompt),
         ];
+        log_llm_request(
+            "paper-reproduce",
+            &pid,
+            "guide",
+            model.as_deref(),
+            temperature,
+            max_tokens,
+            &msgs,
+        );
 
-        match client.chat(&msgs, model.as_deref(), temperature).await {
+        match client
+            .chat_with_max_tokens(&msgs, model.as_deref(), temperature, max_tokens)
+            .await
+        {
             Ok(response) => {
-                eprintln!(
-                    "[paper-reproduce][{}] response received: chars={}",
-                    pid,
-                    response.chars().count()
-                );
+                log_llm_response("paper-reproduce", &pid, "guide", &response);
                 let v = match parse_llm_json_value(&response) {
                     Ok(value) => value,
                     Err(error) => {
@@ -1627,8 +1724,17 @@ pub fn extract_json_pub(s: &str) -> String {
 pub(crate) fn extract_json(s: &str) -> String {
     let s = s.trim();
     let s = if s.starts_with("```") {
-        let lines: Vec<&str> = s.lines().collect();
-        lines[1..lines.len().saturating_sub(1)].join("\n")
+        let mut lines = s.lines();
+        let _opening_fence = lines.next();
+        let body_lines: Vec<&str> = lines.collect();
+        let has_closing_fence = body_lines
+            .last()
+            .is_some_and(|line| line.trim_start().starts_with("```"));
+        if has_closing_fence {
+            body_lines[..body_lines.len().saturating_sub(1)].join("\n")
+        } else {
+            body_lines.join("\n")
+        }
     } else {
         s.to_string()
     };
@@ -1654,8 +1760,59 @@ async fn restore_paper_status(db: &sqlx::SqlitePool, paper_id: &str, fallback_st
 
 fn parse_llm_json_value(response: &str) -> Result<serde_json::Value, String> {
     let clean = extract_json(response);
-    serde_json::from_str::<serde_json::Value>(&clean)
-        .map_err(|e| format!("模型返回的 JSON 解析失败：{e}"))
+    serde_json::from_str::<serde_json::Value>(&clean).map_err(|error| {
+        if error.is_eof() {
+            "模型输出在 JSON 中途被截断，通常是 max_tokens 不足或回复过长。请提高当前功能对应的 max_tokens，或缩短模型输出。".to_string()
+        } else {
+            format!("模型返回的 JSON 解析失败：{error}")
+        }
+    })
+}
+
+fn log_llm_request(
+    scope: &str,
+    paper_id: &str,
+    stage: &str,
+    model: Option<&str>,
+    temperature: f32,
+    max_tokens: u32,
+    messages: &[LlmMessage],
+) {
+    let rendered = messages
+        .iter()
+        .enumerate()
+        .map(|(index, message)| {
+            format!(
+                "----- message {} ({}) -----\n{}",
+                index + 1,
+                message.role,
+                message.content
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    eprintln!(
+        "[{}][{}] {} request model={} temperature={} max_tokens={}\n===== BEGIN REQUEST =====\n{}\n===== END REQUEST =====",
+        scope,
+        paper_id,
+        stage,
+        model.unwrap_or("<default>"),
+        temperature,
+        max_tokens,
+        rendered
+    );
+}
+
+fn log_llm_response(scope: &str, paper_id: &str, stage: &str, response: &str) {
+    eprintln!(
+        "[{}][{}] {} response chars={}\n===== BEGIN RESPONSE =====\n{}\n===== END RESPONSE =====",
+        scope,
+        paper_id,
+        stage,
+        response.chars().count(),
+        response
+    );
 }
 
 #[derive(Default)]

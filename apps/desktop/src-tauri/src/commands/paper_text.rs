@@ -1,9 +1,6 @@
+use std::io::Read;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::Path;
-
-pub fn extract_markitdown_text(app: &tauri::AppHandle, path: &Path) -> Result<String, String> {
-    crate::markitdown_runtime::extract_pdf_text(app, path).map(|text| normalize_extracted_text(&text))
-}
 
 pub fn extract_pdf_preview_text(path: &Path, max_pages: usize, max_chars: usize) -> Option<String> {
     if max_pages == 0 || max_chars == 0 {
@@ -26,37 +23,34 @@ pub fn extract_pdf_preview_text(path: &Path, max_pages: usize, max_chars: usize)
     .flatten()
 }
 
-pub fn extract_pdf_text_with_filtered_stderr(
-    app: &tauri::AppHandle,
-    path: &Path,
-) -> Result<String, String> {
-    match extract_markitdown_text(app, path) {
-        Ok(text) => {
-            let markitdown_text = text.clone();
-            if let Some(normalized_lopdf) = extract_lopdf_full_text(path) {
-                if should_prefer_lopdf_text(&markitdown_text, &normalized_lopdf) {
-                    eprintln!(
-                        "[pdf-extract] prefer lopdf text over markitdown due to markdown quality: path={}",
-                        path.display()
-                    );
-                    Ok(normalized_lopdf)
-                } else {
-                    Ok(text)
-                }
-            } else {
-                Ok(text)
+pub fn extract_pdf_text_with_filtered_stderr(path: &Path) -> Result<String, String> {
+    let mut redirect = gag::BufferRedirect::stderr().ok();
+    let result = panic::catch_unwind(AssertUnwindSafe(|| pdf_extract::extract_text(path)))
+        .map_err(|_| "PDF 解析异常中断".to_string())?
+        .map_err(|error| error.to_string());
+
+    if let Some(ref mut handle) = redirect {
+        let mut captured = String::new();
+        let _ = handle.read_to_string(&mut captured);
+        for line in captured.lines() {
+            if should_suppress_pdf_stderr_line(line) {
+                continue;
             }
+            eprintln!("{line}");
         }
-        Err(markitdown_error) => {
+    }
+
+    match result {
+        Ok(text) if !text.trim().is_empty() => Ok(text),
+        Ok(_) | Err(_) => {
             if let Some(text) = extract_lopdf_full_text(path) {
                 eprintln!(
-                    "[pdf-extract] markitdown unavailable, fell back to lopdf: path={} error={}",
-                    path.display(),
-                    markitdown_error
+                    "[pdf-extract] fell back to lopdf full text: path={}",
+                    path.display()
                 );
                 Ok(text)
             } else {
-                Err(markitdown_error)
+                result
             }
         }
     }
@@ -109,7 +103,10 @@ fn normalize_extracted_text(text: &str) -> String {
     for raw_line in text.replace("\r\n", "\n").replace('\r', "\n").lines() {
         let trimmed = raw_line.trim();
         if trimmed.is_empty() {
-            if normalized_lines.last().is_some_and(|line: &String| line.is_empty()) {
+            if normalized_lines
+                .last()
+                .is_some_and(|line: &String| line.is_empty())
+            {
                 continue;
             }
             normalized_lines.push(String::new());
@@ -135,43 +132,23 @@ fn normalize_extracted_text(text: &str) -> String {
     normalized_lines.join("\n").trim().to_string()
 }
 
-fn should_prefer_lopdf_text(markitdown: &str, lopdf: &str) -> bool {
-    text_quality_score(lopdf) > text_quality_score(markitdown) + 8
-}
-
-fn text_quality_score(text: &str) -> i32 {
-    let mut score = 0i32;
-    for line in text.lines().take(400) {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            score += 1;
-            continue;
-        }
-
-        let alpha_count = trimmed.chars().filter(|ch| ch.is_ascii_alphabetic()).count();
-        let whitespace_count = trimmed.chars().filter(|ch| ch.is_whitespace()).count();
-
-        if looks_like_sparse_markdown_table_row(trimmed) {
-            score -= 4;
-        }
-        if alpha_count >= 24 && whitespace_count == 0 {
-            score -= 6;
-        } else if alpha_count >= 24 && whitespace_count <= 1 {
-            score -= 3;
-        } else if whitespace_count >= 3 {
-            score += 2;
-        }
-    }
-    score
-}
-
 fn is_markdown_table_separator(line: &str) -> bool {
-    let compact = line.replace('|', "").replace('-', "").replace(':', "").trim().to_string();
+    let compact = line
+        .replace('|', "")
+        .replace('-', "")
+        .replace(':', "")
+        .trim()
+        .to_string();
     compact.is_empty() && line.contains("---")
 }
 
 fn looks_like_sparse_markdown_table_row(line: &str) -> bool {
-    line.contains('|') && line.split('|').filter(|cell| !cell.trim().is_empty()).count() >= 2
+    line.contains('|')
+        && line
+            .split('|')
+            .filter(|cell| !cell.trim().is_empty())
+            .count()
+            >= 2
 }
 
 fn collapse_markdown_table_row(line: &str) -> String {
@@ -192,4 +169,12 @@ fn normalize_inline_spacing(line: &str) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn should_suppress_pdf_stderr_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    trimmed.contains("Unicode mismatch")
 }

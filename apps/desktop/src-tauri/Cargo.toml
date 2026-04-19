@@ -9,8 +9,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
@@ -34,6 +32,8 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 # Error handling
 anyhow = "1"
+# PDF text extraction
+pdf-extract = "0.7"
 roxmltree = "0.20"
 # PDF image extraction
 lopdf = "0.32"
@@ -43,6 +43,8 @@ flate2 = "1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # Base64 for figure data API and settings export
 base64 = "0.22"
+# Capture stderr for filtering noisy PDF extraction warnings
+gag = "1"
 # Encryption for settings export/import (AES-256-GCM + PBKDF2)
 aes-gcm = "0.10"
 pbkdf2 = "0.12"
