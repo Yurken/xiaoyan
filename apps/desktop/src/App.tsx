@@ -22,7 +22,7 @@ import Tools from "./pages/Tools";
 import Submission from "./pages/Submission";
 import Experiment from "./pages/Experiment";
 import FocusApp from "./pages/FocusLayout";
-import hitLogo from "./assets/app-logo.svg";
+import hitLogo from "./assets/xiaoyany.svg";
 import xiaoyansIcon from "./assets/xiaoyans.svg";
 import { getLayoutMode } from "./lib/layoutMode";
 import { applyTheme, getTheme, watchSystemTheme } from "./lib/themeMode";
@@ -90,7 +90,7 @@ export default function App() {
     <div className="app-shell">
       <aside className="app-sidebar">
         <NavLink to="/" className="app-sidebar__logo" title="返回工作台">
-          <img src={hitLogo} alt="HIT" className="h-10 w-10 object-contain" />
+          <img src={hitLogo} alt="小妍" className="app-sidebar__logo-image" />
         </NavLink>
 
         <div className="app-sidebar__divider" />
@@ -100,6 +100,7 @@ export default function App() {
             key={to}
             to={to}
             end={to === "/"}
+            aria-label={label}
             className="app-nav-link"
           >
             {({ isActive }) => (
@@ -108,7 +109,9 @@ export default function App() {
               >
                 <span className="app-nav-item__marker" />
                 <Icon className="app-nav-item__icon" />
-                <span className="app-nav-item__label">{label}</span>
+                <span className={`app-nav-item__label ${to === "/xiaoyan" ? "app-nav-item__label--hidden" : ""}`.trim()}>
+                  {label}
+                </span>
               </span>
             )}
           </NavLink>

@@ -26,7 +26,7 @@ import {
 import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
-import appLogo from "../assets/app-logo.svg";
+import appLogo from "../assets/xiaoyanv.svg";
 import {
   buildCopilotMessageContent,
   parseCopilotMessageContent,
