@@ -338,6 +338,58 @@ node scripts/sync-version.mjs --tag v1.2.3
 3. **publish-github-assets**：将安装包（`.dmg` / `.msi` / `.exe`）上传到 GitHub Release
 4. **publish-release**：所有构建完成后正式发布
 
+### 手工打包并上传（仅 mac Apple Silicon + Windows）
+
+如果你不走 CI，只想本地打包后手动上传 GitHub Release，可按下面最小流程执行。
+
+#### 1) mac（Apple Silicon）打包
+
+在仓库根目录执行：
+
+```bash
+pnpm install
+node scripts/sync-version.mjs --tag v0.3.2
+export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/research-copilot-updater.key)"
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+pnpm --dir apps/desktop exec tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons
+pnpm tauri build --target aarch64-apple-darwin
+mkdir -p upload/release-darwin-aarch64
+cp apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg upload/release-darwin-aarch64/
+```
+
+#### 2) Windows x64 打包
+
+在 Windows 机器仓库根目录执行（PowerShell）：
+
+```powershell
+pnpm install
+node scripts/sync-version.mjs --tag v0.3.2
+$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content "$HOME/.tauri/research-copilot-updater.key" -Raw
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+pnpm --dir apps/desktop exec tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons
+pnpm tauri build
+New-Item -ItemType Directory -Force upload/release-windows-x86_64 | Out-Null
+Copy-Item "apps/desktop/src-tauri/target/release/bundle/msi/*.msi" "upload/release-windows-x86_64/" -ErrorAction SilentlyContinue
+Copy-Item "apps/desktop/src-tauri/target/release/bundle/nsis/*setup.exe" "upload/release-windows-x86_64/" -ErrorAction SilentlyContinue
+```
+
+如果希望图标更填满，请先把 `apps/desktop/src-tauri/icons/app-icon.png` 换成主体占比更大的 1024x1024 源图（建议主体覆盖约 88%~92% 画布），再执行上面的 `tauri icon` 命令。
+
+若本机还没有 updater 私钥，可先生成（mac/Linux）：
+
+```bash
+pnpm --dir apps/desktop exec tauri signer generate -w ~/.tauri/research-copilot-updater.key
+```
+
+#### 3) 手动上传到 GitHub Release
+
+将下面两个目录中的文件上传到对应 tag 的 Release 资产：
+
+- `upload/release-darwin-aarch64`
+- `upload/release-windows-x86_64`
+
+目录命名与桌面端发布流水线保持一致。
+
 > 自有更新服务器分发（`publish-updater`）当前已禁用，安装包仅通过 GitHub Release 分发。
 
 > **macOS 首次打开**：发布的 `.dmg` 使用 ad-hoc 签名，未经 Apple 公证。执行以下命令后重新打开：
