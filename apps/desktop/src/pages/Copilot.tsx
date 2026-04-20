@@ -700,6 +700,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                 <img
                   src={appLogo}
                   alt="小妍"
+                  draggable={false}
                   className="w-20 h-20 object-contain"
                   style={{
                     WebkitMaskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)",

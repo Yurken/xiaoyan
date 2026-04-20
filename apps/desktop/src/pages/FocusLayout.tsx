@@ -192,7 +192,7 @@ function FocusHome() {
         >
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 flex items-center justify-center">
-            <img src={hitLogo} alt="HIT" className="w-9 h-9 object-contain" />
+            <img src={hitLogo} alt="HIT" className="w-9 h-9 object-contain" draggable={false} />
           </div>
           <p className="text-base font-bold text-ink-primary">{PRODUCT_NAME} 研究协同台</p>
         </div>

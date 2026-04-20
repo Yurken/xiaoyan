@@ -77,8 +77,8 @@ export default function App() {
     <div className={`app-shell ${IS_MACOS_DESKTOP ? "app-shell--macos-overlay" : ""}`.trim()}>
       <aside className="app-sidebar">
         <MacWindowDragStrip className="app-sidebar__window-drag-region" />
-        <NavLink to="/xiaoyan" className="app-sidebar__logo" title="进入小妍对话">
-          <img src={hitLogo} alt="小妍" className="app-sidebar__logo-image" />
+        <NavLink to="/xiaoyan" className="app-sidebar__logo" title="进入小妍对话" draggable={false}>
+          <img src={hitLogo} alt="小妍" className="app-sidebar__logo-image" draggable={false} />
         </NavLink>
 
         <div className="app-sidebar__divider" />
@@ -89,6 +89,7 @@ export default function App() {
             to={to}
             end={to === "/"}
             aria-label={label}
+            draggable={false}
             className="app-nav-link"
           >
             {({ isActive }) => (

@@ -110,6 +110,7 @@ export function FriendLinksPanel({
                         <img
                           src={item.icon}
                           alt=""
+                          draggable={false}
                           loading="lazy"
                           decoding="async"
                           className="relative h-full w-full object-cover"
