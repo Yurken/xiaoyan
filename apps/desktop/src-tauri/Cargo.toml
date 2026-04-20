@@ -1,10 +1,10 @@
 [package]
-name = "research-copilot-desktop"
+name = "xiaoyan-desktop"
 version = "0.3.0"
 edition = "2021"
 
 [lib]
-name = "research_copilot_desktop_lib"
+name = "xiaoyan_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

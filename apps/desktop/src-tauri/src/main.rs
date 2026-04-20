@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    research_copilot_desktop_lib::run()
+    xiaoyan_desktop_lib::run()
 }

@@ -89,7 +89,14 @@ updateText("apps/desktop/src-tauri/Cargo.toml", (text) => {
 
 updateText("apps/desktop/src-tauri/src/commands/arxiv.rs", (text) => {
   return text.replace(
-    /^(const ARXIV_USER_AGENT: &str = "research-copilot-desktop\/)[\d.]+(")/m,
+    /^(const ARXIV_USER_AGENT: &str = "xiaoyan-desktop\/)[\d.]+(")/m,
+    `$1${version}$2`,
+  );
+}, touched);
+
+updateText("apps/desktop/src-tauri/src/commands/paper_search.rs", (text) => {
+  return text.replace(
+    /^(const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop\/)[\d.]+(")/m,
     `$1${version}$2`,
   );
 }, touched);

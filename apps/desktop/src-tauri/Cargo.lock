@@ -3867,43 +3867,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "research-copilot-desktop"
-version = "0.3.0"
-dependencies = [
- "aes-gcm",
- "anyhow",
- "base64 0.22.1",
- "chrono",
- "flate2",
- "futures-util",
- "gag",
- "hmac",
- "image",
- "lopdf 0.32.0",
- "pbkdf2",
- "pdf-extract",
- "petgraph",
- "rand 0.8.5",
- "regex",
- "reqwest 0.12.28",
- "roxmltree",
- "serde",
- "serde_json",
- "sha2",
- "sqlx",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-opener",
- "tauri-plugin-process",
- "tauri-plugin-shell",
- "tauri-plugin-updater",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "rfd"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7013,6 +6976,43 @@ checksum = "32e45ad4206f6d2479085147f02bc2ef834ac85886624a23575ae137c8aa8156"
 dependencies = [
  "libc",
  "rustix",
+]
+
+[[package]]
+name = "xiaoyan-desktop"
+version = "0.3.0"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "flate2",
+ "futures-util",
+ "gag",
+ "hmac",
+ "image",
+ "lopdf 0.32.0",
+ "pbkdf2",
+ "pdf-extract",
+ "petgraph",
+ "rand 0.8.5",
+ "regex",
+ "reqwest 0.12.28",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-opener",
+ "tauri-plugin-process",
+ "tauri-plugin-shell",
+ "tauri-plugin-updater",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

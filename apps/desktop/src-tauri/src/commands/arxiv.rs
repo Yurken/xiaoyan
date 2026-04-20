@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use tauri::State;
 
 const ARXIV_API_URL: &str = "https://export.arxiv.org/api/query";
-const ARXIV_USER_AGENT: &str = "research-copilot-desktop/0.2.8";
+const ARXIV_USER_AGENT: &str = "xiaoyan-desktop/0.3.0";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
