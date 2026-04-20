@@ -41,7 +41,7 @@ export default class AppErrorBoundary extends Component<Props, State> {
           </p>
           <p className="text-xs text-ink-tertiary">
             如果应用仍然出现秒退，请查看系统临时目录中的
-            <span className="mx-1 font-mono">research-copilot-desktop.log</span>
+            <span className="mx-1 font-mono">xiaoyan-desktop.log</span>
             启动日志。
           </p>
         </Card>

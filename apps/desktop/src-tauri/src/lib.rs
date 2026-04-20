@@ -90,7 +90,7 @@ use commands::{
 use state::{default_settings, AppState};
 
 fn diagnostic_log_path() -> PathBuf {
-    std::env::temp_dir().join("research-copilot-desktop.log")
+    std::env::temp_dir().join("xiaoyan-desktop.log")
 }
 
 fn append_diagnostic_log(message: &str) {
