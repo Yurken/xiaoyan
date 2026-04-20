@@ -8,7 +8,6 @@ import {
   MessageSquare,
   Plus,
   Send,
-  Sparkles,
   Trash2,
   User,
   X,
@@ -23,11 +22,11 @@ import {
   MAIN_ASSISTANT_WELCOME_DESCRIPTION,
   MAIN_ASSISTANT_WELCOME_TITLE,
   MAIN_ASSISTANT_WORKSPACE_NAME,
-  toCapabilityModelName,
 } from "@research-copilot/types";
 import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
+import appLogo from "../assets/app-logo.svg";
 import {
   buildCopilotMessageContent,
   parseCopilotMessageContent,
@@ -698,15 +697,15 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full gap-4 pb-12">
-                <div
-                  className="w-20 h-20 rounded-[28px] flex items-center justify-center"
+                <img
+                  src={appLogo}
+                  alt="小妍"
+                  className="w-20 h-20 object-contain"
                   style={{
-                    background: "linear-gradient(145deg, #F59E0B, #F97316)",
-                    boxShadow: "6px 6px 14px rgba(249,115,22,0.28), -4px -4px 10px rgba(255,214,153,0.25)",
+                    WebkitMaskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)",
+                    maskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)",
                   }}
-                >
-                  <Sparkles className="w-9 h-9 text-white" />
-                </div>
+                />
                 <div className="text-center max-w-md">
                   <p className="font-semibold text-ink-primary">{MAIN_ASSISTANT_WELCOME_TITLE}</p>
                   <p className="text-sm text-ink-tertiary mt-2 leading-6">{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</p>

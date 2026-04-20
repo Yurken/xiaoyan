@@ -21,7 +21,7 @@ import { apiClient, formatErrorMessage } from "../lib/client";
 import type { ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
 import PlannerComposer from "../features/knowledge/PlannerComposer";
-import hitLogo from "../assets/hit-logo.svg";
+import hitLogo from "../assets/app-logo.svg";
 import ResearchWorkbench, { type InterestTab } from "../features/knowledge/ResearchWorkbench";
 import Survey from "./Survey";
 import Papers from "./Papers";
@@ -346,7 +346,7 @@ function FocusHome() {
 
 type FreeTab = "survey" | "papers" | "knowledge" | "xiaoyan" | "tools";
 
-type LegacyFreeTab = FreeTab | "copilot";
+type LegacyFreeTab = FreeTab | "copilot" | "planner";
 
 const FREE_TABS: Array<{ key: FreeTab; label: string; icon: typeof Sparkles }> = [
   { key: "survey",    label: "综述",    icon: BookOpen },

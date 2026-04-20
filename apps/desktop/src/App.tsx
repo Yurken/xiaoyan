@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Library,
   Map,
-  MessageSquare,
   Send,
   Settings as SettingsIcon,
   Wrench,
@@ -23,7 +22,8 @@ import Tools from "./pages/Tools";
 import Submission from "./pages/Submission";
 import Experiment from "./pages/Experiment";
 import FocusApp from "./pages/FocusLayout";
-import hitLogo from "./assets/hit-logo.svg";
+import hitLogo from "./assets/app-logo.svg";
+import xiaoyansIcon from "./assets/xiaoyans.svg";
 import { getLayoutMode } from "./lib/layoutMode";
 import { applyTheme, getTheme, watchSystemTheme } from "./lib/themeMode";
 import { applyThemeStyle, getThemeStyle } from "./lib/themeStyle";
@@ -33,13 +33,26 @@ import XiaoYanPet from "./components/XiaoYanPet";
 
 const layoutMode = getLayoutMode();
 
+function XiaoYanNavIcon({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={[className, "app-nav-item__icon--xiaoyan"].filter(Boolean).join(" ")}
+      style={{
+        WebkitMaskImage: `url(${xiaoyansIcon})`,
+        maskImage: `url(${xiaoyansIcon})`,
+      }}
+    />
+  );
+}
+
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "工作台" },
   { to: "/planner", icon: Map, label: "规划" },
   { to: "/survey", icon: BookOpen, label: "综述" },
   { to: "/papers", icon: FileText, label: "论文" },
   { to: "/knowledge", icon: Library, label: "知识" },
-  { to: "/xiaoyan", icon: MessageSquare, label: "小妍" },
+  { to: "/xiaoyan", icon: XiaoYanNavIcon, label: "小妍" },
   { to: "/experiment", icon: FlaskConical, label: "实验" },
   { to: "/submission", icon: Send, label: "投稿" },
   { to: "/tools", icon: Wrench, label: "工具" },
@@ -91,7 +104,7 @@ export default function App() {
           >
             {({ isActive }) => (
               <span
-                className={`app-nav-item ${isActive ? "is-active" : ""}`}
+                className={`app-nav-item ${isActive ? "is-active" : ""} ${to === "/xiaoyan" ? "app-nav-item--xiaoyan" : ""}`.trim()}
               >
                 <span className="app-nav-item__marker" />
                 <Icon className="app-nav-item__icon" />
