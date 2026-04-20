@@ -8,7 +8,6 @@ import {
   BookOpen,
   FileText,
   Library,
-  MessageSquare,
   Microscope,
   SlidersHorizontal,
 } from "lucide-react";
@@ -21,12 +20,12 @@ const navItems = [
   { href: "/survey", icon: BookOpen, label: "文献调研" },
   { href: "/papers", icon: FileText, label: "论文库" },
   { href: "/knowledge", icon: Library, label: "知识库" },
-  { href: "/xiaoyan", icon: MessageSquare, label: MAIN_ASSISTANT_NAME },
   { href: "/settings", icon: SlidersHorizontal, label: "设置中心" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const isXiaoyanActive = pathname.startsWith("/xiaoyan");
 
   return (
     <aside
@@ -38,31 +37,44 @@ export default function Sidebar() {
       }}
     >
       <div className="px-4 pb-3 pt-4">
-        <div
-          className="rounded-[24px] border px-4 py-4"
-          style={{
-            background: "var(--rc-card-bg)",
-            borderColor: "var(--rc-card-outline)",
-            boxShadow: "var(--rc-card-flat-shadow)",
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border"
-              style={{ borderColor: "var(--rc-card-outline)", background: "var(--rc-card-inset-bg)" }}
-            >
-              <Microscope className="h-5 w-5" style={{ color: "var(--rc-accent)" }} />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold" style={{ color: "var(--rc-text)" }}>
-                {PRODUCT_NAME}
-              </p>
-              <p className="mt-1 text-xs" style={{ color: "var(--rc-text-muted)" }}>
-                小妍研究工作台
-              </p>
+        <Link href="/xiaoyan" className="block">
+          <div
+            className="rounded-[24px] border px-4 py-4 transition-transform duration-150 hover:-translate-y-px"
+            style={{
+              background: isXiaoyanActive
+                ? "color-mix(in srgb, var(--rc-accent) 8%, var(--rc-card-bg))"
+                : "var(--rc-card-bg)",
+              borderColor: isXiaoyanActive
+                ? "color-mix(in srgb, var(--rc-accent) 26%, var(--rc-card-outline))"
+                : "var(--rc-card-outline)",
+              boxShadow: "var(--rc-card-flat-shadow)",
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border"
+                style={{
+                  borderColor: isXiaoyanActive
+                    ? "color-mix(in srgb, var(--rc-accent) 24%, var(--rc-card-outline))"
+                    : "var(--rc-card-outline)",
+                  background: isXiaoyanActive
+                    ? "color-mix(in srgb, var(--rc-accent) 10%, var(--rc-card-inset-bg))"
+                    : "var(--rc-card-inset-bg)",
+                }}
+              >
+                <Microscope className="h-5 w-5" style={{ color: "var(--rc-accent)" }} />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold" style={{ color: "var(--rc-text)" }}>
+                  {PRODUCT_NAME}
+                </p>
+                <p className="mt-1 text-xs" style={{ color: "var(--rc-text-muted)" }}>
+                  点击进入小妍对话
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        </Link>
       </div>
 
       <nav className="flex-1 space-y-1.5 px-3 py-3">

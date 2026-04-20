@@ -141,43 +141,6 @@
     height: 15px;
   }
 
-  .app-nav-item__icon--xiaoyan {
-    width: 32px;
-    height: 32px;
-    display: block;
-    flex-shrink: 0;
-    background-color: currentColor;
-    -webkit-mask-position: center;
-    mask-position: center;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-size: contain;
-    mask-size: contain;
-    transition:
-      background-color 0.18s ease,
-      transform 0.18s ease;
-  }
-
-  .app-nav-item--xiaoyan {
-    box-sizing: border-box;
-    height: 51px;
-    gap: 0;
-    justify-content: center;
-  }
-
-  .app-nav-item--xiaoyan .app-nav-item__marker {
-    display: none;
-  }
-
-  .app-nav-item--xiaoyan .app-nav-item__icon--xiaoyan {
-    margin: 0;
-    align-self: center;
-  }
-
-  .app-nav-item__label--hidden {
-    display: none;
-  }
-
   .app-nav-item__label {
     font-size: 9px;
     font-weight: 600;

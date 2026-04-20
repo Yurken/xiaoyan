@@ -23,7 +23,6 @@ import Submission from "./pages/Submission";
 import Experiment from "./pages/Experiment";
 import FocusApp from "./pages/FocusLayout";
 import hitLogo from "./assets/xiaoyany.svg";
-import xiaoyansIcon from "./assets/xiaoyans.svg";
 import { getLayoutMode } from "./lib/layoutMode";
 import { applyTheme, getTheme, watchSystemTheme } from "./lib/themeMode";
 import { applyThemeStyle, getThemeStyle } from "./lib/themeStyle";
@@ -33,26 +32,12 @@ import XiaoYanPet from "./components/XiaoYanPet";
 
 const layoutMode = getLayoutMode();
 
-function XiaoYanNavIcon({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={[className, "app-nav-item__icon--xiaoyan"].filter(Boolean).join(" ")}
-      style={{
-        WebkitMaskImage: `url(${xiaoyansIcon})`,
-        maskImage: `url(${xiaoyansIcon})`,
-      }}
-    />
-  );
-}
-
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "工作台" },
   { to: "/planner", icon: Map, label: "规划" },
   { to: "/survey", icon: BookOpen, label: "综述" },
   { to: "/papers", icon: FileText, label: "论文" },
   { to: "/knowledge", icon: Library, label: "知识" },
-  { to: "/xiaoyan", icon: XiaoYanNavIcon, label: "小妍" },
   { to: "/experiment", icon: FlaskConical, label: "实验" },
   { to: "/submission", icon: Send, label: "投稿" },
   { to: "/tools", icon: Wrench, label: "工具" },
@@ -89,7 +74,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
-        <NavLink to="/" className="app-sidebar__logo" title="返回工作台">
+        <NavLink to="/xiaoyan" className="app-sidebar__logo" title="进入小妍对话">
           <img src={hitLogo} alt="小妍" className="app-sidebar__logo-image" />
         </NavLink>
 
@@ -105,13 +90,11 @@ export default function App() {
           >
             {({ isActive }) => (
               <span
-                className={`app-nav-item ${isActive ? "is-active" : ""} ${to === "/xiaoyan" ? "app-nav-item--xiaoyan" : ""}`.trim()}
+                className={`app-nav-item ${isActive ? "is-active" : ""}`.trim()}
               >
                 <span className="app-nav-item__marker" />
                 <Icon className="app-nav-item__icon" />
-                <span className={`app-nav-item__label ${to === "/xiaoyan" ? "app-nav-item__label--hidden" : ""}`.trim()}>
-                  {label}
-                </span>
+                <span className="app-nav-item__label">{label}</span>
               </span>
             )}
           </NavLink>
