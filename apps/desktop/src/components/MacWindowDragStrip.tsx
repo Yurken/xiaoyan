@@ -1,5 +1,5 @@
-import type { CSSProperties, MouseEvent } from "react";
-import { IS_MACOS_DESKTOP, startWindowDragging } from "../lib/windowChrome";
+import type { CSSProperties } from "react";
+import { IS_MACOS_DESKTOP } from "../lib/windowChrome";
 
 interface MacWindowDragStripProps {
   className?: string;
@@ -12,19 +12,14 @@ export default function MacWindowDragStrip({
 }: MacWindowDragStripProps) {
   if (!IS_MACOS_DESKTOP) return null;
 
-  const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    void startWindowDragging();
-  };
-
   return (
+    // Keep drag handling fully native so macOS overlay title bars can start dragging
+    // from the original mouse-down event without an async JS hop.
     <div
       aria-hidden="true"
       data-tauri-drag-region
       className={className}
       style={{ userSelect: "none", ...style }}
-      onMouseDown={handleMouseDown}
     />
   );
 }

@@ -48,6 +48,12 @@
     height: 28px;
     margin: 0 0 6px;
     user-select: none;
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--rc-sidebar-bg) 92%, transparent) 0%,
+        var(--rc-sidebar-bg) 100%
+      );
   }
 
   .app-sidebar__logo {
@@ -187,6 +193,10 @@
     background: transparent;
   }
 
+  .app-shell--macos-overlay .app-main {
+    background: var(--rc-surface);
+  }
+
   .app-main__window-drag-region {
     display: none;
   }
@@ -200,6 +210,7 @@
     display: block;
     height: var(--rc-window-drag-height);
     user-select: none;
+    background: var(--rc-surface);
   }
 
   .app-main::before {
