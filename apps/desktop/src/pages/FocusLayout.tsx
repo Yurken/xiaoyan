@@ -23,6 +23,12 @@ import { listen } from "@tauri-apps/api/event";
 import PlannerComposer from "../features/knowledge/PlannerComposer";
 import hitLogo from "../assets/app-logo.svg";
 import ResearchWorkbench, { type InterestTab } from "../features/knowledge/ResearchWorkbench";
+import MacWindowDragStrip from "../components/MacWindowDragStrip";
+import {
+  IS_MACOS_DESKTOP,
+  MACOS_TITLEBAR_LEFT_CLEARANCE,
+  MACOS_WINDOW_DRAG_HEIGHT,
+} from "../lib/windowChrome";
 import Survey from "./Survey";
 import Papers from "./Papers";
 import Knowledge from "./Knowledge";
@@ -171,12 +177,19 @@ function FocusHome() {
     <div className="h-full flex flex-col bg-nm-bg">
       {/* Header */}
       <div
-        className="flex-shrink-0 flex items-center justify-between px-6 py-4"
+        className="flex-shrink-0"
         style={{
           background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
         }}
       >
+        <MacWindowDragStrip style={{ height: `${MACOS_WINDOW_DRAG_HEIGHT}px` }} />
+        <div
+          className="flex items-center justify-between px-6 py-4"
+          style={{
+            paddingLeft: IS_MACOS_DESKTOP ? `${MACOS_TITLEBAR_LEFT_CLEARANCE}px` : undefined,
+          }}
+        >
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 flex items-center justify-center">
             <img src={hitLogo} alt="HIT" className="w-9 h-9 object-contain" />
@@ -196,6 +209,7 @@ function FocusHome() {
             <SettingsIcon className="w-4.5 h-4.5" />
           </button>
         </Link>
+        </div>
       </div>
 
       {/* Content */}
@@ -483,12 +497,20 @@ function FocusWorkbench() {
     <div className="flex flex-col h-full bg-nm-bg">
       {/* ── 合并头部 ── */}
       <div
-        className="flex-shrink-0 flex items-center gap-2 px-4 h-12"
+        className="flex-shrink-0"
         style={{
           background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
         }}
       >
+        <MacWindowDragStrip style={{ height: `${MACOS_WINDOW_DRAG_HEIGHT}px` }} />
+        <div
+          className="flex items-center gap-2 px-4 min-h-12"
+          style={{
+            paddingLeft: IS_MACOS_DESKTOP ? `${MACOS_TITLEBAR_LEFT_CLEARANCE}px` : undefined,
+            paddingBottom: IS_MACOS_DESKTOP ? "10px" : undefined,
+          }}
+        >
         {/* 返回 */}
         <button
           type="button"
@@ -551,6 +573,7 @@ function FocusWorkbench() {
             自由主题
           </button>
         )}
+        </div>
       </div>
 
       {/* ── 内容区 ── */}
@@ -592,12 +615,20 @@ function FocusSettingsWrapper() {
   return (
     <div className="flex flex-col h-full">
       <div
-        className="flex-shrink-0 flex items-center gap-3 px-4 h-12"
+        className="flex-shrink-0"
         style={{
           background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
         }}
       >
+        <MacWindowDragStrip style={{ height: `${MACOS_WINDOW_DRAG_HEIGHT}px` }} />
+        <div
+          className="flex items-center gap-3 px-4 min-h-12"
+          style={{
+            paddingLeft: IS_MACOS_DESKTOP ? `${MACOS_TITLEBAR_LEFT_CLEARANCE}px` : undefined,
+            paddingBottom: IS_MACOS_DESKTOP ? "10px" : undefined,
+          }}
+        >
         <button
           type="button"
           onClick={() => navigate("/")}
@@ -611,6 +642,7 @@ function FocusSettingsWrapper() {
           <ArrowLeft className="w-4 h-4" />
         </button>
         <p className="text-sm font-semibold text-ink-primary">设置</p>
+        </div>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <Settings />

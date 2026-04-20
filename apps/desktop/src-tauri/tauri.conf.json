@@ -43,6 +43,12 @@
       {
         "label": "main",
         "title": "小妍",
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 12,
+          "y": 16
+        },
         "width": 1280,
         "height": 800,
         "minWidth": 900,

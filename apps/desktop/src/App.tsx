@@ -27,6 +27,8 @@ import { getLayoutMode } from "./lib/layoutMode";
 import { applyTheme, getTheme, watchSystemTheme } from "./lib/themeMode";
 import { applyThemeStyle, getThemeStyle } from "./lib/themeStyle";
 import { useAutoUpdate } from "./lib/useAutoUpdate";
+import { IS_MACOS_DESKTOP } from "./lib/windowChrome";
+import MacWindowDragStrip from "./components/MacWindowDragStrip";
 import UpdateNotification from "./components/UpdateNotification";
 import XiaoYanPet from "./components/XiaoYanPet";
 
@@ -72,8 +74,9 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${IS_MACOS_DESKTOP ? "app-shell--macos-overlay" : ""}`.trim()}>
       <aside className="app-sidebar">
+        <MacWindowDragStrip className="app-sidebar__window-drag-region" />
         <NavLink to="/xiaoyan" className="app-sidebar__logo" title="进入小妍对话">
           <img src={hitLogo} alt="小妍" className="app-sidebar__logo-image" />
         </NavLink>
@@ -106,6 +109,7 @@ export default function App() {
       </aside>
 
       <main className="app-main">
+        <MacWindowDragStrip className="app-main__window-drag-region" />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/planner" element={<Planner />} />

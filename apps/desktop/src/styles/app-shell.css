@@ -1,6 +1,7 @@
 @layer components {
   .app-shell {
     --rc-shell-sidebar-top-gap: 8px;
+    --rc-window-drag-height: 0px;
     --rc-page-inline-gap: 24px;
     --rc-page-top-gap: 16px;
     --rc-page-bottom-gap: 24px;
@@ -29,6 +30,24 @@
         var(--rc-sidebar-bg) 100%
       );
     backdrop-filter: blur(18px);
+  }
+
+  .app-shell--macos-overlay {
+    --rc-shell-sidebar-top-gap: 6px;
+    --rc-window-drag-height: 34px;
+    --rc-page-top-gap: 2px;
+  }
+
+  .app-sidebar__window-drag-region {
+    display: none;
+  }
+
+  .app-shell--macos-overlay .app-sidebar__window-drag-region {
+    display: block;
+    flex-shrink: 0;
+    height: 28px;
+    margin: 0 0 6px;
+    user-select: none;
   }
 
   .app-sidebar__logo {
@@ -162,8 +181,25 @@
     z-index: 0;
     flex: 1;
     min-width: 0;
+    box-sizing: border-box;
+    padding-top: var(--rc-window-drag-height);
     overflow: hidden;
     background: transparent;
+  }
+
+  .app-main__window-drag-region {
+    display: none;
+  }
+
+  .app-shell--macos-overlay .app-main__window-drag-region {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 60;
+    display: block;
+    height: var(--rc-window-drag-height);
+    user-select: none;
   }
 
   .app-main::before {
@@ -221,14 +257,29 @@
   @media (max-width: 1024px) {
     .app-shell {
       --rc-shell-sidebar-top-gap: 6px;
+      --rc-window-drag-height: 0px;
       --rc-page-inline-gap: 20px;
       --rc-page-top-gap: 14px;
       --rc-page-bottom-gap: 20px;
     }
 
+    .app-shell--macos-overlay {
+      --rc-window-drag-height: 28px;
+      --rc-page-top-gap: 2px;
+    }
+
     .app-sidebar {
       width: 70px;
       padding-inline: 6px;
+    }
+
+    .app-shell--macos-overlay .app-sidebar__window-drag-region {
+      height: 24px;
+      margin-bottom: 6px;
+    }
+
+    .app-shell--macos-overlay .app-main__window-drag-region {
+      height: var(--rc-window-drag-height);
     }
   }
 }
