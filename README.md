@@ -404,7 +404,7 @@ pnpm build:updater:win -- v0.3.2
 若本机还没有 updater 私钥，可先生成（mac/Linux）：
 
 ```bash
-pnpm --dir apps/desktop exec tauri signer generate -w ~/.tauri/research-copilot-updater.key
+pnpm tauri signer generate -w ~/.tauri/research-copilot-updater.key
 ```
 
 #### 3) 多平台发布方式
