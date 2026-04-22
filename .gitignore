@@ -218,6 +218,7 @@ apps/desktop/src-tauri/gen/schemas/windows-schema.json
 # Frontend / monorepo
 node_modules/
 **/node_modules/
+upload/
 **/.next/
 **/.env.local
 **/*.tsbuildinfo

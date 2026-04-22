@@ -71,7 +71,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY3MzgzRURCMzRBMkMzMjUKUldRbHc2STAyejQ0OTY3M2FJSTlpMmxJMTNCR1B3RGVCUzhsNkp1T05CQTNCOEI2M3UvR3ZRa08K",
       "endpoints": [
-        "http://66.42.97.41/research-copilot-updates/latest.json"
+        "http://111.231.56.208:18081/xiaoyan-updates/latest.json"
       ],
       "dangerousInsecureTransportProtocol": true,
       "windows": {

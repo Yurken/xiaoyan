@@ -338,40 +338,66 @@ node scripts/sync-version.mjs --tag v1.2.3
 3. **publish-github-assets**：将安装包（`.dmg` / `.msi` / `.exe`）上传到 GitHub Release
 4. **publish-release**：所有构建完成后正式发布
 
-### 手工打包并上传（仅 mac Apple Silicon + Windows）
+### 手工打包并直接上传更新后台
 
-如果你不走 CI，只想本地打包后手动上传 GitHub Release，可按下面最小流程执行。
+如果你不走 CI，而是想在本地一键打包并直接上传到腾讯云更新后台，可按下面执行。
 
-#### 1) mac（Apple Silicon）打包
+先准备后台登录密码：
+
+```bash
+export UPDATE_ADMIN_PASSWORD='你的后台密码'
+```
+
+Windows PowerShell：
+
+```powershell
+$env:UPDATE_ADMIN_PASSWORD = "你的后台密码"
+```
+
+如需覆盖默认后台地址或用户名，可额外设置：
+
+- `UPDATE_ADMIN_URL`，默认 `http://111.231.56.208:18081/upload`
+- `UPDATE_ADMIN_USERNAME`，默认 `uploader`
+
+#### 1) mac 打包并上传
 
 在仓库根目录执行：
 
 ```bash
 pnpm install
-node scripts/sync-version.mjs --tag v0.3.2
-export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/research-copilot-updater.key)"
-export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
-pnpm --dir apps/desktop exec tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons
-pnpm tauri build --target aarch64-apple-darwin
-mkdir -p upload/release-darwin-aarch64
-cp apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg upload/release-darwin-aarch64/
+pnpm build:updater:mac -- v0.3.2
 ```
 
-#### 2) Windows x64 打包
+脚本会自动：
+
+- 同步仓库版本到 `v0.3.2`
+- 按当前 mac 架构构建桌面端 updater 包
+- 从 `bundle/` 中提取当前平台真正需要上传的 updater 文件
+- 自动登录更新后台并上传到对应版本目录
+- 同时保留本地 `upload/v0.3.2/` 作为上传留档
+
+如需强制指定目标架构，可临时传环境变量：
+
+```bash
+TAURI_BUILD_TARGET=x86_64-apple-darwin pnpm build:updater:mac -- v0.3.2
+```
+
+#### 2) Windows x64 打包并上传
 
 在 Windows 机器仓库根目录执行（PowerShell）：
 
 ```powershell
 pnpm install
-node scripts/sync-version.mjs --tag v0.3.2
-$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content "$HOME/.tauri/research-copilot-updater.key" -Raw
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
-pnpm --dir apps/desktop exec tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons
-pnpm tauri build
-New-Item -ItemType Directory -Force upload/release-windows-x86_64 | Out-Null
-Copy-Item "apps/desktop/src-tauri/target/release/bundle/msi/*.msi" "upload/release-windows-x86_64/" -ErrorAction SilentlyContinue
-Copy-Item "apps/desktop/src-tauri/target/release/bundle/nsis/*setup.exe" "upload/release-windows-x86_64/" -ErrorAction SilentlyContinue
+pnpm build:updater:win -- v0.3.2
 ```
+
+脚本会自动：
+
+- 同步仓库版本到 `v0.3.2`
+- 构建 Windows updater 包
+- 从 `bundle/` 中提取当前平台真正需要上传的 updater 文件
+- 自动登录更新后台并上传到对应版本目录
+- 同时保留本地 `upload/v0.3.2/` 作为上传留档
 
 如果希望图标更填满，请先把 `apps/desktop/src-tauri/icons/app-icon.png` 换成主体占比更大的 1024x1024 源图（建议主体覆盖约 88%~92% 画布），再执行上面的 `tauri icon` 命令。
 
@@ -381,16 +407,12 @@ Copy-Item "apps/desktop/src-tauri/target/release/bundle/nsis/*setup.exe" "upload
 pnpm --dir apps/desktop exec tauri signer generate -w ~/.tauri/research-copilot-updater.key
 ```
 
-#### 3) 手动上传到 GitHub Release
+#### 3) 多平台发布方式
 
-将下面两个目录中的文件上传到对应 tag 的 Release 资产：
+- mac 机器运行一次 `pnpm build:updater:mac -- v0.3.2`
+- Windows 机器再运行一次 `pnpm build:updater:win -- v0.3.2`
 
-- `upload/release-darwin-aarch64`
-- `upload/release-windows-x86_64`
-
-目录命名与桌面端发布流水线保持一致。
-
-> 自有更新服务器分发（`publish-updater`）当前已禁用，安装包仅通过 GitHub Release 分发。
+如果同一版本需要同时支持 mac 和 Windows，就分别在两台机器上执行各自脚本，并上传到同一个版本号。
 
 > **macOS 首次打开**：发布的 `.dmg` 使用 ad-hoc 签名，未经 Apple 公证。执行以下命令后重新打开：
 > ```bash
@@ -402,7 +424,7 @@ pnpm --dir apps/desktop exec tauri signer generate -w ~/.tauri/research-copilot-
 
 桌面端升级使用 Tauri v2 官方 updater。当前默认更新源固定为：
 
-- `http://66.42.97.41/research-copilot-updates/latest.json`
+- `http://111.231.56.208:18081/xiaoyan-updates/latest.json`
 
 客户端不会直接访问私有 GitHub Release，而是从这台服务器读取公开的 `latest.json` 和安装包。
 
@@ -414,9 +436,9 @@ pnpm --dir apps/desktop exec tauri signer generate -w ~/.tauri/research-copilot-
 
 建议的服务器目录结构：
 
-- `/var/www/html/research-copilot-updates/latest.json`
-- `/var/www/html/research-copilot-updates/v1.2.3/*`
-- `/var/www/html/research-copilot-updates/v1.2.4/*`
+- `/var/www/html/xiaoyan-updates/latest.json`
+- `/var/www/html/xiaoyan-updates/v1.2.3/*`
+- `/var/www/html/xiaoyan-updates/v1.2.4/*`
 
 注意：
 
@@ -424,7 +446,7 @@ pnpm --dir apps/desktop exec tauri signer generate -w ~/.tauri/research-copilot-
 - 真正长期可维护的做法仍然是给更新服务器配 HTTPS 域名，再去掉这个危险开关。
 - 本机已经生成一套 updater 签名密钥：`~/.tauri/research-copilot-updater.key` / `~/.tauri/research-copilot-updater.key.pub`。
 - 本机到服务器的部署 SSH key 在 `~/.ssh/research-copilot-update-server`，公钥已写入服务器 `root` 的 `authorized_keys`。
-- 如果你是手工发布，也可以直接用 `scripts/upload-updater-assets.sh <dir> <tag>` 上传已经生成好的 updater 资产目录。
+- 如果你是手工发布，也可以直接用 `scripts/upload-updater-assets.sh <dir> <tag>` 通过 SSH 上传已经生成好的 updater 资产目录。
 
 ## 项目结构
 
