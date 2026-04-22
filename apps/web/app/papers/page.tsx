@@ -74,7 +74,7 @@ export default function PapersPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">论文库</h1>
-            <p className="text-sm text-gray-500">上传 PDF，生成论文精读分析与复现指导</p>
+            <p className="text-sm text-gray-500">上传 PDF，小妍帮你精读论文并生成可执行的复现指导</p>
           </div>
         </div>
         <div>
@@ -98,7 +98,7 @@ export default function PapersPage() {
             <FileText className="w-7 h-7 text-gray-400" />
           </div>
           <h3 className="font-semibold text-gray-700 mb-2">暂无论文</h3>
-          <p className="text-sm text-gray-500 mb-4">请先上传 PDF，小妍会自动提取关键信息并生成复现指导</p>
+          <p className="text-sm text-gray-500 mb-4">上传第一篇论文，小妍会帮你梳理核心内容并生成复现指导</p>
           <Button onClick={() => fileRef.current?.click()} variant="secondary">
             <Plus className="w-4 h-4" />
             上传第一篇

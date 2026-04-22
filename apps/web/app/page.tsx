@@ -12,7 +12,7 @@ const features = [
     href: "/planner",
     icon: Map,
     title: "研究方向规划",
-    description: `请输入研究方向，小妍会为你生成完整学习路径、先修知识与经典论文推荐`,
+    description: `告诉小妍你的研究方向，她来帮你拆解学习路径、补齐先修知识、推荐必读论文`,
     color: "text-blue-600",
     bg: "bg-blue-50",
   },
@@ -20,7 +20,7 @@ const features = [
     href: "/survey",
     icon: BookOpen,
     title: "文献调研与综述",
-    description: `请输入研究关键词，小妍会自动检索论文并生成结构化综述报告`,
+    description: `输入研究关键词，小妍会检索相关文献并整理成结构化综述，帮你快速把握领域全貌`,
     color: "text-emerald-600",
     bg: "bg-emerald-50",
   },
@@ -28,7 +28,7 @@ const features = [
     href: "/papers",
     icon: FileText,
     title: "论文精读 & 复现",
-    description: `上传 PDF 后，小妍会提取研究问题、方法与创新点，并生成复现指导`,
+    description: `上传 PDF，小妍帮你梳理研究问题、核心方法与创新点，还能生成可执行的复现指导`,
     color: "text-violet-600",
     bg: "bg-violet-50",
   },
@@ -36,7 +36,7 @@ const features = [
     href: "/knowledge",
     icon: Library,
     title: "个人知识库",
-    description: `小妍会自动归档所有分析结果，支持语义搜索和知识问答`,
+    description: `小妍会自动归档你的所有研究产出，随时用自然语言检索和追问`,
     color: "text-amber-600",
     bg: "bg-amber-50",
   },
@@ -44,7 +44,7 @@ const features = [
     href: "/xiaoyan",
     icon: MessageSquare,
     title: MAIN_ASSISTANT_WORKSPACE_NAME,
-    description: `${MAIN_ASSISTANT_NAME}会先拆解你的目标，再联动检索、综述、论文解析与复现建议形成可观测链路`,
+    description: `小妍会先理解你的目标，再按需调度检索、综述、论文解析与复现能力，全程可追踪`,
     color: "text-rose-600",
     bg: "bg-rose-50",
   },
@@ -52,7 +52,7 @@ const features = [
     href: "/settings",
     icon: SlidersHorizontal,
     title: "设置中心",
-    description: `在这里配置${MAIN_ASSISTANT_NAME}的能力模块、RAG 参数和多能力域模型编排策略，避免配置散落在不同入口`,
+    description: `集中配置模型、RAG 参数和调度策略，让小妍的能力更贴合你的研究习惯`,
     color: "text-slate-700",
     bg: "bg-slate-100",
   },
@@ -71,7 +71,7 @@ export default function HomePage() {
               {PRODUCT_NAME}
             </h1>
             <p className="max-w-2xl text-sm leading-7" style={{ color: "var(--rc-text-soft)" }}>
-              {MAIN_ASSISTANT_NAME}会把研究目标拆成可执行的规划、检索、精读与沉淀步骤，让每次推进都能留在同一张工作台里。
+              {MAIN_ASSISTANT_NAME}陪你从选题到沉淀——规划路径、检索文献、精读论文、归档知识，每一步都留在同一张工作台里。
             </p>
           </div>
 
@@ -125,11 +125,11 @@ export default function HomePage() {
         </h2>
         <ol className="space-y-3">
           {[
-            { step: "1", text: "在「方向规划」中输入研究方向，获取系统化学习路径" },
-            { step: "2", text: "在「文献调研」中输入研究关键词，生成结构化综述并快速了解领域现状" },
-            { step: "3", text: "上传 PDF 论文，获取论文精读分析与复现指导" },
-            { step: "4", text: `所有内容会自动归档到「知识库」，支持语义搜索和问答` },
-            { step: "5", text: `随时打开「${MAIN_ASSISTANT_WORKSPACE_NAME}」查看任务计划、能力域模型时间线与结构化产物` },
+            { step: "1", text: "在「方向规划」中告诉小妍你的研究方向，她会生成系统化学习路径" },
+            { step: "2", text: "在「文献调研」中输入关键词，小妍会整理综述帮你快速了解领域现状" },
+            { step: "3", text: "上传 PDF 论文，小妍帮你精读分析并生成复现指导" },
+            { step: "4", text: "所有研究产出会自动归档到「知识库」，随时用自然语言检索" },
+            { step: "5", text: `遇到复杂任务，打开「${MAIN_ASSISTANT_WORKSPACE_NAME}」，小妍会拆解目标、调度执行，全程可追踪` },
           ].map(({ step, text }) => (
             <li key={step} className="flex items-start gap-3">
               <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--rc-accent)" }}>

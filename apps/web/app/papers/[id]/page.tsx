@@ -152,8 +152,8 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
         <Card className="mb-5 bg-brand-50 border-brand-200">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium text-brand-900">暂无论文精读分析</div>
-              <div className="text-sm text-brand-700 mt-0.5">请启动论文精读，小妍会自动提取研究问题、方法与创新点等结构化信息。</div>
+              <div className="font-medium text-brand-900">这篇论文还没有精读分析</div>
+              <div className="text-sm text-brand-700 mt-0.5">小妍会帮你提取研究问题、核心方法与创新点，生成结构化精读报告。</div>
             </div>
             <Button onClick={handleAnalyze} loading={analyzing}>
               <Sparkles className="w-4 h-4" />
@@ -167,8 +167,8 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
         <Card className="mb-5 bg-violet-50 border-violet-200">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium text-violet-900">暂无复现指导</div>
-              <div className="text-sm text-violet-700 mt-0.5">可基于论文内容生成结构化实验复现流程。</div>
+              <div className="font-medium text-violet-900">这篇论文还没有复现指导</div>
+              <div className="text-sm text-violet-700 mt-0.5">小妍可以基于论文内容，帮你梳理从环境配置到实验评测的完整复现流程。</div>
             </div>
             <Button onClick={handleReproduce} loading={reproducing}
               className="bg-violet-600 hover:bg-violet-700 text-white">

@@ -147,7 +147,7 @@ export default function PlannerPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">研究方向规划</h1>
-          <p className="text-sm text-gray-500">请输入研究方向，小妍会为你生成结构化学习路径</p>
+          <p className="text-sm text-gray-500">告诉小妍你的研究方向，她来帮你梳理学习路径和先修知识</p>
         </div>
       </div>
 
@@ -155,14 +155,14 @@ export default function PlannerPage() {
         <div className="space-y-4">
           <Input
             label="研究方向"
-            placeholder="请输入研究方向，例如：大语言模型的对齐技术、联邦学习隐私保护"
+            placeholder="例如：大语言模型的对齐技术、联邦学习隐私保护"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
           />
           <Input
             label="关键词（可选，用逗号分隔）"
-            placeholder="例如：RLHF, PPO, reward model"
+            placeholder="可选，例如：RLHF, PPO, reward model"
             value={keywords}
             onChange={(e) => setKeywords(e.target.value)}
           />

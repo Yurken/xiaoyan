@@ -332,14 +332,14 @@ export default function SurveyPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">文献调研与综述</h1>
-          <p className="text-sm text-gray-500">请输入研究关键词，小妍会自动检索论文并生成结构化综述</p>
+          <p className="text-sm text-gray-500">输入研究关键词，小妍会检索相关文献并整理成结构化综述</p>
         </div>
       </div>
 
       <Card className="mb-6">
         <div className="flex gap-3">
           <Input
-            placeholder="请输入研究关键词，例如：graph neural network for drug discovery"
+            placeholder="例如：graph neural network for drug discovery"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleGenerate()}

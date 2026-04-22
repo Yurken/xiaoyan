@@ -426,7 +426,7 @@ export default function SettingsPage() {
             </Badge>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-950">设置中心</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              把模型、RAG、调度器路由和专项能力域模型行为统一收拢到这里。Web 端默认走同源代理，无需单独配置 API 地址。
+              集中管理模型、RAG 和调度策略，让小妍的能力更贴合你的研究习惯。Web 端默认走同源代理，无需单独配置 API 地址。
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -509,7 +509,7 @@ export default function SettingsPage() {
               <SettingSection
                 icon={Bot}
                 title="多能力域模型编排"
-                description="决定调度器是否开启、如何路由，以及各专项能力域模型的模型与温度。"
+                description="控制调度器是否启用、路由策略，以及各能力域模型的模型与参数。"
               >
                 <div className="space-y-5">
                   <div className="rounded-3xl border border-slate-200 bg-white/70 p-4">
@@ -517,7 +517,7 @@ export default function SettingsPage() {
                       <div>
                         <div className="text-sm font-semibold text-slate-900">启用多能力域模型</div>
                         <div className="mt-1 text-xs leading-5 text-slate-500">
-                          关闭后仍保留最终答复能力，但不再经过调度器拆解。
+                          关闭后小妍仍能直接回复，但不再通过调度器拆解任务。
                         </div>
                       </div>
                       <button
@@ -592,7 +592,7 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <div className="text-sm font-semibold text-slate-900">能力域模型配置</div>
                     <p className="text-xs leading-5 text-slate-500">
-                      每个能力域模型可独立设置 model、base_url、api_key、temperature、top_p，留空则继承上级默认值。
+                      每个能力域模型可独立设置模型、地址、密钥和采样参数，留空则继承默认值。
                     </p>
                     <div className="space-y-2 pt-1">
                       <AgentConfigPanel

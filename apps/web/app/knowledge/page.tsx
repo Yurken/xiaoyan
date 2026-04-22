@@ -156,7 +156,7 @@ export default function KnowledgePage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">个人知识库</h1>
-            <p className="text-sm text-gray-500">统一归档研究笔记，支持语义搜索与问答</p>
+            <p className="text-sm text-gray-500">小妍帮你归档研究产出，支持语义检索和自然语言追问</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -205,7 +205,7 @@ export default function KnowledgePage() {
       <div className="flex gap-2 mb-5">
         <Input
           aria-label="搜索知识库"
-          placeholder="请输入关键词搜索知识库"
+          placeholder="用自然语言搜索知识库"
           value={search}
           onChange={(e) => { setSearch(e.target.value); if (!e.target.value) setSearchResults(null); }}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -241,7 +241,7 @@ export default function KnowledgePage() {
           {displayedNotes.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Library className="w-10 h-10 mx-auto mb-2 opacity-30" />
-              {searchResults !== null ? "未找到相关笔记" : "暂无笔记，导入论文或新建笔记后小妍会自动归档"}
+              {searchResults !== null ? "没有找到相关笔记，换个关键词试试？" : "还没有笔记，导入论文或新建笔记后小妍会自动归档"}
             </div>
           ) : (
             displayedNotes.map((note) => (
@@ -287,7 +287,7 @@ export default function KnowledgePage() {
           {interests.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Map className="w-10 h-10 mx-auto mb-2 opacity-30" />
-              暂无研究方向，请先新建研究方向。
+              还没有研究方向，新建一个开始吧。
             </div>
           ) : (
             interests.map((interest) => (
