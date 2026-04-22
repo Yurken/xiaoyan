@@ -23,6 +23,7 @@ import Submission from "./pages/Submission";
 import Experiment from "./pages/Experiment";
 import FocusApp from "./pages/FocusLayout";
 import hitLogo from "./assets/xiaoyany.svg";
+import hitLogoActive from "./assets/xiaoyanw.svg";
 import { getLayoutMode } from "./lib/layoutMode";
 import { applyTheme, getTheme, watchSystemTheme } from "./lib/themeMode";
 import { applyThemeStyle, getThemeStyle } from "./lib/themeStyle";
@@ -78,7 +79,14 @@ export default function App() {
       <aside className="app-sidebar">
         <MacWindowDragStrip className="app-sidebar__window-drag-region" />
         <NavLink to="/xiaoyan" className="app-sidebar__logo" title="进入小妍对话" draggable={false}>
-          <img src={hitLogo} alt="小妍" className="app-sidebar__logo-image" draggable={false} />
+          {({ isActive }) => (
+            <img
+              src={isActive ? hitLogoActive : hitLogo}
+              alt="小妍"
+              className="app-sidebar__logo-image"
+              draggable={false}
+            />
+          )}
         </NavLink>
 
         <div className="app-sidebar__divider" />
