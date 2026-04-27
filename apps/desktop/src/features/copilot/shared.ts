@@ -1,4 +1,4 @@
-import type { AgentPlanStep, AgentRun } from "@research-copilot/types";
+import type { AgentPlanStep, AgentRun, ChatMode } from "@research-copilot/types";
 
 export type AgentGraphNodeKey =
   | "start"
@@ -49,6 +49,31 @@ export interface CopilotMessageAttachmentView {
   name: string;
   extension: string;
   mediaTypeLabel: string;
+}
+
+export interface CopilotChatModeOption {
+  value: ChatMode;
+  label: string;
+  description: string;
+}
+
+export const COPILOT_CHAT_MODE_OPTIONS: CopilotChatModeOption[] = [
+  {
+    value: "direct",
+    label: "直接对话",
+    description: "直接回答当前问题，不先拆很多步骤。",
+  },
+  {
+    value: "task",
+    label: "任务拆解",
+    description: "先拆任务，再按需调度检索和分析流程。",
+  },
+];
+
+export function getCopilotInputPlaceholder(mode: ChatMode) {
+  return mode === "direct"
+    ? "直接问我就行，比如：你好、帮我润色这段话、解释一下这个概念"
+    : "告诉我你的研究任务，我会先拆解步骤，再逐步推进";
 }
 
 const NODE_ORDER: AgentGraphNodeKey[] = [

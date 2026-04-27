@@ -215,6 +215,7 @@ pub async fn chat_stream(
     session_id: Option<String>,
     context_type: Option<String>,
     context_id: Option<String>,
+    chat_mode: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let request_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -298,6 +299,7 @@ pub async fn chat_stream(
             &message,
             &ctx_type,
             &normalized_context_id,
+            chat_mode.as_deref().unwrap_or("task"),
             history,
         )
         .await
@@ -337,6 +339,7 @@ async fn run_chat(
     message: &str,
     context_type: &str,
     context_id: &Option<String>,
+    chat_mode: &str,
     history: Vec<LlmMessage>,
 ) -> anyhow::Result<()> {
     let client = LlmClient::from_settings(settings)?;
@@ -354,7 +357,9 @@ async fn run_chat(
     )
     .await;
 
-    let full = if multi_agent {
+    let use_direct_chat = chat_mode == "direct";
+
+    let full = if !use_direct_chat && multi_agent {
         run_agentic(
             app,
             db,
