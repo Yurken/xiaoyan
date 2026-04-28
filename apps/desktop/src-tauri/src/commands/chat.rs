@@ -288,9 +288,10 @@ pub async fn chat_stream(
     let message_clone = message.clone();
     let ctx_type_clone = ctx_type.clone();
     let context_id_clone = normalized_context_id.clone();
+    let chat_handles = state.chat_handles.clone();
 
-    tokio::spawn(async move {
-        match run_chat(
+    let handle = tokio::spawn(async move {
+        let result = run_chat(
             &app,
             &db,
             &settings,
@@ -302,30 +303,47 @@ pub async fn chat_stream(
             chat_mode.as_deref().unwrap_or("task"),
             history,
         )
-        .await
-        {
-            Ok(()) => {}
-            Err(e) => {
-                if long_term_memory_enabled {
-                    let _ = crate::commands::memory::record_chat_failure_event(
-                        &db,
-                        &sid_clone,
-                        &ctx_type_clone,
-                        context_id_clone.as_deref(),
-                        &message_clone,
-                        &e.to_string(),
-                    )
-                    .await;
-                }
-                let _ = app.emit(
-                    "chat:error",
-                    json!({ "request_id": rid, "error": e.to_string() }),
-                );
+        .await;
+
+        if let Err(e) = result {
+            if long_term_memory_enabled {
+                let _ = crate::commands::memory::record_chat_failure_event(
+                    &db,
+                    &sid_clone,
+                    &ctx_type_clone,
+                    context_id_clone.as_deref(),
+                    &message_clone,
+                    &e.to_string(),
+                )
+                .await;
             }
+            let _ = app.emit(
+                "chat:error",
+                json!({ "request_id": rid, "error": e.to_string() }),
+            );
         }
+
+        let _ = chat_handles.lock().await.remove(&rid);
     });
 
+    let mut handles = state.chat_handles.lock().await;
+    handles.insert(request_id.clone(), handle);
+    if handles
+        .get(&request_id)
+        .is_some_and(|handle| handle.is_finished())
+    {
+        handles.remove(&request_id);
+    }
+
     Ok(json!({ "request_id": request_id, "session_id": sid }))
+}
+
+#[tauri::command]
+pub async fn chat_cancel(state: State<'_, AppState>, request_id: String) -> Result<(), String> {
+    if let Some(handle) = state.chat_handles.lock().await.remove(&request_id) {
+        handle.abort();
+    }
+    Ok(())
 }
 
 // ── Core orchestration ──────────────────────────────────────────

@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 /// Sensitive settings keys — masked as "***" in GET responses.
 pub const SENSITIVE_KEYS: &[&str] = &[
@@ -165,7 +165,10 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("multi_agent_literature_scout_api_key".into(), "".into());
     m.insert("multi_agent_literature_scout_temperature".into(), "".into());
     m.insert("multi_agent_literature_scout_top_p".into(), "".into());
-    m.insert("multi_agent_literature_scout_max_tokens".into(), "16384".into());
+    m.insert(
+        "multi_agent_literature_scout_max_tokens".into(),
+        "16384".into(),
+    );
     m.insert(
         "multi_agent_literature_scout_presence_penalty".into(),
         "".into(),
@@ -187,7 +190,10 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("multi_agent_paper_analyst_api_key".into(), "".into());
     m.insert("multi_agent_paper_analyst_temperature".into(), "".into());
     m.insert("multi_agent_paper_analyst_top_p".into(), "".into());
-    m.insert("multi_agent_paper_analyst_max_tokens".into(), "16384".into());
+    m.insert(
+        "multi_agent_paper_analyst_max_tokens".into(),
+        "16384".into(),
+    );
     m.insert(
         "multi_agent_paper_analyst_presence_penalty".into(),
         "".into(),
@@ -255,6 +261,8 @@ pub struct AppState {
     pub db: SqlitePool,
     /// In-memory settings cache; loaded from DB at startup.
     pub settings: Arc<RwLock<HashMap<String, String>>>,
+    /// Active chat stream handles keyed by request_id.
+    pub chat_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
 }
 
 impl AppState {
@@ -262,6 +270,7 @@ impl AppState {
         Self {
             db,
             settings: Arc::new(RwLock::new(settings)),
+            chat_handles: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }

@@ -298,13 +298,20 @@ export const knowledgeApi = {
 
 // ── Chat / Streaming ──────────────────────────────────────────────
 
-export async function* streamChat(body: {
-  session_id?: string;
-  message: string;
-  context_type?: string;
-  context_id?: string;
-  chat_mode?: ChatMode;
-}): AsyncGenerator<ChatStreamChunk> {
+export async function* streamChat(
+  body: {
+    session_id?: string;
+    message: string;
+    context_type?: string;
+    context_id?: string;
+    chat_mode?: ChatMode;
+  },
+  signal?: AbortSignal
+): AsyncGenerator<ChatStreamChunk> {
+  if (signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
+
   // Start the backend stream, get request_id + session_id
   const { request_id, session_id } = await invoke<{
     request_id: string;
@@ -317,13 +324,21 @@ export async function* streamChat(body: {
     chatMode: body.chat_mode ?? null,
   });
 
-  yield { type: "request_id", value: request_id };
-  yield { type: "session_id", value: session_id };
-
   // Collect events emitted by the Rust backend
   const queue: ChatStreamChunk[] = [];
   let done = false;
   let resolve: (() => void) | null = null;
+  let unlisteners: Array<() => void> = [];
+
+  const cancelBackend = () => {
+    invoke("chat_cancel", { requestId: request_id }).catch(() => {});
+  };
+  const onAbort = () => {
+    done = true;
+    resolve?.();
+    resolve = null;
+    cancelBackend();
+  };
 
   const enqueue = (chunk: ChatStreamChunk) => {
     queue.push(chunk);
@@ -333,50 +348,59 @@ export async function* streamChat(body: {
 
   const wait = () =>
     new Promise<void>((r) => {
-      if (queue.length > 0) return r();
+      if (queue.length > 0 || done) return r();
       resolve = r;
     });
 
-  const unlisteners = await Promise.all([
-    listen<{ request_id: string; plan: unknown[] }>(`chat:plan`, (e) => {
-      if (e.payload.request_id === request_id)
-        enqueue({ type: "plan", value: e.payload.plan as never });
-    }),
-    listen<{ request_id: string; value: AgentRun }>(`chat:agent_start`, (e) => {
-      if (e.payload.request_id === request_id)
-        enqueue({ type: "agent_start", value: e.payload.value });
-    }),
-    listen<{ request_id: string; value: AgentRun }>(`chat:agent_complete`, (e) => {
-      if (e.payload.request_id === request_id)
-        enqueue({ type: "agent_complete", value: e.payload.value });
-    }),
-    listen<{ request_id: string; delta: string }>(`chat:delta`, (e) => {
-      if (e.payload.request_id === request_id)
-        enqueue({ type: "delta", value: e.payload.delta });
-    }),
-    listen<{ request_id: string; value: NonNullable<ChatMessage["sources"]> }>(`chat:sources`, (e) => {
-      if (e.payload.request_id === request_id)
-        enqueue({ type: "sources", value: e.payload.value });
-    }),
-    listen<{ request_id: string }>(`chat:done`, (e) => {
-      if (e.payload.request_id === request_id) {
-        enqueue({ type: "done" });
-        done = true;
-        resolve?.();
-        resolve = null;
-      }
-    }),
-    listen<{ request_id: string; error: string }>(`chat:error`, (e) => {
-      if (e.payload.request_id === request_id) {
-        enqueue({ type: "error", value: e.payload.error });
-        done = true;
-        resolve?.();
-        resolve = null;
-      }
-    }),
-  ]);
-
   try {
+    signal?.addEventListener("abort", onAbort);
+    if (signal?.aborted) {
+      onAbort();
+      throw new DOMException("Aborted", "AbortError");
+    }
+
+    yield { type: "request_id", value: request_id };
+    yield { type: "session_id", value: session_id };
+
+    unlisteners = await Promise.all([
+      listen<{ request_id: string; plan: unknown[] }>(`chat:plan`, (e) => {
+        if (e.payload.request_id === request_id)
+          enqueue({ type: "plan", value: e.payload.plan as never });
+      }),
+      listen<{ request_id: string; value: AgentRun }>(`chat:agent_start`, (e) => {
+        if (e.payload.request_id === request_id)
+          enqueue({ type: "agent_start", value: e.payload.value });
+      }),
+      listen<{ request_id: string; value: AgentRun }>(`chat:agent_complete`, (e) => {
+        if (e.payload.request_id === request_id)
+          enqueue({ type: "agent_complete", value: e.payload.value });
+      }),
+      listen<{ request_id: string; delta: string }>(`chat:delta`, (e) => {
+        if (e.payload.request_id === request_id)
+          enqueue({ type: "delta", value: e.payload.delta });
+      }),
+      listen<{ request_id: string; value: NonNullable<ChatMessage["sources"]> }>(`chat:sources`, (e) => {
+        if (e.payload.request_id === request_id)
+          enqueue({ type: "sources", value: e.payload.value });
+      }),
+      listen<{ request_id: string }>(`chat:done`, (e) => {
+        if (e.payload.request_id === request_id) {
+          enqueue({ type: "done" });
+          done = true;
+          resolve?.();
+          resolve = null;
+        }
+      }),
+      listen<{ request_id: string; error: string }>(`chat:error`, (e) => {
+        if (e.payload.request_id === request_id) {
+          enqueue({ type: "error", value: e.payload.error });
+          done = true;
+          resolve?.();
+          resolve = null;
+        }
+      }),
+    ]);
+
     while (true) {
       await wait();
       while (queue.length > 0) {
@@ -385,6 +409,10 @@ export async function* streamChat(body: {
       if (done) break;
     }
   } finally {
+    signal?.removeEventListener("abort", onAbort);
+    if (!done) {
+      cancelBackend();
+    }
     unlisteners.forEach((u) => u());
   }
 }
