@@ -114,7 +114,7 @@ function MissionControl({
             <h3 className="text-sm font-semibold text-slate-900">计划分解</h3>
           </div>
           {plan.length === 0 ? (
-            <p className="text-sm leading-6 text-slate-500">尚未启动任务拆解。发送问题后，小妍会在此展示当前执行链路。</p>
+            <p className="text-sm leading-6 text-slate-500">发送问题后，小妍会在此展示任务拆解和执行链路。</p>
           ) : (
             <div className="space-y-3">
               {plan.map((step, index) => (
@@ -136,7 +136,7 @@ function MissionControl({
             <h3 className="text-sm font-semibold text-slate-900">能力域模型执行时间线</h3>
           </div>
           {orderedRuns.length === 0 ? (
-            <p className="text-sm leading-6 text-slate-500">暂无能力域模型运行记录。</p>
+            <p className="text-sm leading-6 text-slate-500">暂无分析模型运行记录。</p>
           ) : (
             <div className="space-y-3">
               {orderedRuns.map((run) => (
@@ -166,7 +166,7 @@ function MissionControl({
             <h3 className="text-sm font-semibold text-slate-900">结构化产物</h3>
           </div>
           {artifacts.length === 0 ? (
-            <p className="text-sm leading-6 text-slate-500">当前对话暂无结构化产物。</p>
+            <p className="text-sm leading-6 text-slate-500">暂无结构化产物，模型产出后将出现在这里。</p>
           ) : (
             <div className="space-y-3">
               {artifacts.slice(0, 4).map((artifact) => (

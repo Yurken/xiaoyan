@@ -8,6 +8,7 @@ use serde_json::json;
 use sqlx::Row;
 use std::collections::HashSet;
 use tauri::{Emitter, State};
+use uuid::Uuid;
 
 // ── Planner ─────────────────────────────────────────────────────
 
@@ -38,11 +39,28 @@ pub async fn planner_generate(
     keywords: Vec<String>,
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
+    let planner_id = Uuid::new_v4().to_string();
+    let _ = app.emit(
+        "interest:agent_start",
+        json!({
+            "id": "planner",
+            "agent": {
+                "id": planner_id,
+                "name": "学习路径规划",
+                "role": "生成研究方向学习计划",
+                "status": "running"
+            }
+        }),
+    );
     tokio::spawn(async move {
         let client = match LlmClient::from_settings(&settings) {
             Ok(c) => c,
             Err(e) => {
                 let _ = app.emit("planner:error", json!({ "error": e.to_string() }));
+                let _ = app.emit(
+                    "interest:error",
+                    json!({ "id": "planner", "error": e.to_string() }),
+                );
                 return;
             }
         };
@@ -66,9 +84,17 @@ pub async fn planner_generate(
                     serde_json::from_str(&clean).unwrap_or(json!({"raw": resp})),
                 );
                 let _ = app.emit("planner:result", json!({ "topic": topic, "plan": v }));
+                let _ = app.emit(
+                    "interest:agent_complete",
+                    json!({ "id": "planner", "agent": { "id": planner_id } }),
+                );
             }
             Err(e) => {
                 let _ = app.emit("planner:error", json!({ "error": e.to_string() }));
+                let _ = app.emit(
+                    "interest:error",
+                    json!({ "id": "planner", "error": e.to_string() }),
+                );
             }
         }
     });

@@ -47,7 +47,19 @@ fn normalize_base_url(url: &str) -> String {
 
 fn is_anthropic_compatible_base_url(base_url: &str) -> bool {
     let lower = base_url.to_ascii_lowercase();
-    lower.contains("/anthropic/") || lower.contains("api.anthropic.com")
+    lower.contains("/anthropic/")
+        || lower.contains("api.anthropic.com")
+        || lower.contains("api.kimi.com/coding")
+}
+
+fn build_anthropic_messages_url(base_url: &str) -> String {
+    let trimmed = base_url.trim_end_matches('/');
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.ends_with("/v1") || lower.contains("/v1/") {
+        format!("{}/messages", trimmed)
+    } else {
+        format!("{}/v1/messages", trimmed)
+    }
 }
 
 impl LlmClient {
@@ -278,7 +290,7 @@ impl LlmClient {
                     }]
                 });
                 let resp = client
-                    .post(format!("{}/messages", base_url.trim_end_matches('/')))
+                    .post(build_anthropic_messages_url(base_url))
                     .header("x-api-key", api_key)
                     .header("anthropic-version", "2023-06-01")
                     .json(&body)
@@ -746,7 +758,7 @@ async fn anthropic_chat(
         body["system"] = json!(s);
     }
     let resp = client
-        .post(format!("{}/messages", base_url.trim_end_matches('/')))
+        .post(build_anthropic_messages_url(base_url))
         .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
         .json(&body)
@@ -791,7 +803,7 @@ async fn stream_anthropic(
         body["system"] = json!(s);
     }
     let resp = client
-        .post(format!("{}/messages", base_url.trim_end_matches('/')))
+        .post(build_anthropic_messages_url(base_url))
         .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
         .json(&body)

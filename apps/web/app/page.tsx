@@ -44,7 +44,7 @@ const features = [
     href: "/xiaoyan",
     icon: MessageSquare,
     title: MAIN_ASSISTANT_WORKSPACE_NAME,
-    description: `小妍会先理解你的目标，再按需调度检索、综述、论文解析与复现能力，全程可追踪`,
+    description: `小妍会先理解你的目标，再按需调度检索、综述、论文解读与复现能力，全程可追踪`,
     color: "text-rose-600",
     bg: "bg-rose-50",
   },
@@ -52,7 +52,7 @@ const features = [
     href: "/settings",
     icon: SlidersHorizontal,
     title: "设置中心",
-    description: `集中配置模型、RAG 参数和调度策略，让小妍的能力更贴合你的研究习惯`,
+    description: `集中配置模型、参数和调度策略，让小妍的能力更贴合你的研究习惯`,
     color: "text-slate-700",
     bg: "bg-slate-100",
   },
@@ -129,7 +129,7 @@ export default function HomePage() {
             { step: "2", text: "在「文献调研」中输入关键词，小妍会整理综述帮你快速了解领域现状" },
             { step: "3", text: "上传 PDF 论文，小妍帮你精读分析并生成复现指导" },
             { step: "4", text: "所有研究产出会自动归档到「知识库」，随时用自然语言检索" },
-            { step: "5", text: `遇到复杂任务，打开「${MAIN_ASSISTANT_WORKSPACE_NAME}」，小妍会拆解目标、调度执行，全程可追踪` },
+            { step: "5", text: `遇到复杂任务，打开「{MAIN_ASSISTANT_WORKSPACE_NAME}」，小妍会拆解目标、调度执行，全程可追踪` },
           ].map(({ step, text }) => (
             <li key={step} className="flex items-start gap-3">
               <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--rc-accent)" }}>

@@ -103,7 +103,7 @@ export function PaperDiscoveryPanel({
         <div className="space-y-1">
           <p className="text-sm font-semibold text-ink-primary">论文检索</p>
           <p className="text-xs leading-5 text-ink-tertiary">
-            小妍会联网检索全网论文，并按相关性与研究价值做聚合排序，帮你快速定位值得读的工作。
+            我会联网检索全网论文，按相关性与研究价值做排序，帮你快速定位值得读的工作。
           </p>
         </div>
       </div>
@@ -126,7 +126,7 @@ export function PaperDiscoveryPanel({
         onKeyDown={handleSubmitKeyDown}
         rows={2}
         placeholder="例如：LLM, diffusion, reinforcement learning…"
-        label="研究主题说明（可选，小妍根据你的输入自动优化检索策略）"
+        label="研究主题说明（可选，我将根据你的描述优化检索策略）"
       />
 
       <div className="space-y-3">

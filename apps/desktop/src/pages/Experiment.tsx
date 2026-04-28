@@ -341,7 +341,7 @@ export default function Experiment() {
         {/* Header */}
         <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-nm-dark/10">
           <h1 className="text-2xl font-bold text-ink-primary">实验记录</h1>
-          <p className="mt-1 text-sm text-ink-tertiary">记录实验配置与结果，上传截图，关联投稿同步进度。</p>
+          <p className="mt-1 text-sm text-ink-tertiary">记录实验配置与结果，上传截图。小妍帮你追踪实验脉络，关联投稿同步进度。</p>
         </div>
 
         <div className="flex flex-1 overflow-hidden">

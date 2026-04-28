@@ -6,7 +6,7 @@ import Sidebar from "@/components/layout/Sidebar";
 
 export const metadata: Metadata = {
   title: `${PRODUCT_NAME} | 科研协作工作台`,
-  description: `${PRODUCT_NAME} 会帮你规划方向、检索文献、解析论文并沉淀知识，让科研推进更连贯。`,
+  description: `${PRODUCT_NAME} 陪你规划方向、检索文献、解析论文、沉淀知识，让科研推进更连贯。`,
 };
 
 export default function RootLayout({

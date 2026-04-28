@@ -945,7 +945,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             {`共 ${papers.length} 篇论文 · ${interests.length} 个主题分组`}
           </p>
           <p className="mt-1 text-sm text-ink-tertiary">
-            上传 PDF，小妍帮你精读、提取图表、生成复现指南。
+            上传 PDF，小妍帮你精读论文、提取图表、生成复现指南。
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">

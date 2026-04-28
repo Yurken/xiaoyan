@@ -650,7 +650,7 @@ export default function PlannerComposer({ onCancel, onCreated, initialTopic }: P
                 <p className="text-sm font-semibold text-ink-primary">智能提示</p>
               </div>
               <Badge variant={hintStatus === "fallback" ? "default" : "info"}>
-                {hintStatus === "loading" ? "AI 处理中" : hintStatus === "ready" ? "AI 实时建议" : hintStatus === "fallback" ? "本地兜底" : "待输入"}
+                {hintStatus === "loading" ? "小妍处理中" : hintStatus === "ready" ? "小妍实时建议" : hintStatus === "fallback" ? "本地兜底" : "待输入"}
               </Badge>
             </div>
 

@@ -1,7 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { Brain, ChevronDown, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import { Card } from "@research-copilot/ui";
-import type { AppSettings, LlmProvider } from "@research-copilot/types";
+import type { AppSettings, LlmProvider, PaperSearchEngine } from "@research-copilot/types";
 import { MASK, SectionIcon, SettingInput } from "./shared";
 import { ANTHROPIC_ENDPOINT, PROVIDER_PRESETS, type ProviderPresetId } from "./providerPresets";
 
@@ -80,6 +80,11 @@ function ReadonlyField({
     </div>
   );
 }
+
+const SEARCH_ENGINE_OPTIONS: { value: PaperSearchEngine; label: string; description: string }[] = [
+  { value: "arxiv", label: "arXiv", description: "免费开源预印本平台，覆盖物理、数学、计算机等领域。" },
+  { value: "semantic_scholar", label: "Semantic Scholar", description: "AI 驱动的学术搜索引擎，覆盖更广、支持中文关键词直接检索。" },
+];
 
 export default function ConnectionSection({
   contentUnavailable,
@@ -283,6 +288,35 @@ export default function ConnectionSection({
 
           <div className="space-y-3 border-t border-nm-dark/10 pt-1">
             <p className="text-xs font-medium text-ink-tertiary">外部学术服务</p>
+            <div className="space-y-2">
+              <label className="ml-1 block text-xs font-medium text-ink-tertiary">默认论文搜索引擎</label>
+              <div className="grid gap-2 md:grid-cols-2">
+                {SEARCH_ENGINE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => set("paper_search_engine")(option.value)}
+                    className="rounded-[22px] p-3 text-left transition-all duration-150"
+                    style={
+                      form.paper_search_engine === option.value
+                        ? {
+                            background: "color-mix(in srgb, var(--rc-accent) 10%, var(--rc-elevated))",
+                            border: "1px solid color-mix(in srgb, var(--rc-accent) 26%, var(--rc-border))",
+                            boxShadow: "var(--rc-card-flat-shadow)",
+                          }
+                        : {
+                            background: "var(--rc-card-inset-bg)",
+                            border: "1px solid var(--rc-card-inset-outline)",
+                            boxShadow: "var(--rc-card-inset-shadow)",
+                          }
+                    }
+                  >
+                    <p className="text-sm font-semibold text-ink-primary">{option.label}</p>
+                    <p className="mt-1.5 text-xs leading-5 text-ink-tertiary">{option.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
             <SettingInput
               label="Semantic Scholar 接口密钥"
               value={form.semantic_scholar_api_key}

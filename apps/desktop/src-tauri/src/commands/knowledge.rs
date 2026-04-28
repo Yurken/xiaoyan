@@ -1,6 +1,6 @@
 use crate::assistant_prompts::specialist_system;
 use crate::ccf::match_venue;
-use crate::commands::arxiv::search_recent_paper_hints;
+use crate::commands::arxiv::{search_recent_paper_hints, search_semantic_scholar_hints};
 use crate::commands::knowledge_notes::note_row_to_json;
 use crate::commands::memory::{is_long_term_memory_enabled, record_knowledge_note_created_event};
 use crate::links::paper_search_url;
@@ -324,7 +324,7 @@ pub async fn knowledge_generate_plan(
                 "id": rid,
                 "agent": {
                     "id": analyst_id,
-                    "name": "小妍模型",
+                    "name": "谋策模型",
                     "role": "拆解研究主题与能力目标",
                     "status": "running"
                 }
@@ -353,7 +353,7 @@ pub async fn knowledge_generate_plan(
                     "id": rid,
                     "agent": {
                         "id": analyst_id,
-                        "name": "小妍模型",
+                        "name": "谋策模型",
                         "role": "拆解研究主题与能力目标",
                         "status": "done",
                         "summary": parsed.get("scope").and_then(|v| v.as_str()).unwrap_or("已完成主题拆解")
@@ -368,7 +368,7 @@ pub async fn knowledge_generate_plan(
                         "id": rid,
                         "agent": {
                             "id": analyst_id,
-                            "name": "小妍模型",
+                            "name": "谋策模型",
                             "role": "拆解研究主题与能力目标",
                             "status": "failed",
                             "error": e.to_string()
@@ -386,7 +386,7 @@ pub async fn knowledge_generate_plan(
                 "id": rid,
                 "agent": {
                     "id": scout_id,
-                    "name": "参考文献筛选 Agent",
+                    "name": "探知模型",
                     "role": "从本地论文库筛选参考论文",
                     "status": "running"
                 }
@@ -474,27 +474,47 @@ pub async fn knowledge_generate_plan(
         let mut online_paper_count = 0usize;
         if paper_hints.len() < MIN_CLASSIC_PAPER_COUNT {
             let needed = MIN_CLASSIC_PAPER_COUNT.saturating_sub(paper_hints.len());
-            if let Ok(recent_papers) = search_recent_paper_hints(
-                &settings,
-                &topic,
-                &keywords,
-                365,
-                needed.saturating_add(4),
-            )
-            .await
-            {
+            let engine = settings
+                .get("paper_search_engine")
+                .map(|value| value.as_str())
+                .unwrap_or("arxiv");
+            let recent_papers_result = if engine == "semantic_scholar" {
+                search_semantic_scholar_hints(
+                    &settings,
+                    &topic,
+                    &keywords,
+                    365,
+                    needed.saturating_add(4),
+                )
+                .await
+            } else {
+                search_recent_paper_hints(
+                    &settings,
+                    &topic,
+                    &keywords,
+                    365,
+                    needed.saturating_add(4),
+                )
+                .await
+            };
+            if let Ok(recent_papers) = recent_papers_result {
                 for paper in recent_papers {
                     let normalized_title = paper.title.trim().to_lowercase();
                     if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
                         continue;
                     }
                     online_paper_count += 1;
+                    let source_label = if engine == "semantic_scholar" {
+                        "Semantic Scholar"
+                    } else {
+                        "arXiv"
+                    };
                     paper_hints.push(PlannerPaperHint {
                         title: paper.title,
                         authors: Some(paper.authors),
                         year: paper.year,
                         venue: Some(paper.venue),
-                        reason: format!("来自 arXiv 最近一年检索：{}", paper.reason),
+                        reason: format!("来自 {source_label} 检索：{}", paper.reason),
                         url: Some(paper.url),
                     });
                     if paper_hints.len() >= MIN_CLASSIC_PAPER_COUNT {
@@ -507,7 +527,7 @@ pub async fn knowledge_generate_plan(
             "id": rid,
             "agent": {
                 "id": scout_id,
-                "name": "参考文献筛选 Agent",
+                "name": "探知模型",
                 "role": "从本地论文库筛选参考论文",
                 "status": "done",
                 "summary": if direct_paper_count > 0 {
@@ -530,7 +550,7 @@ pub async fn knowledge_generate_plan(
                 "id": rid,
                 "agent": {
                     "id": designer_id,
-                    "name": "学习路径规划 Agent",
+                    "name": "谋策模型",
                     "role": "生成结构化学习路线",
                     "status": "running"
                 }
@@ -602,7 +622,7 @@ pub async fn knowledge_generate_plan(
                         "id": rid,
                         "agent": {
                             "id": designer_id,
-                            "name": "学习路径规划 Agent",
+                            "name": "谋策模型",
                             "role": "生成结构化学习路线",
                             "status": "done",
                             "summary": format!("学习路线生成完成，共 {} 个阶段", stage_count)
@@ -618,7 +638,7 @@ pub async fn knowledge_generate_plan(
                         "id": rid,
                         "agent": {
                             "id": designer_id,
-                            "name": "学习路径规划 Agent",
+                            "name": "谋策模型",
                             "role": "生成结构化学习路线",
                             "status": "failed",
                             "error": e.to_string()
@@ -637,6 +657,7 @@ pub async fn knowledge_generate_plan(
 
 #[tauri::command]
 pub async fn knowledge_generate_interest_hints(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     topic: String,
     keywords: Option<Vec<String>>,
@@ -647,55 +668,88 @@ pub async fn knowledge_generate_interest_hints(
     known_context: Option<String>,
     preferred_output: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let settings = state.settings.read().await.clone();
-    let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
-
-    let profile = ResearchInterestProfilePayload {
-        goal,
-        background,
-        time_budget,
-        constraints,
-        known_context,
-        preferred_output,
-    };
-    let keywords = keywords.unwrap_or_default();
-    let prompt = INTEREST_HINT_PROMPT.replace(
-        "{form}",
-        &format_interest_hint_form(&topic, &keywords, &profile),
+    let hint_id = Uuid::new_v4().to_string();
+    let _ = app.emit(
+        "interest:agent_start",
+        json!({
+            "id": "hints",
+            "agent": {
+                "id": hint_id,
+                "name": "智能提示",
+                "role": "生成研究方向实时建议",
+                "status": "running"
+            }
+        }),
     );
-    let messages = vec![
-        LlmMessage::system(interest_hint_system()),
-        LlmMessage::user(prompt),
-    ];
-    let hint_model = resolve_model(&settings, &["planner_hint_model"]);
-    let hint_temperature = resolve_temperature(&settings, "planner_hint_temperature", 0.2);
-    let response = client
-        .chat(&messages, hint_model.as_deref(), hint_temperature)
-        .await
-        .map_err(|e| e.to_string())?;
-    let clean = crate::commands::papers::extract_json_pub(&response);
-    let parsed: serde_json::Value = serde_json::from_str(&clean)
-        .map_err(|e| format!("Failed to parse interest hints JSON: {e}"))?;
 
-    let result = ResearchInterestHintResponse {
-        summary: parsed
-            .get("summary")
-            .and_then(|value| value.as_str())
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| "已结合当前输入生成实时建议。".to_string()),
-        next_field: normalize_next_field(parsed.get("next_field").and_then(|value| value.as_str())),
-        matched_domains: extract_string_list(parsed.get("matched_domains"), 4),
-        keyword_suggestions: extract_string_list(parsed.get("keyword_suggestions"), 6),
-        goal_suggestions: extract_string_list(parsed.get("goal_suggestions"), 6),
-        background_prompts: extract_string_list(parsed.get("background_prompts"), 6),
-        time_budget_suggestions: extract_string_list(parsed.get("time_budget_suggestions"), 6),
-        constraint_suggestions: extract_string_list(parsed.get("constraint_suggestions"), 6),
-        known_context_suggestions: extract_string_list(parsed.get("known_context_suggestions"), 6),
-        output_suggestions: extract_string_list(parsed.get("output_suggestions"), 6),
-    };
+    let outcome = async {
+        let settings = state.settings.read().await.clone();
+        let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
 
-    Ok(json!(result))
+        let profile = ResearchInterestProfilePayload {
+            goal,
+            background,
+            time_budget,
+            constraints,
+            known_context,
+            preferred_output,
+        };
+        let keywords = keywords.unwrap_or_default();
+        let prompt = INTEREST_HINT_PROMPT.replace(
+            "{form}",
+            &format_interest_hint_form(&topic, &keywords, &profile),
+        );
+        let messages = vec![
+            LlmMessage::system(interest_hint_system()),
+            LlmMessage::user(prompt),
+        ];
+        let hint_model = resolve_model(&settings, &["planner_hint_model"]);
+        let hint_temperature = resolve_temperature(&settings, "planner_hint_temperature", 0.2);
+        let response = client
+            .chat(&messages, hint_model.as_deref(), hint_temperature)
+            .await
+            .map_err(|e| e.to_string())?;
+        let clean = crate::commands::papers::extract_json_pub(&response);
+        let parsed: serde_json::Value = serde_json::from_str(&clean)
+            .map_err(|e| format!("Failed to parse interest hints JSON: {e}"))?;
+
+        let result = ResearchInterestHintResponse {
+            summary: parsed
+                .get("summary")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| "已结合当前输入生成实时建议。".to_string()),
+            next_field: normalize_next_field(parsed.get("next_field").and_then(|value| value.as_str())),
+            matched_domains: extract_string_list(parsed.get("matched_domains"), 4),
+            keyword_suggestions: extract_string_list(parsed.get("keyword_suggestions"), 6),
+            goal_suggestions: extract_string_list(parsed.get("goal_suggestions"), 6),
+            background_prompts: extract_string_list(parsed.get("background_prompts"), 6),
+            time_budget_suggestions: extract_string_list(parsed.get("time_budget_suggestions"), 6),
+            constraint_suggestions: extract_string_list(parsed.get("constraint_suggestions"), 6),
+            known_context_suggestions: extract_string_list(parsed.get("known_context_suggestions"), 6),
+            output_suggestions: extract_string_list(parsed.get("output_suggestions"), 6),
+        };
+
+        Ok::<_, String>(json!(result))
+    }.await;
+
+    match outcome {
+        Ok(v) => {
+            let _ = app.emit(
+                "interest:agent_complete",
+                json!({ "id": "hints", "agent": { "id": hint_id } }),
+            );
+            Ok(v)
+        }
+        Err(e) => {
+            let _ = app.emit(
+                "interest:error",
+                json!({ "id": "hints", "error": &e }),
+            );
+            Err(e)
+        }
+    }
 }
 
 // ── Topic Discovery ──────────────────────────────────────────────
@@ -715,38 +769,72 @@ const TOPIC_SUGGEST_PROMPT: &str = r#"你是一位资深研究导师，请根据
 
 #[tauri::command]
 pub async fn knowledge_suggest_topics(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     field: String,
     goal_type: String,
     background: String,
 ) -> Result<Vec<String>, String> {
-    let settings = state.settings.read().await.clone();
-    let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
+    let suggest_id = Uuid::new_v4().to_string();
+    let _ = app.emit(
+        "interest:agent_start",
+        json!({
+            "id": "suggest",
+            "agent": {
+                "id": suggest_id,
+                "name": "课题建议",
+                "role": "根据背景推荐研究课题",
+                "status": "running"
+            }
+        }),
+    );
 
-    let bg = if background.trim().is_empty() {
-        "未提供".to_string()
-    } else {
-        background.trim().to_string()
-    };
-    let prompt = TOPIC_SUGGEST_PROMPT
-        .replace("{field}", field.trim())
-        .replace("{goal_type}", goal_type.trim())
-        .replace("{background}", &bg);
+    let outcome = async {
+        let settings = state.settings.read().await.clone();
+        let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
 
-    let messages = vec![
-        LlmMessage::system("你是一位资深学术导师，擅长帮助研究生找到有价值的研究切入点。"),
-        LlmMessage::user(prompt),
-    ];
-    let model = resolve_model(&settings, &["planner_hint_model"]);
-    let temperature = resolve_temperature(&settings, "planner_hint_temperature", 0.7);
-    let response = client
-        .chat(&messages, model.as_deref(), temperature)
-        .await
-        .map_err(|e| e.to_string())?;
-    let clean = crate::commands::papers::extract_json_pub(&response);
-    let topics: Vec<String> =
-        serde_json::from_str(&clean).map_err(|e| format!("课题建议解析失败：{e}"))?;
-    Ok(topics)
+        let bg = if background.trim().is_empty() {
+            "未提供".to_string()
+        } else {
+            background.trim().to_string()
+        };
+        let prompt = TOPIC_SUGGEST_PROMPT
+            .replace("{field}", field.trim())
+            .replace("{goal_type}", goal_type.trim())
+            .replace("{background}", &bg);
+
+        let messages = vec![
+            LlmMessage::system("你是一位资深学术导师，擅长帮助研究生找到有价值的研究切入点。"),
+            LlmMessage::user(prompt),
+        ];
+        let model = resolve_model(&settings, &["planner_hint_model"]);
+        let temperature = resolve_temperature(&settings, "planner_hint_temperature", 0.7);
+        let response = client
+            .chat(&messages, model.as_deref(), temperature)
+            .await
+            .map_err(|e| e.to_string())?;
+        let clean = crate::commands::papers::extract_json_pub(&response);
+        let topics: Vec<String> =
+            serde_json::from_str(&clean).map_err(|e| format!("课题建议解析失败：{e}"))?;
+        Ok::<_, String>(topics)
+    }.await;
+
+    match outcome {
+        Ok(v) => {
+            let _ = app.emit(
+                "interest:agent_complete",
+                json!({ "id": "suggest", "agent": { "id": suggest_id } }),
+            );
+            Ok(v)
+        }
+        Err(e) => {
+            let _ = app.emit(
+                "interest:error",
+                json!({ "id": "suggest", "error": &e }),
+            );
+            Err(e)
+        }
+    }
 }
 
 fn profile_to_analysis_context(profile: &ResearchInterestProfilePayload) -> String {

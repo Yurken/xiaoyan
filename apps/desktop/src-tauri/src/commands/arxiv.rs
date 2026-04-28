@@ -234,6 +234,53 @@ pub async fn arxiv_search(
     Ok(json!(response))
 }
 
+fn contains_chinese(text: &str) -> bool {
+    text.chars().any(|c| {
+        let u = c as u32;
+        (0x4E00..=0x9FFF).contains(&u)
+            || (0x3400..=0x4DBF).contains(&u)
+            || (0x2E80..=0x2EFF).contains(&u)
+    })
+}
+
+async fn translate_search_terms(
+    client: &LlmClient,
+    topic: &str,
+    keywords: &[String],
+) -> Result<(String, Vec<String>), String> {
+    let prompt = format!(
+        "将以下学术搜索关键词翻译成英文，用于在国际学术数据库检索论文。\n仅返回合法 JSON：{{\"topic\":\"...\",\"keywords\":[\"...\",\"...\"]}}\n\n主题：{}\n关键词：{}",
+        topic,
+        keywords.join("、")
+    );
+    let msgs = vec![
+        LlmMessage::system("你是学术翻译助手，只输出 JSON。"),
+        LlmMessage::user(prompt),
+    ];
+    let resp = client
+        .chat(&msgs, None, 0.1)
+        .await
+        .map_err(|e| e.to_string())?;
+    let parsed: serde_json::Value = serde_json::from_str(&resp)
+        .map_err(|e| format!("解析翻译结果失败：{e}"))?;
+    let en_topic = parsed
+        .get("topic")
+        .and_then(|v| v.as_str())
+        .unwrap_or(topic)
+        .to_string();
+    let en_keywords = parsed
+        .get("keywords")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.trim().to_string()))
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_else(|| keywords.to_vec());
+    Ok((en_topic, en_keywords))
+}
+
 pub async fn search_recent_paper_hints(
     settings: &HashMap<String, String>,
     topic: &str,
@@ -241,11 +288,29 @@ pub async fn search_recent_paper_hints(
     days: i64,
     limit: usize,
 ) -> anyhow::Result<Vec<RecentPaperHint>> {
+    let client = LlmClient::from_settings(settings).ok();
+
+    let (search_topic, search_keywords) =
+        if contains_chinese(topic) || keywords.iter().any(|k| contains_chinese(k)) {
+            if let Some(ref c) = client {
+                translate_search_terms(c, topic, keywords)
+                    .await
+                    .unwrap_or_else(|e| {
+                        eprintln!("翻译搜索词失败，使用原文：{e}");
+                        (topic.to_string(), keywords.to_vec())
+                    })
+            } else {
+                (topic.to_string(), keywords.to_vec())
+            }
+        } else {
+            (topic.to_string(), keywords.to_vec())
+        };
+
     let request = ArxivSearchRequest {
-        topic: topic.trim().to_string(),
-        all_terms: keywords.iter().take(8).cloned().collect(),
-        title_terms: keywords.iter().take(6).cloned().collect(),
-        abstract_terms: keywords.iter().take(8).cloned().collect(),
+        topic: search_topic.trim().to_string(),
+        all_terms: search_keywords.iter().take(8).cloned().collect(),
+        title_terms: search_keywords.iter().take(6).cloned().collect(),
+        abstract_terms: search_keywords.iter().take(8).cloned().collect(),
         authors: Vec::new(),
         categories: Vec::new(),
         comments_terms: Vec::new(),
@@ -302,6 +367,126 @@ pub async fn search_recent_paper_hints(
             } else {
                 paper.abs_url
             },
+        });
+    }
+
+    Ok(hints)
+}
+
+const SEMANTIC_SCHOLAR_API_URL: &str = "https://api.semanticscholar.org/graph/v1/paper/search";
+const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.3.2";
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SemanticScholarSearchResponse {
+    #[serde(default)]
+    data: Vec<SemanticScholarPaper>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SemanticScholarPaper {
+    paper_id: String,
+    title: String,
+    #[serde(default)]
+    abstract_text: Option<String>,
+    #[serde(default)]
+    year: Option<i32>,
+    #[serde(default)]
+    venue: Option<String>,
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    authors: Vec<SemanticScholarAuthor>,
+    #[serde(default)]
+    publication_date: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SemanticScholarAuthor {
+    #[serde(default)]
+    name: Option<String>,
+}
+
+pub async fn search_semantic_scholar_hints(
+    settings: &HashMap<String, String>,
+    topic: &str,
+    keywords: &[String],
+    _days: i64,
+    limit: usize,
+) -> anyhow::Result<Vec<RecentPaperHint>> {
+    let client = reqwest::Client::new();
+    let query = if topic.trim().is_empty() {
+        keywords.join(" ")
+    } else {
+        format!("{} {}", topic, keywords.join(" "))
+    };
+    if query.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let result_limit = limit.clamp(1, 20);
+    let mut builder = client
+        .get(SEMANTIC_SCHOLAR_API_URL)
+        .header("User-Agent", SEMANTIC_SCHOLAR_USER_AGENT)
+        .query(&[
+            ("query", query.trim().to_string()),
+            ("limit", result_limit.to_string()),
+            (
+                "fields",
+                "paperId,title,abstract,year,venue,url,publicationDate,authors".to_string(),
+            ),
+        ]);
+
+    if let Some(api_key) = settings
+        .get("semantic_scholar_api_key")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    {
+        builder = builder.header("x-api-key", api_key);
+    }
+
+    let resp = builder
+        .send()
+        .await
+        .context("Semantic Scholar 请求失败")?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(anyhow::anyhow!("Semantic Scholar 返回错误 {status}: {body}"));
+    }
+
+    let payload: SemanticScholarSearchResponse = resp
+        .json()
+        .await
+        .context("解析 Semantic Scholar 结果失败")?;
+
+    let mut hints = Vec::new();
+    for item in payload.data.into_iter().take(result_limit) {
+        let authors = item
+            .authors
+            .into_iter()
+            .filter_map(|author| author.name)
+            .filter(|name| !name.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let year = item.year.map(|y| y as i64);
+        let venue = item.venue.unwrap_or_else(|| "Semantic Scholar".to_string());
+        let url = item
+            .url
+            .unwrap_or_else(|| format!("https://www.semanticscholar.org/paper/{}", item.paper_id));
+        let reason = item
+            .abstract_text
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "来自 Semantic Scholar 检索".to_string());
+        hints.push(RecentPaperHint {
+            title: item.title,
+            authors,
+            year,
+            venue,
+            reason,
+            url,
         });
     }
 

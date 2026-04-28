@@ -6,11 +6,11 @@ export const MAIN_ASSISTANT_PANEL_TITLE = "小妍调度面板";
 export const MAIN_ASSISTANT_BADGE = "主 AI：小妍";
 export const MAIN_ASSISTANT_WELCOME_TITLE = "你好，我是小妍";
 export const MAIN_ASSISTANT_WELCOME_DESCRIPTION =
-  "我会先理解你的研究目标，再按需调度检索、规划、综述、论文解析与复现能力，给出可信、结构化、可执行的答复。";
+  "我会先理解你的研究目标，再按需调度检索、规划、综述、论文解读与复现能力，给你可信、结构化、可执行的答复。";
 export const MAIN_ASSISTANT_STATUS_DESCRIPTION =
-  "小妍负责理解你的问题、按需调度能力域模型，并整合成最终答复。";
+  "小妍负责理解你的研究问题、调度合适的分析模型，并整合成完整的答复。";
 export const MAIN_ASSISTANT_INPUT_PLACEHOLDER =
-  "告诉我你当前的研究问题，我会先拆解任务，再一步步陪你推进";
+  "告诉我你当前的研究问题，我先帮你理清思路，再一步步陪你推进";
 
 const CAPABILITY_MODEL_NAME_MAP: Record<string, string> = {
   retrieval: "溯源模型",
@@ -357,6 +357,7 @@ export interface ChatMessage {
 
 export type LlmProvider = "openai" | "anthropic" | "openai_compatible";
 export type MultiAgentRoutingMode = "rule" | "llm" | "hybrid";
+export type PaperSearchEngine = "arxiv" | "semantic_scholar";
 
 export interface AgentArtifact {
   id: string;
@@ -438,6 +439,7 @@ export interface AppSettings {
   chunk_overlap: string;
   rag_top_k: string;
   // External
+  paper_search_engine: PaperSearchEngine;
   semantic_scholar_api_key: string;
   // Role-based model routing
   planner_hint_model: string;
