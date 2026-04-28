@@ -594,7 +594,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               {ungroupedSessions.length > 0 && (
                 <div className="px-2 pt-2">
                   <div className="px-2 pb-2">
-                    <p className="text-[11px] font-semibold text-ink-tertiary">未归类/p>
+                    <p className="text-[11px] font-semibold text-ink-tertiary">未归类</p>
                     <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">可在对话顶部关联到具体研究方向。</p>
                   </div>
                   <div className="space-y-1.5">
