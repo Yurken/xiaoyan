@@ -46,3 +46,35 @@ pub async fn settings_test(
 pub async fn settings_list_ollama_models(base_url: Option<String>) -> Result<Vec<String>, String> {
     settings_service::list_ollama_models(base_url).await
 }
+
+#[tauri::command]
+pub async fn settings_history_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<settings_service::SettingsHistoryEntry>, String> {
+    settings_service::list_settings_history_entries(state.inner()).await
+}
+
+#[tauri::command]
+pub async fn settings_history_save(
+    state: State<'_, AppState>,
+    data: serde_json::Value,
+    name: Option<String>,
+) -> Result<settings_service::SettingsHistoryEntry, String> {
+    settings_service::save_settings_history_entry(state.inner(), &data, name.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn settings_history_apply(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<HashMap<String, String>, String> {
+    settings_service::apply_settings_history_entry(state.inner(), &id).await
+}
+
+#[tauri::command]
+pub async fn settings_history_delete(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    settings_service::delete_settings_history_entry(state.inner(), &id).await
+}

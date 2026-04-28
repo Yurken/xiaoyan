@@ -605,6 +605,17 @@ export interface AppSettings {
   translation_frequency_penalty: string;
 }
 
+export interface SettingsHistoryEntry {
+  id: string;
+  name: string;
+  created_at: string;
+  llm_provider: LlmProvider;
+  chat_model: string;
+  paper_search_engine: PaperSearchEngine;
+  multi_agent_enabled: boolean;
+  enabled_agents_count: number;
+}
+
 export interface Skill {
   id: string;
   name: string;

@@ -26,6 +26,7 @@ import type {
   AppSettings,
   AppUpdateInfo,
   AgentRun,
+  SettingsHistoryEntry,
 } from "@research-copilot/types";
 import type {
   CitationCentralityEntry,
@@ -81,6 +82,16 @@ export const settingsApi = {
     invoke("settings_import", { data, password }),
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
+  history: {
+    list: (): Promise<SettingsHistoryEntry[]> =>
+      invoke("settings_history_list"),
+    save: (data: Partial<AppSettings>, name?: string): Promise<SettingsHistoryEntry> =>
+      invoke("settings_history_save", { data, name: name ?? null }),
+    apply: (id: string): Promise<AppSettings> =>
+      invoke("settings_history_apply", { id }),
+    delete: (id: string): Promise<void> =>
+      invoke("settings_history_delete", { id }),
+  },
 };
 
 export const updatesApi = {

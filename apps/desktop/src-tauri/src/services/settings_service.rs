@@ -1,11 +1,15 @@
 use crate::llm::{LlmClient, LlmMessage};
-use crate::repositories::settings_repository::{load_all_settings, upsert_settings};
+use crate::repositories::settings_repository::{
+    delete_settings_history, get_settings_history, insert_settings_history, list_settings_history,
+    load_all_settings, upsert_settings,
+};
 use crate::state::{default_settings, AppState, SENSITIVE_KEYS};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use rand::RngCore;
 use std::collections::{BTreeMap, HashMap};
+use uuid::Uuid;
 
 const MAGIC: &[u8; 6] = b"RCCFG1";
 const PBKDF2_ROUNDS: u32 = 200_000;
@@ -13,6 +17,18 @@ const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 const KEY_LEN: usize = 32;
 pub const MASK: &str = "***";
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SettingsHistoryEntry {
+    pub id: String,
+    pub name: String,
+    pub created_at: String,
+    pub llm_provider: String,
+    pub chat_model: String,
+    pub paper_search_engine: String,
+    pub multi_agent_enabled: bool,
+    pub enabled_agents_count: usize,
+}
 
 fn derive_key(password: &[u8], salt: &[u8]) -> [u8; KEY_LEN] {
     let mut key = [0u8; KEY_LEN];
@@ -73,6 +89,107 @@ fn mask_value(key: &str, value: &str) -> String {
         MASK.to_string()
     } else {
         value.to_string()
+    }
+}
+
+fn merge_with_defaults(
+    defaults: &HashMap<String, String>,
+    values: &HashMap<String, String>,
+) -> HashMap<String, String> {
+    let mut merged = defaults.clone();
+    for (key, value) in values {
+        if defaults.contains_key(key) {
+            merged.insert(key.clone(), value.clone());
+        }
+    }
+    merged
+}
+
+fn apply_settings_overrides(
+    target: &mut HashMap<String, String>,
+    data: &serde_json::Value,
+) -> Result<(), String> {
+    let map = data
+        .as_object()
+        .ok_or("璇锋眰鍙傛暟鏍煎紡涓嶆纭€?".to_string())?;
+
+    for (key, raw) in map {
+        if !target.contains_key(key) {
+            continue;
+        }
+        let value = raw.as_str().unwrap_or("").trim().to_string();
+        if SENSITIVE_KEYS.contains(&key.as_str()) && value == MASK {
+            continue;
+        }
+        target.insert(key.clone(), value);
+    }
+
+    Ok(())
+}
+
+async fn resolve_snapshot_settings(
+    state: &AppState,
+    data: &serde_json::Value,
+) -> Result<HashMap<String, String>, String> {
+    let defaults = default_settings();
+    let cache = state.settings.read().await.clone();
+    let mut merged = merge_with_defaults(&defaults, &cache);
+    apply_settings_overrides(&mut merged, data)?;
+    Ok(merged)
+}
+
+fn default_snapshot_name() -> String {
+    format!(
+        "閰嶇疆蹇収 {}",
+        chrono::Local::now().format("%Y-%m-%d %H:%M")
+    )
+}
+
+fn settings_history_entry(
+    id: String,
+    name: String,
+    created_at: String,
+    settings: &HashMap<String, String>,
+) -> SettingsHistoryEntry {
+    let llm_provider = settings
+        .get("llm_provider")
+        .cloned()
+        .unwrap_or_else(|| "openai_compatible".to_string());
+    let chat_model = match llm_provider.as_str() {
+        "openai" => settings.get("openai_chat_model"),
+        "anthropic" => settings.get("anthropic_chat_model"),
+        _ => settings.get("openai_compatible_chat_model"),
+    }
+    .cloned()
+    .unwrap_or_default();
+    let paper_search_engine = settings
+        .get("paper_search_engine")
+        .cloned()
+        .unwrap_or_else(|| "arxiv".to_string());
+    let multi_agent_enabled = settings
+        .get("multi_agent_enabled")
+        .map(|value| value != "false")
+        .unwrap_or(true);
+    let enabled_agents_count = settings
+        .get("multi_agent_enabled_agents")
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|item| !item.is_empty())
+                .count()
+        })
+        .unwrap_or(0);
+
+    SettingsHistoryEntry {
+        id,
+        name,
+        created_at,
+        llm_provider,
+        chat_model,
+        paper_search_engine,
+        multi_agent_enabled,
+        enabled_agents_count,
     }
 }
 
@@ -222,4 +339,99 @@ pub async fn list_ollama_models(base_url: Option<String>) -> Result<Vec<String>,
         .iter()
         .filter_map(|model| model["name"].as_str().map(|name| name.to_string()))
         .collect())
+}
+
+pub async fn list_settings_history_entries(
+    state: &AppState,
+) -> Result<Vec<SettingsHistoryEntry>, String> {
+    let rows = list_settings_history(&state.db).await?;
+    let defaults = default_settings();
+    let mut items = Vec::with_capacity(rows.len());
+
+    for row in rows {
+        let snapshot: HashMap<String, String> = serde_json::from_str(&row.settings_json)
+            .map_err(|e| format!("閰嶇疆鍘嗗彶瑙ｆ瀽澶辫触 ({}): {e}", row.name))?;
+        let merged = merge_with_defaults(&defaults, &snapshot);
+        items.push(settings_history_entry(
+            row.id,
+            row.name,
+            row.created_at,
+            &merged,
+        ));
+    }
+
+    Ok(items)
+}
+
+pub async fn save_settings_history_entry(
+    state: &AppState,
+    data: &serde_json::Value,
+    name: Option<&str>,
+) -> Result<SettingsHistoryEntry, String> {
+    let settings = resolve_snapshot_settings(state, data).await?;
+    let id = Uuid::new_v4().to_string();
+    let created_at = chrono::Utc::now().to_rfc3339();
+    let normalized_name = name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(default_snapshot_name);
+    let settings_json = serde_json::to_string(&settings).map_err(|e| e.to_string())?;
+
+    insert_settings_history(
+        &state.db,
+        &id,
+        &normalized_name,
+        &settings_json,
+        &created_at,
+    )
+    .await?;
+
+    Ok(settings_history_entry(
+        id,
+        normalized_name,
+        created_at,
+        &settings,
+    ))
+}
+
+pub async fn apply_settings_history_entry(
+    state: &AppState,
+    id: &str,
+) -> Result<HashMap<String, String>, String> {
+    let row = get_settings_history(&state.db, id)
+        .await?
+        .ok_or_else(|| "鏈壘鍒板搴旂殑閰嶇疆鍘嗗彶銆?".to_string())?;
+    let defaults = default_settings();
+    let snapshot: HashMap<String, String> = serde_json::from_str(&row.settings_json)
+        .map_err(|e| format!("閰嶇疆鍘嗗彶瑙ｆ瀽澶辫触: {e}"))?;
+
+    let mut to_save = HashMap::new();
+    for (key, value) in snapshot {
+        if defaults.contains_key(&key) {
+            to_save.insert(key, value);
+        }
+    }
+
+    if to_save.is_empty() {
+        return Err("杩欎唤閰嶇疆鍘嗗彶涓病鏈夊彲搴旂敤鐨勮缃」銆?".to_string());
+    }
+
+    upsert_settings(&state.db, &to_save).await?;
+
+    let mut cache = state.settings.write().await;
+    for (key, value) in &to_save {
+        cache.insert(key.clone(), value.clone());
+    }
+    drop(cache);
+
+    get_exposed_settings(state).await
+}
+
+pub async fn delete_settings_history_entry(state: &AppState, id: &str) -> Result<(), String> {
+    let deleted = delete_settings_history(&state.db, id).await?;
+    if !deleted {
+        return Err("鏈壘鍒板搴旂殑閰嶇疆鍘嗗彶銆?".to_string());
+    }
+    Ok(())
 }

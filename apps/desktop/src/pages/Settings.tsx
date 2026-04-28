@@ -20,6 +20,7 @@ import { getThemePreference, setTheme, type ThemePreference } from "../lib/theme
 import { getThemeStyle, setThemeStyle, type ThemeStyle } from "../lib/themeStyle";
 import CryptoConfigModal from "../features/settings/CryptoConfigModal";
 import MemorySection from "../features/settings/MemorySection";
+import SettingsHistorySection from "../features/settings/SettingsHistorySection";
 import SkillsSection from "../features/settings/SkillsSection";
 import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from "../features/settings/SettingsChangelogCard";
 import TaskSetupSection from "../features/settings/TaskSetupSection";
@@ -29,6 +30,7 @@ import { AgentChip, SectionIcon } from "../features/settings/shared";
 import { applyProviderPreset, detectPreset, PROVIDER_PRESETS, type ProviderPresetId } from "../features/settings/providerPresets";
 import { useSettingsController } from "../features/settings/useSettingsController";
 import { useSettingsCrypto } from "../features/settings/useSettingsCrypto";
+import { useSettingsHistory } from "../features/settings/useSettingsHistory";
 import { useSettingsMemories } from "../features/settings/useSettingsMemories";
 import type { LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
 
@@ -84,6 +86,11 @@ export default function Settings() {
   } = useSettingsCrypto({
     onImported: replaceForm,
     onSaved: () => markSaved(),
+  });
+  const settingsHistory = useSettingsHistory({
+    form,
+    onApplied: replaceForm,
+    onMarkedSaved: () => markSaved(),
   });
 
   // Ollama models
@@ -435,6 +442,27 @@ export default function Settings() {
               root?.classList.add("dissolve-out");
               setTimeout(() => void relaunch(), 480);
             }}
+          />
+        ) : null}
+
+        {activeSection === "history" ? (
+          <SettingsHistorySection
+            entries={settingsHistory.entries}
+            loading={settingsHistory.loading}
+            loadError={settingsHistory.loadError}
+            draftName={settingsHistory.draftName}
+            selectedId={settingsHistory.selectedId}
+            saving={settingsHistory.saving}
+            applyingId={settingsHistory.applyingId}
+            deletingId={settingsHistory.deletingId}
+            actionError={settingsHistory.actionError}
+            actionMessage={settingsHistory.actionMessage}
+            setDraftName={settingsHistory.setDraftName}
+            setSelectedId={settingsHistory.setSelectedId}
+            onSaveCurrent={settingsHistory.saveCurrent}
+            onApplyHistory={settingsHistory.applyHistory}
+            onDeleteHistory={settingsHistory.deleteHistory}
+            onReload={settingsHistory.reload}
           />
         ) : null}
 

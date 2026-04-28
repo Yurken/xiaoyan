@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import {
   Brain,
   Compass,
+  History,
   Info,
   LayoutDashboard,
   Layers3,
@@ -15,6 +16,7 @@ export type SettingsSectionKey =
   | "assistant"
   | "paper_tags"
   | "skills"
+  | "history"
   | "memory"
   | "about"
   | "layout";
@@ -53,6 +55,13 @@ export const SETTINGS_SECTIONS: Array<{
     description: "提示词技能管理",
     icon: Zap,
     color: "#FF9F0A",
+  },
+  {
+    key: "history",
+    label: "閰嶇疆鍘嗗彶",
+    description: "淇濆瓨涓庡垏鎹㈠皬濡嶉厤缃?",
+    icon: History,
+    color: "#0A84FF",
   },
   {
     key: "layout",

@@ -12,6 +12,14 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS settings_history (
+    id            TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    settings_json TEXT NOT NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_settings_history_created_at ON settings_history(created_at DESC);
+
 CREATE TABLE IF NOT EXISTS papers (
     id         TEXT PRIMARY KEY,
     title      TEXT NOT NULL,
@@ -238,6 +246,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_papers_notes_column(&pool).await?;
     ensure_paper_figures_table(&pool).await?;
     ensure_performance_indexes(&pool).await?;
+    ensure_settings_history_table(&pool).await?;
     ensure_skills_table(&pool).await?;
     ensure_user_memories_table(&pool).await?;
     ensure_memory_pipeline_tables(&pool).await?;
@@ -271,6 +280,22 @@ async fn ensure_performance_indexes(pool: &SqlitePool) -> Result<()> {
          CREATE INDEX IF NOT EXISTS idx_papers_research_interest_created_at ON papers(research_interest_id, created_at DESC);
          CREATE INDEX IF NOT EXISTS idx_paper_chunks_paper_id_chunk_index ON paper_chunks(paper_id, chunk_index);
          CREATE INDEX IF NOT EXISTS idx_paper_figures_paper_id_fig_index ON paper_figures(paper_id, fig_index);",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn ensure_settings_history_table(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS settings_history (
+            id            TEXT PRIMARY KEY,
+            name          TEXT NOT NULL,
+            settings_json TEXT NOT NULL,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_settings_history_created_at
+            ON settings_history(created_at DESC);",
     )
     .execute(pool)
     .await?;

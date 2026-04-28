@@ -61,6 +61,7 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("embedding_base_url".into(), "".into());
     m.insert("embedding_api_key".into(), "".into());
     m.insert("embedding_model".into(), "".into());
+    m.insert("paper_search_engine".into(), "arxiv".into());
     m.insert("semantic_scholar_api_key".into(), "".into());
     m.insert("planner_hint_model".into(), "".into());
     m.insert("planner_hint_base_url".into(), "".into());
