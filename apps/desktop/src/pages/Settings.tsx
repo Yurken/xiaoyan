@@ -457,6 +457,7 @@ export default function Settings() {
             deletingId={settingsHistory.deletingId}
             actionError={settingsHistory.actionError}
             actionMessage={settingsHistory.actionMessage}
+            busy={settingsHistory.busy}
             setDraftName={settingsHistory.setDraftName}
             setSelectedId={settingsHistory.setSelectedId}
             onSaveCurrent={settingsHistory.saveCurrent}

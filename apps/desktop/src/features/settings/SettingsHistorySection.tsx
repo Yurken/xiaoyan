@@ -15,6 +15,7 @@ interface SettingsHistorySectionProps {
   deletingId: string | null;
   actionError: string;
   actionMessage: string;
+  busy?: boolean;
   setDraftName: (value: string) => void;
   setSelectedId: (value: string) => void;
   onSaveCurrent: () => Promise<void> | void;
@@ -71,6 +72,7 @@ export default function SettingsHistorySection({
   deletingId,
   actionError,
   actionMessage,
+  busy,
   setDraftName,
   setSelectedId,
   onSaveCurrent,
@@ -134,7 +136,7 @@ export default function SettingsHistorySection({
           <button
             type="button"
             onClick={() => void onSaveCurrent()}
-            disabled={saving}
+            disabled={saving || busy}
             className="flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
             style={{
               background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
@@ -201,7 +203,7 @@ export default function SettingsHistorySection({
           <button
             type="button"
             onClick={() => handleApply(selectedId)}
-            disabled={!selectedId || applyingId !== null}
+            disabled={!selectedId || applyingId !== null || busy}
             className="flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
             style={{
               background: "var(--rc-chip-bg)",
@@ -259,7 +261,7 @@ export default function SettingsHistorySection({
                       <button
                         type="button"
                         onClick={() => handleApply(entry.id)}
-                        disabled={applyingId !== null}
+                        disabled={applyingId !== null || busy}
                         className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
                         style={{
                           background: "var(--rc-chip-bg)",
@@ -273,7 +275,7 @@ export default function SettingsHistorySection({
                       <button
                         type="button"
                         onClick={() => handleDelete(entry.id)}
-                        disabled={deletingId !== null}
+                        disabled={deletingId !== null || busy}
                         className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
                         style={{
                           background: "rgba(255,59,48,0.08)",
