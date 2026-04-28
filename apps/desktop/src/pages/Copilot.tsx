@@ -1,22 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
-  Bot,
-  BrainCircuit,
   CheckCircle2,
   Clock3,
   MessageSquare,
   Plus,
-  Send,
   Trash2,
   User,
-  X,
   XCircle,
-  Zap,
 } from "lucide-react";
 import { MarkdownRenderer, Select } from "@research-copilot/ui";
 import {
-  MAIN_ASSISTANT_INPUT_PLACEHOLDER,
   MAIN_ASSISTANT_NAME,
   MAIN_ASSISTANT_STATUS_DESCRIPTION,
   MAIN_ASSISTANT_WELCOME_DESCRIPTION,
@@ -25,6 +19,7 @@ import {
 } from "@research-copilot/types";
 import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
+import CopilotComposer from "../features/copilot/CopilotComposer";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
 import appLogo from "../assets/xiaoyanv.svg";
 import {
@@ -33,6 +28,7 @@ import {
   upsertAgentRun,
 } from "../features/copilot/shared";
 import { useCopilotAttachments } from "../features/copilot/useCopilotAttachments";
+import { useCopilotChatMode } from "../features/copilot/useCopilotChatMode";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, ResearchInterest, Skill } from "@research-copilot/types";
@@ -59,7 +55,7 @@ function runTone(status: AgentRun["status"]) {
       color: "#34C759",
       background: "rgba(52,199,89,0.12)",
       icon: <CheckCircle2 className="w-3.5 h-3.5" />,
-      label: "已完成",
+      label: "已完�?,
     };
   }
   if (status === "failed") {
@@ -74,7 +70,7 @@ function runTone(status: AgentRun["status"]) {
     color: "#FF9500",
     background: "rgba(255,149,0,0.12)",
     icon: <Clock3 className="w-3.5 h-3.5" />,
-    label: status === "running" ? "处理中" : "待处理",
+    label: status === "running" ? "处理�? : "待处�?,
   };
 }
 
@@ -82,7 +78,7 @@ function interestFolderName(interest: ResearchInterest) {
   return interest.folder_name?.trim() || interest.topic;
 }
 
-const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
+const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览�?;
 
 export default function Copilot({ hideFolders = false }: { hideFolders?: boolean }) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -103,11 +99,10 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; session: ChatSession } | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
-  const [skillPickerOpen, setSkillPickerOpen] = useState(false);
-  const [hoveredSkillId, setHoveredSkillId] = useState<string | null>(null);
   const [memoryInput, setMemoryInput] = useState("");
   const [savingMemory, setSavingMemory] = useState(false);
   const [memorySaved, setMemorySaved] = useState(false);
+  const { chatMode, setChatMode } = useCopilotChatMode();
   const bottomRef = useRef<HTMLDivElement>(null);
   const {
     attachments,
@@ -171,7 +166,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     return interests.map((interest) => ({
       key: interest.id,
       title: interestFolderName(interest),
-      subtitle: interestFolderName(interest) !== interest.topic ? `研究主题：${interest.topic}` : undefined,
+      subtitle: interestFolderName(interest) !== interest.topic ? `研究主题�?{interest.topic}` : undefined,
       sessions: sessions.filter((session) => session.context_type === "interest" && session.context_id === interest.id),
     }));
   }, [interests, sessions]);
@@ -186,28 +181,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   }, [messages]);
 
   useEffect(() => {
-    if (!contextMenu && !skillPickerOpen) return;
+    if (!contextMenu) return;
     const close = () => {
       setContextMenu(null);
-      setSkillPickerOpen(false);
-      setHoveredSkillId(null);
     };
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
-  }, [contextMenu, skillPickerOpen]);
-
-  const hoveredSkill = useMemo(
-    () => skills.find((item) => item.id === hoveredSkillId) ?? null,
-    [hoveredSkillId, skills]
-  );
-  const previewSkill = useMemo(() => {
-    if (hoveredSkill) return hoveredSkill;
-    if (selectedSkillId) {
-      const selected = skills.find((item) => item.id === selectedSkillId);
-      if (selected) return selected;
-    }
-    return skills[0] ?? null;
-  }, [hoveredSkill, selectedSkillId, skills]);
+  }, [contextMenu]);
 
   const handleMoveSession = async (session: ChatSession, interestId: string) => {
     setContextMenu(null);
@@ -330,7 +310,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     const rawText = input.trim() || DEFAULT_ATTACHMENT_PROMPT;
     const selectedSkill = skills.find((s) => s.id === selectedSkillId);
     const text = selectedSkill
-      ? `[技能指令 · ${selectedSkill.title}]\n${selectedSkill.prompt}\n\n---\n\n${rawText}`
+      ? `[技能指�?· ${selectedSkill.title}]\n${selectedSkill.prompt}\n\n---\n\n${rawText}`
       : rawText;
     const submittedText = buildCopilotMessageContent(text, attachments);
     const assistantId = `${Date.now()}_a`;
@@ -339,7 +319,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     void apiClient.memory.add({
       type: "auto",
       action: "chat.query",
-      summary: `向小妍提问：${rawText.slice(0, 60)}${rawText.length > 60 ? "…" : ""}`,
+      summary: `向小妍提问：${rawText.slice(0, 60)}${rawText.length > 60 ? "�? : ""}`,
     });
 
     setInput("");
@@ -373,6 +353,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         message: submittedText,
         context_type: selectedInterestId ? "interest" : "general",
         context_id: selectedInterestId || undefined,
+        chat_mode: chatMode,
       })) {
         if (chunk.type === "session_id") {
           sessionId = chunk.value;
@@ -405,7 +386,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           );
         }
         if (chunk.type === "error") {
-          const errorText = chunk.value || "请求未完成，请稍后重试。";
+          const errorText = chunk.value || "请求未完成，请稍后重试�?;
           setLoadError(errorText);
           setMessages((prev) =>
             prev.map((message) =>
@@ -479,7 +460,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       }
     >
       <button className="min-w-0 flex-1 text-left" onClick={() => void loadSession(session)}>
-        <div className="truncate font-medium">{session.title || "新对话"}</div>
+        <div className="truncate font-medium">{session.title || "新对�?}</div>
         <div className="mt-1 text-[11px] opacity-70">
           {new Date(session.updated_at || session.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
         </div>
@@ -523,7 +504,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               onChange={setSelectedInterestId}
               className="text-xs"
               options={[
-                { value: "", label: "未归档" },
+                { value: "", label: "未归�? },
                 ...interests.map((interest) => ({
                   value: interest.id,
                   label: interest.folder_name?.trim() || interest.topic,
@@ -543,7 +524,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           )}
 
           {hideFolders ? (
-            // 自由工作台：扁平展示所有会话
+            // 自由工作台：扁平展示所有会�?
             <div className="space-y-1.5">{sessions.map(renderSessionItem)}</div>
           ) : selectedInterestId ? (
             // 已选主题：只展示该主题下的会话
@@ -557,7 +538,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               );
             })()
           ) : (
-            // 未选主题：展示所有分组 + 未归档
+            // 未选主题：展示所有分�?+ 未归�?
             <>
               {sessionGroups.filter((group) => group.sessions.length > 0).map((group) => (
                 <CollapsibleGroup
@@ -577,7 +558,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                           onClick={() => void handleDeleteInterestGroup(group.key, false)}
                           className="rounded-lg px-1.5 py-0.5 text-[10px] text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary disabled:opacity-50"
                         >
-                          未归档
+                          未归�?
                         </button>
                         <button
                           type="button"
@@ -613,8 +594,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               {ungroupedSessions.length > 0 && (
                 <div className="px-2 pt-2">
                   <div className="px-2 pb-2">
-                    <p className="text-[11px] font-semibold text-ink-tertiary">未归档</p>
-                    <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">可在对话顶部关联到具体研究方向。</p>
+                    <p className="text-[11px] font-semibold text-ink-tertiary">未归�?/p>
+                    <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">可在对话顶部关联到具体研究方向�?/p>
                   </div>
                   <div className="space-y-1.5">
                     {ungroupedSessions.map(renderSessionItem)}
@@ -658,7 +639,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                   disabled={updatingSessionContext}
                   className="min-w-[160px]"
                   options={[
-                    { value: "", label: "未归档" },
+                    { value: "", label: "未归�? },
                     ...interests.map((interest) => ({
                       value: interest.id,
                       label: interest.folder_name?.trim() || interest.topic,
@@ -674,7 +655,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                   boxShadow: "var(--rc-inset-shadow)",
                 }}
               >
-                {updatingSessionContext ? "正在更新归属" : sending ? "处理中" : "就绪"}
+                {updatingSessionContext ? "正在更新归属" : sending ? "处理�? : "就绪"}
               </div>
             </div>
           </div>
@@ -808,7 +789,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                           }}
                         >
                           <MarkdownRenderer
-                            content={parsed.answer || (sending && isActiveAssistant ? `${MAIN_ASSISTANT_NAME} 正在整理最终答复...` : "…")}
+                            content={parsed.answer || (sending && isActiveAssistant ? `${MAIN_ASSISTANT_NAME} 正在整理最终答�?..` : "�?)}
                             onLinkClick={openLink}
                           />
                         </div>
@@ -876,219 +857,21 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             <div ref={bottomRef} />
           </div>
 
-          <div className="p-4 pt-3 flex gap-3 items-end">
-            <div className="flex-1 space-y-2">
-              {/* 技能选择器 */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setSkillPickerOpen((prev) => !prev); }}
-                    data-open={skillPickerOpen}
-                    className="rc-dropdown-trigger inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150"
-                    style={{
-                      color: skillPickerOpen ? "#007AFF" : "#636366",
-                    }}
-                  >
-                    <Zap className="w-3 h-3" />
-                    技能
-                  </button>
-
-                  {skillPickerOpen && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      onMouseLeave={() => setHoveredSkillId(null)}
-                      className="absolute bottom-full mb-2 left-0 z-20 flex items-start gap-2"
-                    >
-                      {/* 左：技能列表 */}
-                      <div
-                        className="rc-dropdown-menu w-44 max-h-[420px] flex-shrink-0 overflow-y-auto rounded-2xl py-2"
-                      >
-                        <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">技能库</p>
-                        <button
-                          type="button"
-                          onMouseEnter={() => setHoveredSkillId(null)}
-                          onClick={() => { setSelectedSkillId(null); setSkillPickerOpen(false); setHoveredSkillId(null); }}
-                          className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
-                          style={{
-                            color: !selectedSkillId ? "#007AFF" : "#3C3C43",
-                            background: !selectedSkillId ? "rgba(0,122,255,0.08)" : "transparent",
-                            fontWeight: !selectedSkillId ? 600 : 400,
-                          }}
-                        >
-                          <X className="w-3 h-3 flex-shrink-0 opacity-50" />
-                          不使用技能
-                        </button>
-                        {skills.length === 0 ? (
-                          <p className="px-3 py-2 text-xs text-ink-tertiary">暂无已启用技能</p>
-                        ) : (
-                          skills.map((skill) => (
-                            <button
-                              key={skill.id}
-                              type="button"
-                              onMouseEnter={() => setHoveredSkillId(skill.id)}
-                              onClick={() => { setSelectedSkillId(skill.id); setSkillPickerOpen(false); setHoveredSkillId(null); }}
-                              className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
-                              style={{
-                                color: selectedSkillId === skill.id ? "#007AFF" : "#3C3C43",
-                                background: (hoveredSkillId === skill.id || selectedSkillId === skill.id)
-                                  ? "rgba(0,122,255,0.08)"
-                                  : "transparent",
-                                fontWeight: selectedSkillId === skill.id ? 600 : 400,
-                              }}
-                            >
-                              <Zap className="w-3 h-3 flex-shrink-0 opacity-60" />
-                              <span className="truncate">{skill.title}</span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-
-                      {/* 右：预览面板 */}
-                      <div
-                        className="rc-dropdown-menu flex w-56 flex-shrink-0 flex-col gap-2 self-start rounded-2xl p-3"
-                      >
-                        {previewSkill ? (
-                          <>
-                            <div className="flex items-start gap-2">
-                              <div
-                                className="w-7 h-7 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5"
-                                style={{ background: "rgba(0,122,255,0.12)", color: "#007AFF" }}
-                              >
-                                <Zap className="w-3.5 h-3.5" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-ink-primary leading-tight">{previewSkill.title}</p>
-                                <p className="text-[10px] font-mono text-ink-tertiary mt-0.5">/{previewSkill.name}</p>
-                              </div>
-                            </div>
-
-                            {previewSkill.description ? (
-                              <p className="text-[11px] leading-[1.6] text-ink-secondary">{previewSkill.description}</p>
-                            ) : null}
-
-                            {previewSkill.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {previewSkill.tags.map((tag) => (
-                                  <span
-                                    key={tag}
-                                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                                    style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
-                                  >
-                                    {tag}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            <div
-                              className="rounded-xl px-2.5 py-2 overflow-y-auto"
-                              style={{ background: "rgba(0,0,0,0.04)", maxHeight: 160 }}
-                            >
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-tertiary mb-1">指令预览</p>
-                              <p className="whitespace-pre-wrap break-words text-[11px] leading-[1.6] text-ink-secondary">{previewSkill.prompt}</p>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-full gap-2 py-6 text-center">
-                            <Zap className="w-6 h-6 text-ink-tertiary opacity-30" />
-                            <p className="text-xs text-ink-tertiary">悬停技能查看详情</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {selectedSkillId && (() => {
-                  const skill = skills.find((s) => s.id === selectedSkillId);
-                  if (!skill) return null;
-                  return (
-                    <div
-                      className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium"
-                      style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
-                    >
-                      <Zap className="w-3 h-3" />
-                      {skill.title}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedSkillId(null)}
-                        className="ml-0.5 hover:opacity-60 transition-opacity"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  );
-                })()}
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => void pickAttachments()}
-                    disabled={sending || uploadingAttachments}
-                    className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{
-                      color: "#636366",
-                      background: "var(--rc-surface)",
-                      boxShadow: "var(--rc-inset-shadow)",
-                    }}
-                  >
-                    <MessageSquare className="w-3 h-3" />
-                    {uploadingAttachments ? "读取文件中" : "上传文件"}
-                  </button>
-
-                  {attachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="inline-flex max-w-full items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium"
-                      style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
-                    >
-                      <MessageSquare className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate max-w-[220px]">{attachment.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeAttachment(attachment.id)}
-                        className="ml-0.5 hover:opacity-60 transition-opacity"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <textarea
-                rows={3}
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void handleSend();
-                  }
-                }}
-                placeholder={MAIN_ASSISTANT_INPUT_PLACEHOLDER}
-                className="w-full rounded-3xl px-5 py-3 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none transition-shadow duration-150"
-                style={{
-                  background: "var(--rc-surface)",
-                  boxShadow: "var(--rc-inset-shadow)",
-                }}
-              />
-            </div>
-            <button
-              onClick={() => void handleSend()}
-              disabled={(!input.trim() && attachments.length === 0) || sending || uploadingAttachments}
-              className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-white transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{
-                background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                boxShadow: (input.trim() || attachments.length > 0) && !sending && !uploadingAttachments
-                  ? "4px 4px 10px rgba(0,62,204,0.4), -3px -3px 8px rgba(58,155,255,0.25)"
-                  : "none",
-              }}
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
+          <CopilotComposer
+            chatMode={chatMode}
+            onChatModeChange={setChatMode}
+            input={input}
+            onInputChange={setInput}
+            onSubmit={handleSend}
+            sending={sending}
+            uploadingAttachments={uploadingAttachments}
+            attachments={attachments}
+            pickAttachments={pickAttachments}
+            removeAttachment={removeAttachment}
+            skills={skills}
+            selectedSkillId={selectedSkillId}
+            onSelectedSkillChange={setSelectedSkillId}
+          />
         </div>
 
 	      </div>
@@ -1124,13 +907,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-tertiary">
-          移动到主题
+          移动到主�?
         </div>
         <button
           className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
           onClick={() => void handleMoveSession(contextMenu.session, "")}
         >
-          未归档
+          未归�?
         </button>
         {interests.map((interest) => (
           <button

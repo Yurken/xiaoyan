@@ -355,6 +355,8 @@ export interface ChatMessage {
   created_at: string;
 }
 
+export type ChatMode = "direct" | "task";
+
 export type LlmProvider = "openai" | "anthropic" | "openai_compatible";
 export type MultiAgentRoutingMode = "rule" | "llm" | "hybrid";
 export type PaperSearchEngine = "arxiv" | "semantic_scholar";

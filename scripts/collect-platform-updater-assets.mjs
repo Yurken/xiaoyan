@@ -13,8 +13,8 @@ const PLATFORM_BUNDLE_PREFERENCES = {
 const PLATFORM_INSTALLER_PREFERENCES = {
   "darwin-aarch64": [".dmg"],
   "darwin-x86_64": [".dmg"],
-  "windows-x86_64": ["setup.exe", ".exe"],
-  "windows-aarch64": ["setup.exe", ".exe"],
+  "windows-x86_64": ["setup.exe", ".exe", ".msi"],
+  "windows-aarch64": ["setup.exe", ".exe", ".msi"],
 };
 
 function getArg(flag) {
@@ -56,6 +56,19 @@ function pickFileBySuffix(files, suffixes) {
   }
 
   return null;
+}
+
+function pickSignedFileBySuffix(files, suffixes) {
+  const signedFullPaths = new Set(
+    files
+      .filter((file) => file.name.endsWith(".sig"))
+      .map((file) => file.fullPath.slice(0, -".sig".length)),
+  );
+
+  return pickFileBySuffix(
+    files.filter((file) => signedFullPaths.has(file.fullPath)),
+    suffixes,
+  );
 }
 
 async function collectFiles(rootDir, currentDir = rootDir) {
@@ -100,10 +113,13 @@ async function main() {
   }
 
   const files = await collectFiles(inputDir);
-  const bundleFile = pickFileBySuffix(files, preferences);
+  const bundleFile = pickSignedFileBySuffix(files, preferences);
 
   if (!bundleFile) {
-    throw new Error(`No updater bundle found for ${platformKey} in ${inputDir}`);
+    throw new Error(
+      `No signed updater bundle found for ${platformKey} in ${inputDir}. ` +
+        "Check that the Tauri build completed and TAURI_SIGNING_PRIVATE_KEY is set.",
+    );
   }
 
   const signatureFile = files.find(
@@ -119,8 +135,10 @@ async function main() {
   }
 
   const installerPreferences = PLATFORM_INSTALLER_PREFERENCES[platformKey] || [];
-  const installerFile = pickFileBySuffix(files, installerPreferences);
-  if (installerPreferences.length > 0 && !installerFile) {
+  const pickedInstallerFile = pickFileBySuffix(files, installerPreferences);
+  const installerFile =
+    pickedInstallerFile?.fullPath === bundleFile.fullPath ? null : pickedInstallerFile;
+  if (installerPreferences.length > 0 && !pickedInstallerFile) {
     throw new Error(`Missing installer file for ${platformKey} in ${inputDir}`);
   }
 

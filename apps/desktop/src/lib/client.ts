@@ -16,6 +16,7 @@ import type {
   ChatSession,
   ChatMessage,
   ChatStreamChunk,
+  ChatMode,
   ResearchInterest,
   ResearchInterestProfile,
   ResearchInterestHintRequest,
@@ -291,6 +292,7 @@ export async function* streamChat(body: {
   message: string;
   context_type?: string;
   context_id?: string;
+  chat_mode?: ChatMode;
 }): AsyncGenerator<ChatStreamChunk> {
   // Start the backend stream, get request_id + session_id
   const { request_id, session_id } = await invoke<{
@@ -301,6 +303,7 @@ export async function* streamChat(body: {
     sessionId: body.session_id ?? null,
     contextType: body.context_type ?? null,
     contextId: body.context_id ?? null,
+    chatMode: body.chat_mode ?? null,
   });
 
   yield { type: "request_id", value: request_id };
