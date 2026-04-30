@@ -127,6 +127,12 @@ struct SubmissionRepository {
     }
 
     // Versions
+    func listVersions(submissionId: String) throws -> [PaperVersion] {
+        try dbQueue.read { db in
+            try PaperVersion.fetchAll(db, sql: "SELECT * FROM paper_versions WHERE submission_id = ? ORDER BY created_at DESC", arguments: [submissionId])
+        }
+    }
+
     func insertVersion(_ version: PaperVersion) throws {
         try dbQueue.write { db in
             try db.execute(
@@ -136,6 +142,32 @@ struct SubmissionRepository {
                     version.stage, version.content, version.notes, version.filePath, version.fileName
                 ]
             )
+        }
+    }
+
+    func deleteVersion(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM paper_versions WHERE id = ?", arguments: [id])
+        }
+    }
+
+    // Review Rounds
+    func listReviewRounds(submissionId: String) throws -> [ReviewRound] {
+        try dbQueue.read { db in
+            try ReviewRound.fetchAll(db, sql: "SELECT * FROM review_rounds WHERE submission_id = ? ORDER BY round ASC", arguments: [submissionId])
+        }
+    }
+
+    func listReviewComments(submissionId: String, round: Int) throws -> [ReviewComment] {
+        try dbQueue.read { db in
+            try ReviewComment.fetchAll(db, sql: "SELECT * FROM review_comments WHERE submission_id = ? AND round = ? ORDER BY created_at ASC", arguments: [submissionId, round])
+        }
+    }
+
+    func deleteReviewRound(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM review_rounds WHERE id = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM review_comments WHERE id IN (SELECT id FROM review_comments WHERE round IN (SELECT round FROM review_rounds WHERE id = ?))", arguments: [id])
         }
     }
 

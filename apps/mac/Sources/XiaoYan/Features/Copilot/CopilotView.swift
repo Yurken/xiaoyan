@@ -28,7 +28,8 @@ struct CopilotView: View {
                 runs: chatService.currentRuns,
                 artifacts: chatService.currentArtifacts,
                 requestId: chatService.currentRequestId,
-                sending: chatService.isStreaming
+                sending: chatService.isStreaming,
+                onSaveMemory: saveMemory
             )
             .frame(minWidth: 260, maxWidth: 320)
         }
@@ -405,6 +406,19 @@ struct CopilotView: View {
         guard message.role == .assistant, message.id == activeAssistantId else { return [] }
         return chatService.currentRuns
     }
+
+    private func saveMemory(text: String) {
+        guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        let memory = UserMemory(
+            id: UUID().uuidString,
+            type: "manual",
+            action: nil,
+            summary: text,
+            detail: nil,
+            createdAt: Date()
+        )
+        try? MemoryRepository().insertMemory(memory)
+    }
 }
 
 // MARK: - Session Row
@@ -465,6 +479,9 @@ struct MissionControlView: View {
     let artifacts: [AgentArtifact]
     let requestId: String?
     let sending: Bool
+    var onSaveMemory: ((String) -> Void)? = nil
+    @State private var memoryText = ""
+    @State private var memorySaved = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -510,12 +527,56 @@ struct MissionControlView: View {
 
                     // Artifacts
                     artifactsSection
+
+                    // Memory
+                    memorySection
                 }
                 .padding(.horizontal)
                 .padding(.bottom)
             }
         }
         .padding(.top)
+    }
+
+    private var memorySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: "brain")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+                Text("添加记忆")
+                    .font(.subheadline.bold())
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                TextEditor(text: $memoryText)
+                    .font(.caption)
+                    .frame(minHeight: 60)
+                    .padding(4)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .cornerRadius(8)
+
+                HStack {
+                    if memorySaved {
+                        Text("已保存")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                    Spacer()
+                    Button("保存") {
+                        onSaveMemory?(memoryText)
+                        memorySaved = true
+                        memoryText = ""
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            memorySaved = false
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(memoryText.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
     }
 
     private var planSection: some View {

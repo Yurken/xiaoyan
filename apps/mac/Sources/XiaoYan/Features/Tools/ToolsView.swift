@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ToolsView: View {
     @State private var selectedTab: Tab = .arxiv
@@ -7,6 +8,8 @@ struct ToolsView: View {
         case arxiv = "arXiv 搜索"
         case sourceLookup = "期刊查询"
         case translation = "学术翻译"
+        case markdown = "Markdown 整理"
+        case friendLinks = "科研友链"
     }
 
     var body: some View {
@@ -23,6 +26,8 @@ struct ToolsView: View {
             case .arxiv: ArxivSearchView()
             case .sourceLookup: SourceLookupView()
             case .translation: TranslationView()
+            case .markdown: MarkdownFormatterView()
+            case .friendLinks: FriendLinksView()
             }
         }
         .navigationTitle("工具")
@@ -419,5 +424,339 @@ private struct TranslationView: View {
             }
             isTranslating = false
         }
+    }
+}
+
+// MARK: - Markdown Formatter
+
+private struct MarkdownFormatterView: View {
+    @EnvironmentObject var settings: AppSettings
+    @State private var inputText = ""
+    @State private var resultText = ""
+    @State private var isProcessing = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(spacing: 12) {
+                Image(systemName: "doc.text")
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Markdown 整理")
+                        .font(.headline)
+                    Text("粘贴任意文本，小妍帮你整理为规范的 Markdown 格式")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding()
+
+            Divider()
+
+            // Input
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("待整理内容")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if !inputText.isEmpty {
+                        Text("\(inputText.count) 字 · 预计 \(max(1, Int(ceil(Double(inputText.count) / 1500.0)))) 块")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                TextEditor(text: $inputText)
+                    .font(.body)
+                    .padding(4)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .cornerRadius(8)
+                    .frame(minHeight: 120)
+            }
+            .padding()
+
+            // Actions
+            HStack {
+                Spacer()
+                Button(action: formatMarkdown) {
+                    if isProcessing {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("整理中…")
+                        }
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "doc.text")
+                            Text("开始整理")
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(inputText.trimmingCharacters(in: .whitespaces).isEmpty || isProcessing)
+            }
+            .padding(.horizontal)
+
+            if let error = errorMessage {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                    Text(error)
+                        .font(.caption)
+                    Spacer()
+                }
+                .padding(8)
+                .background(Color.red.opacity(0.08))
+                .cornerRadius(8)
+                .padding(.horizontal)
+            }
+
+            // Result
+            if !resultText.isEmpty {
+                Divider().padding(.vertical, 8)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("整理结果")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("复制") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(resultText, forType: .string)
+                        }
+                        .font(.caption)
+                        Button("保存为 .md") {
+                            saveResult()
+                        }
+                        .font(.caption)
+                    }
+                    TextEditor(text: .constant(resultText))
+                        .font(.system(.body, design: .monospaced))
+                        .padding(4)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .cornerRadius(8)
+                        .frame(minHeight: 120)
+                }
+                .padding()
+            }
+
+            Spacer()
+        }
+    }
+
+    private func formatMarkdown() {
+        guard !inputText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        isProcessing = true
+        errorMessage = nil
+        resultText = ""
+
+        Task {
+            let client = LLMClient.fromSettings(
+                settings,
+                modelKeys: ["copilot_simple_model"],
+                temperatureKeys: ["copilot_simple_temperature"]
+            )
+
+            guard let client else {
+                errorMessage = "请先在设置中配置 LLM 提供商。"
+                isProcessing = false
+                return
+            }
+
+            let systemPrompt = """
+            你是一位 Markdown 格式整理专家。请将用户提供的文本整理为规范、整洁的 Markdown 格式。
+            要求：
+            - 保持原文的核心内容和语义不变
+            - 使用合适的标题层级、列表、引用等 Markdown 语法
+            - 段落之间保留适当的空行
+            - 代码块使用 ``` 包裹并标注语言
+            - 输出纯 Markdown 文本，不要添加解释性文字
+            """
+
+            do {
+                let response = try await client.chat(
+                    messages: [LLMClient.Message(role: "user", content: inputText)],
+                    systemPrompt: systemPrompt
+                )
+                resultText = response
+            } catch {
+                errorMessage = "整理失败: \(error.localizedDescription)"
+            }
+            isProcessing = false
+        }
+    }
+
+    private func saveResult() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType.plainText]
+        panel.nameFieldStringValue = "整理结果.md"
+        panel.begin { result in
+            if result == .OK, let url = panel.url {
+                try? resultText.write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
+    }
+}
+
+// MARK: - Friend Links
+
+private struct FriendLinkSection {
+    let title: String
+    let items: [FriendLinkItem]
+}
+
+private struct FriendLinkItem {
+    let name: String
+    let href: String
+}
+
+private let friendLinkSections: [FriendLinkSection] = [
+    FriendLinkSection(title: "主流 AI 助手", items: [
+        FriendLinkItem(name: "ChatGPT", href: "https://chatgpt.com/"),
+        FriendLinkItem(name: "Claude", href: "https://claude.ai/"),
+        FriendLinkItem(name: "Gemini", href: "https://gemini.google.com/"),
+        FriendLinkItem(name: "DeepSeek", href: "https://chat.deepseek.com/"),
+        FriendLinkItem(name: "Kimi", href: "https://kimi.moonshot.cn/"),
+        FriendLinkItem(name: "通义千问", href: "https://tongyi.aliyun.com/"),
+        FriendLinkItem(name: "Perplexity", href: "https://www.perplexity.ai/"),
+    ]),
+    FriendLinkSection(title: "AI 学术工具", items: [
+        FriendLinkItem(name: "Semantic Scholar", href: "https://www.semanticscholar.org/"),
+        FriendLinkItem(name: "Elicit", href: "https://elicit.com/"),
+        FriendLinkItem(name: "Consensus", href: "https://consensus.app/"),
+        FriendLinkItem(name: "Connected Papers", href: "https://www.connectedpapers.com/"),
+        FriendLinkItem(name: "SciSpace", href: "https://typeset.io/"),
+    ]),
+    FriendLinkSection(title: "论文检索", items: [
+        FriendLinkItem(name: "arXiv", href: "https://arxiv.org/"),
+        FriendLinkItem(name: "Google Scholar", href: "https://scholar.google.com/"),
+        FriendLinkItem(name: "DBLP", href: "https://dblp.org/"),
+        FriendLinkItem(name: "PubMed", href: "https://pubmed.ncbi.nlm.nih.gov/"),
+        FriendLinkItem(name: "Web of Science", href: "https://www.webofscience.com/"),
+    ]),
+    FriendLinkSection(title: "代码与数据", items: [
+        FriendLinkItem(name: "GitHub", href: "https://github.com/"),
+        FriendLinkItem(name: "Hugging Face", href: "https://huggingface.co/"),
+        FriendLinkItem(name: "Papers with Code", href: "https://paperswithcode.com/"),
+        FriendLinkItem(name: "Kaggle", href: "https://www.kaggle.com/"),
+        FriendLinkItem(name: "Zenodo", href: "https://zenodo.org/"),
+    ]),
+    FriendLinkSection(title: "写作与投稿", items: [
+        FriendLinkItem(name: "Overleaf", href: "https://www.overleaf.com/"),
+        FriendLinkItem(name: "Grammarly", href: "https://www.grammarly.com/"),
+        FriendLinkItem(name: "LanguageTool", href: "https://languagetool.org/"),
+        FriendLinkItem(name: "QuillBot", href: "https://quillbot.com/"),
+        FriendLinkItem(name: "知网", href: "https://www.cnki.net/"),
+    ]),
+]
+
+private struct FriendLinksView: View {
+    @State private var expandedSections: Set<String> = Set(friendLinkSections.map(\.title))
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: "globe")
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("科研友链")
+                        .font(.headline)
+                    Text("\(friendLinkSections.reduce(0) { $0 + $1.items.count }) 条链接 · \(friendLinkSections.count) 个分类")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(expandedSections.count == friendLinkSections.count ? "收起全部" : "展开全部") {
+                    if expandedSections.count == friendLinkSections.count {
+                        expandedSections.removeAll()
+                    } else {
+                        expandedSections = Set(friendLinkSections.map(\.title))
+                    }
+                }
+                .font(.caption)
+            }
+            .padding()
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(friendLinkSections, id: \.title) { section in
+                        FriendLinkSectionView(
+                            section: section,
+                            isExpanded: expandedSections.contains(section.title)
+                        ) {
+                            if expandedSections.contains(section.title) {
+                                expandedSections.remove(section.title)
+                            } else {
+                                expandedSections.insert(section.title)
+                            }
+                        }
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+}
+
+private struct FriendLinkSectionView: View {
+    let section: FriendLinkSection
+    let isExpanded: Bool
+    let toggle: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: toggle) {
+                HStack {
+                    Text(section.title)
+                        .font(.subheadline.bold())
+                    Text("\(section.items.count) 条")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(4)
+                    Spacer()
+                    Text(isExpanded ? "收起" : "展开")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(10)
+
+            if isExpanded {
+                Divider()
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 180))], spacing: 8) {
+                    ForEach(section.items, id: \.name) { item in
+                        Link(destination: URL(string: item.href)!) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "link.circle")
+                                    .foregroundStyle(.blue)
+                                Text(item.name)
+                                    .font(.subheadline)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(10)
+            }
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(10)
     }
 }

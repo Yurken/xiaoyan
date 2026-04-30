@@ -77,7 +77,7 @@ struct PaperVersion: Codable, Identifiable, FetchableRecord {
     }
 }
 
-struct ReviewRound: Codable, Identifiable, FetchableRecord {
+struct ReviewRound: Codable, Identifiable, Hashable, FetchableRecord {
     let id: String
     var submissionId: String
     var round: Int

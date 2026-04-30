@@ -95,7 +95,52 @@ final class SubmissionService: ObservableObject {
         }
     }
 
-    // MARK: - Review Comments
+    // MARK: - Versions
+
+    func listVersions(submissionId: String) -> [PaperVersion] {
+        (try? repo.listVersions(submissionId: submissionId)) ?? []
+    }
+
+    func createVersion(submissionId: String, tag: String, label: String?, stage: String?, content: String?, notes: String?) {
+        let version = PaperVersion(
+            id: UUID().uuidString,
+            submissionId: submissionId,
+            tag: tag,
+            label: label,
+            stage: stage,
+            content: content,
+            notes: notes,
+            filePath: nil,
+            fileName: nil,
+            createdAt: Date()
+        )
+        try? repo.insertVersion(version)
+    }
+
+    func deleteVersion(id: String) {
+        try? repo.deleteVersion(id: id)
+    }
+
+    // MARK: - Review Rounds
+
+    func listReviewRounds(submissionId: String) -> [ReviewRound] {
+        (try? repo.listReviewRounds(submissionId: submissionId)) ?? []
+    }
+
+    func listReviewComments(submissionId: String, round: Int) -> [ReviewComment] {
+        (try? repo.listReviewComments(submissionId: submissionId, round: round)) ?? []
+    }
+
+    func createReviewRound(submissionId: String, round: Int, verdict: String?) {
+        let r = ReviewRound(
+            id: UUID().uuidString,
+            submissionId: submissionId,
+            round: round,
+            verdict: verdict,
+            receivedAt: Date()
+        )
+        try? repo.insertReviewRound(r)
+    }
 
     func addReviewComment(_ comment: ReviewComment) {
         try? repo.insertReviewComment(comment)
