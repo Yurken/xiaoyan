@@ -14,6 +14,21 @@ struct ChatRepository {
         }
     }
 
+    func listSessions() throws -> [ChatSession] {
+        try dbQueue.read { db in
+            try ChatSession.fetchAll(
+                db,
+                sql: "SELECT * FROM chat_sessions ORDER BY created_at DESC"
+            )
+        }
+    }
+
+    func deleteSession(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM chat_sessions WHERE id = ?", arguments: [id])
+        }
+    }
+
     func updateSessionTitle(id: String, title: String) throws {
         try dbQueue.write { db in
             try db.execute(

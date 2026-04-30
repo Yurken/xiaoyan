@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HomeView: View {
+    @EnvironmentObject var router: AppRouter
     @State private var paperCount = 0
     @State private var submissionCount = 0
     @State private var experimentCount = 0
@@ -93,10 +94,18 @@ struct HomeView: View {
                     Text("快捷操作")
                         .font(.headline)
                     HStack(spacing: 12) {
-                        QuickAction(icon: "plus.circle", title: "上传论文")
-                        QuickAction(icon: "bubble.left", title: "对话小妍")
-                        QuickAction(icon: "magnifyingglass", title: "搜索论文")
-                        QuickAction(icon: "wrench", title: "工具箱")
+                        QuickAction(icon: "plus.circle", title: "上传论文") {
+                            router.selectedRoute = .papers
+                        }
+                        QuickAction(icon: "bubble.left", title: "对话小妍") {
+                            router.selectedRoute = .copilot
+                        }
+                        QuickAction(icon: "magnifyingglass", title: "搜索论文") {
+                            router.selectedRoute = .papers
+                        }
+                        QuickAction(icon: "wrench", title: "工具箱") {
+                            router.selectedRoute = .tools
+                        }
                     }
                 }
             }
@@ -161,17 +170,21 @@ private struct StatCard: View {
 private struct QuickAction: View {
     let icon: String
     let title: String
+    var action: () -> Void = {}
 
     var body: some View {
-        VStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.title3)
-            Text(title)
-                .font(.caption2)
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.title3)
+                Text(title)
+                    .font(.caption2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .cornerRadius(10)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
+        .buttonStyle(.plain)
     }
 }

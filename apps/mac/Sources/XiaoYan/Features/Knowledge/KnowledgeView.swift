@@ -6,17 +6,43 @@ struct KnowledgeView: View {
     @EnvironmentObject var settings: AppSettings
     @State private var selectedTab: Tab = .notes
     @State private var notes: [KnowledgeNote] = []
+    @State private var interests: [ResearchInterest] = []
     @State private var selectedNote: KnowledgeNote?
+    @State private var searchText = ""
     @State private var showingCreateNote = false
+    @State private var showingCreateInterest = false
 
     enum Tab: String, CaseIterable {
         case notes = "笔记"
-        case claims = "知识断言"
+        case interests = "研究方向"
+    }
+
+    var filteredNotes: [KnowledgeNote] {
+        if searchText.isEmpty { return notes }
+        let q = searchText.lowercased()
+        return notes.filter {
+            $0.title.lowercased().contains(q) ||
+            $0.content.lowercased().contains(q) ||
+            ($0.tags?.contains(where: { $0.lowercased().contains(q) }) ?? false)
+        }
     }
 
     var body: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
+                // Search bar
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("搜索知识库...", text: $searchText)
+                        .textFieldStyle(.plain)
+                }
+                .padding(8)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .cornerRadius(8)
+                .padding()
+
+                // Tabs
                 Picker("类型", selection: $selectedTab) {
                     ForEach(Tab.allCases, id: \.self) { tab in
                         Text(tab.rawValue).tag(tab)
@@ -24,51 +50,64 @@ struct KnowledgeView: View {
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
-                .padding(.vertical, 8)
+                .padding(.bottom, 8)
 
                 if selectedTab == .notes {
                     notesList
                 } else {
-                    claimsList
+                    interestsList
                 }
             }
             .navigationTitle("知识")
             .toolbar {
                 ToolbarItem {
-                    Button(action: { showingCreateNote = true }) {
-                        Label("新建笔记", systemImage: "plus")
+                    Button(action: {
+                        if selectedTab == .notes {
+                            showingCreateNote = true
+                        } else {
+                            showingCreateInterest = true
+                        }
+                    }) {
+                        Label("新建", systemImage: "plus")
                     }
                 }
             }
         } detail: {
-            if let note = selectedNote {
+            if let note = selectedNote, selectedTab == .notes {
                 NoteDetailView(note: note, knowledgeService: knowledgeService, onUpdate: reload)
             } else {
-                ContentUnavailableView("选择笔记", systemImage: "note.text")
+                ContentUnavailableView("选择项目", systemImage: "book")
             }
         }
         .onAppear(perform: reload)
         .sheet(isPresented: $showingCreateNote) {
             CreateNoteSheet(knowledgeService: knowledgeService, settings: settings, onCreated: reload)
         }
+        .sheet(isPresented: $showingCreateInterest) {
+            CreateInterestSheet(knowledgeService: knowledgeService, onCreated: reload)
+        }
     }
+
+    // MARK: - Notes List
 
     private var notesList: some View {
         Group {
-            if notes.isEmpty {
+            if filteredNotes.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "note.text")
                         .font(.system(size: 36))
                         .foregroundStyle(.secondary)
-                    Text("还没有笔记")
+                    Text(searchText.isEmpty ? "还没有笔记" : "没有找到相关笔记")
                         .font(.subheadline.bold())
-                    Text("创建笔记来记录研究心得")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if searchText.isEmpty {
+                        Text("创建笔记来记录研究心得")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(notes, selection: $selectedNote) { note in
+                List(filteredNotes, selection: $selectedNote) { note in
                     NoteRow(note: note)
                         .tag(note)
                         .contextMenu {
@@ -83,12 +122,36 @@ struct KnowledgeView: View {
         }
     }
 
-    private var claimsList: some View {
-        ClaimsListView()
+    // MARK: - Interests List
+
+    private var interestsList: some View {
+        Group {
+            if interests.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "map")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.secondary)
+                    Text("还没有研究方向")
+                        .font(.subheadline.bold())
+                    Text("创建研究方向，小妍将为你规划学习路径")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(interests) { interest in
+                        InterestListRow(interest: interest, knowledgeService: knowledgeService, settings: settings, onUpdate: reload)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
     }
 
     private func reload() {
         notes = knowledgeService.listNotes()
+        interests = knowledgeService.listInterests()
         if let selected = selectedNote {
             selectedNote = notes.first { $0.id == selected.id }
         }
@@ -129,6 +192,82 @@ private struct NoteRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Interest List Row
+
+private struct InterestListRow: View {
+    let interest: ResearchInterest
+    let knowledgeService: KnowledgeService
+    let settings: AppSettings
+    let onUpdate: () -> Void
+    @State private var isGenerating = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(interest.topic)
+                    .font(.subheadline.bold())
+                    .lineLimit(1)
+                Spacer()
+                if interest.learningPath != nil {
+                    BadgeView(text: "已有路径", color: .green)
+                }
+            }
+
+            if let keywords = interest.keywords, !keywords.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(keywords.prefix(4), id: \.self) { kw in
+                        Text(kw)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.1))
+                            .cornerRadius(4)
+                    }
+                }
+            }
+
+            if let path = interest.learningPath, let firstStage = path.stages?.first, let desc = firstStage.description {
+                Text(desc)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            HStack {
+                Spacer()
+                if isGenerating {
+                    ProgressView()
+                        .controlSize(.small)
+                } else if interest.learningPath == nil {
+                    Button("生成学习路径") {
+                        generatePath()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .contextMenu {
+            Button("删除", role: .destructive) {
+                knowledgeService.deleteInterest(id: interest.id)
+                onUpdate()
+            }
+        }
+    }
+
+    private func generatePath() {
+        isGenerating = true
+        Task {
+            _ = await knowledgeService.generateLearningPath(interest: interest, settings: settings)
+            await MainActor.run {
+                isGenerating = false
+                onUpdate()
+            }
+        }
     }
 }
 
@@ -275,11 +414,13 @@ private struct CreateNoteSheet: View {
                     let tags = tagsText.components(separatedBy: ",")
                         .map { $0.trimmingCharacters(in: .whitespaces) }
                         .filter { !$0.isEmpty }
-                    _ = knowledgeService.createNote(
+                    var note = knowledgeService.createNote(
                         title: title,
                         content: content,
                         settings: settings
                     )
+                    note.tags = tags.isEmpty ? nil : tags
+                    try? KnowledgeRepository().updateNote(note)
                     onCreated()
                     dismiss()
                 }
@@ -293,67 +434,49 @@ private struct CreateNoteSheet: View {
     }
 }
 
-// MARK: - Claims List
+// MARK: - Create Interest Sheet
 
-private struct ClaimsListView: View {
-    @State private var claims: [KnowledgeClaim] = []
+private struct CreateInterestSheet: View {
+    let knowledgeService: KnowledgeService
+    let onCreated: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var topic = ""
+    @State private var keywordsText = ""
+    @State private var goal = ""
+    @State private var background = ""
 
     var body: some View {
-        Group {
-            if claims.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "network")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.secondary)
-                    Text("还没有知识断言")
-                        .font(.subheadline.bold())
-                    Text("通过论文分析自动生成知识图谱")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(claims) { claim in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(claim.title)
-                            .font(.subheadline.bold())
-                        Text(claim.statement)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                        if let status = claim.status {
-                            Text(status)
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(statusColor(status).opacity(0.15))
-                                .foregroundColor(statusColor(status))
-                                .cornerRadius(4)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-                .listStyle(.sidebar)
+        VStack(spacing: 16) {
+            Text("创建研究方向")
+                .font(.headline)
+
+            Form {
+                TextField("研究主题", text: $topic)
+                TextField("关键词（逗号分隔）", text: $keywordsText)
+                TextField("研究目标", text: $goal, axis: .vertical)
+                    .lineLimit(2...4)
+                TextField("研究背景", text: $background, axis: .vertical)
+                    .lineLimit(2...4)
             }
-        }
-        .onAppear { loadClaims() }
-    }
+            .formStyle(.grouped)
 
-    private func loadClaims() {
-        // Claims are populated via paper analysis; load from DB
-        if let dbClaims = try? DatabaseManager.shared.dbQueue.read({ db in
-            try KnowledgeClaim.fetchAll(db, sql: "SELECT * FROM knowledge_graph_claims ORDER BY created_at DESC")
-        }) {
-            claims = dbClaims
+            HStack {
+                Button("取消") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("创建") {
+                    let keywords = keywordsText.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                    let profile = InterestProfile(goal: goal.isEmpty ? nil : goal, background: background.isEmpty ? nil : background, timeBudget: nil, constraints: nil)
+                    _ = knowledgeService.createInterest(topic: topic, keywords: keywords.isEmpty ? nil : keywords, profile: profile)
+                    onCreated()
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(topic.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(.horizontal)
         }
-    }
-
-    private func statusColor(_ status: String) -> Color {
-        switch status {
-        case "supported": return .green
-        case "contradicted": return .red
-        case "investigating": return .orange
-        default: return .secondary
-        }
+        .padding()
+        .frame(width: 420, height: 360)
     }
 }

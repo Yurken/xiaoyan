@@ -164,34 +164,125 @@ final class PaperService: ObservableObject {
         ) else { return }
 
         let prompt = """
-        请分析以下论文，返回结构化分析：
+        请分析以下论文，返回 JSON 格式：
+        {"research_question":"...","core_method":"...","experiment_design":"...","experiment_results":"...","innovations":"...","limitations":"...","key_conclusions":"..."}
 
         论文：\(paper.title)
         \(String(fullText.prefix(8000)))
-
-        请从以下维度分析：
-        1. 研究问题
-        2. 核心方法
-        3. 实验设计
-        4. 实验结果
-        5. 创新点
-        6. 局限性
-        7. 关键结论
         """
 
-        if let response = try? await client.chat(
-            messages: [LLMClient.Message(role: "user", content: prompt)],
-            systemPrompt: "你是一个学术论文分析专家。提供详细的结构化分析。"
-        ) {
+        do {
+            let response = try await client.chat(
+                messages: [LLMClient.Message(role: "user", content: prompt)],
+                systemPrompt: "你是学术论文分析专家。只返回 JSON，不要其他内容。"
+            )
+            let parsed = parseJSONAnalysis(response, paperId: paperId)
+            try? paperRepo.upsertAnalysis(paperId, analysis: parsed)
+            try? paperRepo.updateStatus(id: paperId, status: .analyzed)
+        } catch {
+            // Fallback: save raw
             let analysis = PaperAnalysis(
                 id: UUID().uuidString, paperId: paperId,
                 researchQuestion: nil, coreMethod: nil,
                 experimentDesign: nil, experimentResults: nil,
                 innovations: nil, limitations: nil,
-                keyConclusions: nil, rawAnalysis: response
+                keyConclusions: nil, rawAnalysis: error.localizedDescription
             )
             try? paperRepo.upsertAnalysis(paperId, analysis: analysis)
         }
+    }
+
+    func reproduce(paperId: String, settings: AppSettings) async {
+        guard let paper = get(id: paperId),
+              let fullText = paper.fullText else { return }
+
+        guard let client = LLMClient.fromSettings(
+            settings,
+            modelKeys: ["paper_reproduction_model"],
+            temperatureKeys: []
+        ) else { return }
+
+        let prompt = """
+        请为以下论文生成复现指导，返回 JSON 格式：
+        {"environment_setup":"...","dependencies":"...","data_requirements":"...","reproduction_steps":"...","expected_results":"...","common_pitfalls":"..."}
+
+        论文：\(paper.title)
+        \(String(fullText.prefix(8000)))
+        """
+
+        do {
+            let response = try await client.chat(
+                messages: [LLMClient.Message(role: "user", content: prompt)],
+                systemPrompt: "你是实验复现专家。只返回 JSON，不要其他内容。"
+            )
+            let parsed = parseJSONReproduction(response, paperId: paperId)
+            try? paperRepo.upsertReproductionGuide(paperId, guide: parsed)
+        } catch {
+            let guide = ReproductionGuide(
+                id: UUID().uuidString, paperId: paperId,
+                codeRepository: nil, environmentSetup: nil,
+                dependencies: nil, dataRequirements: nil,
+                reproductionSteps: nil, expectedResults: nil,
+                commonPitfalls: nil, notes: error.localizedDescription
+            )
+            try? paperRepo.upsertReproductionGuide(paperId, guide: guide)
+        }
+    }
+
+    private func parseJSONAnalysis(_ text: String, paperId: String) -> PaperAnalysis {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = clean.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
+            return PaperAnalysis(
+                id: UUID().uuidString, paperId: paperId,
+                researchQuestion: nil, coreMethod: nil,
+                experimentDesign: nil, experimentResults: nil,
+                innovations: nil, limitations: nil,
+                keyConclusions: nil, rawAnalysis: text
+            )
+        }
+        return PaperAnalysis(
+            id: UUID().uuidString, paperId: paperId,
+            researchQuestion: json["research_question"],
+            coreMethod: json["core_method"],
+            experimentDesign: json["experiment_design"],
+            experimentResults: json["experiment_results"],
+            innovations: json["innovations"],
+            limitations: json["limitations"],
+            keyConclusions: json["key_conclusions"],
+            rawAnalysis: text
+        )
+    }
+
+    private func parseJSONReproduction(_ text: String, paperId: String) -> ReproductionGuide {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = clean.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
+            return ReproductionGuide(
+                id: UUID().uuidString, paperId: paperId,
+                codeRepository: nil, environmentSetup: nil,
+                dependencies: nil, dataRequirements: nil,
+                reproductionSteps: nil, expectedResults: nil,
+                commonPitfalls: nil, notes: text
+            )
+        }
+        return ReproductionGuide(
+            id: UUID().uuidString, paperId: paperId,
+            codeRepository: json["code_repository"],
+            environmentSetup: json["environment_setup"],
+            dependencies: json["dependencies"],
+            dataRequirements: json["data_requirements"],
+            reproductionSteps: json["reproduction_steps"],
+            expectedResults: json["expected_results"],
+            commonPitfalls: json["common_pitfalls"],
+            notes: nil
+        )
     }
 
     // MARK: - Delete

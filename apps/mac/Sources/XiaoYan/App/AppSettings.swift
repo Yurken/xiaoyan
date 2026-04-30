@@ -1,11 +1,18 @@
 import SwiftUI
 import Combine
 
+struct ChatContext: Equatable {
+    let type: String
+    let id: String
+    let title: String
+}
+
 @MainActor
 final class AppSettings: ObservableObject {
     @Published var theme: AppTheme = .dark
     @Published var style: AppStyle = .neumorphic
     @Published var settings: [String: String] = [:]
+    @Published var pendingChatContext: ChatContext?
 
     init() {
         loadPreferences()

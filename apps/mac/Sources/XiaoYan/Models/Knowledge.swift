@@ -32,7 +32,27 @@ struct InterestProfile: Codable, Hashable, FetchableRecord {
 }
 
 struct LearningPath: Codable, Hashable, FetchableRecord {
+    var overview: String?
+    var prerequisites: [LearningPrerequisite]?
     var stages: [LearningStage]?
+    var learningStages: [LearningStageDetail]?
+    var classicPapers: [ClassicPaper]?
+    var researchDirections: [ResearchDirection]?
+    var toolsAndFrameworks: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case overview, prerequisites, stages
+        case learningStages = "learning_stages"
+        case classicPapers = "classic_papers"
+        case researchDirections = "research_directions"
+        case toolsAndFrameworks = "tools_and_frameworks"
+    }
+}
+
+struct LearningPrerequisite: Codable, Hashable, FetchableRecord {
+    var name: String?
+    var description: String?
+    var resources: [String]?
 }
 
 struct LearningStage: Codable, Hashable, FetchableRecord {
@@ -40,6 +60,33 @@ struct LearningStage: Codable, Hashable, FetchableRecord {
     var description: String?
     var duration: String?
     var resources: [String]?
+}
+
+struct LearningStageDetail: Codable, Hashable, FetchableRecord {
+    var stage: Int?
+    var title: String?
+    var duration: String?
+    var goals: [String]?
+    var topics: [String]?
+    var resources: [String]?
+}
+
+struct ClassicPaper: Codable, Hashable, FetchableRecord {
+    var title: String?
+    var authors: String?
+    var year: Int?
+    var reason: String?
+}
+
+struct ResearchDirection: Codable, Hashable, FetchableRecord {
+    var direction: String?
+    var description: String?
+    var openProblems: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case direction, description
+        case openProblems = "open_problems"
+    }
 }
 
 struct KnowledgeNote: Codable, Identifiable, Hashable, FetchableRecord {

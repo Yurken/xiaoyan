@@ -1,11 +1,35 @@
 import Foundation
 import Combine
 
+struct AgentPlanStep: Identifiable {
+    let id = UUID()
+    let agentName: String
+    let title: String
+    let goal: String
+}
+
+struct AgentRunDisplay: Identifiable {
+    let id: String
+    let agentName: String
+    let stepName: String
+    var status: AgentStatus
+    var summary: String?
+    var error: String?
+    var orderIndex: Int
+}
+
 @MainActor
 final class ChatService: ObservableObject {
     @Published var isStreaming = false
     @Published var currentSources: [ChatSource] = []
     @Published var activeAgents: [AgentGraphService.AgentNodeState] = []
+
+    // MissionControl state
+    @Published var currentPlan: [AgentPlanStep] = []
+    @Published var currentRuns: [AgentRunDisplay] = []
+    @Published var currentRequestId: String?
+    @Published var streamError: String?
+    @Published var currentArtifacts: [AgentArtifact] = []
 
     private let chatRepo = ChatRepository()
     private let paperRepo = PaperRepository()
@@ -22,6 +46,7 @@ final class ChatService: ObservableObject {
             Task { @MainActor in
                 self.isStreaming = true
                 defer { self.isStreaming = false }
+                self.currentSources = []
 
                 // Save user message
                 let userMsg = ChatMessage(
@@ -35,7 +60,7 @@ final class ChatService: ObservableObject {
                 try? chatRepo.insertMessage(userMsg)
 
                 // Build context
-                let contextSummary = buildContextSummary(userMessage: userMessage, settings: settings)
+                let contextSummary = buildContextSummary(sessionId: sessionId, userMessage: userMessage, settings: settings)
                 let history = (try? chatRepo.fetchHistory(sessionId: sessionId, limit: 10)) ?? []
 
                 // Decide mode
@@ -123,6 +148,10 @@ final class ChatService: ObservableObject {
         settings: AppSettings,
         continuation: AsyncThrowingStream<String, Error>.Continuation
     ) async {
+        let requestId = UUID().uuidString
+        self.currentRequestId = requestId
+        self.streamError = nil
+
         let routingMode = settings.get("multi_agent_routing_mode") ?? "hybrid"
         let enabledAgents = (settings.get("multi_agent_enabled_agents") ?? "").components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -134,13 +163,47 @@ final class ChatService: ObservableObject {
             settings: settings
         )
 
+        // Build plan
+        let plan = selectedAgents.enumerated().map { idx, agent in
+            AgentPlanStep(
+                agentName: agent.rawValue,
+                title: "\(idx + 1). \(agent.displayName)",
+                goal: agentGoal(agent)
+            )
+        }
+        self.currentPlan = plan
+
         // Phase 1: Retrieval
-        var retrievalResult = await AgentNodesService.retrievalNode(
+        var retrievalRun = AgentRunDisplay(
+            id: UUID().uuidString,
+            agentName: "retrieval",
+            stepName: "检索",
+            status: .running,
+            summary: nil,
+            error: nil,
+            orderIndex: 0
+        )
+        self.currentRuns = [retrievalRun]
+
+        let retrievalResult = await AgentNodesService.retrievalNode(
             query: userMessage,
             settings: settings.settings,
             paperRepo: paperRepo,
             knowledgeRepo: knowledgeRepo
         )
+        retrievalRun.status = .done
+        retrievalRun.summary = "检索完成"
+        self.currentRuns = [retrievalRun]
+
+        // Populate sources from retrieval
+        if let sources = retrievalResult.sources {
+            self.currentSources = sources.compactMap { dict in
+                guard let id = dict["id"] as? String,
+                      let title = dict["title"] as? String else { return nil }
+                let score = dict["score"] as? Double ?? 0
+                return ChatSource(id: id, title: title, score: score)
+            }
+        }
 
         // Phase 2: Execute worker agents in parallel
         var contextParts: [String] = []
@@ -148,35 +211,83 @@ final class ChatService: ObservableObject {
             contextParts.append(retrievalResult.content)
         }
 
-        await withTaskGroup(of: AgentNodesService.AgentResult.self) { group in
-            for agent in selectedAgents where agent != .retrieval && agent != .synthesis {
+        var workerRuns: [AgentRunDisplay] = []
+        let workerAgents = selectedAgents.filter { $0 != .retrieval && $0 != .synthesis }
+        for (idx, agent) in workerAgents.enumerated() {
+            let run = AgentRunDisplay(
+                id: UUID().uuidString,
+                agentName: agent.rawValue,
+                stepName: agent.displayName,
+                status: .pending,
+                summary: nil,
+                error: nil,
+                orderIndex: idx + 1
+            )
+            workerRuns.append(run)
+        }
+        self.currentRuns = [retrievalRun] + workerRuns
+
+        await withTaskGroup(of: (Int, AgentNodesService.AgentResult).self) { group in
+            for (idx, agent) in workerAgents.enumerated() {
                 group.addTask {
+                    // Mark running
+                    await MainActor.run {
+                        workerRuns[idx].status = .running
+                        self.currentRuns = [retrievalRun] + workerRuns
+                    }
+                    let result: AgentNodesService.AgentResult
                     switch agent {
                     case .planner:
-                        return await AgentNodesService.plannerNode(query: userMessage, context: contextSummary, settings: settings.settings)
+                        result = await AgentNodesService.plannerNode(query: userMessage, context: contextSummary, settings: settings.settings)
                     case .literatureScout:
-                        return await AgentNodesService.literatureScoutNode(query: userMessage, context: contextSummary, settings: settings.settings)
+                        result = await AgentNodesService.literatureScoutNode(query: userMessage, context: contextSummary, settings: settings.settings)
                     case .survey:
-                        return await AgentNodesService.surveyNode(query: userMessage, context: contextSummary, settings: settings.settings)
+                        result = await AgentNodesService.surveyNode(query: userMessage, context: contextSummary, settings: settings.settings)
                     case .paperAnalyst:
-                        return await AgentNodesService.paperAnalystNode(query: userMessage, context: contextSummary, settings: settings.settings)
+                        result = await AgentNodesService.paperAnalystNode(query: userMessage, context: contextSummary, settings: settings.settings)
                     case .reproduction:
-                        return await AgentNodesService.reproductionNode(query: userMessage, context: contextSummary, settings: settings.settings)
+                        result = await AgentNodesService.reproductionNode(query: userMessage, context: contextSummary, settings: settings.settings)
                     default:
-                        return AgentNodesService.AgentResult(content: "", sources: nil)
+                        result = AgentNodesService.AgentResult(content: "", sources: nil)
                     }
+                    return (idx, result)
                 }
             }
 
-            for await result in group {
+            for await (idx, result) in group {
                 if !result.content.isEmpty {
                     contextParts.append(result.content)
+                    let artifact = AgentArtifact(
+                        id: UUID().uuidString,
+                        runId: workerRuns[idx].id,
+                        artifactType: workerRuns[idx].agentName,
+                        title: workerRuns[idx].stepName,
+                        content: result.content,
+                        createdAt: Date()
+                    )
+                    self.currentArtifacts.append(artifact)
+                }
+                workerRuns[idx].status = .done
+                workerRuns[idx].summary = "执行完成"
+                await MainActor.run {
+                    self.currentRuns = [retrievalRun] + workerRuns
                 }
             }
         }
 
-        // Phase 3: Synthesis — stream final response
-        let synthesisStream = await AgentNodesService.synthesisNode(
+        // Phase 3: Synthesis
+        var synthRun = AgentRunDisplay(
+            id: UUID().uuidString,
+            agentName: "synthesis",
+            stepName: "综合",
+            status: .running,
+            summary: nil,
+            error: nil,
+            orderIndex: workerRuns.count + 1
+        )
+        self.currentRuns = [retrievalRun] + workerRuns + [synthRun]
+
+        let synthesisStream = AgentNodesService.synthesisNode(
             query: userMessage,
             contextParts: contextParts,
             settings: settings.settings
@@ -188,6 +299,10 @@ final class ChatService: ObservableObject {
                 fullResponse += chunk
                 continuation.yield(chunk)
             }
+
+            synthRun.status = .done
+            synthRun.summary = "综合完成"
+            self.currentRuns = [retrievalRun] + workerRuns + [synthRun]
 
             // Save assistant message
             let assistantMsg = ChatMessage(
@@ -203,7 +318,23 @@ final class ChatService: ObservableObject {
             recordMemoryEvent(sessionId: sessionId, query: userMessage, response: fullResponse)
             continuation.finish()
         } catch {
+            synthRun.status = .failed
+            synthRun.error = error.localizedDescription
+            self.currentRuns = [retrievalRun] + workerRuns + [synthRun]
+            self.streamError = error.localizedDescription
             continuation.finish(throwing: error)
+        }
+    }
+
+    private func agentGoal(_ agent: AgentType) -> String {
+        switch agent {
+        case .retrieval: return "检索相关知识库与论文"
+        case .planner: return "规划研究路径与学习阶段"
+        case .literatureScout: return "侦察相关文献与经典论文"
+        case .survey: return "生成结构化文献综述"
+        case .paperAnalyst: return "深度分析论文内容"
+        case .reproduction: return "提供实验复现指导"
+        case .synthesis: return "整合各模块产出最终答复"
         }
     }
 
@@ -229,11 +360,43 @@ final class ChatService: ObservableObject {
         return messages
     }
 
-    private func buildContextSummary(userMessage: String, settings: AppSettings) -> String {
+    private func buildContextSummary(sessionId: String, userMessage: String, settings: AppSettings) -> String {
         var parts: [String] = []
 
-        // TODO: Add interest context, paper context, memory context
-        // This mirrors chat_context_service.rs in the Rust backend
+        // Fetch session context
+        if let session = try? chatRepo.dbQueue.read({ db in
+            try ChatSession.fetchOne(db, sql: "SELECT * FROM chat_sessions WHERE id = ?", arguments: [sessionId])
+        }) {
+            if let contextType = session.contextType, let contextId = session.contextId {
+                switch contextType {
+                case "paper":
+                    if let paper = try? paperRepo.get(id: contextId) {
+                        parts.append("当前对话围绕论文《\(paper.title)》展开。")
+                        if let abstract = paper.abstractText {
+                            parts.append("论文摘要：\(abstract)")
+                        }
+                        if let analysis = paper.analysis {
+                            var analysisParts: [String] = []
+                            if let rq = analysis.researchQuestion { analysisParts.append("研究问题：\(rq)") }
+                            if let cm = analysis.coreMethod { analysisParts.append("核心方法：\(cm)") }
+                            if let ed = analysis.experimentDesign { analysisParts.append("实验设计：\(ed)") }
+                            if let ic = analysis.innovations { analysisParts.append("创新点：\(ic)") }
+                            if !analysisParts.isEmpty {
+                                parts.append(analysisParts.joined(separator: "\n"))
+                            }
+                        }
+                    }
+                default:
+                    break
+                }
+            }
+        }
+
+        // Memory context (last 3 memory events)
+        if let memories = try? memoryRepo.recentObservations(hours: 72, limit: 3), !memories.isEmpty {
+            let memoryText = memories.map { "- \($0.summary ?? "")" }.joined(separator: "\n")
+            parts.append("近期研究记忆：\n\(memoryText)")
+        }
 
         return parts.joined(separator: "\n\n")
     }

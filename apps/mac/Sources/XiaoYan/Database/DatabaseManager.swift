@@ -39,6 +39,32 @@ final class DatabaseManager {
                 t.column("created_at", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
             }
 
+            // Research interests
+            try db.create(table: "research_interests") { t in
+                t.column("id", .text).primaryKey()
+                t.column("topic", .text).notNull()
+                t.column("folder_name", .text)
+                t.column("keywords", .text)
+                t.column("profile", .text)
+                t.column("learning_path", .text)
+                t.column("status", .text)
+                t.column("created_at", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+            }
+
+            // Knowledge notes
+            try db.create(table: "knowledge_notes") { t in
+                t.column("id", .text).primaryKey()
+                t.column("research_interest_id", .text).references("research_interests", onDelete: .setNull)
+                t.column("title", .text).notNull()
+                t.column("content", .text).notNull()
+                t.column("source_type", .text)
+                t.column("source_id", .text)
+                t.column("tags", .text)
+                t.column("embedding", .text)
+                t.column("created_at", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+                t.column("updated_at", .datetime)
+            }
+
             // Papers
             try db.create(table: "papers") { t in
                 t.column("id", .text).primaryKey()
@@ -98,32 +124,6 @@ final class DatabaseManager {
                 t.column("fig_index", .integer).notNull()
                 t.column("caption", .text)
                 t.column("file_path", .text)
-            }
-
-            // Research interests
-            try db.create(table: "research_interests") { t in
-                t.column("id", .text).primaryKey()
-                t.column("topic", .text).notNull()
-                t.column("folder_name", .text)
-                t.column("keywords", .text)
-                t.column("profile", .text)
-                t.column("learning_path", .text)
-                t.column("status", .text)
-                t.column("created_at", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
-            }
-
-            // Knowledge notes
-            try db.create(table: "knowledge_notes") { t in
-                t.column("id", .text).primaryKey()
-                t.column("research_interest_id", .text).references("research_interests", onDelete: .setNull)
-                t.column("title", .text).notNull()
-                t.column("content", .text).notNull()
-                t.column("source_type", .text)
-                t.column("source_id", .text)
-                t.column("tags", .text)
-                t.column("embedding", .text)
-                t.column("created_at", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
-                t.column("updated_at", .datetime)
             }
 
             // Chat

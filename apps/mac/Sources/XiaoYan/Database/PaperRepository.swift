@@ -6,27 +6,53 @@ struct PaperRepository {
 
     func list(researchInterestId: String? = nil) throws -> [Paper] {
         try dbQueue.read { db in
-            var sql = """
-                SELECT p.*, pa.research_question, pa.core_method, pa.experiment_design,
-                       pa.experiment_results, pa.innovations, pa.limitations, pa.key_conclusions,
-                       rg.code_repository, rg.reproduction_steps
-                FROM papers p
-                LEFT JOIN paper_analyses pa ON pa.paper_id = p.id
-                LEFT JOIN reproduction_guides rg ON rg.paper_id = p.id
-            """
+            var sql = "SELECT * FROM papers"
             var args: [any DatabaseValueConvertible] = []
             if let rid = researchInterestId {
-                sql += " WHERE p.research_interest_id = ?"
+                sql += " WHERE research_interest_id = ?"
                 args.append(rid)
             }
-            sql += " ORDER BY p.created_at DESC"
+            sql += " ORDER BY created_at DESC"
             return try Paper.fetchAll(db, sql: sql, arguments: StatementArguments(args))
         }
     }
 
     func get(id: String) throws -> Paper? {
         try dbQueue.read { db in
-            try Paper.fetchOne(db, sql: "SELECT * FROM papers WHERE id = ?", arguments: [id])
+            guard var paper = try Paper.fetchOne(db, sql: "SELECT * FROM papers WHERE id = ?", arguments: [id]) else {
+                return nil
+            }
+            // Fetch analysis
+            if let analysisRow = try Row.fetchOne(db, sql: "SELECT * FROM paper_analyses WHERE paper_id = ?", arguments: [id]) {
+                paper.analysis = PaperAnalysis(
+                    id: id,
+                    paperId: id,
+                    researchQuestion: analysisRow["research_question"],
+                    coreMethod: analysisRow["core_method"],
+                    experimentDesign: analysisRow["experiment_design"],
+                    experimentResults: analysisRow["experiment_results"],
+                    innovations: analysisRow["innovations"],
+                    limitations: analysisRow["limitations"],
+                    keyConclusions: analysisRow["key_conclusions"],
+                    rawAnalysis: analysisRow["raw_analysis"]
+                )
+            }
+            // Fetch reproduction guide
+            if let reproRow = try Row.fetchOne(db, sql: "SELECT * FROM reproduction_guides WHERE paper_id = ?", arguments: [id]) {
+                paper.reproductionGuide = ReproductionGuide(
+                    id: id,
+                    paperId: id,
+                    codeRepository: reproRow["code_repository"],
+                    environmentSetup: reproRow["environment_setup"],
+                    dependencies: reproRow["dependencies"],
+                    dataRequirements: reproRow["data_requirements"],
+                    reproductionSteps: reproRow["reproduction_steps"],
+                    expectedResults: reproRow["expected_results"],
+                    commonPitfalls: reproRow["common_pitfalls"],
+                    notes: reproRow["notes"]
+                )
+            }
+            return paper
         }
     }
 

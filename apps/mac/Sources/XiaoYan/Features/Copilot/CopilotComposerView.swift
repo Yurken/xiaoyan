@@ -5,21 +5,23 @@ struct CopilotComposerView: View {
     var onSend: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            TextField("输入消息...", text: $inputText, axis: .vertical)
-                .textFieldStyle(.plain)
+        HStack(alignment: .bottom, spacing: 8) {
+            TextEditor(text: $inputText)
+                .font(.body)
                 .lineLimit(1...6)
-                .onSubmit {
-                    onSend()
-                }
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .cornerRadius(12)
+                .frame(minHeight: 40, maxHeight: 120)
 
             Button(action: onSend) {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.title2)
+                    .font(.system(size: 28))
             }
             .buttonStyle(.plain)
             .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .padding(.bottom, 4)
         }
-        .padding(12)
     }
 }
