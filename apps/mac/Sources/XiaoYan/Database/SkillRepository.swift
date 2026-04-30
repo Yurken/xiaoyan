@@ -75,4 +75,13 @@ struct SkillRepository {
             try insert(skill)
         }
     }
+
+    func resetBuiltins() throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM skills WHERE is_builtin = 1")
+        }
+        for skill in SkillService.builtInSkills {
+            try insert(skill)
+        }
+    }
 }

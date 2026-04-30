@@ -4,6 +4,8 @@ struct SkillsSettingsTab: View {
     @State private var skills: [Skill] = []
     @State private var isLoading = true
     @State private var searchText = ""
+    @State private var showResetConfirm = false
+    @State private var resetError: String?
 
     private let repo = SkillRepository()
 
@@ -37,6 +39,22 @@ struct SkillsSettingsTab: View {
                     .padding(6)
                     .background(Color(nsColor: .controlBackgroundColor))
                     .cornerRadius(8)
+
+                    HStack {
+                        Spacer()
+                        Button("重置内置技能") {
+                            showResetConfirm = true
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let error = resetError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
 
                 if isLoading {
@@ -78,6 +96,14 @@ struct SkillsSettingsTab: View {
             }
         }
         .onAppear(perform: load)
+        .alert("重置内置技能", isPresented: $showResetConfirm) {
+            Button("取消", role: .cancel) { }
+            Button("重置", role: .destructive) {
+                resetBuiltins()
+            }
+        } message: {
+            Text("这将恢复所有内置技能为默认状态，不会删除自定义技能。")
+        }
     }
 
     private func load() {
@@ -90,6 +116,16 @@ struct SkillsSettingsTab: View {
     private func toggleSkill(_ skill: Skill) {
         try? repo.toggleEnabled(id: skill.id)
         load()
+    }
+
+    private func resetBuiltins() {
+        do {
+            try repo.resetBuiltins()
+            resetError = nil
+            load()
+        } catch {
+            resetError = "重置失败: \(error.localizedDescription)"
+        }
     }
 }
 

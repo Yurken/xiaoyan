@@ -6,6 +6,7 @@ struct ImportExportSettingsTab: View {
     @State private var importPassword = ""
     @State private var importText = ""
     @State private var statusMessage: String?
+    @State private var snapshots: [SettingsHistory] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -42,17 +43,54 @@ struct ImportExportSettingsTab: View {
             if let msg = statusMessage {
                 Text(msg)
                     .font(.caption)
-                    .foregroundStyle(msg.contains("成功") ? .green : .red)
+                    .foregroundStyle(msg.contains("成功") || msg.contains("已应用") || msg.contains("已保存") ? .green : .red)
             }
 
             settingsCard(title: "设置快照", icon: "camera") {
-                Button("保存当前快照") {
-                    saveSnapshot()
+                VStack(alignment: .leading, spacing: 12) {
+                    Button("保存当前快照") {
+                        saveSnapshot()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    if !snapshots.isEmpty {
+                        Text("历史快照")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+
+                        ForEach(snapshots) { snapshot in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(snapshot.name)
+                                        .font(.caption)
+                                    if let date = snapshot.createdAt {
+                                        Text(date.formatted(date: .abbreviated, time: .shortened))
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                                Spacer()
+                                Button("应用") {
+                                    applySnapshot(snapshot)
+                                }
+                                .buttonStyle(.borderless)
+                                .controlSize(.small)
+                                .foregroundStyle(.blue)
+                                Button("删除") {
+                                    deleteSnapshot(snapshot)
+                                }
+                                .buttonStyle(.borderless)
+                                .controlSize(.small)
+                                .foregroundStyle(.red)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
         }
+        .onAppear(perform: loadSnapshots)
     }
 
     private func exportToClipboard() {
@@ -85,14 +123,44 @@ struct ImportExportSettingsTab: View {
         }
     }
 
+    private func loadSnapshots() {
+        let service = SettingsService()
+        snapshots = service.listSnapshots()
+    }
+
     private func saveSnapshot() {
         let service = SettingsService()
         let name = "快照 \(Date().formatted(date: .abbreviated, time: .shortened))"
         do {
             try service.saveSnapshot(name: name, settings: settings.settings)
             statusMessage = "快照已保存"
+            loadSnapshots()
         } catch {
             statusMessage = "保存失败: \(error.localizedDescription)"
+        }
+    }
+
+    private func applySnapshot(_ snapshot: SettingsHistory) {
+        let service = SettingsService()
+        do {
+            let applied = try service.applySnapshot(id: snapshot.id)
+            for (key, value) in applied {
+                settings.set(key, value)
+            }
+            statusMessage = "已应用 \(applied.count) 项设置"
+        } catch {
+            statusMessage = "应用失败: \(error.localizedDescription)"
+        }
+    }
+
+    private func deleteSnapshot(_ snapshot: SettingsHistory) {
+        let service = SettingsService()
+        do {
+            try service.deleteSnapshot(id: snapshot.id)
+            statusMessage = "快照已删除"
+            loadSnapshots()
+        } catch {
+            statusMessage = "删除失败: \(error.localizedDescription)"
         }
     }
 }

@@ -203,7 +203,9 @@ private struct ClaimDetailView: View {
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(evidence) { link in
-                                EvidenceRow(link: link)
+                                EvidenceRow(link: link, onDelete: {
+                                    deleteEvidence(link)
+                                })
                             }
                         }
                     }
@@ -240,6 +242,11 @@ private struct ClaimDetailView: View {
         evidence = (try? repo.listEvidenceLinks(claimId: claim.id)) ?? []
     }
 
+    private func deleteEvidence(_ link: EvidenceLink) {
+        try? repo.deleteEvidence(id: link.id)
+        loadEvidence()
+    }
+
     private func statusColor(_ status: String) -> Color {
         switch status.lowercased() {
         case "confirmed", "验证": return .green
@@ -252,6 +259,7 @@ private struct ClaimDetailView: View {
 
 private struct EvidenceRow: View {
     let link: EvidenceLink
+    let onDelete: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -271,6 +279,12 @@ private struct EvidenceRow: View {
                 }
             }
             Spacer()
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.borderless)
         }
         .padding(8)
         .background(Color(nsColor: .controlBackgroundColor))

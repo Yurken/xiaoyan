@@ -11,7 +11,7 @@
 | 域 | Desktop API (client.ts) | Mac 状态 | 实现文件 | 真实缺口 |
 |---|---|---|---|---|
 | **settingsApi** | get / update / test / export / import / listOllamaModels | 完成 | AppSettings.swift, SettingsService.swift | — |
-| **settingsApi.history** | list / save / apply / delete | 部分 | SettingsRepository.swift | 缺：apply（从快照恢复到当前设置） |
+| **settingsApi.history** | list / save / apply / delete | 完成 | SettingsRepository.swift, ImportExportSettingsTab.swift | apply 已支持：解析快照 JSON → 过滤有效 keys → 批量 upsert → 更新 AppSettings；UI 提供应用/删除按钮 |
 | **updatesApi** | check / install | 完成 | UpdatesService.swift, AboutSettingsTab.swift | check 返回 `Result<UpdateCheckOutcome, UpdateCheckError>`，区分 noUpdate / network / http / decode / missingPlatformURL；install 映射为 NSWorkspace.open；About 页已集成检查 UI |
 | **papersApi** | list/get/upload/update/delete/openFile/analyze/reproduce/listFigures/extractPdfText | 完成 | PaperRepository.swift, PaperService.swift | — |
 | **ccfApi** | lookup | 有 | SourceService.swift | — |
@@ -19,16 +19,16 @@
 | **sourceApi** | lookup | 有 | SourceService.swift | — |
 | **arxivApi** | search | 有 | ArxivClient.swift | — |
 | **paperSearchApi** | search | 有 | PaperDiscoveryView.swift | — |
-| **knowledgeApi** | listInterests/createInterest/updateInterestFolder/deleteInterestBundle/deleteInterestOnly/generateInterestHints/suggestTopics/generatePlan | 部分 | KnowledgeRepository.swift, KnowledgeService.swift | 缺：suggestTopics、generateInterestHints |
-| **knowledgeApi.notes** | listNotes/createNote/updateNote/moveNote/deleteNote/search/webClip | 部分 | KnowledgeRepository.swift, KnowledgeService.swift | 缺：webClip、语义搜索（仅存储 embedding，无查询接口） |
-| **knowledgeApi.graph** | snapshot/createClaim/deleteClaim/createEvidence/deleteEvidence/createCitation/deleteCitation/citationCentrality/citationShortestPath/citationSubgraph | 部分 | KnowledgeGraphCanvasView.swift, KnowledgeRepository.swift | 缺：snapshot、deleteEvidence、deleteCitation、centrality/shortestPath/subgraph；已有：createClaim/updateClaim/deleteClaim/createEvidence/createCitation |
+| **knowledgeApi** | listInterests/createInterest/updateInterestFolder/deleteInterestBundle/deleteInterestOnly/generateInterestHints/suggestTopics/generatePlan | 完成 | KnowledgeRepository.swift, KnowledgeService.swift | generateInterestHints、suggestTopics 均已实现（LLM 调用 + JSON 解析） |
+| **knowledgeApi.notes** | listNotes/createNote/updateNote/moveNote/deleteNote/search/webClip | 完成 | KnowledgeRepository.swift, KnowledgeService.swift | webClip（URLSession 抓取 + HTML 清洗 + 保存为 note）、语义搜索（cosineSimilarity + EmbeddingClient 查询）均已实现；KnowledgeView 提供语义搜索切换与剪藏入口 |
+| **knowledgeApi.graph** | snapshot/createClaim/deleteClaim/createEvidence/deleteEvidence/createCitation/deleteCitation/citationCentrality/citationShortestPath/citationSubgraph | 部分 | KnowledgeGraphCanvasView.swift, KnowledgeRepository.swift | snapshot、deleteEvidence、deleteCitation 已实现；ClaimsView 已集成证据删除交互；缺：centrality/shortestPath/subgraph |
 | **chatApi** | listSessions/getSession/deleteSession/updateSessionContext/listAgentRuns/stream | 完成 | ChatRepository.swift, ChatService.swift | updateSessionContext、listAgentRuns(持久化读写)、历史 run 恢复、artifact JOIN 查询均已实现 |
 | **plannerApi** | generate | 有 | KnowledgeService.swift | — |
 | **surveyApi** | generate / search | 有 | SurveyView.swift | — |
 | **translateApi** | translate | 有 | ToolsView.swift | — |
 | **markdownApi** | formatChunk | 有 | ToolsView.swift | — |
 | **memoryApi** | add/list/listObservations/searchObservations/delete/clearAuto/buildContext | 完成 | MemoryRepository.swift | — |
-| **skillsApi** | list/create/update/delete/resetBuiltins | 部分 | SkillRepository.swift, SkillService.swift | 缺：resetBuiltins |
+| **skillsApi** | list/create/update/delete/resetBuiltins | 完成 | SkillRepository.swift, SkillService.swift | resetBuiltins：DELETE is_builtin=1 → 重新插入内置技能；UI 提供确认弹窗；不误删自定义技能 |
 | **submissionApi** | 见下方详细分解 | 完成 | SubmissionRepository.swift, SubmissionService.swift | 见下方 |
 | **experimentApi** | list/get/create/update/delete/attachments.{list,add,updateLabel,delete} | 完成 | ExperimentRepository.swift, ExperimentView.swift | — |
 | **exportApi** | toObsidian | 有 | ExportService.swift | 服务层 `exportPaper` + `exportToFile` 已实现；UI 触发入口待确认是否完整覆盖 |
@@ -75,28 +75,29 @@ v1_initial 迁移已包含绝大多数 NOT NULL DEFAULT 约束和索引。v2_sch
 | Papers.tsx | papers/* | PapersView.swift + PaperDetailView + PaperFiguresView + PaperMetadataEditor | 完成 | PDF 打开、图片展示、元数据编辑、标签已补齐 |
 | Planner.tsx | planner/* | PlannerView.swift | 完成 | — |
 | Survey.tsx | survey/* | SurveyView.swift | 完成 | — |
-| Knowledge.tsx | knowledge/* | KnowledgeView.swift + KnowledgeGraphCanvasView + ClaimsView | 部分 | 缺：graph snapshot、deleteEvidence/deleteCitation UI、语义搜索、webClip；已有 claim CRUD |
+| Knowledge.tsx | knowledge/* | KnowledgeView.swift + KnowledgeGraphCanvasView + ClaimsView | 部分 | 已支持：语义搜索（切换按钮 + 相似度展示）、webClip（工具栏入口 + Sheet）、evidence 删除交互；缺：graph snapshot UI、centrality/shortestPath/subgraph |
 | Submission.tsx | submission/* | SubmissionView.swift + KanbanView + CoverLetterView + VenueRecommendationsView | 完成 | 版本 diff、review verdict 统计、checklist 交互已完善 |
 | Experiment.tsx | experiment/* | ExperimentView.swift | 完成 | 附件管理 CRUD 已集成 |
 | Tools.tsx | tools/* | ToolsView.swift + PaperDiscoveryView + PptWorkspaceView | 部分 | 已支持 .md 导出 + 结构预览；PDF 文本提取已用 PDFKit；PPTX 原生生成需后端配合 |
-| Settings.tsx | settings/* | SettingsView.swift + AgentConfigPanel + SettingComponents | 完成 | about（Tauri manifest 更新检查 UI）、changelog、layout、task setup 已补齐；history apply 为 service 层缺口 |
+| Settings.tsx | settings/* | SettingsView.swift + AgentConfigPanel + SettingComponents | 完成 | about（Tauri manifest 更新检查 UI）、changelog、layout、task setup 已补齐；history apply 已支持快照列表 + 应用/删除 |
 
 ---
 
 ## 4. 真实剩余缺口清单
 
 ### Service 层
-- [ ] **settingsApi.history.apply**：从快照恢复到当前设置
-- [ ] **knowledgeApi.suggestTopics / generateInterestHints**
-- [ ] **knowledgeApi.notes.webClip**
-- [ ] **knowledgeApi.notes.search(语义)**：已有 embedding 存储，缺向量查询接口
-- [ ] **knowledgeGraph.deleteEvidence / deleteCitation**
-- [ ] **knowledgeGraph.snapshot**
-- [ ] **knowledgeGraph.centrality / shortestPath / subgraph**
-- [ ] **skillsApi.resetBuiltins**
+- [x] **settingsApi.history.apply**：已完成
+- [x] **knowledgeApi.suggestTopics / generateInterestHints**：已完成
+- [x] **knowledgeApi.notes.webClip**：已完成
+- [x] **knowledgeApi.notes.search(语义)**：已完成
+- [x] **knowledgeGraph.deleteEvidence / deleteCitation**：已完成
+- [x] **knowledgeGraph.snapshot**：已完成（Repository 层）
+- [ ] **knowledgeGraph.centrality / shortestPath / subgraph**：需图算法实现
+- [x] **skillsApi.resetBuiltins**：已完成
 
 ### UI 层
-- [ ] **Knowledge**：语义搜索入口、webClip 入口、graph snapshot、evidence/citation 删除交互
+- [x] **Knowledge**：语义搜索、webClip、evidence 删除交互 已完成
+- [ ] **Knowledge**：graph snapshot 展示、centrality/shortestPath/subgraph 交互
 - [ ] **Tools**：PPTX 原生生成（需后端配合）
 
 ### 迁移

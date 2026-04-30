@@ -133,6 +133,33 @@ struct SettingsService {
         (try? settingsRepo.listHistory()) ?? []
     }
 
+    func applySnapshot(id: String) throws -> [String: String] {
+        guard let entry = try settingsRepo.getHistory(id: id) else {
+            throw SettingsError.snapshotNotFound
+        }
+        guard let data = entry.settingsJson.data(using: .utf8),
+              let snapshot = try? JSONDecoder().decode([String: String].self, from: data) else {
+            throw SettingsError.invalidFormat
+        }
+        var applied: [String: String] = [:]
+        for (key, value) in snapshot {
+            if DefaultSettings.all.keys.contains(key) {
+                applied[key] = value
+            }
+        }
+        guard !applied.isEmpty else {
+            throw SettingsError.invalidFormat
+        }
+        for (key, value) in applied {
+            try settingsRepo.upsert(key: key, value: value)
+        }
+        return applied
+    }
+
+    func deleteSnapshot(id: String) throws {
+        try settingsRepo.deleteHistory(id: id)
+    }
+
     // MARK: - Ollama
 
     static func listOllamaModels(baseURL: String) async -> [String] {
@@ -144,11 +171,13 @@ struct SettingsService {
 enum SettingsError: LocalizedError {
     case invalidFormat
     case wrongPassword
+    case snapshotNotFound
 
     var errorDescription: String? {
         switch self {
         case .invalidFormat: return "无效的设置文件格式"
         case .wrongPassword: return "密码错误"
+        case .snapshotNotFound: return "快照不存在"
         }
     }
 }

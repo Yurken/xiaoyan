@@ -11,6 +11,10 @@ struct KnowledgeView: View {
     @State private var searchText = ""
     @State private var showingCreateNote = false
     @State private var showingCreateInterest = false
+    @State private var showingWebClip = false
+    @State private var isSemanticSearch = false
+    @State private var semanticResults: [SemanticSearchResult] = []
+    @State private var isSearching = false
 
     enum Tab: String, CaseIterable {
         case notes = "笔记"
@@ -33,15 +37,25 @@ struct KnowledgeView: View {
         NavigationSplitView {
             VStack(spacing: 0) {
                 // Search bar
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("搜索知识库...", text: $searchText)
-                        .textFieldStyle(.plain)
+                HStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("搜索知识库...", text: $searchText)
+                            .textFieldStyle(.plain)
+                            .onSubmit { performSearch() }
+                    }
+                    .padding(8)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .cornerRadius(8)
+
+                    Button(action: { isSemanticSearch.toggle() }) {
+                        Image(systemName: isSemanticSearch ? "brain.head.profile" : "text.magnifyingglass")
+                            .foregroundStyle(isSemanticSearch ? .blue : .secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help(isSemanticSearch ? "语义搜索已开启" : "文本搜索")
                 }
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .cornerRadius(8)
                 .padding()
 
                 // Tabs
@@ -63,7 +77,12 @@ struct KnowledgeView: View {
             }
             .navigationTitle("知识")
             .toolbar {
-                ToolbarItem {
+                ToolbarItemGroup {
+                    if selectedTab == .notes {
+                        Button(action: { showingWebClip = true }) {
+                            Label("网页剪藏", systemImage: "link")
+                        }
+                    }
                     Button(action: {
                         switch selectedTab {
                         case .notes: showingCreateNote = true
@@ -73,7 +92,7 @@ struct KnowledgeView: View {
                     }) {
                         Label("新建", systemImage: "plus")
                     }
-                    .disabled(selectedTab == .claims)
+                    .disabled(selectedTab == .claims || selectedTab == .graph)
                 }
             }
         } detail: {
@@ -90,13 +109,38 @@ struct KnowledgeView: View {
         .sheet(isPresented: $showingCreateInterest) {
             CreateInterestSheet(knowledgeService: knowledgeService, onCreated: reload)
         }
+        .sheet(isPresented: $showingWebClip) {
+            WebClipSheet(knowledgeService: knowledgeService, onCreated: reload)
+        }
     }
 
     // MARK: - Notes List
 
     private var notesList: some View {
         Group {
-            if filteredNotes.isEmpty {
+            if isSearching {
+                ProgressView("搜索中...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if isSemanticSearch && !semanticResults.isEmpty {
+                List {
+                    ForEach(semanticResults, id: \.id) { result in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(result.source)
+                                .font(.subheadline.bold())
+                                .lineLimit(1)
+                            Text(result.content)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(3)
+                            Text("相似度: \(String(format: "%.2f", result.score))")
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .listStyle(.sidebar)
+            } else if filteredNotes.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "note.text")
                         .font(.system(size: 36))
@@ -158,6 +202,83 @@ struct KnowledgeView: View {
         interests = knowledgeService.listInterests()
         if let selected = selectedNote {
             selectedNote = notes.first { $0.id == selected.id }
+        }
+    }
+
+    private func performSearch() {
+        guard isSemanticSearch, !searchText.isEmpty else {
+            semanticResults = []
+            return
+        }
+        isSearching = true
+        Task {
+            let results = await knowledgeService.semanticSearchNotes(query: searchText, settings: settings)
+            await MainActor.run {
+                semanticResults = results
+                isSearching = false
+            }
+        }
+    }
+}
+
+// MARK: - Web Clip Sheet
+
+private struct WebClipSheet: View {
+    let knowledgeService: KnowledgeService
+    let onCreated: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var url = ""
+    @State private var statusMessage: String?
+    @State private var isLoading = false
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("网页剪藏")
+                .font(.headline)
+
+            TextField("输入网页 URL", text: $url)
+                .textFieldStyle(.roundedBorder)
+
+            if let msg = statusMessage {
+                Text(msg)
+                    .font(.caption)
+                    .foregroundStyle(msg.contains("成功") ? .green : .red)
+            }
+
+            HStack {
+                Button("取消") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                if isLoading {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button("剪藏") {
+                        clip()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(url.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding()
+        .frame(width: 400, height: 180)
+    }
+
+    private func clip() {
+        isLoading = true
+        Task {
+            let note = await knowledgeService.webClip(url: url.trimmingCharacters(in: .whitespaces))
+            await MainActor.run {
+                isLoading = false
+                if note != nil {
+                    statusMessage = "剪藏成功"
+                    onCreated()
+                    dismiss()
+                } else {
+                    statusMessage = "剪藏失败，请检查 URL 或网络"
+                }
+            }
         }
     }
 }

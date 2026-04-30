@@ -196,6 +196,92 @@ struct KnowledgeRepository {
             )
         }
     }
+
+    func deleteEvidence(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM knowledge_graph_evidence_links WHERE id = ?", arguments: [id])
+        }
+    }
+
+    func deleteCitation(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM knowledge_paper_citations WHERE id = ?", arguments: [id])
+        }
+    }
+
+    // MARK: - Semantic Search
+
+    func searchNotes(queryEmbedding: [Float], topK: Int = 5) throws -> [SemanticSearchResult] {
+        let rows = try dbQueue.read { db in
+            try Row.fetchAll(db, sql: "SELECT id, title, content, embedding FROM knowledge_notes WHERE embedding IS NOT NULL")
+        }
+        var results: [SemanticSearchResult] = []
+        for row in rows {
+            guard let embStr: String = row["embedding"],
+                  let embData = embStr.data(using: .utf8),
+                  let noteEmb = try? JSONDecoder().decode([Float].self, from: embData),
+                  !noteEmb.isEmpty else { continue }
+            let score = cosineSimilarity(queryEmbedding, noteEmb)
+            results.append(SemanticSearchResult(
+                id: row["id"] ?? "",
+                content: row["content"] ?? "",
+                source: row["title"] ?? "",
+                score: score
+            ))
+        }
+        results.sort { $0.score > $1.score }
+        if results.count > topK {
+            results = Array(results.prefix(topK))
+        }
+        return results
+    }
+
+    // MARK: - Snapshot
+
+    func graphSnapshot() throws -> KnowledgeGraphSnapshot {
+        let interests = try dbQueue.read { db in
+            try ResearchInterest.fetchAll(db, sql: "SELECT * FROM research_interests ORDER BY created_at DESC")
+        }
+        let papers = try dbQueue.read { db in
+            try Paper.fetchAll(db, sql: "SELECT * FROM papers ORDER BY COALESCE(year, 0) DESC, updated_at DESC")
+        }
+        let notes = try dbQueue.read { db in
+            try KnowledgeNote.fetchAll(db, sql: "SELECT * FROM knowledge_notes ORDER BY updated_at DESC")
+        }
+        let claims = try dbQueue.read { db in
+            try KnowledgeClaim.fetchAll(db, sql: "SELECT * FROM knowledge_graph_claims ORDER BY updated_at DESC")
+        }
+        let evidenceLinks = try dbQueue.read { db in
+            try EvidenceLink.fetchAll(db, sql: "SELECT * FROM knowledge_graph_evidence_links ORDER BY created_at DESC")
+        }
+        let citations = try dbQueue.read { db in
+            try PaperCitation.fetchAll(db, sql: "SELECT * FROM knowledge_paper_citations ORDER BY created_at DESC")
+        }
+        return KnowledgeGraphSnapshot(
+            interests: interests,
+            papers: papers,
+            notes: notes,
+            claims: claims,
+            evidenceLinks: evidenceLinks,
+            citations: citations
+        )
+    }
+}
+
+struct SemanticSearchResult {
+    let id: String
+    let content: String
+    let source: String
+    let score: Float
+}
+
+struct KnowledgeGraphSnapshot {
+    let interests: [ResearchInterest]
+    let papers: [Paper]
+    let notes: [KnowledgeNote]
+    let claims: [KnowledgeClaim]
+    let evidenceLinks: [EvidenceLink]
+    let citations: [PaperCitation]
 }
 
 private extension Encodable {
@@ -209,4 +295,12 @@ private extension DatabaseValueConvertible {
         guard let str = self as? String, let data = str.data(using: .utf8) else { return nil }
         return try? JSONDecoder().decode(T.self, from: data)
     }
+}
+
+func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
+    let dot = zip(a, b).map(*).reduce(0, +)
+    let na = sqrt(a.map { $0 * $0 }.reduce(0, +))
+    let nb = sqrt(b.map { $0 * $0 }.reduce(0, +))
+    guard na > 0, nb > 0 else { return 0 }
+    return dot / (na * nb)
 }
