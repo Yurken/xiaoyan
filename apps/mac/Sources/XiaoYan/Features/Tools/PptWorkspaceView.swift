@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import PDFKit
 
 struct PptWorkspaceView: View {
     @EnvironmentObject var settings: AppSettings
@@ -378,16 +379,48 @@ struct PptWorkspaceView: View {
     }
 
     private func extractTextFromPDF(url: URL) async throws -> String {
-        // Simplified PDF text extraction using PDFKit would be ideal,
-        // but for now we fallback to empty to avoid adding new imports.
-        // In a real implementation, use PDFDocument from PDFKit.
-        return ""
+        guard let doc = PDFDocument(url: url) else {
+            throw PptError.pdfReadFailed
+        }
+        var text = ""
+        for i in 0..<doc.pageCount {
+            if let page = doc.page(at: i), let content = page.string {
+                text += content + "\n"
+            }
+        }
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw PptError.pdfEmpty
+        }
+        return text
+    }
+
+    private enum PptError: Error, LocalizedError {
+        case pdfReadFailed
+        case pdfEmpty
+        case documentContentMissing
+
+        var errorDescription: String? {
+            switch self {
+            case .pdfReadFailed: return "无法读取 PDF 文件"
+            case .pdfEmpty: return "PDF 内容为空或无法提取文本"
+            case .documentContentMissing: return "文档内容为空，无法生成"
+            }
+        }
     }
 
     // MARK: - Generation
 
     private func generate() {
         guard generateDisabledReason == nil else { return }
+
+        if mode == .document {
+            guard let content = documentContent, !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                status = .error
+                errorMessage = PptError.documentContentMissing.errorDescription
+                return
+            }
+        }
+
         status = .drafting
         errorMessage = nil
         resultData = nil
@@ -417,14 +450,15 @@ struct PptWorkspaceView: View {
                 return
             }
 
+            var response = ""
             do {
-                let response = try await client.chat(
+                response = try await client.chat(
                     messages: [LLMClient.Message(role: "user", content: prompt)],
                     systemPrompt: "你是一位专业的学术幻灯片结构设计师。只输出合法 JSON，不要 markdown 代码块，不要解释。"
                 )
                 try parseResult(response)
             } catch {
-                await attemptRepair(client: client, raw: "", error: error)
+                await attemptRepair(client: client, raw: response, error: error)
             }
         }
     }
@@ -434,9 +468,12 @@ struct PptWorkspaceView: View {
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let data = try JSONDecoder().decode(PptData.self, from: cleaned.data(using: .utf8)!)
-        resultData = data
-        slideCount = data.slides.count
+        guard let data = cleaned.data(using: .utf8) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "无法将文本编码为 UTF-8 数据"))
+        }
+        let decoded = try JSONDecoder().decode(PptData.self, from: data)
+        resultData = decoded
+        slideCount = decoded.slides.count
         status = .ready
     }
 

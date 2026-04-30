@@ -251,11 +251,17 @@ struct CopilotView: View {
         currentSessionId = session.id
         loadMessages(for: session.id)
         activeAssistantId = nil
-        chatService.currentPlan = []
-        chatService.currentRuns = []
-        chatService.currentArtifacts = []
-        chatService.currentRequestId = nil
         chatService.streamError = nil
+        // Recover latest agent runs if any
+        if let requestId = try? chatRepo.latestRequestId(sessionId: session.id) {
+            chatService.currentRequestId = requestId
+            chatService.loadHistoricalRuns(sessionId: session.id, requestId: requestId)
+        } else {
+            chatService.currentPlan = []
+            chatService.currentRuns = []
+            chatService.currentArtifacts = []
+            chatService.currentRequestId = nil
+        }
     }
 
     private func deleteSession(_ session: ChatSession) {

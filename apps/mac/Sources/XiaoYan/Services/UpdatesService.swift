@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 struct UpdatesService {
     struct VersionInfo: Codable {
@@ -10,9 +11,16 @@ struct UpdatesService {
     static let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
 
     static func checkForUpdates() async -> VersionInfo? {
-        // Placeholder: in production, fetch from a remote JSON endpoint
-        // e.g., https://example.com/api/mac-version.json
-        return nil
+        guard let endpoint = URL(string: AppConstants.updateEndpoint) else { return nil }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: endpoint)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else { return nil }
+            let info = try JSONDecoder().decode(VersionInfo.self, from: data)
+            return isNewer(latest: info.version) ? info : nil
+        } catch {
+            return nil
+        }
     }
 
     static func isNewer(latest: String) -> Bool {
@@ -25,5 +33,10 @@ struct UpdatesService {
             if r < c { return false }
         }
         return false
+    }
+
+    static func openDownloadURL(_ urlString: String?) {
+        guard let urlString = urlString, let url = URL(string: urlString) else { return }
+        NSWorkspace.shared.open(url)
     }
 }

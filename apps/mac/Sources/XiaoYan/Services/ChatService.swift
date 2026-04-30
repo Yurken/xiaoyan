@@ -174,8 +174,9 @@ final class ChatService: ObservableObject {
         self.currentPlan = plan
 
         // Phase 1: Retrieval
+        let retrievalRunId = UUID().uuidString
         var retrievalRun = AgentRunDisplay(
-            id: UUID().uuidString,
+            id: retrievalRunId,
             agentName: "retrieval",
             stepName: "检索",
             status: .running,
@@ -184,6 +185,7 @@ final class ChatService: ObservableObject {
             orderIndex: 0
         )
         self.currentRuns = [retrievalRun]
+        persistRun(display: retrievalRun, sessionId: sessionId, requestId: requestId)
 
         let retrievalResult = await AgentNodesService.retrievalNode(
             query: userMessage,
@@ -194,6 +196,7 @@ final class ChatService: ObservableObject {
         retrievalRun.status = .done
         retrievalRun.summary = "检索完成"
         self.currentRuns = [retrievalRun]
+        updateRunStatus(id: retrievalRunId, status: .done, summary: "检索完成")
 
         // Populate sources from retrieval
         if let sources = retrievalResult.sources {
@@ -214,8 +217,9 @@ final class ChatService: ObservableObject {
         var workerRuns: [AgentRunDisplay] = []
         let workerAgents = selectedAgents.filter { $0 != .retrieval && $0 != .synthesis }
         for (idx, agent) in workerAgents.enumerated() {
+            let runId = UUID().uuidString
             let run = AgentRunDisplay(
-                id: UUID().uuidString,
+                id: runId,
                 agentName: agent.rawValue,
                 stepName: agent.displayName,
                 status: .pending,
@@ -224,6 +228,7 @@ final class ChatService: ObservableObject {
                 orderIndex: idx + 1
             )
             workerRuns.append(run)
+            persistRun(display: run, sessionId: sessionId, requestId: requestId)
         }
         self.currentRuns = [retrievalRun] + workerRuns
 
@@ -234,6 +239,7 @@ final class ChatService: ObservableObject {
                     await MainActor.run {
                         workerRuns[idx].status = .running
                         self.currentRuns = [retrievalRun] + workerRuns
+                        self.updateRunStatus(id: workerRuns[idx].id, status: .running, summary: nil)
                     }
                     let result: AgentNodesService.AgentResult
                     switch agent {
@@ -266,9 +272,11 @@ final class ChatService: ObservableObject {
                         createdAt: Date()
                     )
                     self.currentArtifacts.append(artifact)
+                    try? self.chatRepo.insertAgentArtifact(artifact)
                 }
                 workerRuns[idx].status = .done
                 workerRuns[idx].summary = "执行完成"
+                self.updateRunStatus(id: workerRuns[idx].id, status: .done, summary: "执行完成")
                 await MainActor.run {
                     self.currentRuns = [retrievalRun] + workerRuns
                 }
@@ -276,8 +284,9 @@ final class ChatService: ObservableObject {
         }
 
         // Phase 3: Synthesis
+        let synthRunId = UUID().uuidString
         var synthRun = AgentRunDisplay(
-            id: UUID().uuidString,
+            id: synthRunId,
             agentName: "synthesis",
             stepName: "综合",
             status: .running,
@@ -286,6 +295,7 @@ final class ChatService: ObservableObject {
             orderIndex: workerRuns.count + 1
         )
         self.currentRuns = [retrievalRun] + workerRuns + [synthRun]
+        persistRun(display: synthRun, sessionId: sessionId, requestId: requestId)
 
         let synthesisStream = AgentNodesService.synthesisNode(
             query: userMessage,
@@ -303,6 +313,7 @@ final class ChatService: ObservableObject {
             synthRun.status = .done
             synthRun.summary = "综合完成"
             self.currentRuns = [retrievalRun] + workerRuns + [synthRun]
+            updateRunStatus(id: synthRunId, status: .done, summary: "综合完成")
 
             // Save assistant message
             let assistantMsg = ChatMessage(
@@ -322,8 +333,58 @@ final class ChatService: ObservableObject {
             synthRun.error = error.localizedDescription
             self.currentRuns = [retrievalRun] + workerRuns + [synthRun]
             self.streamError = error.localizedDescription
+            updateRunStatus(id: synthRunId, status: .failed, summary: nil, error: error.localizedDescription)
             continuation.finish(throwing: error)
         }
+    }
+
+    // MARK: - Persistence Helpers
+
+    private func persistRun(display: AgentRunDisplay, sessionId: String, requestId: String) {
+        let run = AgentRun(
+            id: display.id,
+            sessionId: sessionId,
+            requestId: requestId,
+            parentRunId: nil,
+            agentName: display.agentName,
+            stepName: display.stepName,
+            status: display.status,
+            orderIndex: display.orderIndex,
+            inputPayload: nil,
+            outputPayload: nil,
+            summary: display.summary,
+            error: display.error,
+            createdAt: Date()
+        )
+        try? chatRepo.insertAgentRun(run)
+    }
+
+    private func updateRunStatus(id: String, status: AgentStatus, summary: String?, error: String? = nil) {
+        try? chatRepo.updateAgentRunStatus(id: id, status: status, summary: summary, error: error)
+    }
+
+    func loadHistoricalRuns(sessionId: String, requestId: String?) {
+        guard let requestId = requestId else {
+            currentRuns = []
+            currentArtifacts = []
+            currentPlan = []
+            return
+        }
+        let runs = (try? chatRepo.listAgentRuns(sessionId: sessionId, requestId: requestId)) ?? []
+        currentRuns = runs.map {
+            AgentRunDisplay(
+                id: $0.id,
+                agentName: $0.agentName,
+                stepName: $0.stepName ?? $0.agentName,
+                status: $0.status,
+                summary: $0.summary,
+                error: $0.error,
+                orderIndex: $0.orderIndex ?? 0
+            )
+        }
+        // Artifacts are not tied to requestId in schema; skip recovery for now
+        currentArtifacts = []
+        currentPlan = []
     }
 
     private func agentGoal(_ agent: AgentType) -> String {

@@ -98,6 +98,27 @@ struct ChatRepository {
         }
     }
 
+    func listAgentRuns(sessionId: String, requestId: String) throws -> [AgentRun] {
+        try dbQueue.read { db in
+            try AgentRun.fetchAll(
+                db,
+                sql: "SELECT * FROM agent_runs WHERE session_id = ? AND request_id = ? ORDER BY order_index, created_at",
+                arguments: [sessionId, requestId]
+            )
+        }
+    }
+
+    func latestRequestId(sessionId: String) throws -> String? {
+        try dbQueue.read { db in
+            let row = try Row.fetchOne(
+                db,
+                sql: "SELECT request_id FROM agent_runs WHERE session_id = ? ORDER BY created_at DESC LIMIT 1",
+                arguments: [sessionId]
+            )
+            return row?["request_id"] as? String
+        }
+    }
+
     func updateSessionContext(id: String, contextType: String?, contextId: String?) throws {
         try dbQueue.write { db in
             try db.execute(
