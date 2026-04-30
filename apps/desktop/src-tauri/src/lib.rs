@@ -29,8 +29,8 @@ use commands::{
     arxiv::arxiv_search,
     ccf::ccf_lookup,
     chat::{
-        chat_delete_session, chat_get_session, chat_list_agent_runs, chat_list_sessions,
-        chat_stream, chat_update_session_context,
+        chat_cancel, chat_delete_session, chat_get_session, chat_list_agent_runs,
+        chat_list_sessions, chat_stream, chat_update_session_context,
     },
     citation_graph::{
         knowledge_graph_citation_centrality, knowledge_graph_citation_shortest_path,
@@ -72,8 +72,8 @@ use commands::{
     },
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
-        settings_history_list, settings_history_save, settings_import,
-        settings_list_ollama_models, settings_test, settings_update,
+        settings_history_list, settings_history_save, settings_import, settings_list_ollama_models,
+        settings_test, settings_update,
     },
     skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
     source::source_lookup,
@@ -284,6 +284,7 @@ pub fn run() {
             chat_update_session_context,
             chat_list_agent_runs,
             chat_stream,
+            chat_cancel,
             // Skills
             skills_list,
             skills_create,

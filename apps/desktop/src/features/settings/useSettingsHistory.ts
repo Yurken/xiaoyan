@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppSettings, SettingsHistoryEntry } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 
@@ -23,6 +23,20 @@ export function useSettingsHistory({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+
+  const beginAction = () => {
+    if (busyRef.current) return false;
+    busyRef.current = true;
+    setBusy(true);
+    return true;
+  };
+
+  const endAction = () => {
+    busyRef.current = false;
+    setBusy(false);
+  };
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -49,6 +63,7 @@ export function useSettingsHistory({
   }, [loadHistory]);
 
   const saveCurrent = async () => {
+    if (!beginAction()) return;
     setSaving(true);
     setActionError("");
     setActionMessage("");
@@ -63,11 +78,12 @@ export function useSettingsHistory({
       setActionError(formatErrorMessage(error));
     } finally {
       setSaving(false);
+      endAction();
     }
   };
 
   const applyHistory = async (id: string) => {
-    if (!id) return;
+    if (!id || !beginAction()) return;
 
     setApplyingId(id);
     setActionError("");
@@ -84,10 +100,12 @@ export function useSettingsHistory({
       setActionError(formatErrorMessage(error));
     } finally {
       setApplyingId(null);
+      endAction();
     }
   };
 
   const deleteHistory = async (id: string) => {
+    if (!beginAction()) return;
     setDeletingId(id);
     setActionError("");
     setActionMessage("");
@@ -104,6 +122,7 @@ export function useSettingsHistory({
       setActionError(formatErrorMessage(error));
     } finally {
       setDeletingId(null);
+      endAction();
     }
   };
 
@@ -118,6 +137,7 @@ export function useSettingsHistory({
     deletingId,
     actionError,
     actionMessage,
+    busy,
     setDraftName,
     setSelectedId,
     saveCurrent,

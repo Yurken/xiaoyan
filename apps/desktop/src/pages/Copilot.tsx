@@ -104,6 +104,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [memorySaved, setMemorySaved] = useState(false);
   const { chatMode, setChatMode } = useCopilotChatMode();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const memorySavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     attachments,
     uploading: uploadingAttachments,
@@ -162,6 +164,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     }).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    return () => {
+      cancelActiveStream();
+      if (memorySavedTimerRef.current) clearTimeout(memorySavedTimerRef.current);
+    };
+  }, []);
+
   const sessionGroups = useMemo(() => {
     return interests.map((interest) => ({
       key: interest.id,
@@ -203,6 +212,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   };
 
   const loadSession = async (session: ChatSession) => {
+    cancelActiveStream();
     try {
       setLoadError("");
       const [sessionData, runData] = await Promise.all([
@@ -228,7 +238,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     setCurrentSession((prev) => (prev?.id === updatedSession.id ? updatedSession : prev));
   };
 
+  const cancelActiveStream = () => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+  };
+
   const handleNewChat = () => {
+    cancelActiveStream();
     setCurrentSession(null);
     setMessages([]);
     setPlan([]);
@@ -322,6 +338,11 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       summary: `向小妍提问：${rawText.slice(0, 60)}${rawText.length > 60 ? "..." : ""}`,
     });
 
+    // Abort any previous stream before starting a new one
+    cancelActiveStream();
+    const abortController = new AbortController();
+    streamAbortRef.current = abortController;
+
     setInput("");
     clearAttachments();
     setSending(true);
@@ -348,13 +369,21 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     try {
       let sessionId = currentSession?.id;
 
-      for await (const chunk of apiClient.chat.stream({
-        session_id: currentSession?.id,
-        message: submittedText,
-        context_type: selectedInterestId ? "interest" : "general",
-        context_id: selectedInterestId || undefined,
-        chat_mode: chatMode,
-      })) {
+      for await (const chunk of apiClient.chat.stream(
+        {
+          session_id: currentSession?.id,
+          message: submittedText,
+          context_type: selectedInterestId ? "interest" : "general",
+          context_id: selectedInterestId || undefined,
+          chat_mode: chatMode,
+        },
+        abortController.signal
+      )) {
+        if (streamAbortRef.current !== abortController || abortController.signal.aborted) {
+          abortController.abort();
+          break;
+        }
+
         if (chunk.type === "session_id") {
           sessionId = chunk.value;
         }
@@ -396,21 +425,28 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         }
       }
 
-      if (sessionId && !currentSession) {
+      if (sessionId && !currentSession && !abortController.signal.aborted) {
         const updated = await apiClient.chat.listSessions();
         setSessions(updated);
         setCurrentSession(updated.find((session) => session.id === sessionId) ?? null);
       }
     } catch (error) {
-      const message = `请求未完成：${formatErrorMessage(error)}`;
-      setLoadError(message);
-      setMessages((prev) =>
-        prev.map((item) =>
-          item.id === assistantId ? { ...item, content: message } : item
-        )
-      );
+      if ((error as Error)?.name === "AbortError") {
+        // User-initiated abort is not an error surface
+      } else {
+        const message = `请求未完成：${formatErrorMessage(error)}`;
+        setLoadError(message);
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistantId ? { ...item, content: message } : item
+          )
+        );
+      }
     } finally {
       setSending(false);
+      if (streamAbortRef.current === abortController) {
+        streamAbortRef.current = null;
+      }
     }
   };
 
@@ -424,7 +460,10 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       });
       setMemoryInput("");
       setMemorySaved(true);
-      setTimeout(() => setMemorySaved(false), 3000);
+      if (memorySavedTimerRef.current) clearTimeout(memorySavedTimerRef.current);
+      memorySavedTimerRef.current = setTimeout(() => setMemorySaved(false), 3000);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
     } finally {
       setSavingMemory(false);
     }
