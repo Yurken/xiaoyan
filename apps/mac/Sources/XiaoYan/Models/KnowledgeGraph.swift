@@ -61,3 +61,42 @@ struct GraphNode: Identifiable {
 enum NodeType {
     case paper, note, claim, experiment, interest
 }
+
+// MARK: - Citation Graph Models
+
+struct CitationGraphNode: Codable {
+    let paperId: String
+    let title: String
+    let year: Int?
+    let venue: String?
+}
+
+struct CitationEdge: Codable {
+    let citingPaperId: String
+    let citedPaperId: String
+    let citingTitle: String
+    let citedTitle: String
+    let context: String?
+}
+
+struct CitationCentralityEntry: Codable {
+    let paperId: String
+    let title: String
+    let year: Int?
+    let venue: String?
+    let inDegree: Int
+    let outDegree: Int
+    let citationCount: Int
+    let degreeCentrality: Float
+}
+
+struct CitationPathResult: Codable {
+    let nodes: [CitationGraphNode]
+    let edges: [CitationEdge]
+    let length: Int
+}
+
+struct CitationSubgraph: Codable {
+    let nodes: [CitationGraphNode]
+    let edges: [CitationEdge]
+}

@@ -124,19 +124,27 @@ struct KnowledgeView: View {
             } else if isSemanticSearch && !semanticResults.isEmpty {
                 List {
                     ForEach(semanticResults, id: \.id) { result in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(result.source)
-                                .font(.subheadline.bold())
-                                .lineLimit(1)
-                            Text(result.content)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(3)
-                            Text("相似度: \(String(format: "%.2f", result.score))")
-                                .font(.caption2)
-                                .foregroundStyle(.blue)
+                        Button(action: {
+                            if let note = notes.first(where: { $0.id == result.id }) {
+                                selectedNote = note
+                            }
+                        }) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(result.source)
+                                    .font(.subheadline.bold())
+                                    .lineLimit(1)
+                                    .foregroundStyle(.primary)
+                                Text(result.content)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(3)
+                                Text("相似度: \(String(format: "%.2f", result.score))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.blue)
+                            }
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
+                        .buttonStyle(.plain)
                     }
                 }
                 .listStyle(.sidebar)

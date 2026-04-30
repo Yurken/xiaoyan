@@ -75,7 +75,7 @@ v1_initial 迁移已包含绝大多数 NOT NULL DEFAULT 约束和索引。v2_sch
 | Papers.tsx | papers/* | PapersView.swift + PaperDetailView + PaperFiguresView + PaperMetadataEditor | 完成 | PDF 打开、图片展示、元数据编辑、标签已补齐 |
 | Planner.tsx | planner/* | PlannerView.swift | 完成 | — |
 | Survey.tsx | survey/* | SurveyView.swift | 完成 | — |
-| Knowledge.tsx | knowledge/* | KnowledgeView.swift + KnowledgeGraphCanvasView + ClaimsView | 部分 | 已支持：语义搜索（切换按钮 + 相似度展示）、webClip（工具栏入口 + Sheet）、evidence 删除交互；缺：graph snapshot UI、centrality/shortestPath/subgraph |
+| Knowledge.tsx | knowledge/* | KnowledgeView.swift + KnowledgeGraphCanvasView + ClaimsView | 完成 | 语义搜索（切换 + 相似度 + 点击打开笔记）、webClip（工具栏 + Sheet）、evidence/citation 删除交互、graph snapshot（summary 指标 + citation 列表 + 删除）、centrality/shortestPath/subgraph 分析面板 |
 | Submission.tsx | submission/* | SubmissionView.swift + KanbanView + CoverLetterView + VenueRecommendationsView | 完成 | 版本 diff、review verdict 统计、checklist 交互已完善 |
 | Experiment.tsx | experiment/* | ExperimentView.swift | 完成 | 附件管理 CRUD 已集成 |
 | Tools.tsx | tools/* | ToolsView.swift + PaperDiscoveryView + PptWorkspaceView | 部分 | 已支持 .md 导出 + 结构预览；PDF 文本提取已用 PDFKit；PPTX 原生生成需后端配合 |
@@ -91,13 +91,12 @@ v1_initial 迁移已包含绝大多数 NOT NULL DEFAULT 约束和索引。v2_sch
 - [x] **knowledgeApi.notes.webClip**：已完成
 - [x] **knowledgeApi.notes.search(语义)**：已完成
 - [x] **knowledgeGraph.deleteEvidence / deleteCitation**：已完成
-- [x] **knowledgeGraph.snapshot**：已完成（Repository 层）
-- [ ] **knowledgeGraph.centrality / shortestPath / subgraph**：需图算法实现
+- [x] **knowledgeGraph.snapshot**：已完成（Repository 层 + CanvasView UI 集成）
+- [x] **knowledgeGraph.centrality / shortestPath / subgraph**：已完成（CitationGraphService + GraphAnalysisPanel）
 - [x] **skillsApi.resetBuiltins**：已完成
 
 ### UI 层
-- [x] **Knowledge**：语义搜索、webClip、evidence 删除交互 已完成
-- [ ] **Knowledge**：graph snapshot 展示、centrality/shortestPath/subgraph 交互
+- [x] **Knowledge**：语义搜索（含结果点击打开笔记）、webClip、evidence 删除交互、graph snapshot 展示（summary 指标 + citation 列表 + 删除）、centrality/shortestPath/subgraph 分析面板 已完成
 - [ ] **Tools**：PPTX 原生生成（需后端配合）
 
 ### 迁移

@@ -236,6 +236,12 @@ struct KnowledgeRepository {
         return results
     }
 
+    func listCitations() throws -> [PaperCitation] {
+        try dbQueue.read { db in
+            try PaperCitation.fetchAll(db, sql: "SELECT * FROM knowledge_paper_citations ORDER BY created_at DESC")
+        }
+    }
+
     // MARK: - Snapshot
 
     func graphSnapshot() throws -> KnowledgeGraphSnapshot {
@@ -248,6 +254,9 @@ struct KnowledgeRepository {
         let notes = try dbQueue.read { db in
             try KnowledgeNote.fetchAll(db, sql: "SELECT * FROM knowledge_notes ORDER BY updated_at DESC")
         }
+        let experiments = try dbQueue.read { db in
+            try ExperimentRecord.fetchAll(db, sql: "SELECT * FROM experiment_records ORDER BY updated_at DESC")
+        }
         let claims = try dbQueue.read { db in
             try KnowledgeClaim.fetchAll(db, sql: "SELECT * FROM knowledge_graph_claims ORDER BY updated_at DESC")
         }
@@ -257,13 +266,46 @@ struct KnowledgeRepository {
         let citations = try dbQueue.read { db in
             try PaperCitation.fetchAll(db, sql: "SELECT * FROM knowledge_paper_citations ORDER BY created_at DESC")
         }
+
+        // Filter dangling edges
+        let claimIds = Set(claims.map(\.id))
+        let paperIds = Set(papers.map(\.id))
+        let noteIds = Set(notes.map(\.id))
+        let experimentIds = Set(experiments.map(\.id))
+
+        let validEvidence = evidenceLinks.filter { link in
+            guard claimIds.contains(link.claimId) else { return false }
+            switch link.sourceKind {
+            case "paper": return paperIds.contains(link.sourceId)
+            case "note": return noteIds.contains(link.sourceId)
+            case "experiment": return experimentIds.contains(link.sourceId)
+            default: return false
+            }
+        }
+
+        let validCitations = citations.filter {
+            paperIds.contains($0.citingPaperId) && paperIds.contains($0.citedPaperId)
+        }
+
+        let summary = KnowledgeGraphSummary(
+            interestCount: interests.count,
+            paperCount: papers.count,
+            noteCount: notes.count,
+            experimentCount: experiments.count,
+            claimCount: claims.count,
+            evidenceCount: validEvidence.count,
+            citationCount: validCitations.count
+        )
+
         return KnowledgeGraphSnapshot(
             interests: interests,
             papers: papers,
             notes: notes,
+            experiments: experiments,
             claims: claims,
-            evidenceLinks: evidenceLinks,
-            citations: citations
+            evidenceLinks: validEvidence,
+            citations: validCitations,
+            summary: summary
         )
     }
 }
@@ -279,9 +321,21 @@ struct KnowledgeGraphSnapshot {
     let interests: [ResearchInterest]
     let papers: [Paper]
     let notes: [KnowledgeNote]
+    let experiments: [ExperimentRecord]
     let claims: [KnowledgeClaim]
     let evidenceLinks: [EvidenceLink]
     let citations: [PaperCitation]
+    let summary: KnowledgeGraphSummary
+}
+
+struct KnowledgeGraphSummary {
+    let interestCount: Int
+    let paperCount: Int
+    let noteCount: Int
+    let experimentCount: Int
+    let claimCount: Int
+    let evidenceCount: Int
+    let citationCount: Int
 }
 
 private extension Encodable {

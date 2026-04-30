@@ -331,6 +331,7 @@ final class DatabaseManager {
                 t.column("source_id", .text).notNull()
                 t.column("relation_kind", .text).notNull()
                 t.column("evidence_summary", .text).notNull().defaults(sql: "''")
+                t.column("created_at", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
                 t.uniqueKey(["claim_id", "source_kind", "source_id", "relation_kind"])
             }
 
@@ -417,6 +418,7 @@ final class DatabaseManager {
                 "ALTER TABLE reproduction_guides ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
                 "ALTER TABLE paper_analyses ADD COLUMN experiment_results TEXT",
                 "ALTER TABLE paper_analyses ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                "ALTER TABLE knowledge_graph_evidence_links ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
             ]
             for sql in addColumns {
                 try? db.execute(sql: sql)

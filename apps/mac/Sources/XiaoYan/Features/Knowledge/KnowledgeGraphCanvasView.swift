@@ -2,23 +2,25 @@ import SwiftUI
 
 struct KnowledgeGraphCanvasView: View {
     @StateObject private var knowledgeService = KnowledgeService()
-    @StateObject private var paperService = PaperService()
-    @State private var claims: [KnowledgeClaim] = []
-    @State private var evidenceLinks: [EvidenceLink] = []
-    @State private var papers: [Paper] = []
-    @State private var notes: [KnowledgeNote] = []
-    @State private var interests: [ResearchInterest] = []
+    @State private var snapshot: KnowledgeGraphSnapshot?
     @State private var selectedNode: GraphNode? = nil
+    private let repo = KnowledgeRepository()
+
+    private var claims: [KnowledgeClaim] { snapshot?.claims ?? [] }
+    private var evidenceLinks: [EvidenceLink] { snapshot?.evidenceLinks ?? [] }
+    private var papers: [Paper] { snapshot?.papers ?? [] }
+    private var notes: [KnowledgeNote] { snapshot?.notes ?? [] }
+    private var interests: [ResearchInterest] { snapshot?.interests ?? [] }
+    private var experiments: [ExperimentRecord] { snapshot?.experiments ?? [] }
+    private var citations: [PaperCitation] { snapshot?.citations ?? [] }
 
     var body: some View {
         HSplitView {
-            // Canvas
             canvasArea
                 .frame(minWidth: 400)
 
-            // Inspector
             inspectorPanel
-                .frame(minWidth: 260, maxWidth: 320)
+                .frame(minWidth: 260, maxWidth: 360)
         }
         .onAppear(perform: loadData)
     }
@@ -31,11 +33,16 @@ struct KnowledgeGraphCanvasView: View {
                 Text("知识图谱")
                     .font(.headline)
                 Spacer()
-                HStack(spacing: 8) {
-                    legendItem(color: .blue, label: "研究方向")
-                    legendItem(color: .green, label: "论断")
-                    legendItem(color: .purple, label: "论文")
-                    legendItem(color: .orange, label: "笔记")
+                if let summary = snapshot?.summary {
+                    HStack(spacing: 10) {
+                        summaryItem(label: "方向", value: summary.interestCount)
+                        summaryItem(label: "论文", value: summary.paperCount)
+                        summaryItem(label: "笔记", value: summary.noteCount)
+                        summaryItem(label: "实验", value: summary.experimentCount)
+                        summaryItem(label: "论断", value: summary.claimCount)
+                        summaryItem(label: "证据", value: summary.evidenceCount)
+                        summaryItem(label: "引用", value: summary.citationCount)
+                    }
                 }
                 Button(action: loadData) {
                     Image(systemName: "arrow.clockwise")
@@ -51,45 +58,37 @@ struct KnowledgeGraphCanvasView: View {
             } else {
                 ScrollView {
                     HStack(alignment: .top, spacing: 16) {
-                        // Column 1: Interests
-                        VStack(spacing: 12) {
-                            Text("研究方向")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                            ForEach(interests.map { GraphNode(id: $0.id, label: $0.topic, type: .interest) }) { node in
-                                nodeCard(node)
-                            }
-                        }
-                        .frame(minWidth: 160)
-
-                        // Column 2: Claims
-                        VStack(spacing: 12) {
-                            Text("论断")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                            ForEach(claims.map { GraphNode(id: $0.id, label: $0.title, type: .claim) }) { node in
-                                nodeCard(node)
-                            }
-                        }
-                        .frame(minWidth: 180)
-
-                        // Column 3: Evidence (Papers + Notes)
-                        VStack(spacing: 12) {
-                            Text("证据")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                            ForEach(papers.map { GraphNode(id: $0.id, label: $0.title, type: .paper) }) { node in
-                                nodeCard(node)
-                            }
-                            ForEach(notes.map { GraphNode(id: $0.id, label: $0.title, type: .note) }) { node in
-                                nodeCard(node)
-                            }
-                        }
-                        .frame(minWidth: 180)
+                        column(title: "研究方向", nodes: interests.map { GraphNode(id: $0.id, label: $0.topic, type: .interest) })
+                        column(title: "论断", nodes: claims.map { GraphNode(id: $0.id, label: $0.title, type: .claim) })
+                        column(title: "证据", nodes: papers.map { GraphNode(id: $0.id, label: $0.title, type: .paper) }
+                            + notes.map { GraphNode(id: $0.id, label: $0.title, type: .note) }
+                            + experiments.map { GraphNode(id: $0.id, label: $0.title, type: .experiment) })
                     }
                     .padding()
                 }
             }
+        }
+    }
+
+    private func column(title: String, nodes: [GraphNode]) -> some View {
+        VStack(spacing: 12) {
+            Text(title)
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            ForEach(nodes) { node in
+                nodeCard(node)
+            }
+        }
+        .frame(minWidth: 160)
+    }
+
+    private func summaryItem(label: String, value: Int) -> some View {
+        VStack(spacing: 0) {
+            Text("\(value)")
+                .font(.caption.bold())
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -127,7 +126,7 @@ struct KnowledgeGraphCanvasView: View {
     // MARK: - Inspector Panel
 
     private var inspectorPanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("图谱检视")
@@ -145,22 +144,37 @@ struct KnowledgeGraphCanvasView: View {
             Divider()
 
             ScrollView {
-                if let node = selectedNode {
-                    nodeInspector(node)
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "cursorarrow.click")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.secondary)
-                        Text("点击节点查看详情与关联")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 16) {
+                    if let node = selectedNode {
+                        nodeInspector(node)
+                    } else {
+                        VStack(spacing: 12) {
+                            Image(systemName: "cursorarrow.click")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.secondary)
+                            Text("点击节点查看详情与关联")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.top, 40)
+
+                    Divider()
+
+                    GraphCitationPanel(
+                        citations: citations,
+                        papers: papers,
+                        onDelete: deleteCitation
+                    )
+
+                    Divider()
+
+                    GraphAnalysisPanel()
                 }
+                .padding(.horizontal)
+                .padding(.bottom)
             }
-            .padding(.horizontal)
         }
     }
 
@@ -183,7 +197,6 @@ struct KnowledgeGraphCanvasView: View {
                 .foregroundColor(nodeColor(node.type))
                 .cornerRadius(4)
 
-            // Relations
             let related = relatedLinks(for: node)
             if !related.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -213,7 +226,6 @@ struct KnowledgeGraphCanvasView: View {
                 }
             }
 
-            // Stats
             HStack(spacing: 16) {
                 statItem(label: "出边", value: "\(outgoingLinks(for: node).count)")
                 statItem(label: "入边", value: "\(incomingLinks(for: node).count)")
@@ -235,25 +247,14 @@ struct KnowledgeGraphCanvasView: View {
         .cornerRadius(8)
     }
 
-    private func legendItem(color: Color, label: String) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     // MARK: - Helpers
 
     private var allNodes: [GraphNode] {
-        let interestNodes = interests.map { GraphNode(id: $0.id, label: $0.topic, type: .interest) }
-        let claimNodes = claims.map { GraphNode(id: $0.id, label: $0.title, type: .claim) }
-        let paperNodes = papers.map { GraphNode(id: $0.id, label: $0.title, type: .paper) }
-        let noteNodes = notes.map { GraphNode(id: $0.id, label: $0.title, type: .note) }
-        return interestNodes + claimNodes + paperNodes + noteNodes
+        interests.map { GraphNode(id: $0.id, label: $0.topic, type: .interest) }
+            + claims.map { GraphNode(id: $0.id, label: $0.title, type: .claim) }
+            + papers.map { GraphNode(id: $0.id, label: $0.title, type: .paper) }
+            + notes.map { GraphNode(id: $0.id, label: $0.title, type: .note) }
+            + experiments.map { GraphNode(id: $0.id, label: $0.title, type: .experiment) }
     }
 
     private func relatedLinks(for node: GraphNode) -> [EvidenceLink] {
@@ -305,13 +306,11 @@ struct KnowledgeGraphCanvasView: View {
     }
 
     private func loadData() {
-        claims = (try? KnowledgeRepository().listClaims()) ?? []
-        evidenceLinks = claims.flatMap { claim in
-            (try? KnowledgeRepository().listEvidenceLinks(claimId: claim.id)) ?? []
-        }
-        interests = knowledgeService.listInterests()
-        papers = paperService.list()
-        notes = knowledgeService.listNotes()
+        snapshot = try? repo.graphSnapshot()
+    }
+
+    private func deleteCitation(id: String) {
+        try? repo.deleteCitation(id: id)
+        loadData()
     }
 }
-
