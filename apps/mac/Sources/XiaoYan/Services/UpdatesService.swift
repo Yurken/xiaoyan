@@ -2,24 +2,71 @@ import Foundation
 import AppKit
 
 struct UpdatesService {
-    struct VersionInfo: Codable {
+    struct VersionInfo {
         let version: String
-        let url: String?
+        let url: String
         let releaseNotes: String?
+    }
+
+    enum UpdateCheckError: Error, LocalizedError {
+        case invalidEndpoint
+        case network(Error)
+        case http(statusCode: Int)
+        case decode(Error)
+        case missingPlatformURL
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidEndpoint: return "更新服务端点配置无效"
+            case .network(let error): return "网络错误：\(error.localizedDescription)"
+            case .http(let code): return "服务器返回错误 HTTP \(code)"
+            case .decode(let error): return "解析更新信息失败：\(error.localizedDescription)"
+            case .missingPlatformURL: return "未找到适用于当前平台的下载链接"
+            }
+        }
+    }
+
+    enum UpdateCheckOutcome {
+        case noUpdate
+        case hasUpdate(VersionInfo)
     }
 
     static let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
 
-    static func checkForUpdates() async -> VersionInfo? {
-        guard let endpoint = URL(string: AppConstants.updateEndpoint) else { return nil }
+    static func checkForUpdates() async -> Result<UpdateCheckOutcome, UpdateCheckError> {
+        guard let endpoint = URL(string: AppConstants.updateEndpoint) else {
+            return .failure(.invalidEndpoint)
+        }
         do {
             let (data, response) = try await URLSession.shared.data(from: endpoint)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return nil }
-            let info = try JSONDecoder().decode(VersionInfo.self, from: data)
-            return isNewer(latest: info.version) ? info : nil
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return .failure(.http(statusCode: 0))
+            }
+            guard httpResponse.statusCode == 200 else {
+                return .failure(.http(statusCode: httpResponse.statusCode))
+            }
+            let manifest: TauriUpdaterManifest
+            do {
+                manifest = try JSONDecoder().decode(TauriUpdaterManifest.self, from: data)
+            } catch {
+                return .failure(.decode(error))
+            }
+            guard isNewer(latest: manifest.version) else {
+                return .success(.noUpdate)
+            }
+            guard let platformUrl = platformURL(from: manifest.platforms) else {
+                return .failure(.missingPlatformURL)
+            }
+            let info = VersionInfo(
+                version: manifest.version,
+                url: platformUrl,
+                releaseNotes: manifest.notes
+            )
+            return .success(.hasUpdate(info))
+        } catch let error as UpdateCheckError {
+            return .failure(error)
         } catch {
-            return nil
+            return .failure(.network(error))
         }
     }
 
@@ -35,8 +82,52 @@ struct UpdatesService {
         return false
     }
 
-    static func openDownloadURL(_ urlString: String?) {
-        guard let urlString = urlString, let url = URL(string: urlString) else { return }
+    static func openDownloadURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    // MARK: - Tauri Manifest
+
+    private struct TauriUpdaterManifest: Codable {
+        let version: String
+        let notes: String?
+        let pubDate: String?
+        let platforms: [String: PlatformInfo]
+
+        enum CodingKeys: String, CodingKey {
+            case version, notes, platforms
+            case pubDate = "pub_date"
+        }
+    }
+
+    private struct PlatformInfo: Codable {
+        let url: String
+        let signature: String?
+    }
+
+    private static func platformURL(from platforms: [String: PlatformInfo]) -> String? {
+        // Try native architecture first, then x86_64 fallback (Rosetta)
+        let candidates = [currentPlatformKey, "darwin-x86_64"]
+        for key in candidates {
+            if let info = platforms[key] {
+                return info.url
+            }
+        }
+        // Fallback: any darwin platform
+        return platforms.first { $0.key.hasPrefix("darwin") }?.value.url
+    }
+
+    private static var currentPlatformKey: String {
+        var sysinfo = utsname()
+        uname(&sysinfo)
+        let machine = withUnsafeBytes(of: &sysinfo.machine) { raw -> String in
+            let buffer = raw.bindMemory(to: CChar.self)
+            return String(cString: buffer.baseAddress!)
+        }
+        if machine == "arm64" {
+            return "darwin-aarch64"
+        }
+        return "darwin-x86_64"
     }
 }

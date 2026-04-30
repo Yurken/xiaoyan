@@ -136,4 +136,31 @@ struct ChatRepository {
             )
         }
     }
+
+    func listArtifacts(runIds: [String]) throws -> [AgentArtifact] {
+        guard !runIds.isEmpty else { return [] }
+        let placeholders = runIds.map { _ in "?" }.joined(separator: ",")
+        return try dbQueue.read { db in
+            try AgentArtifact.fetchAll(
+                db,
+                sql: "SELECT * FROM agent_artifacts WHERE run_id IN (\(placeholders)) ORDER BY created_at",
+                arguments: StatementArguments(runIds)
+            )
+        }
+    }
+
+    func listArtifacts(sessionId: String, requestId: String) throws -> [AgentArtifact] {
+        try dbQueue.read { db in
+            try AgentArtifact.fetchAll(
+                db,
+                sql: """
+                    SELECT a.* FROM agent_artifacts a
+                    INNER JOIN agent_runs r ON a.run_id = r.id
+                    WHERE r.session_id = ? AND r.request_id = ?
+                    ORDER BY a.created_at
+                """,
+                arguments: [sessionId, requestId]
+            )
+        }
+    }
 }

@@ -382,8 +382,7 @@ final class ChatService: ObservableObject {
                 orderIndex: $0.orderIndex ?? 0
             )
         }
-        // Artifacts are not tied to requestId in schema; skip recovery for now
-        currentArtifacts = []
+        currentArtifacts = (try? chatRepo.listArtifacts(sessionId: sessionId, requestId: requestId)) ?? []
         currentPlan = []
     }
 
