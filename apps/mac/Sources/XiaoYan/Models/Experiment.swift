@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-struct ExperimentRecord: Codable, Identifiable, FetchableRecord {
+struct ExperimentRecord: Codable, Identifiable, Hashable, FetchableRecord {
     let id: String
     var title: String
     var config: [String: String]?

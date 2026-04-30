@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-struct Venue: Codable, Identifiable, FetchableRecord {
+struct Venue: Codable, Identifiable, Hashable, FetchableRecord {
     let id: String
     var type: String
     var name: String
@@ -33,7 +33,7 @@ struct Venue: Codable, Identifiable, FetchableRecord {
     }
 }
 
-struct Submission: Codable, Identifiable, FetchableRecord {
+struct Submission: Codable, Identifiable, Hashable, FetchableRecord {
     let id: String
     var title: String
     var venueName: String?

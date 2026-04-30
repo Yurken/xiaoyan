@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-struct ResearchInterest: Codable, Identifiable, FetchableRecord {
+struct ResearchInterest: Codable, Identifiable, Hashable, FetchableRecord {
     let id: String
     var topic: String
     var folderName: String?
@@ -19,7 +19,7 @@ struct ResearchInterest: Codable, Identifiable, FetchableRecord {
     }
 }
 
-struct InterestProfile: Codable, FetchableRecord {
+struct InterestProfile: Codable, Hashable, FetchableRecord {
     var goal: String?
     var background: String?
     var timeBudget: String?
@@ -31,18 +31,18 @@ struct InterestProfile: Codable, FetchableRecord {
     }
 }
 
-struct LearningPath: Codable, FetchableRecord {
+struct LearningPath: Codable, Hashable, FetchableRecord {
     var stages: [LearningStage]?
 }
 
-struct LearningStage: Codable, FetchableRecord {
+struct LearningStage: Codable, Hashable, FetchableRecord {
     var title: String?
     var description: String?
     var duration: String?
     var resources: [String]?
 }
 
-struct KnowledgeNote: Codable, Identifiable, FetchableRecord {
+struct KnowledgeNote: Codable, Identifiable, Hashable, FetchableRecord {
     let id: String
     var researchInterestId: String?
     var title: String
