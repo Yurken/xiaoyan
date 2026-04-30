@@ -3,6 +3,18 @@ use futures_util::StreamExt;
 use serde_json::json;
 use std::collections::HashMap;
 
+mod shared;
+mod transport;
+
+use self::shared::{
+    build_message_array as build_message_array_impl,
+    extract_anthropic_response_text as extract_anthropic_response_text_impl,
+};
+use self::transport::{
+    append_sse_chunk, drain_sse_payloads, ensure_http_success, format_http_error,
+    format_openai_http_error as format_openai_http_error_impl,
+};
+
 #[derive(Clone, Debug)]
 pub struct LlmMessage {
     pub role: String,
@@ -262,9 +274,10 @@ impl LlmClient {
                     .json(&body)
                     .send()
                     .await?;
-                if !resp.status().is_success() {
-                    return Err(anyhow!("Vision API error: {}", resp.text().await?));
-                }
+                let resp = ensure_http_success(resp, |status, body| {
+                    format_openai_http_error_impl(status, body, base_url, "Vision API error")
+                })
+                .await?;
                 let json: serde_json::Value = resp.json().await?;
                 Ok(json["choices"][0]["message"]["content"]
                     .as_str()
@@ -296,11 +309,12 @@ impl LlmClient {
                     .json(&body)
                     .send()
                     .await?;
-                if !resp.status().is_success() {
-                    return Err(anyhow!("Anthropic vision error: {}", resp.text().await?));
-                }
+                let resp = ensure_http_success(resp, |status, body| {
+                    format_http_error(status, body, "Anthropic vision error")
+                })
+                .await?;
                 let json: serde_json::Value = resp.json().await?;
-                extract_anthropic_response_text(&json, "Anthropic vision error")
+                extract_anthropic_response_text_impl(&json, "Anthropic vision error")
             }
         }
     }
@@ -463,6 +477,7 @@ pub fn resolve_max_tokens(
 
 const USER_AGENT: &str = "claude-code/1.0";
 
+#[allow(dead_code)]
 fn compact_preview(text: &str, max_chars: usize) -> String {
     text.chars()
         .take(max_chars)
@@ -472,6 +487,7 @@ fn compact_preview(text: &str, max_chars: usize) -> String {
         .join(" ")
 }
 
+#[allow(dead_code)]
 fn collect_text_blocks(blocks: &[serde_json::Value]) -> String {
     blocks
         .iter()
@@ -482,6 +498,7 @@ fn collect_text_blocks(blocks: &[serde_json::Value]) -> String {
         .join("\n\n")
 }
 
+#[allow(dead_code)]
 fn extract_anthropic_response_text(
     json: &serde_json::Value,
     label: &str,
@@ -541,6 +558,7 @@ fn extract_anthropic_response_text(
     ))
 }
 
+#[allow(dead_code)]
 fn format_openai_http_error(
     status: reqwest::StatusCode,
     body: &str,
@@ -563,6 +581,7 @@ fn format_openai_http_error(
     format!("{}: HTTP {} {}", label, status.as_u16(), preview)
 }
 
+#[allow(dead_code)]
 fn build_message_array(messages: &[LlmMessage]) -> serde_json::Value {
     json!(messages
         .iter()
@@ -581,7 +600,7 @@ async fn openai_chat(
     let client = reqwest::Client::new();
     let body = json!({
         "model": model,
-        "messages": build_message_array(messages),
+        "messages": build_message_array_impl(messages),
         "temperature": temperature,
         "max_tokens": max_tokens,
     });
@@ -596,16 +615,10 @@ async fn openai_chat(
         .send()
         .await?;
 
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let text = resp.text().await?;
-        return Err(anyhow!(format_openai_http_error(
-            status,
-            &text,
-            base_url,
-            "LLM API error"
-        )));
-    }
+    let resp = ensure_http_success(resp, |status, body| {
+        format_openai_http_error_impl(status, body, base_url, "LLM API error")
+    })
+    .await?;
     let json: serde_json::Value = resp.json().await?;
     Ok(json["choices"][0]["message"]["content"]
         .as_str()
@@ -625,7 +638,7 @@ async fn stream_openai(
     let client = reqwest::Client::new();
     let body = json!({
         "model": model,
-        "messages": build_message_array(messages),
+        "messages": build_message_array_impl(messages),
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": true,
@@ -642,16 +655,10 @@ async fn stream_openai(
         .send()
         .await?;
 
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let text = resp.text().await?;
-        return Err(anyhow!(format_openai_http_error(
-            status,
-            &text,
-            base_url,
-            "LLM streaming API error",
-        )));
-    }
+    let resp = ensure_http_success(resp, |status, body| {
+        format_openai_http_error_impl(status, body, base_url, "LLM streaming API error")
+    })
+    .await?;
 
     let mut full = String::new();
     let mut buf = String::new();
@@ -659,26 +666,18 @@ async fn stream_openai(
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk?;
-        buf.push_str(&String::from_utf8_lossy(&bytes));
-        loop {
-            if let Some(pos) = buf.find('\n') {
-                let line = buf[..pos].trim().to_string();
-                buf = buf[pos + 1..].to_string();
-                if let Some(data) = line.strip_prefix("data: ") {
-                    if data == "[DONE]" {
-                        return Ok(full);
-                    }
-                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
-                        if let Some(c) = v["choices"][0]["delta"]["content"].as_str() {
-                            if !c.is_empty() {
-                                full.push_str(c);
-                                on_delta(c.to_string());
-                            }
-                        }
+        append_sse_chunk(&mut buf, &bytes);
+        for data in drain_sse_payloads(&mut buf) {
+            if data == "[DONE]" {
+                return Ok(full);
+            }
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                if let Some(c) = v["choices"][0]["delta"]["content"].as_str() {
+                    if !c.is_empty() {
+                        full.push_str(c);
+                        on_delta(c.to_string());
                     }
                 }
-            } else {
-                break;
             }
         }
     }
@@ -701,16 +700,10 @@ async fn embed_openai(
         .send()
         .await?;
 
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let text = resp.text().await?;
-        return Err(anyhow!(format_openai_http_error(
-            status,
-            &text,
-            base_url,
-            "Embedding error"
-        )));
-    }
+    let resp = ensure_http_success(resp, |status, body| {
+        format_openai_http_error_impl(status, body, base_url, "Embedding error")
+    })
+    .await?;
     let json: serde_json::Value = resp.json().await?;
     let data = json["data"]
         .as_array()
@@ -765,12 +758,12 @@ async fn anthropic_chat(
         .send()
         .await?;
 
-    if !resp.status().is_success() {
-        let text = resp.text().await?;
-        return Err(anyhow!("Anthropic error: {}", text));
-    }
+    let resp = ensure_http_success(resp, |status, body| {
+        format_http_error(status, body, "Anthropic error")
+    })
+    .await?;
     let json: serde_json::Value = resp.json().await?;
-    extract_anthropic_response_text(&json, "Anthropic error")
+    extract_anthropic_response_text_impl(&json, "Anthropic error")
 }
 
 async fn stream_anthropic(
@@ -810,10 +803,10 @@ async fn stream_anthropic(
         .send()
         .await?;
 
-    if !resp.status().is_success() {
-        let text = resp.text().await?;
-        return Err(anyhow!("Anthropic streaming error: {}", text));
-    }
+    let resp = ensure_http_success(resp, |status, body| {
+        format_http_error(status, body, "Anthropic streaming error")
+    })
+    .await?;
 
     let mut full = String::new();
     let mut buf = String::new();
@@ -821,25 +814,17 @@ async fn stream_anthropic(
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk?;
-        buf.push_str(&String::from_utf8_lossy(&bytes));
-        loop {
-            if let Some(pos) = buf.find('\n') {
-                let line = buf[..pos].trim().to_string();
-                buf = buf[pos + 1..].to_string();
-                if let Some(data) = line.strip_prefix("data: ") {
-                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
-                        if v["type"] == "content_block_delta" {
-                            if let Some(t) = v["delta"]["text"].as_str() {
-                                if !t.is_empty() {
-                                    full.push_str(t);
-                                    on_delta(t.to_string());
-                                }
-                            }
+        append_sse_chunk(&mut buf, &bytes);
+        for data in drain_sse_payloads(&mut buf) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                if v["type"] == "content_block_delta" {
+                    if let Some(t) = v["delta"]["text"].as_str() {
+                        if !t.is_empty() {
+                            full.push_str(t);
+                            on_delta(t.to_string());
                         }
                     }
                 }
-            } else {
-                break;
             }
         }
     }

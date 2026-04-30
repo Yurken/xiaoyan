@@ -1,8 +1,9 @@
 use std::{
-    fs::OpenOptions,
+    fs::{self, OpenOptions},
     io::Write,
     panic,
     path::PathBuf,
+    sync::OnceLock,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -90,8 +91,20 @@ use commands::{
 };
 use state::{default_settings, AppState};
 
+static DIAGNOSTIC_LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
+
 fn diagnostic_log_path() -> PathBuf {
-    std::env::temp_dir().join("xiaoyan-desktop.log")
+    DIAGNOSTIC_LOG_PATH
+        .get()
+        .cloned()
+        .unwrap_or_else(|| std::env::temp_dir().join("xiaoyan-desktop.log"))
+}
+
+fn configure_diagnostic_log_path(app_data_dir: &std::path::Path) {
+    let log_dir = app_data_dir.join("logs");
+    if fs::create_dir_all(&log_dir).is_ok() {
+        let _ = DIAGNOSTIC_LOG_PATH.set(log_dir.join("xiaoyan-desktop.log"));
+    }
 }
 
 fn append_diagnostic_log(message: &str) {
@@ -133,6 +146,7 @@ pub fn run() {
                 .app_data_dir()
                 .expect("failed to get app data dir");
 
+            configure_diagnostic_log_path(&app_data_dir);
             append_diagnostic_log(&format!(
                 "startup: setup ok version={} data_dir={}",
                 app.package_info().version,

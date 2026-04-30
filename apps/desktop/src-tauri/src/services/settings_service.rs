@@ -12,11 +12,23 @@ use std::collections::{BTreeMap, HashMap};
 use uuid::Uuid;
 
 const MAGIC: &[u8; 6] = b"RCCFG1";
-const PBKDF2_ROUNDS: u32 = 200_000;
+const PBKDF2_ROUNDS: u32 = 600_000;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 const KEY_LEN: usize = 32;
 pub const MASK: &str = "***";
+const ERR_INVALID_REQUEST: &str = "请求参数格式不正确。";
+const ERR_EMPTY_PASSWORD: &str = "密码不能为空。";
+const ERR_INVALID_FILE_FORMAT: &str = "文件格式无效。";
+const ERR_CORRUPTED_FILE: &str = "文件格式无效或已损坏。";
+const ERR_INVALID_CONFIG_FILE: &str = "不是有效的配置文件。";
+const ERR_INVALID_PASSWORD_OR_CORRUPTED: &str = "密码错误或文件已损坏。";
+const ERR_INVALID_DECRYPTED_DATA: &str = "解密数据格式错误。";
+const ERR_INVALID_CONFIG_CONTENT: &str = "配置文件内容格式错误。";
+const ERR_NO_VALID_CONFIG_ITEMS: &str = "文件中未找到有效配置项。";
+const ERR_SETTINGS_HISTORY_NOT_FOUND: &str = "未找到对应的配置历史。";
+const ERR_SETTINGS_HISTORY_EMPTY: &str = "这份配置历史中没有可应用的设置项。";
+const SETTINGS_HISTORY_SNAPSHOT_PREFIX: &str = "配置快照";
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SettingsHistoryEntry {
@@ -59,13 +71,13 @@ fn encrypt_blob(plaintext: &[u8], password: &str) -> Result<String, String> {
 fn decrypt_blob(b64_data: &str, password: &str) -> Result<Vec<u8>, String> {
     let blob = B64
         .decode(b64_data)
-        .map_err(|_| "文件格式无效。".to_string())?;
+        .map_err(|_| ERR_INVALID_FILE_FORMAT.to_string())?;
     let min_len = MAGIC.len() + SALT_LEN + NONCE_LEN + 16;
     if blob.len() < min_len {
-        return Err("文件格式无效或已损坏。".to_string());
+        return Err(ERR_CORRUPTED_FILE.to_string());
     }
     if &blob[..MAGIC.len()] != MAGIC {
-        return Err("不是有效的配置文件。".to_string());
+        return Err(ERR_INVALID_CONFIG_FILE.to_string());
     }
 
     let offset = MAGIC.len();
@@ -77,7 +89,7 @@ fn decrypt_blob(b64_data: &str, password: &str) -> Result<Vec<u8>, String> {
 
     cipher
         .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
-        .map_err(|_| "密码错误或文件已损坏。".to_string())
+        .map_err(|_| ERR_INVALID_PASSWORD_OR_CORRUPTED.to_string())
 }
 
 fn is_exposed_key(defaults: &HashMap<String, String>, key: &str) -> bool {
@@ -111,7 +123,7 @@ fn apply_settings_overrides(
 ) -> Result<(), String> {
     let map = data
         .as_object()
-        .ok_or("璇锋眰鍙傛暟鏍煎紡涓嶆纭€?".to_string())?;
+        .ok_or(ERR_INVALID_REQUEST.to_string())?;
 
     for (key, raw) in map {
         if !target.contains_key(key) {
@@ -140,7 +152,7 @@ async fn resolve_snapshot_settings(
 
 fn default_snapshot_name() -> String {
     format!(
-        "閰嶇疆蹇収 {}",
+        "{SETTINGS_HISTORY_SNAPSHOT_PREFIX} {}",
         chrono::Local::now().format("%Y-%m-%d %H:%M")
     )
 }
@@ -214,7 +226,7 @@ pub async fn update_settings(
     data: &serde_json::Value,
 ) -> Result<Vec<String>, String> {
     let defaults = default_settings();
-    let map = data.as_object().ok_or("请求参数格式不正确。")?;
+    let map = data.as_object().ok_or(ERR_INVALID_REQUEST)?;
     let mut to_save: HashMap<String, String> = HashMap::new();
 
     for (key, raw) in map {
@@ -240,7 +252,7 @@ pub async fn update_settings(
 
 pub async fn export_settings(state: &AppState, password: &str) -> Result<String, String> {
     if password.is_empty() {
-        return Err("密码不能为空。".to_string());
+        return Err(ERR_EMPTY_PASSWORD.to_string());
     }
 
     let defaults = default_settings();
@@ -263,14 +275,15 @@ pub async fn import_settings(
     password: &str,
 ) -> Result<Vec<String>, String> {
     if password.is_empty() {
-        return Err("密码不能为空。".to_string());
+        return Err(ERR_EMPTY_PASSWORD.to_string());
     }
 
     let defaults = default_settings();
     let plaintext = decrypt_blob(data.trim(), password)?;
-    let json_str = std::str::from_utf8(&plaintext).map_err(|_| "解密数据格式错误。".to_string())?;
+    let json_str = std::str::from_utf8(&plaintext)
+        .map_err(|_| ERR_INVALID_DECRYPTED_DATA.to_string())?;
     let map: BTreeMap<String, String> =
-        serde_json::from_str(json_str).map_err(|_| "配置文件内容格式错误。".to_string())?;
+        serde_json::from_str(json_str).map_err(|_| ERR_INVALID_CONFIG_CONTENT.to_string())?;
 
     let mut to_save = HashMap::new();
     for (key, value) in map {
@@ -280,7 +293,7 @@ pub async fn import_settings(
     }
 
     if to_save.is_empty() {
-        return Err("文件中未找到有效配置项。".to_string());
+        return Err(ERR_NO_VALID_CONFIG_ITEMS.to_string());
     }
 
     upsert_settings(&state.db, &to_save).await?;
@@ -330,7 +343,7 @@ pub async fn list_ollama_models(base_url: Option<String>) -> Result<Vec<String>,
         .get(&api_url)
         .send()
         .await
-        .map_err(|e| format!("Failed to connect to Ollama: {}", e))?;
+        .map_err(|e| format!("Failed to connect to Ollama: {e}"))?;
     let json: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
 
     Ok(json["models"]
@@ -350,7 +363,7 @@ pub async fn list_settings_history_entries(
 
     for row in rows {
         let snapshot: HashMap<String, String> = serde_json::from_str(&row.settings_json)
-            .map_err(|e| format!("閰嶇疆鍘嗗彶瑙ｆ瀽澶辫触 ({}): {e}", row.name))?;
+            .map_err(|e| format!("解析配置历史失败（{}）: {e}", row.name))?;
         let merged = merge_with_defaults(&defaults, &snapshot);
         items.push(settings_history_entry(
             row.id,
@@ -401,10 +414,10 @@ pub async fn apply_settings_history_entry(
 ) -> Result<HashMap<String, String>, String> {
     let row = get_settings_history(&state.db, id)
         .await?
-        .ok_or_else(|| "鏈壘鍒板搴旂殑閰嶇疆鍘嗗彶銆?".to_string())?;
+        .ok_or_else(|| ERR_SETTINGS_HISTORY_NOT_FOUND.to_string())?;
     let defaults = default_settings();
     let snapshot: HashMap<String, String> = serde_json::from_str(&row.settings_json)
-        .map_err(|e| format!("閰嶇疆鍘嗗彶瑙ｆ瀽澶辫触: {e}"))?;
+        .map_err(|e| format!("解析配置历史失败: {e}"))?;
 
     let mut to_save = HashMap::new();
     for (key, value) in snapshot {
@@ -414,7 +427,7 @@ pub async fn apply_settings_history_entry(
     }
 
     if to_save.is_empty() {
-        return Err("杩欎唤閰嶇疆鍘嗗彶涓病鏈夊彲搴旂敤鐨勮缃」銆?".to_string());
+        return Err(ERR_SETTINGS_HISTORY_EMPTY.to_string());
     }
 
     upsert_settings(&state.db, &to_save).await?;
@@ -431,7 +444,7 @@ pub async fn apply_settings_history_entry(
 pub async fn delete_settings_history_entry(state: &AppState, id: &str) -> Result<(), String> {
     let deleted = delete_settings_history(&state.db, id).await?;
     if !deleted {
-        return Err("鏈壘鍒板搴旂殑閰嶇疆鍘嗗彶銆?".to_string());
+        return Err(ERR_SETTINGS_HISTORY_NOT_FOUND.to_string());
     }
     Ok(())
 }
