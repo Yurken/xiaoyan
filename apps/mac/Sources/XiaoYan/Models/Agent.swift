@@ -31,7 +31,7 @@ struct AgentRun: Codable, Identifiable, FetchableRecord {
 }
 
 enum AgentStatus: String, Codable {
-    case pending, running, done, failed
+    case idle, pending, running, done, failed
 }
 
 struct AgentArtifact: Codable, Identifiable, FetchableRecord {

@@ -14,15 +14,12 @@ struct CopilotView: View {
 
     var body: some View {
         HSplitView {
-            // MARK: - Session Sidebar
             sessionSidebar
                 .frame(minWidth: 200, maxWidth: 240)
 
-            // MARK: - Chat Area
             chatArea
                 .frame(minWidth: 400)
 
-            // MARK: - Mission Control
             MissionControlView(
                 plan: chatService.currentPlan,
                 runs: chatService.currentRuns,
@@ -50,7 +47,6 @@ struct CopilotView: View {
 
     private var sessionSidebar: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text("对话历史")
                     .font(.headline)
@@ -65,7 +61,6 @@ struct CopilotView: View {
 
             Divider()
 
-            // Session List
             List {
                 if loadingSessions {
                     ProgressView()
@@ -102,12 +97,10 @@ struct CopilotView: View {
 
     private var chatArea: some View {
         VStack(spacing: 0) {
-            // Header
             chatHeader
 
             Divider()
 
-            // Messages
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 16) {
@@ -133,7 +126,6 @@ struct CopilotView: View {
                 }
             }
 
-            // Error banner
             if let error = chatService.streamError, !error.isEmpty {
                 HStack {
                     Image(systemName: "exclamationmark.triangle")
@@ -150,7 +142,6 @@ struct CopilotView: View {
 
             Divider()
 
-            // Composer
             CopilotComposerView(inputText: $inputText, onSend: sendMessage)
                 .disabled(chatService.isStreaming)
                 .padding(8)
@@ -169,8 +160,8 @@ struct CopilotView: View {
             Spacer()
             HStack(spacing: 6) {
                 let isPaperContext = sessions.first { $0.id == currentSessionId }?.contextType == "paper"
-                StatusBadge(text: isPaperContext ? "论文上下文" : "通用科研", color: .blue)
-                StatusBadge(
+                TagBadge(text: isPaperContext ? "论文上下文" : "通用科研", color: .blue)
+                TagBadge(
                     text: chatService.isStreaming ? "处理中" : "就绪",
                     color: chatService.isStreaming ? .orange : .green
                 )
@@ -290,7 +281,6 @@ struct CopilotView: View {
         messages.append(assistantMsg)
         activeAssistantId = assistantId
 
-        // Clear previous mission control state for new request
         chatService.currentPlan = []
         chatService.currentRuns = []
         chatService.currentArtifacts = []
@@ -348,7 +338,6 @@ struct CopilotView: View {
         guard let context = settings.pendingChatContext else { return }
         settings.pendingChatContext = nil
 
-        // Create a new session with context
         let newId = UUID().uuidString
         currentSessionId = newId
         messages = []
@@ -367,7 +356,6 @@ struct CopilotView: View {
         )
         loadSessions()
 
-        // Add a system hint message
         let hint = "当前对话上下文：论文《\(context.title)》。你可以问关于这篇论文的任何问题。"
         messages.append(ChatDisplayMessage(role: .assistant, content: hint))
     }
@@ -452,338 +440,4 @@ private struct SessionRow: View {
         .background(isActive ? Color.accentColor : Color.clear)
         .cornerRadius(8)
     }
-}
-
-// MARK: - Status Badge
-
-private struct StatusBadge: View {
-    let text: String
-    let color: Color
-
-    var body: some View {
-        Text(text)
-            .font(.caption2.bold())
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(color.opacity(0.15))
-            .foregroundColor(color)
-            .cornerRadius(6)
-    }
-}
-
-// MARK: - Mission Control
-
-struct MissionControlView: View {
-    let plan: [AgentPlanStep]
-    let runs: [AgentRunDisplay]
-    let artifacts: [AgentArtifact]
-    let requestId: String?
-    let sending: Bool
-    var onSaveMemory: ((String) -> Void)? = nil
-    @State private var memoryText = ""
-    @State private var memorySaved = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("执行总览")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                    Text("调度视图")
-                        .font(.headline)
-                }
-                Spacer()
-                StatusBadge(text: sending ? "处理中" : "就绪", color: sending ? .orange : .green)
-            }
-            .padding(.horizontal)
-
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if let reqId = requestId {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("请求 ID")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(reqId)
-                                .font(.system(.caption, design: .monospaced))
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
-
-                    // Plan
-                    planSection
-
-                    // Runs
-                    runsSection
-
-                    // Artifacts
-                    artifactsSection
-
-                    // Memory
-                    memorySection
-                }
-                .padding(.horizontal)
-                .padding(.bottom)
-            }
-        }
-        .padding(.top)
-    }
-
-    private var memorySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 4) {
-                Image(systemName: "brain")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-                Text("添加记忆")
-                    .font(.subheadline.bold())
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                TextEditor(text: $memoryText)
-                    .font(.caption)
-                    .frame(minHeight: 60)
-                    .padding(4)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
-
-                HStack {
-                    if memorySaved {
-                        Text("已保存")
-                            .font(.caption)
-                            .foregroundStyle(.green)
-                    }
-                    Spacer()
-                    Button("保存") {
-                        onSaveMemory?(memoryText)
-                        memorySaved = true
-                        memoryText = ""
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            memorySaved = false
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(memoryText.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-        }
-    }
-
-    private var planSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 4) {
-                Image(systemName: "radar")
-                    .font(.caption)
-                    .foregroundStyle(.blue)
-                Text("计划分解")
-                    .font(.subheadline.bold())
-            }
-
-            if plan.isEmpty {
-                Text("发送问题后，小妍会在此展示任务拆解和执行链路。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 4)
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(plan) { step in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(step.title)
-                                    .font(.caption.bold())
-                                Spacer()
-                                Text(capabilityName(step.agentName))
-                                    .font(.caption2)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(4)
-                            }
-                            Text(step.goal)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(8)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
-                }
-            }
-        }
-    }
-
-    private var runsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 4) {
-                Image(systemName: "cpu")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                Text("能力域模型执行")
-                    .font(.subheadline.bold())
-            }
-
-            if runs.isEmpty {
-                Text("暂无分析模型运行记录。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 4)
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(runs.sorted(by: { $0.orderIndex < $1.orderIndex })) { run in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(run.stepName)
-                                        .font(.caption.bold())
-                                    Text(capabilityName(run.agentName))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                RunStatusBadge(status: run.status)
-                            }
-                            if let summary = run.summary {
-                                Text(summary)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            if let error = run.error {
-                                Text(error)
-                                    .font(.caption2)
-                                    .foregroundStyle(.red)
-                            }
-                        }
-                        .padding(8)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
-                }
-            }
-        }
-    }
-
-    private var artifactsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 4) {
-                Image(systemName: "sparkles")
-                    .font(.caption)
-                    .foregroundStyle(.purple)
-                Text("结构化产物")
-                    .font(.subheadline.bold())
-            }
-
-            if artifacts.isEmpty {
-                Text("暂无结构化产物，模型产出后将出现在这里。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 4)
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(artifacts.prefix(4)) { artifact in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(artifact.title ?? artifact.artifactType)
-                                .font(.caption.bold())
-                            if let content = artifact.content {
-                                Text(content)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(5)
-                            }
-                        }
-                        .padding(8)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
-                }
-            }
-        }
-    }
-
-    private func capabilityName(_ raw: String) -> String {
-        switch raw {
-        case "retrieval": return "检索模型"
-        case "planner": return "谋策模型"
-        case "literature_scout": return "探知模型"
-        case "survey": return "翰章模型"
-        case "paper_analyst": return "洞见模型"
-        case "reproduction": return "构域模型"
-        case "synthesis": return "整合模型"
-        default: return raw
-        }
-    }
-}
-
-private struct RunStatusBadge: View {
-    let status: AgentStatus
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Image(systemName: statusIcon)
-                .font(.caption2)
-            Text(statusLabel)
-                .font(.caption2.bold())
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(statusColor.opacity(0.15))
-        .foregroundColor(statusColor)
-        .cornerRadius(4)
-    }
-
-    private var statusIcon: String {
-        switch status {
-        case .done: return "checkmark.circle.fill"
-        case .failed: return "xmark.circle.fill"
-        case .running: return "clock.fill"
-        case .pending: return "clock"
-        }
-    }
-
-    private var statusLabel: String {
-        switch status {
-        case .done: return "已完成"
-        case .failed: return "失败"
-        case .running: return "处理中"
-        case .pending: return "待处理"
-        }
-    }
-
-    private var statusColor: Color {
-        switch status {
-        case .done: return .green
-        case .failed: return .red
-        case .running: return .orange
-        case .pending: return .secondary
-        }
-    }
-}
-
-// MARK: - Display Models
-
-enum ChatRole {
-    case user, assistant, system
-}
-
-struct ChatDisplayMessage: Identifiable {
-    let id = UUID()
-    let role: ChatRole
-    var content: String
-    var sources: [ChatSourceDisplay] = []
-    var isStreaming: Bool = false
-}
-
-struct ChatSourceDisplay: Identifiable {
-    let id = UUID()
-    let title: String
-    let score: Double
 }

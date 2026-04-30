@@ -159,6 +159,14 @@ struct PaperRepository {
         }
     }
 
+    // MARK: - Figures
+
+    func listFigures(paperId: String) throws -> [PaperFigure] {
+        try dbQueue.read { db in
+            try PaperFigure.fetchAll(db, sql: "SELECT * FROM paper_figures WHERE paper_id = ? ORDER BY fig_index", arguments: [paperId])
+        }
+    }
+
     // MARK: - Reproduction Guide
 
     func upsertReproductionGuide(_ paperId: String, guide: ReproductionGuide) throws {

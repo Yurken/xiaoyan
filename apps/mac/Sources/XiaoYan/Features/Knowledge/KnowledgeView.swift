@@ -16,6 +16,7 @@ struct KnowledgeView: View {
         case notes = "笔记"
         case interests = "研究方向"
         case claims = "论断"
+        case graph = "图谱"
     }
 
     var filteredNotes: [KnowledgeNote] {
@@ -57,6 +58,7 @@ struct KnowledgeView: View {
                 case .notes: notesList
                 case .interests: interestsList
                 case .claims: ClaimsView()
+                case .graph: KnowledgeGraphCanvasView()
                 }
             }
             .navigationTitle("知识")
@@ -66,7 +68,7 @@ struct KnowledgeView: View {
                         switch selectedTab {
                         case .notes: showingCreateNote = true
                         case .interests: showingCreateInterest = true
-                        case .claims: break
+                        case .claims, .graph: break
                         }
                     }) {
                         Label("新建", systemImage: "plus")

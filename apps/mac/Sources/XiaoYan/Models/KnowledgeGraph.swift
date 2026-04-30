@@ -59,5 +59,5 @@ struct GraphNode: Identifiable {
 }
 
 enum NodeType {
-    case paper, note, claim, experiment
+    case paper, note, claim, experiment, interest
 }

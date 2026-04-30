@@ -55,6 +55,31 @@ struct KnowledgeRepository {
         }
     }
 
+    func updateInterestFolder(id: String, folderName: String?) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE research_interests SET folder_name = ? WHERE id = ?",
+                arguments: [folderName, id]
+            )
+        }
+    }
+
+    func deleteInterestBundle(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM knowledge_notes WHERE research_interest_id = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM knowledge_graph_claims WHERE research_interest_id = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM research_interests WHERE id = ?", arguments: [id])
+        }
+    }
+
+    func deleteInterestOnly(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE knowledge_notes SET research_interest_id = NULL WHERE research_interest_id = ?", arguments: [id])
+            try db.execute(sql: "UPDATE knowledge_graph_claims SET research_interest_id = NULL WHERE research_interest_id = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM research_interests WHERE id = ?", arguments: [id])
+        }
+    }
+
     // Knowledge Notes
     func listNotes(researchInterestId: String? = nil) throws -> [KnowledgeNote] {
         try dbQueue.read { db in
@@ -94,6 +119,15 @@ struct KnowledgeRepository {
     func deleteNote(id: String) throws {
         try dbQueue.write { db in
             try db.execute(sql: "DELETE FROM knowledge_notes WHERE id = ?", arguments: [id])
+        }
+    }
+
+    func moveNote(id: String, toInterestId: String?) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE knowledge_notes SET research_interest_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                arguments: [toInterestId, id]
+            )
         }
     }
 

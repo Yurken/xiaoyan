@@ -74,3 +74,21 @@ func stringBinding(for key: String, in settings: AppSettings) -> Binding<String>
         set: { settings.set(key, $0) }
     )
 }
+
+// MARK: - Card Style
+
+@ViewBuilder
+func settingsCard(title: String, icon: String, @ViewBuilder content: () -> some View) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .foregroundStyle(.blue)
+            Text(title)
+                .font(.subheadline.bold())
+        }
+        content()
+    }
+    .padding()
+    .background(Color(nsColor: .controlBackgroundColor))
+    .cornerRadius(12)
+}

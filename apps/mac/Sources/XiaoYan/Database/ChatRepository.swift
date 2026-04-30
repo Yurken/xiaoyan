@@ -88,6 +88,25 @@ struct ChatRepository {
         }
     }
 
+    func listAgentRuns(sessionId: String) throws -> [AgentRun] {
+        try dbQueue.read { db in
+            try AgentRun.fetchAll(
+                db,
+                sql: "SELECT * FROM agent_runs WHERE session_id = ? ORDER BY order_index, created_at",
+                arguments: [sessionId]
+            )
+        }
+    }
+
+    func updateSessionContext(id: String, contextType: String?, contextId: String?) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE chat_sessions SET context_type=?, context_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                arguments: [contextType, contextId, id]
+            )
+        }
+    }
+
     func insertAgentArtifact(_ artifact: AgentArtifact) throws {
         try dbQueue.write { db in
             try db.execute(

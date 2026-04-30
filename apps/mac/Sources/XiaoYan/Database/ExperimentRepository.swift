@@ -49,11 +49,30 @@ struct ExperimentRepository {
     }
 
     // Attachments
+    func listAttachments(experimentId: String) throws -> [ExperimentAttachment] {
+        try dbQueue.read { db in
+            try ExperimentAttachment.fetchAll(
+                db,
+                sql: "SELECT * FROM experiment_attachments WHERE experiment_id = ?",
+                arguments: [experimentId]
+            )
+        }
+    }
+
     func insertAttachment(_ attachment: ExperimentAttachment) throws {
         try dbQueue.write { db in
             try db.execute(
                 sql: "INSERT INTO experiment_attachments (id, experiment_id, file_path, label) VALUES (?,?,?,?)",
                 arguments: [attachment.id, attachment.experimentId, attachment.filePath, attachment.label]
+            )
+        }
+    }
+
+    func updateAttachmentLabel(id: String, label: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE experiment_attachments SET label = ? WHERE id = ?",
+                arguments: [label, id]
             )
         }
     }

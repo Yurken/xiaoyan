@@ -138,9 +138,9 @@ final class PaperService: ObservableObject {
         uploadProgress[paperId] = .analyzed
     }
 
-    // MARK: - PDF Extraction
+    // MARK: - PDF Operations
 
-    private func extractPDFText(url: URL) -> String? {
+    func extractPDFText(url: URL) -> String? {
         guard let doc = PDFDocument(url: url) else { return nil }
         var text = ""
         for i in 0..<doc.pageCount {
@@ -149,6 +149,17 @@ final class PaperService: ObservableObject {
             }
         }
         return text.isEmpty ? nil : text
+    }
+
+    func openFile(paperId: String) {
+        guard let paper = get(id: paperId),
+              let filePath = paper.filePath,
+              FileManager.default.fileExists(atPath: filePath) else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: filePath))
+    }
+
+    func listFigures(paperId: String) -> [PaperFigure] {
+        (try? paperRepo.listFigures(paperId: paperId)) ?? []
     }
 
     // MARK: - Analyze & Reproduce
@@ -283,6 +294,12 @@ final class PaperService: ObservableObject {
             commonPitfalls: json["common_pitfalls"],
             notes: nil
         )
+    }
+
+    // MARK: - Update
+
+    func update(paper: Paper) {
+        try? paperRepo.update(paper)
     }
 
     // MARK: - Delete

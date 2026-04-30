@@ -171,6 +171,26 @@ struct SubmissionRepository {
         }
     }
 
+    // Stats
+    struct SubmissionStats {
+        let active: Int
+        let pendingReviews: Int
+        let upcomingDdls: [(name: String, deadline: Date)]
+    }
+
+    func stats() throws -> SubmissionStats {
+        try dbQueue.read { db in
+            let active = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM submissions WHERE status IN ('submitted', 'revision')") ?? 0
+            let pendingReviews = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM review_comments WHERE resolved = 0 OR resolved IS NULL") ?? 0
+            let rows = try Row.fetchAll(db, sql: "SELECT venue_name, deadline FROM submissions WHERE deadline IS NOT NULL AND status IN ('draft', 'preparing', 'submitted', 'revision') ORDER BY deadline ASC LIMIT 5")
+            let upcomingDdls = rows.compactMap { row -> (name: String, deadline: Date)? in
+                guard let deadline = row["deadline"] as Date? else { return nil }
+                return (name: row["venue_name"] as? String ?? "未命名", deadline: deadline)
+            }
+            return SubmissionStats(active: active, pendingReviews: pendingReviews, upcomingDdls: upcomingDdls)
+        }
+    }
+
     // Checklist
     func upsertChecklistItem(_ item: SubmissionChecklistItem) throws {
         try dbQueue.write { db in

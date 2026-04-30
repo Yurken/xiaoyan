@@ -80,4 +80,46 @@ struct MemoryRepository {
             )
         }
     }
+
+    func clearAutoMemories() throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM user_memories WHERE type = 'auto'")
+        }
+    }
+
+    func buildContext(sessionId: String, maxItems: Int = 10) throws -> String {
+        let memories = try dbQueue.read { db in
+            try UserMemory.fetchAll(
+                db,
+                sql: "SELECT * FROM user_memories WHERE type = 'manual' ORDER BY created_at DESC LIMIT ?",
+                arguments: [maxItems]
+            )
+        }
+        let observations = try dbQueue.read { db in
+            try MemoryObservation.fetchAll(
+                db,
+                sql: """
+                    SELECT * FROM memory_observations
+                    WHERE session_id = ? OR session_id IS NULL
+                    ORDER BY importance DESC, created_at DESC
+                    LIMIT ?
+                    """,
+                arguments: [sessionId, maxItems]
+            )
+        }
+        var parts: [String] = []
+        if !memories.isEmpty {
+            parts.append("用户备忘:")
+            for m in memories {
+                parts.append("- \(m.summary)")
+            }
+        }
+        if !observations.isEmpty {
+            parts.append("近期观察:")
+            for o in observations {
+                parts.append("- \(o.title ?? ""): \(o.summary ?? "")")
+            }
+        }
+        return parts.joined(separator: "\n")
+    }
 }

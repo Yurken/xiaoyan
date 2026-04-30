@@ -65,6 +65,9 @@ struct CopilotSidebarView: View {
             case .failed:
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.red)
+            case .idle:
+                Image(systemName: "circle")
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(width: 16, height: 16)

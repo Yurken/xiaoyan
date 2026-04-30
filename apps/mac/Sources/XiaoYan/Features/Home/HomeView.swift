@@ -2,69 +2,64 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject var router: AppRouter
-    @State private var paperCount = 0
-    @State private var submissionCount = 0
-    @State private var experimentCount = 0
-    @State private var noteCount = 0
-    @State private var recentPapers: [Paper] = []
-    @State private var upcomingDeadlines: [Submission] = []
-    @State private var interests: [ResearchInterest] = []
-    @State private var recentNotes: [KnowledgeNote] = []
-    @State private var recentSessions: [ChatSession] = []
+    @State private var model: WorkbenchOverviewModel?
+    @State private var loading = true
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Hero
-                heroSection
-
-                // Metrics
-                metricsSection
-
-                // Two-column grid
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
-                    agendaSection
-                    handoffSection
-                    interestsSection
-                    risksSection
-                }
-
-                // Recent assets
-                assetsSection
+            if let model = model {
+                content(model: model)
+            } else if loading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(40)
+            } else {
+                ContentUnavailableView("暂无法加载工作台", systemImage: "exclamationmark.triangle")
             }
-            .padding()
         }
         .navigationTitle("首页")
         .onAppear(perform: loadData)
     }
 
+    private func content(model: WorkbenchOverviewModel) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            heroSection(model: model)
+            metricsSection(model: model)
+            summarySection(model: model)
+            twoColumnSection(model: model)
+            assetsSection(model: model)
+            shortcutsSection
+        }
+        .padding()
+    }
+
     // MARK: - Hero
 
-    private var heroSection: some View {
+    private func heroSection(model: WorkbenchOverviewModel) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("小妍工作台")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
 
-            Text("欢迎回来")
+            Text(model.heroTitle)
                 .font(.title.bold())
 
-            Text("让研究从首页就能接上。优先显示当前目标最相关的论文、笔记和主题。")
+            Text(model.heroDescription)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
-                Button(action: { router.selectedRoute = .copilot }) {
+                Button(action: { router.selectedRoute = model.primaryAction.route }) {
                     HStack(spacing: 6) {
-                        Text("开始对话")
+                        Text(model.primaryAction.label)
                         Image(systemName: "arrow.right")
                     }
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button(action: { router.selectedRoute = .planner }) {
-                    Text("去规划")
+                Button(action: { router.selectedRoute = model.secondaryAction.route }) {
+                    Text(model.secondaryAction.label)
                 }
                 .buttonStyle(.bordered)
             }
@@ -77,155 +72,99 @@ struct HomeView: View {
 
     // MARK: - Metrics
 
-    private var metricsSection: some View {
+    private func metricsSection(model: WorkbenchOverviewModel) -> some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            MetricItem(label: "论文", value: "\(paperCount)")
-            MetricItem(label: "投稿", value: "\(submissionCount)")
-            MetricItem(label: "实验", value: "\(experimentCount)")
-            MetricItem(label: "笔记", value: "\(noteCount)")
+            ForEach(model.metrics, id: \.label) { metric in
+                WorkbenchMetricCard(metric: metric)
+            }
         }
     }
 
-    // MARK: - Agenda
+    // MARK: - Summary
 
-    private var agendaSection: some View {
+    private func summarySection(model: WorkbenchOverviewModel) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            ForEach(model.summaryItems, id: \.title) { item in
+                WorkbenchSummaryCard(item: item)
+            }
+        }
+    }
+
+    // MARK: - Two Column
+
+    private func twoColumnSection(model: WorkbenchOverviewModel) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
+            agendaPanel(model: model)
+            handoffPanel(model: model)
+            interestsPanel(model: model)
+            risksPanel(model: model)
+        }
+    }
+
+    private func agendaPanel(model: WorkbenchOverviewModel) -> some View {
+        panel(title: "今日推进", subtitle: "先把今天最值得继续的事摆出来") {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(model.agenda) { item in
+                    WorkbenchAgendaCard(item: item, router: router)
+                }
+            }
+        }
+    }
+
+    private func handoffPanel(model: WorkbenchOverviewModel) -> some View {
+        panel(title: "小妍交接", subtitle: "最近的对话与整理结果", action: ("打开小妍", .copilot)) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(model.handoffs) { item in
+                    WorkbenchHandoffCard(item: item, router: router)
+                }
+            }
+        }
+    }
+
+    private func interestsPanel(model: WorkbenchOverviewModel) -> some View {
+        panel(title: "在研主题", subtitle: "按推进优先级排序", action: ("去规划", .planner)) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(model.interests) { item in
+                    WorkbenchInterestCard(item: item, router: router)
+                }
+            }
+        }
+    }
+
+    private func risksPanel(model: WorkbenchOverviewModel) -> some View {
+        panel(title: "阻塞与截止", subtitle: "容易拖慢研究推进的事项", action: ("去投稿", .submission)) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(model.risks) { item in
+                    WorkbenchRiskCard(item: item, router: router)
+                }
+            }
+        }
+    }
+
+    private func panel(
+        title: String,
+        subtitle: String,
+        action: (label: String, route: AppRoute)? = nil,
+        @ViewBuilder content: () -> some View
+    ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("今日推进")
+                    Text(title)
                         .font(.headline)
-                    Text("先把今天最值得继续的事摆出来")
+                    Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-            }
-
-            let agenda = buildAgenda()
-            if agenda.isEmpty {
-                Text("暂无待办事项。从上传论文或创建研究方向开始吧。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(agenda) { item in
-                        AgendaCard(item: item)
+                if let action = action {
+                    Button(action.label) {
+                        router.selectedRoute = action.route
                     }
-                }
-            }
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
-    }
-
-    // MARK: - Handoff
-
-    private var handoffSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("小妍交接")
-                        .font(.headline)
-                    Text("最近的对话与整理结果")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("打开小妍") {
-                    router.selectedRoute = .copilot
-                }
-                .font(.caption)
-            }
-
-            let handoffs = buildHandoffs()
-            if handoffs.isEmpty {
-                Text("暂无交接内容。先去和小妍对话吧。")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(handoffs) { item in
-                        HandoffCard(item: item, router: router)
-                    }
                 }
             }
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
-    }
-
-    // MARK: - Interests
-
-    private var interestsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("在研主题")
-                        .font(.headline)
-                    Text("按推进优先级排序")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("去规划") {
-                    router.selectedRoute = .planner
-                }
-                .font(.caption)
-            }
-
-            if interests.isEmpty {
-                Text("暂无研究主题。先从一个研究问题开始，小妍会帮你搭起路线。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(interests.prefix(3)) { interest in
-                        InterestCard(interest: interest, router: router)
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
-    }
-
-    // MARK: - Risks
-
-    private var risksSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("阻塞与截止")
-                        .font(.headline)
-                    Text("容易拖慢研究推进的事项")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("去投稿") {
-                    router.selectedRoute = .submission
-                }
-                .font(.caption)
-            }
-
-            if upcomingDeadlines.isEmpty {
-                Text("暂无即将截止的投稿。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(upcomingDeadlines.prefix(3)) { sub in
-                        RiskCard(submission: sub)
-                    }
-                }
-            }
+            content()
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
@@ -234,25 +173,13 @@ struct HomeView: View {
 
     // MARK: - Assets
 
-    private var assetsSection: some View {
+    private func assetsSection(model: WorkbenchOverviewModel) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("最近沉淀")
-                    .font(.headline)
-                Spacer()
-            }
-
-            let assets = buildAssets()
-            if assets.isEmpty {
-                Text("暂无沉淀内容。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-            } else {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    ForEach(assets.prefix(6)) { item in
-                        AssetCard(item: item, router: router)
-                    }
+            Text("最近沉淀")
+                .font(.headline)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(model.assets) { item in
+                    WorkbenchAssetCard(item: item, router: router)
                 }
             }
         }
@@ -261,377 +188,65 @@ struct HomeView: View {
         .cornerRadius(12)
     }
 
-    // MARK: - Data Loading
+    // MARK: - Shortcuts
 
-    private func loadData() {
-        let paperRepo = PaperRepository()
-        let subRepo = SubmissionRepository()
-        let expRepo = ExperimentRepository()
-        let knRepo = KnowledgeRepository()
-        let chatRepo = ChatRepository()
-
-        paperCount = (try? paperRepo.list().count) ?? 0
-        submissionCount = (try? subRepo.listSubmissions().count) ?? 0
-        experimentCount = (try? expRepo.list().count) ?? 0
-        noteCount = (try? knRepo.listNotes().count) ?? 0
-        recentPapers = (try? paperRepo.list().suffix(5).reversed()) ?? []
-        upcomingDeadlines = ((try? subRepo.listSubmissions()) ?? [])
-            .filter { $0.deadline != nil }
-            .sorted { ($0.deadline ?? .distantFuture) < ($1.deadline ?? .distantFuture) }
-        interests = (try? knRepo.listInterests()) ?? []
-        recentNotes = (try? knRepo.listNotes().suffix(3).reversed()) ?? []
-        recentSessions = (try? chatRepo.listSessions().suffix(3).reversed()) ?? []
-    }
-
-    // MARK: - Agenda Builder
-
-    private func buildAgenda() -> [AgendaItem] {
-        var items: [AgendaItem] = []
-
-        // Papers needing analysis
-        let unanalyzed = recentPapers.filter { $0.status == .parsed || $0.status == .uploaded }
-        if let first = unanalyzed.first {
-            items.append(AgendaItem(
-                id: "paper-\(first.id)",
-                label: "论文",
-                title: first.title,
-                description: "已完成上传，建议开始精读分析",
-                action: { router.selectedRoute = .papers }
-            ))
-        }
-
-        // Upcoming deadlines within 7 days
-        let soon = upcomingDeadlines.filter {
-            guard let ddl = $0.deadline else { return false }
-            return ddl.timeIntervalSinceNow < 7 * 86400
-        }
-        if let first = soon.first {
-            items.append(AgendaItem(
-                id: "deadline-\(first.id)",
-                label: "截止",
-                title: first.title,
-                description: "即将截止，请检查投稿准备进度",
-                action: { router.selectedRoute = .submission }
-            ))
-        }
-
-        // Interests without learning path
-        let noPath = interests.filter { $0.learningPath == nil }
-        if let first = noPath.first {
-            items.append(AgendaItem(
-                id: "interest-\(first.id)",
-                label: "规划",
-                title: first.topic,
-                description: "尚未生成学习路径，建议立即规划",
-                action: { router.selectedRoute = .planner }
-            ))
-        }
-
-        return items.prefix(3).map { $0 }
-    }
-
-    // MARK: - Handoff Builder
-
-    private func buildHandoffs() -> [HandoffItem] {
-        var items: [HandoffItem] = []
-
-        for session in recentSessions.prefix(2) {
-            items.append(HandoffItem(
-                id: "session-\(session.id)",
-                label: "对话",
-                title: session.title ?? "新对话",
-                description: "继续追问，不用从头描述背景",
-                action: { router.selectedRoute = .copilot }
-            ))
-        }
-
-        for note in recentNotes.prefix(2) {
-            items.append(HandoffItem(
-                id: "note-\(note.id)",
-                label: "笔记",
-                title: note.title,
-                description: String(note.content.prefix(60)) + (note.content.count > 60 ? "…" : ""),
-                action: { router.selectedRoute = .knowledge }
-            ))
-        }
-
-        return items.prefix(3).map { $0 }
-    }
-
-    // MARK: - Asset Builder
-
-    private func buildAssets() -> [AssetItem] {
-        var items: [AssetItem] = []
-
-        for paper in recentPapers.prefix(2) {
-            items.append(AssetItem(
-                id: "paper-\(paper.id)",
-                label: "论文",
-                title: paper.title,
-                description: paper.authors.joined(separator: ", "),
-                action: { router.selectedRoute = .papers }
-            ))
-        }
-
-        for note in recentNotes.prefix(2) {
-            items.append(AssetItem(
-                id: "note-\(note.id)",
-                label: "笔记",
-                title: note.title,
-                description: String(note.content.prefix(80)) + (note.content.count > 80 ? "…" : ""),
-                action: { router.selectedRoute = .knowledge }
-            ))
-        }
-
-        for interest in interests.prefix(2) {
-            items.append(AssetItem(
-                id: "interest-\(interest.id)",
-                label: "研究方向",
-                title: interest.topic,
-                description: interest.keywords?.joined(separator: ", ") ?? "",
-                action: { router.selectedRoute = .planner }
-            ))
-        }
-
-        return items
-    }
-}
-
-// MARK: - Supporting Types
-
-private struct AgendaItem: Identifiable {
-    let id: String
-    let label: String
-    let title: String
-    let description: String
-    let action: () -> Void
-}
-
-private struct HandoffItem: Identifiable {
-    let id: String
-    let label: String
-    let title: String
-    let description: String
-    let action: () -> Void
-}
-
-private struct AssetItem: Identifiable {
-    let id: String
-    let label: String
-    let title: String
-    let description: String
-    let action: () -> Void
-}
-
-// MARK: - Cards
-
-private struct MetricItem: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.title2.bold())
+    private var shortcutsSection: some View {
+        HStack(spacing: 16) {
+            shortcutItem(icon: "map", title: "规划", description: "把研究目标、关键词和路线重新收一遍。", route: .planner, color: .blue)
+            shortcutItem(icon: "bubble.left.and.bubble.right", title: "小妍", description: "带着论文和问题继续追问，不用从头描述背景。", route: .copilot, color: .green)
+            shortcutItem(icon: "brain.head.profile", title: "知识", description: "把已经想清楚的结论沉淀下来，后面写作会更稳。", route: .knowledge, color: .orange)
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
+        .cornerRadius(12)
     }
-}
 
-private struct AgendaCard: View {
-    let item: AgendaItem
-
-    var body: some View {
-        Button(action: item.action) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(item.label)
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.blue.opacity(0.12))
-                        .foregroundColor(.blue)
-                        .cornerRadius(4)
-                    Spacer()
-                    Image(systemName: "arrow.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Text(item.title)
-                    .font(.subheadline.bold())
-                    .lineLimit(1)
-                Text(item.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .padding(10)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .cornerRadius(10)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct HandoffCard: View {
-    let item: HandoffItem
-    let router: AppRouter
-
-    var body: some View {
-        Button(action: item.action) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(item.label)
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.12))
-                        .foregroundColor(.green)
-                        .cornerRadius(4)
-                    Spacer()
-                }
-                Text(item.title)
-                    .font(.subheadline.bold())
-                    .lineLimit(1)
-                Text(item.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .padding(10)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .cornerRadius(10)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct InterestCard: View {
-    let interest: ResearchInterest
-    let router: AppRouter
-
-    var body: some View {
-        Button(action: { router.selectedRoute = .planner }) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(interest.topic)
+    private func shortcutItem(icon: String, title: String, description: String, route: AppRoute, color: Color) -> some View {
+        Button(action: { router.selectedRoute = route }) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.body)
+                    .foregroundStyle(color)
+                    .frame(width: 32, height: 32)
+                    .background(color.opacity(0.12))
+                    .cornerRadius(8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
                         .font(.subheadline.bold())
-                        .lineLimit(1)
-                    Spacer()
-                    if interest.learningPath != nil {
-                        Text("已有路径")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.green.opacity(0.12))
-                            .foregroundColor(.green)
-                            .cornerRadius(4)
-                    } else {
-                        Text("待规划")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.12))
-                            .foregroundColor(.orange)
-                            .cornerRadius(4)
-                    }
-                }
-
-                if let keywords = interest.keywords, !keywords.isEmpty {
-                    HStack(spacing: 4) {
-                        ForEach(keywords.prefix(3), id: \.self) { kw in
-                            Text(kw)
-                                .font(.caption2)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(4)
-                        }
-                    }
-                }
-
-                if let path = interest.learningPath, let firstStage = path.stages?.first, let desc = firstStage.description {
-                    Text(desc)
+                    Text(description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
-            }
-            .padding(10)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .cornerRadius(10)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct RiskCard: View {
-    let submission: Submission
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(submission.title)
-                    .font(.subheadline.bold())
-                    .lineLimit(1)
                 Spacer()
-                if let deadline = submission.deadline {
-                    let daysLeft = Int(deadline.timeIntervalSinceNow / 86400)
-                    Text(daysLeft <= 0 ? "已过期" : "还剩 \(daysLeft) 天")
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(daysLeft <= 3 ? Color.red.opacity(0.12) : Color.orange.opacity(0.12))
-                        .foregroundColor(daysLeft <= 3 ? .red : .orange)
-                        .cornerRadius(4)
-                }
             }
-            if let venue = submission.venueName {
-                Text(venue)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if let deadline = submission.deadline {
-                Text(deadline, style: .date)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(10)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .cornerRadius(10)
-    }
-}
-
-private struct AssetCard: View {
-    let item: AssetItem
-    let router: AppRouter
-
-    var body: some View {
-        Button(action: item.action) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.label)
-                    .font(.caption2.bold())
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                Text(item.title)
-                    .font(.subheadline.bold())
-                    .lineLimit(1)
-                Text(item.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .cornerRadius(10)
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Data Loading
+
+    private func loadData() {
+        loading = true
+        let paperRepo = PaperRepository()
+        let subRepo = SubmissionRepository()
+        let knRepo = KnowledgeRepository()
+        let chatRepo = ChatRepository()
+
+        let papers = (try? paperRepo.list()) ?? []
+        let interests = (try? knRepo.listInterests()) ?? []
+        let notes = (try? knRepo.listNotes()) ?? []
+        let sessions = (try? chatRepo.listSessions()) ?? []
+        let submissionStats = (try? subRepo.stats()) ?? SubmissionRepository.SubmissionStats(active: 0, pendingReviews: 0, upcomingDdls: [])
+
+        let builder = WorkbenchBuilder(
+            papers: papers,
+            interests: interests,
+            notes: notes,
+            sessions: sessions,
+            submissionStats: submissionStats
+        )
+        model = builder.build()
+        loading = false
     }
 }

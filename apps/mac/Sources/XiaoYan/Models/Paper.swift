@@ -108,7 +108,7 @@ struct PaperChunk: Codable, Identifiable {
     }
 }
 
-struct PaperFigure: Codable, Identifiable {
+struct PaperFigure: Codable, Identifiable, FetchableRecord {
     let id: String
     let paperId: String
     let figIndex: Int

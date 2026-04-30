@@ -215,6 +215,7 @@ private struct RunMiniBadge: View {
         case .failed: return "失败"
         case .running: return "处理中"
         case .pending: return "待处理"
+        case .idle: return "未开始"
         }
     }
 
@@ -224,6 +225,7 @@ private struct RunMiniBadge: View {
         case .failed: return .red
         case .running: return .orange
         case .pending: return .secondary
+        case .idle: return .gray
         }
     }
 }
