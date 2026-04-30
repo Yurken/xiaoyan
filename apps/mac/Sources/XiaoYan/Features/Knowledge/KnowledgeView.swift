@@ -15,6 +15,7 @@ struct KnowledgeView: View {
     enum Tab: String, CaseIterable {
         case notes = "笔记"
         case interests = "研究方向"
+        case claims = "论断"
     }
 
     var filteredNotes: [KnowledgeNote] {
@@ -52,24 +53,25 @@ struct KnowledgeView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 8)
 
-                if selectedTab == .notes {
-                    notesList
-                } else {
-                    interestsList
+                switch selectedTab {
+                case .notes: notesList
+                case .interests: interestsList
+                case .claims: ClaimsView()
                 }
             }
             .navigationTitle("知识")
             .toolbar {
                 ToolbarItem {
                     Button(action: {
-                        if selectedTab == .notes {
-                            showingCreateNote = true
-                        } else {
-                            showingCreateInterest = true
+                        switch selectedTab {
+                        case .notes: showingCreateNote = true
+                        case .interests: showingCreateInterest = true
+                        case .claims: break
                         }
                     }) {
                         Label("新建", systemImage: "plus")
                     }
+                    .disabled(selectedTab == .claims)
                 }
             }
         } detail: {

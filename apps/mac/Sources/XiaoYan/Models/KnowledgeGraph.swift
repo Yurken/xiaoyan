@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-struct KnowledgeClaim: Codable, Identifiable, FetchableRecord {
+struct KnowledgeClaim: Codable, Identifiable, Hashable, FetchableRecord {
     let id: String
     var title: String
     var statement: String

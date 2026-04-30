@@ -108,12 +108,40 @@ struct KnowledgeRepository {
     }
 
     // Knowledge Graph
+    func listClaims() throws -> [KnowledgeClaim] {
+        try dbQueue.read { db in
+            try KnowledgeClaim.fetchAll(db, sql: "SELECT * FROM knowledge_graph_claims ORDER BY created_at DESC")
+        }
+    }
+
+    func listEvidenceLinks(claimId: String) throws -> [EvidenceLink] {
+        try dbQueue.read { db in
+            try EvidenceLink.fetchAll(db, sql: "SELECT * FROM knowledge_graph_evidence_links WHERE claim_id = ?", arguments: [claimId])
+        }
+    }
+
     func insertClaim(_ claim: KnowledgeClaim) throws {
         try dbQueue.write { db in
             try db.execute(
                 sql: "INSERT INTO knowledge_graph_claims (id, title, statement, research_interest_id, status) VALUES (?,?,?,?,?)",
                 arguments: [claim.id, claim.title, claim.statement, claim.researchInterestId, claim.status]
             )
+        }
+    }
+
+    func updateClaim(_ claim: KnowledgeClaim) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE knowledge_graph_claims SET title=?, statement=?, status=? WHERE id=?",
+                arguments: [claim.title, claim.statement, claim.status, claim.id]
+            )
+        }
+    }
+
+    func deleteClaim(id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM knowledge_graph_evidence_links WHERE claim_id = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM knowledge_graph_claims WHERE id = ?", arguments: [id])
         }
     }
 
