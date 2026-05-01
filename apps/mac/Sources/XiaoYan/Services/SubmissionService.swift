@@ -55,44 +55,162 @@ final class SubmissionService: ObservableObject {
         try? repo.deleteSubmission(id: id)
     }
 
-    // MARK: - AI Review
+    // MARK: - Mock Review
 
-    func runAIReview(submissionId: String, content: String, settings: AppSettings) -> AsyncThrowingStream<String, Error> {
+    /// 多 reviewer 模拟审稿，每完成一位 reviewer 就 yield 一次。
+    /// 与 desktop `submission:ai_review:reviewer` 事件流语义对齐（粒度=完整 reviewer JSON）。
+    nonisolated func runMockReview(
+        content: String,
+        reviewerCount: Int,
+        strictness: MockStrictness,
+        settings: AppSettings
+    ) -> AsyncThrowingStream<MockReviewerResult, Error> {
         AsyncThrowingStream { continuation in
             Task {
-                guard let client = LLMClient.fromSettings(settings) else {
-                    continuation.yield("请先配置 LLM 提供商")
-                    continuation.finish()
+                let client = await MainActor.run {
+                    LLMClient.fromSettings(
+                        settings,
+                        modelKeys: ["paper_analysis_model"],
+                        temperatureKeys: ["paper_analysis_temperature"]
+                    )
+                }
+                guard let client else {
+                    continuation.finish(throwing: LLMError.apiKeyMissing)
                     return
                 }
 
-                let prompt = """
-                你是一位学术论文审稿人。请对以下论文进行详细评审。
-
-                ## 论文内容
-                \(content)
-
-                请从以下维度评审：
-                1. 创新性与贡献
-                2. 方法论质量
-                3. 实验设计与结果
-                4. 写作质量
-                5. 总体评价与建议
-                """
-
-                do {
-                    for try await chunk in client.streamChat(
-                        messages: [LLMClient.Message(role: "user", content: content)],
-                        systemPrompt: prompt
-                    ) {
-                        continuation.yield(chunk)
+                let count = max(2, min(reviewerCount, 4))
+                for index in 1...count {
+                    let isAC = (count == 4 && index == 4)
+                    let reviewerName = isAC ? "AC（领域主席）" : "Reviewer \(index)"
+                    let systemPrompt = Self.mockReviewSystemPrompt(
+                        reviewerName: reviewerName,
+                        isAreaChair: isAC,
+                        strictness: strictness
+                    )
+                    do {
+                        let raw = try await client.chat(
+                            messages: [LLMClient.Message(role: "user", content: content)],
+                            systemPrompt: systemPrompt
+                        )
+                        let result = Self.parseMockReviewer(raw: raw, reviewer: reviewerName)
+                        continuation.yield(result)
+                    } catch {
+                        continuation.finish(throwing: error)
+                        return
                     }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
                 }
+                continuation.finish()
             }
         }
+    }
+
+    /// 将 Mock Review 结果导入为新一轮 review_rounds + review_comments，返回 round 号
+    @discardableResult
+    func importMockReviewAsRound(
+        submissionId: String,
+        results: [MockReviewerResult]
+    ) -> Int {
+        guard !results.isEmpty else { return 0 }
+        let existing = (try? repo.listReviewRounds(submissionId: submissionId)) ?? []
+        let nextRound = (existing.map(\.round).max() ?? 0) + 1
+        let verdict = dominantVerdict(results)?.rawValue ?? "major_revision"
+
+        let round = ReviewRound(
+            id: UUID().uuidString,
+            submissionId: submissionId,
+            round: nextRound,
+            verdict: verdict,
+            receivedAt: Date()
+        )
+        try? repo.upsertReviewRound(round)
+
+        for r in results {
+            let comment = ReviewComment(
+                id: UUID().uuidString,
+                submissionId: submissionId,
+                round: nextRound,
+                reviewer: r.reviewer,
+                content: r.renderedMarkdown,
+                response: nil,
+                resolved: false,
+                tags: r.tags,
+                createdAt: Date()
+            )
+            try? repo.insertReviewComment(comment)
+        }
+        return nextRound
+    }
+
+    // MARK: - Mock Review helpers
+
+    private static nonisolated func mockReviewSystemPrompt(
+        reviewerName: String,
+        isAreaChair: Bool,
+        strictness: MockStrictness
+    ) -> String {
+        let role = isAreaChair
+            ? "你是 \(reviewerName)（Area Chair），需综合各位审稿人的意见给出元评审"
+            : "你是 \(reviewerName)，作为该领域资深学者进行同行评议"
+        return """
+        \(role)。请以 \(strictness.promptPhrase) 的态度评审下列论文。
+
+        必须严格输出 **单个 JSON 对象**，不要任何额外文本或 Markdown 代码块标记，结构如下：
+
+        {
+          "summary": "用 2-3 句话概括论文工作",
+          "strengths": ["优点1", "优点2", "..."],
+          "weaknesses": ["缺点1", "缺点2", "..."],
+          "questions": ["问题1", "问题2", "..."],
+          "verdict": "accept | weak_accept | weak_reject | reject",
+          "score": 1-10 之间的整数
+        }
+
+        要求：
+        - 所有字段必填，列表至少包含 1 条
+        - verdict 取值仅限 accept / weak_accept / weak_reject / reject 四选一
+        - score 为整数（1-10）
+        - 直接返回 JSON，不要包裹 ```json``` 代码块
+        """
+    }
+
+    private static nonisolated func parseMockReviewer(raw: String, reviewer: String) -> MockReviewerResult {
+        let trimmed = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let data = trimmed.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return MockReviewerResult(
+                reviewer: reviewer,
+                summary: trimmed.isEmpty ? "（解析失败，无内容）" : trimmed,
+                strengths: [],
+                weaknesses: [],
+                questions: [],
+                verdict: .majorRevision,
+                score: nil,
+                tags: []
+            )
+        }
+
+        let summary = json["summary"] as? String ?? ""
+        let strengths = (json["strengths"] as? [String]) ?? []
+        let weaknesses = (json["weaknesses"] as? [String]) ?? []
+        let questions = (json["questions"] as? [String]) ?? []
+        let verdict = MockReviewVerdict.fromBackendString((json["verdict"] as? String) ?? "")
+        let score = (json["score"] as? Int) ?? (json["score"] as? Double).map { Int($0) }
+
+        return MockReviewerResult(
+            reviewer: reviewer,
+            summary: summary,
+            strengths: strengths,
+            weaknesses: weaknesses,
+            questions: questions,
+            verdict: verdict,
+            score: score
+        )
     }
 
     // MARK: - Versions

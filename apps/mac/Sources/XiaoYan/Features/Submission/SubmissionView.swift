@@ -12,7 +12,6 @@ struct SubmissionView: View {
         case checklist = "清单"
         case versions = "版本"
         case reviewRounds = "审稿"
-        case review = "AI 审稿"
         case coverLetter = "投稿信/润色"
     }
 
@@ -34,7 +33,6 @@ struct SubmissionView: View {
             case .checklist: ChecklistView(service: submissionService)
             case .versions: VersionsView(service: submissionService)
             case .reviewRounds: ReviewRoundsView(service: submissionService)
-            case .review: AIReviewView(service: submissionService)
             case .coverLetter: CoverLetterView(service: submissionService)
             }
         }
