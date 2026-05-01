@@ -137,6 +137,7 @@ private struct ClaimDetailView: View {
     @State private var editStatement = ""
     @State private var editStatus: KnowledgeClaimStatus = .hypothesis
     @State private var evidence: [EvidenceLink] = []
+    @State private var sourceTitles: [String: String] = [:]
     private let repo = KnowledgeRepository()
 
     var body: some View {
@@ -212,7 +213,7 @@ private struct ClaimDetailView: View {
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(evidence) { link in
-                                EvidenceRow(link: link, onDelete: {
+                                EvidenceRow(link: link, sourceTitle: sourceTitles[link.id], onDelete: {
                                     deleteEvidence(link)
                                 })
                             }
@@ -249,6 +250,13 @@ private struct ClaimDetailView: View {
 
     private func loadEvidence() {
         evidence = (try? repo.listEvidenceLinks(claimId: claim.id)) ?? []
+        var titles: [String: String] = [:]
+        for link in evidence {
+            if let title = try? repo.evidenceSourceTitle(kind: link.sourceKind, id: link.sourceId) {
+                titles[link.id] = title
+            }
+        }
+        sourceTitles = titles
     }
 
     private func deleteEvidence(_ link: EvidenceLink) {
@@ -268,6 +276,7 @@ private struct ClaimDetailView: View {
 
 private struct EvidenceRow: View {
     let link: EvidenceLink
+    let sourceTitle: String?
     let onDelete: () -> Void
 
     var body: some View {
@@ -276,9 +285,10 @@ private struct EvidenceRow: View {
                 .foregroundStyle(relationColor)
                 .font(.caption)
             VStack(alignment: .leading, spacing: 2) {
-                Text(link.sourceKind)
+                Text(sourceTitle ?? link.sourceId)
                     .font(.caption.bold())
-                Text("来源: \(link.sourceId)")
+                    .lineLimit(2)
+                Text(sourceKindLabel)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 if let summary = link.evidenceSummary {
@@ -299,6 +309,15 @@ private struct EvidenceRow: View {
         .background(Theme.Colors.surface)
         .cornerRadius(Theme.Radii.medium)
         .nmShadow(level: Theme.Shadows.soft)
+    }
+
+    private var sourceKindLabel: String {
+        switch link.sourceKind {
+        case "paper": return "论文"
+        case "note": return "笔记"
+        case "experiment": return "实验"
+        default: return link.sourceKind
+        }
     }
 
     private var relationIcon: String {

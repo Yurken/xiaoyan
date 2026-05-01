@@ -209,6 +209,20 @@ struct KnowledgeRepository {
         }
     }
 
+    /// 解析证据链 source 节点的展示标题（paper/note/experiment 共用 title 列）
+    func evidenceSourceTitle(kind: String, id: String) throws -> String? {
+        let sql: String
+        switch kind {
+        case "paper": sql = "SELECT title FROM papers WHERE id = ?"
+        case "note": sql = "SELECT title FROM knowledge_notes WHERE id = ?"
+        case "experiment": sql = "SELECT title FROM experiment_records WHERE id = ?"
+        default: return nil
+        }
+        return try dbQueue.read { db in
+            try String.fetchOne(db, sql: sql, arguments: [id])
+        }
+    }
+
     // MARK: - Semantic Search
 
     func searchNotes(queryEmbedding: [Float], topK: Int = 5) throws -> [SemanticSearchResult] {

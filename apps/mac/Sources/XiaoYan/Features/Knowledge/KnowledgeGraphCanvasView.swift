@@ -337,12 +337,18 @@ struct KnowledgeGraphCanvasView: View {
                         .foregroundStyle(.secondary)
                     ForEach(related) { link in
                         VStack(alignment: .leading, spacing: 2) {
-                            HStack {
+                            HStack(alignment: .top, spacing: 4) {
                                 Image(systemName: relationIcon(link.relationKind))
                                     .foregroundStyle(relationColor(link.relationKind))
                                     .font(.caption2)
-                                Text(link.sourceKind)
-                                    .font(.caption.bold())
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(sourceTitle(for: link) ?? link.sourceId)
+                                        .font(.caption.bold())
+                                        .lineLimit(2)
+                                    Text(sourceKindLabel(link.sourceKind))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                             if let summary = link.evidenceSummary {
                                 Text(summary)
@@ -401,6 +407,24 @@ struct KnowledgeGraphCanvasView: View {
 
     private func incomingLinks(for node: GraphNode) -> [EvidenceLink] {
         evidenceLinks.filter { $0.claimId == node.id }
+    }
+
+    private func sourceTitle(for link: EvidenceLink) -> String? {
+        switch link.sourceKind {
+        case "paper": return papers.first(where: { $0.id == link.sourceId })?.title
+        case "note": return notes.first(where: { $0.id == link.sourceId })?.title
+        case "experiment": return experiments.first(where: { $0.id == link.sourceId })?.title
+        default: return nil
+        }
+    }
+
+    private func sourceKindLabel(_ kind: String) -> String {
+        switch kind {
+        case "paper": return "论文"
+        case "note": return "笔记"
+        case "experiment": return "实验"
+        default: return kind
+        }
     }
 
     private func nodeColor(_ type: NodeType) -> Color {
