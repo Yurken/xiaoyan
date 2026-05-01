@@ -223,6 +223,33 @@ struct KnowledgeRepository {
         }
     }
 
+    /// 检查同一 (claim, source, kind, relation) 组合是否已绑定（UNIQUE 约束键）
+    func evidenceLinkExists(claimId: String, sourceKind: String, sourceId: String, relationKind: String) throws -> Bool {
+        try dbQueue.read { db in
+            let count = try Int.fetchOne(
+                db,
+                sql: """
+                    SELECT COUNT(*) FROM knowledge_graph_evidence_links
+                    WHERE claim_id = ? AND source_kind = ? AND source_id = ? AND relation_kind = ?
+                """,
+                arguments: [claimId, sourceKind, sourceId, relationKind]
+            ) ?? 0
+            return count > 0
+        }
+    }
+
+    /// 检查论文引用对 (citing → cited) 是否已存在（UNIQUE 约束键）
+    func citationExists(citingPaperId: String, citedPaperId: String) throws -> Bool {
+        try dbQueue.read { db in
+            let count = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM knowledge_paper_citations WHERE citing_paper_id = ? AND cited_paper_id = ?",
+                arguments: [citingPaperId, citedPaperId]
+            ) ?? 0
+            return count > 0
+        }
+    }
+
     // MARK: - Semantic Search
 
     func searchNotes(queryEmbedding: [Float], topK: Int = 5) throws -> [SemanticSearchResult] {

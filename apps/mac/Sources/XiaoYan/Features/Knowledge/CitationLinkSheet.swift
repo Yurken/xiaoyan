@@ -82,6 +82,15 @@ struct CitationLinkSheet: View {
 
     private func submit() {
         let trimmed = context.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            if try repo.citationExists(citingPaperId: citing.id, citedPaperId: cited.id) {
+                errorMessage = "已记录此引用关系，无需重复添加"
+                return
+            }
+        } catch {
+            errorMessage = "校验失败：\(error.localizedDescription)"
+            return
+        }
         let citation = PaperCitation(
             id: UUID().uuidString,
             citingPaperId: citing.id,

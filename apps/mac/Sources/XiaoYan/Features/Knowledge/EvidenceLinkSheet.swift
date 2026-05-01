@@ -114,6 +114,20 @@ struct EvidenceLinkSheet: View {
 
     private func submit() {
         let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            if try repo.evidenceLinkExists(
+                claimId: claim.id,
+                sourceKind: sourceKind,
+                sourceId: evidence.id,
+                relationKind: relation.rawValue
+            ) {
+                errorMessage = "已绑定相同关系，无需重复添加"
+                return
+            }
+        } catch {
+            errorMessage = "校验失败：\(error.localizedDescription)"
+            return
+        }
         let link = EvidenceLink(
             id: UUID().uuidString,
             claimId: claim.id,
