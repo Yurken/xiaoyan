@@ -8,6 +8,8 @@ struct CopilotView: View {
     @State private var messages: [ChatDisplayMessage] = []
     @State private var inputText = ""
     @State private var activeAssistantId: UUID?
+    @State private var activeStreamId: UUID?
+    @State private var streamTask: Task<Void, Never>?
     @State private var loadingSessions = true
 
     private var chatRepo = ChatRepository()
@@ -40,6 +42,9 @@ struct CopilotView: View {
             if newValue != nil {
                 consumePendingContext()
             }
+        }
+        .onDisappear {
+            cancelActiveStream()
         }
     }
 
@@ -235,6 +240,7 @@ struct CopilotView: View {
     // MARK: - Actions
 
     private func newChat() {
+        cancelActiveStream()
         let newId = UUID().uuidString
         currentSessionId = newId
         messages = []
@@ -248,6 +254,7 @@ struct CopilotView: View {
     }
 
     private func switchSession(to session: ChatSession) {
+        cancelActiveStream()
         currentSessionId = session.id
         loadMessages(for: session.id)
         activeAssistantId = nil
@@ -277,15 +284,19 @@ struct CopilotView: View {
         guard !trimmed.isEmpty, !chatService.isStreaming else { return }
 
         ensureSessionExists()
+        streamTask?.cancel()
 
         let userMsg = ChatDisplayMessage(role: .user, content: trimmed)
         messages.append(userMsg)
         inputText = ""
 
-        let assistantId = UUID()
         let assistantMsg = ChatDisplayMessage(role: .assistant, content: "")
+        let assistantId = assistantMsg.id
         messages.append(assistantMsg)
         activeAssistantId = assistantId
+        let streamId = UUID()
+        let sessionId = currentSessionId
+        activeStreamId = streamId
 
         chatService.currentPlan = []
         chatService.currentRuns = []
@@ -293,9 +304,9 @@ struct CopilotView: View {
         chatService.currentRequestId = nil
         chatService.streamError = nil
 
-        Task {
+        streamTask = Task {
             let stream = chatService.chat(
-                sessionId: currentSessionId,
+                sessionId: sessionId,
                 userMessage: trimmed,
                 settings: settings
             )
@@ -303,6 +314,7 @@ struct CopilotView: View {
             do {
                 for try await chunk in stream {
                     await MainActor.run {
+                        guard activeStreamId == streamId, currentSessionId == sessionId else { return }
                         if let index = messages.firstIndex(where: { $0.id == assistantId }) {
                             messages[index].content += chunk
                             messages[index].isStreaming = true
@@ -311,20 +323,26 @@ struct CopilotView: View {
                 }
 
                 await MainActor.run {
+                    guard activeStreamId == streamId, currentSessionId == sessionId else { return }
                     if let index = messages.firstIndex(where: { $0.id == assistantId }) {
                         messages[index].isStreaming = false
                     }
                     activeAssistantId = nil
-                    loadMessages(for: currentSessionId)
+                    activeStreamId = nil
+                    streamTask = nil
+                    loadMessages(for: sessionId)
                     loadSessions()
                 }
             } catch {
                 await MainActor.run {
+                    guard activeStreamId == streamId, currentSessionId == sessionId else { return }
                     if let index = messages.firstIndex(where: { $0.id == assistantId }) {
                         messages[index].content += "\n\n错误: \(error.localizedDescription)"
                         messages[index].isStreaming = false
                     }
                     activeAssistantId = nil
+                    activeStreamId = nil
+                    streamTask = nil
                 }
             }
         }
@@ -342,6 +360,7 @@ struct CopilotView: View {
 
     private func consumePendingContext() {
         guard let context = settings.pendingChatContext else { return }
+        cancelActiveStream()
         settings.pendingChatContext = nil
 
         let newId = UUID().uuidString
@@ -412,6 +431,17 @@ struct CopilotView: View {
             createdAt: Date()
         )
         try? MemoryRepository().insertMemory(memory)
+    }
+
+    private func cancelActiveStream() {
+        streamTask?.cancel()
+        streamTask = nil
+        activeStreamId = nil
+        activeAssistantId = nil
+        chatService.streamError = nil
+        if let index = messages.firstIndex(where: { $0.isStreaming }) {
+            messages[index].isStreaming = false
+        }
     }
 }
 

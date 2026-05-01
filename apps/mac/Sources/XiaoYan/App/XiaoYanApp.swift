@@ -14,6 +14,7 @@ struct XiaoYanApp: App {
                 .frame(minWidth: 900, minHeight: 600)
                 .onAppear {
                     DatabaseManager.shared.setup()
+                    settings.loadFromStore()
                 }
         }
         .windowStyle(.titleBar)

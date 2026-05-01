@@ -30,8 +30,12 @@ enum LLMClient {
 
     static func fromSettings(_ settings: [String: String], modelKeys: [String] = [], temperatureKeys: [String] = []) -> LLMClient? {
         let provider = settings["llm_provider"] ?? "openai"
-        let resolveModel = { (keys: [String]) -> String in
+        let resolveModel = { (keys: [String], fallbackKeys: [String]) -> String in
+            let allKeys = keys + fallbackKeys.filter { !keys.contains($0) }
             for key in keys {
+                if let v = settings[key], !v.isEmpty { return v }
+            }
+            for key in allKeys {
                 if let v = settings[key], !v.isEmpty { return v }
             }
             return ""
@@ -52,7 +56,7 @@ enum LLMClient {
             let config = AnthropicConfig(
                 baseURL: settings["anthropic_base_url"] ?? "https://api.anthropic.com",
                 apiKey: settings["anthropic_api_key"] ?? "",
-                model: resolveModel(modelKeys.isEmpty ? ["anthropic_model"] : modelKeys),
+                model: resolveModel(modelKeys, ["anthropic_model", "anthropic_chat_model"]),
                 temperature: resolveTemp(temperatureKeys.isEmpty ? ["anthropic_temperature"] : temperatureKeys),
                 maxTokens: resolveTokens("anthropic_max_tokens")
             )
@@ -62,7 +66,7 @@ enum LLMClient {
             let config = OpenAIConfig(
                 baseURL: settings["openai_compatible_base_url"] ?? "",
                 apiKey: settings["openai_compatible_api_key"] ?? "",
-                model: resolveModel(modelKeys.isEmpty ? ["openai_compatible_model"] : modelKeys),
+                model: resolveModel(modelKeys, ["openai_compatible_model", "openai_compatible_chat_model"]),
                 temperature: resolveTemp(temperatureKeys.isEmpty ? ["openai_compatible_temperature"] : temperatureKeys),
                 maxTokens: resolveTokens("openai_compatible_max_tokens")
             )
@@ -70,9 +74,9 @@ enum LLMClient {
 
         default:
             let config = OpenAIConfig(
-                baseURL: settings["openai_base_url"] ?? "https://api.openai.com",
+                baseURL: settings["openai_base_url"] ?? "https://api.openai.com/v1",
                 apiKey: settings["openai_api_key"] ?? "",
-                model: resolveModel(modelKeys.isEmpty ? ["openai_model"] : modelKeys),
+                model: resolveModel(modelKeys, ["openai_model", "openai_chat_model"]),
                 temperature: resolveTemp(temperatureKeys.isEmpty ? ["openai_temperature"] : temperatureKeys),
                 maxTokens: resolveTokens("openai_max_tokens")
             )

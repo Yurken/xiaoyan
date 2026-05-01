@@ -42,6 +42,23 @@ final class AppSettings: ObservableObject {
     func set(_ key: String, _ value: String) {
         settings[key] = value
         objectWillChange.send()
+        if DatabaseManager.shared.isReady {
+            SettingsService().save(key: key, value: value)
+        }
+    }
+
+    func loadFromStore() {
+        guard DatabaseManager.shared.isReady else { return }
+        settings = SettingsService().loadAll()
+    }
+
+    func apply(_ entries: [String: String], persist: Bool = true) {
+        for (key, value) in entries {
+            settings[key] = value
+        }
+        objectWillChange.send()
+        guard persist, DatabaseManager.shared.isReady else { return }
+        SettingsService().saveBatch(entries.map { (key: $0.key, value: $0.value) })
     }
 
     func resolveModel(_ keys: [String]) -> String {

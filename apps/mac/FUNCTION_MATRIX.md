@@ -2,7 +2,7 @@
 
 > 基准：master 分支 apps/desktop（Tauri + Next.js）
 > 目标：apps/mac（原生 SwiftUI）功能对等
-> 日期：2026-04-30
+> 日期：2026-05-01
 
 ---
 
@@ -21,7 +21,7 @@
 | **paperSearchApi** | search | 有 | PaperDiscoveryView.swift | — |
 | **knowledgeApi** | listInterests/createInterest/updateInterestFolder/deleteInterestBundle/deleteInterestOnly/generateInterestHints/suggestTopics/generatePlan | 完成 | KnowledgeRepository.swift, KnowledgeService.swift | generateInterestHints、suggestTopics 均已实现（LLM 调用 + JSON 解析） |
 | **knowledgeApi.notes** | listNotes/createNote/updateNote/moveNote/deleteNote/search/webClip | 完成 | KnowledgeRepository.swift, KnowledgeService.swift | webClip（URLSession 抓取 + HTML 清洗 + 保存为 note）、语义搜索（cosineSimilarity + EmbeddingClient 查询）均已实现；KnowledgeView 提供语义搜索切换与剪藏入口 |
-| **knowledgeApi.graph** | snapshot/createClaim/deleteClaim/createEvidence/deleteEvidence/createCitation/deleteCitation/citationCentrality/citationShortestPath/citationSubgraph | 部分 | KnowledgeGraphCanvasView.swift, KnowledgeRepository.swift | snapshot、deleteEvidence、deleteCitation 已实现；ClaimsView 已集成证据删除交互；缺：centrality/shortestPath/subgraph |
+| **knowledgeApi.graph** | snapshot/createClaim/deleteClaim/createEvidence/deleteEvidence/createCitation/deleteCitation/citationCentrality/citationShortestPath/citationSubgraph | 完成 | KnowledgeGraphCanvasView.swift, KnowledgeRepository.swift, CitationGraphService.swift | snapshot、证据/引用删除、centrality、shortestPath、subgraph 均已实现并接入 UI |
 | **chatApi** | listSessions/getSession/deleteSession/updateSessionContext/listAgentRuns/stream | 完成 | ChatRepository.swift, ChatService.swift | updateSessionContext、listAgentRuns(持久化读写)、历史 run 恢复、artifact JOIN 查询均已实现 |
 | **plannerApi** | generate | 有 | KnowledgeService.swift | — |
 | **surveyApi** | generate / search | 有 | SurveyView.swift | — |
@@ -78,7 +78,7 @@ v1_initial 迁移已包含绝大多数 NOT NULL DEFAULT 约束和索引。v2_sch
 | Knowledge.tsx | knowledge/* | KnowledgeView.swift + KnowledgeGraphCanvasView + ClaimsView | 完成 | 语义搜索（切换 + 相似度 + 点击打开笔记）、webClip（工具栏 + Sheet）、evidence/citation 删除交互、graph snapshot（summary 指标 + citation 列表 + 删除）、centrality/shortestPath/subgraph 分析面板 |
 | Submission.tsx | submission/* | SubmissionView.swift + KanbanView + CoverLetterView + VenueRecommendationsView | 完成 | 版本 diff、review verdict 统计、checklist 交互已完善 |
 | Experiment.tsx | experiment/* | ExperimentView.swift | 完成 | 附件管理 CRUD 已集成 |
-| Tools.tsx | tools/* | ToolsView.swift + PaperDiscoveryView + PptWorkspaceView | 部分 | 已支持 .md 导出 + 结构预览；PDF 文本提取已用 PDFKit；PPTX 原生生成需后端配合 |
+| Tools.tsx | tools/* | ToolsView.swift + PaperDiscoveryView + PptWorkspaceView | 完成 | 已支持结构预览、PDFKit 文本提取、Markdown 备份导出与原生 .pptx 生成 |
 | Settings.tsx | settings/* | SettingsView.swift + AgentConfigPanel + SettingComponents | 完成 | about（Tauri manifest 更新检查 UI）、changelog、layout、task setup 已补齐；history apply 已支持快照列表 + 应用/删除 |
 
 ---
@@ -97,7 +97,7 @@ v1_initial 迁移已包含绝大多数 NOT NULL DEFAULT 约束和索引。v2_sch
 
 ### UI 层
 - [x] **Knowledge**：语义搜索（含结果点击打开笔记）、webClip、evidence 删除交互、graph snapshot 展示（summary 指标 + citation 列表 + 删除）、centrality/shortestPath/subgraph 分析面板 已完成
-- [ ] **Tools**：PPTX 原生生成（需后端配合）
+- [x] **Tools**：PPTX 原生生成已完成（Swift 端直接打包 OpenXML，无需后端）
 
 ### 迁移
 - [x] v1_initial：完整 schema

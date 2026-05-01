@@ -5,10 +5,12 @@ final class DatabaseManager {
     static let shared = DatabaseManager()
 
     private(set) var dbQueue: DatabaseQueue!
+    var isReady: Bool { dbQueue != nil }
 
     private init() {}
 
     func setup() {
+        guard !isReady else { return }
         let url = AppConstants.databaseURL
         try? FileManager.default.createDirectory(at: AppConstants.appSupportURL, withIntermediateDirectories: true)
 

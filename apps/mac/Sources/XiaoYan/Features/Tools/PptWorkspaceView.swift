@@ -20,23 +20,42 @@ struct PptWorkspaceView: View {
     @State private var customPages = ""
 
     @State private var resultData: PptData?
+    @State private var pptxData: Data?
+    @State private var fileBaseName = "slides"
     @State private var status: PptStatus = .idle
     @State private var errorMessage: String?
     @State private var slideCount = 0
+    @State private var activeGenerationId: UUID?
 
     private var generating: Bool {
-        status == .drafting || status == .repairing
+        status == .drafting || status == .repairing || status == .building
+    }
+
+    private var customPageInvalid: Bool {
+        guard pageCount == "custom" else { return false }
+        guard let count = Int(customPages.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return true
+        }
+        return count < 4 || count > 40
     }
 
     private var generateDisabledReason: String? {
+        if generating { return "当前正在生成，请等待完成" }
         switch mode {
         case .topic:
-            return topic.trimmingCharacters(in: .whitespaces).isEmpty ? "请输入演示主题" : nil
+            if topic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "请输入演示主题" }
         case .outline:
-            return outline.trimmingCharacters(in: .whitespaces).isEmpty ? "请输入大纲" : nil
+            if outline.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "请输入大纲" }
         case .document:
-            return documentContent == nil ? "请先上传文档" : nil
+            if documentLoading { return "文档仍在读取中" }
+            if documentContent == nil { return "请先上传文档" }
+            if documentError != nil { return "请先修复文档读取错误" }
         }
+        if styleValue == "custom" && customStyle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "请输入自定义风格"
+        }
+        if customPageInvalid { return "页数需填写 4 到 40 之间的整数" }
+        return nil
     }
 
     var body: some View {
@@ -57,7 +76,12 @@ struct PptWorkspaceView: View {
 
             if let data = resultData {
                 Divider()
-                PptPreviewPanel(data: data, onCopy: copyMarkdown, onSave: saveMarkdown)
+                PptPreviewPanel(
+                    data: data,
+                    onCopyMarkdown: copyMarkdown,
+                    onSaveMarkdown: saveMarkdown,
+                    onSavePptx: savePptx
+                )
                     .frame(minHeight: 200)
             }
         }
@@ -74,7 +98,7 @@ struct PptWorkspaceView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("幻灯片生成")
                     .font(.headline)
-                Text("输入主题、文档或大纲后，小妍会先生成可预览的页面结构，再导出为 Markdown 格式。")
+                Text("输入主题、文档或大纲后，小妍会生成可预览的页面结构，并导出为 PowerPoint 文件。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -254,6 +278,10 @@ struct PptWorkspaceView: View {
             statusText
             Spacer()
             if status == .ready {
+                Button("保存 .pptx") {
+                    savePptx()
+                }
+                .buttonStyle(.borderedProminent)
                 Button("重新生成") {
                     generate()
                 }
@@ -285,11 +313,18 @@ struct PptWorkspaceView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        case .building:
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.small)
+                Text("正在整理为 .pptx 文件…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         case .ready:
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle")
                     .foregroundStyle(.green)
-                Text("已生成 \(slideCount) 张幻灯片")
+                Text("已生成 \(slideCount) 张幻灯片，可直接在 PowerPoint / WPS 中打开")
                     .font(.caption)
                     .foregroundStyle(.green)
             }
@@ -305,7 +340,7 @@ struct PptWorkspaceView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Text("默认会先给出结构预览，再导出最终文件。")
+                Text("默认会先给出结构预览，再保存最终文件。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -424,6 +459,11 @@ struct PptWorkspaceView: View {
         status = .drafting
         errorMessage = nil
         resultData = nil
+        pptxData = nil
+        fileBaseName = "slides"
+        slideCount = 0
+        let generationId = UUID()
+        activeGenerationId = generationId
 
         let prompt = PptPromptBuilder.buildPrompt(
             mode: mode,
@@ -436,17 +476,17 @@ struct PptWorkspaceView: View {
             pageCount: pageCount,
             customPages: customPages
         )
+        let settingsSnapshot = settings.settings
 
         Task {
             let client = LLMClient.fromSettings(
-                settings,
+                settingsSnapshot,
                 modelKeys: ["copilot_simple_model"],
                 temperatureKeys: ["copilot_simple_temperature"]
             )
 
             guard let client else {
-                status = .error
-                errorMessage = "请先在设置中配置 LLM 提供商。"
+                await finishGenerationIfActive(generationId, error: "请先在设置中配置 LLM 提供商。")
                 return
             }
 
@@ -456,39 +496,58 @@ struct PptWorkspaceView: View {
                     messages: [LLMClient.Message(role: "user", content: prompt)],
                     systemPrompt: "你是一位专业的学术幻灯片结构设计师。只输出合法 JSON，不要 markdown 代码块，不要解释。"
                 )
-                try parseResult(response)
+                try await buildResult(response, generationId: generationId)
             } catch {
-                await attemptRepair(client: client, raw: response, error: error)
+                await attemptRepair(client: client, raw: response, generationId: generationId)
             }
         }
     }
 
-    private func parseResult(_ text: String) throws {
-        let cleaned = text
-            .replacingOccurrences(of: "```json", with: "")
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let data = cleaned.data(using: .utf8) else {
-            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "无法将文本编码为 UTF-8 数据"))
+    private func buildResult(_ text: String, generationId: UUID) async throws {
+        let decoded = try PptResponseParser.parse(text)
+        guard await generationIsActive(generationId) else { return }
+        await MainActor.run {
+            status = .building
         }
-        let decoded = try JSONDecoder().decode(PptData.self, from: data)
-        resultData = decoded
-        slideCount = decoded.slides.count
-        status = .ready
+        let data = try PptxBuilder.build(data: decoded)
+        await MainActor.run {
+            guard activeGenerationId == generationId else { return }
+            resultData = decoded
+            pptxData = data
+            fileBaseName = PptFileName.sanitize(decoded.title)
+            slideCount = decoded.slides.count
+            status = .ready
+            activeGenerationId = nil
+        }
     }
 
-    private func attemptRepair(client: LLMClient, raw: String, error: Error) async {
-        status = .repairing
+    private func attemptRepair(client: LLMClient, raw: String, generationId: UUID) async {
+        await MainActor.run {
+            guard activeGenerationId == generationId else { return }
+            status = .repairing
+        }
         do {
             let repairPrompt = PptPromptBuilder.buildRepairPrompt(raw: raw)
             let response = try await client.chat(
                 messages: [LLMClient.Message(role: "user", content: repairPrompt)],
                 systemPrompt: "你只修复 JSON 格式，不修改语义。"
             )
-            try parseResult(response)
+            try await buildResult(response, generationId: generationId)
         } catch {
+            await finishGenerationIfActive(generationId, error: "生成失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func generationIsActive(_ generationId: UUID) async -> Bool {
+        await MainActor.run { activeGenerationId == generationId }
+    }
+
+    private func finishGenerationIfActive(_ generationId: UUID, error: String) async {
+        await MainActor.run {
+            guard activeGenerationId == generationId else { return }
             status = .error
-            errorMessage = "生成失败: \(error.localizedDescription)"
+            errorMessage = error
+            activeGenerationId = nil
         }
     }
 
@@ -496,17 +555,17 @@ struct PptWorkspaceView: View {
 
     private func copyMarkdown() {
         guard let data = resultData else { return }
-        let md = exportMarkdown(data: data)
+        let md = PptMarkdownExporter.export(data: data)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(md, forType: .string)
     }
 
     private func saveMarkdown() {
         guard let data = resultData else { return }
-        let md = exportMarkdown(data: data)
+        let md = PptMarkdownExporter.export(data: data)
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.plainText]
-        panel.nameFieldStringValue = "\(data.title).md"
+        panel.nameFieldStringValue = "\(PptFileName.sanitize(data.title)).md"
         panel.begin { result in
             if result == .OK, let url = panel.url {
                 try? md.write(to: url, atomically: true, encoding: .utf8)
@@ -514,196 +573,17 @@ struct PptWorkspaceView: View {
         }
     }
 
-    private func exportMarkdown(data: PptData) -> String {
-        var lines: [String] = []
-        lines.append("# \(data.title)")
-        lines.append("")
-        for slide in data.slides {
-            switch slide.layout {
-            case .title:
-                lines.append("## \(slide.title)")
-                if let subtitle = slide.subtitle {
-                    lines.append(subtitle)
-                }
-            case .section:
-                lines.append("---")
-                lines.append("## \(slide.title)")
-                if let subtitle = slide.subtitle {
-                    lines.append(subtitle)
-                }
-            case .content:
-                lines.append("### \(slide.title)")
-                for bullet in slide.bullets ?? [] {
-                    lines.append("- \(bullet)")
-                }
-            case .two_column:
-                lines.append("### \(slide.title)")
-                lines.append("| 左侧 | 右侧 |")
-                lines.append("| --- | --- |")
-                let left = slide.left ?? []
-                let right = slide.right ?? []
-                let maxCount = max(left.count, right.count)
-                for i in 0..<maxCount {
-                    lines.append("| \(i < left.count ? left[i] : "") | \(i < right.count ? right[i] : "") |")
-                }
-            case .highlight:
-                lines.append("### \(slide.title)")
-                if let highlight = slide.highlight {
-                    lines.append("> \(highlight)")
-                }
-                for bullet in slide.bullets ?? [] {
-                    lines.append("- \(bullet)")
-                }
-            case .timeline:
-                lines.append("### \(slide.title)")
-                for (index, step) in (slide.steps ?? []).enumerated() {
-                    lines.append("\(index + 1). \(step)")
-                }
-                if let note = slide.note {
-                    lines.append("")
-                    lines.append(note)
-                }
-            }
-            lines.append("")
+    private func savePptx() {
+        guard let data = pptxData else { return }
+        let panel = NSSavePanel()
+        if let pptxType = UTType(filenameExtension: "pptx") {
+            panel.allowedContentTypes = [pptxType]
         }
-        return lines.joined(separator: "\n")
-    }
-}
-
-// MARK: - Preview Panel
-
-struct PptPreviewPanel: View {
-    let data: PptData
-    let onCopy: () -> Void
-    let onSave: () -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("幻灯片预览: \(data.title)")
-                    .font(.subheadline.bold())
-                Spacer()
-                Button("复制 Markdown") { onCopy() }
-                    .font(.caption)
-                Button("保存 .md") { onSave() }
-                    .font(.caption)
+        panel.nameFieldStringValue = "\(fileBaseName).pptx"
+        panel.begin { result in
+            if result == .OK, let url = panel.url {
+                try? data.write(to: url, options: .atomic)
             }
-            .padding()
-
-            Divider()
-
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 12) {
-                    ForEach(data.slides) { slide in
-                        PptSlideCard(slide: slide)
-                    }
-                }
-                .padding()
-            }
-        }
-    }
-}
-
-struct PptSlideCard: View {
-    let slide: PptSlide
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(slide.layout.displayName)
-                    .font(.caption2.bold())
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(layoutColor.opacity(0.12))
-                    .foregroundColor(layoutColor)
-                    .cornerRadius(4)
-                Spacer()
-            }
-
-            Text(slide.title)
-                .font(.subheadline.bold())
-                .lineLimit(2)
-
-            if let subtitle = slide.subtitle {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            if let bullets = slide.bullets, !bullets.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(bullets, id: \.self) { bullet in
-                        Text("• \(bullet)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-                }
-            }
-
-            if let highlight = slide.highlight {
-                Text(highlight)
-                    .font(.caption)
-                    .italic()
-                    .foregroundStyle(.primary)
-                    .padding(6)
-                    .background(Color.yellow.opacity(0.1))
-                    .cornerRadius(6)
-            }
-
-            if let steps = slide.steps, !steps.isEmpty {
-                HStack(spacing: 4) {
-                    ForEach(steps, id: \.self) { step in
-                        Text(step)
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.blue.opacity(0.08))
-                            .cornerRadius(4)
-                    }
-                }
-            }
-
-            if let left = slide.left, let right = slide.right {
-                HStack(alignment: .top, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(left, id: \.self) { item in
-                            Text(item)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(right, id: \.self) { item in
-                            Text(item)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(layoutColor.opacity(0.2), lineWidth: 1)
-        )
-        .cornerRadius(8)
-    }
-
-    private var layoutColor: Color {
-        switch slide.layout {
-        case .title: return .blue
-        case .section: return .purple
-        case .content: return .green
-        case .two_column: return .orange
-        case .highlight: return .yellow
-        case .timeline: return .teal
         }
     }
 }

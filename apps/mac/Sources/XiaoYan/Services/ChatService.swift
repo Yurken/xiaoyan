@@ -43,7 +43,7 @@ final class ChatService: ObservableObject {
         settings: AppSettings
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            Task { @MainActor in
+            let task = Task { @MainActor in
                 self.isStreaming = true
                 defer { self.isStreaming = false }
                 self.currentSources = []
@@ -84,6 +84,9 @@ final class ChatService: ObservableObject {
                         continuation: continuation
                     )
                 }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
             }
         }
     }

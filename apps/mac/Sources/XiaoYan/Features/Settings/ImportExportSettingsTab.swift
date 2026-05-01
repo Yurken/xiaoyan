@@ -7,6 +7,7 @@ struct ImportExportSettingsTab: View {
     @State private var importText = ""
     @State private var statusMessage: String?
     @State private var snapshots: [SettingsHistory] = []
+    @State private var historyBusy = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -53,6 +54,7 @@ struct ImportExportSettingsTab: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .disabled(historyBusy)
 
                     if !snapshots.isEmpty {
                         Text("历史快照")
@@ -77,12 +79,14 @@ struct ImportExportSettingsTab: View {
                                 .buttonStyle(.borderless)
                                 .controlSize(.small)
                                 .foregroundStyle(.blue)
+                                .disabled(historyBusy)
                                 Button("删除") {
                                     deleteSnapshot(snapshot)
                                 }
                                 .buttonStyle(.borderless)
                                 .controlSize(.small)
                                 .foregroundStyle(.red)
+                                .disabled(historyBusy)
                             }
                             .padding(.vertical, 2)
                         }
@@ -114,9 +118,7 @@ struct ImportExportSettingsTab: View {
         let service = SettingsService()
         do {
             let imported = try service.importSettings(base64: clipboard, password: importPassword)
-            for (key, value) in imported {
-                settings.set(key, value)
-            }
+            settings.apply(imported)
             statusMessage = "导入成功，共 \(imported.count) 项设置"
         } catch {
             statusMessage = "导入失败: \(error.localizedDescription)"
@@ -129,6 +131,9 @@ struct ImportExportSettingsTab: View {
     }
 
     private func saveSnapshot() {
+        guard !historyBusy else { return }
+        historyBusy = true
+        defer { historyBusy = false }
         let service = SettingsService()
         let name = "快照 \(Date().formatted(date: .abbreviated, time: .shortened))"
         do {
@@ -141,12 +146,13 @@ struct ImportExportSettingsTab: View {
     }
 
     private func applySnapshot(_ snapshot: SettingsHistory) {
+        guard !historyBusy else { return }
+        historyBusy = true
+        defer { historyBusy = false }
         let service = SettingsService()
         do {
             let applied = try service.applySnapshot(id: snapshot.id)
-            for (key, value) in applied {
-                settings.set(key, value)
-            }
+            settings.apply(applied, persist: false)
             statusMessage = "已应用 \(applied.count) 项设置"
         } catch {
             statusMessage = "应用失败: \(error.localizedDescription)"
@@ -154,6 +160,9 @@ struct ImportExportSettingsTab: View {
     }
 
     private func deleteSnapshot(_ snapshot: SettingsHistory) {
+        guard !historyBusy else { return }
+        historyBusy = true
+        defer { historyBusy = false }
         let service = SettingsService()
         do {
             try service.deleteSnapshot(id: snapshot.id)

@@ -150,9 +150,7 @@ struct SettingsService {
         guard !applied.isEmpty else {
             throw SettingsError.invalidFormat
         }
-        for (key, value) in applied {
-            try settingsRepo.upsert(key: key, value: value)
-        }
+        try settingsRepo.upsertBatch(applied.map { (key: $0.key, value: $0.value) })
         return applied
     }
 

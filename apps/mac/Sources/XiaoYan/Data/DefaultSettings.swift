@@ -6,7 +6,7 @@ enum DefaultSettings {
 
         // Main LLM
         s["llm_provider"] = "openai"
-        s["openai_base_url"] = "https://api.openai.com"
+        s["openai_base_url"] = "https://api.openai.com/v1"
         s["openai_api_key"] = ""
         s["openai_model"] = "gpt-4o"
         s["anthropic_base_url"] = "https://api.anthropic.com"

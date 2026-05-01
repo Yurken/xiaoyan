@@ -5,7 +5,7 @@ enum PptMode: String, CaseIterable {
 }
 
 enum PptStatus: String {
-    case idle, drafting, repairing, ready, error
+    case idle, drafting, repairing, building, ready, error
 }
 
 enum PptLayout: String, Codable {
@@ -23,6 +23,10 @@ struct PptSlide: Codable, Identifiable {
     let highlight: String?
     let steps: [String]?
     let note: String?
+
+    enum CodingKeys: String, CodingKey {
+        case layout, title, subtitle, bullets, left, right, highlight, steps, note
+    }
 }
 
 struct PptData: Codable {
