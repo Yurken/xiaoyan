@@ -44,7 +44,7 @@
 | listComments / createComment / updateComment / deleteComment | 有 | — |
 | getChecklist / toggleChecklist | 有 | — |
 | stats | 有 | — |
-| aiReview | 有 | AIReviewView.swift |
+| aiReview | 有 | MockReviewSheet.swift |
 | polishAbstract | 有 | CoverLetterView.swift |
 | generateCoverLetter | 有 | CoverLetterView.swift |
 | version diff | 有 | VersionDiffView.swift |

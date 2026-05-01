@@ -9,6 +9,7 @@ struct VersionsView: View {
     @State private var diffMode = false
     @State private var selectedForDiff: Set<String> = []
     @State private var diffPair: DiffPair?
+    @State private var pendingReviewVersion: PaperVersion?
 
     struct DiffPair: Identifiable {
         let id = UUID()
@@ -72,7 +73,8 @@ struct VersionsView: View {
                                     diffMode: diffMode,
                                     isSelectedForDiff: selectedForDiff.contains(version.id),
                                     onToggleDiff: { toggleDiffSelection(version.id) },
-                                    onReload: loadVersions
+                                    onReload: loadVersions,
+                                    onAIReview: { pendingReviewVersion = version }
                                 )
                             }
                         }
@@ -95,6 +97,14 @@ struct VersionsView: View {
         }
         .sheet(item: $diffPair) { pair in
             VersionDiffView(oldVersion: pair.old, newVersion: pair.new)
+        }
+        .sheet(item: $pendingReviewVersion) { version in
+            MockReviewSheet(
+                service: service,
+                submissionId: selectedSubmission?.id ?? "",
+                prefilledContent: version.content ?? "",
+                onImported: { _ in loadVersions() }
+            )
         }
     }
 
@@ -132,6 +142,7 @@ private struct VersionRow: View {
     let isSelectedForDiff: Bool
     let onToggleDiff: () -> Void
     let onReload: () -> Void
+    let onAIReview: () -> Void
 
     var body: some View {
         HStack {
@@ -175,6 +186,12 @@ private struct VersionRow: View {
             Spacer()
 
             if !diffMode {
+                Button(action: onAIReview) {
+                    Label("AI 审稿", systemImage: "sparkles")
+                }
+                .font(.caption)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 Button("删除", role: .destructive) {
                     service.deleteVersion(id: version.id)
                     onReload()
