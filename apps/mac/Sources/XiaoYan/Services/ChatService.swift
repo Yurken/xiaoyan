@@ -40,7 +40,8 @@ final class ChatService: ObservableObject {
     func chat(
         sessionId: String,
         userMessage: String,
-        settings: AppSettings
+        settings: AppSettings,
+        chatMode: ChatMode? = nil
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task { @MainActor in
@@ -63,9 +64,14 @@ final class ChatService: ObservableObject {
                 let contextSummary = buildContextSummary(sessionId: sessionId, userMessage: userMessage, settings: settings)
                 let history = (try? chatRepo.fetchHistory(sessionId: sessionId, limit: 10)) ?? []
 
-                // Decide mode
-                let multiAgentEnabled = settings.get("multi_agent_enabled") == "true"
-                if multiAgentEnabled {
+                // Decide mode: explicit chatMode wins; fallback to legacy multi_agent_enabled flag
+                let useAgentic: Bool
+                if let chatMode {
+                    useAgentic = chatMode == .task
+                } else {
+                    useAgentic = settings.get("multi_agent_enabled") == "true"
+                }
+                if useAgentic {
                     await runAgentic(
                         sessionId: sessionId,
                         userMessage: userMessage,

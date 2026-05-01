@@ -7,12 +7,20 @@ struct CopilotView: View {
     @State private var currentSessionId: String = UUID().uuidString
     @State private var messages: [ChatDisplayMessage] = []
     @State private var inputText = ""
+    @AppStorage("rc_copilot_chat_mode") private var chatModeRaw: String = ChatMode.direct.rawValue
     @State private var activeAssistantId: UUID?
     @State private var activeStreamId: UUID?
     @State private var streamTask: Task<Void, Never>?
     @State private var loadingSessions = true
 
     private var chatRepo = ChatRepository()
+
+    private var chatModeBinding: Binding<ChatMode> {
+        Binding(
+            get: { ChatMode(rawValue: chatModeRaw) ?? .direct },
+            set: { chatModeRaw = $0.rawValue }
+        )
+    }
 
     var body: some View {
         HSplitView {
@@ -147,7 +155,11 @@ struct CopilotView: View {
 
             Divider()
 
-            CopilotComposerView(inputText: $inputText, onSend: sendMessage)
+            CopilotComposerView(
+                inputText: $inputText,
+                chatMode: chatModeBinding,
+                onSend: sendMessage
+            )
                 .disabled(chatService.isStreaming)
                 .padding(8)
         }
@@ -309,7 +321,8 @@ struct CopilotView: View {
             let stream = chatService.chat(
                 sessionId: sessionId,
                 userMessage: trimmed,
-                settings: settings
+                settings: settings,
+                chatMode: ChatMode(rawValue: chatModeRaw)
             )
 
             do {
