@@ -1,0 +1,266 @@
+# Mac vs Desktop 功能缺口清单
+
+> 基准：master 分支 `apps/desktop`（React + Tauri + Next.js）
+> 目标：mac-dev 分支 `apps/mac`（Swift / SwiftUI 原生）
+> 审计日期：2026-05-01
+> 配套：`FUNCTION_MATRIX.md`（API/页面级矩阵）
+
+本清单聚焦真实功能缺口，不计行数差异。每条含 desktop 出处、mac 现状与优先级（P1 影响主流程 / P2 体验明显劣化 / P3 细节）。
+
+---
+
+## 0. 数据互通风险点（最高优先级，必须先修）
+
+跨端共用同一 SQLite 时这些差异会导致脏数据或读不到。
+
+| # | 字段/枚举 | desktop | mac | 影响 |
+|---|---|---|---|---|
+| **R1** | Submission `status` 状态机 | 5 态 `writing/submitted/reviewing/accepted/rejected`（`shared.ts:4, 257-263`） | 7 态加 `draft/preparing/revision/withdrawn`（`SubmissionsListView.swift:75-86`） | DB schema 不互通 |
+| **R2** | KnowledgeClaim `status` 枚举 | `hypothesis/supported/contested/open`（`KnowledgeGraphComposer.tsx:193-198`） | 中文 `待验证/已验证/已证伪`（`ClaimsView.swift:333-336`） | 数据库存值不通 |
+| **R3** | Experiment `result` 字段 | 字符串自由文本（`Experiment.tsx:484-493`） | 解码为 `[String:String]`（`ExperimentView.swift:188-191, 258-261`） | desktop 写入 mac 读不到 |
+| **R4** | Copilot `chat_mode` 字段 | 显式 `direct/task`（`Copilot.tsx:378`） | 不发该字段，靠 settings `multi_agent_enabled` 隐式（`ChatService.swift:67-86`） | 跨端会话语义不一致 |
+
+---
+
+## 1. Copilot（小妍对话）
+
+### P1
+- **A1 附件/上传文件**：mac 无 — desktop `useCopilotAttachments.ts:1-180`、`CopilotComposer.tsx:277-309`；mac `CopilotComposerView.swift:7-28`
+- **A2 chat_mode 切换 UI**：mac 无 — desktop `useCopilotChatMode.ts:1-26`、`CopilotComposer.tsx:87-113`；mac 无对应（参见 R4）
+- **A3 Skills 选择器与 prompt 注入**：UI 缺失（后端已就绪）— desktop `CopilotComposer.tsx:115-274` + `Copilot.tsx:327-330`；mac `Services/SkillService.swift` 存在但 Copilot 未引用
+- **A4 Interest 归属/会话分组**：mac 仅扁平列表 — desktop `Copilot.tsx:201-322, 538-645`（顶部 Select + 右键移动 + 按 interest 折叠）；mac `CopilotView.swift:69-96`
+- **C1 自由工作台模式 / FocusLayout（hideFolders）**：mac 无 — desktop `Copilot({ hideFolders })`（`Copilot.tsx:83`）+ `FocusLayout.tsx`；mac 无对应路由
+
+### P2
+- **A5 流式中断 Stop 按钮**：mac 仅切换/关闭时 abort，无手动停止 — desktop `Copilot.tsx:241-244, 342-344`；mac `CopilotView.swift:437-446`
+- **A6 流事件未驱动 UI**：sources/plan/agent_runs 未渲染 — desktop `Copilot.tsx:387-426, 871-892`；mac `ChatService.swift:125-131`（`runSimple/runAgentic` 不写 sources）
+- **A7 `<think>` 思考块解析与折叠展示**：mac 无 — desktop `splitThoughtFromContent` `Copilot.tsx:36-50, 778-785`
+- **A8 Mission Control 全屏展开**：mac 仅固定侧栏 — desktop `CopilotOverviewSidebar.tsx:39-117`（ChevronsLeft/Right + Esc）
+- **A9 状态图非交互**：mac 无连线绘制 — desktop `AgentStateGraphPanel.tsx:46-168`（贝塞尔 + 滚轮缩放 + 拖动）；mac `AgentStateGraphView.swift:78-156`
+- **A10 Artifact Markdown 渲染与外链**：mac 仅 5 行截断纯文本 — desktop `CopilotOverviewSidebar.tsx:177-181`；mac `MissionControlView.swift:235-250`
+- **C2 Artifact 导出/复制 markdown 入口**：mac `ExportService` 存在但 Mission Control 未挂入口
+
+### P3
+- **A11 删除会话二次确认 / 兴趣组级删除**：mac 仅 contextMenu 直接删除
+- **A12 Memory chat.query 摘要写入**：mac 仅写库无 query 摘要
+- **A13 主题文件夹下拉、未归类分组、CollapsibleGroup**：mac 无
+- **A14 Composer 默认提示（仅附件无文本时）**：mac 无 `DEFAULT_ATTACHMENT_PROMPT`
+- **A15 Enter / Shift+Enter 行为**：mac TextEditor 默认 Enter 总换行，与 desktop 不一致
+- **C3 AgentRun summary**：mac 写死"执行完成/综合完成"（`ChatService.swift:281, 317`），desktop 来自后端真实摘要
+
+---
+
+## 2. Home / Workbench
+
+### P1
+- 无（功能基本对齐）
+
+### P2
+- **B2 Risks 状态机字段映射 bug**：`WorkbenchModel.swift:427-428` 把 `.parsed` 同时算入 `failedPapers` 与 `processingPapers`；desktop `model.ts:281-282` 仅 failed/error 算失败、parsing/analyzing 算处理中
+- **B3 Submission 最近截止排序**：mac `WorkbenchModel.swift:313` 直接取 `upcomingDdls.first`，未按 deadline 排序；desktop `model.ts:170` 显式排序
+- **B1 三列快捷卡 Sparkles 提示行**：mac 视觉减弱（`HomeView.swift:231-264` vs `OverviewWorkspace.tsx:345-388`）
+
+### P3
+- **B4 空状态文案"暂无研究主题"占位卡**：mac 直接 ForEach 空数组无占位
+- **B5 助理头像/品牌 Logo**：mac 用系统 sparkles 图标
+
+---
+
+## 3. Knowledge / Planner
+
+### P1
+- **TopicDiscoveryWizard 完全缺失**：4 步领域→目标→背景→候选话题向导 — desktop `TopicDiscoveryWizard.tsx:33-202`；mac 后端 `KnowledgeService.swift:240` 已实现但 UI 无入口
+- **PlannerComposer 8 字段研究画像**：mac 仅 4 字段（topic/keywords/goal/background）— desktop `PlannerComposer.tsx:30-50, 343-727`（含 timeBudget/constraints/knownContext/preferredOutput + 完成度提示）；mac `KnowledgeView.swift:574-617`
+- **AI 实时智能提示边栏**：700ms debounce 调 `generateInterestHints` — desktop `PlannerComposer.tsx:178-248, 645-705`；mac 后端 `KnowledgeService.swift:170` 已实现但 UI 完全没用
+- **ResearchWorkbench 五 Tab 工作台**：planner/papers/xiaoyan(chat)/notes/tools 集成 — desktop `ResearchWorkbench.tsx:1-520`；mac 无对应工作台
+
+### P2
+- **PDF 参考文献预上传**：创建 interest 时批量挑 PDF 自动 `papers.upload(path, interest.id)` — desktop `PlannerComposer.tsx:54-95, 250-302, 593-642`；mac 无
+- **Interest 状态机 (planning/planned/active)**：mac `ResearchInterest` 模型缺 `status` 字段，仅以 `learningPath != nil` 判断 — desktop `InterestsPanel.tsx:23-27, 256-322`
+- **InterestProfilePanel 研究画像高亮**：goal/timeBudget/preferredOutput chip + constraints — desktop `InterestProfilePanel.tsx:23-69`；mac 无
+- **多 Agent 实时工作流 UI**：mac 是本地 `simulateWorkflow()` 假模拟（`PlannerView.swift:441-475`），desktop 接 `interest:agent_start/complete/error` 事件流
+- **文件夹名编辑、删除确认（保留/全删）**：mac 仅右键单一删除（`KnowledgeView.swift:388-393`）
+
+### P3
+- **重新规划 (regenerate) 入口**：mac 仅 `learningPath == nil` 才显示生成按钮（`KnowledgeView.swift:378-384`），无法重跑
+
+---
+
+## 4. Notes（笔记）
+
+### P1
+- **研究方向分组视图**：mac 平铺，无 CollapsibleGroup — desktop `NotesPanel.tsx:436, 720-790`（含未归档分区 + 按组删除）
+- **笔记关联 interest（research_interest_id）**：CreateNoteSheet/Detail 缺归属选择 — desktop `NotesPanel.tsx:288-315, 599-611`；mac `KnowledgeView.swift:520-570, 410-518`
+
+### P2
+- **Markdown 实时预览编辑器**：mac 仅 TextEditor 纯文本 — desktop `NotesPanel.tsx:8-74`（双 Tab 编辑/预览）；mac `KnowledgeView.swift:478-491`
+- **图谱关联计数 Badge**：mac 无 — desktop `NotesPanel.tsx:438-462, 545-549`
+
+### P3
+- **侧滑详情面板与返回动效**：mac 是 NavigationSplitView detail
+- **来源类型徽标分类（manual/paper_analysis/survey/web_clip）UI 弱**：mac 仅显示原始字符串
+
+---
+
+## 5. KnowledgeGraph
+
+### P1
+- **KnowledgeGraphComposer 图内 CRUD（新增 Claim/Evidence/Citation 三件套）**：desktop `KnowledgeGraphComposer.tsx:1-308`；mac `KnowledgeGraphCanvasView` 仅展示
+- **可缩放 SVG Canvas + 三泳道贝塞尔布局**：desktop `KnowledgeGraphCanvas.tsx:1-203`、`KnowledgeGraphWorkspace.tsx:177-215`（pointer 拖拽 + 滚轮缩放 0.6-2.2 + citation 虚线 + 节点最大化）；mac 仅三个 VStack 列表
+- **KnowledgeClaimPanel 图谱页 claim+证据 bundle**：desktop `KnowledgeClaimPanel.tsx:1-145`；mac 必须切到 ClaimsView 单独看（且 sourceId 显示原始字符串无标题映射，`ClaimsView.swift:266-296`）
+- **R2 Claim 状态枚举不一致**（参见 §0）
+
+### P2
+- **KnowledgeGraphInspector 多类型节点详情**：desktop 按节点类型展示 claim provenance / interest 关键词 chip / paper venue+keyConclusions / experiment / note — desktop `KnowledgeGraphInspector.tsx:1-152`；mac `KnowledgeGraphCanvasView.swift:181-235` 仅 sourceKind+summary+边数
+- **KnowledgeTimelinePanel 按年聚合时间线**：desktop `KnowledgeTimelinePanel.tsx:1-91`；mac 无
+- **聚焦研究方向过滤器**：desktop 顶部 Select 过滤整图 — `graphView.ts:60-99`；mac 无
+
+### P3
+- **MetricTile 概览（4 大指标卡 vs mac 7 个内联小数字）**：`KnowledgeGraphCanvasView.swift:36-46` vs `KnowledgeGraphWorkspace.tsx:12-32`
+
+### Mac 反向超出 desktop（保留）
+- **GraphAnalysisPanel**：中心性 / 最短路径 / 子图算法面板（`GraphAnalysisPanel.swift:1-301`），desktop 无对应
+
+---
+
+## 6. Survey（综述）
+
+### P1
+- **结构化 schema 大幅缩水**：desktop 14 项（含 timeline/schools_of_thought/controversies/recommended_topics/challenges/frontier 等）— `SurveyPanel.tsx:31-92`；mac `SurveyView.swift:540-578` 仅 7 项
+- **多 Agent 真实流式**：mac 用 `simulateWorkflow()` 假模拟（`SurveyView.swift:435-451`）；desktop 监听 `survey:delta|done|error|structured|agent_start|agent_complete|agent_error`
+- **高级参数面板**：desktop `SurveyPanel.tsx:94-117, 532-647`（5 类：时间范围/文献类型/数据库/引用格式/语言）；mac 仅 topic+scope（`SurveyView.swift:67-71`）
+
+### P2
+- **研究方向→论文勾选**：desktop 选 interest 后加载 papers 可勾选喂给 survey — `SurveyPanel.tsx:148-230, 410-480`；mac 完全无关联
+- **formatted_citations / citation_format 输出与导出**：mac 无
+
+### P3
+- **历史记录持久化**：mac 仅 `@State surveyHistory` 进程内数组（`SurveyView.swift:12, 415`）
+- **CCF 标识与 venue 链接**：mac papersView 仅展示纯文本（`SurveyView.swift:308-352`）
+
+---
+
+## 7. Settings
+
+### P1
+- **S2 加密导入/导出 UI 退化**：desktop 专用 `CryptoConfigModal.tsx`（双输入确认 + hint + 错误分离）；mac `ImportExportSettingsTab.swift:18-43` 仅普通 SecureField，靠剪贴板传密文
+- **S3 Provider 预设**：desktop 9 个一键预设（OpenAI/Anthropic/DeepSeek/通义千问/硅基流动/Moonshot/Gemini/Ollama/自定义，自动填 base_url + 默认 chat/embed model + detect 反查）— `providerPresets.ts:5-96`、`ConnectionSection.tsx`；mac `ProviderSettingsTab.swift:11-15` 仅三选 Picker 无预设无 Ollama 自动拉取
+- **S4 角色任务卡（RolesSection）**：desktop 9 类专项任务模型卡（溯源/流光/谋策/探知/翰章/构域/视界/译衡/主对话）含 model+temperature+base_url+apiKey 多键联动 — `RolesSection.tsx`、`shared.tsx` GroupedModelCard；mac `AgentSettingsTab.swift:6-14` 仅 7 个 multi_agent agent，缺 planner_hint/survey_writer/paper_analysis/paper_reproduction/vision/translation 任务模型入口（`pageConfig.tsx:160-317` 默认值列出 key）
+- **S11 Skills 编辑/新建/导入**：mac 仅 toggle + 重置内置（`SkillsSettingsTab.swift:102-104`）；desktop `SkillsSection.tsx` 含 SkillEditModal（新建/修改 prompt/tags 编辑）
+
+### P2
+- **S1 标签分组结构错位**：mac 13 个左侧栏标签 vs desktop 单页+分区滚动；mac 缺"快速开始"引导分区 — `pageConfig.tsx:24-87` + `TaskSetupSection.tsx`
+- **S5 配置历史快照粗糙**：mac 仅列名称+时间+应用/删除 — desktop `SettingsHistorySection.tsx:1-298`（命名输入 + Select 切换 + 确认对话 + 元信息 chip + 三态 loading）
+- **S6 TaskSetup 内容职能错位**：desktop 是连接→角色→多 Agent 三步引导；mac 实际放的是 default_temperature 等运行参数
+- **S7 内存清理策略不全**：mac 仅显示前 20 条，无来源 chip/importance — desktop `MemorySection.tsx:113-132`
+- **S8 关于页 in-app 安装**：mac 只能"打开下载链接"手动装 — desktop `AboutSection.tsx:38-130`（`onInstallUpdate` 自动下载安装 + updateState 五态）
+- **S9 布局/主题对齐度**：mac 缺 focus/landscape 切换 + ThemeSwatch/StylePreview 视觉 — desktop `LayoutSettingsSection.tsx`
+
+### P3
+- **S10 paper_visible_venue_tags 可视化标签管理**（`pageConfig.tsx:294`）
+- **S12 ChangelogCard 静态硬编码**：mac 仅两条硬编码版本（`ChangelogSettingsTab.swift:4-24`）
+
+---
+
+## 8. Tools
+
+### P1
+- **T1 Arxiv 字段检索**：desktop `ArxivFieldSearchPanel.tsx:114-253` 11 字段（通用/标题/摘要/作者/分类 chip 多选/备注/期刊/排除词/最近天数/返回篇数/排序模式）+ ARXIV_CATEGORIES 分组面板；mac `ArxivSearchView.swift:6-82` 仅 4 字段
+- **T4 SourceLookup 学术信号**：desktop `SourceLookupPanel.tsx:75-108`（WoS index/JCR-CAS quartile/CAS Top/open_access/JIF/jif_rank/wos_categories chip/CCF Rating + entity_type+label+publisher）；mac `SourceLookupView.swift:69-89` 仅 6 字段，CCF 卡（`:99-128`）缺 url/publisher/label
+- **T5 Translation 多语言**：desktop `TranslationPanel.tsx:20-35` 5×5 语言对（含 ja/de/fr + 自动识别）；mac `TranslationView.swift:10-13` 仅"英↔中"
+- **T8 FriendLinks 数据完整度**：desktop `yanweb-links.ts` 1055 行（数百条 + 多分组 + favicon）；mac `FriendLinksView.swift:13-51` 仅 5 类约 27 条硬编码无图标
+
+### P2
+- **T2 PaperDiscovery 排序模式**：mac `PaperDiscoveryView.swift:22-25` 仅 relevance/quality 两档，且 quality 实际是 sortBy=submittedDate（`:408`）
+- **T3 PaperDiscovery 动态期刊列表**：mac 仅静态 `computeStaticVenues`（`PaperDiscoveryView.swift:31-37`）；desktop `usePaperDiscoverySearch.ts` + `PaperDiscoveryPanel.tsx:64-89` 含 `dynamicJournalTerms` 异步合并
+- **T6 MarkdownFormatter 分块进度**：mac 一次性提交超长会失败（`MarkdownFormatterView.swift:120-160`）；desktop `MarkdownFormatterPanel.tsx:98-114` 自动分块 + 进度条
+
+### P3
+- **T9 ArxivSearchResults 排版退化**：mac `ArxivEntryRow` 简单 List 行
+- **T10 Tools 入口页**：mac `ToolsView.swift` 38 行极简
+
+### Mac 接近对等
+- **T7 PPT Workspace**：三模式齐备 + Swift 端原生 .pptx 生成（`PptxBuilder.swift:403`）；功能等价
+
+---
+
+## 9. Papers
+
+### P1
+- **批量上传 + 拖拽**：mac `PapersView.swift:57-67` `fileImporter` 缺 `allowsMultipleSelection`；desktop `Papers.tsx:235-289` 多选 + 进度条
+- **研究方向分组 + 分组级搜索/排序/tag 筛选**：mac 仅一个全局搜索框（`PapersView.swift:13-19, 36-40`）；desktop `Papers.tsx:69-79, 187-222, 523-582`（按 research_interest 分组 + 三种排序：导入时间/名称/重要性）
+
+### P2
+- **元数据可见徽章（CCF/SCI/JCR/CAS/WoS）**：mac 卡片仅显示年份+venue+status — desktop `Papers.tsx:633-651`
+- **导入时元数据自动识别开关**：desktop `Papers.tsx:951-1005`
+- **删除主题文件夹（保留/全删）**：desktop `Papers.tsx:455-472, 1090-1116`
+- **Reproduction sections 字段对齐**：mac 仅 6 段（`PaperDetailView.swift:216-238`），缺 training_process/inference_process/evaluation_metrics 拆分；desktop 8 段（`PaperDetailModal.tsx:22-31`）
+- **图片缩放/Lightbox + caption-figure 关联**：mac 仅静态 Image（`PaperFiguresView.swift:20-58`）
+
+### P3
+- **重新解读确认**：mac 已 analyzed 后无重新解读入口
+- **重要性颜色色环/色条**：mac 仅 Picker
+- **Memory 自动事件**：mac 上传/分析/查看无 memory 钩子
+
+---
+
+## 10. Submission
+
+### P1
+- **DDL 日历视图（venue tracker）**：deadline 排序 + 倒计天数 + 特刊截止 + 通知日期 + CCF 颜色块 — desktop `Submission.tsx:285-306, 830-849`、`VenueTrackerWorkspace.tsx:92-208`；mac `VenuesListView.swift:9-40` 仅普通搜索列表
+- **版本快照 content 编辑 + AI 润色 + AI 审稿入口**：mac VersionsView 无 content 编辑（`VersionsView.swift:128-193, 195-248` 始终传 nil）；desktop `VersionWorkspace.tsx:212-270` 每节点可上传 PDF + 下载 + AI 润色 + AI 审稿
+- **行级 LCS Diff**：desktop `shared.ts:134-180`、`VersionWorkspace.tsx:277-316`（add/remove/same + 加减行计数）；mac `VersionDiffView.swift:46-86` 仅整段并排
+- **Mock Review 多 reviewer + 严格度 + 一键导入轮次**：desktop `MockReviewModal.tsx`、`Submission.tsx:634-698`（reviewerCount 1-5 + lenient/balanced/strict + 流式接收 + verdict 分布 + 导入新一轮）；mac `AIReviewView.swift:1-92` 仅单段 text-in/out
+- **Review 评论 tags / verdict / 已处理 / 作者回复编辑**：desktop `ReviewWorkspace.tsx:179-249` + `ReviewEntryModal.tsx`（REVIEW_TAGS 8 类 + verdict 联动 + 已处理切换 + 行内编辑 response）；mac `ReviewRoundsView.swift:201-230, 272-323` 仅 reviewer/content/response 三字段
+- **R1 Submission status 状态机不一致**（参见 §0）
+
+### P2
+- **Venue 模板库 + 区域/类型筛选 + 已追踪标记**：desktop `AddVenueModal.tsx:1-230`（POPULAR_VENUES 模板）；mac `VenuesListView.swift:120-178` 仅手动输入
+- **Review 轮 verdict 自动派生**：mac 必须手填 verdict 字符串（`ReviewRoundsView.swift:148-162, 232-269`）；desktop `getDominantVerdict` 自动 upsert
+- **Polish 结果回写到版本**：mac 结果只能复制（`CoverLetterView.swift:127-150`）
+
+### P3
+- **看板拖拽/方向移动**：mac KanbanCard 仅 Menu 选目标列（`KanbanView.swift:113-127, 135-143`）；desktop 含 prev/next + writing→submitted 自动写 submittedAt
+- **Cover Letter 后端流式**：mac 自拼 prompt 走 LLMClient（`CoverLetterView.swift:163-222`）；desktop 走 `submissionApi.generateCoverLetter`
+- **Checklist 全局共享 vs 按 submission 独立**：语义差异
+
+---
+
+## 11. Experiment
+
+### P1
+- **附件管理 UI**：仓库已实现 `ExperimentRepository.swift:51-83`（listAttachments/insertAttachment/updateAttachmentLabel/deleteAttachment），ExperimentView 完全未挂入口 — desktop `Experiment.tsx:81-215, 496-498` 提供 AttachmentPanel（上传 + 缩略图网格 + Lightbox + 行内 label 编辑）
+- **关联投稿下拉**：mac 模型有 `linkedSubmissionId` 但 CreateSheet/DetailView 都不暴露选择 UI（`ExperimentView.swift:152-156, 270-321`），仅只读显示前 8 位 ID — desktop `Experiment.tsx:457-466`
+- **R3 Result 字段类型不一致**（参见 §0）
+
+### P2
+- **Config 自由 JSON**：mac 解码 `[String:String]`（`ExperimentView.swift:254-261`），嵌套或数字会失败回落空 dict — desktop `Record<string, unknown>`（`Experiment.tsx:289-298, 469-482`）
+
+### P3
+- **新增即编辑流程**：desktop 创建后自动选中并聚焦标题（`Experiment.tsx:270-287`）；mac CreateExperimentSheet 是独立弹窗
+
+---
+
+## 已确认对齐（避免重复）
+
+下列项 FUNCTION_MATRIX.md 已标记完成且本次审计无新缺口：
+
+- 数据库 schema 与 v1_initial / v2_schema_align 迁移
+- settingsApi.history apply（解析快照 → 过滤 keys → 批量 upsert）
+- updatesApi check（Result 区分 noUpdate/network/http/decode/missingPlatformURL）
+- knowledgeApi.notes.webClip / 语义搜索
+- knowledgeApi.suggestTopics / generateInterestHints（后端层）
+- knowledgeGraph.deleteEvidence / deleteCitation / snapshot / centrality / shortestPath / subgraph
+- skillsApi.resetBuiltins
+- chatApi.updateSessionContext / listAgentRuns / artifact JOIN
+- PPT 工作区原生 .pptx 生成
+
+---
+
+## 后续执行建议
+
+1. **第 0 阶段（数据安全）**：先修 R1-R4 四个互通风险点
+2. **第 1 阶段（影响面最大的 P1）**：Copilot 附件/Skills（A1+A3）、ResearchWorkbench 五 Tab、KnowledgeGraphComposer、Submission 版本快照 content+AI 审稿、Experiment 附件 UI
+3. **第 2 阶段（其余 P1）**：Settings Provider 预设/角色卡片、Tools Arxiv/SourceLookup/Translation、Survey 高级参数+多 Agent 流式
+4. **第 3 阶段**：P2 体验优化
+5. **第 4 阶段**：P3 细节打磨
