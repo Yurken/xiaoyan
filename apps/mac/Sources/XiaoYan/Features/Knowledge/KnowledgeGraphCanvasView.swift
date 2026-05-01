@@ -7,6 +7,7 @@ struct KnowledgeGraphCanvasView: View {
     @State private var selectedNode: GraphNode? = nil
     @State private var showingCreateClaim = false
     @State private var pendingEvidencePair: EvidenceLinkPair? = nil
+    @State private var pendingCitationPair: CitationLinkPair? = nil
     private let repo = KnowledgeRepository()
 
     private var claims: [KnowledgeClaim] { snapshot?.claims ?? [] }
@@ -37,6 +38,13 @@ struct KnowledgeGraphCanvasView: View {
             editor.cancelTool()
         }) { pair in
             EvidenceLinkSheet(claim: pair.claim, evidence: pair.evidence) { _ in
+                loadData()
+            }
+        }
+        .sheet(item: $pendingCitationPair, onDismiss: {
+            editor.cancelTool()
+        }) { pair in
+            CitationLinkSheet(citing: pair.citing, cited: pair.cited) { _ in
                 loadData()
             }
         }
@@ -241,8 +249,7 @@ struct KnowledgeGraphCanvasView: View {
             case .linkEvidence:
                 pendingEvidencePair = EvidenceLinkPair(claim: source, evidence: target)
             case .linkCitation:
-                // C4 接入
-                editor.cancelTool()
+                pendingCitationPair = CitationLinkPair(citing: source, cited: target)
             default:
                 editor.cancelTool()
             }
@@ -449,4 +456,10 @@ struct EvidenceLinkPair: Identifiable {
     let claim: GraphNode
     let evidence: GraphNode
     var id: String { "\(claim.id)::\(evidence.id)" }
+}
+
+struct CitationLinkPair: Identifiable {
+    let citing: GraphNode
+    let cited: GraphNode
+    var id: String { "\(citing.id)::\(cited.id)" }
 }
