@@ -38,7 +38,7 @@ final class SubmissionService: ObservableObject {
             title: title,
             venueName: venueName,
             venueType: nil,
-            status: .draft,
+            status: .writing,
             deadline: deadline,
             submittedAt: nil,
             createdAt: Date()

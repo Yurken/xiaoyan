@@ -52,18 +52,16 @@ struct Submission: Codable, Identifiable, Hashable, FetchableRecord {
     }
 }
 
-enum SubmissionStatus: String, Codable {
-    case draft, preparing, submitted, revision, accepted, rejected, withdrawn
+enum SubmissionStatus: String, Codable, CaseIterable {
+    case writing, submitted, reviewing, accepted, rejected
 
     var displayName: String {
         switch self {
-        case .draft: return "草稿"
-        case .preparing: return "准备中"
-        case .submitted: return "已提交"
-        case .revision: return "修改中"
+        case .writing: return "撰写中"
+        case .submitted: return "已投稿"
+        case .reviewing: return "审稿中"
         case .accepted: return "已接收"
-        case .rejected: return "已拒稿"
-        case .withdrawn: return "已撤回"
+        case .rejected: return "已拒绝"
         }
     }
 }

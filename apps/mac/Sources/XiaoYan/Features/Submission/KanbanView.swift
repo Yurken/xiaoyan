@@ -5,12 +5,11 @@ struct KanbanView: View {
     @State private var submissions: [Submission] = []
 
     private let columns: [(status: SubmissionStatus, title: String, color: Color)] = [
-        (.draft, "草稿", Color.gray),
-        (.preparing, "准备中", Color.orange),
+        (.writing, "撰写中", Color.purple),
         (.submitted, "已投稿", Color.blue),
-        (.revision, "修改中", Color.purple),
+        (.reviewing, "审稿中", Color.orange),
         (.accepted, "已接收", Color.green),
-        (.rejected, "已拒稿", Color.red),
+        (.rejected, "已拒绝", Color.gray),
     ]
 
     var body: some View {
@@ -112,12 +111,9 @@ private struct KanbanCard: View {
             HStack {
                 Spacer()
                 Menu {
-                    Button("移至 草稿") { move(to: .draft) }
-                    Button("移至 准备中") { move(to: .preparing) }
-                    Button("移至 已投稿") { move(to: .submitted) }
-                    Button("移至 修改中") { move(to: .revision) }
-                    Button("移至 已接收") { move(to: .accepted) }
-                    Button("移至 已拒稿") { move(to: .rejected) }
+                    ForEach(SubmissionStatus.allCases, id: \.self) { status in
+                        Button("移至 \(status.displayName)") { move(to: status) }
+                    }
                 } label: {
                     Image(systemName: "arrow.right.circle")
                         .font(.caption)

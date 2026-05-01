@@ -72,7 +72,7 @@ private struct SubmissionRow: View {
             Spacer()
             SubmissionStatusBadge(status: submission.status)
             Menu {
-                ForEach([SubmissionStatus.draft, .preparing, .submitted, .revision, .accepted, .rejected, .withdrawn], id: \.self) { status in
+                ForEach(SubmissionStatus.allCases, id: \.self) { status in
                     Button(status.displayName) {
                         var updated = submission
                         updated.status = status
@@ -113,13 +113,11 @@ struct SubmissionStatusBadge: View {
 
     private var color: Color {
         switch status {
-        case .draft: return .gray
-        case .preparing: return .orange
+        case .writing: return .purple
         case .submitted: return .blue
-        case .revision: return .purple
+        case .reviewing: return .orange
         case .accepted: return .green
-        case .rejected: return .red
-        case .withdrawn: return .secondary
+        case .rejected: return .gray
         case nil: return .gray
         }
     }
