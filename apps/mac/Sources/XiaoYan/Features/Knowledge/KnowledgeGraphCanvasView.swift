@@ -6,6 +6,7 @@ struct KnowledgeGraphCanvasView: View {
     @State private var snapshot: KnowledgeGraphSnapshot?
     @State private var selectedNode: GraphNode? = nil
     @State private var showingCreateClaim = false
+    @State private var pendingEvidencePair: EvidenceLinkPair? = nil
     private let repo = KnowledgeRepository()
 
     private var claims: [KnowledgeClaim] { snapshot?.claims ?? [] }
@@ -29,6 +30,13 @@ struct KnowledgeGraphCanvasView: View {
             editor.cancelTool()
         }) {
             CreateClaimSheet { _ in
+                loadData()
+            }
+        }
+        .sheet(item: $pendingEvidencePair, onDismiss: {
+            editor.cancelTool()
+        }) { pair in
+            EvidenceLinkSheet(claim: pair.claim, evidence: pair.evidence) { _ in
                 loadData()
             }
         }
@@ -225,14 +233,19 @@ struct KnowledgeGraphCanvasView: View {
             selectedNode = node
             return
         }
-        // 编辑模式下分发给 editor；C3/C4 提交后会接 sheet
         switch editor.pickNode(node) {
         case .invalidNode, .sourcePicked:
-            // 高亮变化由 @Published 自动驱动
             break
-        case .readyForSheet(_, _):
-            // C1 先不接 sheet，仅取消工具状态
-            editor.cancelTool()
+        case .readyForSheet(let source, let target):
+            switch editor.activeTool {
+            case .linkEvidence:
+                pendingEvidencePair = EvidenceLinkPair(claim: source, evidence: target)
+            case .linkCitation:
+                // C4 接入
+                editor.cancelTool()
+            default:
+                editor.cancelTool()
+            }
         }
     }
 
@@ -428,4 +441,12 @@ struct KnowledgeGraphCanvasView: View {
         try? repo.deleteCitation(id: id)
         loadData()
     }
+}
+
+// MARK: - Sheet routing payloads
+
+struct EvidenceLinkPair: Identifiable {
+    let claim: GraphNode
+    let evidence: GraphNode
+    var id: String { "\(claim.id)::\(evidence.id)" }
 }
