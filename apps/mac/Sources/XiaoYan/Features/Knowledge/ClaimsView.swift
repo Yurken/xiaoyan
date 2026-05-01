@@ -70,7 +70,7 @@ struct ClaimsView: View {
         }
         .onAppear(perform: reload)
         .sheet(isPresented: $showingCreate) {
-            CreateClaimSheet(onCreated: reload)
+            CreateClaimSheet { _ in reload() }
         }
     }
 
@@ -319,55 +319,5 @@ private struct EvidenceRow: View {
 }
 
 // MARK: - Create Sheet
-
-private struct CreateClaimSheet: View {
-    let onCreated: () -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
-    @State private var statement = ""
-    @State private var status: KnowledgeClaimStatus = .hypothesis
-    private let repo = KnowledgeRepository()
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("新建研究论断")
-                .font(.headline)
-
-            Form {
-                TextField("标题", text: $title)
-                TextField("论断陈述", text: $statement, axis: .vertical)
-                    .lineLimit(3...8)
-                Picker("状态", selection: $status) {
-                    ForEach(KnowledgeClaimStatus.allCases, id: \.self) { value in
-                        Text(value.displayName).tag(value)
-                    }
-                }
-            }
-            .formStyle(.grouped)
-
-            HStack {
-                Button("取消") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Spacer()
-                Button("创建") {
-                    let claim = KnowledgeClaim(
-                        id: UUID().uuidString,
-                        title: title,
-                        statement: statement,
-                        researchInterestId: nil,
-                        status: status.rawValue,
-                        createdAt: Date()
-                    )
-                    try? repo.insertClaim(claim)
-                    onCreated()
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || statement.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            .padding(.horizontal)
-        }
-        .padding()
-        .frame(width: 460, height: 360)
-    }
-}
+//
+// CreateClaimSheet 已抽到独立文件 CreateClaimSheet.swift（与画布编辑模式共用）。

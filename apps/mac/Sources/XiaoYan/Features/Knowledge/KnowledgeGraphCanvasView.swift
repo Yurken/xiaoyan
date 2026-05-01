@@ -5,6 +5,7 @@ struct KnowledgeGraphCanvasView: View {
     @StateObject private var editor = KnowledgeGraphEditor()
     @State private var snapshot: KnowledgeGraphSnapshot?
     @State private var selectedNode: GraphNode? = nil
+    @State private var showingCreateClaim = false
     private let repo = KnowledgeRepository()
 
     private var claims: [KnowledgeClaim] { snapshot?.claims ?? [] }
@@ -24,6 +25,13 @@ struct KnowledgeGraphCanvasView: View {
                 .frame(minWidth: 260, maxWidth: 360)
         }
         .onAppear(perform: loadData)
+        .sheet(isPresented: $showingCreateClaim, onDismiss: {
+            editor.cancelTool()
+        }) {
+            CreateClaimSheet { _ in
+                loadData()
+            }
+        }
     }
 
     // MARK: - Canvas Area
@@ -114,6 +122,9 @@ struct KnowledgeGraphCanvasView: View {
     private func toolButton(_ tool: CanvasTool) -> some View {
         Button {
             editor.startTool(tool)
+            if tool == .addClaim {
+                showingCreateClaim = true
+            }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: tool.icon)
