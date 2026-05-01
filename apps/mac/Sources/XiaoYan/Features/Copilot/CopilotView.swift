@@ -3,11 +3,14 @@ import SwiftUI
 struct CopilotView: View {
     @EnvironmentObject var settings: AppSettings
     @StateObject private var chatService = ChatService()
+    @StateObject private var attachmentManager = CopilotAttachmentManager()
     @State private var sessions: [ChatSession] = []
     @State private var currentSessionId: String = UUID().uuidString
     @State private var messages: [ChatDisplayMessage] = []
     @State private var inputText = ""
     @AppStorage("rc_copilot_chat_mode") private var chatModeRaw: String = ChatMode.direct.rawValue
+    @State private var skills: [Skill] = []
+    @State private var selectedSkillId: String?
     @State private var activeAssistantId: UUID?
     @State private var activeStreamId: UUID?
     @State private var streamTask: Task<Void, Never>?
@@ -45,6 +48,7 @@ struct CopilotView: View {
             loadSessions()
             ensureSessionExists()
             consumePendingContext()
+            loadSkills()
         }
         .onChange(of: settings.pendingChatContext) { _, newValue in
             if newValue != nil {
@@ -158,6 +162,9 @@ struct CopilotView: View {
             CopilotComposerView(
                 inputText: $inputText,
                 chatMode: chatModeBinding,
+                attachmentManager: attachmentManager,
+                selectedSkillId: $selectedSkillId,
+                skills: skills,
                 onSend: sendMessage
             )
                 .disabled(chatService.isStreaming)
@@ -258,6 +265,8 @@ struct CopilotView: View {
         currentSessionId = newId
         messages = []
         activeAssistantId = nil
+        attachmentManager.clear()
+        selectedSkillId = nil
         chatService.currentPlan = []
         chatService.currentRuns = []
         chatService.currentArtifacts = []
@@ -271,6 +280,8 @@ struct CopilotView: View {
         currentSessionId = session.id
         loadMessages(for: session.id)
         activeAssistantId = nil
+        attachmentManager.clear()
+        selectedSkillId = nil
         chatService.streamError = nil
         // Recover latest agent runs if any
         if let requestId = try? chatRepo.latestRequestId(sessionId: session.id) {
@@ -294,14 +305,26 @@ struct CopilotView: View {
 
     private func sendMessage() {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !chatService.isStreaming else { return }
+        let hasAttachments = !attachmentManager.pending.isEmpty
+        guard (hasAttachments || !trimmed.isEmpty), !chatService.isStreaming else { return }
+
+        let baseText = trimmed.isEmpty ? "请阅读上传的文件并回答。" : trimmed
+        let withSkill: String
+        if let id = selectedSkillId, let skill = skills.first(where: { $0.id == id }) {
+            withSkill = "[技能指令 · \(skill.title)]\n\(skill.prompt)\n\n---\n\n\(baseText)"
+        } else {
+            withSkill = baseText
+        }
+        let attachments = attachmentManager.pending
+        let finalContent = buildCopilotMessageContent(text: withSkill, attachments: attachments)
 
         ensureSessionExists()
         streamTask?.cancel()
 
-        let userMsg = ChatDisplayMessage(role: .user, content: trimmed)
+        let userMsg = ChatDisplayMessage(role: .user, content: finalContent)
         messages.append(userMsg)
         inputText = ""
+        attachmentManager.clear()
 
         let assistantMsg = ChatDisplayMessage(role: .assistant, content: "")
         let assistantId = assistantMsg.id
@@ -320,7 +343,7 @@ struct CopilotView: View {
         streamTask = Task {
             let stream = chatService.chat(
                 sessionId: sessionId,
-                userMessage: trimmed,
+                userMessage: finalContent,
                 settings: settings,
                 chatMode: ChatMode(rawValue: chatModeRaw)
             )
@@ -381,6 +404,8 @@ struct CopilotView: View {
         currentSessionId = newId
         messages = []
         activeAssistantId = nil
+        attachmentManager.clear()
+        selectedSkillId = nil
         chatService.currentPlan = []
         chatService.currentRuns = []
         chatService.currentArtifacts = []
@@ -403,6 +428,11 @@ struct CopilotView: View {
         loadingSessions = true
         sessions = (try? chatRepo.listSessions()) ?? []
         loadingSessions = false
+    }
+
+    private func loadSkills() {
+        let dbSkills = (try? SkillRepository().list()) ?? []
+        skills = dbSkills.isEmpty ? SkillService.builtInSkills : dbSkills
     }
 
     private func loadMessages(for sessionId: String) {
