@@ -9,6 +9,11 @@ struct MessageBubbleView: View {
         splitThoughtFromContent(message.content)
     }
 
+    private var parsedUserContent: (text: String, attachments: [CopilotAttachmentMeta]) {
+        guard message.role == .user else { return (message.content, []) }
+        return parseCopilotMessageContent(message.content)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             if message.role == .user { Spacer() }
@@ -113,12 +118,20 @@ struct MessageBubbleView: View {
     @ViewBuilder
     private var contentBubble: some View {
         if message.role == .user {
-            Text(message.content)
-                .font(.body)
-                .padding(12)
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .cornerRadius(18)
+            let userContent = parsedUserContent
+            VStack(alignment: .trailing, spacing: 8) {
+                if !userContent.attachments.isEmpty {
+                    userAttachmentChips(userContent.attachments)
+                }
+                Text(userContent.text.isEmpty ? "（仅附件）" : userContent.text)
+                    .font(.body)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(12)
+            .background(Color.accentColor)
+            .cornerRadius(18)
         } else {
             if parsed.answer.isEmpty && message.isStreaming {
                 Text("小妍正在整理最终答复...")
@@ -136,6 +149,31 @@ struct MessageBubbleView: View {
                     .nmShadow(level: Theme.Shadows.soft)
             }
         }
+    }
+
+    @ViewBuilder
+    private func userAttachmentChips(_ attachments: [CopilotAttachmentMeta]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(attachments, id: \.name) { meta in
+                    HStack(spacing: 4) {
+                        Image(systemName: meta.extension == "pdf" ? "doc.richtext" : "doc.plaintext")
+                            .font(.caption2)
+                            .foregroundStyle(Color.white.opacity(0.85))
+                        Text(meta.name)
+                            .font(.caption2)
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.18))
+                    .cornerRadius(8)
+                }
+            }
+        }
+        .frame(maxHeight: 28)
     }
 
     @ViewBuilder
