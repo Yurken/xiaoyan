@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject var router: AppRouter
+    @EnvironmentObject var colorTokens: AppColorTokens
     @State private var model: WorkbenchOverviewModel?
     @State private var loading = true
 
@@ -18,188 +19,223 @@ struct HomeView: View {
             }
         }
         .navigationTitle("概述")
-        .background(Theme.Colors.background)
+        .background(colorTokens.backgroundGradient.ignoresSafeArea())
         .onAppear(perform: loadData)
     }
 
     private func content(model: WorkbenchOverviewModel) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             heroSection(model: model)
-            metricsSection(model: model)
-            summarySection(model: model)
             twoColumnSection(model: model)
             assetsSection(model: model)
             shortcutsSection
         }
-        .padding()
+        .padding(Theme.Spacing.lg)
     }
 
     // MARK: - Hero
 
     private func heroSection(model: WorkbenchOverviewModel) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("小妍工作台")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
+        CardView(variant: .raised, padding: Theme.Spacing.xl) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                // Subtle rule
+                subtleRule
 
-            Text(model.heroTitle)
-                .font(.title.bold())
+                HStack(alignment: .top, spacing: Theme.Spacing.xl) {
+                    // Left column
+                    VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                        // Kicker
+                        Text("小妍工作台")
+                            .font(Theme.Typography.kicker)
+                            .textCase(.uppercase)
+                            .foregroundStyle(colorTokens.textMuted)
+                            .tracking(0.16 * 11)
 
-            Text(model.heroDescription)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                        // Hero title
+                        Text(model.heroTitle)
+                            .font(Theme.Typography.heroTitle)
+                            .minimumScaleFactor(0.6)
+                            .lineLimit(2)
+                            .foregroundStyle(colorTokens.text)
 
-            HStack(spacing: 12) {
-                Button(action: { router.selectedRoute = model.primaryAction.route }) {
-                    HStack(spacing: 6) {
-                        Text(model.primaryAction.label)
-                        Image(systemName: "arrow.right")
+                        // Description
+                        Text(model.heroDescription)
+                            .font(Theme.Typography.body)
+                            .lineSpacing(6)
+                            .foregroundStyle(colorTokens.textSoft)
+
+                        // Action buttons
+                        HStack(spacing: Theme.Spacing.sm) {
+                            NeumorphicButton(
+                                label: model.primaryAction.label,
+                                icon: "arrow.right",
+                                style: .primary
+                            ) {
+                                router.selectedRoute = model.primaryAction.route
+                            }
+                            NeumorphicButton(
+                                label: model.secondaryAction.label,
+                                style: .secondary
+                            ) {
+                                router.selectedRoute = model.secondaryAction.route
+                            }
+                        }
+
+                        // Metrics with divider
+                        subtleRule
+                        metricsGrid(metrics: model.metrics)
                     }
-                }
-                .buttonStyle(.borderedProminent)
 
-                Button(action: { router.selectedRoute = model.secondaryAction.route }) {
-                    Text(model.secondaryAction.label)
+                    // Right column: summary items
+                    VStack(spacing: Theme.Spacing.sm) {
+                        ForEach(model.summaryItems, id: \.title) { item in
+                            WorkbenchSummaryCard(item: item)
+                        }
+                    }
+                    .frame(maxWidth: 320)
                 }
-                .buttonStyle(.bordered)
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
     }
 
-    // MARK: - Metrics
-
-    private func metricsSection(model: WorkbenchOverviewModel) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            ForEach(model.metrics, id: \.label) { metric in
+    private func metricsGrid(metrics: [WorkbenchMetric]) -> some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: Theme.Spacing.sm), count: 4),
+            spacing: Theme.Spacing.sm
+        ) {
+            ForEach(metrics, id: \.label) { metric in
                 WorkbenchMetricCard(metric: metric)
             }
         }
     }
 
-    // MARK: - Summary
-
-    private func summarySection(model: WorkbenchOverviewModel) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            ForEach(model.summaryItems, id: \.title) { item in
-                WorkbenchSummaryCard(item: item)
-            }
-        }
-    }
-
-    // MARK: - Two Column
+    // MARK: - Two Column (agenda/handoff + interests/risks)
 
     private func twoColumnSection(model: WorkbenchOverviewModel) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
-            agendaPanel(model: model)
-            handoffPanel(model: model)
-            interestsPanel(model: model)
-            risksPanel(model: model)
-        }
-    }
-
-    private func agendaPanel(model: WorkbenchOverviewModel) -> some View {
-        panel(title: "今日推进", subtitle: "先把今天最值得继续的事摆出来") {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(model.agenda) { item in
-                    WorkbenchAgendaCard(item: item, router: router)
+        VStack(spacing: Theme.Spacing.md) {
+            HStack(alignment: .top, spacing: Theme.Spacing.md) {
+                sectionCard(title: "今日推进", description: "先把今天最值得继续的事摆出来") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(model.agenda) { item in
+                            ListActionCard(
+                                label: item.label,
+                                title: item.title,
+                                description: item.description,
+                                tone: item.tone,
+                                actionLabel: item.action.label,
+                                actionRoute: item.action.route,
+                                router: router,
+                                showArrow: true
+                            )
+                        }
+                    }
                 }
+                .frame(maxWidth: .infinity)
+
+                sectionCard(title: "小妍交接", description: "最近的对话与整理结果", action: ("打开小妍", .copilot)) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(model.handoffs) { item in
+                            ListActionCard(
+                                label: item.label,
+                                title: item.title,
+                                description: item.description,
+                                tone: item.tone,
+                                actionLabel: item.action.label,
+                                actionRoute: item.action.route,
+                                router: router
+                            )
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            HStack(alignment: .top, spacing: Theme.Spacing.md) {
+                sectionCard(title: "在研主题", description: "按推进优先级排序", action: ("去规划", .planner)) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(model.interests) { item in
+                            WorkbenchInterestCard(item: item, router: router)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                sectionCard(title: "阻塞与截止", description: "容易拖慢研究推进的事项", action: ("去投稿", .submission)) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(model.risks) { item in
+                            WorkbenchRiskCard(item: item, router: router)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
             }
         }
     }
 
-    private func handoffPanel(model: WorkbenchOverviewModel) -> some View {
-        panel(title: "小妍交接", subtitle: "最近的对话与整理结果", action: ("打开小妍", .copilot)) {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(model.handoffs) { item in
-                    WorkbenchHandoffCard(item: item, router: router)
-                }
-            }
-        }
-    }
+    // MARK: - Section Card
 
-    private func interestsPanel(model: WorkbenchOverviewModel) -> some View {
-        panel(title: "在研主题", subtitle: "按推进优先级排序", action: ("去规划", .planner)) {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(model.interests) { item in
-                    WorkbenchInterestCard(item: item, router: router)
-                }
-            }
-        }
-    }
-
-    private func risksPanel(model: WorkbenchOverviewModel) -> some View {
-        panel(title: "阻塞与截止", subtitle: "容易拖慢研究推进的事项", action: ("去投稿", .submission)) {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(model.risks) { item in
-                    WorkbenchRiskCard(item: item, router: router)
-                }
-            }
-        }
-    }
-
-    private func panel(
+    private func sectionCard(
         title: String,
-        subtitle: String,
-        action: (label: String, route: AppRoute)? = nil,
+        description: String,
+        action: (String, AppRoute)? = nil,
         @ViewBuilder content: () -> some View
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.headline)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if let action = action {
-                    Button(action.label) {
-                        router.selectedRoute = action.route
+        CardView(variant: .raised, padding: Theme.Spacing.md) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(colorTokens.text)
+                        Text(description)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(colorTokens.textMuted)
                     }
-                    .font(.caption)
+                    Spacer()
+                    if let action = action {
+                        Button(action.0) {
+                            router.selectedRoute = action.1
+                        }
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(colorTokens.accent)
+                        .buttonStyle(.plain)
+                    }
                 }
+                content()
             }
-            content()
         }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
     }
 
     // MARK: - Assets
 
     private func assetsSection(model: WorkbenchOverviewModel) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("最近沉淀")
-                .font(.headline)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                ForEach(model.assets) { item in
-                    WorkbenchAssetCard(item: item, router: router)
+        CardView(variant: .raised, padding: Theme.Spacing.md) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Text("最近沉淀")
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(colorTokens.text)
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: Theme.Spacing.sm), count: 3),
+                    spacing: Theme.Spacing.sm
+                ) {
+                    ForEach(model.assets) { item in
+                        WorkbenchAssetCard(item: item, router: router)
+                    }
                 }
             }
         }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
     }
 
     // MARK: - Shortcuts
 
     private var shortcutsSection: some View {
-        HStack(spacing: 16) {
-            shortcutItem(icon: "map", title: "规划", description: "把研究目标、关键词和路线重新收一遍。", route: .planner, color: .blue)
-            shortcutItem(icon: "bubble.left.and.bubble.right", title: "小妍", description: "带着论文和问题继续追问，不用从头描述背景。", route: .copilot, color: .green)
-            shortcutItem(icon: "brain.head.profile", title: "知识", description: "把已经想清楚的结论沉淀下来，后面写作会更稳。", route: .knowledge, color: .orange)
+        CardView(variant: .raised, padding: Theme.Spacing.md) {
+            HStack(spacing: Theme.Spacing.md) {
+                shortcutItem(icon: "map", title: "规划", description: "把研究目标、关键词和路线重新收一遍。", route: .planner, color: colorTokens.accent)
+                shortcutItem(icon: "bubble.left.and.bubble.right", title: "小妍", description: "带着论文和问题继续追问，不用从头描述背景。", route: .copilot, color: colorTokens.success)
+                shortcutItem(icon: "brain.head.profile", title: "知识", description: "把已经想清楚的结论沉淀下来，后面写作会更稳。", route: .knowledge, color: colorTokens.warning)
+            }
         }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
     }
 
     private func shortcutItem(icon: String, title: String, description: String, route: AppRoute, color: Color) -> some View {
@@ -210,19 +246,32 @@ struct HomeView: View {
                     .foregroundStyle(color)
                     .frame(width: 32, height: 32)
                     .background(color.opacity(0.12))
-                    .cornerRadius(8)
+                    .cornerRadius(Theme.Radii.small)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.subheadline.bold())
+                        .font(Theme.Typography.subheadline)
+                        .foregroundStyle(colorTokens.text)
                     Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(colorTokens.textMuted)
                         .lineLimit(2)
                 }
                 Spacer()
             }
         }
         .buttonStyle(.plain)
+        .hoverLift()
+    }
+
+    // MARK: - Subtle Rule
+
+    private var subtleRule: some View {
+        LinearGradient(
+            colors: [.clear, colorTokens.border.opacity(0.88), .clear],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .frame(height: 1)
     }
 
     // MARK: - Data Loading

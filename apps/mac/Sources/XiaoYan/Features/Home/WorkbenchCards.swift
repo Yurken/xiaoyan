@@ -1,118 +1,149 @@
 import SwiftUI
 
+// MARK: - Tone Badge (pill-shape, extracted from repeated code)
+
+struct ToneBadge: View {
+    let label: String
+    let tone: WorkbenchTone
+
+    var body: some View {
+        Text(label)
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(tone.backgroundColor)
+            .foregroundColor(tone.badgeColor)
+            .clipShape(Capsule())
+    }
+}
+
+// MARK: - Hoverable Card Modifier
+
+private struct HoverLift: ViewModifier {
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: isHovered ? -1 : 0)
+            .animation(.easeInOut(duration: 0.18), value: isHovered)
+            .onHover { isHovered = $0 }
+    }
+}
+
+extension View {
+    func hoverLift() -> some View {
+        modifier(HoverLift())
+    }
+}
+
+// MARK: - Metric Card
+
 struct WorkbenchMetricCard: View {
+    @EnvironmentObject var colorTokens: AppColorTokens
     let metric: WorkbenchMetric
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(metric.label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(colorTokens.textMuted)
             Text(metric.value)
-                .font(.system(.title2, design: .rounded).weight(.bold).monospacedDigit())
+                .font(Theme.Typography.metricValue)
+                .foregroundStyle(colorTokens.text)
             Text(metric.note)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(Theme.Typography.caption2)
+                .foregroundStyle(colorTokens.textMuted)
                 .lineLimit(1)
         }
         .padding()
-        .background(Theme.Colors.surface)
-        .cornerRadius(Theme.Radii.medium)
-        .nmShadow(level: Theme.Shadows.soft)
+        .background(colorTokens.cardInsetBg)
+        .cornerRadius(Theme.Radii.subCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radii.subCard, style: .continuous)
+                .stroke(colorTokens.border.opacity(0.3), lineWidth: 1)
+        )
+        .cardShadow(isDark: colorTokens.cardShadowDark != Color(hex: "CBD0D7"))
     }
 }
 
+// MARK: - Summary Card
+
 struct WorkbenchSummaryCard: View {
+    @EnvironmentObject var colorTokens: AppColorTokens
     let item: WorkbenchSummaryItem
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(item.title)
-                .font(.subheadline.bold())
+                .font(Theme.Typography.subheadline)
+                .foregroundStyle(colorTokens.text)
             Text(item.description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(colorTokens.textSoft)
                 .lineLimit(3)
         }
         .padding()
-        .background(Theme.Colors.surface)
-        .cornerRadius(Theme.Radii.medium)
-        .nmShadow(level: Theme.Shadows.soft)
+        .background(colorTokens.cardInsetBg)
+        .cornerRadius(Theme.Radii.subCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radii.subCard, style: .continuous)
+                .stroke(colorTokens.border.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 
-struct WorkbenchAgendaCard: View {
-    let item: WorkbenchAgendaItem
+// MARK: - List Action Card (unified Agenda + Handoff)
+
+struct ListActionCard: View {
+    @EnvironmentObject var colorTokens: AppColorTokens
+    let label: String
+    let title: String
+    let description: String
+    let tone: WorkbenchTone
+    let actionLabel: String
+    let actionRoute: AppRoute
     let router: AppRouter
+    var showArrow: Bool = false
 
     var body: some View {
-        Button(action: { router.selectedRoute = item.action.route }) {
-            VStack(alignment: .leading, spacing: 6) {
+        Button(action: { router.selectedRoute = actionRoute }) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text(item.label)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(item.tone.backgroundColor)
-                        .foregroundColor(item.tone.badgeColor)
-                        .cornerRadius(4)
+                    ToneBadge(label: label, tone: tone)
                     Spacer()
-                    Image(systemName: "arrow.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if showArrow {
+                        Image(systemName: "arrow.right")
+                            .font(.caption)
+                            .foregroundStyle(colorTokens.textMuted)
+                    }
                 }
-                Text(item.title)
-                    .font(.subheadline.bold())
+                Text(title)
+                    .font(Theme.Typography.subheadline)
+                    .foregroundStyle(colorTokens.text)
                     .lineLimit(1)
-                Text(item.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(description)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(colorTokens.textSoft)
                     .lineLimit(2)
             }
             .padding(Theme.Spacing.md)
-            .background(Theme.Colors.surface)
-            .cornerRadius(Theme.Radii.medium)
-            .nmShadow(level: Theme.Shadows.soft)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(colorTokens.cardInsetBg)
+            .cornerRadius(Theme.Radii.subCard)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radii.subCard, style: .continuous)
+                    .stroke(colorTokens.border.opacity(0.3), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
+        .hoverLift()
     }
 }
 
-struct WorkbenchHandoffCard: View {
-    let item: WorkbenchHandoffItem
-    let router: AppRouter
-
-    var body: some View {
-        Button(action: { router.selectedRoute = item.action.route }) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(item.label)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(item.tone.backgroundColor)
-                        .foregroundColor(item.tone.badgeColor)
-                        .cornerRadius(4)
-                    Spacer()
-                }
-                Text(item.title)
-                    .font(.subheadline.bold())
-                    .lineLimit(1)
-                Text(item.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .padding(Theme.Spacing.md)
-            .background(Theme.Colors.surface)
-            .cornerRadius(Theme.Radii.medium)
-            .nmShadow(level: Theme.Shadows.soft)
-        }
-        .buttonStyle(.plain)
-    }
-}
+// MARK: - Interest Card
 
 struct WorkbenchInterestCard: View {
+    @EnvironmentObject var colorTokens: AppColorTokens
     let item: WorkbenchInterestItem
     let router: AppRouter
 
@@ -121,31 +152,27 @@ struct WorkbenchInterestCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(item.title)
-                        .font(.subheadline.bold())
+                        .font(Theme.Typography.subheadline)
+                        .foregroundStyle(colorTokens.text)
                         .lineLimit(1)
                     Spacer()
-                    Text(item.stage)
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(item.stageTone.backgroundColor)
-                        .foregroundColor(item.stageTone.badgeColor)
-                        .cornerRadius(4)
+                    ToneBadge(label: item.stage, tone: item.stageTone)
                 }
 
                 Text(item.summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(colorTokens.textSoft)
                     .lineLimit(2)
 
                 HStack(spacing: 6) {
                     ForEach(item.stats, id: \.self) { stat in
                         Text(stat)
-                            .font(.caption2)
+                            .font(Theme.Typography.caption2)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(4)
+                            .background(colorTokens.elevated.opacity(0.5))
+                            .foregroundStyle(colorTokens.textMuted)
+                            .cornerRadius(Theme.Radii.tiny)
                     }
                     Spacer()
                 }
@@ -153,52 +180,60 @@ struct WorkbenchInterestCard: View {
                 HStack {
                     Spacer()
                     Text(item.nextStep)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(Theme.Typography.caption2)
+                        .foregroundStyle(colorTokens.textMuted)
                         .lineLimit(1)
                 }
             }
             .padding(Theme.Spacing.md)
-            .background(Theme.Colors.surface)
-            .cornerRadius(Theme.Radii.medium)
-            .nmShadow(level: Theme.Shadows.soft)
+            .background(colorTokens.cardInsetBg)
+            .cornerRadius(Theme.Radii.subCard)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radii.subCard, style: .continuous)
+                    .stroke(colorTokens.border.opacity(0.3), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
+        .hoverLift()
     }
 }
 
+// MARK: - Risk Card
+
 struct WorkbenchRiskCard: View {
+    @EnvironmentObject var colorTokens: AppColorTokens
     let item: WorkbenchRiskItem
     let router: AppRouter
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(item.label)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(item.tone.backgroundColor)
-                    .foregroundColor(item.tone.badgeColor)
-                    .cornerRadius(4)
+                ToneBadge(label: item.label, tone: item.tone)
                 Spacer()
             }
             Text(item.title)
-                .font(.subheadline.bold())
+                .font(Theme.Typography.subheadline)
+                .foregroundStyle(colorTokens.text)
                 .lineLimit(1)
             Text(item.description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(colorTokens.textSoft)
                 .lineLimit(2)
         }
         .padding(Theme.Spacing.md)
-        .background(Theme.Colors.surface)
-        .cornerRadius(Theme.Radii.medium)
-        .nmShadow(level: Theme.Shadows.soft)
+        .background(colorTokens.cardInsetBg)
+        .cornerRadius(Theme.Radii.subCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radii.subCard, style: .continuous)
+                .stroke(colorTokens.border.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 
+// MARK: - Asset Card
+
 struct WorkbenchAssetCard: View {
+    @EnvironmentObject var colorTokens: AppColorTokens
     let item: WorkbenchAssetItem
     let router: AppRouter
 
@@ -206,23 +241,28 @@ struct WorkbenchAssetCard: View {
         Button(action: { router.selectedRoute = item.action.route }) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.label)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .font(Theme.Typography.caption2)
+                    .foregroundStyle(colorTokens.textMuted)
                     .textCase(.uppercase)
                 Text(item.title)
-                    .font(.subheadline.bold())
+                    .font(Theme.Typography.subheadline)
+                    .foregroundStyle(colorTokens.text)
                     .lineLimit(1)
                 Text(item.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(colorTokens.textSoft)
                     .lineLimit(2)
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.Colors.surface)
-            .cornerRadius(Theme.Radii.medium)
-            .nmShadow(level: Theme.Shadows.soft)
+            .background(colorTokens.cardInsetBg)
+            .cornerRadius(Theme.Radii.subCard)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radii.subCard, style: .continuous)
+                    .stroke(colorTokens.border.opacity(0.3), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
+        .hoverLift()
     }
 }

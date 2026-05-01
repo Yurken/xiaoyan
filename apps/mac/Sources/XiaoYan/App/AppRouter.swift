@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum AppRouteGroup {
+    case primary, secondary
+}
+
 enum AppRoute: String, CaseIterable, Identifiable {
     case home
     case copilot
@@ -12,6 +16,13 @@ enum AppRoute: String, CaseIterable, Identifiable {
     case tools
 
     var id: String { rawValue }
+
+    var group: AppRouteGroup {
+        switch self {
+        case .home, .copilot, .papers, .planner, .survey: return .primary
+        case .knowledge, .experiment, .submission, .tools: return .secondary
+        }
+    }
 
     var title: String {
         switch self {
