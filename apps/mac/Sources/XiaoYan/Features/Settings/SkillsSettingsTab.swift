@@ -37,8 +37,9 @@ struct SkillsSettingsTab: View {
                             .font(.caption)
                     }
                     .padding(6)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
 
                     HStack {
                         Spacer()

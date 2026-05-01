@@ -26,8 +26,9 @@ struct ClaimsView: View {
                         .textFieldStyle(.plain)
                 }
                 .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .cornerRadius(8)
+                .background(Theme.Colors.surface)
+                .cornerRadius(Theme.Radii.medium)
+                .nmShadow(level: Theme.Shadows.soft)
                 .padding()
 
                 if filteredClaims.isEmpty {
@@ -175,8 +176,9 @@ private struct ClaimDetailView: View {
                             .font(.body)
                             .frame(minHeight: 100)
                             .padding(4)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(8)
+                            .background(Theme.Colors.surface)
+                            .cornerRadius(Theme.Radii.medium)
+                            .nmShadow(level: Theme.Shadows.soft)
                     } else {
                         Text(claim.statement)
                             .font(.body)
@@ -287,8 +289,9 @@ private struct EvidenceRow: View {
             .buttonStyle(.borderless)
         }
         .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     private var relationIcon: String {

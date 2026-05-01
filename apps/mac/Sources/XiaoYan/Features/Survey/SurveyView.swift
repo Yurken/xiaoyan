@@ -162,8 +162,9 @@ struct SurveyView: View {
                         WorkflowStatusBadge(status: step.status)
                     }
                     .padding(8)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
                 }
             }
         }
@@ -208,8 +209,9 @@ struct SurveyView: View {
                             }
                         }
                         .padding(10)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                     }
                 }
             }
@@ -341,8 +343,9 @@ struct SurveyView: View {
                         }
                     }
                     .padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
                 }
             }
         }
@@ -642,7 +645,8 @@ private struct SurveySection: View {
                 .textSelection(.enabled)
         }
         .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 }

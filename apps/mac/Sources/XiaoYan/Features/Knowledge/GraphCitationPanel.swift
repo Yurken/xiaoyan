@@ -85,7 +85,8 @@ private struct CitationRow: View {
             .buttonStyle(.borderless)
         }
         .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 }

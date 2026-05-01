@@ -58,8 +58,9 @@ struct AgentConfigPanel: View {
             }
         }
         .padding(.horizontal, 12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     private func suffixKey(_ suffix: String) -> String? {

@@ -31,8 +31,9 @@ struct ImportExportSettingsTab: View {
                     .font(.system(.caption, design: .monospaced))
                     .frame(height: 80)
                     .padding(4)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
                 SecureField("导入密码", text: $importPassword)
                     .textFieldStyle(.roundedBorder)
                 Button("从剪贴板导入") {

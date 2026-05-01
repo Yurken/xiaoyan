@@ -85,8 +85,9 @@ struct CoverLetterView: View {
                             .font(.body)
                             .frame(minHeight: 120)
                             .padding(4)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(8)
+                            .background(Theme.Colors.surface)
+                            .cornerRadius(Theme.Radii.medium)
+                            .nmShadow(level: Theme.Shadows.soft)
                     }
 
                     if mode == .coverLetter {
@@ -98,8 +99,9 @@ struct CoverLetterView: View {
                                 .font(.body)
                                 .frame(minHeight: 60)
                                 .padding(4)
-                                .background(Color(nsColor: .controlBackgroundColor))
-                                .cornerRadius(8)
+                                .background(Theme.Colors.surface)
+                                .cornerRadius(Theme.Radii.medium)
+                                .nmShadow(level: Theme.Shadows.soft)
                         }
                     }
 
@@ -141,8 +143,9 @@ struct CoverLetterView: View {
                                 .font(.body)
                                 .frame(minHeight: 200)
                                 .padding(4)
-                                .background(Color(nsColor: .controlBackgroundColor))
-                                .cornerRadius(8)
+                                .background(Theme.Colors.surface)
+                                .cornerRadius(Theme.Radii.medium)
+                                .nmShadow(level: Theme.Shadows.soft)
                         }
                     }
                 }

@@ -12,6 +12,7 @@ struct XiaoYanApp: App {
                 .environmentObject(router)
                 .environmentObject(settings)
                 .frame(minWidth: 900, minHeight: 600)
+                .preferredColorScheme(.light)
                 .onAppear {
                     DatabaseManager.shared.setup()
                     settings.loadFromStore()
@@ -28,6 +29,7 @@ struct XiaoYanApp: App {
             SettingsView()
                 .environmentObject(settings)
                 .frame(width: 680, height: 520)
+                .preferredColorScheme(.light)
         }
     }
 }

@@ -11,8 +11,9 @@ struct CopilotComposerView: View {
                 .lineLimit(1...6)
                 .scrollContentBackground(.hidden)
                 .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .cornerRadius(12)
+                .background(Theme.Colors.surface)
+                .cornerRadius(Theme.Radii.medium)
+                .nmShadow(level: Theme.Shadows.soft)
                 .frame(minHeight: 40, maxHeight: 120)
 
             Button(action: onSend) {

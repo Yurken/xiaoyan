@@ -45,8 +45,9 @@ struct TranslationView: View {
                     TextEditor(text: $inputText)
                         .font(.body)
                         .padding(4)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -66,8 +67,9 @@ struct TranslationView: View {
                     TextEditor(text: .constant(outputText))
                         .font(.body)
                         .padding(4)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                 }
             }
             .padding(.horizontal)

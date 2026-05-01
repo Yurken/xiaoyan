@@ -89,6 +89,7 @@ func settingsCard(title: String, icon: String, @ViewBuilder content: () -> some 
         content()
     }
     .padding()
-    .background(Color(nsColor: .controlBackgroundColor))
-    .cornerRadius(12)
+    .background(Theme.Colors.surface)
+    .cornerRadius(Theme.Radii.medium)
+    .nmShadow(level: Theme.Shadows.soft)
 }

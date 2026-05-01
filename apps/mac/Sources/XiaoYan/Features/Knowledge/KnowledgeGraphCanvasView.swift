@@ -220,8 +220,9 @@ struct KnowledgeGraphCanvasView: View {
                             }
                         }
                         .padding(8)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                     }
                 }
             }
@@ -243,8 +244,9 @@ struct KnowledgeGraphCanvasView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     // MARK: - Helpers

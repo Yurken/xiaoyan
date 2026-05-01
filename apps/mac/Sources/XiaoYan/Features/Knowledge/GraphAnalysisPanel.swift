@@ -103,8 +103,9 @@ struct GraphAnalysisPanel: View {
                                 .foregroundStyle(.blue)
                         }
                         .padding(6)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(6)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                     }
                 }
             }

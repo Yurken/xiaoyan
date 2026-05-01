@@ -164,8 +164,9 @@ private struct ExperimentDetailView: View {
                             .font(.system(.caption, design: .monospaced))
                             .frame(minHeight: 120)
                             .padding(4)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(8)
+                            .background(Theme.Colors.surface)
+                            .cornerRadius(Theme.Radii.medium)
+                            .nmShadow(level: Theme.Shadows.soft)
                     } else if let config = experiment.config {
                         configView(config)
                     } else {
@@ -181,8 +182,9 @@ private struct ExperimentDetailView: View {
                             .font(.system(.caption, design: .monospaced))
                             .frame(minHeight: 120)
                             .padding(4)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(8)
+                            .background(Theme.Colors.surface)
+                            .cornerRadius(Theme.Radii.medium)
+                            .nmShadow(level: Theme.Shadows.soft)
                     } else if let result = experiment.result {
                         configView(result)
                     } else {
@@ -197,8 +199,9 @@ private struct ExperimentDetailView: View {
                         TextEditor(text: $editNotes)
                             .frame(minHeight: 80)
                             .padding(4)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(8)
+                            .background(Theme.Colors.surface)
+                            .cornerRadius(Theme.Radii.medium)
+                            .nmShadow(level: Theme.Shadows.soft)
                     } else if let notes = experiment.notes, !notes.isEmpty {
                         Text(notes)
                             .font(.subheadline)
@@ -229,8 +232,9 @@ private struct ExperimentDetailView: View {
             }
         }
         .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     private func startEditing() {

@@ -17,12 +17,13 @@ struct HomeView: View {
                 ContentUnavailableView("暂无法加载工作台", systemImage: "exclamationmark.triangle")
             }
         }
-        .navigationTitle("首页")
+        .navigationTitle("概述")
+        .background(Theme.Colors.background)
         .onAppear(perform: loadData)
     }
 
     private func content(model: WorkbenchOverviewModel) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
             heroSection(model: model)
             metricsSection(model: model)
             summarySection(model: model)

@@ -9,15 +9,16 @@ struct WorkbenchMetricCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(metric.value)
-                .font(.title2.bold())
+                .font(.system(.title2, design: .rounded).weight(.bold).monospacedDigit())
             Text(metric.note)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
         .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 }
 
@@ -34,8 +35,9 @@ struct WorkbenchSummaryCard: View {
                 .lineLimit(3)
         }
         .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 }
 
@@ -48,7 +50,7 @@ struct WorkbenchAgendaCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(item.label)
-                        .font(.caption2.bold())
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(item.tone.backgroundColor)
@@ -67,9 +69,10 @@ struct WorkbenchAgendaCard: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
-            .padding(10)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .cornerRadius(10)
+            .padding(Theme.Spacing.md)
+            .background(Theme.Colors.surface)
+            .cornerRadius(Theme.Radii.medium)
+            .nmShadow(level: Theme.Shadows.soft)
         }
         .buttonStyle(.plain)
     }
@@ -84,7 +87,7 @@ struct WorkbenchHandoffCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(item.label)
-                        .font(.caption2.bold())
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(item.tone.backgroundColor)
@@ -100,9 +103,10 @@ struct WorkbenchHandoffCard: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
-            .padding(10)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .cornerRadius(10)
+            .padding(Theme.Spacing.md)
+            .background(Theme.Colors.surface)
+            .cornerRadius(Theme.Radii.medium)
+            .nmShadow(level: Theme.Shadows.soft)
         }
         .buttonStyle(.plain)
     }
@@ -154,9 +158,10 @@ struct WorkbenchInterestCard: View {
                         .lineLimit(1)
                 }
             }
-            .padding(10)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .cornerRadius(10)
+            .padding(Theme.Spacing.md)
+            .background(Theme.Colors.surface)
+            .cornerRadius(Theme.Radii.medium)
+            .nmShadow(level: Theme.Shadows.soft)
         }
         .buttonStyle(.plain)
     }
@@ -170,7 +175,7 @@ struct WorkbenchRiskCard: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(item.label)
-                    .font(.caption2.bold())
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(item.tone.backgroundColor)
@@ -186,9 +191,10 @@ struct WorkbenchRiskCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
         }
-        .padding(10)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .cornerRadius(10)
+        .padding(Theme.Spacing.md)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 }
 
@@ -200,7 +206,7 @@ struct WorkbenchAssetCard: View {
         Button(action: { router.selectedRoute = item.action.route }) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.label)
-                    .font(.caption2.bold())
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 Text(item.title)
@@ -211,10 +217,11 @@ struct WorkbenchAssetCard: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
-            .padding(10)
+            .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .cornerRadius(10)
+            .background(Theme.Colors.surface)
+            .cornerRadius(Theme.Radii.medium)
+            .nmShadow(level: Theme.Shadows.soft)
         }
         .buttonStyle(.plain)
     }

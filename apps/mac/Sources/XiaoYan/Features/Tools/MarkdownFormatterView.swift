@@ -42,8 +42,9 @@ struct MarkdownFormatterView: View {
                 TextEditor(text: $inputText)
                     .font(.body)
                     .padding(4)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
                     .frame(minHeight: 120)
             }
             .padding()
@@ -104,8 +105,9 @@ struct MarkdownFormatterView: View {
                     TextEditor(text: .constant(resultText))
                         .font(.system(.body, design: .monospaced))
                         .padding(4)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                         .frame(minHeight: 120)
                 }
                 .padding()

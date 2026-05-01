@@ -122,8 +122,9 @@ struct VersionDiffView: View {
                 }
             }
             .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(8)
+            .background(Theme.Colors.surface)
+            .cornerRadius(Theme.Radii.medium)
+            .nmShadow(level: Theme.Shadows.soft)
         )
     }
 }

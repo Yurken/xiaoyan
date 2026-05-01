@@ -46,8 +46,9 @@ struct KnowledgeView: View {
                             .onSubmit { performSearch() }
                     }
                     .padding(8)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
 
                     Button(action: { isSemanticSearch.toggle() }) {
                         Image(systemName: isSemanticSearch ? "brain.head.profile" : "text.magnifyingglass")
@@ -480,8 +481,9 @@ private struct NoteDetailView: View {
                         .font(.body)
                         .frame(minHeight: 300)
                         .padding(4)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                 } else {
                     Text(note.content)
                         .font(.body)

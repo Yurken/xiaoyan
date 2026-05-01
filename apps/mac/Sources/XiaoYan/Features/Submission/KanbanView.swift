@@ -71,8 +71,9 @@ private struct KanbanColumn: View {
             }
         }
         .frame(width: 220)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 }
 
@@ -126,8 +127,9 @@ private struct KanbanCard: View {
             }
         }
         .padding(8)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .cornerRadius(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     private func move(to status: SubmissionStatus) {

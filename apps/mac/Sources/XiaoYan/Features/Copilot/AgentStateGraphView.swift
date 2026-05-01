@@ -150,8 +150,9 @@ struct AgentStateGraphView: View {
             edgeStatusBadge(edge.status)
         }
         .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     private func edgeStatusBadge(_ status: String) -> some View {

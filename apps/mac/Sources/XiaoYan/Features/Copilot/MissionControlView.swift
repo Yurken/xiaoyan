@@ -55,8 +55,9 @@ struct MissionControlView: View {
                         }
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                     }
 
                     switch viewMode {
@@ -92,8 +93,9 @@ struct MissionControlView: View {
                     .font(.caption)
                     .frame(minHeight: 60)
                     .padding(4)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
 
                 HStack {
                     if memorySaved {
@@ -153,8 +155,9 @@ struct MissionControlView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .padding(8)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                     }
                 }
             }
@@ -203,8 +206,9 @@ struct MissionControlView: View {
                             }
                         }
                         .padding(8)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                     }
                 }
             }
@@ -240,8 +244,9 @@ struct MissionControlView: View {
                             }
                         }
                         .padding(8)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                     }
                 }
             }

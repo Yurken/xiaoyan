@@ -144,8 +144,9 @@ private struct FriendLinkSectionView: View {
                             }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(8)
+                            .background(Theme.Colors.surface)
+                            .cornerRadius(Theme.Radii.medium)
+                            .nmShadow(level: Theme.Shadows.soft)
                         }
                         .buttonStyle(.plain)
                     }
@@ -153,7 +154,8 @@ private struct FriendLinkSectionView: View {
                 .padding(10)
             }
         }
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 }

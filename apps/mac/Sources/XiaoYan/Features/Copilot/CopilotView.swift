@@ -207,8 +207,9 @@ struct CopilotView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(10)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                     }
                     .buttonStyle(.plain)
                 }

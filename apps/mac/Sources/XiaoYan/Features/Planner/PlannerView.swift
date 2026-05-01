@@ -77,8 +77,9 @@ struct PlannerView: View {
                     }
                 }
                 .padding()
-                .background(Color(nsColor: .controlBackgroundColor))
-                .cornerRadius(12)
+                .background(Theme.Colors.surface)
+                .cornerRadius(Theme.Radii.medium)
+                .nmShadow(level: Theme.Shadows.soft)
 
                 // Workflow
                 if !workflow.isEmpty || isGenerating {
@@ -122,8 +123,9 @@ struct PlannerView: View {
                         PlannerStatusBadge(status: step.status)
                     }
                     .padding(8)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
                 }
             }
         }
@@ -193,8 +195,9 @@ struct PlannerView: View {
             }
         }
         .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     @ViewBuilder
@@ -340,8 +343,9 @@ struct PlannerView: View {
             }
         }
         .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     @ViewBuilder
@@ -387,8 +391,9 @@ struct PlannerView: View {
             }
         }
         .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     @ViewBuilder
@@ -421,8 +426,9 @@ struct PlannerView: View {
             content()
         }
         .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     // MARK: - Actions

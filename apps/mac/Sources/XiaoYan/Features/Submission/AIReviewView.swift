@@ -16,8 +16,9 @@ struct AIReviewView: View {
                     TextEditor(text: $content)
                         .font(.body)
                         .padding(4)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(8)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -42,8 +43,9 @@ struct AIReviewView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding()
                     }
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
                 }
             }
             .padding()

@@ -37,7 +37,7 @@ struct MessageBubbleView: View {
                     .font(.caption)
                     .foregroundStyle(.white)
                     .frame(width: 28, height: 28)
-                    .background(Color.primary)
+                    .background(Theme.Colors.primary)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 Text("小妍")
                     .font(.caption.bold())
@@ -125,13 +125,15 @@ struct MessageBubbleView: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .padding(12)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(18)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
             } else if !parsed.answer.isEmpty {
                 MarkdownText(content: parsed.answer)
                     .padding(12)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(18)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
             }
         }
     }
