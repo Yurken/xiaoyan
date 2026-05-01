@@ -2,6 +2,7 @@ import SwiftUI
 
 struct KnowledgeGraphCanvasView: View {
     @StateObject private var knowledgeService = KnowledgeService()
+    @StateObject private var editor = KnowledgeGraphEditor()
     @State private var snapshot: KnowledgeGraphSnapshot?
     @State private var selectedNode: GraphNode? = nil
     private let repo = KnowledgeRepository()
@@ -44,6 +45,12 @@ struct KnowledgeGraphCanvasView: View {
                         summaryItem(label: "引用", value: summary.citationCount)
                     }
                 }
+                Button(action: { editor.toggleEdit() }) {
+                    Image(systemName: editor.isEditing ? "checkmark.square" : "square.and.pencil")
+                }
+                .buttonStyle(.borderless)
+                .help(editor.isEditing ? "退出编辑" : "进入编辑模式")
+
                 Button(action: loadData) {
                     Image(systemName: "arrow.clockwise")
                 }
@@ -51,7 +58,12 @@ struct KnowledgeGraphCanvasView: View {
             }
             .padding()
 
-            Divider()
+            if editor.isEditing {
+                editorToolbar
+                Divider()
+            } else {
+                Divider()
+            }
 
             if allNodes.isEmpty {
                 ContentUnavailableView("暂无可视化关系", systemImage: "network")
@@ -68,6 +80,57 @@ struct KnowledgeGraphCanvasView: View {
                 }
             }
         }
+    }
+
+    private var editorToolbar: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ForEach([CanvasTool.addClaim, .linkEvidence, .linkCitation], id: \.self) { tool in
+                    toolButton(tool)
+                }
+                if editor.activeTool != .none {
+                    Button {
+                        editor.cancelTool()
+                    } label: {
+                        Label("取消", systemImage: "xmark.circle")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                }
+                Spacer()
+            }
+            if let hint = editor.hint, !hint.isEmpty {
+                Text(hint)
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.05))
+    }
+
+    @ViewBuilder
+    private func toolButton(_ tool: CanvasTool) -> some View {
+        Button {
+            editor.startTool(tool)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: tool.icon)
+                Text(tool.label)
+            }
+            .font(.caption.weight(editor.activeTool == tool ? .semibold : .regular))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(editor.activeTool == tool ? Color.accentColor : Color.clear)
+            .foregroundStyle(editor.activeTool == tool ? Color.white : Color.primary)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+            )
+            .cornerRadius(6)
+        }
+        .buttonStyle(.plain)
     }
 
     private func column(title: String, nodes: [GraphNode]) -> some View {
@@ -95,7 +158,9 @@ struct KnowledgeGraphCanvasView: View {
     // MARK: - Node Card
 
     private func nodeCard(_ node: GraphNode) -> some View {
-        Button(action: { selectedNode = node }) {
+        let targetability = editor.targetability(for: node)
+        let isSelected = selectedNode?.id == node.id
+        return Button(action: { handleNodeTap(node) }) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
                     Circle()
@@ -113,14 +178,51 @@ struct KnowledgeGraphCanvasView: View {
             }
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(selectedNode?.id == node.id ? nodeColor(node.type).opacity(0.15) : Color(nsColor: .controlBackgroundColor))
+            .background(cardBackground(node: node, isSelected: isSelected, targetability: targetability))
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(selectedNode?.id == node.id ? nodeColor(node.type) : Color.clear, lineWidth: 1.5)
+                    .stroke(cardStroke(node: node, isSelected: isSelected, targetability: targetability),
+                            lineWidth: targetability == .neutral ? 1.5 : 2)
             )
             .cornerRadius(8)
+            .opacity(targetability == .invalid ? 0.45 : 1)
         }
         .buttonStyle(.plain)
+    }
+
+    private func cardBackground(node: GraphNode, isSelected: Bool, targetability: NodeTargetability) -> Color {
+        switch targetability {
+        case .validSource: return Color.orange.opacity(0.18)
+        case .validTarget: return Color.green.opacity(0.15)
+        case .invalid: return Color(nsColor: .controlBackgroundColor)
+        case .neutral:
+            return isSelected ? nodeColor(node.type).opacity(0.15) : Color(nsColor: .controlBackgroundColor)
+        }
+    }
+
+    private func cardStroke(node: GraphNode, isSelected: Bool, targetability: NodeTargetability) -> Color {
+        switch targetability {
+        case .validSource: return .orange
+        case .validTarget: return .green
+        case .invalid: return .clear
+        case .neutral: return isSelected ? nodeColor(node.type) : .clear
+        }
+    }
+
+    private func handleNodeTap(_ node: GraphNode) {
+        if !editor.isEditing || editor.activeTool == .none {
+            selectedNode = node
+            return
+        }
+        // 编辑模式下分发给 editor；C3/C4 提交后会接 sheet
+        switch editor.pickNode(node) {
+        case .invalidNode, .sourcePicked:
+            // 高亮变化由 @Published 自动驱动
+            break
+        case .readyForSheet(_, _):
+            // C1 先不接 sheet，仅取消工具状态
+            editor.cancelTool()
+        }
     }
 
     // MARK: - Inspector Panel
