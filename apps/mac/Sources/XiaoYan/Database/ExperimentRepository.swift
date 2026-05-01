@@ -20,11 +20,9 @@ struct ExperimentRepository {
         try dbQueue.write { db in
             let configJson = record.config.flatMap { try? JSONEncoder().encode($0) }
                 .flatMap { String(data: $0, encoding: .utf8) }
-            let resultJson = record.result.flatMap { try? JSONEncoder().encode($0) }
-                .flatMap { String(data: $0, encoding: .utf8) }
             try db.execute(
                 sql: "INSERT INTO experiment_records (id, title, config, result, notes, linked_submission_id) VALUES (?,?,?,?,?,?)",
-                arguments: [record.id, record.title, configJson, resultJson, record.notes, record.linkedSubmissionId]
+                arguments: [record.id, record.title, configJson, record.result, record.notes, record.linkedSubmissionId]
             )
         }
     }
@@ -33,11 +31,9 @@ struct ExperimentRepository {
         try dbQueue.write { db in
             let configJson = record.config.flatMap { try? JSONEncoder().encode($0) }
                 .flatMap { String(data: $0, encoding: .utf8) }
-            let resultJson = record.result.flatMap { try? JSONEncoder().encode($0) }
-                .flatMap { String(data: $0, encoding: .utf8) }
             try db.execute(
                 sql: "UPDATE experiment_records SET title=?, config=?, result=?, notes=?, linked_submission_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                arguments: [record.title, configJson, resultJson, record.notes, record.linkedSubmissionId, record.id]
+                arguments: [record.title, configJson, record.result, record.notes, record.linkedSubmissionId, record.id]
             )
         }
     }

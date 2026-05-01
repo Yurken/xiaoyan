@@ -185,8 +185,15 @@ private struct ExperimentDetailView: View {
                             .background(Theme.Colors.surface)
                             .cornerRadius(Theme.Radii.medium)
                             .nmShadow(level: Theme.Shadows.soft)
-                    } else if let result = experiment.result {
-                        configView(result)
+                    } else if let result = experiment.result, !result.isEmpty {
+                        Text(result)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                            .background(Theme.Colors.surface)
+                            .cornerRadius(Theme.Radii.medium)
+                            .nmShadow(level: Theme.Shadows.soft)
                     } else {
                         Text("暂无结果").font(.caption).foregroundStyle(.secondary)
                     }
@@ -241,8 +248,7 @@ private struct ExperimentDetailView: View {
         editTitle = experiment.title
         editConfigText = experiment.config.flatMap { try? JSONEncoder().encode($0) }
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-        editResultText = experiment.result.flatMap { try? JSONEncoder().encode($0) }
-            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        editResultText = experiment.result ?? ""
         editNotes = experiment.notes ?? ""
         isEditing = true
     }
@@ -255,10 +261,8 @@ private struct ExperimentDetailView: View {
            let config = try? JSONDecoder().decode([String: String].self, from: data) {
             updated.config = config.isEmpty ? nil : config
         }
-        if let data = editResultText.data(using: .utf8),
-           let result = try? JSONDecoder().decode([String: String].self, from: data) {
-            updated.result = result.isEmpty ? nil : result
-        }
+        let trimmedResult = editResultText.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.result = trimmedResult.isEmpty ? nil : editResultText
         try? ExperimentRepository().update(updated)
         isEditing = false
         onUpdate()

@@ -5,7 +5,7 @@ struct ExperimentRecord: Codable, Identifiable, Hashable, FetchableRecord {
     let id: String
     var title: String
     var config: [String: String]?
-    var result: [String: String]?
+    var result: String?
     var notes: String?
     var linkedSubmissionId: String?
     let createdAt: Date?
