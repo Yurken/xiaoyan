@@ -446,6 +446,22 @@ final class DatabaseManager {
             }
         }
 
+        migrator.registerMigration("v3_submission_status_align") { db in
+            try db.execute(sql: "UPDATE submissions SET status='writing' WHERE status IN ('draft','preparing')")
+            try db.execute(sql: "UPDATE submissions SET status='reviewing' WHERE status='revision'")
+            try db.execute(sql: "UPDATE submissions SET status='rejected' WHERE status='withdrawn'")
+            try db.execute(sql: "UPDATE paper_versions SET stage='writing' WHERE stage IN ('draft','preparing','')")
+            try db.execute(sql: "UPDATE paper_versions SET stage='reviewing' WHERE stage='revision'")
+            try db.execute(sql: "UPDATE paper_versions SET stage='rejected' WHERE stage='withdrawn'")
+        }
+
+        migrator.registerMigration("v4_claim_status_align") { db in
+            try db.execute(sql: "UPDATE knowledge_graph_claims SET status='supported' WHERE status IN ('已验证','confirmed','验证')")
+            try db.execute(sql: "UPDATE knowledge_graph_claims SET status='contested' WHERE status IN ('已证伪','证伪','rejected')")
+            try db.execute(sql: "UPDATE knowledge_graph_claims SET status='hypothesis' WHERE status IN ('待验证','pending','')")
+            try db.execute(sql: "UPDATE knowledge_graph_claims SET status='hypothesis' WHERE status NOT IN ('hypothesis','supported','contested','open')")
+        }
+
         try migrator.migrate(dbQueue)
     }
 }
