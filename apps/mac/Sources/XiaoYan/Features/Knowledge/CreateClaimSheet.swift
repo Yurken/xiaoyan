@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct CreateClaimSheet: View {
-    var defaultInterestId: String? = nil
     var onCreated: (KnowledgeClaim) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -52,9 +51,6 @@ struct CreateClaimSheet: View {
         .frame(width: 480, height: 420)
         .onAppear {
             interests = (try? repo.listInterests()) ?? []
-            if selectedInterestId == nil, let preset = defaultInterestId {
-                selectedInterestId = preset
-            }
         }
     }
 

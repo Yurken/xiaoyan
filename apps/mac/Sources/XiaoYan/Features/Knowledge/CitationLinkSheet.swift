@@ -7,6 +7,7 @@ struct CitationLinkSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var context: String = ""
+    @State private var errorMessage: String? = nil
 
     private let repo = KnowledgeRepository()
 
@@ -29,6 +30,14 @@ struct CitationLinkSheet: View {
                 }
             }
             .formStyle(.grouped)
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+            }
 
             HStack {
                 Button("取消") { dismiss() }
@@ -79,7 +88,12 @@ struct CitationLinkSheet: View {
             citedPaperId: cited.id,
             context: trimmed.isEmpty ? nil : trimmed
         )
-        try? repo.insertCitation(citation)
+        do {
+            try repo.insertCitation(citation)
+        } catch {
+            errorMessage = "保存失败：\(error.localizedDescription)"
+            return
+        }
         onCreated(citation)
         dismiss()
     }

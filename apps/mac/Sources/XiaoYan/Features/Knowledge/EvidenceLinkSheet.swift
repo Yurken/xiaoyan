@@ -8,6 +8,7 @@ struct EvidenceLinkSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var relation: RelationKind = .supports
     @State private var summary: String = ""
+    @State private var errorMessage: String? = nil
 
     private let repo = KnowledgeRepository()
 
@@ -39,6 +40,14 @@ struct EvidenceLinkSheet: View {
                 }
             }
             .formStyle(.grouped)
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+            }
 
             HStack {
                 Button("取消") { dismiss() }
@@ -113,7 +122,12 @@ struct EvidenceLinkSheet: View {
             relationKind: relation.rawValue,
             evidenceSummary: trimmed.isEmpty ? nil : trimmed
         )
-        try? repo.insertEvidenceLink(link)
+        do {
+            try repo.insertEvidenceLink(link)
+        } catch {
+            errorMessage = "保存失败：\(error.localizedDescription)"
+            return
+        }
         onCreated(link)
         dismiss()
     }

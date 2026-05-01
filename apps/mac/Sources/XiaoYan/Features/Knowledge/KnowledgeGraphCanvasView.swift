@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct KnowledgeGraphCanvasView: View {
-    @StateObject private var knowledgeService = KnowledgeService()
     @StateObject private var editor = KnowledgeGraphEditor()
     @State private var snapshot: KnowledgeGraphSnapshot?
     @State private var selectedNode: GraphNode? = nil
