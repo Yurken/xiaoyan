@@ -97,8 +97,8 @@ private struct ClaimRow: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
             HStack {
-                if let status = claim.status {
-                    Text(status)
+                if let status = KnowledgeClaimStatus.from(claim.status) {
+                    Text(status.displayName)
                         .font(.caption2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -117,12 +117,12 @@ private struct ClaimRow: View {
         .padding(.vertical, 4)
     }
 
-    private func statusColor(_ status: String) -> Color {
-        switch status.lowercased() {
-        case "confirmed", "验证": return .green
-        case "rejected", "证伪": return .red
-        case "pending", "待验证": return .orange
-        default: return .blue
+    private func statusColor(_ status: KnowledgeClaimStatus) -> Color {
+        switch status {
+        case .supported: return .green
+        case .contested: return .red
+        case .hypothesis: return .orange
+        case .open: return .blue
         }
     }
 }
@@ -135,7 +135,7 @@ private struct ClaimDetailView: View {
     @State private var isEditing = false
     @State private var editTitle = ""
     @State private var editStatement = ""
-    @State private var editStatus = ""
+    @State private var editStatus: KnowledgeClaimStatus = .hypothesis
     @State private var evidence: [EvidenceLink] = []
     private let repo = KnowledgeRepository()
 
@@ -158,8 +158,15 @@ private struct ClaimDetailView: View {
                     .buttonStyle(.bordered)
                 }
 
-                if let status = claim.status {
-                    Text(status)
+                if isEditing {
+                    Picker("状态", selection: $editStatus) {
+                        ForEach(KnowledgeClaimStatus.allCases, id: \.self) { status in
+                            Text(status.displayName).tag(status)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                } else if let status = KnowledgeClaimStatus.from(claim.status) {
+                    Text(status.displayName)
                         .font(.caption2.bold())
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -226,7 +233,7 @@ private struct ClaimDetailView: View {
     private func startEdit() {
         editTitle = claim.title
         editStatement = claim.statement
-        editStatus = claim.status ?? ""
+        editStatus = KnowledgeClaimStatus.from(claim.status) ?? .hypothesis
         isEditing = false
     }
 
@@ -234,7 +241,7 @@ private struct ClaimDetailView: View {
         var updated = claim
         updated.title = editTitle
         updated.statement = editStatement
-        updated.status = editStatus.isEmpty ? nil : editStatus
+        updated.status = editStatus.rawValue
         try? repo.updateClaim(updated)
         isEditing = false
         onUpdate()
@@ -249,12 +256,12 @@ private struct ClaimDetailView: View {
         loadEvidence()
     }
 
-    private func statusColor(_ status: String) -> Color {
-        switch status.lowercased() {
-        case "confirmed", "验证": return .green
-        case "rejected", "证伪": return .red
-        case "pending", "待验证": return .orange
-        default: return .blue
+    private func statusColor(_ status: KnowledgeClaimStatus) -> Color {
+        switch status {
+        case .supported: return .green
+        case .contested: return .red
+        case .hypothesis: return .orange
+        case .open: return .blue
         }
     }
 }
@@ -318,7 +325,7 @@ private struct CreateClaimSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var statement = ""
-    @State private var status = "待验证"
+    @State private var status: KnowledgeClaimStatus = .hypothesis
     private let repo = KnowledgeRepository()
 
     var body: some View {
@@ -331,9 +338,9 @@ private struct CreateClaimSheet: View {
                 TextField("论断陈述", text: $statement, axis: .vertical)
                     .lineLimit(3...8)
                 Picker("状态", selection: $status) {
-                    Text("待验证").tag("待验证")
-                    Text("已验证").tag("已验证")
-                    Text("已证伪").tag("已证伪")
+                    ForEach(KnowledgeClaimStatus.allCases, id: \.self) { value in
+                        Text(value.displayName).tag(value)
+                    }
                 }
             }
             .formStyle(.grouped)
@@ -348,7 +355,7 @@ private struct CreateClaimSheet: View {
                         title: title,
                         statement: statement,
                         researchInterestId: nil,
-                        status: status,
+                        status: status.rawValue,
                         createdAt: Date()
                     )
                     try? repo.insertClaim(claim)

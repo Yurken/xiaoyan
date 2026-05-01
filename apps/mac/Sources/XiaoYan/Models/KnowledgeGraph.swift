@@ -52,6 +52,31 @@ enum RelationKind: String, Codable {
     case supports, contradicts, background
 }
 
+enum KnowledgeClaimStatus: String, Codable, CaseIterable {
+    case hypothesis, supported, contested, open
+
+    var displayName: String {
+        switch self {
+        case .hypothesis: return "待验证"
+        case .supported: return "已支持"
+        case .contested: return "有争议"
+        case .open: return "开放问题"
+        }
+    }
+
+    static func from(_ raw: String?) -> KnowledgeClaimStatus? {
+        guard let raw, !raw.isEmpty else { return nil }
+        if let direct = KnowledgeClaimStatus(rawValue: raw) { return direct }
+        switch raw.lowercased() {
+        case "已验证", "confirmed", "验证": return .supported
+        case "已证伪", "证伪", "rejected": return .contested
+        case "待验证", "pending": return .hypothesis
+        case "open", "开放问题": return .open
+        default: return nil
+        }
+    }
+}
+
 struct GraphNode: Identifiable {
     let id: String
     let label: String
