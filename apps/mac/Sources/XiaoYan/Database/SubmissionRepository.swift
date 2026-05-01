@@ -113,6 +113,21 @@ struct SubmissionRepository {
         }
     }
 
+    func upsertReviewRound(_ round: ReviewRound) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO review_rounds (id, submission_id, round, verdict, received_at)
+                    VALUES (?,?,?,?,?)
+                    ON CONFLICT(id) DO UPDATE SET
+                      verdict = excluded.verdict,
+                      received_at = excluded.received_at
+                """,
+                arguments: [round.id, round.submissionId, round.round, round.verdict, round.receivedAt]
+            )
+        }
+    }
+
     func insertReviewComment(_ comment: ReviewComment) throws {
         try dbQueue.write { db in
             try db.execute(
