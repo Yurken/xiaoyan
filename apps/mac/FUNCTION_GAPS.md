@@ -144,7 +144,6 @@
 
 ### P1
 - **S2 加密导入/导出 UI 退化**：desktop 专用 `CryptoConfigModal.tsx`（双输入确认 + hint + 错误分离）；mac `ImportExportSettingsTab.swift:18-43` 仅普通 SecureField，靠剪贴板传密文
-- **S3 Provider 预设**：desktop 9 个一键预设（OpenAI/Anthropic/DeepSeek/通义千问/硅基流动/Moonshot/Gemini/Ollama/自定义，自动填 base_url + 默认 chat/embed model + detect 反查）— `providerPresets.ts:5-96`、`ConnectionSection.tsx`；mac `ProviderSettingsTab.swift:11-15` 仅三选 Picker 无预设无 Ollama 自动拉取
 - **S4 角色任务卡（RolesSection）**：desktop 9 类专项任务模型卡（溯源/流光/谋策/探知/翰章/构域/视界/译衡/主对话）含 model+temperature+base_url+apiKey 多键联动 — `RolesSection.tsx`、`shared.tsx` GroupedModelCard；mac `AgentSettingsTab.swift:6-14` 仅 7 个 multi_agent agent，缺 planner_hint/survey_writer/paper_analysis/paper_reproduction/vision/translation 任务模型入口（`pageConfig.tsx:160-317` 默认值列出 key）
 - **S11 Skills 编辑/新建/导入**：mac 仅 toggle + 重置内置（`SkillsSettingsTab.swift:102-104`）；desktop `SkillsSection.tsx` 含 SkillEditModal（新建/修改 prompt/tags 编辑）
 
@@ -254,6 +253,8 @@
 - skillsApi.resetBuiltins
 - chatApi.updateSessionContext / listAgentRuns / artifact JOIN
 - PPT 工作区原生 .pptx 生成
+- 投稿 Mock Review 多 reviewer + 严格度 + 一键导入轮次（`MockReviewSheet.swift` + `SubmissionService.runMockReview`，2026-05-01）
+- Settings Provider 预设 9 卡片 + Ollama `/api/tags` 拉模型（`ProviderPresets.swift` + `ProviderSettingsTab.swift`，2026-05-02）
 
 ---
 
