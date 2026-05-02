@@ -93,7 +93,12 @@ struct VersionsView: View {
             diffPair = nil
         }
         .sheet(isPresented: $showingCreate) {
-            CreateVersionSheet(service: service, submissionId: selectedSubmission?.id ?? "", onCreated: loadVersions)
+            CreateVersionSheet(
+                service: service,
+                submissionId: selectedSubmission?.id ?? "",
+                defaultStage: selectedSubmission?.status ?? .writing,
+                onCreated: loadVersions
+            )
         }
         .sheet(item: $diffPair) { pair in
             VersionDiffView(oldVersion: pair.old, newVersion: pair.new)
@@ -163,7 +168,7 @@ private struct VersionRow: View {
                     }
                     Spacer()
                     if let stage = version.stage {
-                        Text(stage)
+                        Text(SubmissionStatus(rawValue: stage)?.displayName ?? stage)
                             .font(.caption2)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -212,12 +217,26 @@ private struct VersionRow: View {
 private struct CreateVersionSheet: View {
     let service: SubmissionService
     let submissionId: String
+    let defaultStage: SubmissionStatus
     let onCreated: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var tag = ""
     @State private var label = ""
-    @State private var stage = "draft"
+    @State private var stage: SubmissionStatus
     @State private var notes = ""
+
+    init(
+        service: SubmissionService,
+        submissionId: String,
+        defaultStage: SubmissionStatus,
+        onCreated: @escaping () -> Void
+    ) {
+        self.service = service
+        self.submissionId = submissionId
+        self.defaultStage = defaultStage
+        self.onCreated = onCreated
+        _stage = State(initialValue: defaultStage)
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -228,10 +247,9 @@ private struct CreateVersionSheet: View {
                 TextField("版本标签 (如 v1.0)", text: $tag)
                 TextField("版本说明", text: $label)
                 Picker("阶段", selection: $stage) {
-                    Text("草稿").tag("draft")
-                    Text("初稿").tag("first draft")
-                    Text("修改稿").tag("revision")
-                    Text("终稿").tag("final")
+                    ForEach(SubmissionStatus.allCases, id: \.self) { status in
+                        Text(status.displayName).tag(status)
+                    }
                 }
                 TextField("备注", text: $notes, axis: .vertical)
                     .lineLimit(2...4)
@@ -247,7 +265,7 @@ private struct CreateVersionSheet: View {
                         submissionId: submissionId,
                         tag: tag,
                         label: label.isEmpty ? nil : label,
-                        stage: stage,
+                        stage: stage.rawValue,
                         content: nil,
                         notes: notes.isEmpty ? nil : notes
                     )
