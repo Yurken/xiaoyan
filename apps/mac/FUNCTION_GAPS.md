@@ -163,7 +163,7 @@
 ## 8. Tools
 
 ### P1
-- **T1 Arxiv 字段检索**：desktop `ArxivFieldSearchPanel.tsx:114-253` 11 字段（通用/标题/摘要/作者/分类 chip 多选/备注/期刊/排除词/最近天数/返回篇数/排序模式）+ ARXIV_CATEGORIES 分组面板；mac `ArxivSearchView.swift:6-82` 仅 4 字段
+- **T1 Arxiv 字段检索** ✅（已对齐）：`ArxivSearchView.swift` 11 字段表单（通用/标题/摘要/作者/备注/期刊/排除词 + 分类多选面板 + 最近天数/返回篇数/排序模式）；`ArxivClient.swift` `SearchRequest` + `buildQuery` 多字段拼接（all/ti/abs/au/cat/co/jr + submittedDate + ANDNOT 排除）+ `filterRecent`；分类面板 4 大领域 32 标签；1:1 desktop `ArxivFieldSearchPanel.tsx:114-253` + `useArxivFieldSearch.ts`
 - **T4 SourceLookup 学术信号** ✅（已对齐）：`SourceLookupView.swift` journalCard 新增索引徽章行（indexes + JCR/CAS/Top/OA 彩色标签）+ eISSN/JIF 排名/JCR 分类字段 + WOS 分类 chip 列表；ccfCard 标题改为 Link + CCF 等级徽章样式 + 出版商字段；1:1 desktop `SourceLookupPanel.tsx:75-137`
 - **T5 Translation 多语言** ✅（已对齐）：`TranslationView.swift` 源/目标语言 Picker（zh/en/ja/de/fr + auto），prompt 动态注入语言名；1:1 desktop `TranslationPanel.tsx:20-35`
 - **T8 FriendLinks 数据完整度**：desktop `yanweb-links.ts` 1055 行（数百条 + 多分组 + favicon）；mac `FriendLinksView.swift:13-51` 仅 5 类约 27 条硬编码无图标
@@ -258,6 +258,7 @@
 - Review 评论 tags / 已处理切换 / 行内回复编辑（`ReviewRoundsView.swift` CommentRow tags chips + resolved 切换 + response 行内编辑；`AddCommentSheet` tags 输入；`SubmissionRepository.swift` / `SubmissionService.swift` 补 `updateReviewComment`，2026-05-02）
 - Experiment 关联投稿下拉选择（`ExperimentView.swift` CreateExperimentSheet + DetailView 编辑模式新增 submission Picker；列表/详情显示投稿标题，2026-05-02）
 - SourceLookup 补充 WoS 索引 / OA / JIF 排名 / WOS 分类 chip / CCF 链接（`SourceLookupView.swift` journalCard + ccfCard 字段补全，2026-05-02）
+- Arxiv 字段检索从 4 字段扩展到 11 字段 + 分类多选面板（`ArxivSearchView.swift` + `ArxivClient.swift` SearchRequest + buildQuery，2026-05-02）
 - Skills 编辑/新建/导入（`SkillsSettingsTab.swift` SkillEditSheet + 自定义技能行内编辑删除；内置技能恢复默认，2026-05-02）
 
 ---
