@@ -4,7 +4,7 @@ struct KnowledgeGraphCanvasView: View {
     @StateObject private var editor = KnowledgeGraphEditor()
     @State private var snapshot: KnowledgeGraphSnapshot?
     @State private var selectedNode: GraphNode? = nil
-    @State private var showingCreateClaim = false
+    @State private var composerMode: ComposerMode? = nil
     @State private var pendingEvidencePair: EvidenceLinkPair? = nil
     @State private var pendingCitationPair: CitationLinkPair? = nil
     private let repo = KnowledgeRepository()
@@ -26,13 +26,6 @@ struct KnowledgeGraphCanvasView: View {
                 .frame(minWidth: 260, maxWidth: 360)
         }
         .onAppear(perform: loadData)
-        .sheet(isPresented: $showingCreateClaim, onDismiss: {
-            editor.cancelTool()
-        }) {
-            CreateClaimSheet { _ in
-                loadData()
-            }
-        }
         .sheet(item: $pendingEvidencePair, onDismiss: {
             editor.cancelTool()
         }) { pair in
@@ -102,6 +95,20 @@ struct KnowledgeGraphCanvasView: View {
                     .padding()
                 }
             }
+
+            if let mode = composerMode {
+                Divider()
+                KnowledgeGraphComposer(
+                    initialMode: mode,
+                    snapshot: snapshot,
+                    onChanged: {
+                        loadData()
+                    },
+                    onClose: {
+                        composerMode = nil
+                    }
+                )
+            }
         }
     }
 
@@ -135,21 +142,31 @@ struct KnowledgeGraphCanvasView: View {
 
     @ViewBuilder
     private func toolButton(_ tool: CanvasTool) -> some View {
+        let isActive = tool == .addClaim
+            ? composerMode != nil
+            : editor.activeTool == tool
         Button {
-            editor.startTool(tool)
             if tool == .addClaim {
-                showingCreateClaim = true
+                if composerMode != nil {
+                    composerMode = nil
+                } else {
+                    composerMode = .claim
+                    editor.cancelTool()
+                }
+            } else {
+                composerMode = nil
+                editor.startTool(tool)
             }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: tool.icon)
                 Text(tool.label)
             }
-            .font(.caption.weight(editor.activeTool == tool ? .semibold : .regular))
+            .font(.caption.weight(isActive ? .semibold : .regular))
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(editor.activeTool == tool ? Color.accentColor : Color.clear)
-            .foregroundStyle(editor.activeTool == tool ? Color.white : Color.primary)
+            .background(isActive ? Color.accentColor : Color.clear)
+            .foregroundStyle(isActive ? Color.white : Color.primary)
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
