@@ -144,7 +144,7 @@
 
 ### P1
 - **S2 加密导入/导出 UI 退化** ✅（已对齐）：`CryptoConfigModal.swift`（双输入确认 + hint + 错误分离）+ `ImportExportSettingsTab.swift` 按钮入口；1:1 desktop `CryptoConfigModal.tsx`
-- **S11 Skills 编辑/新建/导入**：mac 仅 toggle + 重置内置（`SkillsSettingsTab.swift:102-104`）；desktop `SkillsSection.tsx` 含 SkillEditModal（新建/修改 prompt/tags 编辑）
+- **S11 Skills 编辑/新建/导入** ✅（已对齐）：`SkillsSettingsTab.swift` 自定义技能卡片增加编辑/删除图标 + "新建技能"按钮；`SkillEditSheet` 新建/编辑技能表单（name/title/description/prompt/tags），内置技能支持"恢复默认"；`SkillRepository` insert/update/delete 已就绪；1:1 desktop `SkillsSection.tsx` SkillEditModal
 
 ### P2
 - **S1 标签分组结构错位**：mac 13 个左侧栏标签 vs desktop 单页+分区滚动；mac 缺"快速开始"引导分区 — `pageConfig.tsx:24-87` + `TaskSetupSection.tsx`
@@ -258,6 +258,7 @@
 - Review 评论 tags / 已处理切换 / 行内回复编辑（`ReviewRoundsView.swift` CommentRow tags chips + resolved 切换 + response 行内编辑；`AddCommentSheet` tags 输入；`SubmissionRepository.swift` / `SubmissionService.swift` 补 `updateReviewComment`，2026-05-02）
 - Experiment 关联投稿下拉选择（`ExperimentView.swift` CreateExperimentSheet + DetailView 编辑模式新增 submission Picker；列表/详情显示投稿标题，2026-05-02）
 - SourceLookup 补充 WoS 索引 / OA / JIF 排名 / WOS 分类 chip / CCF 链接（`SourceLookupView.swift` journalCard + ccfCard 字段补全，2026-05-02）
+- Skills 编辑/新建/导入（`SkillsSettingsTab.swift` SkillEditSheet + 自定义技能行内编辑删除；内置技能恢复默认，2026-05-02）
 
 ---
 
