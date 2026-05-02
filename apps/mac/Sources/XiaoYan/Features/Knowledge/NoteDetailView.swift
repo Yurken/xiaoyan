@@ -1,5 +1,10 @@
 import SwiftUI
 
+private enum EditorTab: String, CaseIterable {
+    case edit = "编辑"
+    case preview = "预览"
+}
+
 struct NoteDetailView: View {
     let note: KnowledgeNote
     let interests: [ResearchInterest]
@@ -11,6 +16,7 @@ struct NoteDetailView: View {
     @State private var editContent = ""
     @State private var editTagsText = ""
     @State private var editInterestId = ""
+    @State private var editorTab: EditorTab = .edit
 
     var body: some View {
         ScrollView {
@@ -87,17 +93,39 @@ struct NoteDetailView: View {
 
                 // Content
                 if isEditing {
-                    TextEditor(text: $editContent)
-                        .font(.body)
-                        .frame(minHeight: 300)
-                        .padding(4)
-                        .background(Theme.Colors.surface)
-                        .cornerRadius(Theme.Radii.medium)
-                        .nmShadow(level: Theme.Shadows.soft)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("支持 Markdown")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Picker("", selection: $editorTab) {
+                                ForEach(EditorTab.allCases, id: \.self) { tab in
+                                    Text(tab.rawValue).tag(tab)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 140)
+                        }
+                        if editorTab == .edit {
+                            TextEditor(text: $editContent)
+                                .font(.body)
+                                .frame(minHeight: 300)
+                                .padding(4)
+                                .background(Theme.Colors.surface)
+                                .cornerRadius(Theme.Radii.medium)
+                                .nmShadow(level: Theme.Shadows.soft)
+                        } else {
+                            MarkdownText(content: editContent)
+                                .frame(minHeight: 300, alignment: .topLeading)
+                                .padding(8)
+                                .background(Theme.Colors.surface)
+                                .cornerRadius(Theme.Radii.medium)
+                                .nmShadow(level: Theme.Shadows.soft)
+                        }
+                    }
                 } else {
-                    Text(note.content)
-                        .font(.body)
-                        .textSelection(.enabled)
+                    MarkdownText(content: note.content)
                 }
             }
             .padding()

@@ -11,6 +11,7 @@ struct CreateNoteSheet: View {
     @State private var content = ""
     @State private var tagsText = ""
     @State private var selectedInterestId: String
+    @State private var editorTab: NoteEditorTab = .edit
 
     init(
         knowledgeService: KnowledgeService,
@@ -34,8 +35,7 @@ struct CreateNoteSheet: View {
 
             Form {
                 TextField("标题", text: $title)
-                TextField("内容", text: $content, axis: .vertical)
-                    .lineLimit(8...20)
+                noteContentField
                 TextField("标签（逗号分隔）", text: $tagsText)
                 if !interests.isEmpty {
                     Picker("关联研究方向", selection: $selectedInterestId) {
@@ -75,4 +75,35 @@ struct CreateNoteSheet: View {
         .padding()
         .frame(width: 460, height: 440)
     }
+
+    private var noteContentField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("支持 Markdown")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Picker("", selection: $editorTab) {
+                    ForEach(NoteEditorTab.allCases, id: \.self) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 120)
+            }
+            if editorTab == .edit {
+                TextEditor(text: $content)
+                    .font(.body)
+                    .frame(minHeight: 120)
+            } else {
+                MarkdownText(content: content)
+                    .frame(minHeight: 120, alignment: .topLeading)
+            }
+        }
+    }
+}
+
+private enum NoteEditorTab: String, CaseIterable {
+    case edit = "编辑"
+    case preview = "预览"
 }

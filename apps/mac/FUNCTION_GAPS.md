@@ -93,7 +93,7 @@
 - **笔记关联 interest（research_interest_id）** ✅（2026-05-02 已对齐）：CreateNoteSheet 与 NoteDetailView 编辑模式新增"关联研究方向"Picker；预览模式元数据栏展示已绑定方向 — `KnowledgeView.swift` 内
 
 ### P2
-- **Markdown 实时预览编辑器**：mac 仅 TextEditor 纯文本 — desktop `NotesPanel.tsx:8-74`（双 Tab 编辑/预览）；mac `KnowledgeView.swift:478-491`
+- **Markdown 实时预览编辑器** ✅（已对齐）：`NoteDetailView.swift` 编辑模式新增 `EditorTab`（编辑/预览）Picker + `MarkdownText` 预览；`CreateNoteSheet.swift` 内容输入区替换为 `noteContentField` 双 Tab 编辑器（TextEditor / MarkdownText）；与 desktop `NotesPanel.tsx:8-74` `MarkdownEditor` 等价
 - **图谱关联计数 Badge**：mac 无 — desktop `NotesPanel.tsx:438-462, 545-549`
 
 ### P3
