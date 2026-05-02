@@ -228,7 +228,7 @@
 
 ### P1
 - **附件管理 UI** ✅（已对齐）：`ExperimentAttachmentPanel.swift`（fileImporter 多选上传 + 列表 + 行内 label 编辑 + 删除）+ `ExperimentView.swift:229` 接入；1:1 desktop `Experiment.tsx:81-215, 496-498`
-- **关联投稿下拉**：mac 模型有 `linkedSubmissionId` 但 CreateSheet/DetailView 都不暴露选择 UI（`ExperimentView.swift:152-156, 270-321`），仅只读显示前 8 位 ID — desktop `Experiment.tsx:457-466`
+- **关联投稿下拉** ✅（已对齐）：`ExperimentView.swift` CreateExperimentSheet + ExperimentDetailView 编辑模式均新增"关联投稿"Picker；ExperimentRow / DetailView 只读模式显示投稿标题而非 ID 前缀；1:1 desktop `Experiment.tsx:457-466`
 - **R3 Result 字段类型不一致**（参见 §0）
 
 ### P2
@@ -256,6 +256,7 @@
 - Settings Provider 预设 9 卡片 + Ollama `/api/tags` 拉模型（`ProviderPresets.swift` + `ProviderSettingsTab.swift`，2026-05-02）
 - Settings 角色任务卡 10 张（流光/谋策/小妍/溯源/探知/洞见/翰章/构域/视界/译衡）含多 key 联动 + 折叠独立接口配置 + 副字段（rag_top_k）；TranslationView/AgentNodesService/SurveyView 已接入 translation_*/survey_writer_*/survey_planner_* 优先链；DefaultSettings 补齐 22 个键（`RoleCardPresets.swift` + `RoleCardView.swift` + `MultiKeyBindings.swift`，2026-05-02）
 - Review 评论 tags / 已处理切换 / 行内回复编辑（`ReviewRoundsView.swift` CommentRow tags chips + resolved 切换 + response 行内编辑；`AddCommentSheet` tags 输入；`SubmissionRepository.swift` / `SubmissionService.swift` 补 `updateReviewComment`，2026-05-02）
+- Experiment 关联投稿下拉选择（`ExperimentView.swift` CreateExperimentSheet + DetailView 编辑模式新增 submission Picker；列表/详情显示投稿标题，2026-05-02）
 
 ---
 
