@@ -3,6 +3,7 @@ import SwiftUI
 struct ExperimentView: View {
     @StateObject private var experimentRepo = ExperimentRepo()
     @State private var experiments: [ExperimentRecord] = []
+    @State private var submissions: [Submission] = []
     @State private var selectedExperiment: ExperimentRecord?
     @State private var showingCreateSheet = false
 
@@ -13,7 +14,7 @@ struct ExperimentView: View {
                     emptyState
                 } else {
                     List(experiments, selection: $selectedExperiment) { exp in
-                        ExperimentRow(experiment: exp)
+                        ExperimentRow(experiment: exp, submissions: submissions)
                             .tag(exp)
                             .contextMenu {
                                 Button("删除", role: .destructive) {
@@ -35,7 +36,7 @@ struct ExperimentView: View {
             }
         } detail: {
             if let exp = selectedExperiment {
-                ExperimentDetailView(experiment: exp, onUpdate: reload)
+                ExperimentDetailView(experiment: exp, submissions: submissions, onUpdate: reload)
             } else {
                 ContentUnavailableView("选择实验", systemImage: "flask")
             }
@@ -63,6 +64,7 @@ struct ExperimentView: View {
 
     private func reload() {
         experiments = experimentRepo.list()
+        submissions = SubmissionService().listSubmissions()
         if let selected = selectedExperiment {
             selectedExperiment = experiments.first { $0.id == selected.id }
         }
@@ -88,13 +90,24 @@ private final class ExperimentRepo: ObservableObject {
 
 private struct ExperimentRow: View {
     let experiment: ExperimentRecord
+    let submissions: [Submission]
+
+    private var linkedSubmissionTitle: String? {
+        guard let id = experiment.linkedSubmissionId else { return nil }
+        return submissions.first { $0.id == id }?.title
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(experiment.title)
                 .font(.subheadline.bold())
             HStack(spacing: 8) {
-                if experiment.linkedSubmissionId != nil {
+                if let title = linkedSubmissionTitle {
+                    Label(title, systemImage: "link")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                        .lineLimit(1)
+                } else if experiment.linkedSubmissionId != nil {
                     Label("已关联投稿", systemImage: "link")
                         .font(.caption2)
                         .foregroundStyle(.blue)
@@ -114,6 +127,7 @@ private struct ExperimentRow: View {
 
 private struct ExperimentDetailView: View {
     let experiment: ExperimentRecord
+    let submissions: [Submission]
     let onUpdate: () -> Void
 
     @State private var isEditing = false
@@ -121,6 +135,7 @@ private struct ExperimentDetailView: View {
     @State private var editConfigText = ""
     @State private var editResultText = ""
     @State private var editNotes = ""
+    @State private var editLinkedSubmissionId: String? = nil
     @State private var configError: String?
 
     var body: some View {
@@ -150,8 +165,23 @@ private struct ExperimentDetailView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if let linkedId = experiment.linkedSubmissionId {
-                        Label("投稿: \(linkedId.prefix(8))", systemImage: "link")
+                    if isEditing {
+                        Picker("关联投稿", selection: $editLinkedSubmissionId) {
+                            Text("无").tag(String?.none)
+                            ForEach(submissions) { sub in
+                                Text(sub.title).tag(Optional(sub.id))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                        .frame(maxWidth: 280)
+                    } else if let linkedId = experiment.linkedSubmissionId,
+                              let title = submissions.first(where: { $0.id == linkedId })?.title {
+                        Label("投稿: \(title)", systemImage: "link")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    } else if experiment.linkedSubmissionId != nil {
+                        Label("已关联投稿", systemImage: "link")
                             .font(.caption)
                             .foregroundStyle(.blue)
                     }
@@ -263,6 +293,7 @@ private struct ExperimentDetailView: View {
         editConfigText = prettyJSON(from: experiment.config)
         editResultText = experiment.result ?? ""
         editNotes = experiment.notes ?? ""
+        editLinkedSubmissionId = experiment.linkedSubmissionId
         configError = nil
         isEditing = true
     }
@@ -271,6 +302,7 @@ private struct ExperimentDetailView: View {
         var updated = experiment
         updated.title = editTitle
         updated.notes = editNotes.isEmpty ? nil : editNotes
+        updated.linkedSubmissionId = editLinkedSubmissionId
 
         let trimmedConfig = editConfigText.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedConfig.isEmpty {
@@ -313,6 +345,8 @@ private struct CreateExperimentSheet: View {
     @State private var title = ""
     @State private var configText = ""
     @State private var notes = ""
+    @State private var selectedSubmissionId: String = ""
+    @State private var submissions: [Submission] = []
     @State private var configError: String?
 
     var body: some View {
@@ -322,6 +356,14 @@ private struct CreateExperimentSheet: View {
 
             Form {
                 TextField("实验标题", text: $title)
+                if !submissions.isEmpty {
+                    Picker("关联投稿", selection: $selectedSubmissionId) {
+                        Text("无").tag("")
+                        ForEach(submissions) { sub in
+                            Text(sub.title).tag(sub.id)
+                        }
+                    }
+                }
                 TextField("配置 (JSON)", text: $configText, axis: .vertical)
                     .font(.system(.caption, design: .monospaced))
                     .lineLimit(3...6)
@@ -350,13 +392,14 @@ private struct CreateExperimentSheet: View {
                         }
                         parsed = dict.isEmpty ? nil : dict
                     }
+                    let linkedId = selectedSubmissionId.isEmpty ? nil : selectedSubmissionId
                     let exp = ExperimentRecord(
                         id: UUID().uuidString,
                         title: title,
                         config: parsed,
                         result: nil,
                         notes: notes.isEmpty ? nil : notes,
-                        linkedSubmissionId: nil,
+                        linkedSubmissionId: linkedId,
                         createdAt: Date(),
                         updatedAt: nil
                     )
@@ -370,6 +413,9 @@ private struct CreateExperimentSheet: View {
             .padding(.horizontal)
         }
         .padding()
-        .frame(width: 420, height: 380)
+        .frame(width: 420, height: 420)
+        .onAppear {
+            submissions = SubmissionService().listSubmissions()
+        }
     }
 }
