@@ -18,7 +18,7 @@ final class KnowledgeService: ObservableObject {
             keywords: keywords,
             profile: profile,
             learningPath: nil,
-            status: "active",
+            status: nil,
             createdAt: Date()
         )
         try? knowledgeRepo.insertInterest(interest)
@@ -94,6 +94,11 @@ final class KnowledgeService: ObservableObject {
             temperatureKeys: []
         ) else { return nil }
 
+        // Set planning status
+        var planning = interest
+        planning.status = "planning"
+        try? knowledgeRepo.updateInterest(planning)
+
         let prompt = """
         为以下研究方向生成学习路径：
         主题：\(interest.topic)
@@ -110,10 +115,17 @@ final class KnowledgeService: ObservableObject {
         ),
         let data = response.data(using: .utf8),
         let path = try? JSONDecoder().decode(LearningPath.self, from: data)
-        else { return nil }
+        else {
+            // Revert status on failure
+            var reverted = interest
+            reverted.status = nil
+            try? knowledgeRepo.updateInterest(reverted)
+            return nil
+        }
 
         var updated = interest
         updated.learningPath = path
+        updated.status = "planned"
         try? knowledgeRepo.updateInterest(updated)
         return path
     }

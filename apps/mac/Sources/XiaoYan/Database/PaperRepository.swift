@@ -49,7 +49,13 @@ struct PaperRepository {
                     reproductionSteps: reproRow["reproduction_steps"],
                     expectedResults: reproRow["expected_results"],
                     commonPitfalls: reproRow["common_pitfalls"],
-                    notes: reproRow["notes"]
+                    notes: reproRow["notes"],
+                    datasetPreparation: reproRow["dataset_preparation"],
+                    trainingProcess: reproRow["training_process"],
+                    inferenceProcess: reproRow["inference_process"],
+                    evaluationMetrics: reproRow["evaluation_metrics"],
+                    risksAndNotes: reproRow["risks_and_notes"],
+                    rawGuide: reproRow["raw_guide"]
                 )
             }
             return paper
@@ -237,19 +243,26 @@ struct PaperRepository {
             try db.execute(
                 sql: """
                     INSERT INTO reproduction_guides (paper_id, code_repository, environment_setup,
-                        dependencies, data_requirements, reproduction_steps, expected_results, common_pitfalls, notes)
-                    VALUES (?,?,?,?,?,?,?,?,?)
+                        dependencies, data_requirements, reproduction_steps, expected_results, common_pitfalls, notes,
+                        dataset_preparation, training_process, inference_process, evaluation_metrics, risks_and_notes, raw_guide)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(paper_id) DO UPDATE SET
                         code_repository=excluded.code_repository, environment_setup=excluded.environment_setup,
                         dependencies=excluded.dependencies, data_requirements=excluded.data_requirements,
                         reproduction_steps=excluded.reproduction_steps, expected_results=excluded.expected_results,
-                        common_pitfalls=excluded.common_pitfalls, notes=excluded.notes
+                        common_pitfalls=excluded.common_pitfalls, notes=excluded.notes,
+                        dataset_preparation=excluded.dataset_preparation, training_process=excluded.training_process,
+                        inference_process=excluded.inference_process, evaluation_metrics=excluded.evaluation_metrics,
+                        risks_and_notes=excluded.risks_and_notes, raw_guide=excluded.raw_guide
                 """,
                 arguments: [
                     paperId, guide.codeRepository, guide.environmentSetup,
                     guide.dependencies, guide.dataRequirements,
                     guide.reproductionSteps, guide.expectedResults,
-                    guide.commonPitfalls, guide.notes
+                    guide.commonPitfalls, guide.notes,
+                    guide.datasetPreparation, guide.trainingProcess,
+                    guide.inferenceProcess, guide.evaluationMetrics,
+                    guide.risksAndNotes, guide.rawGuide
                 ]
             )
         }

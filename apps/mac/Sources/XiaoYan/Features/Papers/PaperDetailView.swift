@@ -215,14 +215,7 @@ struct PaperDetailView: View {
 
     private func reproductionView(_ guide: ReproductionGuide) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            AnalysisSection(title: "环境配置", icon: "gearshape", color: .blue, content: guide.environmentSetup)
-            AnalysisSection(title: "依赖安装", icon: "puzzlepiece", color: .gray, content: guide.dependencies)
-            AnalysisSection(title: "数据集准备", icon: "folder", color: .purple, content: guide.dataRequirements)
-            AnalysisSection(title: "复现步骤", icon: "list.number", color: .green, content: guide.reproductionSteps)
-            AnalysisSection(title: "预期结果", icon: "checkmark.seal", color: .teal, content: guide.expectedResults)
-            AnalysisSection(title: "常见问题", icon: "xmark.octagon", color: .red, content: guide.commonPitfalls)
-
-            if let repo = guide.codeRepository {
+            if let repo = guide.codeRepository, !repo.isEmpty {
                 HStack {
                     Image(systemName: "link")
                         .foregroundStyle(.blue)
@@ -235,6 +228,18 @@ struct PaperDetailView: View {
                 .background(Color.blue.opacity(0.06))
                 .cornerRadius(8)
             }
+
+            AnalysisSection(title: "环境配置", icon: "gearshape", color: .blue, content: guide.environmentSetup)
+            AnalysisSection(title: "依赖安装", icon: "puzzlepiece", color: .gray, content: guide.dependencies)
+            AnalysisSection(title: "数据准备", icon: "folder", color: .purple, content: guide.datasetPreparation ?? guide.dataRequirements)
+            AnalysisSection(title: "训练流程", icon: "cpu", color: .orange, content: guide.trainingProcess)
+            AnalysisSection(title: "推理流程", icon: "arrow.forward.circle", color: .indigo, content: guide.inferenceProcess)
+            AnalysisSection(title: "评估指标", icon: "chart.bar", color: .pink, content: guide.evaluationMetrics)
+            AnalysisSection(title: "复现步骤", icon: "list.number", color: .green, content: guide.reproductionSteps)
+            AnalysisSection(title: "预期结果", icon: "checkmark.seal", color: .teal, content: guide.expectedResults)
+            AnalysisSection(title: "风险与注意事项", icon: "exclamationmark.triangle", color: .red, content: guide.risksAndNotes ?? guide.commonPitfalls)
+            AnalysisSection(title: "备注", icon: "note.text", color: .secondary, content: guide.notes)
+            AnalysisSection(title: "原始指导", icon: "doc.text", color: .secondary, content: guide.rawGuide)
         }
     }
 

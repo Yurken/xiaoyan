@@ -75,14 +75,14 @@
 - **ResearchWorkbench 五 Tab 工作台** ✅（已对齐）：planner/papers/xiaoyan(chat)/notes/tools 集成 — desktop `ResearchWorkbench.tsx:1-520`；mac `ResearchWorkbenchView.swift` 五 Tab 容器 + header（返回/标题/统计徽章/SegmentedPicker）+ Planner Tab 复用 `LearningPathView` + Papers Tab `ScopedPapersView` + Xiaoyan Tab `InterestScopedCopilotView`（复用 `ChatThreadView`）+ Notes Tab `ScopedNotesView` + Tools Tab 嵌入 `ToolsView`；入口：`HomeView` interest card 点击/工作台按钮 + `KnowledgeView` interest 行内按钮；`AppRouter.workbenchInterestId` 导航状态
 
 ### P2
-- **PDF 参考文献预上传**：创建 interest 时批量挑 PDF 自动 `papers.upload(path, interest.id)` — desktop `PlannerComposer.tsx:54-95, 250-302, 593-642`；mac 无
-- **Interest 状态机 (planning/planned/active)**：mac `ResearchInterest` 模型缺 `status` 字段，仅以 `learningPath != nil` 判断 — desktop `InterestsPanel.tsx:23-27, 256-322`
+- ✅ **PDF 参考文献预上传**：`CreateInterestSheet` 新增「选择 PDF」按钮（`.fileImporter` 多选 PDF），选中文件列表展示（带移除按钮）；点击「创建并导入」后先 `knowledgeService.createInterest` 创建方向，再循环调用 `paperService.upload(fileURL:settings:researchInterestId:)` 上传并绑定到该方向；支持 `submitPhase` 状态（idle/creating/uploading）+ 上传失败提示；`PaperService.upload` 新增 `researchInterestId` 可选参数；与 desktop `PlannerComposer.tsx:54-95, 250-302, 593-642` 等价
+- ✅ **Interest 状态机 (planning/planned/active)**：`KnowledgeService.createInterest` 初始 `status` 从 `"active"` 改为 `nil`（待规划）；`generateLearningPath` 在生成前设置 `status = "planning"` 并更新 DB，成功时设为 `"planned"`，失败时回滚为 `nil`；`InterestListRow` 新增 `StatusBadge` 组件（已规划/生成中/待规划三色徽章），按钮逻辑从 `learningPath != nil` 改为 `status == "planned"` / `"planning"` / `nil` 三态；与 desktop `InterestsPanel.tsx:23-27, 256-322` 等价
 - **InterestProfilePanel 研究画像高亮** ✅（已对齐）：`InterestListRow` 新增 `profileSection` + `profileHighlights` 计算属性，展示 goal（"目标"）/ timeBudget（"时间"）/ preferredOutput（"输出"）三卡片 + constraints chip 列表；内联卡片样式使用 `Theme.Colors.surface` + `nmShadow`；与 desktop `InterestProfilePanel.tsx` 等价
 - **多 Agent 实时工作流 UI**：mac 是本地 `simulateWorkflow()` 假模拟（`PlannerView.swift:441-475`），desktop 接 `interest:agent_start/complete/error` 事件流
 - **文件夹名编辑、删除确认（保留/全删）** ✅（已对齐）：删除确认（"置为未归档"/"删除全部"）已在 `NotesInterestSection` 实现；文件夹名编辑新增 `EditFolderNameSheet` + `KnowledgeService.updateInterestFolderName` 方法；`InterestListRow` 右键菜单新增"编辑文件夹名"入口，`InterestListRow` 标题优先显示 `folderTitle`（fallback 到 `topic`）；与 desktop `InterestsPanel.tsx` 等价
 
 ### P3
-- **重新规划 (regenerate) 入口**：mac 仅 `learningPath == nil` 才显示生成按钮（`KnowledgeView.swift:378-384`），无法重跑
+- **重新规划 (regenerate) 入口** ✅（已对齐）：`InterestListRow` 在 `learningPath != nil` 时显示「重新规划」按钮（`borderless` + `.secondary`），点击触发 `.confirmationDialog` 确认后覆盖重跑；与 desktop `InterestsPanel.tsx` 重新生成入口等价
 
 ---
 
@@ -111,12 +111,12 @@
 - **R2 Claim 状态枚举不一致**（参见 §0）
 
 ### P2
-- **KnowledgeGraphInspector 多类型节点详情**：desktop 按节点类型展示 claim provenance / interest 关键词 chip / paper venue+keyConclusions / experiment / note — desktop `KnowledgeGraphInspector.tsx:1-152`；mac `KnowledgeGraphCanvasView.swift` 仅 sourceKind+summary+边数
-- **KnowledgeTimelinePanel 按年聚合时间线**：desktop `KnowledgeTimelinePanel.tsx:1-91`；mac 无
+- ✅ **KnowledgeGraphInspector 多类型节点详情**：`KnowledgeGraphCanvasView.nodeInspector` 重写为按节点类型分分支展示：claim（statement + 证据计数 badge + provenance 列表）、interest（关键词 chip + 目标/时间画像）、paper（年份/venue/作者 + keyConclusions/notes）、experiment（notes）、note（来源类型 + content）；与 desktop `KnowledgeGraphInspector.tsx:1-152` 等价
+- ✅ **KnowledgeTimelinePanel 按年聚合时间线**：`KnowledgeGraphCanvasView` 新增 `timelinePanel`（横向滚动时间线），`KnowledgeGraphTimelineEntry` 支持 interest/paper/claim/experiment 四种事件类型；按年分组聚合，每年一列卡片列表，每条含图标 + 标题 + 类型标签 + 详情 + 日期；过滤方向时自动同步过滤时间线事件；最多展示最近 24 条；与 desktop `KnowledgeTimelinePanel.tsx:1-91` 等价
 - ✅ **聚焦研究方向过滤器**：`KnowledgeGraphCanvasView` 顶部 Picker 过滤整图（从 snapshot.interests 构建），过滤后仅显示该 interest 下的节点和边线
 
 ### P3
-- **MetricTile 概览（4 大指标卡 vs mac 7 个内联小数字）**：`KnowledgeGraphCanvasView.swift:36-46` vs `KnowledgeGraphWorkspace.tsx:12-32`
+- ✅ **MetricTile 概览（4 大指标卡 vs mac 7 个内联小数字）**：`KnowledgeGraphCanvasView` 顶部指标从 7 个内联小数字替换为 4 张卡片（研究方向 / 结论节点 / 证据关系 / 引用边），样式参考 `KnowledgeGraphWorkspace.tsx:12-32`（大字号数值 + 小写标签 + surface 背景 + 圆角阴影）
 
 ### Mac 反向超出 desktop（保留）
 - **GraphAnalysisPanel**：中心性 / 最短路径 / 子图算法面板（`GraphAnalysisPanel.swift:1-301`），desktop 无对应
@@ -132,11 +132,11 @@
 
 ### P2
 - **研究方向→论文勾选**：desktop 选 interest 后加载 papers 可勾选喂给 survey — `SurveyPanel.tsx:148-230, 410-480`；mac 完全无关联
-- **formatted_citations / citation_format 输出与导出**：mac 无
+- **formatted_citations / citation_format 输出与导出** ✅（已对齐）：`SurveyService.swift:672-718` 实现 APA/MLA/IEEE/GB-T-7714 四种引用格式；`StructuredSurveyResult` 携带 `formattedCitations` + `citationFormat`；`SurveyView.swift` `citationsSection` 展示格式化参考文献并支持一键复制；新增「导出 Markdown」按钮将完整综述写入文件（`NSSavePanel`）
 
 ### P3
-- **历史记录持久化**：mac 仅 `@State surveyHistory` 进程内数组（`SurveyView.swift:12, 415`）
-- **CCF 标识与 venue 链接**：mac papersView 仅展示纯文本（`SurveyView.swift:308-352`）
+- **历史记录持久化** ✅（已对齐）：`SurveyRecord` 改为 `Codable`，`UserDefaults` 存储 JSON 数据；`onAppear` 加载、`didProduceStructured` 保存；最多保留 50 条
+- **CCF 标识与 venue 链接** ✅（部分对齐）：SurveyView `papersView` 标题改为 `Link`（`paper.paperUrl`）+ DOI 改为 `Link`（`https://doi.org/...`）；CCF 等级/类型 badge 仍缺本地数据源（`match_venue` 索引），后续可引入 `ccf_catalog.json`
 
 ---
 
@@ -192,8 +192,8 @@
 - **元数据可见徽章（CCF/SCI/JCR/CAS/WoS）**：mac 卡片仅显示年份+venue+status — desktop `Papers.tsx:633-651`
 - **导入时元数据自动识别开关**：desktop `Papers.tsx:951-1005`
 - **删除主题文件夹（保留/全删）** ✅（已对齐）：`PapersView.swift` 分组列表 Section header 新增删除按钮（trash 图标），点击后展开内联确认栏（"保留论文" / "删除全部" / 取消）；调用 `KnowledgeService.deleteInterestOnly/Bundle`；与 desktop `Papers.tsx` 等价
-- **Reproduction sections 字段对齐**：mac 仅 6 段（`PaperDetailView.swift:216-238`），缺 training_process/inference_process/evaluation_metrics 拆分；desktop 8 段（`PaperDetailModal.tsx:22-31`）
-- **图片缩放/Lightbox + caption-figure 关联**：mac 仅静态 Image（`PaperFiguresView.swift:20-58`）
+- **Reproduction sections 字段对齐** ✅（已对齐）：`ReproductionGuide` 模型扩展为 14 字段（新增 dataset_preparation/training_process/inference_process/evaluation_metrics/risks_and_notes/raw_guide）；`PaperRepository` 读写 SQL 同步扩展；`PaperDetailView.reproductionView` 按 desktop 顺序（代码仓库→环境→依赖→数据→训练→推理→评估→步骤→预期→风险→备注→原始）展示全部非空 section；`AnalysisSection` 自动隐藏空内容
+- **图片缩放/Lightbox + caption-figure 关联** ✅（已对齐）：`PaperFiguresView.swift` 重写为 `ZStack`，`FigureCard` 新增 `onTap` 回调；点击后弹出全屏 Lightbox overlay（黑色背景 + 大图 + 图号/caption + 点击/Escape 关闭）；与 desktop `PaperDetailModal.tsx` 图片点击放大交互等价
 
 ### P3
 - **重新解读确认**：mac 已 analyzed 后无重新解读入口
@@ -215,7 +215,7 @@
 ### P2
 - **Venue 模板库 + 区域/类型筛选 + 已追踪标记**：desktop `AddVenueModal.tsx:1-230`（POPULAR_VENUES 模板）；mac `VenuesListView.swift:120-178` 仅手动输入
 - **Review 轮 verdict 自动派生**：mac 必须手填 verdict 字符串（`ReviewRoundsView.swift:148-162, 232-269`）；desktop `getDominantVerdict` 自动 upsert
-- **Polish 结果回写到版本**：mac 结果只能复制（`CoverLetterView.swift:127-150`）
+- **Polish 结果回写到版本** ✅（已对齐）：`CoverLetterView.swift` 新增版本选择 `Picker`（加载选中投稿的版本列表，选择后自动填充版本 content 到输入区）；润色结果区新增「应用到版本」按钮（仅 polish 模式且选择了版本时显示），点击后调用 `service.updateVersion` 回写 content；与 desktop `PolishPanel.tsx`「应用到版本」等价
 
 ### P3
 - **看板拖拽/方向移动**：mac KanbanCard 仅 Menu 选目标列（`KanbanView.swift:113-127, 135-143`）；desktop 含 prev/next + writing→submitted 自动写 submittedAt
@@ -232,7 +232,7 @@
 - **R3 Result 字段类型不一致**（参见 §0）
 
 ### P2
-- **Config 自由 JSON**：mac 解码 `[String:String]`（`ExperimentView.swift:254-261`），嵌套或数字会失败回落空 dict — desktop `Record<string, unknown>`（`Experiment.tsx:289-298, 469-482`）
+- **Config 自由 JSON** ✅（已对齐）：`ExperimentRecord.config` 已使用 `[String: JSONValue]`，`JSONValue` 枚举支持 null/bool/number/string/array/object 六种类型；`ExperimentView.swift` `configView` / `startEditing` / `saveChanges` / `CreateExperimentSheet` 均已接入 `JSONValue` 编码解码；与 desktop `Record<string, unknown>` 等价
 
 ### P3
 - **新增即编辑流程**：desktop 创建后自动选中并聚焦标题（`Experiment.tsx:270-287`）；mac CreateExperimentSheet 是独立弹窗

@@ -66,7 +66,7 @@ enum SubmissionStatus: String, Codable, CaseIterable {
     }
 }
 
-struct PaperVersion: Codable, Identifiable, FetchableRecord {
+struct PaperVersion: Codable, Identifiable, FetchableRecord, Equatable, Hashable {
     let id: String
     var submissionId: String
     var tag: String?

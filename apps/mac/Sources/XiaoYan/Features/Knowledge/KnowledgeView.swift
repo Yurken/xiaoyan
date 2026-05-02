@@ -512,6 +512,7 @@ private struct InterestListRow: View {
     @EnvironmentObject var router: AppRouter
     @State private var isGenerating = false
     @State private var showingEditFolderName = false
+    @State private var showRegenerateConfirm = false
 
     private var folderTitle: String {
         let trimmed = interest.folderName?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -604,8 +605,10 @@ private struct InterestListRow: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                if interest.learningPath != nil {
-                    BadgeView(text: "已有路径", color: .green)
+                if let status = interest.status {
+                    StatusBadge(status: status)
+                } else {
+                    StatusBadge(status: "")
                 }
             }
 
@@ -641,11 +644,22 @@ private struct InterestListRow: View {
                 .buttonStyle(.borderless)
                 .controlSize(.small)
                 .font(.caption2)
-                if isGenerating {
-                    ProgressView()
-                        .controlSize(.small)
-                } else if interest.learningPath == nil {
-                    Button("生成学习路径") {
+                if isGenerating || interest.status == "planning" {
+                    HStack(spacing: 4) {
+                        ProgressView().controlSize(.small)
+                        Text("生成中…")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if interest.status == "planned" {
+                    Button("重新规划") {
+                        showRegenerateConfirm = true
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .foregroundStyle(.secondary)
+                } else {
+                    Button("生成路线") {
                         generatePath()
                     }
                     .buttonStyle(.bordered)
@@ -654,6 +668,12 @@ private struct InterestListRow: View {
             }
         }
         .padding(.vertical, 4)
+        .confirmationDialog("重新规划学习路径？", isPresented: $showRegenerateConfirm, titleVisibility: .visible) {
+            Button("重新规划", role: .destructive) { generatePath() }
+            Button("取消", role: .cancel) { }
+        } message: {
+            Text("这会覆盖现有的学习路径。确定要继续吗？")
+        }
         .contextMenu {
             Button("打开工作台") {
                 router.openWorkbench(interestId: interest.id)
@@ -689,6 +709,50 @@ private struct InterestListRow: View {
     }
 }
 
+// MARK: - Status Badge
+
+private struct StatusBadge: View {
+    let status: String
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2.bold())
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(color.opacity(0.15))
+        .foregroundColor(color)
+        .cornerRadius(4)
+    }
+
+    private var label: String {
+        switch status {
+        case "planned": return "已规划"
+        case "planning": return "生成中"
+        default: return "待规划"
+        }
+    }
+
+    private var icon: String {
+        switch status {
+        case "planned": return "checkmark.circle.fill"
+        case "planning": return "clock.fill"
+        default: return "circle"
+        }
+    }
+
+    private var color: Color {
+        switch status {
+        case "planned": return .green
+        case "planning": return .blue
+        default: return .secondary
+        }
+    }
+}
+
 // MARK: - Create Interest Sheet
 
 private struct CreateInterestSheet: View {
@@ -705,6 +769,20 @@ private struct CreateInterestSheet: View {
     @State private var knownContext = ""
     @State private var preferredOutput = ""
     @State private var showingWizard = false
+    @State private var showingFileImporter = false
+    @State private var pendingReferences: [URL] = []
+    @State private var submitPhase: SubmitPhase = .idle
+    @State private var uploadErrors: [String] = []
+
+    private let paperService = PaperService()
+
+    enum SubmitPhase {
+        case idle, creating, uploading
+
+        var isBusy: Bool {
+            self != .idle
+        }
+    }
 
     // MARK: - AI Hints
     @State private var hintStatus: HintStatus = .idle
@@ -766,8 +844,62 @@ private struct CreateInterestSheet: View {
         }
         .padding()
         .frame(minWidth: showingWizard ? 480 : 740, minHeight: 560)
+        .fileImporter(
+            isPresented: $showingFileImporter,
+            allowedContentTypes: [.pdf],
+            allowsMultipleSelection: true
+        ) { result in
+            if case .success(let urls) = result {
+                pendingReferences.append(contentsOf: urls)
+            }
+        }
         .onChange(of: draft) {
             scheduleHintRequest()
+        }
+    }
+
+    private func createInterest() {
+        guard !submitPhase.isBusy else { return }
+        submitPhase = .creating
+        uploadErrors = []
+
+        let keywords = parseTags(keywordsText)
+        let profile = InterestProfile(
+            goal: goal.isEmpty ? nil : goal,
+            background: background.isEmpty ? nil : background,
+            timeBudget: timeBudget.isEmpty ? nil : timeBudget,
+            constraints: constraints.isEmpty ? nil : constraints,
+            knownContext: knownContext.isEmpty ? nil : knownContext,
+            preferredOutput: preferredOutput.isEmpty ? nil : preferredOutput
+        )
+        let interest = knowledgeService.createInterest(
+            topic: topic,
+            keywords: keywords.isEmpty ? nil : keywords,
+            profile: profile
+        )
+
+        if pendingReferences.isEmpty {
+            onCreated()
+            submitPhase = .idle
+            dismiss()
+            return
+        }
+
+        submitPhase = .uploading
+        Task {
+            for url in pendingReferences {
+                _ = await paperService.upload(
+                    fileURL: url,
+                    settings: settings,
+                    researchInterestId: interest.id
+                )
+            }
+            await MainActor.run {
+                uploadErrors = []
+                submitPhase = .idle
+                onCreated()
+                dismiss()
+            }
         }
     }
 
@@ -844,26 +976,86 @@ private struct CreateInterestSheet: View {
                     .frame(height: 4)
                 }
 
+                // MARK: - PDF References Pre-upload
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("参考文献预上传")
+                            .font(.caption.bold())
+                        Spacer()
+                        Button {
+                            showingFileImporter = true
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.badge.plus")
+                                Text("选择 PDF")
+                            }
+                            .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(submitPhase.isBusy)
+                    }
+
+                    if !pendingReferences.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(pendingReferences, id: \.self) { url in
+                                HStack {
+                                    Image(systemName: "doc.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text(url.lastPathComponent)
+                                        .font(.caption)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Button {
+                                        pendingReferences.removeAll { $0 == url }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .controlSize(.small)
+                                    .disabled(submitPhase.isBusy)
+                                }
+                            }
+                        }
+                    }
+
+                    Text("当前选中的 PDF 会在创建研究方向后自动导入对应主题文件夹，并绑定到稳定的研究方向 ID。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                if !uploadErrors.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("上传失败")
+                            .font(.caption.bold())
+                            .foregroundStyle(.red)
+                        ForEach(uploadErrors, id: \.self) { error in
+                            Text(error)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 HStack {
                     Button("取消") { dismiss() }
                         .keyboardShortcut(.cancelAction)
                     Spacer()
-                    Button("创建") {
-                        let keywords = parseTags(keywordsText)
-                        let profile = InterestProfile(
-                            goal: goal.isEmpty ? nil : goal,
-                            background: background.isEmpty ? nil : background,
-                            timeBudget: timeBudget.isEmpty ? nil : timeBudget,
-                            constraints: constraints.isEmpty ? nil : constraints,
-                            knownContext: knownContext.isEmpty ? nil : knownContext,
-                            preferredOutput: preferredOutput.isEmpty ? nil : preferredOutput
-                        )
-                        _ = knowledgeService.createInterest(topic: topic, keywords: keywords.isEmpty ? nil : keywords, profile: profile)
-                        onCreated()
-                        dismiss()
+                    Button(action: createInterest) {
+                        if submitPhase == .uploading {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text("正在导入参考文献…")
+                            }
+                        } else {
+                            Text(pendingReferences.isEmpty ? "创建" : "创建并导入")
+                        }
                     }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(topic.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(topic.trimmingCharacters(in: .whitespaces).isEmpty || submitPhase.isBusy)
                 }
             }
         }

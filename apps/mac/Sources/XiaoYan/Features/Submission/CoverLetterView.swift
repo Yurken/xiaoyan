@@ -10,6 +10,8 @@ struct CoverLetterView: View {
     @State private var result = ""
     @State private var isGenerating = false
     @State private var mode: Mode = .coverLetter
+    @State private var versions: [PaperVersion] = []
+    @State private var selectedVersion: PaperVersion?
 
     enum Mode: String, CaseIterable {
         case coverLetter = "Cover Letter"
@@ -75,6 +77,24 @@ struct CoverLetterView: View {
                         Text("投稿: \(sub.title)")
                             .font(.subheadline.bold())
                             .foregroundStyle(.blue)
+
+                        if !versions.isEmpty {
+                            Picker("版本", selection: $selectedVersion) {
+                                Text("手动输入").tag(Optional<PaperVersion>.none)
+                                ForEach(versions, id: \.id) { v in
+                                    Text(v.tag ?? String(v.id.prefix(6)))
+                                        .tag(Optional(v))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .controlSize(.small)
+                            .frame(maxWidth: 200)
+                            .onChange(of: selectedVersion) { _, new in
+                                if let content = new?.content, !content.isEmpty {
+                                    paperAbstract = content
+                                }
+                            }
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -132,6 +152,13 @@ struct CoverLetterView: View {
                                 Text("结果")
                                     .font(.headline)
                                 Spacer()
+                                if mode == .polish, let version = selectedVersion {
+                                    Button("应用到版本") {
+                                        applyToVersion(version)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                }
                                 Button("复制") {
                                     NSPasteboard.general.clearContents()
                                     NSPasteboard.general.setString(result, forType: .string)
@@ -154,10 +181,24 @@ struct CoverLetterView: View {
             }
         }
         .onAppear(perform: reload)
+        .onChange(of: selectedSubmission) { _, new in
+            if let sub = new {
+                versions = service.listVersions(submissionId: sub.id)
+            } else {
+                versions = []
+            }
+            selectedVersion = nil
+        }
     }
 
     private func reload() {
         submissions = service.listSubmissions()
+    }
+
+    private func applyToVersion(_ version: PaperVersion) {
+        var updated = version
+        updated.content = result
+        service.updateVersion(updated)
     }
 
     private func generate() {

@@ -76,6 +76,13 @@ struct ReproductionGuide: Codable, Identifiable, Hashable {
     var expectedResults: String?
     var commonPitfalls: String?
     var notes: String?
+    // v2 schema align fields
+    var datasetPreparation: String?
+    var trainingProcess: String?
+    var inferenceProcess: String?
+    var evaluationMetrics: String?
+    var risksAndNotes: String?
+    var rawGuide: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -88,6 +95,12 @@ struct ReproductionGuide: Codable, Identifiable, Hashable {
         case expectedResults = "expected_results"
         case commonPitfalls = "common_pitfalls"
         case notes
+        case datasetPreparation = "dataset_preparation"
+        case trainingProcess = "training_process"
+        case inferenceProcess = "inference_process"
+        case evaluationMetrics = "evaluation_metrics"
+        case risksAndNotes = "risks_and_notes"
+        case rawGuide = "raw_guide"
     }
 }
 

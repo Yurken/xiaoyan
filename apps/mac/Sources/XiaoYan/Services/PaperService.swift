@@ -20,7 +20,7 @@ final class PaperService: ObservableObject {
 
     // MARK: - Upload & Parse Pipeline
 
-    func upload(fileURL: URL, settings: AppSettings) async -> Paper {
+    func upload(fileURL: URL, settings: AppSettings, researchInterestId: String? = nil) async -> Paper {
         let paperId = UUID().uuidString
         let destDir = AppConstants.papersDirectory.appendingPathComponent(paperId)
         try? FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
@@ -38,7 +38,7 @@ final class PaperService: ObservableObject {
             doi: nil,
             filePath: destURL.path,
             fullText: nil,
-            researchInterestId: nil,
+            researchInterestId: researchInterestId,
             tags: [],
             importanceColor: nil,
             notes: nil,

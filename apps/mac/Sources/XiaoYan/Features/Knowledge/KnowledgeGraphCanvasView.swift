@@ -73,6 +73,48 @@ struct KnowledgeGraphCanvasView: View {
         return citations.filter { visibleNodeIds.contains($0.citingPaperId) && visibleNodeIds.contains($0.citedPaperId) }
     }
 
+    private var timelineEntries: [KnowledgeGraphTimelineEntry] {
+        let visibleInterests = selectedInterestId == nil ? interests : interests.filter { $0.id == selectedInterestId }
+        let visibleClaims = selectedInterestId == nil ? claims : claims.filter { $0.researchInterestId == selectedInterestId }
+        let visiblePapers = selectedInterestId == nil ? papers : papers.filter { linkedSourceIds.contains($0.id) }
+        let visibleExperiments = selectedInterestId == nil ? experiments : experiments.filter { linkedSourceIds.contains($0.id) }
+
+        var entries: [KnowledgeGraphTimelineEntry] = []
+        for item in visibleInterests {
+            let y = Calendar.current.component(.year, from: item.createdAt ?? Date())
+            entries.append(KnowledgeGraphTimelineEntry(
+                id: "interest:\(item.id)", year: y, date: item.createdAt ?? Date(),
+                kind: .interest, title: item.folderName?.isEmpty == false ? item.folderName! : item.topic,
+                detail: item.keywords?.prefix(3).joined(separator: " · ") ?? "建立研究方向"
+            ))
+        }
+        for item in visiblePapers {
+            let y = item.year ?? Calendar.current.component(.year, from: item.createdAt)
+            entries.append(KnowledgeGraphTimelineEntry(
+                id: "paper:\(item.id)", year: y, date: item.year != nil ? DateComponents(calendar: .current, year: item.year!).date! : item.createdAt,
+                kind: .paper, title: item.title,
+                detail: { let s = [item.year.map { "\($0)" }, item.venue].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "); return s.isEmpty ? "论文纳入知识库" : s }()
+            ))
+        }
+        for item in visibleClaims {
+            let y = Calendar.current.component(.year, from: item.createdAt ?? Date())
+            let statusLabel = KnowledgeClaimStatus.from(item.status)?.displayName ?? item.status ?? ""
+            entries.append(KnowledgeGraphTimelineEntry(
+                id: "claim:\(item.id)", year: y, date: item.createdAt ?? Date(),
+                kind: .claim, title: item.title, detail: statusLabel
+            ))
+        }
+        for item in visibleExperiments {
+            let y = Calendar.current.component(.year, from: item.updatedAt ?? item.createdAt ?? Date())
+            let detail = item.notes?.isEmpty == false ? item.notes! : "实验推进"
+            entries.append(KnowledgeGraphTimelineEntry(
+                id: "experiment:\(item.id)", year: y, date: item.updatedAt ?? item.createdAt ?? Date(),
+                kind: .experiment, title: item.title, detail: String(detail.prefix(80))
+            ))
+        }
+        return entries.filter { $0.year > 0 }.sorted { $0.date < $1.date }.suffix(24)
+    }
+
     var body: some View {
         HSplitView {
             canvasArea
@@ -119,13 +161,10 @@ struct KnowledgeGraphCanvasView: View {
                 }
                 if let summary = snapshot?.summary {
                     HStack(spacing: 10) {
-                        summaryItem(label: "方向", value: summary.interestCount)
-                        summaryItem(label: "论文", value: summary.paperCount)
-                        summaryItem(label: "笔记", value: summary.noteCount)
-                        summaryItem(label: "实验", value: summary.experimentCount)
-                        summaryItem(label: "论断", value: summary.claimCount)
-                        summaryItem(label: "证据", value: summary.evidenceCount)
-                        summaryItem(label: "引用", value: summary.citationCount)
+                        MetricTile(label: "研究方向", value: summary.interestCount)
+                        MetricTile(label: "结论节点", value: summary.claimCount)
+                        MetricTile(label: "证据关系", value: summary.evidenceCount)
+                        MetricTile(label: "引用边", value: summary.citationCount)
                     }
                 }
                 Button(action: { editor.toggleEdit() }) {
@@ -205,7 +244,95 @@ struct KnowledgeGraphCanvasView: View {
                     }
                 )
             }
+
+            Divider()
+            timelinePanel
         }
+    }
+
+    private var timelinePanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("研究方向演进时间线")
+                    .font(.subheadline.bold())
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.top, 12)
+
+            if timelineEntries.isEmpty {
+                Text("目前还没有足够事件形成时间线。先导入论文，或补充结论与实验记录。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 16) {
+                        ForEach(groupedTimelineYears, id: \.year) { group in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("\(group.year)")
+                                    .font(.title3.bold())
+                                    .foregroundStyle(.primary)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(group.entries) { entry in
+                                        timelineCard(entry)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        }
+        .frame(maxHeight: 260)
+    }
+
+    private var groupedTimelineYears: [(year: Int, entries: [KnowledgeGraphTimelineEntry])] {
+        let dict = Dictionary(grouping: timelineEntries) { $0.year }
+        return dict.keys.sorted().map { (year: $0, entries: dict[$0] ?? []) }
+    }
+
+    private func timelineCard(_ entry: KnowledgeGraphTimelineEntry) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: entry.icon)
+                .font(.caption)
+                .foregroundStyle(.blue)
+                .frame(width: 24, height: 24)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(6)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(entry.title)
+                        .font(.caption.bold())
+                        .lineLimit(1)
+                    Text(entry.kindLabel)
+                        .font(.caption2.weight(.semibold))
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(4)
+                }
+                if !entry.detail.isEmpty {
+                    Text(entry.detail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            Spacer()
+            Text(entry.date, style: .date)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
+        .frame(width: 280)
     }
 
     private var editorToolbar: some View {
@@ -284,14 +411,24 @@ struct KnowledgeGraphCanvasView: View {
         .frame(minWidth: 160)
     }
 
-    private func summaryItem(label: String, value: Int) -> some View {
-        VStack(spacing: 0) {
-            Text("\(value)")
-                .font(.caption.bold())
+    private func MetricTile(label: String, value: Int) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
             Text(label)
-                .font(.caption2)
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .tracking(1.6)
+                .textCase(.uppercase)
+            Text("\(value)")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(.primary)
+                .padding(.top, 8)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(minWidth: 90)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 
     // MARK: - Node Card
@@ -456,13 +593,52 @@ struct KnowledgeGraphCanvasView: View {
                 .foregroundColor(nodeColor(node.type))
                 .cornerRadius(4)
 
-            let related = relatedLinks(for: node)
-            if !related.isEmpty {
+            switch node.type {
+            case .claim:
+                claimInspector(node)
+            case .interest:
+                interestInspector(node)
+            case .paper:
+                paperInspector(node)
+            case .experiment:
+                experimentInspector(node)
+            case .note:
+                noteInspector(node)
+            }
+
+            HStack(spacing: 16) {
+                statItem(label: "出边", value: "\(outgoingLinks(for: node).count)")
+                statItem(label: "入边", value: "\(incomingLinks(for: node).count)")
+            }
+        }
+    }
+
+    // MARK: - Type-specific inspectors
+
+    private func claimInspector(_ node: GraphNode) -> some View {
+        guard let claim = claims.first(where: { $0.id == node.id }) else { return AnyView(EmptyView()) }
+        let claimLinks = evidenceLinks.filter { $0.claimId == claim.id }
+        let paperCount = claimLinks.filter { $0.sourceKind == "paper" }.count
+        let expCount = claimLinks.filter { $0.sourceKind == "experiment" }.count
+        let noteCount = claimLinks.filter { $0.sourceKind == "note" }.count
+        return AnyView(VStack(alignment: .leading, spacing: 12) {
+            if !claim.statement.isEmpty {
+                Text(claim.statement)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(4)
+            }
+            HStack(spacing: 8) {
+                BadgeView(text: "\(paperCount) 篇论文", color: .purple)
+                BadgeView(text: "\(expCount) 个实验", color: .red)
+                BadgeView(text: "\(noteCount) 条笔记", color: .orange)
+            }
+            if !claimLinks.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("关联证据")
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
-                    ForEach(related) { link in
+                    ForEach(claimLinks.prefix(4)) { link in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(alignment: .top, spacing: 4) {
                                 Image(systemName: relationIcon(link.relationKind))
@@ -491,12 +667,99 @@ struct KnowledgeGraphCanvasView: View {
                     }
                 }
             }
+        })
+    }
 
-            HStack(spacing: 16) {
-                statItem(label: "出边", value: "\(outgoingLinks(for: node).count)")
-                statItem(label: "入边", value: "\(incomingLinks(for: node).count)")
+    private func interestInspector(_ node: GraphNode) -> some View {
+        guard let interest = interests.first(where: { $0.id == node.id }) else { return AnyView(EmptyView()) }
+        return AnyView(VStack(alignment: .leading, spacing: 12) {
+            if let keywords = interest.keywords, !keywords.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(keywords.prefix(6), id: \.self) { kw in
+                        Text(kw)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.1))
+                            .cornerRadius(4)
+                    }
+                }
             }
-        }
+            if let profile = interest.profile {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let goal = profile.goal, !goal.isEmpty {
+                        HStack(spacing: 4) {
+                            Text("目标")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(goal)
+                                .font(.caption)
+                                .lineLimit(2)
+                        }
+                    }
+                    if let time = profile.timeBudget, !time.isEmpty {
+                        HStack(spacing: 4) {
+                            Text("时间")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(time)
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+        })
+    }
+
+    private func paperInspector(_ node: GraphNode) -> some View {
+        guard let paper = papers.first(where: { $0.id == node.id }) else { return AnyView(EmptyView()) }
+        let meta = [paper.year.map { "\($0)" }, paper.venue, paper.authors.joined(separator: ", ")].compactMap { $0 }.filter { !$0.isEmpty }
+        return AnyView(VStack(alignment: .leading, spacing: 12) {
+            if !meta.isEmpty {
+                Text(meta.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            let snippet = paper.analysis?.keyConclusions ?? paper.notes
+            if let snippet = snippet, !snippet.isEmpty {
+                Text(snippet)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(5)
+            } else {
+                Text("这篇论文已进入图谱，但还没有补充分析或笔记。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        })
+    }
+
+    private func experimentInspector(_ node: GraphNode) -> some View {
+        guard let exp = experiments.first(where: { $0.id == node.id }) else { return AnyView(EmptyView()) }
+        let snippet = exp.notes ?? "实验节点已加入图谱。"
+        return AnyView(VStack(alignment: .leading, spacing: 12) {
+            Text(snippet)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .lineLimit(5)
+        })
+    }
+
+    private func noteInspector(_ node: GraphNode) -> some View {
+        guard let note = notes.first(where: { $0.id == node.id }) else { return AnyView(EmptyView()) }
+        let sourceLabel = note.sourceType == "web_clip" ? "网页摘录" : "知识笔记"
+        return AnyView(VStack(alignment: .leading, spacing: 12) {
+            Text(sourceLabel)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if !note.content.isEmpty {
+                Text(note.content)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(6)
+            }
+        })
     }
 
     private func statItem(label: String, value: String) -> some View {
@@ -609,6 +872,42 @@ struct KnowledgeGraphCanvasView: View {
         try? repo.deleteEvidence(id: id)
         loadData()
     }
+}
+
+// MARK: - Timeline
+
+struct KnowledgeGraphTimelineEntry: Identifiable {
+    let id: String
+    let year: Int
+    let date: Date
+    let kind: Kind
+    let title: String
+    let detail: String
+
+    enum Kind: String {
+        case interest, paper, claim, experiment
+
+        var label: String {
+            switch self {
+            case .interest: return "方向"
+            case .paper: return "论文"
+            case .claim: return "结论"
+            case .experiment: return "实验"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .interest: return "flag.fill"
+            case .paper: return "book.fill"
+            case .claim: return "sparkles"
+            case .experiment: return "flask.fill"
+            }
+        }
+    }
+
+    var kindLabel: String { kind.label }
+    var icon: String { kind.icon }
 }
 
 // MARK: - Sheet routing payloads

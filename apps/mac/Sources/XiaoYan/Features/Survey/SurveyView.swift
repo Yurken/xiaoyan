@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SurveyView: View {
     @EnvironmentObject var settings: AppSettings
@@ -23,11 +24,18 @@ struct SurveyView: View {
         case papers = "检索论文"
     }
 
-    struct SurveyRecord: Identifiable {
-        let id = UUID()
+    struct SurveyRecord: Identifiable, Codable {
+        let id: UUID
         let topic: String
         let content: String
         let date: Date
+
+        init(id: UUID = UUID(), topic: String, content: String, date: Date) {
+            self.id = id
+            self.topic = topic
+            self.content = content
+            self.date = date
+        }
     }
 
     var body: some View {
@@ -128,14 +136,25 @@ struct SurveyView: View {
                     if let structured = structuredResult {
                         Divider()
 
-                        // Tabs
-                        Picker("", selection: $activeTab) {
-                            ForEach(Tab.allCases, id: \.self) { tab in
-                                Text(tab.rawValue).tag(tab)
+                        HStack {
+                            Picker("", selection: $activeTab) {
+                                ForEach(Tab.allCases, id: \.self) { tab in
+                                    Text(tab.rawValue).tag(tab)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 280)
+
+                            Spacer()
+
+                            if !surveyContent.isEmpty {
+                                Button(action: exportSurveyMarkdown) {
+                                    Label("导出 Markdown", systemImage: "square.and.arrow.down")
+                                }
+                                .buttonStyle(.borderless)
+                                .controlSize(.small)
                             }
                         }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 280)
 
                         if activeTab == .report {
                             reportView(structured)
@@ -149,6 +168,7 @@ struct SurveyView: View {
             }
         }
         .navigationTitle("综述")
+        .onAppear(perform: loadHistory)
     }
 
     // MARK: - Workflow
@@ -562,8 +582,17 @@ struct SurveyView: View {
     private func citationsSection(_ citations: [String]?, format: String?) -> some View {
         if let citations = citations, !citations.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                let formatLabel = SurveyParameterPanel.citationFormats.first { $0.1 == (format ?? "apa") }?.0 ?? "APA"
-                sectionHeader("参考文献（\(formatLabel) 格式）")
+                HStack {
+                    let formatLabel = SurveyParameterPanel.citationFormats.first { $0.1 == (format ?? "apa") }?.0 ?? "APA"
+                    sectionHeader("参考文献（\(formatLabel) 格式）")
+                    Spacer()
+                    Button(action: { copyToClipboard(citations.joined(separator: "\n")) }) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("复制全部引用")
+                }
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(citations.enumerated()), id: \.offset) { _, cite in
                         Text(cite)
@@ -596,8 +625,13 @@ struct SurveyView: View {
                             Text("[\(idx + 1)]")
                                 .font(.caption2.bold())
                                 .foregroundStyle(.secondary)
-                            Text(paper.title)
-                                .font(.subheadline.bold())
+                            if let url = paper.paperUrl, let link = URL(string: url) {
+                                Link(paper.title, destination: link)
+                                    .font(.subheadline.bold())
+                            } else {
+                                Text(paper.title)
+                                    .font(.subheadline.bold())
+                            }
                         }
                         HStack(spacing: 8) {
                             Text(paper.authors ?? "未知作者")
@@ -616,8 +650,8 @@ struct SurveyView: View {
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
                         }
-                        if let doi = paper.doi, !doi.isEmpty {
-                            Text("DOI: \(doi)")
+                        if let doi = paper.doi, !doi.isEmpty, let url = URL(string: "https://doi.org/\(doi)") {
+                            Link("DOI: \(doi)", destination: url)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -668,6 +702,27 @@ struct SurveyView: View {
             yearFrom: yearFrom,
             yearTo: nil
         )
+    }
+
+    private func copyToClipboard(_ text: String) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
+    }
+
+    private func exportSurveyMarkdown() {
+        guard !surveyContent.isEmpty else { return }
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.nameFieldStringValue = "\(topic.isEmpty ? "综述" : topic).md"
+        savePanel.begin { result in
+            guard result == .OK, let url = savePanel.url else { return }
+            do {
+                try self.surveyContent.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                self.errorMessage = "导出失败: \(error.localizedDescription)"
+            }
+        }
     }
 
     // MARK: - Parameter Labels
@@ -851,11 +906,27 @@ extension SurveyView: SurveyServiceDelegate {
         result = convertToSurveyResult(structured)
         if !surveyContent.isEmpty {
             surveyHistory.insert(SurveyRecord(topic: topic, content: surveyContent, date: Date()), at: 0)
+            saveHistory()
         }
     }
 
     func surveyServiceDidFinish(_ service: SurveyService) {
         isGenerating = false
+    }
+
+    private func saveHistory() {
+        let maxRecords = 50
+        let trimmed = Array(surveyHistory.prefix(maxRecords))
+        if let data = try? JSONEncoder().encode(trimmed) {
+            UserDefaults.standard.set(data, forKey: "survey_history")
+        }
+    }
+
+    private func loadHistory() {
+        guard let data = UserDefaults.standard.data(forKey: "survey_history"),
+              let records = try? JSONDecoder().decode([SurveyRecord].self, from: data)
+        else { return }
+        surveyHistory = records
     }
 
     func surveyService(_ service: SurveyService, didFailWithError error: String) {
