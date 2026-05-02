@@ -227,7 +227,7 @@
 ## 11. Experiment
 
 ### P1
-- **附件管理 UI**：仓库已实现 `ExperimentRepository.swift:51-83`（listAttachments/insertAttachment/updateAttachmentLabel/deleteAttachment），ExperimentView 完全未挂入口 — desktop `Experiment.tsx:81-215, 496-498` 提供 AttachmentPanel（上传 + 缩略图网格 + Lightbox + 行内 label 编辑）
+- **附件管理 UI** ✅（已对齐）：`ExperimentAttachmentPanel.swift`（fileImporter 多选上传 + 列表 + 行内 label 编辑 + 删除）+ `ExperimentView.swift:229` 接入；1:1 desktop `Experiment.tsx:81-215, 496-498`
 - **关联投稿下拉**：mac 模型有 `linkedSubmissionId` 但 CreateSheet/DetailView 都不暴露选择 UI（`ExperimentView.swift:152-156, 270-321`），仅只读显示前 8 位 ID — desktop `Experiment.tsx:457-466`
 - **R3 Result 字段类型不一致**（参见 §0）
 

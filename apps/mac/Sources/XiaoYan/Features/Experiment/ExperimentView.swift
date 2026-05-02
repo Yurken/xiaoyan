@@ -226,6 +226,9 @@ private struct ExperimentDetailView: View {
                         Text("暂无笔记").font(.caption).foregroundStyle(.secondary)
                     }
                 }
+
+                // Attachments
+                ExperimentAttachmentPanel(experimentId: experiment.id)
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
