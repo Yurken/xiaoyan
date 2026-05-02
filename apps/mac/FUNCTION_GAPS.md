@@ -2,7 +2,7 @@
 
 > 基准：master 分支 `apps/desktop`（React + Tauri + Next.js）
 > 目标：mac-dev 分支 `apps/mac`（Swift / SwiftUI 原生）
-> 审计日期：2026-05-01
+> 审计日期：2026-05-02
 > 配套：`FUNCTION_MATRIX.md`（API/页面级矩阵）
 
 本清单聚焦真实功能缺口，不计行数差异。每条含 desktop 出处、mac 现状与优先级（P1 影响主流程 / P2 体验明显劣化 / P3 细节）。
@@ -11,14 +11,14 @@
 
 ## 0. 数据互通风险点（最高优先级，必须先修）
 
-跨端共用同一 SQLite 时这些差异会导致脏数据或读不到。
+跨端共用同一 SQLite 时这些差异会导致脏数据或读不到。**全部已对齐**（2026-05-02）。
 
-| # | 字段/枚举 | desktop | mac | 影响 |
+| # | 字段/枚举 | desktop | mac 原状 | 修复 |
 |---|---|---|---|---|
-| **R1** | Submission `status` 状态机 | 5 态 `writing/submitted/reviewing/accepted/rejected`（`shared.ts:4, 257-263`） | 7 态加 `draft/preparing/revision/withdrawn`（`SubmissionsListView.swift:75-86`） | DB schema 不互通 |
-| **R2** | KnowledgeClaim `status` 枚举 | `hypothesis/supported/contested/open`（`KnowledgeGraphComposer.tsx:193-198`） | 中文 `待验证/已验证/已证伪`（`ClaimsView.swift:333-336`） | 数据库存值不通 |
-| **R3** | Experiment `result` 字段 | 字符串自由文本（`Experiment.tsx:484-493`） | 解码为 `[String:String]`（`ExperimentView.swift:188-191, 258-261`） | desktop 写入 mac 读不到 |
-| **R4** | Copilot `chat_mode` 字段 | 显式 `direct/task`（`Copilot.tsx:378`） | 不发该字段，靠 settings `multi_agent_enabled` 隐式（`ChatService.swift:67-86`） | 跨端会话语义不一致 |
+| **R1** ✅ | Submission `status` 状态机 | 5 态 `writing/submitted/reviewing/accepted/rejected` | 7 态 `draft/preparing/revision/withdrawn` 等 | `SubmissionStatus.swift:55` 收敛为 5 态；`DatabaseManager.swift:449` 迁移 `v3_submission_status_align` 自动归并旧值；本次再清理 `VersionsView` CreateVersionSheet Picker（旧 4 态 → 5 态）+ `SubmissionRepository.stats()` SQL（旧状态引用 → 新 5 态） |
+| **R2** ✅ | KnowledgeClaim `status` 枚举 | `hypothesis/supported/contested/open` | 中文 `待验证/已验证/已证伪` | `KnowledgeGraph.swift:55` 改用枚举 + `KnowledgeClaimStatus.from(_:)` 兼容历史值；`DatabaseManager.swift:457` 迁移 `v4_claim_status_align` 自动归并 |
+| **R3** ✅ | Experiment `config` 字段（原文档误写为 result） | `Record<string, unknown>` 任意嵌套 | `[String: String]?` — 数字/嵌套对象解码失败 | 新增 `Models/JSONValue.swift` 任意 JSON 枚举；`ExperimentRecord.config: [String: JSONValue]?`；`ExperimentView` 编辑/创建用 `JSONDecoder().decode([String: JSONValue].self, ...)`，并在解析失败时显示"JSON 格式错误"提示 |
+| **R4** ✅ | Copilot `chat_mode` 字段 | 显式 `direct/task` | 不发该字段，靠 settings `multi_agent_enabled` 隐式 | `CopilotModels.ChatMode` 枚举 + `CopilotView` `@AppStorage("rc_copilot_chat_mode")`（与 desktop `useCopilotChatMode.ts` 同 key）；`ChatService.chat(..., chatMode:)` 透传决定 agentic 路径 |
 
 ---
 
