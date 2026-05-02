@@ -108,6 +108,69 @@ struct PaperRepository {
         }
     }
 
+    // MARK: - Survey Retrieval
+
+    func fetchByIds(ids: [String]) throws -> [Paper] {
+        guard !ids.isEmpty else { return [] }
+        let placeholders = ids.map { _ in "?" }.joined(separator: ", ")
+        let sql = "SELECT * FROM papers WHERE id IN (\(placeholders))"
+        return try dbQueue.read { db in
+            try Paper.fetchAll(db, sql: sql, arguments: StatementArguments(ids))
+        }
+    }
+
+    func searchByTerms(
+        query: String,
+        searchQueries: [String] = [],
+        limit: Int = 20,
+        yearFrom: Int? = nil,
+        yearTo: Int? = nil
+    ) throws -> [Paper] {
+        var terms = [query]
+        terms.append(contentsOf: searchQueries)
+        terms = terms.filter { !$0.isEmpty }.map { "%\($0)%" }
+        guard !terms.isEmpty else { return [] }
+
+        var yearClause = ""
+        var yearArgs: [any DatabaseValueConvertible] = []
+        if let from = yearFrom, let to = yearTo {
+            yearClause = " AND (year IS NULL OR (year >= ? AND year <= ?))"
+            yearArgs = [from, to]
+        } else if let from = yearFrom {
+            yearClause = " AND (year IS NULL OR year >= ?)"
+            yearArgs = [from]
+        } else if let to = yearTo {
+            yearClause = " AND (year IS NULL OR year <= ?)"
+            yearArgs = [to]
+        }
+
+        var allPapers: [Paper] = []
+        var seenIds = Set<String>()
+
+        for term in terms.prefix(8) {
+            if allPapers.count >= limit { break }
+            let sql = """
+                SELECT * FROM papers
+                WHERE (title LIKE ? OR abstract LIKE ?)\(yearClause)
+                ORDER BY updated_at DESC LIMIT ?
+            """
+            var args: [any DatabaseValueConvertible] = [term, term]
+            args.append(contentsOf: yearArgs)
+            args.append(limit)
+
+            let batch = try dbQueue.read { db in
+                try Paper.fetchAll(db, sql: sql, arguments: StatementArguments(args))
+            }
+            for paper in batch {
+                if seenIds.insert(paper.id).inserted {
+                    allPapers.append(paper)
+                    if allPapers.count >= limit { break }
+                }
+            }
+        }
+        return allPapers
+    }
+
     // MARK: - Chunks
 
     func insertChunks(_ chunks: [PaperChunk]) throws {
