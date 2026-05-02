@@ -89,7 +89,8 @@ struct ResearchWorkbenchView: View {
                 onUpdate: load
             )
         case .xiaoyan:
-            xiaoyanPlaceholder
+            InterestScopedCopilotView(interestId: interestId)
+                .environmentObject(settings)
         case .notes:
             ScopedNotesView(
                 interestId: interestId,
