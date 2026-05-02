@@ -43,6 +43,10 @@ final class KnowledgeService: ObservableObject {
         try? knowledgeRepo.deleteInterestOnly(id: id)
     }
 
+    func updateInterestFolderName(id: String, folderName: String) {
+        try? knowledgeRepo.updateInterestFolder(id: id, folderName: folderName)
+    }
+
     // MARK: - Knowledge Notes
 
     func listNotes(researchInterestId: String? = nil) -> [KnowledgeNote] {

@@ -154,6 +154,12 @@ struct KnowledgeRepository {
         }
     }
 
+    func listAllEvidenceLinks() throws -> [EvidenceLink] {
+        try dbQueue.read { db in
+            try EvidenceLink.fetchAll(db, sql: "SELECT * FROM knowledge_graph_evidence_links ORDER BY created_at DESC")
+        }
+    }
+
     func insertClaim(_ claim: KnowledgeClaim) throws {
         try dbQueue.write { db in
             try db.execute(

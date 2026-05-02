@@ -21,7 +21,7 @@ struct PaperDiscoveryView: View {
 
     private let modeOptions = [
         ("relevance", "最相关", "优先找和关键词最贴合、最适合当前阅读的论文。"),
-        ("quality", "质量预测", "优先找摘要信息密度、实验信号和潜在影响更强的论文。"),
+        ("submittedDate", "最新提交", "按 arXiv 提交时间排序，优先显示最近发表的论文。"),
     ]
 
     var hasSearchTerms: Bool {
@@ -405,9 +405,7 @@ struct PaperDiscoveryView: View {
 
                 let query = parts.joined(separator: "+AND+")
                 let maxResults = Int(limit) ?? 6
-                let sortBy = mode == "quality" ? "submittedDate" : "relevance"
-
-                let entries = try await ArxivClient.search(query: query, maxResults: maxResults, sortBy: sortBy)
+                let entries = try await ArxivClient.search(query: query, maxResults: maxResults, sortBy: mode)
                 await MainActor.run {
                     results = entries.map {
                         DiscoveryResult(

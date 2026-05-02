@@ -24,6 +24,7 @@ let package = Package(
                 .copy("Data/journal_partitions.json"),
                 .copy("Data/ccf_catalog.json"),
                 .copy("Resources/friend-link-icons"),
+                .copy("Resources/brand-logos"),
             ]
         )
     ]

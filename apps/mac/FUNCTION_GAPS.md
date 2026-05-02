@@ -62,7 +62,7 @@
 
 ### P3
 - **B4 空状态文案"暂无研究主题"占位卡** ✅（已对齐）：`HomeView.swift` 在研主题 section 在 `model.interests.isEmpty` 时显示 `emptyPlaceholder` 虚线边框占位文案（"暂无研究主题。先从一个研究问题开始，小妍会帮你搭起路线。"）；与 desktop `OverviewWorkspace.tsx:308-311` 等价
-- **B5 助理头像/品牌 Logo**：mac 用系统 sparkles 图标
+- **B5 助理头像/品牌 Logo** ✅（已对齐）：新增 `BrandLogo.swift` 组件（`Bundle.module` 加载 SVG），`ChatThreadView.swift` welcomeView 空状态从 `sparkles` 替换为 `xiaoyanv.svg`；`ResearchWorkbenchView.swift` header 新增 `app-logo.svg`；`Package.swift` 注册 `Resources/brand-logos`；4 张品牌 SVG 从 desktop `assets/` 复制到 mac
 
 ---
 
@@ -77,9 +77,9 @@
 ### P2
 - **PDF 参考文献预上传**：创建 interest 时批量挑 PDF 自动 `papers.upload(path, interest.id)` — desktop `PlannerComposer.tsx:54-95, 250-302, 593-642`；mac 无
 - **Interest 状态机 (planning/planned/active)**：mac `ResearchInterest` 模型缺 `status` 字段，仅以 `learningPath != nil` 判断 — desktop `InterestsPanel.tsx:23-27, 256-322`
-- **InterestProfilePanel 研究画像高亮**：goal/timeBudget/preferredOutput chip + constraints — desktop `InterestProfilePanel.tsx:23-69`；mac 无
+- **InterestProfilePanel 研究画像高亮** ✅（已对齐）：`InterestListRow` 新增 `profileSection` + `profileHighlights` 计算属性，展示 goal（"目标"）/ timeBudget（"时间"）/ preferredOutput（"输出"）三卡片 + constraints chip 列表；内联卡片样式使用 `Theme.Colors.surface` + `nmShadow`；与 desktop `InterestProfilePanel.tsx` 等价
 - **多 Agent 实时工作流 UI**：mac 是本地 `simulateWorkflow()` 假模拟（`PlannerView.swift:441-475`），desktop 接 `interest:agent_start/complete/error` 事件流
-- **文件夹名编辑、删除确认（保留/全删）**：mac 仅右键单一删除（`KnowledgeView.swift:388-393`）
+- **文件夹名编辑、删除确认（保留/全删）** ✅（已对齐）：删除确认（"置为未归档"/"删除全部"）已在 `NotesInterestSection` 实现；文件夹名编辑新增 `EditFolderNameSheet` + `KnowledgeService.updateInterestFolderName` 方法；`InterestListRow` 右键菜单新增"编辑文件夹名"入口，`InterestListRow` 标题优先显示 `folderTitle`（fallback 到 `topic`）；与 desktop `InterestsPanel.tsx` 等价
 
 ### P3
 - **重新规划 (regenerate) 入口**：mac 仅 `learningPath == nil` 才显示生成按钮（`KnowledgeView.swift:378-384`），无法重跑
@@ -94,7 +94,7 @@
 
 ### P2
 - **Markdown 实时预览编辑器** ✅（已对齐）：`NoteDetailView.swift` 编辑模式新增 `EditorTab`（编辑/预览）Picker + `MarkdownText` 预览；`CreateNoteSheet.swift` 内容输入区替换为 `noteContentField` 双 Tab 编辑器（TextEditor / MarkdownText）；与 desktop `NotesPanel.tsx:8-74` `MarkdownEditor` 等价
-- **图谱关联计数 Badge**：mac 无 — desktop `NotesPanel.tsx:438-462, 545-549`
+- **图谱关联计数 Badge** ✅（已对齐）：`KnowledgeRepository` 新增 `listAllEvidenceLinks()`；`KnowledgeView` 新增 `noteClaimCounts` 状态 + `buildNoteClaimCounts()` 按 `sourceKind == "note"` 聚合计数；`NoteRow` 新增 `linkedClaimCount` 参数，标题旁显示蓝色"图谱 N" badge；`NotesInterestSection` header 显示"图谱关联 M/N"计数；分组/平铺/搜索模式均已接入；与 desktop `NotesPanel.tsx` 等价
 
 ### P3
 - **侧滑详情面板与返回动效**：mac 是 NavigationSplitView detail
@@ -169,7 +169,7 @@
 - **T8 FriendLinks 数据完整度** ✅（已对齐）：desktop `yanweb-links.ts` 21 分类 187 条 + icon 字段完整迁移至 mac；`FriendLinksView.swift` 替换为完整数据集，`FriendLinkItem` 新增 `icon: String?`；181 个图标文件从 `desktop/public/friend-link-icons` 复制到 `mac/Resources/friend-link-icons` 并在 `Package.swift` 注册；视图使用 `Bundle.module.url(forResource:withExtension:subdirectory:)` + `NSImage(contentsOf:)` 加载本地图标，失败回退 `link.circle` 系统图标
 
 ### P2
-- **T2 PaperDiscovery 排序模式**：mac `PaperDiscoveryView.swift:22-25` 仅 relevance/quality 两档，且 quality 实际是 sortBy=submittedDate（`:408`）
+- **T2 PaperDiscovery 排序模式** ✅（已对齐）：`PaperDiscoveryView.swift` modeOptions 将 "quality" 重命名为 "submittedDate"，描述改为"按 arXiv 提交时间排序"，消除误导；sortBy 直接透传 mode，与 arXiv API 原生排序语义一致；与 desktop 两档选项结构等价（mac 端因无后端 quality 预测能力，采用时间排序作为第二档）
 - **T3 PaperDiscovery 动态期刊列表**：mac 仅静态 `computeStaticVenues`（`PaperDiscoveryView.swift:31-37`）；desktop `usePaperDiscoverySearch.ts` + `PaperDiscoveryPanel.tsx:64-89` 含 `dynamicJournalTerms` 异步合并
 - **T6 MarkdownFormatter 分块进度** ✅（已对齐）：`MarkdownFormatterView.swift` 重写为分块处理：按段落分割（`\n\n`）+ 1500 字上限分块 + 逐块调用 LLM + 第一块后生成 `styleSummary` 并注入后续块 system prompt + 进度条显示（`MarkdownProgress` + `ProgressView`）+ 上传文件按钮；与 desktop `useMarkdownFormatter.ts` 等价
 
@@ -191,7 +191,7 @@
 ### P2
 - **元数据可见徽章（CCF/SCI/JCR/CAS/WoS）**：mac 卡片仅显示年份+venue+status — desktop `Papers.tsx:633-651`
 - **导入时元数据自动识别开关**：desktop `Papers.tsx:951-1005`
-- **删除主题文件夹（保留/全删）**：desktop `Papers.tsx:455-472, 1090-1116`
+- **删除主题文件夹（保留/全删）** ✅（已对齐）：`PapersView.swift` 分组列表 Section header 新增删除按钮（trash 图标），点击后展开内联确认栏（"保留论文" / "删除全部" / 取消）；调用 `KnowledgeService.deleteInterestOnly/Bundle`；与 desktop `Papers.tsx` 等价
 - **Reproduction sections 字段对齐**：mac 仅 6 段（`PaperDetailView.swift:216-238`），缺 training_process/inference_process/evaluation_metrics 拆分；desktop 8 段（`PaperDetailModal.tsx:22-31`）
 - **图片缩放/Lightbox + caption-figure 关联**：mac 仅静态 Image（`PaperFiguresView.swift:20-58`）
 

@@ -16,6 +16,7 @@ struct KnowledgeView: View {
     @State private var semanticResults: [SemanticSearchResult] = []
     @State private var isSearching = false
     @State private var confirmDeleteInterestId: String?
+    @State private var noteClaimCounts: [String: Int] = [:]
 
     enum Tab: String, CaseIterable {
         case notes = "笔记"
@@ -176,7 +177,7 @@ struct KnowledgeView: View {
             } else if !searchText.isEmpty {
                 // 搜索模式：平铺
                 List(filteredNotes, selection: $selectedNote) { note in
-                    NoteRow(note: note)
+                    NoteRow(note: note, linkedClaimCount: noteClaimCounts[note.id])
                         .tag(note)
                         .contextMenu {
                             Button("删除", role: .destructive) {
@@ -199,6 +200,7 @@ struct KnowledgeView: View {
                 NotesInterestSection(
                     interest: interest,
                     notes: notes.filter { $0.researchInterestId == interest.id },
+                    noteClaimCounts: noteClaimCounts,
                     confirmDeleteId: $confirmDeleteInterestId,
                     onDeleteOnly: {
                         knowledgeService.deleteInterestOnly(id: interest.id)
@@ -219,7 +221,7 @@ struct KnowledgeView: View {
             if !ungroupedNotes.isEmpty {
                 Section {
                     ForEach(ungroupedNotes) { note in
-                        NoteRow(note: note)
+                        NoteRow(note: note, linkedClaimCount: noteClaimCounts[note.id])
                             .tag(note)
                             .contextMenu {
                                 Button("删除", role: .destructive) {
@@ -273,9 +275,19 @@ struct KnowledgeView: View {
     private func reload() {
         notes = knowledgeService.listNotes()
         interests = knowledgeService.listInterests()
+        noteClaimCounts = buildNoteClaimCounts()
         if let selected = selectedNote {
             selectedNote = notes.first { $0.id == selected.id }
         }
+    }
+
+    private func buildNoteClaimCounts() -> [String: Int] {
+        guard let links = try? KnowledgeRepository().listAllEvidenceLinks() else { return [:] }
+        var counts: [String: Int] = [:]
+        for link in links where link.sourceKind == "note" {
+            counts[link.sourceId, default: 0] += 1
+        }
+        return counts
     }
 
     private func performSearch() {
@@ -356,6 +368,46 @@ private struct WebClipSheet: View {
     }
 }
 
+// MARK: - Edit Folder Name Sheet
+
+private struct EditFolderNameSheet: View {
+    let currentName: String
+    let onSave: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("编辑文件夹名")
+                .font(.headline)
+
+            Form {
+                TextField("文件夹名称", text: $name)
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                Button("取消") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("保存") {
+                    let trimmed = name.trimmingCharacters(in: .whitespaces)
+                    if !trimmed.isEmpty {
+                        onSave(trimmed)
+                    }
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(.horizontal)
+        }
+        .padding()
+        .frame(width: 400, height: 180)
+        .onAppear { name = currentName }
+    }
+}
+
 // MARK: - Note Row
 
 // MARK: - Notes Interest Section（按研究方向分组的笔记折叠面板）
@@ -363,6 +415,7 @@ private struct WebClipSheet: View {
 private struct NotesInterestSection: View {
     let interest: ResearchInterest
     let notes: [KnowledgeNote]
+    var noteClaimCounts: [String: Int]
     @Binding var confirmDeleteId: String?
     let onDeleteOnly: () -> Void
     let onDeleteAll: () -> Void
@@ -376,6 +429,10 @@ private struct NotesInterestSection: View {
 
     private var isConfirming: Bool { confirmDeleteId == interest.id }
 
+    private var linkedVisibleNoteCount: Int {
+        notes.filter { (noteClaimCounts[$0.id] ?? 0) > 0 }.count
+    }
+
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             if notes.isEmpty {
@@ -385,7 +442,7 @@ private struct NotesInterestSection: View {
                     .padding(.vertical, 4)
             } else {
                 ForEach(notes) { note in
-                    NoteRow(note: note)
+                    NoteRow(note: note, linkedClaimCount: noteClaimCounts[note.id])
                         .tag(note)
                         .contextMenu {
                             Button("删除", role: .destructive) {
@@ -408,9 +465,9 @@ private struct NotesInterestSection: View {
                     }
                 }
                 Spacer()
-                Text("\(notes.count) 条")
+                Text("图谱关联 \(linkedVisibleNoteCount)/\(notes.count)")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(linkedVisibleNoteCount > 0 ? .blue : .secondary)
                 if isConfirming {
                     Button("置为未归档") { onDeleteOnly() }
                         .buttonStyle(.borderless)
@@ -454,13 +511,98 @@ private struct InterestListRow: View {
     let onUpdate: () -> Void
     @EnvironmentObject var router: AppRouter
     @State private var isGenerating = false
+    @State private var showingEditFolderName = false
+
+    private var folderTitle: String {
+        let trimmed = interest.folderName?.trimmingCharacters(in: .whitespaces) ?? ""
+        return trimmed.isEmpty ? interest.topic : trimmed
+    }
+
+    private var profileHighlights: [(label: String, value: String)] {
+        var result: [(label: String, value: String)] = []
+        if let goal = interest.profile?.goal, !goal.isEmpty {
+            result.append((label: "目标", value: goal))
+        }
+        if let time = interest.profile?.timeBudget, !time.isEmpty {
+            result.append((label: "时间", value: time))
+        }
+        if let output = interest.profile?.preferredOutput, !output.isEmpty {
+            result.append((label: "输出", value: output))
+        }
+        return result
+    }
+
+    private var profileSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Text("研究画像")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.16 * 9)
+                Circle()
+                    .fill(Color.blue.opacity(0.7))
+                    .frame(width: 5, height: 5)
+                Spacer()
+            }
+            if !profileHighlights.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(profileHighlights, id: \.label) { item in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.label)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                                .tracking(0.16 * 8)
+                            Text(item.value)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+            if let constraints = interest.profile?.constraints, !constraints.isEmpty {
+                let items = constraints.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                if !items.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(items, id: \.self) { c in
+                            Text(c)
+                                .font(.caption2)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.accentColor.opacity(0.1))
+                                .foregroundStyle(Color.accentColor)
+                                .cornerRadius(12)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(interest.topic)
+                Text(folderTitle)
                     .font(.subheadline.bold())
                     .lineLimit(1)
+                if folderTitle != interest.topic {
+                    Text("研究主题：\(interest.topic)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
                 Spacer()
                 if interest.learningPath != nil {
                     BadgeView(text: "已有路径", color: .green)
@@ -485,6 +627,10 @@ private struct InterestListRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+            }
+
+            if !profileHighlights.isEmpty || !(interest.profile?.constraints?.isEmpty ?? true) {
+                profileSection
             }
 
             HStack {
@@ -512,10 +658,22 @@ private struct InterestListRow: View {
             Button("打开工作台") {
                 router.openWorkbench(interestId: interest.id)
             }
+            Button("编辑文件夹名") {
+                showingEditFolderName = true
+            }
             Button("删除", role: .destructive) {
                 knowledgeService.deleteInterest(id: interest.id)
                 onUpdate()
             }
+        }
+        .sheet(isPresented: $showingEditFolderName) {
+            EditFolderNameSheet(
+                currentName: folderTitle,
+                onSave: { name in
+                    knowledgeService.updateInterestFolderName(id: interest.id, folderName: name)
+                    onUpdate()
+                }
+            )
         }
     }
 

@@ -45,6 +45,8 @@ struct ResearchWorkbenchView: View {
                 }
                 .buttonStyle(.borderless)
 
+                BrandLogoView(name: "app-logo", width: 32, height: 32)
+
                 if let interest = interest {
                     Text(interest.topic)
                         .font(.headline.bold())

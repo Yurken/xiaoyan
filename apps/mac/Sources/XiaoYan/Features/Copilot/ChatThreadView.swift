@@ -148,9 +148,7 @@ struct ChatThreadView: View {
             Spacer()
 
             VStack(spacing: 12) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.orange)
+                BrandLogoView(name: "xiaoyanv", width: 80, height: 80)
                 Text("你好！我是小妍")
                     .font(.title2.bold())
                 Text("你的 AI 学术研究助手，陪你从选题到沉淀")

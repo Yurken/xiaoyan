@@ -2,12 +2,24 @@ import SwiftUI
 
 struct NoteRow: View {
     let note: KnowledgeNote
+    var linkedClaimCount: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(note.title)
-                .font(.subheadline.bold())
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                Text(note.title)
+                    .font(.subheadline.bold())
+                    .lineLimit(1)
+                if let count = linkedClaimCount, count > 0 {
+                    Text("图谱 \(count)")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundStyle(.blue)
+                        .cornerRadius(4)
+                }
+            }
             Text(note.content)
                 .font(.caption)
                 .foregroundStyle(.secondary)

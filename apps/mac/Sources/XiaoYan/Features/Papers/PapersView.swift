@@ -14,6 +14,7 @@ struct PapersView: View {
     @State private var sortMode: SortMode = .createdAt
     @State private var selectedTag: String = ""
     @State private var selectedInterestId: String = ""
+    @State private var confirmDeleteInterestId: String?
 
     enum SortMode: String, CaseIterable {
         case createdAt = "导入时间"
@@ -174,14 +175,60 @@ struct PapersView: View {
         List(selection: $selectedPaper) {
             if searchText.isEmpty && selectedTag.isEmpty && selectedInterestId.isEmpty {
                 ForEach(groupedPapers, id: \.0?.id) { interest, group in
+                    let isConfirming = confirmDeleteInterestId == interest?.id
                     Section {
+                        if isConfirming {
+                            HStack(spacing: 8) {
+                                Button("保留论文") {
+                                    if let id = interest?.id {
+                                        knowledgeService.deleteInterestOnly(id: id)
+                                        confirmDeleteInterestId = nil
+                                        reloadPapers()
+                                        loadInterests()
+                                    }
+                                }
+                                .buttonStyle(.borderless)
+                                .controlSize(.mini)
+                                .font(.caption2)
+                                Button("删除全部", role: .destructive) {
+                                    if let id = interest?.id {
+                                        knowledgeService.deleteInterestBundle(id: id)
+                                        confirmDeleteInterestId = nil
+                                        reloadPapers()
+                                        loadInterests()
+                                    }
+                                }
+                                .buttonStyle(.borderless)
+                                .controlSize(.mini)
+                                .font(.caption2)
+                                Button { confirmDeleteInterestId = nil } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        }
                         ForEach(group) { paper in
                             PaperRow(paper: paper)
                                 .tag(paper)
                         }
                     } header: {
-                        Text(interest?.topic ?? "未归类")
-                            .font(.caption.weight(.semibold))
+                        HStack {
+                            Text(interest?.topic ?? "未归类")
+                                .font(.caption.weight(.semibold))
+                            Spacer()
+                            if interest != nil && !isConfirming {
+                                Button {
+                                    confirmDeleteInterestId = interest?.id
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        }
                     }
                 }
             } else {
