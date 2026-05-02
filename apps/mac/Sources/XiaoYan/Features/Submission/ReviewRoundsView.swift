@@ -108,7 +108,7 @@ struct ReviewRoundsView: View {
                     } else {
                         List {
                             ForEach(comments) { comment in
-                                CommentRow(comment: comment)
+                                CommentRow(comment: comment, onUpdate: updateComment)
                             }
                         }
                         .listStyle(.plain)
@@ -143,6 +143,11 @@ struct ReviewRoundsView: View {
     private func loadComments() {
         guard let subId = selectedSubmission?.id, let round = selectedRound?.round else { comments = []; return }
         comments = service.listReviewComments(submissionId: subId, round: round)
+    }
+
+    private func updateComment(_ comment: ReviewComment) {
+        service.updateReviewComment(comment)
+        loadComments()
     }
 
     private func normalizeVerdict(_ verdict: String) -> String {
@@ -200,32 +205,95 @@ private struct RoundRow: View {
 
 private struct CommentRow: View {
     let comment: ReviewComment
+    let onUpdate: (ReviewComment) -> Void
     @State private var isExpanded = false
+    @State private var editingResponse = false
+    @State private var draftResponse = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(comment.reviewer ?? "匿名审稿人")
                     .font(.subheadline.bold())
                 Spacer()
-                if comment.resolved == true {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                if let tags = comment.tags, !tags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(tags, id: \.self) { tag in
+                            Text(tag)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.accentColor.opacity(0.1))
+                                .foregroundColor(.accentColor)
+                                .cornerRadius(4)
+                        }
+                    }
                 }
+                Button {
+                    var updated = comment
+                    updated.resolved = !(comment.resolved ?? false)
+                    onUpdate(updated)
+                } label: {
+                    Image(systemName: (comment.resolved ?? false) ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle((comment.resolved ?? false) ? .green : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help((comment.resolved ?? false) ? "标记为未处理" : "标记为已处理")
             }
             Text(comment.content)
                 .font(.body)
                 .lineLimit(isExpanded ? nil : 3)
-            if let response = comment.response, !response.isEmpty {
-                Text("回复: \(response)")
-                    .font(.caption)
-                    .foregroundStyle(.blue)
-                    .padding(.top, 2)
+                .contentShape(Rectangle())
+                .onTapGesture { isExpanded.toggle() }
+
+            if editingResponse {
+                HStack(spacing: 8) {
+                    TextField("作者回复...", text: $draftResponse, axis: .vertical)
+                        .lineLimit(2...6)
+                    Button {
+                        var updated = comment
+                        updated.response = draftResponse.isEmpty ? nil : draftResponse
+                        onUpdate(updated)
+                        editingResponse = false
+                    } label: {
+                        Image(systemName: "checkmark")
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        editingResponse = false
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else if let response = comment.response, !response.isEmpty {
+                HStack(spacing: 4) {
+                    Text("回复: \(response)")
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                    Spacer()
+                    Button {
+                        draftResponse = response
+                        editingResponse = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                Button {
+                    draftResponse = ""
+                    editingResponse = true
+                } label: {
+                    Text("添加回复...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture { isExpanded.toggle() }
     }
 }
 
@@ -278,6 +346,7 @@ private struct AddCommentSheet: View {
     @State private var reviewer = ""
     @State private var content = ""
     @State private var response = ""
+    @State private var tagsText = ""
 
     var body: some View {
         VStack(spacing: 16) {
@@ -288,6 +357,7 @@ private struct AddCommentSheet: View {
                 TextField("审稿人", text: $reviewer)
                 TextField("意见内容", text: $content, axis: .vertical)
                     .lineLimit(4...10)
+                TextField("标签（用逗号分隔，如：方法, 实验, 写作）", text: $tagsText)
                 TextField("回复 (可选)", text: $response, axis: .vertical)
                     .lineLimit(2...4)
             }
@@ -298,6 +368,7 @@ private struct AddCommentSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("添加") {
+                    let tags = tagsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
                     let comment = ReviewComment(
                         id: UUID().uuidString,
                         submissionId: submissionId,
@@ -306,7 +377,7 @@ private struct AddCommentSheet: View {
                         content: content,
                         response: response.isEmpty ? nil : response,
                         resolved: false,
-                        tags: nil,
+                        tags: tags.isEmpty ? nil : tags,
                         createdAt: Date()
                     )
                     service.addReviewComment(comment)
@@ -319,6 +390,6 @@ private struct AddCommentSheet: View {
             .padding(.horizontal)
         }
         .padding()
-        .frame(width: 460, height: 380)
+        .frame(width: 460, height: 420)
     }
 }

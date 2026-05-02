@@ -209,7 +209,7 @@
 - **版本快照 content 编辑 + AI 润色 + AI 审稿入口** ✅（已对齐）：`VersionsView.swift:76, 114-122` + `VersionDetailSheet.swift`（content TextEditor + AI 润色 + AI 审稿 sheet）；`SubmissionRepository.swift` / `SubmissionService.swift` 补 `updateVersion`；1:1 desktop `VersionWorkspace.tsx:212-270`
 - **行级 LCS Diff** ✅（已对齐）：`VersionDiffView.swift` 行级 LCS 算法 + add/remove/same 着色 + 顶部 +/- 行计数；1:1 desktop `shared.ts:134-180`、`VersionWorkspace.tsx:277-316`
 - **Mock Review 多 reviewer + 严格度 + 一键导入轮次** ✅（已对齐）：`MockReviewSheet.swift:1-314`（reviewerCount 2-4 + lenient/balanced/strict + 流式接收 + verdict 分布 + 导入新一轮）；mac `AIReviewView.swift` 已移除并由 `MockReviewSheet` 完全替代
-- **Review 评论 tags / verdict / 已处理 / 作者回复编辑**：desktop `ReviewWorkspace.tsx:179-249` + `ReviewEntryModal.tsx`（REVIEW_TAGS 8 类 + verdict 联动 + 已处理切换 + 行内编辑 response）；mac `ReviewRoundsView.swift:201-230, 272-323` 仅 reviewer/content/response 三字段
+- **Review 评论 tags / verdict / 已处理 / 作者回复编辑** ✅（已对齐）：`ReviewRoundsView.swift` CommentRow 显示 tags chips + resolved 切换按钮 + 行内 response 编辑（TextField + 保存/取消）；`AddCommentSheet` 增加 tags 输入（逗号分隔）；`SubmissionRepository.swift` / `SubmissionService.swift` 补 `updateReviewComment`；1:1 desktop `ReviewWorkspace.tsx:179-249` + `ReviewEntryModal.tsx`
 - **R1 Submission status 状态机不一致**（参见 §0）
 
 ### P2
@@ -255,6 +255,7 @@
 - 投稿 Mock Review 多 reviewer + 严格度 + 一键导入轮次（`MockReviewSheet.swift` + `SubmissionService.runMockReview`，2026-05-01）
 - Settings Provider 预设 9 卡片 + Ollama `/api/tags` 拉模型（`ProviderPresets.swift` + `ProviderSettingsTab.swift`，2026-05-02）
 - Settings 角色任务卡 10 张（流光/谋策/小妍/溯源/探知/洞见/翰章/构域/视界/译衡）含多 key 联动 + 折叠独立接口配置 + 副字段（rag_top_k）；TranslationView/AgentNodesService/SurveyView 已接入 translation_*/survey_writer_*/survey_planner_* 优先链；DefaultSettings 补齐 22 个键（`RoleCardPresets.swift` + `RoleCardView.swift` + `MultiKeyBindings.swift`，2026-05-02）
+- Review 评论 tags / 已处理切换 / 行内回复编辑（`ReviewRoundsView.swift` CommentRow tags chips + resolved 切换 + response 行内编辑；`AddCommentSheet` tags 输入；`SubmissionRepository.swift` / `SubmissionService.swift` 补 `updateReviewComment`，2026-05-02）
 
 ---
 

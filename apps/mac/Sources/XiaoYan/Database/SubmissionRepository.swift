@@ -141,6 +141,18 @@ struct SubmissionRepository {
         }
     }
 
+    func updateReviewComment(_ comment: ReviewComment) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE review_comments SET reviewer=?, content=?, response=?, resolved=?, tags=? WHERE id=?",
+                arguments: [
+                    comment.reviewer, comment.content, comment.response, comment.resolved ?? false,
+                    comment.tags?.jsonString, comment.id
+                ]
+            )
+        }
+    }
+
     // Versions
     func listVersions(submissionId: String) throws -> [PaperVersion] {
         try dbQueue.read { db in

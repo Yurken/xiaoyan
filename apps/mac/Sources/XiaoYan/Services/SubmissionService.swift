@@ -268,6 +268,10 @@ final class SubmissionService: ObservableObject {
         try? repo.insertReviewComment(comment)
     }
 
+    func updateReviewComment(_ comment: ReviewComment) {
+        try? repo.updateReviewComment(comment)
+    }
+
     // MARK: - Checklist
 
     func upsertChecklistItem(_ item: SubmissionChecklistItem) {
