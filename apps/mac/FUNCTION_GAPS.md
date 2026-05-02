@@ -185,8 +185,8 @@
 ## 9. Papers
 
 ### P1
-- **批量上传 + 拖拽**：mac `PapersView.swift:57-67` `fileImporter` 缺 `allowsMultipleSelection`；desktop `Papers.tsx:235-289` 多选 + 进度条
-- **研究方向分组 + 分组级搜索/排序/tag 筛选**：mac 仅一个全局搜索框（`PapersView.swift:13-19, 36-40`）；desktop `Papers.tsx:69-79, 187-222, 523-582`（按 research_interest 分组 + 三种排序：导入时间/名称/重要性）
+- **批量上传 + 拖拽** ✅（已对齐）：`PapersView.swift` `fileImporter` 加 `allowsMultipleSelection: true`，循环上传多份 PDF
+- **研究方向分组 + 分组级搜索/排序/tag 筛选** ✅（已对齐）：`PapersView.swift` 顶部排序/研究方向/标签三 Picker + List Section 按 interest 分组（含未归类）；1:1 desktop `Papers.tsx:69-79, 187-222, 523-582`
 
 ### P2
 - **元数据可见徽章（CCF/SCI/JCR/CAS/WoS）**：mac 卡片仅显示年份+venue+status — desktop `Papers.tsx:633-651`
