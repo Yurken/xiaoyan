@@ -166,7 +166,7 @@
 - **T1 Arxiv 字段检索** ✅（已对齐）：`ArxivSearchView.swift` 11 字段表单（通用/标题/摘要/作者/备注/期刊/排除词 + 分类多选面板 + 最近天数/返回篇数/排序模式）；`ArxivClient.swift` `SearchRequest` + `buildQuery` 多字段拼接（all/ti/abs/au/cat/co/jr + submittedDate + ANDNOT 排除）+ `filterRecent`；分类面板 4 大领域 32 标签；1:1 desktop `ArxivFieldSearchPanel.tsx:114-253` + `useArxivFieldSearch.ts`
 - **T4 SourceLookup 学术信号** ✅（已对齐）：`SourceLookupView.swift` journalCard 新增索引徽章行（indexes + JCR/CAS/Top/OA 彩色标签）+ eISSN/JIF 排名/JCR 分类字段 + WOS 分类 chip 列表；ccfCard 标题改为 Link + CCF 等级徽章样式 + 出版商字段；1:1 desktop `SourceLookupPanel.tsx:75-137`
 - **T5 Translation 多语言** ✅（已对齐）：`TranslationView.swift` 源/目标语言 Picker（zh/en/ja/de/fr + auto），prompt 动态注入语言名；1:1 desktop `TranslationPanel.tsx:20-35`
-- **T8 FriendLinks 数据完整度**：desktop `yanweb-links.ts` 1055 行（数百条 + 多分组 + favicon）；mac `FriendLinksView.swift:13-51` 仅 5 类约 27 条硬编码无图标
+- **T8 FriendLinks 数据完整度** ✅（已对齐）：desktop `yanweb-links.ts` 21 分类 187 条 + icon 字段完整迁移至 mac；`FriendLinksView.swift` 替换为完整数据集，`FriendLinkItem` 新增 `icon: String?`；181 个图标文件从 `desktop/public/friend-link-icons` 复制到 `mac/Resources/friend-link-icons` 并在 `Package.swift` 注册；视图使用 `Bundle.module.url(forResource:withExtension:subdirectory:)` + `NSImage(contentsOf:)` 加载本地图标，失败回退 `link.circle` 系统图标
 
 ### P2
 - **T2 PaperDiscovery 排序模式**：mac `PaperDiscoveryView.swift:22-25` 仅 relevance/quality 两档，且 quality 实际是 sortBy=submittedDate（`:408`）

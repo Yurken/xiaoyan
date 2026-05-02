@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <meta
+      name="title"
+      content="Connected Papers | Find and explore academic papers"
+    />
+    <meta
+      name="description"
+      content="Connected Papers is a visual tool to help researchers and applied scientists find academic papers relevant to their field of work."
+    />
+    <meta
+      property="og:image"
+      content="https://www.connectedpapers.com/share-preview-img.png"
+    />
+    <meta
+      property="og:title"
+      content="Connected Papers | Find and explore academic papers"
+    />
+    <meta
+      property="og:description"
+      content="A unique, visual tool to help researchers and applied scientists find and explore papers relevant to their field of work."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <!--    <link rel="preload" href="/backhpa-addr.json" as="fetch" crossorigin="anonymous">-->
+    <!--    <link rel="preload" href="/config.json" as="fetch" crossorigin="anonymous">-->
+    <!--    <link rel="preload" href="/rest-addr.json" as="fetch" crossorigin="anonymous">-->
+    <!--    <link rel="preload" href="/adb2c-config.json" as="fetch" crossorigin="anonymous">-->
+    <title>Connected Papers | Find and explore academic papers</title>
+
+    <!-- Facebook Pixel Code
+      <script>
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '559937878730110');
+        fbq('track', 'PageView');
+      </script>
+      <noscript><img height="1" width="1" style="display:none"
+        src="https://www.facebook.com/tr?id=559937878730110&ev=PageView&noscript=1"
+      /></noscript>
+      <meta name="facebook-domain-verification" content="hql12alpsvdri95vavqwbml5b82p10" />
+      End Facebook Pixel Code -->
+    <script type="module" crossorigin src="/assets/index-DXrY1AMA.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BEeIMaFL.css">
+  </head>
+  <body>
+    <noscript>
+      <strong
+        >We're sorry but Connected Papers doesn't work properly without
+        JavaScript enabled. Please enable it to continue.</strong
+      >
+    </noscript>
+    <div id="app"></div>
+    <!-- built files will be auto injected -->
+    <!-- LinkedIn Insight Tag Code
+    <script type="text/javascript">
+      _linkedin_partner_id = "3071858";
+      window._linkedin_data_partner_ids = window._linkedin_data_partner_ids || [];
+      window._linkedin_data_partner_ids.push(_linkedin_partner_id);
+      </script><script type="text/javascript">
+      (function(){var s = document.getElementsByTagName("script")[0];
+      var b = document.createElement("script");
+      b.type = "text/javascript";b.async = true;
+      b.src = "https://snap.licdn.com/li.lms-analytics/insight.min.js";
+      s.parentNode.insertBefore(b, s);})();
+    </script>
+    <noscript>
+      <img height="1" width="1" style="display:none;" alt="" src="https://px.ads.linkedin.com/collect/?pid=3071858&fmt=gif" />
+    </noscript>
+     End of LinkedIn Insight Tag Code -->
+  </body>
+</html>

@@ -23,6 +23,7 @@ let package = Package(
             resources: [
                 .copy("Data/journal_partitions.json"),
                 .copy("Data/ccf_catalog.json"),
+                .copy("Resources/friend-link-icons"),
             ]
         )
     ]
