@@ -165,7 +165,7 @@
 ### P1
 - **T1 Arxiv 字段检索**：desktop `ArxivFieldSearchPanel.tsx:114-253` 11 字段（通用/标题/摘要/作者/分类 chip 多选/备注/期刊/排除词/最近天数/返回篇数/排序模式）+ ARXIV_CATEGORIES 分组面板；mac `ArxivSearchView.swift:6-82` 仅 4 字段
 - **T4 SourceLookup 学术信号**：desktop `SourceLookupPanel.tsx:75-108`（WoS index/JCR-CAS quartile/CAS Top/open_access/JIF/jif_rank/wos_categories chip/CCF Rating + entity_type+label+publisher）；mac `SourceLookupView.swift:69-89` 仅 6 字段，CCF 卡（`:99-128`）缺 url/publisher/label
-- **T5 Translation 多语言**：desktop `TranslationPanel.tsx:20-35` 5×5 语言对（含 ja/de/fr + 自动识别）；mac `TranslationView.swift:10-13` 仅"英↔中"
+- **T5 Translation 多语言** ✅（已对齐）：`TranslationView.swift` 源/目标语言 Picker（zh/en/ja/de/fr + auto），prompt 动态注入语言名；1:1 desktop `TranslationPanel.tsx:20-35`
 - **T8 FriendLinks 数据完整度**：desktop `yanweb-links.ts` 1055 行（数百条 + 多分组 + favicon）；mac `FriendLinksView.swift:13-51` 仅 5 类约 27 条硬编码无图标
 
 ### P2
