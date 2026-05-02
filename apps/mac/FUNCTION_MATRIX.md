@@ -79,7 +79,7 @@ v1_initial 迁移已包含绝大多数 NOT NULL DEFAULT 约束和索引。v2_sch
 | Submission.tsx | submission/* | SubmissionView.swift + KanbanView + CoverLetterView + VenueRecommendationsView | 完成 | 版本 diff、review verdict 统计、checklist 交互已完善 |
 | Experiment.tsx | experiment/* | ExperimentView.swift | 完成 | 附件管理 CRUD 已集成 |
 | Tools.tsx | tools/* | ToolsView.swift + PaperDiscoveryView + PptWorkspaceView | 完成 | 已支持结构预览、PDFKit 文本提取、Markdown 备份导出与原生 .pptx 生成 |
-| Settings.tsx | settings/* | SettingsView.swift + AgentConfigPanel + SettingComponents | 完成 | about（Tauri manifest 更新检查 UI）、changelog、layout、task setup 已补齐；history apply 已支持快照列表 + 应用/删除 |
+| Settings.tsx | settings/* | SettingsView.swift + ProviderPresets + RoleCardPresets + RoleCardView + MultiKeyBindings + SettingComponents | 完成 | about（Tauri manifest 更新检查 UI）、changelog、layout、task setup 已补齐；history apply 已支持快照列表 + 应用/删除；Provider 预设 9 卡 + Ollama 拉模型；角色任务卡 10 张多 key 联动（替代旧 AgentConfigPanel） |
 
 ---
 

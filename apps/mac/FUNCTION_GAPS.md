@@ -144,7 +144,6 @@
 
 ### P1
 - **S2 加密导入/导出 UI 退化**：desktop 专用 `CryptoConfigModal.tsx`（双输入确认 + hint + 错误分离）；mac `ImportExportSettingsTab.swift:18-43` 仅普通 SecureField，靠剪贴板传密文
-- **S4 角色任务卡（RolesSection）**：desktop 9 类专项任务模型卡（溯源/流光/谋策/探知/翰章/构域/视界/译衡/主对话）含 model+temperature+base_url+apiKey 多键联动 — `RolesSection.tsx`、`shared.tsx` GroupedModelCard；mac `AgentSettingsTab.swift:6-14` 仅 7 个 multi_agent agent，缺 planner_hint/survey_writer/paper_analysis/paper_reproduction/vision/translation 任务模型入口（`pageConfig.tsx:160-317` 默认值列出 key）
 - **S11 Skills 编辑/新建/导入**：mac 仅 toggle + 重置内置（`SkillsSettingsTab.swift:102-104`）；desktop `SkillsSection.tsx` 含 SkillEditModal（新建/修改 prompt/tags 编辑）
 
 ### P2
@@ -255,6 +254,7 @@
 - PPT 工作区原生 .pptx 生成
 - 投稿 Mock Review 多 reviewer + 严格度 + 一键导入轮次（`MockReviewSheet.swift` + `SubmissionService.runMockReview`，2026-05-01）
 - Settings Provider 预设 9 卡片 + Ollama `/api/tags` 拉模型（`ProviderPresets.swift` + `ProviderSettingsTab.swift`，2026-05-02）
+- Settings 角色任务卡 10 张（流光/谋策/小妍/溯源/探知/洞见/翰章/构域/视界/译衡）含多 key 联动 + 折叠独立接口配置 + 副字段（rag_top_k）；TranslationView/AgentNodesService/SurveyView 已接入 translation_*/survey_writer_*/survey_planner_* 优先链；DefaultSettings 补齐 22 个键（`RoleCardPresets.swift` + `RoleCardView.swift` + `MultiKeyBindings.swift`，2026-05-02）
 
 ---
 
