@@ -4,9 +4,24 @@ struct ProviderSettingsTab: View {
     @EnvironmentObject var settings: AppSettings
     @State private var testResult: String?
     @State private var isTesting = false
+    @State private var ollamaModels: [OllamaClient.ModelInfo] = []
+    @State private var ollamaLoading = false
+    @State private var ollamaError: String?
+
+    private var activePreset: ProviderPresetID { detectPreset(settings.settings) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            settingsCard(title: "供应商预设", icon: "square.grid.2x2") {
+                presetGrid
+            }
+
+            if activePreset == .ollama {
+                settingsCard(title: "Ollama 本地模型", icon: "shippingbox") {
+                    ollamaModelPicker
+                }
+            }
+
             settingsCard(title: "主要提供商", icon: "network") {
                 Picker("提供商", selection: stringBinding(for: "llm_provider", in: settings)) {
                     Text("OpenAI").tag("openai")
@@ -54,6 +69,104 @@ struct ProviderSettingsTab: View {
             }
         }
     }
+
+    // MARK: - Preset Grid
+
+    private var presetGrid: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 8)], spacing: 8) {
+            ForEach(PROVIDER_PRESETS) { preset in
+                presetCard(preset)
+            }
+        }
+    }
+
+    private func presetCard(_ p: ProviderPreset) -> some View {
+        let selected = (p.id == activePreset)
+        return Button(action: { applyPreset(p.id) }) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(p.label).font(.subheadline.bold())
+                Text(p.description)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(selected ? Color.accentColor.opacity(0.15) : Theme.Colors.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(selected ? Color.accentColor : Color.gray.opacity(0.2), lineWidth: 1)
+            )
+            .cornerRadius(8)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func applyPreset(_ id: ProviderPresetID) {
+        settings.apply(applyPresetEntries(id))
+    }
+
+    // MARK: - Ollama Models
+
+    private var ollamaModelPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button {
+                    Task { await loadOllamaModels() }
+                } label: {
+                    Label("获取本地模型", systemImage: "arrow.clockwise")
+                }
+                .disabled(ollamaLoading)
+                if ollamaLoading { ProgressView().controlSize(.small) }
+                Spacer()
+                if !ollamaModels.isEmpty {
+                    Text("点击模型直接应用")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let ollamaError {
+                Text(ollamaError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            if !ollamaModels.isEmpty {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 6)], spacing: 6) {
+                    ForEach(ollamaModels) { m in
+                        Button(m.name) {
+                            settings.set("openai_compatible_model", m.name)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+            }
+        }
+    }
+
+    private func loadOllamaModels() async {
+        ollamaLoading = true
+        ollamaError = nil
+        let raw = (settings.settings["openai_compatible_base_url"] ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        let baseURL = raw.isEmpty
+            ? "http://localhost:11434"
+            : raw.replacingOccurrences(of: "/v1", with: "")
+        do {
+            ollamaModels = try await OllamaClient.listModels(baseURL: baseURL)
+            if ollamaModels.isEmpty {
+                ollamaError = "未发现本地模型，请确认 Ollama 已运行"
+            }
+        } catch {
+            ollamaModels = []
+            ollamaError = "拉取失败：\(error.localizedDescription)"
+        }
+        ollamaLoading = false
+    }
+
+    // MARK: - Test connection
 
     private func testConnection() {
         isTesting = true
