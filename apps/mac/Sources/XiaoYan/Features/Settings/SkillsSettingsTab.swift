@@ -6,6 +6,8 @@ struct SkillsSettingsTab: View {
     @State private var searchText = ""
     @State private var showResetConfirm = false
     @State private var resetError: String?
+    @State private var editingSkill: Skill? = nil
+    @State private var showingEditSheet = false
 
     private let repo = SkillRepository()
 
@@ -42,6 +44,12 @@ struct SkillsSettingsTab: View {
                     .nmShadow(level: Theme.Shadows.soft)
 
                     HStack {
+                        Button("新建技能") {
+                            editingSkill = nil
+                            showingEditSheet = true
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
                         Spacer()
                         Button("重置内置技能") {
                             showResetConfirm = true
@@ -78,7 +86,15 @@ struct SkillsSettingsTab: View {
                             .foregroundStyle(.secondary)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 220))], spacing: 8) {
                             ForEach(custom) { skill in
-                                SkillCard(skill: skill, onToggle: { toggleSkill(skill) })
+                                SkillCard(
+                                    skill: skill,
+                                    onToggle: { toggleSkill(skill) },
+                                    onEdit: {
+                                        editingSkill = skill
+                                        showingEditSheet = true
+                                    },
+                                    onDelete: { deleteSkill(skill) }
+                                )
                             }
                         }
                     }
@@ -89,7 +105,12 @@ struct SkillsSettingsTab: View {
                             .foregroundStyle(.secondary)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 220))], spacing: 8) {
                             ForEach(builtin) { skill in
-                                SkillCard(skill: skill, onToggle: { toggleSkill(skill) })
+                                SkillCard(
+                                    skill: skill,
+                                    onToggle: { toggleSkill(skill) },
+                                    onEdit: nil,
+                                    onDelete: nil
+                                )
                             }
                         }
                     }
@@ -97,6 +118,12 @@ struct SkillsSettingsTab: View {
             }
         }
         .onAppear(perform: load)
+        .sheet(isPresented: $showingEditSheet) {
+            SkillEditSheet(skill: editingSkill, onSaved: {
+                showingEditSheet = false
+                load()
+            })
+        }
         .alert("重置内置技能", isPresented: $showResetConfirm) {
             Button("取消", role: .cancel) { }
             Button("重置", role: .destructive) {
@@ -119,6 +146,11 @@ struct SkillsSettingsTab: View {
         load()
     }
 
+    private func deleteSkill(_ skill: Skill) {
+        try? repo.delete(id: skill.id)
+        load()
+    }
+
     private func resetBuiltins() {
         do {
             try repo.resetBuiltins()
@@ -130,9 +162,124 @@ struct SkillsSettingsTab: View {
     }
 }
 
+// MARK: - Skill Edit Sheet
+
+private struct SkillEditSheet: View {
+    let skill: Skill?
+    let onSaved: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var title = ""
+    @State private var description = ""
+    @State private var prompt = ""
+    @State private var tagsText = ""
+    @State private var errorText: String?
+
+    private var isCreate: Bool { skill == nil }
+    private var isBuiltin: Bool { skill?.isBuiltin == true }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text(isCreate ? "新建技能" : "编辑技能")
+                .font(.headline)
+
+            Form {
+                TextField("技能名称（触发词，如 translate）", text: $name)
+                    .disabled(!isCreate)
+                TextField("显示标题", text: $title)
+                TextField("描述", text: $description, axis: .vertical)
+                    .lineLimit(2...4)
+                TextField("提示词（Prompt）", text: $prompt, axis: .vertical)
+                    .lineLimit(4...10)
+                TextField("标签（用逗号分隔）", text: $tagsText)
+            }
+            .formStyle(.grouped)
+
+            if let error = errorText {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Button("取消") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                if isBuiltin, let s = skill {
+                    Button("恢复默认") {
+                        resetToBuiltin(skill: s)
+                    }
+                    .controlSize(.small)
+                    .foregroundStyle(.secondary)
+                }
+                Button("保存") {
+                    save()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || title.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(.horizontal)
+        }
+        .padding()
+        .frame(width: 520, height: 480)
+        .onAppear {
+            if let s = skill {
+                name = s.name
+                title = s.title
+                description = s.descriptionText ?? ""
+                prompt = s.prompt
+                tagsText = s.tags?.joined(separator: ", ") ?? ""
+            }
+        }
+    }
+
+    private func save() {
+        let tags = tagsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let repo = SkillRepository()
+        do {
+            if isCreate {
+                let newSkill = Skill(
+                    id: UUID().uuidString,
+                    name: name.trimmingCharacters(in: .whitespaces),
+                    title: title.trimmingCharacters(in: .whitespaces),
+                    descriptionText: description.isEmpty ? nil : description,
+                    prompt: prompt,
+                    tags: tags.isEmpty ? nil : tags,
+                    isBuiltin: false,
+                    isEnabled: true,
+                    createdAt: Date()
+                )
+                try repo.insert(newSkill)
+            } else if var s = skill {
+                s.title = title.trimmingCharacters(in: .whitespaces)
+                s.descriptionText = description.isEmpty ? nil : description
+                s.prompt = prompt
+                s.tags = tags.isEmpty ? nil : tags
+                try repo.update(s)
+            }
+            errorText = nil
+            onSaved()
+        } catch {
+            errorText = "保存失败: \(error.localizedDescription)"
+        }
+    }
+
+    private func resetToBuiltin(skill: Skill) {
+        guard let original = SkillService.builtInSkills.first(where: { $0.id == skill.id }) else { return }
+        title = original.title
+        description = original.descriptionText ?? ""
+        prompt = original.prompt
+        tagsText = original.tags?.joined(separator: ", ") ?? ""
+    }
+}
+
+// MARK: - Skill Card
+
 struct SkillCard: View {
     let skill: Skill
     let onToggle: () -> Void
+    var onEdit: (() -> Void)?
+    var onDelete: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -183,6 +330,25 @@ struct SkillCard: View {
                             .foregroundColor(tagColor(tag))
                             .cornerRadius(4)
                     }
+                }
+
+                Spacer()
+
+                if let onEdit {
+                    Button(action: onEdit) {
+                        Image(systemName: "pencil")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+                if let onDelete {
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.red)
                 }
             }
         }
