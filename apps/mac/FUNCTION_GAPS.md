@@ -29,7 +29,7 @@
 - **A2 chat_mode 切换 UI** ✅（已对齐）：`CopilotComposerView.swift:53-77` 顶部 ForEach(ChatMode.allCases) chip 切换 + `@AppStorage("rc_copilot_chat_mode")` 持久化（参见 R4）
 - **A3 Skills 选择器与 prompt 注入** ✅（已对齐）：`CopilotComposerView.swift:204-227`（按钮）+ `SkillsPickerPopover` 252-396 行
 - **A4 Interest 归属/会话分组** ✅（已对齐）：`CopilotView.swift:32-66, 86-213, 658-758`（顶部 Picker + 右键移动 + 按 interest DisclosureGroup + 二段确认删除）；1:1 desktop `Copilot.tsx:174-186, 482-486, 538-645`
-- **C1 自由工作台模式 / FocusLayout（hideFolders）**：mac 无 — desktop `Copilot({ hideFolders })`（`Copilot.tsx:83`）+ `FocusLayout.tsx`；mac 无对应路由
+- **C1 自由工作台模式 / FocusLayout（hideFolders）** ✅（已对齐）：`CopilotView.swift:22, 36-39, 294-305` 顶部 toggle 收起/展开 sessionSidebar；1:1 desktop `Copilot.tsx:83` hideFolders 语义
 
 ### P2
 - **A5 流式中断 Stop 按钮**：mac 仅切换/关闭时 abort，无手动停止 — desktop `Copilot.tsx:241-244, 342-344`；mac `CopilotView.swift:437-446`

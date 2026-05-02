@@ -19,6 +19,7 @@ struct CopilotView: View {
     @State private var activeStreamId: UUID?
     @State private var streamTask: Task<Void, Never>?
     @State private var loadingSessions = true
+    @State private var hideFolders = false
 
     private var chatRepo = ChatRepository()
 
@@ -31,8 +32,10 @@ struct CopilotView: View {
 
     var body: some View {
         HSplitView {
-            sessionSidebar
-                .frame(minWidth: 200, maxWidth: 240)
+            if !hideFolders {
+                sessionSidebar
+                    .frame(minWidth: 200, maxWidth: 240)
+            }
 
             chatArea
                 .frame(minWidth: 400)
@@ -291,6 +294,17 @@ struct CopilotView: View {
                     text: chatService.isStreaming ? "处理中" : "就绪",
                     color: chatService.isStreaming ? .orange : .green
                 )
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        hideFolders.toggle()
+                    }
+                } label: {
+                    Image(systemName: hideFolders ? "sidebar.left" : "sidebar.left.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(hideFolders ? "展开侧边栏" : "收起侧边栏")
             }
         }
         .padding(.horizontal)
