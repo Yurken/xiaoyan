@@ -3,16 +3,6 @@ import SwiftUI
 struct AgentSettingsTab: View {
     @EnvironmentObject var settings: AppSettings
 
-    private let agentOptions: [(key: String, title: String, subtitle: String)] = [
-        ("retrieval", "溯源模型", "检索"),
-        ("planner", "谋策模型", "路径规划"),
-        ("literature_scout", "探知模型", "论文侦察"),
-        ("survey", "翰章模型", "综述生成"),
-        ("paper_analyst", "洞见模型", "论文解析"),
-        ("reproduction", "构域模型", "复现建议"),
-        ("synthesis", "整合模型", "最终整合"),
-    ]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             settingsCard(title: "全局开关", icon: "switch.2") {
@@ -32,18 +22,19 @@ struct AgentSettingsTab: View {
                 }
             }
 
-            settingsCard(title: "能力域模型配置", icon: "cpu") {
+            settingsCard(title: "角色任务卡", icon: "person.2.crop.square.stack") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("每个能力域可独立设置模型、地址、密钥和采样参数，留空则继承默认值。")
+                    Text("每张卡对应一组语义相近的字段，填写「统一模型 / 温度 / 接口 / 密钥」将同步覆盖卡内所有 key；留空则各自独立沿用主服务商。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    ForEach(agentOptions, id: \.key) { agent in
-                        AgentConfigPanel(
-                            title: agent.title,
-                            subtitle: agent.subtitle,
-                            agentKey: agent.key
-                        )
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 320), spacing: 12)],
+                        spacing: 12
+                    ) {
+                        ForEach(ROLE_CARD_PRESETS) { preset in
+                            RoleCardView(preset: preset)
+                        }
                     }
                 }
             }
