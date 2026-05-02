@@ -42,7 +42,7 @@
 
 ### P3
 - **A11 删除会话二次确认 / 兴趣组级删除** ✅（已对齐）：兴趣组级二段确认（A4 已对齐）；单会话删除新增 `.confirmationDialog`（`CopilotView.swift:143-155`），确认后执行 `deleteSession`；与 desktop 二次确认交互等价
-- **A12 Memory chat.query 摘要写入**：mac 仅写库无 query 摘要
+- **A12 Memory chat.query 摘要写入** ✅（已对齐）：`ChatService.swift:480` `recordMemoryEvent` 已将 `String(query.prefix(100))` 写入 `MemoryEvent.summary`；与 desktop memory 写入等价
 - **A13 主题文件夹下拉、未归类分组、CollapsibleGroup** ✅（已对齐 A4）
 - **A14 Composer 默认提示（仅附件无文本时）** ✅（已实现）：`ChatThreadView.swift:221` 当 `trimmed.isEmpty` 且存在附件时，自动注入 `"请阅读上传的文件并回答。"`；与 desktop `DEFAULT_ATTACHMENT_PROMPT` 等价
 - **A15 Enter / Shift+Enter 行为** ✅（已对齐）：`CopilotComposerView.swift:169-180` `TextEditor` 添加 `.onKeyPress(phases: .down)`，Return 键无 Shift 时发送消息（`onSend()`），Shift+Return 时插入换行（`inputText.append("\n")`）；与 desktop Enter/Shift+Enter 行为等价
@@ -61,7 +61,7 @@
 - **B1 三列快捷卡 Sparkles 提示行** ✅（已对齐）：`HomeView.swift:235-297` 在快捷卡下方新增 `sparklesPromptRow`（`CardView(variant: .inset)`），左侧 `sparkles` 图标 + 右侧三列（规划/小妍/知识）带图标标题与描述链接；与 desktop `OverviewWorkspace.tsx:345-388` 1:1 对齐
 
 ### P3
-- **B4 空状态文案"暂无研究主题"占位卡**：mac 直接 ForEach 空数组无占位
+- **B4 空状态文案"暂无研究主题"占位卡** ✅（已对齐）：`HomeView.swift` 在研主题 section 在 `model.interests.isEmpty` 时显示 `emptyPlaceholder` 虚线边框占位文案（"暂无研究主题。先从一个研究问题开始，小妍会帮你搭起路线。"）；与 desktop `OverviewWorkspace.tsx:308-311` 等价
 - **B5 助理头像/品牌 Logo**：mac 用系统 sparkles 图标
 
 ---

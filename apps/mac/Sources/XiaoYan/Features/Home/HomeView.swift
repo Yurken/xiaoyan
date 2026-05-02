@@ -152,13 +152,17 @@ struct HomeView: View {
 
             HStack(alignment: .top, spacing: Theme.Spacing.md) {
                 sectionCard(title: "在研主题", description: "按推进优先级排序", action: ("去规划", .planner)) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(model.interests) { item in
-                            WorkbenchInterestCard(
-                                item: item,
-                                router: router,
-                                onOpenWorkbench: { router.openWorkbench(interestId: item.id) }
-                            )
+                    if model.interests.isEmpty {
+                        emptyPlaceholder(text: "暂无研究主题。先从一个研究问题开始，小妍会帮你搭起路线。")
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(model.interests) { item in
+                                WorkbenchInterestCard(
+                                    item: item,
+                                    router: router,
+                                    onOpenWorkbench: { router.openWorkbench(interestId: item.id) }
+                                )
+                            }
                         }
                     }
                 }
@@ -208,6 +212,21 @@ struct HomeView: View {
                 content()
             }
         }
+    }
+
+    private func emptyPlaceholder(text: String) -> some View {
+        Text(text)
+            .font(Theme.Typography.caption)
+            .foregroundStyle(colorTokens.textMuted)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 32)
+            .background(colorTokens.background.opacity(0.5))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radii.large)
+                    .stroke(Color.secondary.opacity(0.15), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+            )
+            .cornerRadius(Theme.Radii.large)
     }
 
     // MARK: - Assets
