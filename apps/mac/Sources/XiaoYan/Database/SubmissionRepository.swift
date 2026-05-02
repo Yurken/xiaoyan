@@ -166,6 +166,23 @@ struct SubmissionRepository {
         }
     }
 
+    func updateVersion(_ version: PaperVersion) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    UPDATE paper_versions
+                    SET tag = ?, label = ?, stage = ?, content = ?, notes = ?,
+                        file_path = ?, file_name = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """,
+                arguments: [
+                    version.tag, version.label, version.stage, version.content, version.notes,
+                    version.filePath, version.fileName, version.id
+                ]
+            )
+        }
+    }
+
     // Review Rounds
     func listReviewRounds(submissionId: String) throws -> [ReviewRound] {
         try dbQueue.read { db in

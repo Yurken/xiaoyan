@@ -10,6 +10,7 @@ struct VersionsView: View {
     @State private var selectedForDiff: Set<String> = []
     @State private var diffPair: DiffPair?
     @State private var pendingReviewVersion: PaperVersion?
+    @State private var editingVersion: PaperVersion?
 
     struct DiffPair: Identifiable {
         let id = UUID()
@@ -74,7 +75,8 @@ struct VersionsView: View {
                                     isSelectedForDiff: selectedForDiff.contains(version.id),
                                     onToggleDiff: { toggleDiffSelection(version.id) },
                                     onReload: loadVersions,
-                                    onAIReview: { pendingReviewVersion = version }
+                                    onAIReview: { pendingReviewVersion = version },
+                                    onEdit: { editingVersion = version }
                                 )
                             }
                         }
@@ -109,6 +111,14 @@ struct VersionsView: View {
                 submissionId: selectedSubmission?.id ?? "",
                 prefilledContent: version.content ?? "",
                 onImported: { _ in loadVersions() }
+            )
+        }
+        .sheet(item: $editingVersion) { version in
+            VersionDetailSheet(
+                service: service,
+                submissionId: selectedSubmission?.id ?? "",
+                version: version,
+                onUpdated: loadVersions
             )
         }
     }
@@ -148,6 +158,7 @@ private struct VersionRow: View {
     let onToggleDiff: () -> Void
     let onReload: () -> Void
     let onAIReview: () -> Void
+    let onEdit: () -> Void
 
     var body: some View {
         HStack {
@@ -191,6 +202,12 @@ private struct VersionRow: View {
             Spacer()
 
             if !diffMode {
+                Button(action: onEdit) {
+                    Label("编辑", systemImage: "pencil")
+                }
+                .font(.caption)
+                .buttonStyle(.borderless)
+                .controlSize(.small)
                 Button(action: onAIReview) {
                     Label("AI 审稿", systemImage: "sparkles")
                 }

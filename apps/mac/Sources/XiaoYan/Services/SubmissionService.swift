@@ -239,6 +239,10 @@ final class SubmissionService: ObservableObject {
         try? repo.deleteVersion(id: id)
     }
 
+    func updateVersion(_ version: PaperVersion) {
+        try? repo.updateVersion(version)
+    }
+
     // MARK: - Review Rounds
 
     func listReviewRounds(submissionId: String) -> [ReviewRound] {

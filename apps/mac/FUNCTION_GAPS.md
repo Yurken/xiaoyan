@@ -206,9 +206,9 @@
 
 ### P1
 - **DDL 日历视图（venue tracker）**：deadline 排序 + 倒计天数 + 特刊截止 + 通知日期 + CCF 颜色块 — desktop `Submission.tsx:285-306, 830-849`、`VenueTrackerWorkspace.tsx:92-208`；mac `VenuesListView.swift:9-40` 仅普通搜索列表
-- **版本快照 content 编辑 + AI 润色 + AI 审稿入口**：mac VersionsView 无 content 编辑（`VersionsView.swift:128-193, 195-248` 始终传 nil）；desktop `VersionWorkspace.tsx:212-270` 每节点可上传 PDF + 下载 + AI 润色 + AI 审稿
+- **版本快照 content 编辑 + AI 润色 + AI 审稿入口** ✅（已对齐）：`VersionsView.swift:76, 114-122` + `VersionDetailSheet.swift`（content TextEditor + AI 润色 + AI 审稿 sheet）；`SubmissionRepository.swift` / `SubmissionService.swift` 补 `updateVersion`；1:1 desktop `VersionWorkspace.tsx:212-270`
 - **行级 LCS Diff**：desktop `shared.ts:134-180`、`VersionWorkspace.tsx:277-316`（add/remove/same + 加减行计数）；mac `VersionDiffView.swift:46-86` 仅整段并排
-- **Mock Review 多 reviewer + 严格度 + 一键导入轮次**：desktop `MockReviewModal.tsx`、`Submission.tsx:634-698`（reviewerCount 1-5 + lenient/balanced/strict + 流式接收 + verdict 分布 + 导入新一轮）；mac `AIReviewView.swift:1-92` 仅单段 text-in/out
+- **Mock Review 多 reviewer + 严格度 + 一键导入轮次** ✅（已对齐）：`MockReviewSheet.swift:1-314`（reviewerCount 2-4 + lenient/balanced/strict + 流式接收 + verdict 分布 + 导入新一轮）；mac `AIReviewView.swift` 已移除并由 `MockReviewSheet` 完全替代
 - **Review 评论 tags / verdict / 已处理 / 作者回复编辑**：desktop `ReviewWorkspace.tsx:179-249` + `ReviewEntryModal.tsx`（REVIEW_TAGS 8 类 + verdict 联动 + 已处理切换 + 行内编辑 response）；mac `ReviewRoundsView.swift:201-230, 272-323` 仅 reviewer/content/response 三字段
 - **R1 Submission status 状态机不一致**（参见 §0）
 
