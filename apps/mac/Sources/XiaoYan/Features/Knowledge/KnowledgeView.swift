@@ -761,7 +761,17 @@ private struct CreateInterestSheet: View {
     @State private var keywordsText = ""
     @State private var goal = ""
     @State private var background = ""
+    @State private var timeBudget = ""
+    @State private var constraints = ""
+    @State private var knownContext = ""
+    @State private var preferredOutput = ""
     @State private var showingWizard = false
+
+    private var completionRatio: Double {
+        let fields = [topic, keywordsText, goal, background, timeBudget, constraints, knownContext, preferredOutput]
+        let filled = fields.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
+        return Double(filled) / Double(fields.count)
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -803,8 +813,40 @@ private struct CreateInterestSheet: View {
                     .lineLimit(2...4)
                 TextField("研究背景", text: $background, axis: .vertical)
                     .lineLimit(2...4)
+                TextField("时间预算", text: $timeBudget, axis: .vertical)
+                    .lineLimit(1...2)
+                TextField("约束条件", text: $constraints, axis: .vertical)
+                    .lineLimit(2...4)
+                TextField("已知论文/方法", text: $knownContext, axis: .vertical)
+                    .lineLimit(2...4)
+                TextField("期望输出", text: $preferredOutput, axis: .vertical)
+                    .lineLimit(2...4)
             }
             .formStyle(.grouped)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("完成度")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(Int(completionRatio * 100))%")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 4)
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.accentColor)
+                            .frame(width: geo.size.width * completionRatio, height: 4)
+                    }
+                }
+                .frame(height: 4)
+            }
+            .padding(.horizontal)
 
             HStack {
                 Button("取消") { dismiss() }
@@ -812,7 +854,14 @@ private struct CreateInterestSheet: View {
                 Spacer()
                 Button("创建") {
                     let keywords = keywordsText.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-                    let profile = InterestProfile(goal: goal.isEmpty ? nil : goal, background: background.isEmpty ? nil : background, timeBudget: nil, constraints: nil)
+                    let profile = InterestProfile(
+                        goal: goal.isEmpty ? nil : goal,
+                        background: background.isEmpty ? nil : background,
+                        timeBudget: timeBudget.isEmpty ? nil : timeBudget,
+                        constraints: constraints.isEmpty ? nil : constraints,
+                        knownContext: knownContext.isEmpty ? nil : knownContext,
+                        preferredOutput: preferredOutput.isEmpty ? nil : preferredOutput
+                    )
                     _ = knowledgeService.createInterest(topic: topic, keywords: keywords.isEmpty ? nil : keywords, profile: profile)
                     onCreated()
                     dismiss()
@@ -823,6 +872,6 @@ private struct CreateInterestSheet: View {
             .padding(.horizontal)
         }
         .padding()
-        .frame(width: 480, height: showingWizard ? 560 : 400)
+        .frame(width: 480, height: showingWizard ? 560 : 520)
     }
 }

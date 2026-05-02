@@ -24,10 +24,14 @@ struct InterestProfile: Codable, Hashable, FetchableRecord {
     var background: String?
     var timeBudget: String?
     var constraints: String?
+    var knownContext: String?
+    var preferredOutput: String?
 
     enum CodingKeys: String, CodingKey {
         case goal, background, constraints
         case timeBudget = "time_budget"
+        case knownContext = "known_context"
+        case preferredOutput = "preferred_output"
     }
 }
 

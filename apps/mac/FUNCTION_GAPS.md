@@ -70,7 +70,7 @@
 
 ### P1
 - **TopicDiscoveryWizard** ✅（2026-05-02 已对齐）：4 步领域→目标→背景→候选话题向导 — desktop `TopicDiscoveryWizard.tsx:33-202`；mac `Features/Knowledge/TopicDiscoveryWizardView.swift` + `KnowledgeView.CreateInterestSheet` 顶部入口
-- **PlannerComposer 8 字段研究画像**：mac 仅 4 字段（topic/keywords/goal/background）— desktop `PlannerComposer.tsx:30-50, 343-727`（含 timeBudget/constraints/knownContext/preferredOutput + 完成度提示）；mac `KnowledgeView.swift:574-617`
+- **PlannerComposer 8 字段研究画像** ✅（已对齐）：`KnowledgeView.swift:755-860` CreateInterestSheet 扩展为 8 字段（timeBudget / constraints / knownContext / preferredOutput）+ 完成度进度条；1:1 desktop `PlannerComposer.tsx:30-50, 343-727`
 - **AI 实时智能提示边栏**：700ms debounce 调 `generateInterestHints` — desktop `PlannerComposer.tsx:178-248, 645-705`；mac 后端 `KnowledgeService.swift:170` 已实现但 UI 完全没用
 - **ResearchWorkbench 五 Tab 工作台**：planner/papers/xiaoyan(chat)/notes/tools 集成 — desktop `ResearchWorkbench.tsx:1-520`；mac 无对应工作台
 
