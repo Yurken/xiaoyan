@@ -4,10 +4,14 @@ struct CopilotView: View {
     @EnvironmentObject var settings: AppSettings
     @StateObject private var chatService = ChatService()
     @StateObject private var attachmentManager = CopilotAttachmentManager()
+    @StateObject private var knowledgeService = KnowledgeService()
     @State private var sessions: [ChatSession] = []
+    @State private var interests: [ResearchInterest] = []
     @State private var currentSessionId: String = UUID().uuidString
     @State private var messages: [ChatDisplayMessage] = []
     @State private var inputText = ""
+    @State private var selectedInterestId: String = ""
+    @State private var confirmDeleteGroupId: String?
     @AppStorage("rc_copilot_chat_mode") private var chatModeRaw: String = ChatMode.direct.rawValue
     @State private var skills: [Skill] = []
     @State private var selectedSkillId: String?
@@ -46,6 +50,7 @@ struct CopilotView: View {
         .navigationTitle("小妍")
         .onAppear {
             loadSessions()
+            loadInterests()
             ensureSessionExists()
             consumePendingContext()
             loadSkills()
@@ -58,6 +63,22 @@ struct CopilotView: View {
         .onDisappear {
             cancelActiveStream()
         }
+    }
+
+    // MARK: - Session Grouping
+
+    /// 未归类（无 interest 上下文 / 上下文非 interest 类型）的会话。
+    private var ungroupedSessions: [ChatSession] {
+        sessions.filter { $0.contextType != "interest" || ($0.contextId ?? "").isEmpty }
+    }
+
+    private func sessionsFor(interestId: String) -> [ChatSession] {
+        sessions.filter { $0.contextType == "interest" && $0.contextId == interestId }
+    }
+
+    private func interestFolderName(_ interest: ResearchInterest) -> String {
+        let trimmed = interest.folderName?.trimmingCharacters(in: .whitespaces) ?? ""
+        return trimmed.isEmpty ? interest.topic : trimmed
     }
 
     // MARK: - Session Sidebar
@@ -76,38 +97,119 @@ struct CopilotView: View {
             }
             .padding()
 
+            if !interests.isEmpty {
+                Picker("新对话主题", selection: $selectedInterestId) {
+                    Text("未归类").tag("")
+                    ForEach(interests) { interest in
+                        Text(interestFolderName(interest)).tag(interest.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+            }
+
             Divider()
 
+            sessionListBody
+        }
+    }
+
+    @ViewBuilder
+    private var sessionListBody: some View {
+        if loadingSessions {
+            ProgressView()
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding()
+            Spacer()
+        } else if sessions.isEmpty && interests.isEmpty {
+            VStack(spacing: 8) {
+                Image(systemName: "bubble.left")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.secondary)
+                Text("暂无对话记录")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !selectedInterestId.isEmpty {
+            // 已选主题：只展示该主题下的会话
+            let groupSessions = sessionsFor(interestId: selectedInterestId)
+            if groupSessions.isEmpty {
+                Text("该主题下暂无对话")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+                Spacer()
+            } else {
+                List {
+                    ForEach(groupSessions) { session in
+                        sessionRowItem(session)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        } else {
+            // 未选主题：分组 + 未归类
             List {
-                if loadingSessions {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding()
-                } else if sessions.isEmpty {
-                    Text("暂无对话记录")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding()
-                } else {
-                    ForEach(sessions) { session in
-                        SessionRow(
-                            session: session,
-                            isActive: session.id == currentSessionId
+                ForEach(interests) { interest in
+                    let groupSessions = sessionsFor(interestId: interest.id)
+                    if !groupSessions.isEmpty {
+                        CopilotInterestSection(
+                            interest: interest,
+                            folderTitle: interestFolderName(interest),
+                            sessions: groupSessions,
+                            confirmDeleteId: $confirmDeleteGroupId,
+                            onDeleteOnly: { deleteInterestGroup(interest.id, deleteAll: false) },
+                            onDeleteAll: { deleteInterestGroup(interest.id, deleteAll: true) },
+                            renderSession: { session in sessionRowItem(session) }
                         )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            switchSession(to: session)
+                    }
+                }
+                if !ungroupedSessions.isEmpty {
+                    Section {
+                        ForEach(ungroupedSessions) { session in
+                            sessionRowItem(session)
                         }
-                        .contextMenu {
-                            Button("删除", role: .destructive) {
-                                deleteSession(session)
-                            }
+                    } header: {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("未归类")
+                                .font(.caption.weight(.semibold))
+                            Text("可右键移动到具体研究方向")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
+                        .padding(.vertical, 1)
                     }
                 }
             }
             .listStyle(.plain)
         }
+    }
+
+    @ViewBuilder
+    private func sessionRowItem(_ session: ChatSession) -> some View {
+        SessionRow(session: session, isActive: session.id == currentSessionId)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                switchSession(to: session)
+            }
+            .contextMenu {
+                Section("移动到主题") {
+                    Button("未归类") { moveSession(session, interestId: "") }
+                    ForEach(interests) { interest in
+                        Button(interestFolderName(interest)) {
+                            moveSession(session, interestId: interest.id)
+                        }
+                    }
+                }
+                Divider()
+                Button("删除", role: .destructive) {
+                    deleteSession(session)
+                }
+            }
     }
 
     // MARK: - Chat Area
@@ -303,6 +405,33 @@ struct CopilotView: View {
         loadSessions()
     }
 
+    private func moveSession(_ session: ChatSession, interestId: String) {
+        let trimmed = interestId.trimmingCharacters(in: .whitespaces)
+        let contextType: String? = trimmed.isEmpty ? nil : "interest"
+        let contextId: String? = trimmed.isEmpty ? nil : trimmed
+        try? chatRepo.updateSessionContext(id: session.id, contextType: contextType, contextId: contextId)
+        loadSessions()
+    }
+
+    private func deleteInterestGroup(_ interestId: String, deleteAll: Bool) {
+        let groupSessions = sessionsFor(interestId: interestId)
+        let containsCurrent = groupSessions.contains { $0.id == currentSessionId }
+        if deleteAll {
+            for session in groupSessions {
+                try? chatRepo.deleteSession(id: session.id)
+            }
+        } else {
+            for session in groupSessions {
+                try? chatRepo.updateSessionContext(id: session.id, contextType: nil, contextId: nil)
+            }
+        }
+        confirmDeleteGroupId = nil
+        if containsCurrent && deleteAll {
+            newChat()
+        }
+        loadSessions()
+    }
+
     private func sendMessage() {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasAttachments = !attachmentManager.pending.isEmpty
@@ -430,6 +559,10 @@ struct CopilotView: View {
         loadingSessions = false
     }
 
+    private func loadInterests() {
+        interests = knowledgeService.listInterests()
+    }
+
     private func loadSkills() {
         let dbSkills = (try? SkillRepository().list()) ?? []
         skills = dbSkills.isEmpty ? SkillService.builtInSkills : dbSkills
@@ -519,5 +652,77 @@ private struct SessionRow: View {
         .padding(.vertical, 8)
         .background(isActive ? Color.accentColor : Color.clear)
         .cornerRadius(8)
+    }
+}
+
+// MARK: - Copilot Interest Section（按研究方向分组的会话折叠面板）
+// 1:1 desktop `apps/desktop/src/pages/Copilot.tsx:538-645`：
+// 折叠头显示 folderName→topic、计数、二段确认（"仅置为未归类" / "删除全部" / 取消）
+
+private struct CopilotInterestSection<Content: View>: View {
+    let interest: ResearchInterest
+    let folderTitle: String
+    let sessions: [ChatSession]
+    @Binding var confirmDeleteId: String?
+    let onDeleteOnly: () -> Void
+    let onDeleteAll: () -> Void
+    let renderSession: (ChatSession) -> Content
+    @State private var isExpanded: Bool = true
+
+    private var isConfirming: Bool { confirmDeleteId == interest.id }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            ForEach(sessions) { session in
+                renderSession(session)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(folderTitle)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    if folderTitle != interest.topic {
+                        Text("研究主题:\(interest.topic)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+                Text("\(sessions.count) 条")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                if isConfirming {
+                    Button("仅置为未归类") { onDeleteOnly() }
+                        .buttonStyle(.borderless)
+                        .controlSize(.mini)
+                        .font(.caption2)
+                    Button("删除全部", role: .destructive) { onDeleteAll() }
+                        .buttonStyle(.borderless)
+                        .controlSize(.mini)
+                        .font(.caption2)
+                    Button {
+                        confirmDeleteId = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                } else {
+                    Button {
+                        confirmDeleteId = interest.id
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("移除分组")
+                }
+            }
+            .padding(.vertical, 1)
+        }
     }
 }

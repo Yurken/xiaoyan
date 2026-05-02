@@ -28,7 +28,7 @@
 - **A1 附件/上传文件** ✅（已对齐）：mac `CopilotAttachment.swift` + `CopilotComposerView.swift:27-28, 80-122` 与 desktop `useCopilotAttachments.ts` 等价
 - **A2 chat_mode 切换 UI** ✅（已对齐）：`CopilotComposerView.swift:53-77` 顶部 ForEach(ChatMode.allCases) chip 切换 + `@AppStorage("rc_copilot_chat_mode")` 持久化（参见 R4）
 - **A3 Skills 选择器与 prompt 注入** ✅（已对齐）：`CopilotComposerView.swift:204-227`（按钮）+ `SkillsPickerPopover` 252-396 行
-- **A4 Interest 归属/会话分组**：mac 仅扁平列表 — desktop `Copilot.tsx:201-322, 538-645`（顶部 Select + 右键移动 + 按 interest 折叠）；mac `CopilotView.swift:69-96`
+- **A4 Interest 归属/会话分组** ✅（已对齐）：`CopilotView.swift:32-66, 86-213, 658-758`（顶部 Picker + 右键移动 + 按 interest DisclosureGroup + 二段确认删除）；1:1 desktop `Copilot.tsx:174-186, 482-486, 538-645`
 - **C1 自由工作台模式 / FocusLayout（hideFolders）**：mac 无 — desktop `Copilot({ hideFolders })`（`Copilot.tsx:83`）+ `FocusLayout.tsx`；mac 无对应路由
 
 ### P2
@@ -41,9 +41,9 @@
 - **C2 Artifact 导出/复制 markdown 入口**：mac `ExportService` 存在但 Mission Control 未挂入口
 
 ### P3
-- **A11 删除会话二次确认 / 兴趣组级删除**：mac 仅 contextMenu 直接删除
+- **A11 删除会话二次确认 / 兴趣组级删除**：兴趣组级二段确认 ✅（A4 已对齐）；单会话仍是 contextMenu 直接删除，未做二次确认
 - **A12 Memory chat.query 摘要写入**：mac 仅写库无 query 摘要
-- **A13 主题文件夹下拉、未归类分组、CollapsibleGroup**：mac 无
+- **A13 主题文件夹下拉、未归类分组、CollapsibleGroup** ✅（已对齐 A4）
 - **A14 Composer 默认提示（仅附件无文本时）**：mac 无 `DEFAULT_ATTACHMENT_PROMPT`
 - **A15 Enter / Shift+Enter 行为**：mac TextEditor 默认 Enter 总换行，与 desktop 不一致
 - **C3 AgentRun summary**：mac 写死"执行完成/综合完成"（`ChatService.swift:281, 317`），desktop 来自后端真实摘要
