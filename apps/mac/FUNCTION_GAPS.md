@@ -205,7 +205,7 @@
 ## 10. Submission
 
 ### P1
-- **DDL 日历视图（venue tracker）**：deadline 排序 + 倒计天数 + 特刊截止 + 通知日期 + CCF 颜色块 — desktop `Submission.tsx:285-306, 830-849`、`VenueTrackerWorkspace.tsx:92-208`；mac `VenuesListView.swift:9-40` 仅普通搜索列表
+- **DDL 日历视图（venue tracker）** ✅（已对齐）：`VenuesListView.swift` deadline 排序切换 + 倒计天数标签（红/橙/绿）+ 通知日期 + 特刊标题；CreateVenueSheet 增加 DatePicker 录入 deadline/notification/special issue；1:1 desktop `Submission.tsx:285-306, 830-849`、`VenueTrackerWorkspace.tsx:92-208`
 - **版本快照 content 编辑 + AI 润色 + AI 审稿入口** ✅（已对齐）：`VersionsView.swift:76, 114-122` + `VersionDetailSheet.swift`（content TextEditor + AI 润色 + AI 审稿 sheet）；`SubmissionRepository.swift` / `SubmissionService.swift` 补 `updateVersion`；1:1 desktop `VersionWorkspace.tsx:212-270`
 - **行级 LCS Diff** ✅（已对齐）：`VersionDiffView.swift` 行级 LCS 算法 + add/remove/same 着色 + 顶部 +/- 行计数；1:1 desktop `shared.ts:134-180`、`VersionWorkspace.tsx:277-316`
 - **Mock Review 多 reviewer + 严格度 + 一键导入轮次** ✅（已对齐）：`MockReviewSheet.swift:1-314`（reviewerCount 2-4 + lenient/balanced/strict + 流式接收 + verdict 分布 + 导入新一轮）；mac `AIReviewView.swift` 已移除并由 `MockReviewSheet` 完全替代
