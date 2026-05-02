@@ -146,54 +146,63 @@ struct WorkbenchInterestCard: View {
     @EnvironmentObject var colorTokens: AppColorTokens
     let item: WorkbenchInterestItem
     let router: AppRouter
+    var onOpenWorkbench: (() -> Void)?
 
     var body: some View {
-        Button(action: { router.selectedRoute = item.action.route }) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(item.title)
-                        .font(Theme.Typography.subheadline)
-                        .foregroundStyle(colorTokens.text)
-                        .lineLimit(1)
-                    Spacer()
-                    ToneBadge(label: item.stage, tone: item.stageTone)
-                }
-
-                Text(item.summary)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(colorTokens.textSoft)
-                    .lineLimit(2)
-
-                HStack(spacing: 6) {
-                    ForEach(item.stats, id: \.self) { stat in
-                        Text(stat)
-                            .font(Theme.Typography.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(colorTokens.elevated.opacity(0.5))
-                            .foregroundStyle(colorTokens.textMuted)
-                            .cornerRadius(Theme.Radii.tiny)
-                    }
-                    Spacer()
-                }
-
-                HStack {
-                    Spacer()
-                    Text(item.nextStep)
-                        .font(Theme.Typography.caption2)
-                        .foregroundStyle(colorTokens.textMuted)
-                        .lineLimit(1)
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(item.title)
+                    .font(Theme.Typography.subheadline)
+                    .foregroundStyle(colorTokens.text)
+                    .lineLimit(1)
+                Spacer()
+                ToneBadge(label: item.stage, tone: item.stageTone)
             }
-            .padding(Theme.Spacing.md)
-            .background(colorTokens.cardInsetBg)
-            .cornerRadius(Theme.Radii.subCard)
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Radii.subCard, style: .continuous)
-                    .stroke(colorTokens.border.opacity(0.3), lineWidth: 1)
-            )
+
+            Text(item.summary)
+                .font(Theme.Typography.caption)
+                .foregroundStyle(colorTokens.textSoft)
+                .lineLimit(2)
+
+            HStack(spacing: 6) {
+                ForEach(item.stats, id: \.self) { stat in
+                    Text(stat)
+                        .font(Theme.Typography.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(colorTokens.elevated.opacity(0.5))
+                        .foregroundStyle(colorTokens.textMuted)
+                        .cornerRadius(Theme.Radii.tiny)
+                }
+                Spacer()
+            }
+
+            HStack {
+                Spacer()
+                Button(action: { onOpenWorkbench?() }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.forward.square")
+                            .font(.caption2)
+                        Text("工作台")
+                            .font(.caption2.bold())
+                    }
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.mini)
+                .help("打开工作台")
+            }
         }
-        .buttonStyle(.plain)
+        .padding(Theme.Spacing.md)
+        .background(colorTokens.cardInsetBg)
+        .cornerRadius(Theme.Radii.subCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radii.subCard, style: .continuous)
+                .stroke(colorTokens.border.opacity(0.3), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onOpenWorkbench?()
+        }
         .hoverLift()
     }
 }

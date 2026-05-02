@@ -154,7 +154,11 @@ struct HomeView: View {
                 sectionCard(title: "在研主题", description: "按推进优先级排序", action: ("去规划", .planner)) {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(model.interests) { item in
-                            WorkbenchInterestCard(item: item, router: router)
+                            WorkbenchInterestCard(
+                                item: item,
+                                router: router,
+                                onOpenWorkbench: { router.openWorkbench(interestId: item.id) }
+                            )
                         }
                     }
                 }

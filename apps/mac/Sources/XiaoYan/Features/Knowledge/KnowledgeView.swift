@@ -452,6 +452,7 @@ private struct InterestListRow: View {
     let knowledgeService: KnowledgeService
     let settings: AppSettings
     let onUpdate: () -> Void
+    @EnvironmentObject var router: AppRouter
     @State private var isGenerating = false
 
     var body: some View {
@@ -488,6 +489,12 @@ private struct InterestListRow: View {
 
             HStack {
                 Spacer()
+                Button("工作台") {
+                    router.openWorkbench(interestId: interest.id)
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .font(.caption2)
                 if isGenerating {
                     ProgressView()
                         .controlSize(.small)
@@ -502,6 +509,9 @@ private struct InterestListRow: View {
         }
         .padding(.vertical, 4)
         .contextMenu {
+            Button("打开工作台") {
+                router.openWorkbench(interestId: interest.id)
+            }
             Button("删除", role: .destructive) {
                 knowledgeService.deleteInterest(id: interest.id)
                 onUpdate()

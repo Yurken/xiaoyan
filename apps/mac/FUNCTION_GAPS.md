@@ -72,7 +72,7 @@
 - **TopicDiscoveryWizard** ✅（2026-05-02 已对齐）：4 步领域→目标→背景→候选话题向导 — desktop `TopicDiscoveryWizard.tsx:33-202`；mac `Features/Knowledge/TopicDiscoveryWizardView.swift` + `KnowledgeView.CreateInterestSheet` 顶部入口
 - **PlannerComposer 8 字段研究画像** ✅（已对齐）：`KnowledgeView.swift:755-860` CreateInterestSheet 扩展为 8 字段（timeBudget / constraints / knownContext / preferredOutput）+ 完成度进度条；1:1 desktop `PlannerComposer.tsx:30-50, 343-727`
 - **AI 实时智能提示边栏** ✅（已对齐）：`CreateInterestSheet` 新增右侧智能提示边栏，`HSplitView` 分左右两栏；700ms debounce 调 `KnowledgeService.generateInterestHints` + 本地 fallback `buildPlannerSuggestions` 合并；状态 badge（小妍处理中/实时建议/本地兜底/待输入）+ 系统理解/建议下一步/已识别方向 chip/补字段说明 四卡片；fallback 时琥珀色错误提示；1:1 desktop `PlannerComposer.tsx:178-248, 645-705` + `plannerSuggestions.ts`
-- **ResearchWorkbench 五 Tab 工作台**：planner/papers/xiaoyan(chat)/notes/tools 集成 — desktop `ResearchWorkbench.tsx:1-520`；mac 无对应工作台
+- **ResearchWorkbench 五 Tab 工作台** ✅（已对齐）：planner/papers/xiaoyan(chat)/notes/tools 集成 — desktop `ResearchWorkbench.tsx:1-520`；mac `ResearchWorkbenchView.swift` 五 Tab 容器 + header（返回/标题/统计徽章/SegmentedPicker）+ Planner Tab 复用 `LearningPathView` + Papers Tab `ScopedPapersView` + Xiaoyan Tab `InterestScopedCopilotView`（复用 `ChatThreadView`）+ Notes Tab `ScopedNotesView` + Tools Tab 嵌入 `ToolsView`；入口：`HomeView` interest card 点击/工作台按钮 + `KnowledgeView` interest 行内按钮；`AppRouter.workbenchInterestId` 导航状态
 
 ### P2
 - **PDF 参考文献预上传**：创建 interest 时批量挑 PDF 自动 `papers.upload(path, interest.id)` — desktop `PlannerComposer.tsx:54-95, 250-302, 593-642`；mac 无
