@@ -165,6 +165,18 @@ struct CopilotComposerView: View {
                         .scrollContentBackground(.hidden)
                         .padding(8)
                         .disabled(isStreaming)
+                        .onKeyPress(phases: .down) { press in
+                            guard press.key == .return else { return .ignored }
+                            if press.modifiers.contains(.shift) {
+                                inputText.append("\n")
+                                return .handled
+                            }
+                            if canSend {
+                                onSend()
+                                return .handled
+                            }
+                            return .ignored
+                        }
                 }
                 toolBar
             }

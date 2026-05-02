@@ -45,7 +45,7 @@
 - **A12 Memory chat.query 摘要写入**：mac 仅写库无 query 摘要
 - **A13 主题文件夹下拉、未归类分组、CollapsibleGroup** ✅（已对齐 A4）
 - **A14 Composer 默认提示（仅附件无文本时）** ✅（已实现）：`ChatThreadView.swift:221` 当 `trimmed.isEmpty` 且存在附件时，自动注入 `"请阅读上传的文件并回答。"`；与 desktop `DEFAULT_ATTACHMENT_PROMPT` 等价
-- **A15 Enter / Shift+Enter 行为**：mac TextEditor 默认 Enter 总换行，与 desktop 不一致
+- **A15 Enter / Shift+Enter 行为** ✅（已对齐）：`CopilotComposerView.swift:169-180` `TextEditor` 添加 `.onKeyPress(phases: .down)`，Return 键无 Shift 时发送消息（`onSend()`），Shift+Return 时插入换行（`inputText.append("\n")`）；与 desktop Enter/Shift+Enter 行为等价
 - **C3 AgentRun summary**：mac 写死"执行完成/综合完成"（`ChatService.swift:281, 317`），desktop 来自后端真实摘要
 
 ---
