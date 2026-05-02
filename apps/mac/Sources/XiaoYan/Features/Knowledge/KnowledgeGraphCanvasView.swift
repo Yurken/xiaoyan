@@ -311,6 +311,19 @@ struct KnowledgeGraphCanvasView: View {
 
                     Divider()
 
+                    KnowledgeClaimPanel(
+                        claims: claims,
+                        evidenceLinks: evidenceLinks,
+                        papers: papers,
+                        notes: notes,
+                        experiments: experiments,
+                        onDeleteClaim: deleteClaim,
+                        onUnlinkEvidence: unlinkEvidence,
+                        onChanged: loadData
+                    )
+
+                    Divider()
+
                     GraphCitationPanel(
                         citations: citations,
                         papers: papers,
@@ -486,6 +499,17 @@ struct KnowledgeGraphCanvasView: View {
 
     private func deleteCitation(id: String) {
         try? repo.deleteCitation(id: id)
+        loadData()
+    }
+
+    private func deleteClaim(id: String) {
+        try? repo.deleteClaim(id: id)
+        if selectedNode?.id == id { selectedNode = nil }
+        loadData()
+    }
+
+    private func unlinkEvidence(id: String) {
+        try? repo.deleteEvidence(id: id)
         loadData()
     }
 }
