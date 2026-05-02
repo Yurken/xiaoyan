@@ -56,20 +56,33 @@ enum AppRoute: String, CaseIterable, Identifiable {
 @MainActor
 final class AppRouter: ObservableObject {
     @Published var selectedRoute: AppRoute? = .home
+    @Published var workbenchInterestId: String?
 
     @ViewBuilder
     var destinationView: some View {
-        switch selectedRoute {
-        case .home: HomeView()
-        case .copilot: CopilotView()
-        case .papers: PapersView()
-        case .planner: PlannerView()
-        case .survey: SurveyView()
-        case .knowledge: KnowledgeView()
-        case .experiment: ExperimentView()
-        case .submission: SubmissionView()
-        case .tools: ToolsView()
-        case nil: HomeView()
+        if let interestId = workbenchInterestId {
+            ResearchWorkbenchView(interestId: interestId)
+        } else {
+            switch selectedRoute {
+            case .home: HomeView()
+            case .copilot: CopilotView()
+            case .papers: PapersView()
+            case .planner: PlannerView()
+            case .survey: SurveyView()
+            case .knowledge: KnowledgeView()
+            case .experiment: ExperimentView()
+            case .submission: SubmissionView()
+            case .tools: ToolsView()
+            case nil: HomeView()
+            }
         }
+    }
+
+    func openWorkbench(interestId: String) {
+        workbenchInterestId = interestId
+    }
+
+    func closeWorkbench() {
+        workbenchInterestId = nil
     }
 }
