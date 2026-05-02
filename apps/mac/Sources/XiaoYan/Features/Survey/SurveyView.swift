@@ -12,9 +12,11 @@ struct SurveyView: View {
     @State private var isGenerating = false
     @State private var errorMessage: String?
     @State private var result: SurveyResult?
-    @State private var workflow: [SurveyWorkflowStep] = []
+    @State private var structuredResult: StructuredSurveyResult?
+    @State private var agents: [SurveyAgentState] = []
     @State private var activeTab: Tab = .report
     @State private var surveyHistory: [SurveyRecord] = []
+    @State private var surveyContent: String = ""
 
     enum Tab: String, CaseIterable {
         case report = "综述报告"
@@ -117,9 +119,9 @@ struct SurveyView: View {
                         }
                     }
 
-                    // Workflow
-                    if !workflow.isEmpty || isGenerating {
-                        workflowSection
+                    // Agent flow
+                    if !agents.isEmpty || isGenerating {
+                        agentFlowSection
                     }
 
                     // Result
@@ -138,7 +140,7 @@ struct SurveyView: View {
                         if activeTab == .report {
                             reportView(result)
                         } else {
-                            papersView(result)
+                            papersView(structuredResult?.papers ?? [])
                         }
                     }
                 }
@@ -151,7 +153,7 @@ struct SurveyView: View {
 
     // MARK: - Workflow
 
-    private var workflowSection: some View {
+    private var agentFlowSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
@@ -162,17 +164,29 @@ struct SurveyView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(workflow) { step in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(step.name)
-                                .font(.caption.bold())
-                            Text(step.role)
+                ForEach(agents) { agent in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(agent.name)
+                                    .font(.caption.bold())
+                                Text(agent.role)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            AgentStatusBadge(status: agent.status)
+                        }
+                        if let summary = agent.summary, !summary.isEmpty {
+                            Text(summary)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                        Spacer()
-                        WorkflowStatusBadge(status: step.status)
+                        if let error = agent.error, !error.isEmpty {
+                            Text(error)
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                        }
                     }
                     .padding(8)
                     .background(Theme.Colors.surface)
@@ -320,15 +334,15 @@ struct SurveyView: View {
 
     // MARK: - Papers View
 
-    private func papersView(_ result: SurveyResult) -> some View {
+    private func papersView(_ papers: [SurveyPaperEx]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            if result.papers.isEmpty {
+            if papers.isEmpty {
                 Text("暂无检索到论文")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding()
             } else {
-                ForEach(Array(result.papers.enumerated()), id: \.offset) { idx, paper in
+                ForEach(Array(papers.enumerated()), id: \.offset) { idx, paper in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .top, spacing: 6) {
                             Text("[\(idx + 1)]")
@@ -338,21 +352,26 @@ struct SurveyView: View {
                                 .font(.subheadline.bold())
                         }
                         HStack(spacing: 8) {
-                            Text(paper.authors)
+                            Text(paper.authors ?? "未知作者")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            if paper.year > 0 {
-                                BadgeView(text: "\(paper.year)", color: .blue)
+                            if let year = paper.year, year > 0 {
+                                BadgeView(text: "\(year)", color: .blue)
                             }
-                            if !paper.venue.isEmpty {
-                                BadgeView(text: paper.venue, color: .secondary)
+                            if let venue = paper.venue, !venue.isEmpty {
+                                BadgeView(text: venue, color: .secondary)
                             }
                         }
-                        if !paper.abstract.isEmpty {
-                            Text(paper.abstract)
+                        if let abstract = paper.abstract, !abstract.isEmpty {
+                            Text(abstract)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
+                        }
+                        if let doi = paper.doi, !doi.isEmpty {
+                            Text("DOI: \(doi)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     .padding(10)
@@ -371,77 +390,36 @@ struct SurveyView: View {
         isGenerating = true
         errorMessage = nil
         result = nil
-        workflow = defaultWorkflow()
-        simulateWorkflow()
+        structuredResult = nil
+        agents = []
+        surveyContent = ""
 
-        let fullQuery = scope.isEmpty ? topic : "\(topic) — \(scope)"
+        let service = SurveyService()
+        service.delegate = self
 
-        Task {
-            let client = LLMClient.fromSettings(
-                settings,
-                modelKeys: ["survey_writer_model", "multi_agent_survey_model", "multi_agent_worker_model"],
-                temperatureKeys: ["survey_writer_temperature", "multi_agent_survey_temperature"]
-            )
-
-            guard let client else {
-                errorMessage = "请先在设置中配置 LLM 提供商。"
-                isGenerating = false
-                return
+        let currentYear = Calendar.current.component(.year, from: Date())
+        let yearFrom: Int? = {
+            switch timeRange {
+            case "1y": return currentYear - 1
+            case "3y": return currentYear - 3
+            case "5y": return currentYear - 5
+            case "10y": return currentYear - 10
+            default: return nil
             }
+        }()
 
-            let paramLines = [
-                timeRange != "all" ? "- 时间范围：\(timeRangeLabel)" : nil,
-                documentType != "all" ? "- 文献类型：\(documentTypeLabel)" : nil,
-                database != "all" ? "- 检索数据库：\(databaseLabel)" : nil,
-                "- 引用格式：\(citationFormatLabel)",
-                "- 输出语言：\(languageLabel)",
-            ].compactMap { $0 }
-            let paramSection = paramLines.isEmpty ? "" : "\n## 高级参数\n" + paramLines.joined(separator: "\n")
-
-            let prompt = """
-            你是一位文献综述专家。请为以下研究主题生成结构化的文献综述，返回 JSON 格式：
-            {
-                "background": "研究背景概述",
-                "methods": [
-                    {"category": "方法类别", "description": "描述", "strengths": "优势", "weaknesses": "局限"}
-                ],
-                "trends": [
-                    {"trend": "趋势名称", "description": "描述"}
-                ],
-                "gaps": ["现有不足1", "现有不足2"],
-                "directions": [
-                    {"direction": "方向", "rationale": "理由"}
-                ],
-                "key_takeaways": "核心总结",
-                "papers": [
-                    {"title": "论文标题", "authors": "作者", "year": 2024, "abstract": "摘要", "venue": "会议/期刊"}
-                ]
-            }
-
-            ## 研究主题
-            \(fullQuery)\(paramSection)
-
-            要求：
-            - 用 \(languageLabel) 撰写
-            - 提供有深度的分析
-            - papers 列出 5-10 篇代表性论文（可包含真实或合理推测的论文）
-            """
-
-            do {
-                let response = try await client.chat(
-                    messages: [LLMClient.Message(role: "user", content: fullQuery)],
-                    systemPrompt: prompt
-                )
-                let parsed = parseSurveyJSON(response)
-                result = parsed
-                surveyHistory.insert(SurveyRecord(topic: topic, content: response, date: Date()), at: 0)
-                completeWorkflow(success: true)
-            } catch {
-                errorMessage = "生成失败: \(error.localizedDescription)"
-                completeWorkflow(success: false, error: error.localizedDescription)
-            }
-            isGenerating = false
-        }
+        service.generate(
+            query: scope.isEmpty ? topic : "\(topic) — \(scope)",
+            settings: settings.settings,
+            timeRange: timeRange,
+            documentType: documentType,
+            database: database,
+            citationFormat: citationFormat,
+            language: language,
+            maxPapers: 20,
+            yearFrom: yearFrom,
+            yearTo: nil
+        )
     }
 
     // MARK: - Parameter Labels
@@ -466,104 +444,6 @@ struct SurveyView: View {
         SurveyParameterPanel.languages.first { $0.1 == language }?.0 ?? "中文"
     }
 
-    // MARK: - Workflow
-
-    private func defaultWorkflow() -> [SurveyWorkflowStep] {
-        [
-            SurveyWorkflowStep(id: "planner", name: "检索规划模型", role: "规划研究范围与检索策略", status: .pending),
-            SurveyWorkflowStep(id: "retriever", name: "文献检索模型", role: "小妍会自动检索相关文献", status: .pending),
-            SurveyWorkflowStep(id: "writer", name: "综述写作模型", role: "生成结构化文献综述", status: .pending),
-        ]
-    }
-
-    private func simulateWorkflow() {
-        workflow[0].status = .running
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            if self.isGenerating {
-                self.workflow[0].status = .done
-                self.workflow[0].summary = "已生成检索与覆盖主题规划"
-                self.workflow[1].status = .running
-            }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-            if self.isGenerating {
-                self.workflow[1].status = .done
-                self.workflow[1].summary = "正在汇总候选文献与证据"
-                self.workflow[2].status = .running
-            }
-        }
-    }
-
-    private func completeWorkflow(success: Bool, error: String? = nil) {
-        if success {
-            workflow[2].status = .done
-            workflow[2].summary = "已输出研究背景、方法、趋势与建议研究方向"
-        } else {
-            let runningIndex = workflow.firstIndex { $0.status == .running }
-            let idx = runningIndex ?? 2
-            workflow[idx].status = .failed
-            workflow[idx].error = error
-        }
-    }
-
-    // MARK: - JSON Parsing
-
-    private func parseSurveyJSON(_ text: String) -> SurveyResult {
-        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "```json", with: "")
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let data = clean.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return SurveyResult(
-                query: topic,
-                background: text,
-                methods: [], trends: [], gaps: [], directions: [],
-                keyTakeaways: nil, papers: []
-            )
-        }
-
-        let methods: [SurveyMethod] = (json["methods"] as? [[String: String]])?.compactMap { dict in
-            SurveyMethod(
-                category: dict["category"] ?? "",
-                description: dict["description"] ?? "",
-                strengths: dict["strengths"] ?? "",
-                weaknesses: dict["weaknesses"] ?? ""
-            )
-        } ?? []
-
-        let trends: [SurveyTrend] = (json["trends"] as? [[String: String]])?.compactMap { dict in
-            SurveyTrend(trend: dict["trend"] ?? "", description: dict["description"] ?? "")
-        } ?? []
-
-        let gaps = (json["gaps"] as? [String]) ?? []
-
-        let directions: [SurveyDirection] = (json["directions"] as? [[String: String]])?.compactMap { dict in
-            SurveyDirection(direction: dict["direction"] ?? "", rationale: dict["rationale"] ?? "")
-        } ?? []
-
-        let papers: [SurveyPaper] = (json["papers"] as? [[String: Any]])?.compactMap { dict in
-            SurveyPaper(
-                title: dict["title"] as? String ?? "",
-                authors: dict["authors"] as? String ?? "",
-                year: dict["year"] as? Int ?? 0,
-                abstract: dict["abstract"] as? String ?? "",
-                venue: dict["venue"] as? String ?? ""
-            )
-        } ?? []
-
-        return SurveyResult(
-            query: topic,
-            background: json["background"] as? String,
-            methods: methods,
-            trends: trends,
-            gaps: gaps,
-            directions: directions,
-            keyTakeaways: json["key_takeaways"] as? String,
-            papers: papers
-        )
-    }
 }
 
 // MARK: - Data Models
@@ -623,8 +503,8 @@ struct SurveyPaper: Identifiable {
 
 // MARK: - Workflow Status Badge
 
-private struct WorkflowStatusBadge: View {
-    let status: WorkflowStatus
+private struct AgentStatusBadge: View {
+    let status: SurveyAgentStatus
 
     var body: some View {
         HStack(spacing: 2) {
@@ -692,5 +572,78 @@ private struct SurveySection: View {
         .background(Theme.Colors.surface)
         .cornerRadius(Theme.Radii.medium)
         .nmShadow(level: Theme.Shadows.soft)
+    }
+}
+
+// MARK: - SurveyServiceDelegate
+
+extension SurveyView: SurveyServiceDelegate {
+    func surveyService(_ service: SurveyService, agentDidStart agent: SurveyAgentState) {
+        agents.append(agent)
+    }
+
+    func surveyService(_ service: SurveyService, agentDidComplete agent: SurveyAgentState) {
+        if let idx = agents.firstIndex(where: { $0.id == agent.id }) {
+            agents[idx] = agent
+        }
+    }
+
+    func surveyService(_ service: SurveyService, agentDidFail agent: SurveyAgentState) {
+        if let idx = agents.firstIndex(where: { $0.id == agent.id }) {
+            agents[idx] = agent
+        }
+    }
+
+    func surveyService(_ service: SurveyService, didReceiveDelta delta: String) {
+        surveyContent += delta
+    }
+
+    func surveyService(_ service: SurveyService, didProduceStructured structured: StructuredSurveyResult) {
+        structuredResult = structured
+        result = convertToSurveyResult(structured)
+        if !surveyContent.isEmpty {
+            surveyHistory.insert(SurveyRecord(topic: topic, content: surveyContent, date: Date()), at: 0)
+        }
+    }
+
+    func surveyServiceDidFinish(_ service: SurveyService) {
+        isGenerating = false
+    }
+
+    func surveyService(_ service: SurveyService, didFailWithError error: String) {
+        errorMessage = error
+        isGenerating = false
+    }
+
+    private func convertToSurveyResult(_ structured: StructuredSurveyResult) -> SurveyResult {
+        SurveyResult(
+            query: structured.query,
+            background: structured.report.background,
+            methods: (structured.report.majorMethods ?? []).map {
+                SurveyMethod(
+                    category: $0.name ?? "",
+                    description: $0.description ?? "",
+                    strengths: $0.pros ?? "",
+                    weaknesses: $0.cons ?? ""
+                )
+            },
+            trends: (structured.report.researchTrends ?? []).map {
+                SurveyTrend(trend: $0.trend ?? "", description: $0.signal ?? "")
+            },
+            gaps: structured.report.researchGaps ?? [],
+            directions: (structured.report.futureDirections ?? []).map {
+                SurveyDirection(direction: $0, rationale: "")
+            },
+            keyTakeaways: structured.report.overallSummary,
+            papers: structured.papers.map {
+                SurveyPaper(
+                    title: $0.title,
+                    authors: $0.authors ?? "",
+                    year: $0.year ?? 0,
+                    abstract: $0.abstract ?? "",
+                    venue: $0.venue ?? ""
+                )
+            }
+        )
     }
 }

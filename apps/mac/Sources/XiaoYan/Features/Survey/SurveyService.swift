@@ -140,7 +140,7 @@ struct SurveyAgentState: Codable, Identifiable {
 
 // MARK: - Delegate
 
-protocol SurveyServiceDelegate: AnyObject {
+protocol SurveyServiceDelegate {
     func surveyService(_ service: SurveyService, agentDidStart agent: SurveyAgentState)
     func surveyService(_ service: SurveyService, agentDidComplete agent: SurveyAgentState)
     func surveyService(_ service: SurveyService, agentDidFail agent: SurveyAgentState)
@@ -153,7 +153,7 @@ protocol SurveyServiceDelegate: AnyObject {
 // MARK: - Service
 
 final class SurveyService {
-    weak var delegate: SurveyServiceDelegate?
+    var delegate: SurveyServiceDelegate?
 
     private let paperRepo = PaperRepository()
     private let knowledgeRepo = KnowledgeRepository()
