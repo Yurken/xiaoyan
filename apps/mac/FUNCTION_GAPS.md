@@ -171,7 +171,7 @@
 ### P2
 - **T2 PaperDiscovery 排序模式**：mac `PaperDiscoveryView.swift:22-25` 仅 relevance/quality 两档，且 quality 实际是 sortBy=submittedDate（`:408`）
 - **T3 PaperDiscovery 动态期刊列表**：mac 仅静态 `computeStaticVenues`（`PaperDiscoveryView.swift:31-37`）；desktop `usePaperDiscoverySearch.ts` + `PaperDiscoveryPanel.tsx:64-89` 含 `dynamicJournalTerms` 异步合并
-- **T6 MarkdownFormatter 分块进度**：mac 一次性提交超长会失败（`MarkdownFormatterView.swift:120-160`）；desktop `MarkdownFormatterPanel.tsx:98-114` 自动分块 + 进度条
+- **T6 MarkdownFormatter 分块进度** ✅（已对齐）：`MarkdownFormatterView.swift` 重写为分块处理：按段落分割（`\n\n`）+ 1500 字上限分块 + 逐块调用 LLM + 第一块后生成 `styleSummary` 并注入后续块 system prompt + 进度条显示（`MarkdownProgress` + `ProgressView`）+ 上传文件按钮；与 desktop `useMarkdownFormatter.ts` 等价
 
 ### P3
 - **T9 ArxivSearchResults 排版退化**：mac `ArxivEntryRow` 简单 List 行
