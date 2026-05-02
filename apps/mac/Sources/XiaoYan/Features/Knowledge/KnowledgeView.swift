@@ -98,14 +98,14 @@ struct KnowledgeView: View {
             }
         } detail: {
             if let note = selectedNote, selectedTab == .notes {
-                NoteDetailView(note: note, knowledgeService: knowledgeService, onUpdate: reload)
+                NoteDetailView(note: note, interests: interests, knowledgeService: knowledgeService, onUpdate: reload)
             } else {
                 ContentUnavailableView("选择项目", systemImage: "book")
             }
         }
         .onAppear(perform: reload)
         .sheet(isPresented: $showingCreateNote) {
-            CreateNoteSheet(knowledgeService: knowledgeService, settings: settings, onCreated: reload)
+            CreateNoteSheet(knowledgeService: knowledgeService, settings: settings, interests: interests, onCreated: reload)
         }
         .sheet(isPresented: $showingCreateInterest) {
             CreateInterestSheet(knowledgeService: knowledgeService, onCreated: reload)
@@ -409,6 +409,7 @@ private struct InterestListRow: View {
 
 private struct NoteDetailView: View {
     let note: KnowledgeNote
+    let interests: [ResearchInterest]
     let knowledgeService: KnowledgeService
     let onUpdate: () -> Void
 
@@ -416,6 +417,7 @@ private struct NoteDetailView: View {
     @State private var editTitle = ""
     @State private var editContent = ""
     @State private var editTagsText = ""
+    @State private var editInterestId = ""
 
     var body: some View {
         ScrollView {
@@ -453,6 +455,12 @@ private struct NoteDetailView: View {
                             .font(.caption)
                             .foregroundStyle(.green)
                     }
+                    if !isEditing, let interestId = note.researchInterestId,
+                       let interest = interests.first(where: { $0.id == interestId }) {
+                        Label(interest.topic, systemImage: "map")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
                 }
 
                 // Tags
@@ -471,6 +479,15 @@ private struct NoteDetailView: View {
                 if isEditing {
                     TextField("标签（逗号分隔）", text: $editTagsText)
                         .font(.caption)
+                    if !interests.isEmpty {
+                        Picker("关联研究方向", selection: $editInterestId) {
+                            Text("无").tag("")
+                            ForEach(interests) { interest in
+                                Text(interest.topic).tag(interest.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
                 }
 
                 Divider()
@@ -500,6 +517,7 @@ private struct NoteDetailView: View {
         editTitle = note.title
         editContent = note.content
         editTagsText = note.tags?.joined(separator: ", ") ?? ""
+        editInterestId = note.researchInterestId ?? ""
         isEditing = true
     }
 
@@ -511,6 +529,7 @@ private struct NoteDetailView: View {
         updated.title = editTitle
         updated.content = editContent
         updated.tags = tags.isEmpty ? nil : tags
+        updated.researchInterestId = editInterestId.isEmpty ? nil : editInterestId
         try? KnowledgeRepository().updateNote(updated)
         isEditing = false
         onUpdate()
@@ -522,11 +541,13 @@ private struct NoteDetailView: View {
 private struct CreateNoteSheet: View {
     let knowledgeService: KnowledgeService
     let settings: AppSettings
+    let interests: [ResearchInterest]
     let onCreated: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var content = ""
     @State private var tagsText = ""
+    @State private var selectedInterestId: String = ""
 
     var body: some View {
         VStack(spacing: 16) {
@@ -538,6 +559,14 @@ private struct CreateNoteSheet: View {
                 TextField("内容", text: $content, axis: .vertical)
                     .lineLimit(8...20)
                 TextField("标签（逗号分隔）", text: $tagsText)
+                if !interests.isEmpty {
+                    Picker("关联研究方向", selection: $selectedInterestId) {
+                        Text("无").tag("")
+                        ForEach(interests) { interest in
+                            Text(interest.topic).tag(interest.id)
+                        }
+                    }
+                }
             }
             .formStyle(.grouped)
 
@@ -552,6 +581,7 @@ private struct CreateNoteSheet: View {
                     var note = knowledgeService.createNote(
                         title: title,
                         content: content,
+                        researchInterestId: selectedInterestId.isEmpty ? nil : selectedInterestId,
                         settings: settings
                     )
                     note.tags = tags.isEmpty ? nil : tags
@@ -565,7 +595,7 @@ private struct CreateNoteSheet: View {
             .padding(.horizontal)
         }
         .padding()
-        .frame(width: 460, height: 400)
+        .frame(width: 460, height: 440)
     }
 }
 
