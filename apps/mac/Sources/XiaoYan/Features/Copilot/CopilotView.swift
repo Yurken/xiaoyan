@@ -9,45 +9,69 @@ struct CopilotView: View {
     @State private var currentSessionId: String = UUID().uuidString
     @State private var selectedInterestId: String = ""
     @State private var confirmDeleteGroupId: String?
+    @State private var sessionToDelete: ChatSession?
     @State private var skills: [Skill] = []
     @State private var loadingSessions = true
     @State private var hideFolders = false
+    @State private var missionControlExpanded = false
 
     private var chatRepo = ChatRepository()
 
     var body: some View {
-        HSplitView {
-            if !hideFolders {
-                sessionSidebar
-                    .frame(minWidth: 200, maxWidth: 240)
-            }
-
-            ChatThreadView(
-                sessionId: currentSessionId,
-                settings: settings,
-                skills: skills,
-                contextType: sessions.first { $0.id == currentSessionId }?.contextType,
-                onUpdateSession: loadSessions,
-                showSidebarToggle: true,
-                onToggleSidebar: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        hideFolders.toggle()
+        Group {
+            if missionControlExpanded {
+                MissionControlView(
+                    plan: chatService.currentPlan,
+                    runs: chatService.currentRuns,
+                    artifacts: chatService.currentArtifacts,
+                    requestId: chatService.currentRequestId,
+                    sending: chatService.isStreaming,
+                    isExpanded: true,
+                    onSaveMemory: saveMemory,
+                    onToggleExpand: { missionControlExpanded = false }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onKeyPress(.escape) {
+                    missionControlExpanded = false
+                    return .handled
+                }
+            } else {
+                HSplitView {
+                    if !hideFolders {
+                        sessionSidebar
+                            .frame(minWidth: 200, maxWidth: 240)
                     }
-                },
-                chatService: chatService
-            )
-            .id(currentSessionId)
-            .frame(minWidth: 400)
 
-            MissionControlView(
-                plan: chatService.currentPlan,
-                runs: chatService.currentRuns,
-                artifacts: chatService.currentArtifacts,
-                requestId: chatService.currentRequestId,
-                sending: chatService.isStreaming,
-                onSaveMemory: saveMemory
-            )
-            .frame(minWidth: 260, maxWidth: 320)
+                    ChatThreadView(
+                        sessionId: currentSessionId,
+                        settings: settings,
+                        skills: skills,
+                        contextType: sessions.first { $0.id == currentSessionId }?.contextType,
+                        onUpdateSession: loadSessions,
+                        showSidebarToggle: true,
+                        onToggleSidebar: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                hideFolders.toggle()
+                            }
+                        },
+                        chatService: chatService
+                    )
+                    .id(currentSessionId)
+                    .frame(minWidth: 400)
+
+                    MissionControlView(
+                        plan: chatService.currentPlan,
+                        runs: chatService.currentRuns,
+                        artifacts: chatService.currentArtifacts,
+                        requestId: chatService.currentRequestId,
+                        sending: chatService.isStreaming,
+                        isExpanded: false,
+                        onSaveMemory: saveMemory,
+                        onToggleExpand: { missionControlExpanded = true }
+                    )
+                    .frame(minWidth: 260, maxWidth: 320)
+                }
+            }
         }
         .navigationTitle("小妍")
         .onAppear {
@@ -115,6 +139,22 @@ struct CopilotView: View {
             Divider()
 
             sessionListBody
+        }
+        .confirmationDialog("确认删除此对话？", isPresented: Binding(
+            get: { sessionToDelete != nil },
+            set: { if !$0 { sessionToDelete = nil } }
+        ), titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                if let session = sessionToDelete {
+                    deleteSession(session)
+                }
+                sessionToDelete = nil
+            }
+            Button("取消", role: .cancel) {
+                sessionToDelete = nil
+            }
+        } message: {
+            Text("删除后无法恢复，该对话的所有消息将被清除。")
         }
     }
 
@@ -209,7 +249,7 @@ struct CopilotView: View {
                 }
                 Divider()
                 Button("删除", role: .destructive) {
-                    deleteSession(session)
+                    sessionToDelete = session
                 }
             }
     }

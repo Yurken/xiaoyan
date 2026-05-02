@@ -15,7 +15,7 @@ struct SettingsView: View {
         case skills = "技能"
         case importExport = "导入/导出"
         case layout = "布局"
-        case taskSetup = "任务"
+        case taskSetup = "快速开始"
         case about = "关于"
         case changelog = "更新日志"
 

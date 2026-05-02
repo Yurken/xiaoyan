@@ -6,7 +6,9 @@ struct MissionControlView: View {
     let artifacts: [AgentArtifact]
     let requestId: String?
     let sending: Bool
+    var isExpanded: Bool = false
     var onSaveMemory: ((String) -> Void)? = nil
+    var onToggleExpand: (() -> Void)? = nil
     @State private var memoryText = ""
     @State private var memorySaved = false
     @State private var viewMode: ViewMode = .list
@@ -28,6 +30,15 @@ struct MissionControlView: View {
                         .font(.headline)
                 }
                 Spacer()
+                Button {
+                    onToggleExpand?()
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.right" : "chevron.left")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(isExpanded ? "收起" : "展开")
                 Picker("视图", selection: $viewMode) {
                     ForEach(ViewMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
@@ -234,13 +245,26 @@ struct MissionControlView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(artifacts.prefix(4)) { artifact in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(artifact.title ?? artifact.artifactType)
-                                .font(.caption.bold())
+                            HStack {
+                                Text(artifact.title ?? artifact.artifactType)
+                                    .font(.caption.bold())
+                                Spacer()
+                                if let content = artifact.content, !content.isEmpty {
+                                    Button {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(content, forType: .string)
+                                    } label: {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("复制内容")
+                                }
+                            }
                             if let content = artifact.content {
-                                Text(content)
+                                MarkdownText(content: content)
                                     .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(5)
                             }
                         }
                         .padding(8)

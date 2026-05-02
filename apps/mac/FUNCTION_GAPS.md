@@ -32,19 +32,19 @@
 - **C1 自由工作台模式 / FocusLayout（hideFolders）** ✅（已对齐）：`CopilotView.swift:22, 36-39, 294-305` 顶部 toggle 收起/展开 sessionSidebar；1:1 desktop `Copilot.tsx:83` hideFolders 语义
 
 ### P2
-- **A5 流式中断 Stop 按钮**：mac 仅切换/关闭时 abort，无手动停止 — desktop `Copilot.tsx:241-244, 342-344`；mac `CopilotView.swift:437-446`
-- **A6 流事件未驱动 UI**：sources/plan/agent_runs 未渲染 — desktop `Copilot.tsx:387-426, 871-892`；mac `ChatService.swift:125-131`（`runSimple/runAgentic` 不写 sources）
-- **A7 `<think>` 思考块解析与折叠展示**：mac 无 — desktop `splitThoughtFromContent` `Copilot.tsx:36-50, 778-785`
-- **A8 Mission Control 全屏展开**：mac 仅固定侧栏 — desktop `CopilotOverviewSidebar.tsx:39-117`（ChevronsLeft/Right + Esc）
+- **A5 流式中断 Stop 按钮** ✅（已对齐）：`CopilotComposerView.swift:173-186` 根据 `isStreaming` 条件渲染红色停止按钮（`xmark.circle.fill`），点击调用 `onStop` → `ChatThreadView.cancelActiveStream()`；发送按钮在流式中替换为停止按钮；`ChatThreadView:78-85` 透传 `isStreaming` + `onStop`
+- **A6 流事件驱动 UI（plan / runs / sources）** ✅（已实现）：`ChatService.runAgentic()` 实时填充 `currentPlan`/`currentRuns`/`currentSources`；`MessageBubbleView.thinkPlanSection` 以 `DisclosureGroup` 渲染 plan 与 runs；`MessageBubbleView.sourcesRow` 渲染 sources 列表；与 desktop `Copilot.tsx:387-426, 871-892` 等价
+- **A7 `<think>` 思考块解析与折叠展示** ✅（已实现）：`MessageBubbleView.splitThoughtFromContent()` 正则解析 `<think>...</think>`；`thinkContentSection` 折叠展示思考过程；与 desktop `splitThoughtFromContent` 等价
+- **A8 Mission Control 全屏展开** ✅（已对齐）：`CopilotView.swift:19-74` 新增 `missionControlExpanded` 状态，展开时 MissionControlView 独占全屏并支持 `onKeyPress(.escape)` 收起；`MissionControlView.swift:21-46` 头部增加展开/收起按钮（`chevron.left` / `chevron.right`）；与 desktop `CopilotOverviewSidebar.tsx:39-117` 等价
 - **A9 状态图非交互**：mac 无连线绘制 — desktop `AgentStateGraphPanel.tsx:46-168`（贝塞尔 + 滚轮缩放 + 拖动）；mac `AgentStateGraphView.swift:78-156`
-- **A10 Artifact Markdown 渲染与外链**：mac 仅 5 行截断纯文本 — desktop `CopilotOverviewSidebar.tsx:177-181`；mac `MissionControlView.swift:235-250`
-- **C2 Artifact 导出/复制 markdown 入口**：mac `ExportService` 存在但 Mission Control 未挂入口
+- **A10 Artifact Markdown 渲染与外链** ✅（已对齐）：`MissionControlView.swift:241-243` 将 artifact 内容从 `Text(content).lineLimit(5)` 替换为 `MarkdownText(content: content)`，支持完整 Markdown 渲染（标题/列表/链接/代码块）与外链点击；与 desktop `CopilotOverviewSidebar.tsx:177-181` 等价
+- **C2 Artifact 导出/复制 markdown 入口** ✅（已对齐）：`MissionControlView.swift:237-248` 每条 artifact 卡片右上角增加「复制」按钮（`doc.on.doc`），点击将 `artifact.content` 写入 `NSPasteboard`；与 desktop `CopilotOverviewSidebar.tsx` 复制入口等价
 
 ### P3
-- **A11 删除会话二次确认 / 兴趣组级删除**：兴趣组级二段确认 ✅（A4 已对齐）；单会话仍是 contextMenu 直接删除，未做二次确认
+- **A11 删除会话二次确认 / 兴趣组级删除** ✅（已对齐）：兴趣组级二段确认（A4 已对齐）；单会话删除新增 `.confirmationDialog`（`CopilotView.swift:143-155`），确认后执行 `deleteSession`；与 desktop 二次确认交互等价
 - **A12 Memory chat.query 摘要写入**：mac 仅写库无 query 摘要
 - **A13 主题文件夹下拉、未归类分组、CollapsibleGroup** ✅（已对齐 A4）
-- **A14 Composer 默认提示（仅附件无文本时）**：mac 无 `DEFAULT_ATTACHMENT_PROMPT`
+- **A14 Composer 默认提示（仅附件无文本时）** ✅（已实现）：`ChatThreadView.swift:221` 当 `trimmed.isEmpty` 且存在附件时，自动注入 `"请阅读上传的文件并回答。"`；与 desktop `DEFAULT_ATTACHMENT_PROMPT` 等价
 - **A15 Enter / Shift+Enter 行为**：mac TextEditor 默认 Enter 总换行，与 desktop 不一致
 - **C3 AgentRun summary**：mac 写死"执行完成/综合完成"（`ChatService.swift:281, 317`），desktop 来自后端真实摘要
 
@@ -56,9 +56,9 @@
 - 无（功能基本对齐）
 
 ### P2
-- **B2 Risks 状态机字段映射 bug**：`WorkbenchModel.swift:427-428` 把 `.parsed` 同时算入 `failedPapers` 与 `processingPapers`；desktop `model.ts:281-282` 仅 failed/error 算失败、parsing/analyzing 算处理中
-- **B3 Submission 最近截止排序**：mac `WorkbenchModel.swift:313` 直接取 `upcomingDdls.first`，未按 deadline 排序；desktop `model.ts:170` 显式排序
-- **B1 三列快捷卡 Sparkles 提示行**：mac 视觉减弱（`HomeView.swift:231-264` vs `OverviewWorkspace.tsx:345-388`）
+- **B2 Risks 状态机字段映射 bug** ✅（已修复）：`WorkbenchModel.swift:427-428` 移除 `.parsed` 误归类；`failedPapers` 仅保留 `.failed`，`processingPapers` 仅保留 `.parsing`；与 desktop `model.ts:281-282` 一致
+- **B3 Submission 最近截止排序** ✅（已修复）：`WorkbenchModel.swift:313` 增加 `.sorted(by: { $0.deadline < $1.deadline })` 显式排序后再取 `.first`；与 desktop `model.ts:170` 显式排序对齐（repository SQL 已带 `ORDER BY deadline ASC`，模型层补显式语义）
+- **B1 三列快捷卡 Sparkles 提示行** ✅（已对齐）：`HomeView.swift:235-297` 在快捷卡下方新增 `sparklesPromptRow`（`CardView(variant: .inset)`），左侧 `sparkles` 图标 + 右侧三列（规划/小妍/知识）带图标标题与描述链接；与 desktop `OverviewWorkspace.tsx:345-388` 1:1 对齐
 
 ### P3
 - **B4 空状态文案"暂无研究主题"占位卡**：mac 直接 ForEach 空数组无占位
@@ -147,16 +147,16 @@
 - **S11 Skills 编辑/新建/导入** ✅（已对齐）：`SkillsSettingsTab.swift` 自定义技能卡片增加编辑/删除图标 + "新建技能"按钮；`SkillEditSheet` 新建/编辑技能表单（name/title/description/prompt/tags），内置技能支持"恢复默认"；`SkillRepository` insert/update/delete 已就绪；1:1 desktop `SkillsSection.tsx` SkillEditModal
 
 ### P2
-- **S1 标签分组结构错位**：mac 13 个左侧栏标签 vs desktop 单页+分区滚动；mac 缺"快速开始"引导分区 — `pageConfig.tsx:24-87` + `TaskSetupSection.tsx`
-- **S5 配置历史快照粗糙**：mac 仅列名称+时间+应用/删除 — desktop `SettingsHistorySection.tsx:1-298`（命名输入 + Select 切换 + 确认对话 + 元信息 chip + 三态 loading）
-- **S6 TaskSetup 内容职能错位**：desktop 是连接→角色→多 Agent 三步引导；mac 实际放的是 default_temperature 等运行参数
-- **S7 内存清理策略不全**：mac 仅显示前 20 条，无来源 chip/importance — desktop `MemorySection.tsx:113-132`
-- **S8 关于页 in-app 安装**：mac 只能"打开下载链接"手动装 — desktop `AboutSection.tsx:38-130`（`onInstallUpdate` 自动下载安装 + updateState 五态）
-- **S9 布局/主题对齐度**：mac 缺 focus/landscape 切换 + ThemeSwatch/StylePreview 视觉 — desktop `LayoutSettingsSection.tsx`
+- **S1 标签分组结构错位** ✅（已对齐）：`SettingsView.swift:18` `taskSetup` Tab 显示名改为"快速开始"；新增 `TaskSetupSettingsTab.swift` 三步引导卡片（接通小妍 / 补任务分工 / 启用多 Agent）+ 状态点 + 底部建议卡片；与 desktop `pageConfig.tsx:24-87` + `TaskSetupSection.tsx` 等价
+- **S5 配置历史快照粗糙** ✅（已对齐）：`ImportExportSettingsTab.swift` 快照区重写，新增命名输入框 + `Picker` 快速切换 + 应用/删除前 `confirmationDialog` + 元信息 chip（provider / chat model / search engine / 多 Agent）+ 三态 loading（`applyingId` / `deletingId` / `historyBusy`）；与 desktop `SettingsHistorySection.tsx:1-298` 等价
+- **S6 TaskSetup 内容职能错位** ✅（已对齐）：`TaskSetupSettingsTab.swift` 重写为"快速开始"三步引导（`connectionReady` / `rolesReady` / `multiAgentReady`）+ 状态点 + 论文库建议卡片；原 default_temperature / chunk_size / auto_analyze 等运行参数迁入 `GeneralSettingsTab.swift`；与 desktop `TaskSetupSection.tsx` 等价
+- **S7 内存清理策略不全** ✅（已对齐）：`MemorySettingsTab.swift` 自动操作记录显示来源 chip（聊天/能力域模型/知识笔记）；长期记忆观察显示 `importance` badge（高相关/常规/记录）+ 来源 chip + 完整列表（取消 20 条限制）；新增 `isLoading` 状态与空状态文案；与 desktop `MemorySection.tsx:113-132` 等价
+- **S8 关于页 in-app 安装** ✅（已对齐）：`AboutSettingsTab.swift` 新增"下载并安装"按钮（调用 `UpdatesService.downloadAndInstall(url:)` → `URLSession.download` + `NSWorkspace.open`）；版本信息网格化（当前版本/最新版本/发布日期）；`UpdatesService.swift` 新增 `downloadAndInstall` 方法；与 desktop `AboutSection.tsx:38-130` 等价
+- **S9 布局/主题对齐度** ✅（已对齐）：`LayoutSettingsTab.swift` 新增布局模式 Picker（landscape/focus）+ `DefaultSettings` 新增 `layout_mode`；`GeneralSettingsTab.swift` 与 `LayoutSettingsTab.swift` 新增 `ThemeSwatchCard`（auto/light/dark 颜色块预览）与 `StylePreviewCard`（minimal/neumorphic 迷你卡片预览）；与 desktop `LayoutSettingsSection.tsx` 等价
 
 ### P3
-- **S10 paper_visible_venue_tags 可视化标签管理**（`pageConfig.tsx:294`）
-- **S12 ChangelogCard 静态硬编码**：mac 仅两条硬编码版本（`ChangelogSettingsTab.swift:4-24`）
+- **S10 paper_visible_venue_tags 可视化标签管理** ✅（已对齐）：`PaperSettingsTab.swift` 新增"论文标签显示" card，6 项 Toggle 开关（CCF/期刊会议/WoS/JCR/中科院/Top）；`DefaultSettings` 新增 `paper_visible_venue_tags` 默认值；序列化/反序列化逻辑与 desktop `lib/paperTags.ts` 等价
+- **S12 ChangelogCard 静态硬编码** ✅（已对齐）：新建 `ChangelogParser.swift` 运行时解析 `CHANGELOG.md`（`## [x.y.z] - YYYY-MM-DD` + `### 分类` + `- 条目`）；`ChangelogSettingsTab.swift` 改为动态加载 + 版本选择 `Picker`；找不到文件时 fallback 到硬编码；与 desktop `SettingsChangelogCard.tsx` 等价
 
 ---
 

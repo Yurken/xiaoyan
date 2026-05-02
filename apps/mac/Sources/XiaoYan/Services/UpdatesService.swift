@@ -6,6 +6,7 @@ struct UpdatesService {
         let version: String
         let url: String
         let releaseNotes: String?
+        let pubDate: String?
     }
 
     enum UpdateCheckError: Error, LocalizedError {
@@ -14,6 +15,7 @@ struct UpdatesService {
         case http(statusCode: Int)
         case decode(Error)
         case missingPlatformURL
+        case downloadFailed(Error)
 
         var errorDescription: String? {
             switch self {
@@ -22,6 +24,7 @@ struct UpdatesService {
             case .http(let code): return "服务器返回错误 HTTP \(code)"
             case .decode(let error): return "解析更新信息失败：\(error.localizedDescription)"
             case .missingPlatformURL: return "未找到适用于当前平台的下载链接"
+            case .downloadFailed(let error): return "下载失败：\(error.localizedDescription)"
             }
         }
     }
@@ -29,6 +32,13 @@ struct UpdatesService {
     enum UpdateCheckOutcome {
         case noUpdate
         case hasUpdate(VersionInfo)
+    }
+
+    enum DownloadState {
+        case idle
+        case downloading
+        case downloaded(URL)
+        case failed(Error)
     }
 
     static let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
@@ -60,7 +70,8 @@ struct UpdatesService {
             let info = VersionInfo(
                 version: manifest.version,
                 url: platformUrl,
-                releaseNotes: manifest.notes
+                releaseNotes: manifest.notes,
+                pubDate: manifest.pubDate
             )
             return .success(.hasUpdate(info))
         } catch let error as UpdateCheckError {
@@ -85,6 +96,32 @@ struct UpdatesService {
     static func openDownloadURL(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    static func downloadAndInstall(url: String) async -> Result<URL, UpdateCheckError> {
+        guard let sourceURL = URL(string: url) else {
+            return .failure(.invalidEndpoint)
+        }
+        do {
+            let (downloadURL, response) = try await URLSession.shared.download(from: sourceURL)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                return .failure(.http(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0))
+            }
+            // Move to Downloads folder with a meaningful name
+            let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+            let filename = sourceURL.lastPathComponent.isEmpty ? "XiaoYan-Update.dmg" : sourceURL.lastPathComponent
+            let destination = downloads.appendingPathComponent(filename)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: downloadURL, to: destination)
+            NSWorkspace.shared.open(destination)
+            return .success(destination)
+        } catch let error as UpdateCheckError {
+            return .failure(error)
+        } catch {
+            return .failure(.downloadFailed(error))
+        }
     }
 
     // MARK: - Tauri Manifest

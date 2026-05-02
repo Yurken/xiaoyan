@@ -310,7 +310,7 @@ struct WorkbenchBuilder {
             ))
         }
 
-        if let nearest = submissionStats.upcomingDdls.first {
+        if let nearest = submissionStats.upcomingDdls.sorted(by: { $0.deadline < $1.deadline }).first {
             let fmt = DateFormatter()
             fmt.locale = Locale(identifier: "zh_CN")
             fmt.dateFormat = "MM-dd"
@@ -424,8 +424,8 @@ struct WorkbenchBuilder {
     // MARK: - Risks
 
     private func buildRisks() -> [WorkbenchRiskItem] {
-        let failedPapers = papers.filter { $0.status == .failed || $0.status == .parsed }
-        let processingPapers = papers.filter { $0.status == .parsing || $0.status == .parsed }
+        let failedPapers = papers.filter { $0.status == .failed }
+        let processingPapers = papers.filter { $0.status == .parsing }
         let planningInterests = interests.filter { $0.status == "planning" }
         var items: [WorkbenchRiskItem] = []
 

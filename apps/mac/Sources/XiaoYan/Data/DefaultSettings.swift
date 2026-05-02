@@ -140,6 +140,10 @@ enum DefaultSettings {
         s["paper_import_recognize_year"] = "true"
         s["paper_import_recognize_venue"] = "true"
         s["paper_import_recognize_keywords"] = "true"
+        s["paper_visible_venue_tags"] = "ccf_rating,ccf_type,wos_indexes,jcr_quartile,cas_quartile,cas_top"
+
+        // Layout
+        s["layout_mode"] = "landscape"
 
         // Graph RAG
         s["graph_rag_enabled"] = "false"

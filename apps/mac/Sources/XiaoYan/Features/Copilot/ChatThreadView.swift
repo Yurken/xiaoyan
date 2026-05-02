@@ -81,9 +81,10 @@ struct ChatThreadView: View {
                 attachmentManager: attachmentManager,
                 selectedSkillId: $selectedSkillId,
                 skills: skills,
-                onSend: sendMessage
+                isStreaming: chatService.isStreaming,
+                onSend: sendMessage,
+                onStop: cancelActiveStream
             )
-            .disabled(chatService.isStreaming)
             .padding(8)
         }
         .onAppear {

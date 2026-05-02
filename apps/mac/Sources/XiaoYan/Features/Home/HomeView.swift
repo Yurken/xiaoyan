@@ -234,12 +234,56 @@ struct HomeView: View {
 
     private var shortcutsSection: some View {
         CardView(variant: .raised, padding: Theme.Spacing.md) {
-            HStack(spacing: Theme.Spacing.md) {
-                shortcutItem(icon: "map", title: "规划", description: "把研究目标、关键词和路线重新收一遍。", route: .planner, color: colorTokens.accent)
-                shortcutItem(icon: "bubble.left.and.bubble.right", title: "小妍", description: "带着论文和问题继续追问，不用从头描述背景。", route: .copilot, color: colorTokens.success)
-                shortcutItem(icon: "brain.head.profile", title: "知识", description: "把已经想清楚的结论沉淀下来，后面写作会更稳。", route: .knowledge, color: colorTokens.warning)
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                HStack(spacing: Theme.Spacing.md) {
+                    shortcutItem(icon: "map", title: "规划", description: "把研究目标、关键词和路线重新收一遍。", route: .planner, color: colorTokens.accent)
+                    shortcutItem(icon: "bubble.left.and.bubble.right", title: "小妍", description: "带着论文和问题继续追问，不用从头描述背景。", route: .copilot, color: colorTokens.success)
+                    shortcutItem(icon: "brain.head.profile", title: "知识", description: "把已经想清楚的结论沉淀下来，后面写作会更稳。", route: .knowledge, color: colorTokens.warning)
+                }
+
+                sparklesPromptRow
             }
         }
+    }
+
+    private var sparklesPromptRow: some View {
+        CardView(variant: .inset, padding: Theme.Spacing.md) {
+            HStack(alignment: .top, spacing: Theme.Spacing.md) {
+                Image(systemName: "sparkles")
+                    .font(.body)
+                    .foregroundStyle(.blue)
+                    .frame(width: 40, height: 40)
+                    .background(Color.blue.opacity(0.08))
+                    .cornerRadius(Theme.Radii.medium)
+
+                HStack(alignment: .top, spacing: Theme.Spacing.md) {
+                    sparklesColumn(icon: "book.fill", title: "规划", description: "把研究目标、关键词和路线重新收一遍。", route: .planner, color: .blue)
+                    sparklesColumn(icon: "message.fill", title: "小妍", description: "带着论文和问题继续追问，不用从头描述背景。", route: .copilot, color: Color(hex: "14B8A6"))
+                    sparklesColumn(icon: "books.vertical.fill", title: "知识", description: "把已经想清楚的结论沉淀下来，后面写作会更稳。", route: .knowledge, color: .orange)
+                }
+            }
+        }
+    }
+
+    private func sparklesColumn(icon: String, title: String, description: String, route: AppRoute, color: Color) -> some View {
+        Button(action: { router.selectedRoute = route }) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: icon)
+                        .font(.caption)
+                        .foregroundStyle(color)
+                    Text(title)
+                        .font(Theme.Typography.caption.bold())
+                        .foregroundStyle(colorTokens.text)
+                }
+                Text(description)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(colorTokens.textMuted)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private func shortcutItem(icon: String, title: String, description: String, route: AppRoute, color: Color) -> some View {

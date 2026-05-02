@@ -7,7 +7,9 @@ struct CopilotComposerView: View {
     @ObservedObject var attachmentManager: CopilotAttachmentManager
     @Binding var selectedSkillId: String?
     let skills: [Skill]
+    var isStreaming: Bool = false
     var onSend: () -> Void
+    var onStop: (() -> Void)? = nil
 
     @State private var showingFileImporter = false
     @State private var showingSkillsPopover = false
@@ -162,6 +164,7 @@ struct CopilotComposerView: View {
                         .lineLimit(1...6)
                         .scrollContentBackground(.hidden)
                         .padding(8)
+                        .disabled(isStreaming)
                 }
                 toolBar
             }
@@ -170,13 +173,23 @@ struct CopilotComposerView: View {
             .nmShadow(level: Theme.Shadows.soft)
             .frame(minHeight: 60, maxHeight: 160)
 
-            Button(action: onSend) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 28))
+            if isStreaming {
+                Button(action: { onStop?() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 4)
+            } else {
+                Button(action: onSend) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 28))
+                }
+                .buttonStyle(.plain)
+                .disabled(canSend == false)
+                .padding(.bottom, 4)
             }
-            .buttonStyle(.plain)
-            .disabled(canSend == false)
-            .padding(.bottom, 4)
         }
     }
 
@@ -197,7 +210,7 @@ struct CopilotComposerView: View {
                 .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .disabled(attachmentManager.pending.count >= CopilotAttachmentManager.maxAttachments
+            .disabled(isStreaming || attachmentManager.pending.count >= CopilotAttachmentManager.maxAttachments
                       || attachmentManager.isUploading)
             .help("添加附件（PDF / 文本，最多 \(CopilotAttachmentManager.maxAttachments) 个）")
 
