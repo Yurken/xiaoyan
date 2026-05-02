@@ -126,9 +126,9 @@
 ## 6. Survey（综述）
 
 ### P1
-- **结构化 schema 大幅缩水**：desktop 14 项（含 timeline/schools_of_thought/controversies/recommended_topics/challenges/frontier 等）— `SurveyPanel.tsx:31-92`；mac `SurveyView.swift:540-578` 仅 7 项
-- **多 Agent 真实流式**：mac 用 `simulateWorkflow()` 假模拟（`SurveyView.swift:435-451`）；desktop 监听 `survey:delta|done|error|structured|agent_start|agent_complete|agent_error`
-- **高级参数面板** ✅（已对齐）：`SurveyView.swift:67-80` + `SurveyParameterPanel.swift`（5 类 Picker：时间范围/文献类型/数据库/引用格式/语言），prompt 已注入参数约束；1:1 desktop `SurveyPanel.tsx:94-117, 532-647`
+- **结构化 schema 大幅缩水** ✅（已对齐）：desktop 14 项；mac `SurveyService.swift` 14 项 Codable 数据模型 + `SurveyView.swift` 独立 view builder 展示全部 section（背景/发展脉络/方法/学派/方法总结/趋势/争议/挑战/缺口/未来方向/建议主题/总结/参考文献）
+- **多 Agent 真实流式** ✅（已对齐）：`SurveyService.swift` 5-Agent 真实流水线（Planner→Retriever→Timeline→Writer→Formatter），`SurveyView.swift` agentFlowSection 实时展示 agent_start/complete/fail 状态
+- **高级参数面板** ✅（已对齐）：`SurveyView.swift` + `SurveyParameterPanel.swift`（5 类 Picker：时间范围/文献类型/数据库/引用格式/语言），prompt 已注入参数约束；1:1 desktop `SurveyPanel.tsx:94-117, 532-647`
 
 ### P2
 - **研究方向→论文勾选**：desktop 选 interest 后加载 papers 可勾选喂给 survey — `SurveyPanel.tsx:148-230, 410-480`；mac 完全无关联
@@ -267,6 +267,6 @@
 
 1. **第 0 阶段（数据安全）**：先修 R1-R4 四个互通风险点
 2. **第 1 阶段（影响面最大的 P1）**：Copilot 附件/Skills（A1+A3）、ResearchWorkbench 五 Tab、KnowledgeGraphComposer、Submission 版本快照 content+AI 审稿、Experiment 附件 UI
-3. **第 2 阶段（其余 P1）**：Settings Provider 预设/角色卡片、Tools Arxiv/SourceLookup/Translation、Survey 高级参数+多 Agent 流式
+3. **第 2 阶段（其余 P1）**：Settings Provider 预设/角色卡片、Tools Arxiv/SourceLookup/Translation
 4. **第 3 阶段**：P2 体验优化
 5. **第 4 阶段**：P3 细节打磨
