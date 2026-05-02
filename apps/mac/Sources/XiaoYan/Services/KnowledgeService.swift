@@ -33,6 +33,16 @@ final class KnowledgeService: ObservableObject {
         try? knowledgeRepo.deleteInterest(id: id)
     }
 
+    /// 删除研究方向 + 级联清空名下笔记/论断（"删除全部"）。
+    func deleteInterestBundle(id: String) {
+        try? knowledgeRepo.deleteInterestBundle(id: id)
+    }
+
+    /// 仅删除研究方向，名下笔记/论断 research_interest_id 置为 NULL（"置为未归档"）。
+    func deleteInterestOnly(id: String) {
+        try? knowledgeRepo.deleteInterestOnly(id: id)
+    }
+
     // MARK: - Knowledge Notes
 
     func listNotes(researchInterestId: String? = nil) -> [KnowledgeNote] {

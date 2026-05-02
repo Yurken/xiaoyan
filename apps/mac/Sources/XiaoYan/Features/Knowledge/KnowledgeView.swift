@@ -15,6 +15,7 @@ struct KnowledgeView: View {
     @State private var isSemanticSearch = false
     @State private var semanticResults: [SemanticSearchResult] = []
     @State private var isSearching = false
+    @State private var confirmDeleteInterestId: String?
 
     enum Tab: String, CaseIterable {
         case notes = "笔记"
@@ -30,6 +31,15 @@ struct KnowledgeView: View {
             $0.title.lowercased().contains(q) ||
             $0.content.lowercased().contains(q) ||
             ($0.tags?.contains(where: { $0.lowercased().contains(q) }) ?? false)
+        }
+    }
+
+    /// 未绑定 interest 或绑定到不存在 interest 的笔记。
+    var ungroupedNotes: [KnowledgeNote] {
+        let interestIds = Set(interests.map(\.id))
+        return notes.filter { note in
+            guard let id = note.researchInterestId else { return true }
+            return !interestIds.contains(id)
         }
     }
 
@@ -163,7 +173,8 @@ struct KnowledgeView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
+            } else if !searchText.isEmpty {
+                // 搜索模式：平铺
                 List(filteredNotes, selection: $selectedNote) { note in
                     NoteRow(note: note)
                         .tag(note)
@@ -175,8 +186,61 @@ struct KnowledgeView: View {
                         }
                 }
                 .listStyle(.sidebar)
+            } else {
+                groupedNotesList
             }
         }
+    }
+
+    /// 按 interest 分组的笔记列表（与 desktop NotesPanel CollapsibleGroup 对齐）。
+    private var groupedNotesList: some View {
+        List(selection: $selectedNote) {
+            ForEach(interests) { interest in
+                NotesInterestSection(
+                    interest: interest,
+                    notes: notes.filter { $0.researchInterestId == interest.id },
+                    confirmDeleteId: $confirmDeleteInterestId,
+                    onDeleteOnly: {
+                        knowledgeService.deleteInterestOnly(id: interest.id)
+                        confirmDeleteInterestId = nil
+                        reload()
+                    },
+                    onDeleteAll: {
+                        knowledgeService.deleteInterestBundle(id: interest.id)
+                        confirmDeleteInterestId = nil
+                        reload()
+                    },
+                    onDeleteNote: { id in
+                        knowledgeService.deleteNote(id: id)
+                        reload()
+                    }
+                )
+            }
+            if !ungroupedNotes.isEmpty {
+                Section {
+                    ForEach(ungroupedNotes) { note in
+                        NoteRow(note: note)
+                            .tag(note)
+                            .contextMenu {
+                                Button("删除", role: .destructive) {
+                                    knowledgeService.deleteNote(id: note.id)
+                                    reload()
+                                }
+                            }
+                    }
+                } header: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("未归档笔记")
+                            .font(.caption.weight(.semibold))
+                        Text("这些笔记暂未绑定主题")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .listStyle(.sidebar)
     }
 
     // MARK: - Interests List
@@ -326,6 +390,93 @@ private struct NoteRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Notes Interest Section（按研究方向分组的笔记折叠面板）
+
+private struct NotesInterestSection: View {
+    let interest: ResearchInterest
+    let notes: [KnowledgeNote]
+    @Binding var confirmDeleteId: String?
+    let onDeleteOnly: () -> Void
+    let onDeleteAll: () -> Void
+    let onDeleteNote: (String) -> Void
+    @State private var isExpanded: Bool = true
+
+    private var folderTitle: String {
+        let trimmed = interest.folderName?.trimmingCharacters(in: .whitespaces) ?? ""
+        return trimmed.isEmpty ? interest.topic : trimmed
+    }
+
+    private var isConfirming: Bool { confirmDeleteId == interest.id }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            if notes.isEmpty {
+                Text("该主题下暂无笔记")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, 4)
+            } else {
+                ForEach(notes) { note in
+                    NoteRow(note: note)
+                        .tag(note)
+                        .contextMenu {
+                            Button("删除", role: .destructive) {
+                                onDeleteNote(note.id)
+                            }
+                        }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(folderTitle)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    if folderTitle != interest.topic {
+                        Text("研究主题：\(interest.topic)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+                Text("\(notes.count) 条")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                if isConfirming {
+                    Button("置为未归档") { onDeleteOnly() }
+                        .buttonStyle(.borderless)
+                        .controlSize(.mini)
+                        .font(.caption2)
+                    Button("删除全部", role: .destructive) { onDeleteAll() }
+                        .buttonStyle(.borderless)
+                        .controlSize(.mini)
+                        .font(.caption2)
+                    Button {
+                        confirmDeleteId = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                } else {
+                    Button {
+                        confirmDeleteId = interest.id
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("删除文件夹")
+                }
+            }
+            .padding(.vertical, 1)
+        }
     }
 }
 

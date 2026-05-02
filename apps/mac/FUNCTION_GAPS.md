@@ -89,7 +89,7 @@
 ## 4. Notes（笔记）
 
 ### P1
-- **研究方向分组视图**：mac 平铺，无 CollapsibleGroup — desktop `NotesPanel.tsx:436, 720-790`（含未归档分区 + 按组删除）
+- **研究方向分组视图** ✅（2026-05-02 已对齐）：DisclosureGroup 按 interest 分组（folder_name||topic + 副标题 + 计数 + 删除两选项）+ "未归档笔记" 独立 Section；搜索/语义搜索时回退平铺 — `KnowledgeView.swift` `groupedNotesList` + `NotesInterestSection`，`KnowledgeService.deleteInterestBundle/Only` 暴露
 - **笔记关联 interest（research_interest_id）** ✅（2026-05-02 已对齐）：CreateNoteSheet 与 NoteDetailView 编辑模式新增"关联研究方向"Picker；预览模式元数据栏展示已绑定方向 — `KnowledgeView.swift` 内
 
 ### P2
