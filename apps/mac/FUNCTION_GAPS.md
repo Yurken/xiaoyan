@@ -36,7 +36,7 @@
 - **A6 流事件驱动 UI（plan / runs / sources）** ✅（已实现）：`ChatService.runAgentic()` 实时填充 `currentPlan`/`currentRuns`/`currentSources`；`MessageBubbleView.thinkPlanSection` 以 `DisclosureGroup` 渲染 plan 与 runs；`MessageBubbleView.sourcesRow` 渲染 sources 列表；与 desktop `Copilot.tsx:387-426, 871-892` 等价
 - **A7 `<think>` 思考块解析与折叠展示** ✅（已实现）：`MessageBubbleView.splitThoughtFromContent()` 正则解析 `<think>...</think>`；`thinkContentSection` 折叠展示思考过程；与 desktop `splitThoughtFromContent` 等价
 - **A8 Mission Control 全屏展开** ✅（已对齐）：`CopilotView.swift:19-74` 新增 `missionControlExpanded` 状态，展开时 MissionControlView 独占全屏并支持 `onKeyPress(.escape)` 收起；`MissionControlView.swift:21-46` 头部增加展开/收起按钮（`chevron.left` / `chevron.right`）；与 desktop `CopilotOverviewSidebar.tsx:39-117` 等价
-- **A9 状态图非交互**：mac 无连线绘制 — desktop `AgentStateGraphPanel.tsx:46-168`（贝塞尔 + 滚轮缩放 + 拖动）；mac `AgentStateGraphView.swift:78-156`
+- **A9 状态图非交互** ✅（已对齐）：`AgentStateGraphView.swift` 重写为交互式画布，新增 `buildAgentGraphLayout` 布局算法 + `Path.addCurve` 三次贝塞尔连线 + `SimultaneousGesture(MagnificationGesture + DragGesture)` 缩放拖拽 + `ScrollWheelHandler` 滚轮缩放 + active 边脉冲动画 + 节点卡片状态色/阴影；与 desktop `AgentStateGraphPanel.tsx` 等价
 - **A10 Artifact Markdown 渲染与外链** ✅（已对齐）：`MissionControlView.swift:241-243` 将 artifact 内容从 `Text(content).lineLimit(5)` 替换为 `MarkdownText(content: content)`，支持完整 Markdown 渲染（标题/列表/链接/代码块）与外链点击；与 desktop `CopilotOverviewSidebar.tsx:177-181` 等价
 - **C2 Artifact 导出/复制 markdown 入口** ✅（已对齐）：`MissionControlView.swift:237-248` 每条 artifact 卡片右上角增加「复制」按钮（`doc.on.doc`），点击将 `artifact.content` 写入 `NSPasteboard`；与 desktop `CopilotOverviewSidebar.tsx` 复制入口等价
 
