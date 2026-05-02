@@ -20,16 +20,42 @@ enum DefaultSettings {
         s["vision_model"] = ""
         s["vision_base_url"] = ""
         s["vision_api_key"] = ""
+        s["vision_temperature"] = "0.2"
+
+        // Translation
+        s["translation_model"] = ""
+        s["translation_base_url"] = ""
+        s["translation_api_key"] = ""
+        s["translation_temperature"] = "0.1"
 
         // Embedding
         s["embedding_model"] = "text-embedding-3-small"
         s["embedding_base_url"] = ""
         s["embedding_api_key"] = ""
         s["embedding_batch_size"] = "20"
+        s["rag_top_k"] = "5"
 
         // Copilot
         s["copilot_simple_model"] = ""
-        s["copilot_simple_temperature"] = "0.7"
+        s["copilot_simple_base_url"] = ""
+        s["copilot_simple_api_key"] = ""
+        s["copilot_simple_temperature"] = "0.4"
+
+        // Planner hint / analysis / generation（流光/谋策卡）
+        s["planner_hint_model"] = ""
+        s["planner_hint_base_url"] = ""
+        s["planner_hint_api_key"] = ""
+        s["planner_hint_temperature"] = "0.2"
+
+        s["planner_analysis_model"] = ""
+        s["planner_analysis_base_url"] = ""
+        s["planner_analysis_api_key"] = ""
+        s["planner_analysis_temperature"] = "0.2"
+
+        s["planner_generation_model"] = ""
+        s["planner_generation_base_url"] = ""
+        s["planner_generation_api_key"] = ""
+        s["planner_generation_temperature"] = "0.3"
 
         // Multi-agent
         s["multi_agent_enabled"] = "true"
@@ -40,48 +66,62 @@ enum DefaultSettings {
         s["multi_agent_supervisor_model"] = ""
         s["multi_agent_supervisor_base_url"] = ""
         s["multi_agent_supervisor_api_key"] = ""
-        s["multi_agent_supervisor_temperature"] = "0.3"
+        s["multi_agent_supervisor_temperature"] = "0.1"
 
         s["multi_agent_synthesis_model"] = ""
         s["multi_agent_synthesis_base_url"] = ""
         s["multi_agent_synthesis_api_key"] = ""
-        s["multi_agent_synthesis_temperature"] = "0.5"
+        s["multi_agent_synthesis_temperature"] = "0.4"
 
         s["multi_agent_worker_model"] = ""
         s["multi_agent_worker_base_url"] = ""
         s["multi_agent_worker_api_key"] = ""
-        s["multi_agent_worker_temperature"] = "0.7"
+        s["multi_agent_worker_temperature"] = "0.3"
 
         s["multi_agent_planner_model"] = ""
+        s["multi_agent_planner_base_url"] = ""
+        s["multi_agent_planner_api_key"] = ""
         s["multi_agent_planner_temperature"] = ""
 
         s["multi_agent_literature_scout_model"] = ""
+        s["multi_agent_literature_scout_base_url"] = ""
+        s["multi_agent_literature_scout_api_key"] = ""
         s["multi_agent_literature_scout_temperature"] = ""
 
         s["multi_agent_survey_model"] = ""
+        s["multi_agent_survey_base_url"] = ""
+        s["multi_agent_survey_api_key"] = ""
         s["multi_agent_survey_temperature"] = ""
 
         s["multi_agent_paper_analyst_model"] = ""
+        s["multi_agent_paper_analyst_base_url"] = ""
+        s["multi_agent_paper_analyst_api_key"] = ""
         s["multi_agent_paper_analyst_temperature"] = ""
 
         s["multi_agent_reproduction_model"] = ""
+        s["multi_agent_reproduction_base_url"] = ""
+        s["multi_agent_reproduction_api_key"] = ""
         s["multi_agent_reproduction_temperature"] = ""
 
         // Survey
         s["survey_planner_model"] = ""
         s["survey_planner_base_url"] = ""
         s["survey_planner_api_key"] = ""
+        s["survey_planner_temperature"] = "0.2"
         s["survey_writer_model"] = ""
         s["survey_writer_base_url"] = ""
         s["survey_writer_api_key"] = ""
+        s["survey_writer_temperature"] = "0.3"
 
         // Paper
         s["paper_analysis_model"] = ""
         s["paper_analysis_base_url"] = ""
         s["paper_analysis_api_key"] = ""
+        s["paper_analysis_temperature"] = "0.3"
         s["paper_reproduction_model"] = ""
         s["paper_reproduction_base_url"] = ""
         s["paper_reproduction_api_key"] = ""
+        s["paper_reproduction_temperature"] = "0.25"
 
         // Chunking
         s["chunk_size"] = "800"

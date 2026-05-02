@@ -90,6 +90,8 @@ final class AppSettings: ObservableObject {
         [
             "openai_api_key", "anthropic_api_key", "openai_compatible_api_key",
             "vision_api_key", "embedding_api_key", "semantic_scholar_api_key",
+            "translation_api_key",
+            "planner_hint_api_key", "planner_analysis_api_key", "planner_generation_api_key",
             "multi_agent_supervisor_api_key", "multi_agent_synthesis_api_key",
             "multi_agent_worker_api_key", "multi_agent_planner_api_key",
             "multi_agent_literature_scout_api_key", "multi_agent_survey_api_key",
