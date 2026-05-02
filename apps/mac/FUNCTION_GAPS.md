@@ -25,9 +25,9 @@
 ## 1. Copilot（小妍对话）
 
 ### P1
-- **A1 附件/上传文件**：mac 无 — desktop `useCopilotAttachments.ts:1-180`、`CopilotComposer.tsx:277-309`；mac `CopilotComposerView.swift:7-28`
-- **A2 chat_mode 切换 UI**：mac 无 — desktop `useCopilotChatMode.ts:1-26`、`CopilotComposer.tsx:87-113`；mac 无对应（参见 R4）
-- **A3 Skills 选择器与 prompt 注入**：UI 缺失（后端已就绪）— desktop `CopilotComposer.tsx:115-274` + `Copilot.tsx:327-330`；mac `Services/SkillService.swift` 存在但 Copilot 未引用
+- **A1 附件/上传文件** ✅（已对齐）：mac `CopilotAttachment.swift` + `CopilotComposerView.swift:27-28, 80-122` 与 desktop `useCopilotAttachments.ts` 等价
+- **A2 chat_mode 切换 UI** ✅（已对齐）：`CopilotComposerView.swift:53-77` 顶部 ForEach(ChatMode.allCases) chip 切换 + `@AppStorage("rc_copilot_chat_mode")` 持久化（参见 R4）
+- **A3 Skills 选择器与 prompt 注入** ✅（已对齐）：`CopilotComposerView.swift:204-227`（按钮）+ `SkillsPickerPopover` 252-396 行
 - **A4 Interest 归属/会话分组**：mac 仅扁平列表 — desktop `Copilot.tsx:201-322, 538-645`（顶部 Select + 右键移动 + 按 interest 折叠）；mac `CopilotView.swift:69-96`
 - **C1 自由工作台模式 / FocusLayout（hideFolders）**：mac 无 — desktop `Copilot({ hideFolders })`（`Copilot.tsx:83`）+ `FocusLayout.tsx`；mac 无对应路由
 
@@ -69,7 +69,7 @@
 ## 3. Knowledge / Planner
 
 ### P1
-- **TopicDiscoveryWizard 完全缺失**：4 步领域→目标→背景→候选话题向导 — desktop `TopicDiscoveryWizard.tsx:33-202`；mac 后端 `KnowledgeService.swift:240` 已实现但 UI 无入口
+- **TopicDiscoveryWizard** ✅（2026-05-02 已对齐）：4 步领域→目标→背景→候选话题向导 — desktop `TopicDiscoveryWizard.tsx:33-202`；mac `Features/Knowledge/TopicDiscoveryWizardView.swift` + `KnowledgeView.CreateInterestSheet` 顶部入口
 - **PlannerComposer 8 字段研究画像**：mac 仅 4 字段（topic/keywords/goal/background）— desktop `PlannerComposer.tsx:30-50, 343-727`（含 timeBudget/constraints/knownContext/preferredOutput + 完成度提示）；mac `KnowledgeView.swift:574-617`
 - **AI 实时智能提示边栏**：700ms debounce 调 `generateInterestHints` — desktop `PlannerComposer.tsx:178-248, 645-705`；mac 后端 `KnowledgeService.swift:170` 已实现但 UI 完全没用
 - **ResearchWorkbench 五 Tab 工作台**：planner/papers/xiaoyan(chat)/notes/tools 集成 — desktop `ResearchWorkbench.tsx:1-520`；mac 无对应工作台
@@ -90,7 +90,7 @@
 
 ### P1
 - **研究方向分组视图**：mac 平铺，无 CollapsibleGroup — desktop `NotesPanel.tsx:436, 720-790`（含未归档分区 + 按组删除）
-- **笔记关联 interest（research_interest_id）**：CreateNoteSheet/Detail 缺归属选择 — desktop `NotesPanel.tsx:288-315, 599-611`；mac `KnowledgeView.swift:520-570, 410-518`
+- **笔记关联 interest（research_interest_id）** ✅（2026-05-02 已对齐）：CreateNoteSheet 与 NoteDetailView 编辑模式新增"关联研究方向"Picker；预览模式元数据栏展示已绑定方向 — `KnowledgeView.swift` 内
 
 ### P2
 - **Markdown 实时预览编辑器**：mac 仅 TextEditor 纯文本 — desktop `NotesPanel.tsx:8-74`（双 Tab 编辑/预览）；mac `KnowledgeView.swift:478-491`
