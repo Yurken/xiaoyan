@@ -767,13 +767,74 @@ private struct CreateInterestSheet: View {
     @State private var preferredOutput = ""
     @State private var showingWizard = false
 
+    // MARK: - AI Hints
+    @State private var hintStatus: HintStatus = .idle
+    @State private var aiSuggestions: PlannerSuggestionState? = nil
+    @State private var hintMessage = ""
+    @State private var currentRequestId = 0
+    @State private var hintCache: [String: PlannerSuggestionState] = [:]
+    @State private var aiDisabled = false
+
+    enum HintStatus: String {
+        case idle, loading, ready, fallback
+
+        var label: String {
+            switch self {
+            case .loading: return "小妍处理中"
+            case .ready: return "小妍实时建议"
+            case .fallback: return "本地兜底"
+            case .idle: return "待输入"
+            }
+        }
+    }
+
     private var completionRatio: Double {
         let fields = [topic, keywordsText, goal, background, timeBudget, constraints, knownContext, preferredOutput]
         let filled = fields.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
         return Double(filled) / Double(fields.count)
     }
 
+    private var draft: PlannerDraft {
+        PlannerDraft(
+            topic: topic,
+            keywords: parseTags(keywordsText),
+            goal: goal,
+            background: background,
+            timeBudget: timeBudget,
+            constraints: parseTags(constraints),
+            knownContext: knownContext,
+            preferredOutput: preferredOutput
+        )
+    }
+
+    private var fallbackSuggestions: PlannerSuggestionState {
+        buildPlannerSuggestions(draft)
+    }
+
+    private var suggestions: PlannerSuggestionState {
+        mergePlannerSuggestions(fallback: fallbackSuggestions, ai: aiSuggestions)
+    }
+
     var body: some View {
+        HSplitView {
+            formArea
+                .frame(minWidth: 380, idealWidth: 420)
+
+            if !showingWizard {
+                hintPanel
+                    .frame(minWidth: 260, idealWidth: 300)
+            }
+        }
+        .padding()
+        .frame(minWidth: showingWizard ? 480 : 740, minHeight: 560)
+        .onChange(of: draft) {
+            scheduleHintRequest()
+        }
+    }
+
+    // MARK: - Form Area
+
+    private var formArea: some View {
         VStack(spacing: 12) {
             Text("创建研究方向")
                 .font(.headline)
@@ -787,7 +848,6 @@ private struct CreateInterestSheet: View {
                     },
                     onClose: { showingWizard = false }
                 )
-                .padding(.horizontal)
             } else {
                 HStack {
                     Spacer()
@@ -803,75 +863,279 @@ private struct CreateInterestSheet: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
-                .padding(.horizontal)
-            }
 
-            Form {
-                TextField("研究主题", text: $topic)
-                TextField("关键词（逗号分隔）", text: $keywordsText)
-                TextField("研究目标", text: $goal, axis: .vertical)
-                    .lineLimit(2...4)
-                TextField("研究背景", text: $background, axis: .vertical)
-                    .lineLimit(2...4)
-                TextField("时间预算", text: $timeBudget, axis: .vertical)
-                    .lineLimit(1...2)
-                TextField("约束条件", text: $constraints, axis: .vertical)
-                    .lineLimit(2...4)
-                TextField("已知论文/方法", text: $knownContext, axis: .vertical)
-                    .lineLimit(2...4)
-                TextField("期望输出", text: $preferredOutput, axis: .vertical)
-                    .lineLimit(2...4)
-            }
-            .formStyle(.grouped)
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("完成度")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text("\(Int(completionRatio * 100))%")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Form {
+                    TextField("研究主题", text: $topic)
+                    TextField("关键词（逗号分隔）", text: $keywordsText)
+                    TextField("研究目标", text: $goal, axis: .vertical)
+                        .lineLimit(2...4)
+                    TextField("研究背景", text: $background, axis: .vertical)
+                        .lineLimit(2...4)
+                    TextField("时间预算", text: $timeBudget, axis: .vertical)
+                        .lineLimit(1...2)
+                    TextField("约束条件", text: $constraints, axis: .vertical)
+                        .lineLimit(2...4)
+                    TextField("已知论文/方法", text: $knownContext, axis: .vertical)
+                        .lineLimit(2...4)
+                    TextField("期望输出", text: $preferredOutput, axis: .vertical)
+                        .lineLimit(2...4)
                 }
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(height: 4)
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.accentColor)
-                            .frame(width: geo.size.width * completionRatio, height: 4)
+                .formStyle(.grouped)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("完成度")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(Int(completionRatio * 100))%")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(height: 4)
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.accentColor)
+                                .frame(width: geo.size.width * completionRatio, height: 4)
+                        }
+                    }
+                    .frame(height: 4)
+                }
+
+                HStack {
+                    Button("取消") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
+                    Spacer()
+                    Button("创建") {
+                        let keywords = parseTags(keywordsText)
+                        let profile = InterestProfile(
+                            goal: goal.isEmpty ? nil : goal,
+                            background: background.isEmpty ? nil : background,
+                            timeBudget: timeBudget.isEmpty ? nil : timeBudget,
+                            constraints: constraints.isEmpty ? nil : constraints,
+                            knownContext: knownContext.isEmpty ? nil : knownContext,
+                            preferredOutput: preferredOutput.isEmpty ? nil : preferredOutput
+                        )
+                        _ = knowledgeService.createInterest(topic: topic, keywords: keywords.isEmpty ? nil : keywords, profile: profile)
+                        onCreated()
+                        dismiss()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(topic.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+
+    // MARK: - Hint Panel
+
+    private var hintPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                Text("智能提示")
+                    .font(.subheadline.bold())
+                Spacer()
+                Text(hintStatus.label)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(hintStatus == .fallback ? Color.gray.opacity(0.15) : Color.blue.opacity(0.12))
+                    .foregroundColor(hintStatus == .fallback ? .secondary : .blue)
+                    .cornerRadius(4)
+            }
+
+            hintCard(title: "系统理解") {
+                HStack(alignment: .top, spacing: 6) {
+                    if hintStatus == .loading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 14, height: 14)
+                    }
+                    Text(suggestions.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            hintCard(title: "建议下一步") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(suggestions.nextFieldLabel)
+                        .font(.caption.bold())
+                    Text("当前信息已足以触发这一项的更精准建议；继续补充后，整体规划会明显更聚焦。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if hintStatus == .fallback, !hintMessage.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("AI 建议暂不可用")
+                        .font(.caption2.bold())
+                        .foregroundColor(.orange)
+                    Text("当前显示本地兜底建议。原因：\(hintMessage)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.08))
+                .cornerRadius(8)
+            }
+
+            hintCard(title: "已识别方向") {
+                if suggestions.matchedDomains.isEmpty {
+                    Text("请先填写研究主题")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    FlowLayout(spacing: 6) {
+                        ForEach(suggestions.matchedDomains, id: \.self) { domain in
+                            Text(domain)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.12))
+                                .foregroundColor(.blue)
+                                .cornerRadius(4)
+                        }
                     }
                 }
-                .frame(height: 4)
             }
-            .padding(.horizontal)
 
-            HStack {
-                Button("取消") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Spacer()
-                Button("创建") {
-                    let keywords = keywordsText.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-                    let profile = InterestProfile(
-                        goal: goal.isEmpty ? nil : goal,
-                        background: background.isEmpty ? nil : background,
-                        timeBudget: timeBudget.isEmpty ? nil : timeBudget,
-                        constraints: constraints.isEmpty ? nil : constraints,
-                        knownContext: knownContext.isEmpty ? nil : knownContext,
-                        preferredOutput: preferredOutput.isEmpty ? nil : preferredOutput
-                    )
-                    _ = knowledgeService.createInterest(topic: topic, keywords: keywords.isEmpty ? nil : keywords, profile: profile)
-                    onCreated()
-                    dismiss()
+            hintCard(title: "为什么要补这些") {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(hintWhyItems, id: \.self) { item in
+                        HStack(alignment: .top, spacing: 4) {
+                            Text("•")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                            Text(item)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
-                .keyboardShortcut(.defaultAction)
-                .disabled(topic.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-            .padding(.horizontal)
+
+            Spacer()
         }
-        .padding()
-        .frame(width: 480, height: showingWizard ? 560 : 520)
+        .padding(12)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+    }
+
+    private func hintCard(title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .tracking(1)
+            content()
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private var hintWhyItems: [String] {
+        [
+            "主题 + 关键词用于识别具体方向与检索语义。",
+            "目标 + 基础决定学习路线深度，不然规划容易空泛。",
+            "时间预算 + 约束决定推荐资源和任务粒度。",
+            "已知论文/方法 + 期望输出决定最后生成物更像综述还是实验路线。",
+            "参考文献会在建好主题后自动归档进去，后续规划会优先参考当前主题下的论文。",
+        ]
+    }
+
+    // MARK: - Debounce Logic
+
+    private func scheduleHintRequest() {
+        let payload = draft
+        if payload.topic.trimmingCharacters(in: .whitespaces).isEmpty {
+            hintStatus = .idle
+            aiSuggestions = nil
+            hintMessage = ""
+            return
+        }
+        if aiDisabled {
+            hintStatus = .fallback
+            return
+        }
+
+        let signature = payloadSignature(payload)
+        if let cached = hintCache[signature] {
+            aiSuggestions = cached
+            hintStatus = .ready
+            hintMessage = ""
+            return
+        }
+
+        hintStatus = .loading
+        hintMessage = ""
+        currentRequestId += 1
+        let requestId = currentRequestId
+
+        Task {
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard requestId == currentRequestId else { return }
+
+            let response = await knowledgeService.generateInterestHints(
+                topic: payload.topic,
+                keywords: payload.keywords,
+                goal: payload.goal.isEmpty ? nil : payload.goal,
+                background: payload.background.isEmpty ? nil : payload.background,
+                timeBudget: payload.timeBudget.isEmpty ? nil : payload.timeBudget,
+                constraints: payload.constraints.isEmpty ? nil : payload.constraints,
+                knownContext: payload.knownContext.isEmpty ? nil : payload.knownContext,
+                preferredOutput: payload.preferredOutput.isEmpty ? nil : payload.preferredOutput,
+                settings: settings
+            )
+
+            guard requestId == currentRequestId else { return }
+
+            if let response = response {
+                let state = PlannerSuggestionState(
+                    matchedDomains: response.matchedDomains,
+                    nextField: DraftField(rawValue: response.nextField) ?? .topic,
+                    nextFieldLabel: FIELD_LABELS[DraftField(rawValue: response.nextField) ?? .topic] ?? "",
+                    summary: response.summary,
+                    keywordSuggestions: response.keywordSuggestions,
+                    goalSuggestions: response.goalSuggestions,
+                    backgroundPrompts: response.backgroundPrompts,
+                    timeBudgetSuggestions: response.timeBudgetSuggestions,
+                    constraintSuggestions: response.constraintSuggestions,
+                    knownContextSuggestions: response.knownContextSuggestions,
+                    outputSuggestions: response.outputSuggestions
+                )
+                hintCache[signature] = state
+                aiSuggestions = state
+                hintStatus = .ready
+                hintMessage = ""
+            } else {
+                aiDisabled = true
+                aiSuggestions = nil
+                hintStatus = .fallback
+                hintMessage = "模型配置不可用"
+            }
+        }
+    }
+
+    private func payloadSignature(_ payload: PlannerDraft) -> String {
+        "\(payload.topic)|\(payload.keywords.joined(separator: ","))|\(payload.goal)|\(payload.background)|\(payload.timeBudget)|\(payload.constraints.joined(separator: ","))|\(payload.knownContext)|\(payload.preferredOutput)"
+    }
+
+    private func parseTags(_ text: String) -> [String] {
+        text.components(separatedBy: CharacterSet(charactersIn: ",，;；\n"))
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
     }
 }
