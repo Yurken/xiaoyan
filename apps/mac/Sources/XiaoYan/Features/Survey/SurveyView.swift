@@ -4,6 +4,11 @@ struct SurveyView: View {
     @EnvironmentObject var settings: AppSettings
     @State private var topic = ""
     @State private var scope = ""
+    @State private var timeRange = "all"
+    @State private var documentType = "all"
+    @State private var database = "all"
+    @State private var citationFormat = "apa"
+    @State private var language = "zh"
     @State private var isGenerating = false
     @State private var errorMessage: String?
     @State private var result: SurveyResult?
@@ -69,6 +74,14 @@ struct SurveyView: View {
                             TextField("范围说明（可选）", text: $scope, axis: .vertical)
                                 .textFieldStyle(.roundedBorder)
                                 .lineLimit(2...4)
+
+                            SurveyParameterPanel(
+                                timeRange: $timeRange,
+                                documentType: $documentType,
+                                database: $database,
+                                citationFormat: $citationFormat,
+                                language: $language
+                            )
                         }
 
                         HStack {
@@ -376,6 +389,15 @@ struct SurveyView: View {
                 return
             }
 
+            let paramLines = [
+                timeRange != "all" ? "- 时间范围：\(timeRangeLabel)" : nil,
+                documentType != "all" ? "- 文献类型：\(documentTypeLabel)" : nil,
+                database != "all" ? "- 检索数据库：\(databaseLabel)" : nil,
+                "- 引用格式：\(citationFormatLabel)",
+                "- 输出语言：\(languageLabel)",
+            ].compactMap { $0 }
+            let paramSection = paramLines.isEmpty ? "" : "\n## 高级参数\n" + paramLines.joined(separator: "\n")
+
             let prompt = """
             你是一位文献综述专家。请为以下研究主题生成结构化的文献综述，返回 JSON 格式：
             {
@@ -397,10 +419,10 @@ struct SurveyView: View {
             }
 
             ## 研究主题
-            \(fullQuery)
+            \(fullQuery)\(paramSection)
 
             要求：
-            - 用中文撰写
+            - 用 \(languageLabel) 撰写
             - 提供有深度的分析
             - papers 列出 5-10 篇代表性论文（可包含真实或合理推测的论文）
             """
@@ -420,6 +442,28 @@ struct SurveyView: View {
             }
             isGenerating = false
         }
+    }
+
+    // MARK: - Parameter Labels
+
+    private var timeRangeLabel: String {
+        SurveyParameterPanel.timeRanges.first { $0.1 == timeRange }?.0 ?? "全部"
+    }
+
+    private var documentTypeLabel: String {
+        SurveyParameterPanel.documentTypes.first { $0.1 == documentType }?.0 ?? "全部"
+    }
+
+    private var databaseLabel: String {
+        SurveyParameterPanel.databases.first { $0.1 == database }?.0 ?? "全部"
+    }
+
+    private var citationFormatLabel: String {
+        SurveyParameterPanel.citationFormats.first { $0.1 == citationFormat }?.0 ?? "APA"
+    }
+
+    private var languageLabel: String {
+        SurveyParameterPanel.languages.first { $0.1 == language }?.0 ?? "中文"
     }
 
     // MARK: - Workflow

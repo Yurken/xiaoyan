@@ -128,7 +128,7 @@
 ### P1
 - **结构化 schema 大幅缩水**：desktop 14 项（含 timeline/schools_of_thought/controversies/recommended_topics/challenges/frontier 等）— `SurveyPanel.tsx:31-92`；mac `SurveyView.swift:540-578` 仅 7 项
 - **多 Agent 真实流式**：mac 用 `simulateWorkflow()` 假模拟（`SurveyView.swift:435-451`）；desktop 监听 `survey:delta|done|error|structured|agent_start|agent_complete|agent_error`
-- **高级参数面板**：desktop `SurveyPanel.tsx:94-117, 532-647`（5 类：时间范围/文献类型/数据库/引用格式/语言）；mac 仅 topic+scope（`SurveyView.swift:67-71`）
+- **高级参数面板** ✅（已对齐）：`SurveyView.swift:67-80` + `SurveyParameterPanel.swift`（5 类 Picker：时间范围/文献类型/数据库/引用格式/语言），prompt 已注入参数约束；1:1 desktop `SurveyPanel.tsx:94-117, 532-647`
 
 ### P2
 - **研究方向→论文勾选**：desktop 选 interest 后加载 papers 可勾选喂给 survey — `SurveyPanel.tsx:148-230, 410-480`；mac 完全无关联
