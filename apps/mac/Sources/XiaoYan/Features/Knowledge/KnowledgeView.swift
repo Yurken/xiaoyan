@@ -575,15 +575,45 @@ private struct CreateInterestSheet: View {
     let knowledgeService: KnowledgeService
     let onCreated: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var settings: AppSettings
     @State private var topic = ""
     @State private var keywordsText = ""
     @State private var goal = ""
     @State private var background = ""
+    @State private var showingWizard = false
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
             Text("创建研究方向")
                 .font(.headline)
+
+            if showingWizard {
+                TopicDiscoveryWizardView(
+                    knowledgeService: knowledgeService,
+                    onSelect: { selectedTopic in
+                        topic = selectedTopic
+                        showingWizard = false
+                    },
+                    onClose: { showingWizard = false }
+                )
+                .padding(.horizontal)
+            } else {
+                HStack {
+                    Spacer()
+                    Button {
+                        showingWizard = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                            Text("让小妍帮你找方向")
+                        }
+                        .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal)
+            }
 
             Form {
                 TextField("研究主题", text: $topic)
@@ -612,6 +642,6 @@ private struct CreateInterestSheet: View {
             .padding(.horizontal)
         }
         .padding()
-        .frame(width: 420, height: 360)
+        .frame(width: 480, height: showingWizard ? 560 : 400)
     }
 }
