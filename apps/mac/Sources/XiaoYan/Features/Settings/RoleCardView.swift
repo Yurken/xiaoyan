@@ -8,7 +8,6 @@ struct RoleCardView: View {
     @EnvironmentObject var settings: AppSettings
     let preset: RoleCardPreset
     @State private var showAdvanced = false
-    @State private var apiKeyText = ""
     @State private var apiKeyVisible = false
 
     private var modelValue: String { sharedValue(preset.modelKeys, in: settings) }
@@ -19,6 +18,13 @@ struct RoleCardView: View {
     private var temperatureMixed: Bool { hasMixed(preset.temperatureKeys, in: settings) }
     private var baseUrlMixed: Bool { hasMixed(preset.baseUrlKeys, in: settings) }
     private var apiKeyMixed: Bool { hasMixed(preset.apiKeyKeys, in: settings) }
+
+    private var apiKeyBinding: Binding<String> {
+        Binding(
+            get: { sharedValue(preset.apiKeyKeys, in: settings) },
+            set: { setMany(preset.apiKeyKeys, value: $0, in: settings) }
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -176,21 +182,17 @@ struct RoleCardView: View {
                     if apiKeyVisible {
                         TextField(
                             apiKeyMixed ? "已有不同密钥，重新填写将覆盖" : "留空继承主服务商",
-                            text: $apiKeyText
+                            text: apiKeyBinding
                         )
                     } else {
                         SecureField(
                             apiKeyMixed ? "已有不同密钥，重新填写将覆盖" : "留空继承主服务商",
-                            text: $apiKeyText
+                            text: apiKeyBinding
                         )
                     }
                 }
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
-                .onAppear { apiKeyText = sharedValue(preset.apiKeyKeys, in: settings) }
-                .onChange(of: apiKeyText) { _, newValue in
-                    setMany(preset.apiKeyKeys, value: newValue, in: settings)
-                }
 
                 Button {
                     apiKeyVisible.toggle()

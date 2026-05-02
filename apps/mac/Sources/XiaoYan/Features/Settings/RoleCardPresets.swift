@@ -4,7 +4,6 @@ import Foundation
 struct SecondaryField: Hashable {
     let key: String
     let label: String
-    let hint: String?
     let placeholder: String
 }
 
@@ -91,7 +90,6 @@ let ROLE_CARD_PRESETS: [RoleCardPreset] = [
         secondary: SecondaryField(
             key: "rag_top_k",
             label: "统一检索数量",
-            hint: "RAG 检索每次返回的候选数量。",
             placeholder: "5"
         )
     ),
