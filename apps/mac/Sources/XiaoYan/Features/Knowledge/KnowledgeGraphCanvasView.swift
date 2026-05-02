@@ -93,6 +93,13 @@ struct KnowledgeGraphCanvasView: View {
                             + experiments.map { GraphNode(id: $0.id, label: $0.title, type: .experiment) })
                     }
                     .padding()
+                    .overlayPreferenceValue(NodeAnchorKey.self) { anchors in
+                        GraphEdgeOverlay(
+                            evidenceLinks: evidenceLinks,
+                            citations: citations,
+                            nodeAnchors: anchors
+                        )
+                    }
                 }
             }
 
@@ -231,6 +238,7 @@ struct KnowledgeGraphCanvasView: View {
             .opacity(targetability == .invalid ? 0.45 : 1)
         }
         .buttonStyle(.plain)
+        .anchorPreference(key: NodeAnchorKey.self, value: .bounds) { [node.id: $0] }
     }
 
     private func cardBackground(node: GraphNode, isSelected: Bool, targetability: NodeTargetability) -> Color {
