@@ -71,8 +71,8 @@ struct AgentNodesService {
     ) async -> AgentResult {
         guard let client = LLMClient.fromSettings(
             settings,
-            modelKeys: ["multi_agent_survey_model", "multi_agent_worker_model"],
-            temperatureKeys: ["multi_agent_survey_temperature", "multi_agent_worker_temperature"]
+            modelKeys: ["survey_writer_model", "multi_agent_survey_model", "multi_agent_worker_model"],
+            temperatureKeys: ["survey_writer_temperature", "multi_agent_survey_temperature", "multi_agent_worker_temperature"]
         ) else {
             return AgentResult(content: "未配置 Survey Agent 模型", sources: nil)
         }
@@ -157,8 +157,8 @@ struct AgentNodesService {
     ) async -> AgentResult {
         guard let client = LLMClient.fromSettings(
             settings,
-            modelKeys: ["multi_agent_planner_model", "multi_agent_worker_model"],
-            temperatureKeys: ["multi_agent_planner_temperature", "multi_agent_worker_temperature"]
+            modelKeys: ["survey_planner_model", "multi_agent_planner_model", "multi_agent_worker_model"],
+            temperatureKeys: ["survey_planner_temperature", "multi_agent_planner_temperature", "multi_agent_worker_temperature"]
         ) else {
             return AgentResult(content: "未配置 Planner Agent 模型", sources: nil)
         }

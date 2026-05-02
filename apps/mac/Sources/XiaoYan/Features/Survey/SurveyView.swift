@@ -366,8 +366,8 @@ struct SurveyView: View {
         Task {
             let client = LLMClient.fromSettings(
                 settings,
-                modelKeys: ["multi_agent_survey_model", "multi_agent_worker_model"],
-                temperatureKeys: ["multi_agent_survey_temperature"]
+                modelKeys: ["survey_writer_model", "multi_agent_survey_model", "multi_agent_worker_model"],
+                temperatureKeys: ["survey_writer_temperature", "multi_agent_survey_temperature"]
             )
 
             guard let client else {

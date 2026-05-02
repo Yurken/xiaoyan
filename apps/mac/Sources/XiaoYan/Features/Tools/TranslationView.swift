@@ -85,8 +85,8 @@ struct TranslationView: View {
         Task {
             let client = LLMClient.fromSettings(
                 settings,
-                modelKeys: ["copilot_simple_model"],
-                temperatureKeys: ["copilot_simple_temperature"]
+                modelKeys: ["translation_model", "copilot_simple_model"],
+                temperatureKeys: ["translation_temperature", "copilot_simple_temperature"]
             )
 
             guard let client else {
