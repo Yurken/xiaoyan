@@ -7,6 +7,11 @@ struct KnowledgeGraphCanvasView: View {
     @State private var composerMode: ComposerMode? = nil
     @State private var pendingEvidencePair: EvidenceLinkPair? = nil
     @State private var pendingCitationPair: CitationLinkPair? = nil
+    @State private var canvasScale: CGFloat = 1.0
+    @State private var canvasOffset: CGSize = .zero
+    @State private var lastScale: CGFloat = 1.0
+    @State private var lastOffset: CGSize = .zero
+    @State private var selectedInterestId: String? = nil
     private let repo = KnowledgeRepository()
 
     private var claims: [KnowledgeClaim] { snapshot?.claims ?? [] }
@@ -16,6 +21,57 @@ struct KnowledgeGraphCanvasView: View {
     private var interests: [ResearchInterest] { snapshot?.interests ?? [] }
     private var experiments: [ExperimentRecord] { snapshot?.experiments ?? [] }
     private var citations: [PaperCitation] { snapshot?.citations ?? [] }
+
+    // MARK: - Filtering
+
+    private var filteredInterests: [ResearchInterest] {
+        guard let id = selectedInterestId else { return interests }
+        return interests.filter { $0.id == id }
+    }
+
+    private var filteredClaims: [KnowledgeClaim] {
+        guard let id = selectedInterestId else { return claims }
+        return claims.filter { $0.researchInterestId == id }
+    }
+
+    private var linkedSourceIds: Set<String> {
+        let visibleClaimIds = Set(filteredClaims.map(\.id))
+        return Set(evidenceLinks.filter { visibleClaimIds.contains($0.claimId) }.map(\.sourceId))
+    }
+
+    private var filteredEvidenceNodes: [GraphNode] {
+        let linked = linkedSourceIds
+        var nodes: [GraphNode] = []
+        if selectedInterestId == nil {
+            nodes += papers.map { GraphNode(id: $0.id, label: $0.title, type: .paper) }
+            nodes += notes.map { GraphNode(id: $0.id, label: $0.title, type: .note) }
+            nodes += experiments.map { GraphNode(id: $0.id, label: $0.title, type: .experiment) }
+        } else {
+            nodes += papers.filter { linked.contains($0.id) }.map { GraphNode(id: $0.id, label: $0.title, type: .paper) }
+            nodes += notes.filter { linked.contains($0.id) }.map { GraphNode(id: $0.id, label: $0.title, type: .note) }
+            nodes += experiments.filter { linked.contains($0.id) }.map { GraphNode(id: $0.id, label: $0.title, type: .experiment) }
+        }
+        return nodes
+    }
+
+    private var allVisibleNodes: [GraphNode] {
+        filteredInterests.map { GraphNode(id: $0.id, label: $0.topic, type: .interest) }
+            + filteredClaims.map { GraphNode(id: $0.id, label: $0.title, type: .claim) }
+            + filteredEvidenceNodes
+    }
+
+    private var filteredEvidenceLinks: [EvidenceLink] {
+        guard selectedInterestId != nil else { return evidenceLinks }
+        let visibleNodeIds = Set(allVisibleNodes.map(\.id))
+        let visibleClaimIds = Set(filteredClaims.map(\.id))
+        return evidenceLinks.filter { visibleClaimIds.contains($0.claimId) && visibleNodeIds.contains($0.sourceId) }
+    }
+
+    private var filteredCitations: [PaperCitation] {
+        guard selectedInterestId != nil else { return citations }
+        let visibleNodeIds = Set(allVisibleNodes.map(\.id))
+        return citations.filter { visibleNodeIds.contains($0.citingPaperId) && visibleNodeIds.contains($0.citedPaperId) }
+    }
 
     var body: some View {
         HSplitView {
@@ -50,6 +106,17 @@ struct KnowledgeGraphCanvasView: View {
                 Text("知识图谱")
                     .font(.headline)
                 Spacer()
+                if !interests.isEmpty {
+                    Picker("研究方向", selection: $selectedInterestId) {
+                        Text("全部").tag(String?.none)
+                        ForEach(interests) { interest in
+                            Text(interest.topic).tag(Optional(interest.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .controlSize(.small)
+                    .frame(width: 160)
+                }
                 if let summary = snapshot?.summary {
                     HStack(spacing: 10) {
                         summaryItem(label: "方向", value: summary.interestCount)
@@ -81,26 +148,48 @@ struct KnowledgeGraphCanvasView: View {
                 Divider()
             }
 
-            if allNodes.isEmpty {
+            if allVisibleNodes.isEmpty {
                 ContentUnavailableView("暂无可视化关系", systemImage: "network")
             } else {
-                ScrollView {
-                    HStack(alignment: .top, spacing: 16) {
-                        column(title: "研究方向", nodes: interests.map { GraphNode(id: $0.id, label: $0.topic, type: .interest) })
-                        column(title: "论断", nodes: claims.map { GraphNode(id: $0.id, label: $0.title, type: .claim) })
-                        column(title: "证据", nodes: papers.map { GraphNode(id: $0.id, label: $0.title, type: .paper) }
-                            + notes.map { GraphNode(id: $0.id, label: $0.title, type: .note) }
-                            + experiments.map { GraphNode(id: $0.id, label: $0.title, type: .experiment) })
-                    }
-                    .padding()
-                    .overlayPreferenceValue(NodeAnchorKey.self) { anchors in
-                        GraphEdgeOverlay(
-                            evidenceLinks: evidenceLinks,
-                            citations: citations,
-                            nodeAnchors: anchors
-                        )
-                    }
+                HStack(alignment: .top, spacing: 16) {
+                    column(title: "研究方向", nodes: filteredInterests.map { GraphNode(id: $0.id, label: $0.topic, type: .interest) })
+                    column(title: "论断", nodes: filteredClaims.map { GraphNode(id: $0.id, label: $0.title, type: .claim) })
+                    column(title: "证据", nodes: filteredEvidenceNodes)
                 }
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .scaleEffect(canvasScale)
+                .offset(canvasOffset)
+                .overlayPreferenceValue(NodeAnchorKey.self) { anchors in
+                    GraphEdgeOverlay(
+                        evidenceLinks: filteredEvidenceLinks,
+                        citations: filteredCitations,
+                        nodeAnchors: anchors
+                    )
+                }
+                .gesture(
+                    SimultaneousGesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                let delta = value / lastScale
+                                lastScale = value
+                                canvasScale = min(max(canvasScale * delta, 0.6), 2.2)
+                            }
+                            .onEnded { _ in
+                                lastScale = 1.0
+                            },
+                        DragGesture()
+                            .onChanged { value in
+                                canvasOffset = CGSize(
+                                    width: lastOffset.width + value.translation.width,
+                                    height: lastOffset.height + value.translation.height
+                                )
+                            }
+                            .onEnded { _ in
+                                lastOffset = canvasOffset
+                            }
+                    )
+                )
             }
 
             if let mode = composerMode {

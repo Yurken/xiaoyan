@@ -105,15 +105,15 @@
 ## 5. KnowledgeGraph
 
 ### P1
-- **KnowledgeGraphComposer 图内 CRUD（新增 Claim/Evidence/Citation 三件套）**：desktop `KnowledgeGraphComposer.tsx:1-308`；mac `KnowledgeGraphCanvasView` 仅展示
-- **可缩放 SVG Canvas + 三泳道贝塞尔布局**：desktop `KnowledgeGraphCanvas.tsx:1-203`、`KnowledgeGraphWorkspace.tsx:177-215`（pointer 拖拽 + 滚轮缩放 0.6-2.2 + citation 虚线 + 节点最大化）；mac 仅三个 VStack 列表
-- **KnowledgeClaimPanel 图谱页 claim+证据 bundle**：desktop `KnowledgeClaimPanel.tsx:1-145`；mac 必须切到 ClaimsView 单独看（且 sourceId 显示原始字符串无标题映射，`ClaimsView.swift:266-296`）
+- ✅ **KnowledgeGraphComposer 图内 CRUD（新增 Claim/Evidence/Citation 三件套）**：`KnowledgeGraphComposer.swift` 常驻内联面板，三卡片表单（claim/evidence/citation），dropdown 从 snapshot 拉取；toolbar「+ 论断」展开 composer 而非弹 sheet
+- ✅ **可缩放 Canvas + 三泳道贝塞尔布局**：`GraphEdgeOverlay.swift` 使用 AnchorPreferenceKey + Path 绘制 quadratic bezier 边线（evidence 实线绿、citation 虚线紫）；`KnowledgeGraphCanvasView` 移除 ScrollView，改用 `simultaneousGesture(magnification + drag)` 驱动 `scaleEffect`（0.6–2.2）+ `offset` 平移
+- ✅ **KnowledgeClaimPanel 图谱页 claim+证据 bundle**：`KnowledgeClaimPanel.swift` 常驻 inspector，按 claim 分组展示 provenance items（来源标题映射、relation badge、summary），支持展开/折叠、删除 claim、解绑 evidence
 - **R2 Claim 状态枚举不一致**（参见 §0）
 
 ### P2
-- **KnowledgeGraphInspector 多类型节点详情**：desktop 按节点类型展示 claim provenance / interest 关键词 chip / paper venue+keyConclusions / experiment / note — desktop `KnowledgeGraphInspector.tsx:1-152`；mac `KnowledgeGraphCanvasView.swift:181-235` 仅 sourceKind+summary+边数
+- **KnowledgeGraphInspector 多类型节点详情**：desktop 按节点类型展示 claim provenance / interest 关键词 chip / paper venue+keyConclusions / experiment / note — desktop `KnowledgeGraphInspector.tsx:1-152`；mac `KnowledgeGraphCanvasView.swift` 仅 sourceKind+summary+边数
 - **KnowledgeTimelinePanel 按年聚合时间线**：desktop `KnowledgeTimelinePanel.tsx:1-91`；mac 无
-- **聚焦研究方向过滤器**：desktop 顶部 Select 过滤整图 — `graphView.ts:60-99`；mac 无
+- ✅ **聚焦研究方向过滤器**：`KnowledgeGraphCanvasView` 顶部 Picker 过滤整图（从 snapshot.interests 构建），过滤后仅显示该 interest 下的节点和边线
 
 ### P3
 - **MetricTile 概览（4 大指标卡 vs mac 7 个内联小数字）**：`KnowledgeGraphCanvasView.swift:36-46` vs `KnowledgeGraphWorkspace.tsx:12-32`
