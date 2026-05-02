@@ -20,7 +20,41 @@ struct ArxivClient {
         }
     }
 
-    /// Search arXiv using the Atom XML API
+    struct SearchRequest {
+        var allTerms: [String] = []
+        var titleTerms: [String] = []
+        var abstractTerms: [String] = []
+        var authors: [String] = []
+        var categories: [String] = []
+        var commentsTerms: [String] = []
+        var journalTerms: [String] = []
+        var excludeTerms: [String] = []
+
+        var hasSearchTerms: Bool {
+            !allTerms.isEmpty || !titleTerms.isEmpty || !abstractTerms.isEmpty
+                || !authors.isEmpty || !categories.isEmpty || !commentsTerms.isEmpty
+                || !journalTerms.isEmpty
+        }
+    }
+
+    /// Field-level arXiv search with date window
+    static func search(
+        request: SearchRequest,
+        days: Int = 30,
+        maxResults: Int = 20,
+        sortBy: String = "submittedDate"
+    ) async throws -> [Entry] {
+        let query = buildQuery(request: request, days: days)
+        let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let urlString = "http://export.arxiv.org/api/query?search_query=\(encodedQuery)&start=0&max_results=\(maxResults)&sortBy=\(sortBy)&sortOrder=descending"
+        guard let url = URL(string: urlString) else { return [] }
+
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let entries = parseAtomXML(data)
+        return filterRecent(entries: entries, days: days)
+    }
+
+    /// Legacy simple search
     static func search(query: String, start: Int = 0, maxResults: Int = 20, sortBy: String = "relevance") async throws -> [Entry] {
         let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let urlString = "http://export.arxiv.org/api/query?search_query=all:\(encodedQuery)&start=\(start)&max_results=\(maxResults)&sortBy=\(sortBy)"
@@ -30,7 +64,7 @@ struct ArxivClient {
         return parseAtomXML(data)
     }
 
-    /// Structured search with specific fields
+    /// Legacy structured search (kept for compat)
     static func structuredSearch(
         title: String? = nil,
         abstract: String? = nil,
@@ -47,6 +81,61 @@ struct ArxivClient {
 
         let query = parts.isEmpty ? "" : parts.joined(separator: "+AND+")
         return try await search(query: query, start: start, maxResults: maxResults)
+    }
+
+    // MARK: - Query Builder
+
+    private static func buildQuery(request: SearchRequest, days: Int) -> String {
+        var clauses: [String] = []
+        if let c = orClause(prefix: "all", terms: request.allTerms, quote: true) { clauses.append(c) }
+        if let c = orClause(prefix: "ti", terms: request.titleTerms, quote: true) { clauses.append(c) }
+        if let c = orClause(prefix: "abs", terms: request.abstractTerms, quote: true) { clauses.append(c) }
+        if let c = orClause(prefix: "au", terms: request.authors, quote: true) { clauses.append(c) }
+        if let c = orClause(prefix: "cat", terms: request.categories, quote: false) { clauses.append(c) }
+        if let c = orClause(prefix: "co", terms: request.commentsTerms, quote: true) { clauses.append(c) }
+        if let c = orClause(prefix: "jr", terms: request.journalTerms, quote: true) { clauses.append(c) }
+
+        let now = Date()
+        let start = Calendar.current.date(byAdding: .day, value: -max(days, 1), to: now) ?? now
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMddHHmm"
+        let startStr = fmt.string(from: start)
+        let endStr = fmt.string(from: now)
+        clauses.append("submittedDate:[\(startStr) TO \(endStr)]")
+
+        var query = clauses.joined(separator: " AND ")
+        if let exclude = orClause(prefix: "all", terms: request.excludeTerms, quote: true) {
+            query += " ANDNOT \(exclude)"
+        }
+        return query
+    }
+
+    private static func orClause(prefix: String, terms: [String], quote: Bool) -> String? {
+        let values = terms.map { formatTerm(prefix: prefix, term: $0, quote: quote) }.filter { !$0.isEmpty }
+        if values.isEmpty { return nil }
+        if values.count == 1 { return values.first }
+        return "(\(values.joined(separator: " OR ")))"
+    }
+
+    private static func formatTerm(prefix: String, term: String, quote: Bool) -> String {
+        let clean = term.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\"", with: " ")
+        if clean.isEmpty { return "" }
+        if quote {
+            return "\(prefix):\"\(clean)\""
+        } else {
+            return "\(prefix):\(clean.replacingOccurrences(of: " ", with: ""))"
+        }
+    }
+
+    private static func filterRecent(entries: [Entry], days: Int) -> [Entry] {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date.distantPast
+        return entries.filter { entry in
+            guard let published = entry.published else { return true }
+            if let date = ISO8601DateFormatter().date(from: published) {
+                return date >= cutoff
+            }
+            return true
+        }
     }
 
     // MARK: - Atom XML Parsing
