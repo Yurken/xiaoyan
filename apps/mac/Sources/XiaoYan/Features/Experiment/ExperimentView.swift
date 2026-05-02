@@ -121,6 +121,7 @@ private struct ExperimentDetailView: View {
     @State private var editConfigText = ""
     @State private var editResultText = ""
     @State private var editNotes = ""
+    @State private var configError: String?
 
     var body: some View {
         ScrollView {
@@ -167,6 +168,15 @@ private struct ExperimentDetailView: View {
                             .background(Theme.Colors.surface)
                             .cornerRadius(Theme.Radii.medium)
                             .nmShadow(level: Theme.Shadows.soft)
+                        if let configError {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundStyle(.red)
+                                Text(configError)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
+                        }
                     } else if let config = experiment.config {
                         configView(config)
                     } else {
@@ -224,7 +234,7 @@ private struct ExperimentDetailView: View {
     }
 
     @ViewBuilder
-    private func configView(_ dict: [String: String]) -> some View {
+    private func configView(_ dict: [String: JSONValue]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Array(dict.sorted(by: { $0.key < $1.key })), id: \.key) { key, value in
                 HStack(alignment: .top) {
@@ -232,8 +242,9 @@ private struct ExperimentDetailView: View {
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
                         .frame(width: 100, alignment: .leading)
-                    Text(value)
+                    Text(value.description)
                         .font(.caption)
+                        .textSelection(.enabled)
                     Spacer()
                 }
             }
@@ -246,10 +257,10 @@ private struct ExperimentDetailView: View {
 
     private func startEditing() {
         editTitle = experiment.title
-        editConfigText = experiment.config.flatMap { try? JSONEncoder().encode($0) }
-            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        editConfigText = prettyJSON(from: experiment.config)
         editResultText = experiment.result ?? ""
         editNotes = experiment.notes ?? ""
+        configError = nil
         isEditing = true
     }
 
@@ -257,16 +268,38 @@ private struct ExperimentDetailView: View {
         var updated = experiment
         updated.title = editTitle
         updated.notes = editNotes.isEmpty ? nil : editNotes
-        if let data = editConfigText.data(using: .utf8),
-           let config = try? JSONDecoder().decode([String: String].self, from: data) {
-            updated.config = config.isEmpty ? nil : config
+
+        let trimmedConfig = editConfigText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedConfig.isEmpty {
+            updated.config = nil
+        } else if let data = trimmedConfig.data(using: .utf8) {
+            do {
+                let parsed = try JSONDecoder().decode([String: JSONValue].self, from: data)
+                updated.config = parsed.isEmpty ? nil : parsed
+                configError = nil
+            } catch {
+                configError = "JSON 格式错误，请检查配置内容"
+                return
+            }
         }
+
         let trimmedResult = editResultText.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.result = trimmedResult.isEmpty ? nil : editResultText
         try? ExperimentRepository().update(updated)
         isEditing = false
         onUpdate()
     }
+}
+
+private func prettyJSON(from dict: [String: JSONValue]?) -> String {
+    guard let dict, !dict.isEmpty else { return "{}" }
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    guard let data = try? encoder.encode(dict),
+          let text = String(data: data, encoding: .utf8) else {
+        return "{}"
+    }
+    return text
 }
 
 // MARK: - Create Sheet
@@ -277,6 +310,7 @@ private struct CreateExperimentSheet: View {
     @State private var title = ""
     @State private var configText = ""
     @State private var notes = ""
+    @State private var configError: String?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -288,6 +322,11 @@ private struct CreateExperimentSheet: View {
                 TextField("配置 (JSON)", text: $configText, axis: .vertical)
                     .font(.system(.caption, design: .monospaced))
                     .lineLimit(3...6)
+                if let configError {
+                    Text(configError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
                 TextField("笔记", text: $notes, axis: .vertical)
                     .lineLimit(2...4)
             }
@@ -298,12 +337,20 @@ private struct CreateExperimentSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("创建") {
-                    let config = (try? JSONDecoder().decode([String: String].self, from: Data(configText.utf8)))
-                        .flatMap { $0.isEmpty ? nil : $0 }
+                    let trimmed = configText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    var parsed: [String: JSONValue]? = nil
+                    if !trimmed.isEmpty {
+                        guard let data = trimmed.data(using: .utf8),
+                              let dict = try? JSONDecoder().decode([String: JSONValue].self, from: data) else {
+                            configError = "JSON 格式错误，请检查配置内容"
+                            return
+                        }
+                        parsed = dict.isEmpty ? nil : dict
+                    }
                     let exp = ExperimentRecord(
                         id: UUID().uuidString,
                         title: title,
-                        config: config,
+                        config: parsed,
                         result: nil,
                         notes: notes.isEmpty ? nil : notes,
                         linkedSubmissionId: nil,

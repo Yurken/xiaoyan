@@ -4,7 +4,7 @@ import GRDB
 struct ExperimentRecord: Codable, Identifiable, Hashable, FetchableRecord {
     let id: String
     var title: String
-    var config: [String: String]?
+    var config: [String: JSONValue]?
     var result: String?
     var notes: String?
     var linkedSubmissionId: String?
