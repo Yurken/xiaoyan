@@ -125,7 +125,7 @@ struct SurveyView: View {
                     }
 
                     // Result
-                    if let result = result {
+                    if let structured = structuredResult {
                         Divider()
 
                         // Tabs
@@ -138,9 +138,9 @@ struct SurveyView: View {
                         .frame(maxWidth: 280)
 
                         if activeTab == .report {
-                            reportView(result)
+                            reportView(structured)
                         } else {
-                            papersView(structuredResult?.papers ?? [])
+                            papersView(structured.papers)
                         }
                     }
                 }
@@ -199,40 +199,338 @@ struct SurveyView: View {
 
     // MARK: - Report View
 
-    private func reportView(_ result: SurveyResult) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if let background = result.background {
-                SurveySection(title: "研究背景", icon: "book", color: .blue, content: background)
-            }
+    private func reportView(_ structured: StructuredSurveyResult) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            sectionHeader("研究问题")
+            Text(structured.query)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
 
-            if !result.methods.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "command")
-                            .foregroundStyle(.purple)
-                        Text("代表性方法分类")
-                            .font(.headline)
-                    }
-                    ForEach(result.methods) { method in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(method.category)
+            backgroundSection(structured.report.background)
+            timelineSection(structured.report)
+            majorMethodsSection(structured.report.majorMethods)
+            schoolsSection(structured.report.schoolsOfThought)
+            methodologySummarySection(structured.report.methodologySummary)
+            trendsSection(structured.report.researchTrends)
+            controversiesSection(structured.report.controversies)
+            challengesSection(structured.report.challenges)
+            gapsSection(structured.report.researchGaps)
+            futureDirectionsSection(structured.report.futureDirections)
+            recommendedTopicsSection(structured.report.recommendedTopics)
+            overallSummarySection(structured.report.overallSummary)
+            citationsSection(structured.formattedCitations, format: structured.citationFormat)
+        }
+    }
+
+    @ViewBuilder
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.bold())
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+    }
+
+    @ViewBuilder
+    private func backgroundSection(_ background: String?) -> some View {
+        if let background = background, !background.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                sectionHeader("研究背景")
+                Text(background)
+                    .font(.body)
+                    .textSelection(.enabled)
+            }
+            .padding(12)
+            .background(Theme.Colors.surface)
+            .cornerRadius(Theme.Radii.medium)
+            .nmShadow(level: Theme.Shadows.soft)
+        }
+    }
+
+    @ViewBuilder
+    private func timelineSection(_ report: StructuredSurveyReport) -> some View {
+        let timeline = report.developmentTimeline ?? []
+        if !timeline.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("发展脉络")
+                if let ep = report.earliestPeriod, !ep.isEmpty {
+                    Text(ep)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .italic()
+                }
+                ForEach(Array(timeline.enumerated()), id: \.offset) { _, stage in
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let period = stage.period, !period.isEmpty {
+                            Text(period)
                                 .font(.subheadline.bold())
-                            Text(method.description)
+                                .foregroundStyle(.blue)
+                        }
+                        if let milestone = stage.milestone, !milestone.isEmpty {
+                            Text(milestone)
+                                .font(.body)
+                        }
+                        if let works = stage.keyWorks, !works.isEmpty {
+                            Text("代表工作：\(works.joined(separator: "、"))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            if !method.strengths.isEmpty || !method.weaknesses.isEmpty {
-                                HStack(spacing: 12) {
-                                    if !method.strengths.isEmpty {
-                                        Text("优势: \(method.strengths)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.green)
-                                    }
-                                    if !method.weaknesses.isEmpty {
-                                        Text("局限: \(method.weaknesses)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.orange)
-                                    }
+                        }
+                        if let significance = stage.significance, !significance.isEmpty {
+                            Text(significance)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(10)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
+                }
+                if let cf = report.currentFrontier, !cf.isEmpty {
+                    Text("当前前沿：\(cf)")
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                        .padding(10)
+                        .background(Color.blue.opacity(0.06))
+                        .cornerRadius(Theme.Radii.medium)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func majorMethodsSection(_ methods: [SurveyMethodEx]?) -> some View {
+        if let methods = methods, !methods.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("主要方法")
+                ForEach(Array(methods.enumerated()), id: \.offset) { _, method in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(method.name ?? "")
+                            .font(.subheadline.bold())
+                        if let desc = method.description, !desc.isEmpty {
+                            Text(desc)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if (method.pros != nil && !method.pros!.isEmpty) || (method.cons != nil && !method.cons!.isEmpty) {
+                            HStack(spacing: 12) {
+                                if let pros = method.pros, !pros.isEmpty {
+                                    Text("优势：\(pros)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.green)
                                 }
+                                if let cons = method.cons, !cons.isEmpty {
+                                    Text("局限：\(cons)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                        }
+                        if let papers = method.representativePapers, !papers.isEmpty {
+                            Text("代表论文：\(papers.joined(separator: "、"))")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(10)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func schoolsSection(_ schools: [SurveySchool]?) -> some View {
+        if let schools = schools, !schools.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("主要学派与流派")
+                ForEach(Array(schools.enumerated()), id: \.offset) { _, school in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(school.name ?? "")
+                            .font(.subheadline.bold())
+                        if let desc = school.description, !desc.isEmpty {
+                            Text(desc)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let reps = school.representatives, !reps.isEmpty {
+                            Text("代表：\(reps.joined(separator: "、"))")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(10)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func methodologySummarySection(_ summary: SurveyMethodologySummary?) -> some View {
+        if let summary = summary {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("研究方法总结")
+                VStack(alignment: .leading, spacing: 6) {
+                    if let mainstream = summary.mainstream, !mainstream.isEmpty {
+                        Text("**主流：**\(mainstream)")
+                            .font(.caption)
+                    }
+                    if let emerging = summary.emerging, !emerging.isEmpty {
+                        Text("**新兴：**\(emerging)")
+                            .font(.caption)
+                    }
+                    if let comparison = summary.comparison, !comparison.isEmpty {
+                        Text("**对比：**\(comparison)")
+                            .font(.caption)
+                    }
+                }
+                .padding(10)
+                .background(Theme.Colors.surface)
+                .cornerRadius(Theme.Radii.medium)
+                .nmShadow(level: Theme.Shadows.soft)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func trendsSection(_ trends: [SurveyTrendEx]?) -> some View {
+        if let trends = trends, !trends.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("研究趋势")
+                ForEach(Array(trends.enumerated()), id: \.offset) { _, trend in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(trend.trend ?? "")
+                            .font(.subheadline.bold())
+                        if let signal = trend.signal, !signal.isEmpty {
+                            Text(signal)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(10)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func controversiesSection(_ controversies: [SurveyControversy]?) -> some View {
+        if let controversies = controversies, !controversies.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("研究争议")
+                ForEach(Array(controversies.enumerated()), id: \.offset) { _, c in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(c.topic ?? "")
+                            .font(.subheadline.bold())
+                        if let positions = c.positions, !positions.isEmpty {
+                            ForEach(Array(positions.enumerated()), id: \.offset) { _, pos in
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text("•")
+                                    Text(pos)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .padding(10)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func challengesSection(_ challenges: [String]?) -> some View {
+        if let challenges = challenges, !challenges.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("关键挑战")
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(challenges.enumerated()), id: \.offset) { _, challenge in
+                        HStack(alignment: .top, spacing: 4) {
+                            Text("•")
+                            Text(challenge)
+                                .font(.body)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func gapsSection(_ gaps: [String]?) -> some View {
+        if let gaps = gaps, !gaps.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("研究缺口")
+                ForEach(Array(gaps.enumerated()), id: \.offset) { idx, gap in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("\(idx + 1)")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.orange)
+                            .cornerRadius(4)
+                        Text(gap)
+                            .font(.body)
+                    }
+                    .padding(10)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Radii.medium)
+                    .nmShadow(level: Theme.Shadows.soft)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func futureDirectionsSection(_ directions: [String]?) -> some View {
+        if let directions = directions, !directions.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("未来研究方向")
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(directions.enumerated()), id: \.offset) { _, dir in
+                        HStack(alignment: .top, spacing: 4) {
+                            Text("•")
+                            Text(dir)
+                                .font(.body)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func recommendedTopicsSection(_ topics: [SurveyRecommendedTopic]?) -> some View {
+        if let topics = topics, !topics.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("建议研究主题")
+                let columns = [GridItem(.flexible()), GridItem(.flexible())]
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+                    ForEach(Array(topics.enumerated()), id: \.offset) { _, topic in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(topic.topic ?? "")
+                                .font(.subheadline.bold())
+                            if let why = topic.why, !why.isEmpty {
+                                Text(why)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let step = topic.firstStep, !step.isEmpty {
+                                Text("第一步：\(step)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                         .padding(10)
@@ -242,92 +540,42 @@ struct SurveyView: View {
                     }
                 }
             }
+        }
+    }
 
-            if !result.trends.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chart.line.uptrend.xyaxis")
-                            .foregroundStyle(.green)
-                        Text("研究趋势")
-                            .font(.headline)
-                    }
-                    ForEach(result.trends) { trend in
-                        HStack(alignment: .top, spacing: 8) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.blue.opacity(0.4))
-                                .frame(width: 3)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(trend.trend)
-                                    .font(.subheadline.bold())
-                                Text(trend.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
+    @ViewBuilder
+    private func overallSummarySection(_ summary: String?) -> some View {
+        if let summary = summary, !summary.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                sectionHeader("总结建议")
+                Text(summary)
+                    .font(.body)
+                    .textSelection(.enabled)
             }
+            .padding(12)
+            .background(Color.blue.opacity(0.06))
+            .cornerRadius(Theme.Radii.medium)
+        }
+    }
 
-            HStack(alignment: .top, spacing: 16) {
-                if !result.gaps.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "exclamationmark.triangle")
-                                .foregroundStyle(.orange)
-                            Text("现有不足")
-                                .font(.headline)
-                        }
-                        ForEach(result.gaps, id: \.self) { gap in
-                            HStack(alignment: .top, spacing: 4) {
-                                Text("•")
-                                    .foregroundStyle(.orange)
-                                Text(gap)
-                                    .font(.caption)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if !result.directions.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "lightbulb")
-                                .foregroundStyle(.green)
-                            Text("未来方向")
-                                .font(.headline)
-                        }
-                        ForEach(result.directions) { dir in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(dir.direction)
-                                    .font(.subheadline.bold())
-                                Text(dir.rationale)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(8)
-                            .background(Color.green.opacity(0.06))
-                            .cornerRadius(8)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-
-            if let takeaways = result.keyTakeaways {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(.blue)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("核心总结")
-                            .font(.subheadline.bold())
-                        Text(takeaways)
+    @ViewBuilder
+    private func citationsSection(_ citations: [String]?, format: String?) -> some View {
+        if let citations = citations, !citations.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                let formatLabel = SurveyParameterPanel.citationFormats.first { $0.1 == (format ?? "apa") }?.0 ?? "APA"
+                sectionHeader("参考文献（\(formatLabel) 格式）")
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(citations.enumerated()), id: \.offset) { _, cite in
+                        Text(cite)
                             .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
                 }
-                .padding(12)
-                .background(Color.blue.opacity(0.06))
-                .cornerRadius(10)
+                .padding(10)
+                .background(Theme.Colors.surface)
+                .cornerRadius(Theme.Radii.medium)
+                .nmShadow(level: Theme.Shadows.soft)
             }
         }
     }
