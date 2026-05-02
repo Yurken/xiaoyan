@@ -143,7 +143,7 @@
 ## 7. Settings
 
 ### P1
-- **S2 加密导入/导出 UI 退化**：desktop 专用 `CryptoConfigModal.tsx`（双输入确认 + hint + 错误分离）；mac `ImportExportSettingsTab.swift:18-43` 仅普通 SecureField，靠剪贴板传密文
+- **S2 加密导入/导出 UI 退化** ✅（已对齐）：`CryptoConfigModal.swift`（双输入确认 + hint + 错误分离）+ `ImportExportSettingsTab.swift` 按钮入口；1:1 desktop `CryptoConfigModal.tsx`
 - **S11 Skills 编辑/新建/导入**：mac 仅 toggle + 重置内置（`SkillsSettingsTab.swift:102-104`）；desktop `SkillsSection.tsx` 含 SkillEditModal（新建/修改 prompt/tags 编辑）
 
 ### P2

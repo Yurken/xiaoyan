@@ -2,12 +2,20 @@ import SwiftUI
 
 struct ImportExportSettingsTab: View {
     @EnvironmentObject var settings: AppSettings
-    @State private var exportPassword = ""
-    @State private var importPassword = ""
-    @State private var importText = ""
+    @State private var activeModal: CryptoModal?
     @State private var statusMessage: String?
     @State private var snapshots: [SettingsHistory] = []
     @State private var historyBusy = false
+
+    enum CryptoModal: Identifiable {
+        case export, importConfig
+        var id: String {
+            switch self {
+            case .export: return "export"
+            case .importConfig: return "import"
+            }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -15,31 +23,26 @@ struct ImportExportSettingsTab: View {
                 Text("将当前设置导出为加密文件，可用于备份或迁移")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                SecureField("导出密码", text: $exportPassword)
-                    .textFieldStyle(.roundedBorder)
-                Button("导出到剪贴板") {
-                    exportToClipboard()
+                Button {
+                    activeModal = .export
+                } label: {
+                    Label("打开加密导出", systemImage: "lock.shield")
                 }
-                .disabled(exportPassword.isEmpty)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
 
             settingsCard(title: "导入设置", icon: "square.and.arrow.down") {
                 Text("从加密文件导入设置，将覆盖当前配置")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextEditor(text: $importText)
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(height: 80)
-                    .padding(4)
-                    .background(Theme.Colors.surface)
-                    .cornerRadius(Theme.Radii.medium)
-                    .nmShadow(level: Theme.Shadows.soft)
-                SecureField("导入密码", text: $importPassword)
-                    .textFieldStyle(.roundedBorder)
-                Button("从剪贴板导入") {
-                    importFromClipboard()
+                Button {
+                    activeModal = .importConfig
+                } label: {
+                    Label("打开加密导入", systemImage: "lock.open")
                 }
-                .disabled(importPassword.isEmpty)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
 
             if let msg = statusMessage {
@@ -96,12 +99,32 @@ struct ImportExportSettingsTab: View {
             }
         }
         .onAppear(perform: loadSnapshots)
+        .sheet(item: $activeModal) { modal in
+            switch modal {
+            case .export:
+                CryptoConfigModal(
+                    mode: .export,
+                    onExport: { password in
+                        exportToClipboard(password: password)
+                    },
+                    onImport: { _, _ in }
+                )
+            case .importConfig:
+                CryptoConfigModal(
+                    mode: .importConfig,
+                    onExport: { _ in },
+                    onImport: { cipher, password in
+                        importFromClipboard(cipher: cipher, password: password)
+                    }
+                )
+            }
+        }
     }
 
-    private func exportToClipboard() {
+    private func exportToClipboard(password: String) {
         let service = SettingsService()
         do {
-            let base64 = try service.exportSettings(settings: settings.settings, password: exportPassword)
+            let base64 = try service.exportSettings(settings: settings.settings, password: password)
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(base64, forType: .string)
             statusMessage = "已复制到剪贴板"
@@ -110,15 +133,10 @@ struct ImportExportSettingsTab: View {
         }
     }
 
-    private func importFromClipboard() {
-        let clipboard = NSPasteboard.general.string(forType: .string) ?? importText
-        guard !clipboard.isEmpty else {
-            statusMessage = "剪贴板为空"
-            return
-        }
+    private func importFromClipboard(cipher: String, password: String) {
         let service = SettingsService()
         do {
-            let imported = try service.importSettings(base64: clipboard, password: importPassword)
+            let imported = try service.importSettings(base64: cipher, password: password)
             settings.apply(imported)
             statusMessage = "导入成功，共 \(imported.count) 项设置"
         } catch {
