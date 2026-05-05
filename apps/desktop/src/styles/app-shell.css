@@ -89,7 +89,7 @@
   }
 
   .app-nav-item.is-active {
-    color: var(--rc-text);
+    color: var(--rc-nav-item-active-text);
     background: var(--rc-nav-item-active-bg);
     border-color: var(--rc-nav-item-active-border);
     box-shadow: var(--rc-nav-item-active-shadow);
@@ -109,15 +109,6 @@
   .app-nav-item.is-active .app-nav-item__marker {
     opacity: 1;
     background: color-mix(in srgb, var(--rc-accent) 72%, transparent);
-  }
-
-  html:not([data-style="modern-minimal"]) .app-nav-item.is-active {
-    color: color-mix(in srgb, var(--rc-accent) 72%, white 28%);
-    background: color-mix(in srgb, var(--rc-sidebar-bg) 88%, white 12%);
-    border-color: rgba(200, 205, 211, 0.18);
-    box-shadow:
-      inset 2px 2px 5px rgba(200, 205, 211, 0.85),
-      inset -2px -2px 5px rgba(255, 255, 255, 0.92);
   }
 
   html:not([data-style="modern-minimal"]) .app-nav-item.is-active .app-nav-item__marker {

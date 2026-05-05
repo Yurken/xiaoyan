@@ -40,7 +40,7 @@ import XiaoYanPet from "./components/XiaoYanPet";
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "工作台" },
   { to: "/planner", icon: Map, label: "规划" },
-  { to: "/xiaoyan", icon: MessageSquare, label: "小妍" },
+  { to: "/xiaoyan", icon: MessageSquare, label: "对话" },
   { to: "/survey", icon: BookOpen, label: "综述" },
   { to: "/papers", icon: FileText, label: "论文" },
   { to: "/knowledge", icon: Library, label: "知识" },
