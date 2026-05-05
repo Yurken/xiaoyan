@@ -14,7 +14,6 @@ export default function MacWindowDragStrip({
 
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
-    if (!document.hasFocus()) return;
     void startWindowDragging();
   };
 

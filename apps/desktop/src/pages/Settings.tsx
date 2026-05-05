@@ -274,7 +274,15 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+        <div
+          className="grid min-w-0 gap-1 rounded-[28px] p-1"
+          style={{
+            gridTemplateColumns: `repeat(${SETTINGS_SECTIONS.length}, minmax(0, 1fr))`,
+            background: "var(--rc-chip-inset-bg)",
+            border: "1px solid var(--rc-card-inset-outline)",
+            boxShadow: "var(--rc-chip-inset-shadow)",
+          }}
+        >
           {SETTINGS_SECTIONS.map((item) => (
             <SettingsSectionTab
               key={item.key}

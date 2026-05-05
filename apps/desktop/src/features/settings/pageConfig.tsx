@@ -90,6 +90,7 @@ export function SettingsSectionTab({
   icon: Icon,
   color,
   label,
+  description,
   active,
   onClick,
 }: {
@@ -104,34 +105,39 @@ export function SettingsSectionTab({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-[24px] px-3.5 py-3 text-left transition-all duration-150"
+      aria-pressed={active}
+      title={description}
+      className="min-w-0 rounded-[22px] px-1.5 py-1.5 text-left transition-all duration-150 active:scale-[0.98]"
       style={
         active
           ? {
-              background: "var(--rc-elevated)",
-              border: "1px solid rgba(10,132,255,0.35)",
-              boxShadow: "var(--rc-raised-shadow)",
+              background: "color-mix(in srgb, var(--rc-accent) 10%, var(--rc-elevated))",
+              border: "1px solid color-mix(in srgb, var(--rc-accent) 24%, var(--rc-border))",
+              boxShadow: "var(--rc-card-flat-shadow)",
             }
           : {
-              background: "var(--rc-surface)",
-              border: "1px solid var(--rc-border)",
-              boxShadow: "var(--rc-flat-shadow)",
+              background: "transparent",
+              border: "1px solid transparent",
+              boxShadow: "none",
             }
       }
     >
-      <div className="flex items-center gap-3">
-        <div
-          className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-shadow"
+      <div className="flex min-w-0 items-center justify-center gap-1.5">
+        <span
+          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
           style={{
-            background: "var(--rc-card-inset-bg)",
-            border: "1px solid var(--rc-border)",
-            color,
-            boxShadow: "var(--rc-chip-inset-shadow)",
+            background: active ? `color-mix(in srgb, ${color} 14%, transparent)` : "transparent",
+            color: active ? color : "var(--rc-text-muted)",
           }}
         >
-          <Icon className="w-5 h-5" />
-        </div>
-        <p className="text-sm font-semibold text-ink-primary leading-tight truncate">{label}</p>
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        <span
+          className="min-w-0 truncate text-[11px] font-semibold leading-none"
+          style={{ color: active ? "var(--rc-text)" : "var(--rc-text-muted)" }}
+        >
+          {label}
+        </span>
       </div>
     </button>
   );
