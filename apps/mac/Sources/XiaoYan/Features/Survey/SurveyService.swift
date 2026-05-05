@@ -271,7 +271,8 @@ final class SurveyService {
         language: String = "zh",
         maxPapers: Int = 20,
         yearFrom: Int? = nil,
-        yearTo: Int? = nil
+        yearTo: Int? = nil,
+        selectedPaperIds: [String]? = nil
     ) {
         Task {
             await runPipeline(
@@ -284,7 +285,8 @@ final class SurveyService {
                 language: language,
                 maxPapers: maxPapers,
                 yearFrom: yearFrom,
-                yearTo: yearTo
+                yearTo: yearTo,
+                selectedPaperIds: selectedPaperIds
             )
         }
     }
@@ -301,7 +303,8 @@ final class SurveyService {
         language: String,
         maxPapers: Int,
         yearFrom: Int?,
-        yearTo: Int?
+        yearTo: Int?,
+        selectedPaperIds: [String]? = nil
     ) async {
         guard let client = LLMClient.fromSettings(
             settings,
@@ -371,19 +374,39 @@ final class SurveyService {
         var papers: [SurveyPaperEx] = []
         var retrievalSummary = ""
 
-        do {
-            let localPapers = try paperRepo.searchByTerms(
-                query: query,
-                searchQueries: searchQueries,
-                limit: paperLimit,
-                yearFrom: yearFrom,
-                yearTo: yearTo
-            )
-            papers = localPapers.map { Self.toSurveyPaperEx($0) }
-            let filterDesc = (yearFrom != nil || yearTo != nil) ? "（时间范围：\(timeRangeStr)）" : ""
-            retrievalSummary = "已从论文库检索到 \(papers.count) 篇候选文献\(filterDesc)"
-        } catch {
-            retrievalSummary = "论文库检索失败，已切换外部学术源补充：\(error.localizedDescription)"
+        // If user selected specific papers from an interest, use them first
+        if let selectedIds = selectedPaperIds, !selectedIds.isEmpty {
+            do {
+                let selectedPapers = try paperRepo.fetchByIds(ids: selectedIds)
+                papers = selectedPapers.map { Self.toSurveyPaperEx($0) }
+                retrievalSummary = "已从研究方向选取 \(papers.count) 篇论文"
+            } catch {
+                retrievalSummary = "选取论文加载失败：\(error.localizedDescription)"
+            }
+        }
+
+        // Supplement with search if needed
+        if papers.count < paperLimit {
+            do {
+                let localPapers = try paperRepo.searchByTerms(
+                    query: query,
+                    searchQueries: searchQueries,
+                    limit: paperLimit - papers.count,
+                    yearFrom: yearFrom,
+                    yearTo: yearTo
+                )
+                let added = Self.mergeSurveyPapers(into: &papers, from: localPapers.map { Self.toSurveyPaperEx($0) }, limit: paperLimit)
+                if added > 0 {
+                    let filterDesc = (yearFrom != nil || yearTo != nil) ? "（时间范围：\(timeRangeStr)）" : ""
+                    retrievalSummary = retrievalSummary.isEmpty
+                        ? "已从论文库检索到 \(added) 篇候选文献\(filterDesc)"
+                        : "\(retrievalSummary)，并补充检索 \(added) 篇\(filterDesc)"
+                }
+            } catch {
+                if retrievalSummary.isEmpty {
+                    retrievalSummary = "论文库检索失败，已切换外部学术源补充：\(error.localizedDescription)"
+                }
+            }
         }
 
         if papers.count < paperLimit {

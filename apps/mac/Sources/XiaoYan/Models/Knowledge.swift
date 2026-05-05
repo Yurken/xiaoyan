@@ -114,3 +114,23 @@ struct KnowledgeNote: Codable, Identifiable, Hashable, FetchableRecord {
         case updatedAt = "updated_at"
     }
 }
+
+func noteSourceLabel(_ sourceType: String?) -> String {
+    switch sourceType {
+    case "manual": return "手动"
+    case "paper_analysis": return "论文分析"
+    case "survey": return "综述"
+    case "web_clip": return "网页摘录"
+    default: return sourceType ?? "未知来源"
+    }
+}
+
+func noteSourceIcon(_ sourceType: String?) -> String {
+    switch sourceType {
+    case "manual": return "hand.point.up.left"
+    case "paper_analysis": return "doc.text.magnifyingglass"
+    case "survey": return "books.vertical"
+    case "web_clip": return "safari"
+    default: return "doc.text"
+    }
+}

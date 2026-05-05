@@ -89,8 +89,9 @@ struct ReviewRoundsView: View {
                         Text("第 \(round.round) 轮审稿")
                             .font(.headline)
                         Spacer()
-                        if let verdict = round.verdict {
-                            Text(verdict)
+                        let derived = round.verdict ?? dominantVerdict(for: round)
+                        if let verdict = derived {
+                            Text(verdictLabel(verdict))
                                 .font(.caption2.bold())
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
@@ -150,21 +151,40 @@ struct ReviewRoundsView: View {
         loadComments()
     }
 
-    private func normalizeVerdict(_ verdict: String) -> String {
-        let lower = verdict.lowercased()
-        if lower.contains("accept") { return "接收" }
-        if lower.contains("reject") { return "拒稿" }
-        if lower.contains("revision") { return "修改" }
-        return verdict
+    private func dominantVerdict(for round: ReviewRound) -> String? {
+        let roundComments = comments.filter { $0.round == round.round }
+        let verdicts = roundComments.compactMap { $0.verdict }.filter { !$0.isEmpty }
+        guard !verdicts.isEmpty else { return nil }
+        let counts = verdicts.reduce(into: [:]) { $0[$1, default: 0] += 1 }
+        let sorted = counts.sorted { $0.value > $1.value }
+        return sorted.first?.key
     }
+}
 
-    private func verdictColor(_ verdict: String) -> Color {
-        let lower = verdict.lowercased()
-        if lower.contains("accept") || lower.contains("接收") { return .green }
-        if lower.contains("reject") || lower.contains("拒稿") { return .red }
-        if lower.contains("revision") || lower.contains("修改") { return .orange }
-        return .blue
+private func normalizeVerdict(_ verdict: String) -> String {
+    let lower = verdict.lowercased()
+    if lower.contains("accept") { return "接收" }
+    if lower.contains("reject") { return "拒稿" }
+    if lower.contains("revision") { return "修改" }
+    return verdict
+}
+
+private func verdictLabel(_ verdict: String) -> String {
+    switch verdict.lowercased() {
+    case "accept": return "接收"
+    case "minor_revision": return "小修"
+    case "major_revision": return "大修"
+    case "reject": return "拒稿"
+    default: return verdict
     }
+}
+
+private func verdictColor(_ verdict: String) -> Color {
+    let lower = verdict.lowercased()
+    if lower.contains("accept") || lower.contains("接收") { return .green }
+    if lower.contains("reject") || lower.contains("拒稿") { return .red }
+    if lower.contains("revision") || lower.contains("修改") { return .orange }
+    return .blue
 }
 
 private struct RoundRow: View {
@@ -215,6 +235,15 @@ private struct CommentRow: View {
             HStack {
                 Text(comment.reviewer ?? "匿名审稿人")
                     .font(.subheadline.bold())
+                if let verdict = comment.verdict, !verdict.isEmpty {
+                    Text(verdictLabel(verdict))
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(verdictColor(verdict).opacity(0.15))
+                        .foregroundColor(verdictColor(verdict))
+                        .cornerRadius(4)
+                }
                 Spacer()
                 if let tags = comment.tags, !tags.isEmpty {
                     HStack(spacing: 4) {
@@ -347,6 +376,9 @@ private struct AddCommentSheet: View {
     @State private var content = ""
     @State private var response = ""
     @State private var tagsText = ""
+    @State private var verdict = ""
+
+    private let verdictOptions = ["accept", "minor_revision", "major_revision", "reject"]
 
     var body: some View {
         VStack(spacing: 16) {
@@ -357,6 +389,13 @@ private struct AddCommentSheet: View {
                 TextField("审稿人", text: $reviewer)
                 TextField("意见内容", text: $content, axis: .vertical)
                     .lineLimit(4...10)
+                Picker("审稿结论", selection: $verdict) {
+                    Text("请选择").tag("")
+                    ForEach(verdictOptions, id: \.self) { v in
+                        Text(verdictLabel(v)).tag(v)
+                    }
+                }
+                .pickerStyle(.menu)
                 TextField("标签（用逗号分隔，如：方法, 实验, 写作）", text: $tagsText)
                 TextField("回复 (可选)", text: $response, axis: .vertical)
                     .lineLimit(2...4)
@@ -378,6 +417,7 @@ private struct AddCommentSheet: View {
                         response: response.isEmpty ? nil : response,
                         resolved: false,
                         tags: tags.isEmpty ? nil : tags,
+                        verdict: verdict.isEmpty ? nil : verdict,
                         createdAt: Date()
                     )
                     service.addReviewComment(comment)
@@ -390,6 +430,16 @@ private struct AddCommentSheet: View {
             .padding(.horizontal)
         }
         .padding()
-        .frame(width: 460, height: 420)
+        .frame(width: 460, height: 480)
+    }
+
+    private func verdictLabel(_ verdict: String) -> String {
+        switch verdict {
+        case "accept": return "接收"
+        case "minor_revision": return "小修"
+        case "major_revision": return "大修"
+        case "reject": return "拒稿"
+        default: return verdict
+        }
     }
 }

@@ -300,6 +300,14 @@ struct PaperRow: View {
             }
         }
         .padding(.vertical, 2)
+        .padding(.top, paper.importanceColor != nil ? 3 : 0)
+        .overlay(alignment: .top) {
+            if let color = paper.importanceColor, !color.isEmpty {
+                Rectangle()
+                    .fill(colorFromString(color))
+                    .frame(height: 3)
+            }
+        }
     }
 
     private var statusColor: Color {

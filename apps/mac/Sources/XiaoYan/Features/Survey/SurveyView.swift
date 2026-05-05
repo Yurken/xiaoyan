@@ -19,6 +19,15 @@ struct SurveyView: View {
     @State private var surveyHistory: [SurveyRecord] = []
     @State private var surveyContent: String = ""
 
+    @State private var interests: [ResearchInterest] = []
+    @State private var selectedInterestId: String = ""
+    @State private var interestPapers: [Paper] = []
+    @State private var selectedPaperIds: [String] = []
+    @State private var loadingPapers = false
+
+    private let knowledgeService = KnowledgeService()
+    private let paperRepo = PaperRepository()
+
     enum Tab: String, CaseIterable {
         case report = "综述报告"
         case papers = "检索论文"
@@ -40,29 +49,177 @@ struct SurveyView: View {
 
     var body: some View {
         HSplitView {
-            // Sidebar: history
-            VStack(spacing: 0) {
-                HStack {
-                    Text("历史记录")
-                        .font(.headline)
-                    Spacer()
-                }
-                .padding()
+            // Sidebar: interests + papers + history
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if !interests.isEmpty {
+                        HStack {
+                            Text("研究方向")
+                                .font(.headline)
+                            Spacer()
+                        }
+                        .padding()
 
-                Divider()
+                        Divider()
 
-                List(surveyHistory) { record in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(record.topic)
-                            .font(.subheadline.bold())
-                            .lineLimit(1)
-                        Text(record.date, style: .date)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        VStack(spacing: 0) {
+                            Button {
+                                selectedInterestId = ""
+                                selectedPaperIds = []
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.caption)
+                                        .foregroundStyle(selectedInterestId.isEmpty ? .blue : .secondary)
+                                    Text("自由检索")
+                                        .font(.subheadline)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(selectedInterestId.isEmpty ? Color.blue.opacity(0.08) : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+
+                            ForEach(interests) { interest in
+                                let isSelected = selectedInterestId == interest.id
+                                Button {
+                                    selectedInterestId = interest.id
+                                    topic = interest.topic
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "folder")
+                                            .font(.caption)
+                                            .foregroundStyle(isSelected ? .blue : .secondary)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(interest.folderName?.trimmingCharacters(in: .whitespaces).isEmpty == false ? interest.folderName! : interest.topic)
+                                                .font(.subheadline)
+                                                .lineLimit(1)
+                                            if let folder = interest.folderName?.trimmingCharacters(in: .whitespaces), !folder.isEmpty, folder != interest.topic {
+                                                Text(interest.topic)
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(isSelected ? Color.blue.opacity(0.08) : Color.clear)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+
+                        if !selectedInterestId.isEmpty {
+                            Divider()
+                                .padding(.vertical, 4)
+
+                            HStack {
+                                Text("论文库")
+                                    .font(.subheadline.bold())
+                                if interestPapers.count > 0 {
+                                    Text("(\(selectedPaperIds.count)/\(interestPapers.count))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if !interestPapers.isEmpty {
+                                    Button(selectedPaperIds.count == interestPapers.count ? "取消全选" : "全选") {
+                                        toggleAllPapers()
+                                    }
+                                    .font(.caption)
+                                    .buttonStyle(.borderless)
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, 4)
+
+                            if loadingPapers {
+                                HStack(spacing: 4) {
+                                    ProgressView().controlSize(.small)
+                                    Text("正在加载…")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 4)
+                            } else if interestPapers.isEmpty {
+                                Text("该研究方向下暂无论文")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal)
+                                    .padding(.vertical, 4)
+                            } else {
+                                VStack(spacing: 0) {
+                                    ForEach(interestPapers) { paper in
+                                        let checked = selectedPaperIds.contains(paper.id)
+                                        Button {
+                                            togglePaper(paper.id)
+                                        } label: {
+                                            HStack(alignment: .top, spacing: 6) {
+                                                Image(systemName: checked ? "checkmark.square.fill" : "square")
+                                                    .font(.caption)
+                                                    .foregroundStyle(checked ? .blue : .secondary)
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(paper.title)
+                                                        .font(.caption)
+                                                        .lineLimit(2)
+                                                        .multilineTextAlignment(.leading)
+                                                    if paper.year != nil || paper.venue != nil {
+                                                        Text([paper.year.map(String.init), paper.venue].compactMap { $0 }.joined(separator: " · "))
+                                                            .font(.caption2)
+                                                            .foregroundStyle(.secondary)
+                                                    }
+                                                }
+                                                Spacer()
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(checked ? Color.blue.opacity(0.05) : Color.clear)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                if selectedPaperIds.count > 0 && selectedPaperIds.count < interestPapers.count {
+                                    Text("当前仅使用已勾选的 \(selectedPaperIds.count) 篇论文生成综述")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal)
+                                        .padding(.top, 4)
+                                }
+                            }
+                        }
                     }
-                    .padding(.vertical, 2)
+
+                    if !surveyHistory.isEmpty {
+                        Divider()
+                            .padding(.vertical, 4)
+
+                        HStack {
+                            Text("历史记录")
+                                .font(.headline)
+                            Spacer()
+                        }
+                        .padding()
+
+                        Divider()
+
+                        ForEach(surveyHistory) { record in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(record.topic)
+                                    .font(.subheadline.bold())
+                                    .lineLimit(1)
+                                Text(record.date, style: .date)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                        }
+                    }
                 }
-                .listStyle(.plain)
             }
             .frame(minWidth: 180, maxWidth: 220)
 
@@ -168,7 +325,52 @@ struct SurveyView: View {
             }
         }
         .navigationTitle("综述")
-        .onAppear(perform: loadHistory)
+        .onAppear {
+            loadHistory()
+            loadInterests()
+        }
+        .onChange(of: selectedInterestId) { _, _ in
+            loadInterestPapers()
+        }
+    }
+
+    // MARK: - Interests & Papers
+
+    private func loadInterests() {
+        interests = knowledgeService.listInterests()
+    }
+
+    private func loadInterestPapers() {
+        guard !selectedInterestId.isEmpty else {
+            interestPapers = []
+            selectedPaperIds = []
+            return
+        }
+        loadingPapers = true
+        do {
+            interestPapers = try paperRepo.list(researchInterestId: selectedInterestId)
+            selectedPaperIds = interestPapers.map { $0.id }
+        } catch {
+            interestPapers = []
+            selectedPaperIds = []
+        }
+        loadingPapers = false
+    }
+
+    private func togglePaper(_ id: String) {
+        if selectedPaperIds.contains(id) {
+            selectedPaperIds.removeAll { $0 == id }
+        } else {
+            selectedPaperIds.append(id)
+        }
+    }
+
+    private func toggleAllPapers() {
+        if selectedPaperIds.count == interestPapers.count {
+            selectedPaperIds = []
+        } else {
+            selectedPaperIds = interestPapers.map { $0.id }
+        }
     }
 
     // MARK: - Workflow
@@ -700,7 +902,8 @@ struct SurveyView: View {
             language: language,
             maxPapers: 20,
             yearFrom: yearFrom,
-            yearTo: nil
+            yearTo: nil,
+            selectedPaperIds: selectedInterestId.isEmpty ? nil : selectedPaperIds
         )
     }
 

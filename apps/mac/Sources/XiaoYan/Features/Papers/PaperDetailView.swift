@@ -14,6 +14,7 @@ struct PaperDetailView: View {
     @State private var errorMessage: String?
     @State private var figures: [PaperFigure] = []
     @State private var showingMetadataEditor = false
+    @State private var showingReanalyzeConfirm = false
 
     enum Tab: String, CaseIterable {
         case analysis = "论文精读"
@@ -59,7 +60,10 @@ struct PaperDetailView: View {
                 }
             )
         }
-        .onAppear { loadDetail() }
+        .onAppear {
+            loadDetail()
+            paperService.recordPaperMemory(eventType: "paper.viewed", paperTitle: paper.title, paperId: paper.id, importance: 1)
+        }
     }
 
     private var headerSection: some View {
@@ -141,6 +145,19 @@ struct PaperDetailView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isAnalyzing || isReproducing)
+            } else {
+                Button { showingReanalyzeConfirm = true } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("重新解读")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isAnalyzing || isReproducing)
+                .confirmationDialog("重新解读会覆盖现有分析结果，确认继续？", isPresented: $showingReanalyzeConfirm) {
+                    Button("确认重新解读", role: .destructive, action: analyzePaper)
+                    Button("取消", role: .cancel) { }
+                }
             }
 
             if hasAnalysis && !hasReproduction {

@@ -38,12 +38,6 @@ struct ArxivSearchView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     header
                     searchForm
-                    if let expr = searchExpression {
-                        Text("检索式: \(expr)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
                 }
                 .padding()
             }
@@ -257,10 +251,35 @@ struct ArxivSearchView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(results) { entry in
-                    ArxivEntryRow(entry: entry)
+                VStack(alignment: .leading, spacing: 10) {
+                    if !results.isEmpty {
+                        HStack(spacing: 8) {
+                            Text("共 \(results.count) 篇")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            if let expr = searchExpression {
+                                Text(expr)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .padding(10)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Radii.medium)
+                        .nmShadow(level: Theme.Shadows.soft)
+                    }
+                    List(results) { entry in
+                        ArxivEntryRow(entry: entry)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .padding(.vertical, 4)
+                    }
+                    .listStyle(.plain)
                 }
-                .listStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
             }
         }
     }
@@ -385,54 +404,87 @@ private let ARXIV_CATEGORY_GROUPS: [ArxivCategoryGroup] = [
 
 private struct ArxivEntryRow: View {
     let entry: ArxivClient.Entry
-    @State private var isExpanded = false
+
+    private var absURL: URL? {
+        URL(string: entry.id)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(entry.title)
-                .font(.subheadline.bold())
-                .lineLimit(isExpanded ? nil : 2)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                ForEach(entry.categories.prefix(3), id: \.self) { cat in
+                    Text(cat)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12))
+                        .foregroundStyle(.secondary)
+                        .cornerRadius(4)
+                }
+                if let published = entry.published {
+                    Text(published.prefix(10))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.08))
+                        .cornerRadius(4)
+                }
+                Spacer()
+            }
+
+            if let absURL {
+                Link(destination: absURL) {
+                    Text(entry.title)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(entry.title)
+                    .font(.subheadline.bold())
+            }
 
             if !entry.authors.isEmpty {
                 Text(entry.authors.joined(separator: ", "))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(isExpanded ? nil : 1)
+                    .lineLimit(1)
             }
 
-            if isExpanded {
-                Text(entry.summary)
+            let snippet = String(entry.summary.prefix(280))
+            if !snippet.isEmpty {
+                Text(snippet + (entry.summary.count > 280 ? "…" : ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(4)
+            }
 
-                HStack(spacing: 8) {
-                    ForEach(entry.categories.prefix(4), id: \.self) { cat in
-                        Text(cat)
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.1))
-                            .cornerRadius(4)
-                    }
-
-                    Spacer()
-
-                    if let pdf = entry.pdfURL, let url = URL(string: pdf) {
-                        Link("PDF", destination: url)
+            HStack(spacing: 8) {
+                if let absURL {
+                    Link(destination: absURL) {
+                        Label("摘要页", systemImage: "link")
                             .font(.caption)
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
-            }
-
-            if let published = entry.published {
-                Text(published.prefix(10).description)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                if let pdf = entry.pdfURL, let url = URL(string: pdf) {
+                    Link(destination: url) {
+                        Label("PDF", systemImage: "doc.text")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                Spacer()
             }
         }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture { isExpanded.toggle() }
+        .padding(12)
+        .background(Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
     }
 }
 

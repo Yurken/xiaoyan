@@ -34,18 +34,17 @@ struct PaperMetadataEditor: View {
                 }
 
                 Section("重要性标记") {
-                    Picker("颜色", selection: $importanceColor) {
-                        Text("无").tag("")
-                        ForEach(colorOptions.dropFirst(), id: \.self) { color in
-                            HStack {
-                                Circle()
-                                    .fill(colorFromString(color))
-                                    .frame(width: 12, height: 12)
-                                Text(colorDisplayName(color))
-                            }
-                            .tag(color)
+                    HStack(spacing: 10) {
+                        ForEach(colorOptions, id: \.self) { color in
+                            ColorSwatchButton(
+                                color: colorFromString(color),
+                                displayName: colorDisplayName(color),
+                                isSelected: importanceColor == color,
+                                onSelect: { importanceColor = color }
+                            )
                         }
                     }
+                    .padding(.vertical, 4)
                 }
 
                 Section("备注") {
@@ -109,27 +108,56 @@ struct PaperMetadataEditor: View {
         dismiss()
     }
 
-    private func colorFromString(_ color: String) -> Color {
-        switch color {
-        case "red": return .red
-        case "orange": return .orange
-        case "yellow": return .yellow
-        case "green": return .green
-        case "blue": return .blue
-        case "purple": return .purple
-        default: return .clear
-        }
-    }
+}
 
-    private func colorDisplayName(_ color: String) -> String {
-        switch color {
-        case "red": return "红色"
-        case "orange": return "橙色"
-        case "yellow": return "黄色"
-        case "green": return "绿色"
-        case "blue": return "蓝色"
-        case "purple": return "紫色"
-        default: return "无"
+private struct ColorSwatchButton: View {
+    let color: Color
+    let displayName: String
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(color == .clear ? 0 : 1))
+                    .frame(width: 28, height: 28)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                    )
+                if isSelected {
+                    Image(systemName: color == .clear ? "circle" : "checkmark")
+                        .font(.caption2.bold())
+                        .foregroundStyle(color == .clear ? Color.secondary : .white)
+                }
+            }
         }
+        .buttonStyle(.plain)
+        .help(displayName)
+    }
+}
+
+private func colorFromString(_ color: String) -> Color {
+    switch color {
+    case "red": return .red
+    case "orange": return .orange
+    case "yellow": return .yellow
+    case "green": return .green
+    case "blue": return .blue
+    case "purple": return .purple
+    default: return .clear
+    }
+}
+
+private func colorDisplayName(_ color: String) -> String {
+    switch color {
+    case "red": return "红色"
+    case "orange": return "橙色"
+    case "yellow": return "黄色"
+    case "green": return "绿色"
+    case "blue": return "蓝色"
+    case "purple": return "紫色"
+    default: return "无"
     }
 }

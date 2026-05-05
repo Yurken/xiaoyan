@@ -5,7 +5,7 @@ struct ExperimentView: View {
     @State private var experiments: [ExperimentRecord] = []
     @State private var submissions: [Submission] = []
     @State private var selectedExperiment: ExperimentRecord?
-    @State private var showingCreateSheet = false
+    @State private var autoEditId: String? = nil
 
     var body: some View {
         NavigationSplitView {
@@ -29,22 +29,19 @@ struct ExperimentView: View {
             .navigationTitle("实验")
             .toolbar {
                 ToolbarItem {
-                    Button(action: { showingCreateSheet = true }) {
+                    Button(action: createAndEditExperiment) {
                         Label("新建实验", systemImage: "plus")
                     }
                 }
             }
         } detail: {
             if let exp = selectedExperiment {
-                ExperimentDetailView(experiment: exp, submissions: submissions, onUpdate: reload)
+                ExperimentDetailView(experiment: exp, submissions: submissions, autoEditId: $autoEditId, onUpdate: reload)
             } else {
                 ContentUnavailableView("选择实验", systemImage: "flask")
             }
         }
         .onAppear(perform: reload)
-        .sheet(isPresented: $showingCreateSheet) {
-            CreateExperimentSheet(onCreated: { _ in reload() })
-        }
     }
 
     private var emptyState: some View {
@@ -56,10 +53,27 @@ struct ExperimentView: View {
                 .font(.title3.bold())
             Text("创建实验来跟踪配置与结果")
                 .foregroundStyle(.secondary)
-            Button("创建实验") { showingCreateSheet = true }
+            Button("创建实验", action: createAndEditExperiment)
                 .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func createAndEditExperiment() {
+        let exp = ExperimentRecord(
+            id: UUID().uuidString,
+            title: "新实验",
+            config: nil,
+            result: nil,
+            notes: nil,
+            linkedSubmissionId: nil,
+            createdAt: Date(),
+            updatedAt: nil
+        )
+        try? ExperimentRepository().insert(exp)
+        reload()
+        selectedExperiment = exp
+        autoEditId = exp.id
     }
 
     private func reload() {
@@ -128,6 +142,7 @@ private struct ExperimentRow: View {
 private struct ExperimentDetailView: View {
     let experiment: ExperimentRecord
     let submissions: [Submission]
+    @Binding var autoEditId: String?
     let onUpdate: () -> Void
 
     @State private var isEditing = false
@@ -137,6 +152,7 @@ private struct ExperimentDetailView: View {
     @State private var editNotes = ""
     @State private var editLinkedSubmissionId: String? = nil
     @State private var configError: String?
+    @FocusState private var titleFocused: Bool
 
     var body: some View {
         ScrollView {
@@ -147,6 +163,7 @@ private struct ExperimentDetailView: View {
                         TextField("实验标题", text: $editTitle)
                             .font(.title2.bold())
                             .textFieldStyle(.plain)
+                            .focused($titleFocused)
                     } else {
                         Text(experiment.title)
                             .font(.title2.bold())
@@ -264,6 +281,13 @@ private struct ExperimentDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("实验详情")
+        .onAppear {
+            if autoEditId == experiment.id {
+                startEditing()
+                titleFocused = true
+                autoEditId = nil
+            }
+        }
     }
 
     @ViewBuilder
@@ -335,87 +359,4 @@ private func prettyJSON(from dict: [String: JSONValue]?) -> String {
         return "{}"
     }
     return text
-}
-
-// MARK: - Create Sheet
-
-private struct CreateExperimentSheet: View {
-    let onCreated: (ExperimentRecord) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
-    @State private var configText = ""
-    @State private var notes = ""
-    @State private var selectedSubmissionId: String = ""
-    @State private var submissions: [Submission] = []
-    @State private var configError: String?
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("新建实验")
-                .font(.headline)
-
-            Form {
-                TextField("实验标题", text: $title)
-                if !submissions.isEmpty {
-                    Picker("关联投稿", selection: $selectedSubmissionId) {
-                        Text("无").tag("")
-                        ForEach(submissions) { sub in
-                            Text(sub.title).tag(sub.id)
-                        }
-                    }
-                }
-                TextField("配置 (JSON)", text: $configText, axis: .vertical)
-                    .font(.system(.caption, design: .monospaced))
-                    .lineLimit(3...6)
-                if let configError {
-                    Text(configError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-                TextField("笔记", text: $notes, axis: .vertical)
-                    .lineLimit(2...4)
-            }
-            .formStyle(.grouped)
-
-            HStack {
-                Button("取消") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Spacer()
-                Button("创建") {
-                    let trimmed = configText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    var parsed: [String: JSONValue]? = nil
-                    if !trimmed.isEmpty {
-                        guard let data = trimmed.data(using: .utf8),
-                              let dict = try? JSONDecoder().decode([String: JSONValue].self, from: data) else {
-                            configError = "JSON 格式错误，请检查配置内容"
-                            return
-                        }
-                        parsed = dict.isEmpty ? nil : dict
-                    }
-                    let linkedId = selectedSubmissionId.isEmpty ? nil : selectedSubmissionId
-                    let exp = ExperimentRecord(
-                        id: UUID().uuidString,
-                        title: title,
-                        config: parsed,
-                        result: nil,
-                        notes: notes.isEmpty ? nil : notes,
-                        linkedSubmissionId: linkedId,
-                        createdAt: Date(),
-                        updatedAt: nil
-                    )
-                    try? ExperimentRepository().insert(exp)
-                    onCreated(exp)
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            .padding(.horizontal)
-        }
-        .padding()
-        .frame(width: 420, height: 420)
-        .onAppear {
-            submissions = SubmissionService().listSubmissions()
-        }
-    }
 }

@@ -462,6 +462,10 @@ final class DatabaseManager {
             try db.execute(sql: "UPDATE knowledge_graph_claims SET status='hypothesis' WHERE status NOT IN ('hypothesis','supported','contested','open')")
         }
 
+        migrator.registerMigration("v5_review_comment_verdict") { db in
+            try db.execute(sql: "ALTER TABLE review_comments ADD COLUMN verdict TEXT")
+        }
+
         try migrator.migrate(dbQueue)
     }
 }

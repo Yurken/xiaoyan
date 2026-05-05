@@ -5,6 +5,7 @@ struct VenuesListView: View {
     @State private var venues: [Venue] = []
     @State private var searchText = ""
     @State private var showingCreate = false
+    @State private var showingTemplateBrowser = false
     @State private var sortByDeadline = false
 
     var filteredVenues: [Venue] {
@@ -36,6 +37,8 @@ struct VenuesListView: View {
                 }
                 .buttonStyle(.plain)
                 .help(sortByDeadline ? "按截止日排序" : "按名称排序")
+                Button("从模板添加") { showingTemplateBrowser = true }
+                    .controlSize(.small)
                 Button("新建") { showingCreate = true }
                     .controlSize(.small)
             }
@@ -49,6 +52,9 @@ struct VenuesListView: View {
         .onAppear(perform: reload)
         .sheet(isPresented: $showingCreate) {
             CreateVenueSheet(service: service, onCreated: reload)
+        }
+        .sheet(isPresented: $showingTemplateBrowser) {
+            AddVenueTemplateSheet(service: service, onCreated: reload)
         }
     }
 
@@ -261,5 +267,261 @@ private struct CreateVenueSheet: View {
         }
         .padding()
         .frame(width: 420, height: 520)
+    }
+}
+
+private struct AddVenueTemplateSheet: View {
+    let service: SubmissionService
+    let onCreated: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+    @State private var areaFilter = "全部"
+    @State private var typeFilter: VenueTypeFilter = .all
+    @State private var templates: [VenueTemplate] = []
+    @State private var trackedNames: Set<String> = []
+
+    enum VenueTypeFilter: String, CaseIterable {
+        case all = "全部"
+        case conference = "会议"
+        case journal = "期刊"
+    }
+
+    private var areas: [String] {
+        var list = ["全部"]
+        list.append(contentsOf: VenueTemplateLoader.allAreas(from: templates))
+        return list
+    }
+
+    private var filteredTemplates: [VenueTemplate] {
+        var list = templates
+        if !searchText.isEmpty {
+            let q = searchText.lowercased()
+            list = list.filter { $0.name.lowercased().contains(q) || $0.fullName.lowercased().contains(q) }
+        }
+        if areaFilter != "全部" {
+            list = list.filter { $0.area == areaFilter }
+        }
+        if typeFilter != .all {
+            list = list.filter { $0.type == (typeFilter == .conference ? "conference" : "journal") }
+        }
+        return list
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("添加会议/期刊")
+                        .font(.headline)
+                    Text("从 CCF 推荐目录中选择要追踪的会议或期刊")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+
+            HStack(spacing: 8) {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("搜索会议或期刊…", text: $searchText)
+                        .textFieldStyle(.plain)
+                }
+                .padding(8)
+                .background(Theme.Colors.surface)
+                .cornerRadius(Theme.Radii.medium)
+                .nmShadow(level: Theme.Shadows.soft)
+
+                Picker("领域", selection: $areaFilter) {
+                    ForEach(areas, id: \.self) { area in
+                        Text(area).tag(area)
+                    }
+                }
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(width: 140)
+
+                HStack(spacing: 0) {
+                    ForEach(VenueTypeFilter.allCases, id: \.self) { filter in
+                        Button(filter.rawValue) {
+                            typeFilter = filter
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption.weight(typeFilter == filter ? .semibold : .regular))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(typeFilter == filter ? Color.accentColor : Color.clear)
+                        .foregroundStyle(typeFilter == filter ? Color.white : Color.primary)
+                        .cornerRadius(6)
+                    }
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                )
+                .cornerRadius(6)
+            }
+            .padding(.horizontal)
+
+            if filteredTemplates.isEmpty {
+                ContentUnavailableView("未找到匹配的会议或期刊", systemImage: "magnifyingglass")
+                    .frame(maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 12) {
+                        ForEach(filteredTemplates) { venue in
+                            VenueTemplateCard(venue: venue, isAdded: trackedNames.contains(venue.name)) {
+                                addVenue(venue)
+                            }
+                        }
+                    }
+                    .padding()
+                }
+            }
+
+            Divider()
+            HStack {
+                Text("共 \(filteredTemplates.count) 个结果，已追踪 \(trackedNames.count) 个")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("完成") { dismiss() }
+                    .controlSize(.small)
+            }
+            .padding()
+        }
+        .frame(minWidth: 640, minHeight: 480)
+        .onAppear {
+            templates = VenueTemplateLoader.load()
+            trackedNames = Set(service.listVenues().map(\.name))
+        }
+    }
+
+    private func addVenue(_ template: VenueTemplate) {
+        let venue = Venue(
+            id: UUID().uuidString,
+            type: template.type,
+            name: template.name,
+            fullName: template.fullName.isEmpty ? nil : template.fullName,
+            website: template.website,
+            ccfRating: template.ccf.isEmpty ? nil : template.ccf,
+            area: template.area.isEmpty ? nil : template.area,
+            starred: false,
+            ei: template.ei,
+            sci: template.sci,
+            sciQuartile: template.sciQuartile,
+            deadline: nil,
+            notificationDate: nil,
+            specialIssueTitle: nil,
+            specialIssueDeadline: nil,
+            specialIssueDescription: nil,
+            createdAt: Date()
+        )
+        service.createVenue(venue)
+        trackedNames.insert(template.name)
+        onCreated()
+    }
+}
+
+private struct VenueTemplateCard: View {
+    let venue: VenueTemplate
+    let isAdded: Bool
+    let onAdd: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let website = venue.website, let url = URL(string: website) {
+                        Link(venue.name, destination: url)
+                            .font(.subheadline.bold())
+                            .lineLimit(1)
+                    } else {
+                        Text(venue.name)
+                            .font(.subheadline.bold())
+                            .lineLimit(1)
+                    }
+                    Text(venue.fullName)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Button {
+                    if !isAdded { onAdd() }
+                } label: {
+                    Image(systemName: isAdded ? "checkmark" : "plus")
+                        .font(.caption.bold())
+                        .foregroundStyle(isAdded ? .green : .white)
+                        .frame(width: 28, height: 28)
+                        .background(isAdded ? Color.green.opacity(0.15) : Color.accentColor)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .disabled(isAdded)
+            }
+
+            HStack(spacing: 4) {
+                Text("CCF \(venue.ccf)")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(ccfColor(venue.ccf).opacity(0.15))
+                    .foregroundColor(ccfColor(venue.ccf))
+                    .cornerRadius(4)
+
+                Text(venue.type == "conference" ? "会议" : "期刊")
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(venue.type == "conference" ? Color.blue.opacity(0.1) : Color.purple.opacity(0.1))
+                    .foregroundStyle(venue.type == "conference" ? Color.blue : Color.purple)
+                    .cornerRadius(4)
+
+                if let q = venue.sciQuartile {
+                    Text(q)
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.12))
+                        .foregroundColor(.green)
+                        .cornerRadius(4)
+                }
+                if venue.ei == true {
+                    Text("EI")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.indigo.opacity(0.12))
+                        .foregroundColor(.indigo)
+                        .cornerRadius(4)
+                }
+                Spacer()
+                Text(venue.area)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(isAdded ? Color.green.opacity(0.05) : Theme.Colors.surface)
+        .cornerRadius(Theme.Radii.medium)
+        .nmShadow(level: Theme.Shadows.soft)
+        .opacity(isAdded ? 0.7 : 1)
+    }
+
+    private func ccfColor(_ rating: String) -> Color {
+        switch rating.uppercased() {
+        case "A": return .red
+        case "B": return .orange
+        case "C": return .blue
+        default: return .gray
+        }
     }
 }

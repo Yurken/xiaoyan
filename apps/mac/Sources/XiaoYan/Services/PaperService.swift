@@ -7,6 +7,7 @@ final class PaperService: ObservableObject {
     @Published var uploadProgress: [String: PaperStatus] = [:]
 
     private let paperRepo = PaperRepository()
+    private let memoryRepo = MemoryRepository()
 
     // MARK: - List & Get
 
@@ -47,6 +48,7 @@ final class PaperService: ObservableObject {
         )
 
         try? paperRepo.insert(paper)
+        recordPaperMemory(eventType: "paper.uploaded", paperTitle: paper.title, paperId: paper.id, importance: 3)
         uploadProgress[paperId] = .parsing
 
         // Background pipeline
@@ -190,6 +192,7 @@ final class PaperService: ObservableObject {
             let parsed = parseJSONAnalysis(response, paperId: paperId)
             try? paperRepo.upsertAnalysis(paperId, analysis: parsed)
             try? paperRepo.updateStatus(id: paperId, status: .analyzed)
+            recordPaperMemory(eventType: "paper.analyzed", paperTitle: paper.title, paperId: paperId, importance: 4)
         } catch {
             // Fallback: save raw
             let analysis = PaperAnalysis(
@@ -309,5 +312,35 @@ final class PaperService: ObservableObject {
             try? FileManager.default.removeItem(atPath: filePath)
         }
         try? paperRepo.delete(id: paperId)
+    }
+
+    // MARK: - Memory
+
+    func recordPaperMemory(eventType: String, paperTitle: String, paperId: String? = nil, importance: Int = 2) {
+        let event = MemoryEvent(
+            id: UUID().uuidString,
+            sessionId: nil,
+            runId: nil,
+            eventType: eventType,
+            source: "paper",
+            summary: paperTitle,
+            payloadJson: paperId,
+            createdAt: Date()
+        )
+        try? memoryRepo.insertEvent(event)
+        let observation = MemoryObservation(
+            id: UUID().uuidString,
+            eventId: event.id,
+            sessionId: nil,
+            runId: nil,
+            source: "paper",
+            eventType: eventType,
+            title: paperTitle,
+            summary: eventType,
+            narrative: nil,
+            importance: importance,
+            createdAt: Date()
+        )
+        try? memoryRepo.insertObservation(observation)
     }
 }

@@ -748,11 +748,14 @@ struct KnowledgeGraphCanvasView: View {
 
     private func noteInspector(_ node: GraphNode) -> some View {
         guard let note = notes.first(where: { $0.id == node.id }) else { return AnyView(EmptyView()) }
-        let sourceLabel = note.sourceType == "web_clip" ? "网页摘录" : "知识笔记"
         return AnyView(VStack(alignment: .leading, spacing: 12) {
-            Text(sourceLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Image(systemName: noteSourceIcon(note.sourceType))
+                    .font(.caption)
+                Text(noteSourceLabel(note.sourceType))
+                    .font(.caption)
+            }
+            .foregroundStyle(.secondary)
             if !note.content.isEmpty {
                 Text(note.content)
                     .font(.body)

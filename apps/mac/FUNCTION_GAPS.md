@@ -98,7 +98,7 @@
 
 ### P3
 - **侧滑详情面板与返回动效**：mac 是 NavigationSplitView detail
-- **来源类型徽标分类（manual/paper_analysis/survey/web_clip）UI 弱**：mac 仅显示原始字符串
+- ✅ **来源类型徽标分类（manual/paper_analysis/survey/web_clip）UI 弱**：新增 `noteSourceLabel` + `noteSourceIcon` 全局辅助函数（`Knowledge.swift`），映射 manual→手动/论文分析→论文分析/survey→综述/web_clip→网页摘录；`NoteRow` 头部显示来源类型灰色 badge + 非 manual 时显示"小妍"紫色 badge；`NoteDetailView` 元数据栏使用本地化标签与对应图标；`KnowledgeGraphCanvasView.noteInspector` 同步替换为图标+标签组合；与 desktop `NotesPanel.tsx:sourceLabel` 等价（2026-05-02）
 
 ---
 
@@ -131,7 +131,7 @@
 - **高级参数面板** ✅（已对齐）：`SurveyView.swift` + `SurveyParameterPanel.swift`（5 类 Picker：时间范围/文献类型/数据库/引用格式/语言），prompt 已注入参数约束；1:1 desktop `SurveyPanel.tsx:94-117, 532-647`
 
 ### P2
-- **研究方向→论文勾选**：desktop 选 interest 后加载 papers 可勾选喂给 survey — `SurveyPanel.tsx:148-230, 410-480`；mac 完全无关联
+- ✅ **研究方向→论文勾选**：`SurveyView.swift` 左侧边栏新增研究方向列表（自由检索 + 各方向文件夹），选中后自动加载该方向下论文并展示可勾选列表（全选/取消全选），勾选状态实时显示计数（已选/总数），生成综述时通过 `selectedPaperIds` 传给 `SurveyService.generate`；`SurveyService.runPipeline` 优先 `paperRepo.fetchByIds` 加载用户选定论文，不足时再用本地/外部检索补充；与 desktop `SurveyPanel.tsx:148-230, 410-480` 等价（2026-05-02）
 - **formatted_citations / citation_format 输出与导出** ✅（已对齐）：`SurveyService.swift:672-718` 实现 APA/MLA/IEEE/GB-T-7714 四种引用格式；`StructuredSurveyResult` 携带 `formattedCitations` + `citationFormat`；`SurveyView.swift` `citationsSection` 展示格式化参考文献并支持一键复制；新增「导出 Markdown」按钮将完整综述写入文件（`NSSavePanel`）
 
 ### P3
@@ -174,8 +174,8 @@
 - **T6 MarkdownFormatter 分块进度** ✅（已对齐）：`MarkdownFormatterView.swift` 重写为分块处理：按段落分割（`\n\n`）+ 1500 字上限分块 + 逐块调用 LLM + 第一块后生成 `styleSummary` 并注入后续块 system prompt + 进度条显示（`MarkdownProgress` + `ProgressView`）+ 上传文件按钮；与 desktop `useMarkdownFormatter.ts` 等价
 
 ### P3
-- **T9 ArxivSearchResults 排版退化**：mac `ArxivEntryRow` 简单 List 行
-- **T10 Tools 入口页**：mac `ToolsView.swift` 38 行极简
+- ✅ **T9 ArxivSearchResults 排版退化**：`ArxivEntryRow` 从简单 List 行重写为卡片布局：顶部 category + published 徽章、标题链接（`Link` 到 arXiv 摘要页）、作者、280 字摘要片段、摘要页/PDF 操作按钮；结果区新增 meta 卡片（共 N 篇 + 检索式）；使用 `Theme.Colors.surface` + `nmShadow` 卡片样式；与 desktop `ArxivSearchResults.tsx` 卡片排版等价（2026-05-02）
+- ✅ **T10 Tools 入口页**：`ToolsView.swift` 重写为带标题头（"实用工具" + 副标题）+ 自定义图标标签栏（7 个工具 tab，每个含 SF Symbol 图标 + 文字），标签栏容器使用 `Theme.Colors.surface` + `nmShadow(inner)` 凹陷风格，选中项使用 `nmShadow(soft)` 凸起风格；与 desktop `Tools.tsx` 分段标签栏 + 图标排版等价（2026-05-02）
 
 ### Mac 接近对等
 - **T7 PPT Workspace**：三模式齐备 + Swift 端原生 .pptx 生成（`PptxBuilder.swift:403`）；功能等价
@@ -196,9 +196,9 @@
 - **图片缩放/Lightbox + caption-figure 关联** ✅（已对齐）：`PaperFiguresView.swift` 重写为 `ZStack`，`FigureCard` 新增 `onTap` 回调；点击后弹出全屏 Lightbox overlay（黑色背景 + 大图 + 图号/caption + 点击/Escape 关闭）；与 desktop `PaperDetailModal.tsx` 图片点击放大交互等价
 
 ### P3
-- **重新解读确认**：mac 已 analyzed 后无重新解读入口
-- **重要性颜色色环/色条**：mac 仅 Picker
-- **Memory 自动事件**：mac 上传/分析/查看无 memory 钩子
+- ✅ **重新解读确认**：`PaperDetailView` 在 `hasAnalysis` 时显示「重新解读」按钮（`arrow.clockwise` 图标），点击弹出 `.confirmationDialog` 确认「重新解读会覆盖现有分析结果，确认继续？」，确认后调用 `analyzePaper` 复用原有分析逻辑覆盖更新；与 desktop `Papers.tsx:800-816` 等价（2026-05-02）
+- ✅ **重要性颜色色环/色条**：`PaperRow` 新增顶部 importance color 色条（3px `Rectangle` + `.overlay(alignment: .top)`），有重要性标记的论文卡片顶部显示对应颜色条；`PaperMetadataEditor` 将重要性颜色 `Picker` 替换为横向颜色 swatch 按钮行（`ColorSwatchButton`），每个色块为 28px 圆形，选中时显示 `checkmark` 图标，空选项显示空心圆；与 desktop `Papers.tsx:585` 顶部色条 + `Papers.tsx:866-890` 色块选择器等价（2026-05-02）
+- ✅ **Memory 自动事件**：`PaperService` 新增 `recordPaperMemory` 双写 helper（`MemoryEvent` + `MemoryObservation`，解决 mac 只写 event 不写 observation 导致 memory 无法被读取的问题）；在 `upload()` 成功后记录 `paper.uploaded`、分析成功后记录 `paper.analyzed`、`PaperDetailView.onAppear` 记录 `paper.viewed`；与 desktop 自动事件语义等价（2026-05-02）
 
 ---
 
@@ -213,8 +213,8 @@
 - **R1 Submission status 状态机不一致**（参见 §0）
 
 ### P2
-- **Venue 模板库 + 区域/类型筛选 + 已追踪标记**：desktop `AddVenueModal.tsx:1-230`（POPULAR_VENUES 模板）；mac `VenuesListView.swift:120-178` 仅手动输入
-- **Review 轮 verdict 自动派生**：mac 必须手填 verdict 字符串（`ReviewRoundsView.swift:148-162, 232-269`）；desktop `getDominantVerdict` 自动 upsert
+- ✅ **Venue 模板库 + 区域/类型筛选 + 已追踪标记**：新增 `VenueTemplateLoader.swift` 运行时解析 `venue_templates.json`（151 条 CCF 推荐会议/期刊）；`VenuesListView` 新增「从模板添加」按钮打开 `AddVenueTemplateSheet`（搜索框 + 领域 Picker + 会议/期刊/全部类型筛选 + 网格卡片列表）；每张卡片展示 venue 名称（Link）、全称、CCF 等级徽章、类型标签、SCI/EI 徽章、领域、添加按钮；已追踪 venue 显示绿色 checkmark 并置灰；`Package.swift` 注册 JSON 资源；与 desktop `AddVenueModal.tsx:1-230` 等价
+- ✅ **Review 轮 verdict 自动派生**：`ReviewRoundsView.swift` 新增 `dominantVerdict(for:)` 按评论 verdict 多数决自动推导；round header 显示 `round.verdict ?? dominantVerdict(for: round)`；`AddCommentSheet` 增加 verdict Picker（accept/minor_revision/major_revision/reject）；`CommentRow` 头部显示 verdict badge；`DatabaseManager.swift` 迁移 `v5_review_comment_verdict` 新增 verdict 字段；`Submission.swift` / `SubmissionRepository.swift` 模型与存储层同步扩展；与 desktop `getDominantVerdict` + `ReviewEntryModal.tsx` verdict 选择等价（2026-05-02）
 - **Polish 结果回写到版本** ✅（已对齐）：`CoverLetterView.swift` 新增版本选择 `Picker`（加载选中投稿的版本列表，选择后自动填充版本 content 到输入区）；润色结果区新增「应用到版本」按钮（仅 polish 模式且选择了版本时显示），点击后调用 `service.updateVersion` 回写 content；与 desktop `PolishPanel.tsx`「应用到版本」等价
 
 ### P3
@@ -235,7 +235,7 @@
 - **Config 自由 JSON** ✅（已对齐）：`ExperimentRecord.config` 已使用 `[String: JSONValue]`，`JSONValue` 枚举支持 null/bool/number/string/array/object 六种类型；`ExperimentView.swift` `configView` / `startEditing` / `saveChanges` / `CreateExperimentSheet` 均已接入 `JSONValue` 编码解码；与 desktop `Record<string, unknown>` 等价
 
 ### P3
-- **新增即编辑流程**：desktop 创建后自动选中并聚焦标题（`Experiment.tsx:270-287`）；mac CreateExperimentSheet 是独立弹窗
+- ✅ **新增即编辑流程**：`ExperimentView` 移除 `CreateExperimentSheet` 弹窗，改为 `createAndEditExperiment()` 直接创建默认标题为"新实验"的记录并立即选中；`ExperimentDetailView` 新增 `@Binding var autoEditId` + `@FocusState var titleFocused`，在 `.onAppear` 中检测到新建记录时自动进入编辑模式并聚焦标题输入框；与 desktop `Experiment.tsx:270-287` 等价（2026-05-02）
 
 ---
 

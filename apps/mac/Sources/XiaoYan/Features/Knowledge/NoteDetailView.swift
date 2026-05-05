@@ -40,7 +40,7 @@ struct NoteDetailView: View {
                 // Metadata
                 HStack(spacing: 16) {
                     if let sourceType = note.sourceType {
-                        Label(sourceType, systemImage: "doc.text")
+                        Label(noteSourceLabel(sourceType), systemImage: noteSourceIcon(sourceType))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

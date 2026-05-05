@@ -25,7 +25,32 @@ struct NoteRow: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
             HStack(spacing: 8) {
-                if let tags = note.tags, !tags.isEmpty {
+                if let sourceType = note.sourceType {
+                    Text(noteSourceLabel(sourceType))
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12))
+                        .foregroundStyle(.secondary)
+                        .cornerRadius(4)
+                }
+                if let tags = note.tags, !tags.isEmpty, note.sourceType != "manual" {
+                    Text("小妍")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.purple.opacity(0.12))
+                        .foregroundStyle(.purple)
+                        .cornerRadius(4)
+                    ForEach(tags.prefix(3), id: \.self) { tag in
+                        Text(tag)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.1))
+                            .cornerRadius(4)
+                    }
+                } else if let tags = note.tags, !tags.isEmpty {
                     ForEach(tags.prefix(3), id: \.self) { tag in
                         Text(tag)
                             .font(.caption2)

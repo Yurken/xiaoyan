@@ -110,10 +110,11 @@ struct ReviewComment: Codable, Identifiable, FetchableRecord {
     var response: String?
     var resolved: Bool?
     var tags: [String]?
+    var verdict: String?
     let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, round, reviewer, content, response, resolved, tags
+        case id, round, reviewer, content, response, resolved, tags, verdict
         case submissionId = "submission_id"
         case createdAt = "created_at"
     }

@@ -131,11 +131,11 @@ struct SubmissionRepository {
     func insertReviewComment(_ comment: ReviewComment) throws {
         try dbQueue.write { db in
             try db.execute(
-                sql: "INSERT INTO review_comments (id, submission_id, round, reviewer, content, response, resolved, tags) VALUES (?,?,?,?,?,?,?,?)",
+                sql: "INSERT INTO review_comments (id, submission_id, round, reviewer, content, response, resolved, tags, verdict) VALUES (?,?,?,?,?,?,?,?,?)",
                 arguments: [
                     comment.id, comment.submissionId, comment.round, comment.reviewer,
                     comment.content, comment.response, comment.resolved ?? false,
-                    comment.tags?.jsonString
+                    comment.tags?.jsonString, comment.verdict
                 ]
             )
         }
@@ -144,10 +144,10 @@ struct SubmissionRepository {
     func updateReviewComment(_ comment: ReviewComment) throws {
         try dbQueue.write { db in
             try db.execute(
-                sql: "UPDATE review_comments SET reviewer=?, content=?, response=?, resolved=?, tags=? WHERE id=?",
+                sql: "UPDATE review_comments SET reviewer=?, content=?, response=?, resolved=?, tags=?, verdict=? WHERE id=?",
                 arguments: [
                     comment.reviewer, comment.content, comment.response, comment.resolved ?? false,
-                    comment.tags?.jsonString, comment.id
+                    comment.tags?.jsonString, comment.verdict, comment.id
                 ]
             )
         }
