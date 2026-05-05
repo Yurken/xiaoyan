@@ -58,7 +58,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
         graphController.view?.visibleEvidenceLinks ?? graphController.snapshot.evidenceLinks,
       );
     },
-    [graphController.snapshot?.evidenceLinks, graphController.view?.visibleEvidenceLinks],
+    [graphController.snapshot, graphController.view?.visibleEvidenceLinks],
   );
 
   return (

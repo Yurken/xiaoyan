@@ -24,6 +24,46 @@ fn has_meaningful_text(value: Option<&str>) -> bool {
     value.is_some_and(|text| !text.trim().is_empty())
 }
 
+fn canonical_pdf_file(path: PathBuf) -> Result<PathBuf, String> {
+    let canonical = path
+        .canonicalize()
+        .map_err(|e| format!("PDF 文件不可访问：{e}"))?;
+    if !canonical.is_file() {
+        return Err("请选择有效的 PDF 文件。".to_string());
+    }
+
+    let is_pdf = canonical
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false);
+    if !is_pdf {
+        return Err("仅支持 PDF 文件。".to_string());
+    }
+
+    Ok(canonical)
+}
+
+fn canonical_path_within(base: &Path, path: &Path, label: &str) -> Result<PathBuf, String> {
+    let canonical_base = base
+        .canonicalize()
+        .map_err(|e| format!("无法校验{label}目录：{e}"))?;
+    let canonical_path = path
+        .canonicalize()
+        .map_err(|e| format!("{label}不可访问：{e}"))?;
+
+    if canonical_path.starts_with(&canonical_base) {
+        Ok(canonical_path)
+    } else {
+        Err(format!("{label}不在应用管理目录内。"))
+    }
+}
+
+fn canonical_managed_pdf_path(app: &tauri::AppHandle, path: &Path) -> Result<PathBuf, String> {
+    let papers_dir = managed_papers_dir(app)?;
+    canonical_path_within(&papers_dir, path, "PDF 文件")
+}
+
 fn analysis_json_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<serde_json::Value> {
     let research_question = row.get::<Option<String>, _>("research_question");
     let core_method = row.get::<Option<String>, _>("core_method");
@@ -367,8 +407,8 @@ pub async fn papers_delete(
     if let Some(fp) = file_path_str {
         let file_path = PathBuf::from(&fp);
         if let Ok(papers_dir) = managed_papers_dir(&app) {
-            if file_path.starts_with(&papers_dir) {
-                let _ = std::fs::remove_file(&file_path);
+            if let Ok(managed_path) = canonical_path_within(&papers_dir, &file_path, "PDF 文件") {
+                let _ = std::fs::remove_file(managed_path);
             }
         }
     }
@@ -400,9 +440,11 @@ pub async fn papers_open_pdf(
     let path = file_path_str
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| "该论文没有关联的本地文件".to_string())?;
+    let path = canonical_managed_pdf_path(&app, Path::new(&path))?;
+    let path = path.to_string_lossy().to_string();
 
     app.opener()
-        .open_path(&path, None::<&str>)
+        .open_path(path, None::<&str>)
         .map_err(|e| e.to_string())
 }
 
@@ -411,7 +453,7 @@ pub async fn papers_extract_pdf_text(
     file_path: tauri_plugin_fs::FilePath,
     max_chars: Option<usize>,
 ) -> Result<String, String> {
-    let path = file_path.into_path().map_err(|e| e.to_string())?;
+    let path = canonical_pdf_file(file_path.into_path().map_err(|e| e.to_string())?)?;
     let file_name = path
         .file_name()
         .and_then(|value| value.to_str())
@@ -489,7 +531,7 @@ pub async fn papers_upload(
     file_path: tauri_plugin_fs::FilePath,
     research_interest_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let path = file_path.into_path().map_err(|e| e.to_string())?;
+    let path = canonical_pdf_file(file_path.into_path().map_err(|e| e.to_string())?)?;
     let file_name = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -543,8 +585,7 @@ pub async fn papers_upload(
     // Always copy into the app-managed papers directory so the file survives
     // even if the user deletes or moves the original in Finder.
     let copy_started_at = Instant::now();
-    let final_path =
-        copy_to_managed_papers_dir(&app, &path, &original_stem).unwrap_or_else(|_| path.clone());
+    let final_path = copy_to_managed_papers_dir(&app, &path, &original_stem)?;
     eprintln!(
         "[paper-import] copy_pdf done: source={} target={} elapsed_ms={}",
         path.display(),
@@ -2083,10 +2124,13 @@ async fn ensure_figures_extracted(
         Some(f) => f,
         None => return Vec::new(),
     };
-    let pdf_path = PathBuf::from(fp);
-    if !pdf_path.exists() {
-        return Vec::new();
-    }
+    let pdf_path = match canonical_managed_pdf_path(app, Path::new(fp)) {
+        Ok(path) => path,
+        Err(error) => {
+            eprintln!("[paper-figures][{paper_id}] skip unsafe pdf path: {error}");
+            return Vec::new();
+        }
+    };
 
     let figures_dir = match paper_figures_dir(app, paper_id) {
         Ok(dir) => dir,
@@ -2698,16 +2742,22 @@ pub async fn papers_list_figures(
     }
 
     // Collect metadata first (sync), then read all files concurrently (async)
+    let figures_dir = paper_figures_dir(&app, &paper_id).ok();
     let row_meta: Vec<(String, String, i64, Option<String>, String)> = rows
         .iter()
-        .map(|r| {
-            (
+        .filter_map(|r| {
+            let file_path = r.get::<String, _>("file_path");
+            let safe_file_path = figures_dir.as_deref().and_then(|dir| {
+                canonical_path_within(dir, Path::new(&file_path), "图表文件").ok()
+            })?;
+
+            Some((
                 r.get::<String, _>("id"),
                 r.get::<String, _>("paper_id"),
                 r.get::<i64, _>("fig_index"),
                 r.get::<Option<String>, _>("caption"),
-                r.get::<String, _>("file_path"),
-            )
+                safe_file_path.to_string_lossy().to_string(),
+            ))
         })
         .collect();
 
@@ -2762,14 +2812,14 @@ fn copy_to_managed_papers_dir(
     src: &Path,
     desired_stem: &str,
 ) -> Result<PathBuf, String> {
+    let src = canonical_pdf_file(src.to_path_buf())?;
     let papers_dir = managed_papers_dir(app)?;
     let stem = sanitize_file_stem(desired_stem);
-    let extension = src.extension().and_then(|v| v.to_str()).unwrap_or("pdf");
-    let mut candidate = papers_dir.join(format!("{stem}.{extension}"));
+    let mut candidate = papers_dir.join(format!("{stem}.pdf"));
     if candidate.exists() {
         let mut found = false;
         for index in 2..1000 {
-            let maybe = papers_dir.join(format!("{stem} ({index}).{extension}"));
+            let maybe = papers_dir.join(format!("{stem} ({index}).pdf"));
             if !maybe.exists() {
                 candidate = maybe;
                 found = true;
@@ -2780,8 +2830,8 @@ fn copy_to_managed_papers_dir(
             return Err("目标目录中存在过多同名文件，无法完成复制。".to_string());
         }
     }
-    std::fs::copy(src, &candidate).map_err(|e| format!("复制 PDF 到工作目录失败：{e}"))?;
-    Ok(candidate)
+    std::fs::copy(&src, &candidate).map_err(|e| format!("复制 PDF 到工作目录失败：{e}"))?;
+    canonical_path_within(&papers_dir, &candidate, "PDF 文件")
 }
 
 async fn embed_in_batches(

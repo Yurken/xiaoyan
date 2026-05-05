@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import type { AppSettings, AppUpdateInfo } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
@@ -19,9 +19,9 @@ export function useSettingsController(defaultSettings: AppSettings) {
   const [updateMsg, setUpdateMsg] = useState("");
   const [appVersion, setAppVersion] = useState("");
 
-  const replaceForm = (next: Partial<AppSettings>) => {
+  const replaceForm = useCallback((next: Partial<AppSettings>) => {
     setForm({ ...defaultSettings, ...next });
-  };
+  }, [defaultSettings]);
 
   const set = (key: keyof AppSettings) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -85,7 +85,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
     return () => {
       cancelled = true;
     };
-  }, [defaultSettings]);
+  }, [replaceForm]);
 
   const handleSaveSettings = async () => {
     setSaveState("saving");

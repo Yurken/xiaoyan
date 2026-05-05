@@ -9,6 +9,8 @@
     "build": "vite build",
     "dev:vite": "vite",
     "preview": "vite preview",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -33,8 +35,12 @@
     "@tauri-apps/cli": "^2.6.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@typescript-eslint/parser": "^8.46.2",
     "@vitejs/plugin-react": "^4.0.0",
     "autoprefixer": "^10.4.0",
+    "eslint": "^9",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^14.0.0",
     "katex": "^0.16.40",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",

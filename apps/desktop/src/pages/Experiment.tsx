@@ -260,7 +260,7 @@ export default function Experiment() {
     setEditNotes(selected.notes);
     setEditLinked(selected.linkedSubmissionId ?? "");
     setConfigError("");
-  }, [selectedId]);
+  }, [selected]);
 
   function showToast(msg: string) {
     setToast(msg);

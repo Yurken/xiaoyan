@@ -157,10 +157,8 @@ export default function Submission() {
       submissionApi.listRounds(reviewSubId),
       submissionApi.listComments(reviewSubId),
     ]).then(([roundsRes, commentsRes]) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setReviewRounds((roundsRes.rounds as any[]).map(rowToRound));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setReviewComments((commentsRes.comments as any[]).map(rowToComment));
+      setReviewRounds(roundsRes.rounds.map(rowToRound));
+      setReviewComments(commentsRes.comments.map(rowToComment));
     }).catch(console.error);
   }, [reviewSubId]);
 
@@ -260,7 +258,6 @@ export default function Submission() {
     }).then(u => { unlistenDone = u; });
 
     return () => { unlistenDelta?.(); unlistenDone?.(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviewSubId, versionSubId]);
 
   const handleUploadVersionFile = async (versionId: string) => {

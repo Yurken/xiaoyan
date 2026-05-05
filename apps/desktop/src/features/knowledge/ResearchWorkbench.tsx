@@ -51,6 +51,11 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
   const [error, setError] = useState("");
   const [chatInput, setChatInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const onStatsRef = useRef(onStats);
+
+  useEffect(() => {
+    onStatsRef.current = onStats;
+  }, [onStats]);
 
   const activeRequestId = useMemo(() => {
     return [...agentRuns]
@@ -84,7 +89,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
     } else if (!selectedSessionId && relatedSessions.length > 0) {
       setSelectedSessionId(relatedSessions[0].id);
     }
-    onStats?.(relatedPapers.length, relatedSessions.length, relatedNotes.length);
+    onStatsRef.current?.(relatedPapers.length, relatedSessions.length, relatedNotes.length);
   };
 
   useEffect(() => {
@@ -110,7 +115,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
         setSessions(relatedSessions);
         setSelectedSessionId(relatedSessions[0]?.id ?? null);
         setLoading(false);
-        onStats?.(relatedPapers.length, relatedSessions.length, relatedNotes.length);
+        onStatsRef.current?.(relatedPapers.length, relatedSessions.length, relatedNotes.length);
       })
       .catch((nextError) => {
         if (!cancelled) {
