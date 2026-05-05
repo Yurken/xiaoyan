@@ -85,7 +85,8 @@ use commands::{
         submission_list_comments, submission_list_rounds, submission_list_venues,
         submission_list_versions, submission_polish_abstract, submission_stats,
         submission_toggle_checklist, submission_toggle_venue_star, submission_update,
-        submission_update_comment, submission_update_venue, submission_upsert_round,
+        submission_update_comment, submission_update_venue, submission_update_version,
+        submission_upsert_round,
     },
     update::{update_check, update_install, PendingUpdate},
 };
@@ -311,6 +312,7 @@ pub fn run() {
             submission_delete,
             submission_list_versions,
             submission_create_version,
+            submission_update_version,
             submission_delete_version,
             submission_list_rounds,
             submission_upsert_round,

@@ -81,5 +81,16 @@ export function useSubmissionVersions(submissions: SubmissionItem[], selectedSub
     );
   };
 
-  return { versions, versionCounts, appendVersion, updateVersion };
+  const patchVersion = async (
+    versionId: string,
+    patch: Partial<Pick<PaperVersion, "tag" | "label" | "stage" | "content" | "notes" | "filePath" | "fileName">>
+  ) => {
+    updateVersion(versionId, (version) => ({ ...version, ...patch }));
+    await submissionApi.updateVersion(versionId, patch).catch((error) => {
+      console.error(error);
+      throw error;
+    });
+  };
+
+  return { versions, versionCounts, appendVersion, updateVersion, patchVersion };
 }

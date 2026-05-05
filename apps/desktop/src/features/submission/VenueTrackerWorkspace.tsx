@@ -3,13 +3,16 @@ import { Button, Card } from "@research-copilot/ui";
 import ExternalLink from "../../components/ExternalLink";
 import type { VenueTemplate } from "../../data/venues";
 import VenueRecommendationsPanel from "./VenueRecommendationsPanel";
-import { CCF_STYLE, getDaysUntil, getDdlStyle, type Conference, type Journal, type Venue, type VenueRecommendation } from "./shared";
-
-interface RecommendationInput {
-  direction: string;
-  keywords: string;
-  extra: string;
-}
+import {
+  CCF_STYLE,
+  getDaysUntil,
+  getDdlStyle,
+  type Conference,
+  type Journal,
+  type Venue,
+  type VenueRecommendation,
+  type VenueRecommendationInput,
+} from "./shared";
 
 interface VenueTrackerWorkspaceProps {
   venueFilter: "all" | "conference" | "journal" | "starred";
@@ -19,14 +22,15 @@ interface VenueTrackerWorkspaceProps {
   showRecommendations: boolean;
   recommendations: VenueRecommendation[];
   recommendationLoading: boolean;
-  recommendationInput: RecommendationInput;
+  recommendationInput: VenueRecommendationInput;
   onVenueFilterChange: (value: "all" | "conference" | "journal" | "starred") => void;
   onOpenAddVenue: () => void;
   onToggleRecommendations: () => void;
-  onChangeRecommendationInput: (value: RecommendationInput) => void;
+  onChangeRecommendationInput: (value: VenueRecommendationInput) => void;
   onGenerateRecommendations: () => void;
   isVenueAdded: (template: VenueTemplate) => boolean;
   onAddVenue: (template: VenueTemplate) => void | Promise<void>;
+  onCreateSubmissionFromRecommendation: (recommendation: VenueRecommendation) => void;
   onToggleVenueStar: (id: string, type: Venue["type"]) => void;
 }
 
@@ -44,6 +48,7 @@ export default function VenueTrackerWorkspace({
   onGenerateRecommendations,
   isVenueAdded,
   onAddVenue,
+  onCreateSubmissionFromRecommendation,
   onToggleVenueStar,
 }: VenueTrackerWorkspaceProps) {
   return (
@@ -83,6 +88,7 @@ export default function VenueTrackerWorkspace({
         onGenerate={onGenerateRecommendations}
         isVenueAdded={isVenueAdded}
         onAddVenue={onAddVenue}
+        onCreateSubmission={onCreateSubmissionFromRecommendation}
       />
 
       <div className="grid gap-2.5">

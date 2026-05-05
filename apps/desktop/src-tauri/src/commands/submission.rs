@@ -349,6 +349,97 @@ pub async fn submission_create_version(
 }
 
 #[tauri::command]
+pub async fn submission_update_version(
+    state: State<'_, AppState>,
+    id: String,
+    tag: Option<String>,
+    label: Option<String>,
+    stage: Option<String>,
+    content: Option<String>,
+    notes: Option<String>,
+    file_path: Option<String>,
+    file_name: Option<String>,
+) -> Result<(), String> {
+    let submission_row = sqlx::query("SELECT submission_id FROM paper_versions WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+    let Some(submission_row) = submission_row else {
+        return Err("Version not found".into());
+    };
+    let submission_id: String = submission_row.get("submission_id");
+
+    if let Some(value) = &tag {
+        sqlx::query("UPDATE paper_versions SET tag = ? WHERE id = ?")
+            .bind(value)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(value) = &label {
+        sqlx::query("UPDATE paper_versions SET label = ? WHERE id = ?")
+            .bind(value)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(value) = &stage {
+        sqlx::query("UPDATE paper_versions SET stage = ? WHERE id = ?")
+            .bind(value)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(value) = &content {
+        sqlx::query("UPDATE paper_versions SET content = ? WHERE id = ?")
+            .bind(value)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(value) = &notes {
+        sqlx::query("UPDATE paper_versions SET notes = ? WHERE id = ?")
+            .bind(value)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(value) = &file_path {
+        let file_path_value: Option<&str> = if value.is_empty() { None } else { Some(value) };
+        sqlx::query("UPDATE paper_versions SET file_path = ? WHERE id = ?")
+            .bind(file_path_value)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(value) = &file_name {
+        let file_name_value: Option<&str> = if value.is_empty() { None } else { Some(value) };
+        sqlx::query("UPDATE paper_versions SET file_name = ? WHERE id = ?")
+            .bind(file_name_value)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    sqlx::query("UPDATE submissions SET updated_at = ? WHERE id = ?")
+        .bind(now())
+        .bind(&submission_id)
+        .execute(&state.db)
+        .await
+        .ok();
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn submission_delete_version(
     state: State<'_, AppState>,
     id: String,

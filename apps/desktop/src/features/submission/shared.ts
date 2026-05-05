@@ -48,9 +48,11 @@ export interface Submission {
 
 export interface ChecklistItem {
   id: string;
+  submissionId?: string;
   label: string;
   checked: boolean;
   category: string;
+  sortOrder?: number;
 }
 
 export interface AddSubmissionFormState {
@@ -60,10 +62,34 @@ export interface AddSubmissionFormState {
   deadline: string;
 }
 
+export type RecommendationTargetType = "all" | VenueType;
+export type RecommendationTargetRank = "any" | "ccf-a" | "ccf-b" | "ccf-c" | "sci-q1" | "sci-q2" | "sci" | "custom";
+export type RecommendationRiskPreference = "safe" | "balanced" | "stretch";
+export type RecommendationTimePreference = "fast" | "normal" | "any";
+export type RecommendationTier = "stretch" | "primary" | "backup";
+export type RecommendationRiskLevel = "low" | "medium" | "high";
+
+export interface VenueRecommendationInput {
+  title: string;
+  abstract: string;
+  keywords: string;
+  direction: string;
+  targetType: RecommendationTargetType;
+  targetRank: RecommendationTargetRank;
+  customRank: string;
+  riskPreference: RecommendationRiskPreference;
+  timePreference: RecommendationTimePreference;
+  extra: string;
+}
+
 export interface VenueRecommendation extends VenueTemplate {
   reason: string;
   matchScore: number;
   matchTags: string[];
+  tier: RecommendationTier;
+  riskLevel: RecommendationRiskLevel;
+  riskTips: string[];
+  rejectionReasons: string[];
 }
 
 export type ReviewVerdict = "accept" | "minor_revision" | "major_revision" | "reject";
@@ -323,6 +349,18 @@ export function rowToVersion(row: any): PaperVersion {
     createdAt: row.createdAt ? new Date(row.createdAt) : new Date(),
     filePath: row.filePath ?? undefined,
     fileName: row.fileName ?? undefined,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function rowToChecklistItem(row: any): ChecklistItem {
+  return {
+    id: row.id,
+    submissionId: row.submissionId,
+    label: row.label ?? "",
+    checked: Boolean(row.checked),
+    category: row.category ?? "",
+    sortOrder: row.sortOrder,
   };
 }
 
