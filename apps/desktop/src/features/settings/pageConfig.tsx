@@ -58,8 +58,8 @@ export const SETTINGS_SECTIONS: Array<{
   },
   {
     key: "history",
-    label: "閰嶇疆鍘嗗彶",
-    description: "淇濆瓨涓庡垏鎹㈠皬濡嶉厤缃?",
+    label: "配置历史",
+    description: "保存与切换小妍配置",
     icon: History,
     color: "#0A84FF",
   },

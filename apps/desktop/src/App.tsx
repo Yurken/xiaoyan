@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
   FileText,
@@ -57,6 +57,7 @@ function LandscapeFocusRouteRedirect() {
 
 export default function App() {
   const autoUpdate = useAutoUpdate();
+  const navigate = useNavigate();
   const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());
 
   useEffect(() => {
@@ -84,6 +85,18 @@ export default function App() {
       window.removeEventListener(LAYOUT_MODE_CHANGE_EVENT, syncLayoutMode);
     };
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === ",") {
+        event.preventDefault();
+        navigate("/settings");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [navigate]);
 
   if (layoutMode === "focus") {
     return (

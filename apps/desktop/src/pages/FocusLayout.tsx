@@ -35,6 +35,8 @@ import Knowledge from "./Knowledge";
 import Copilot from "./Copilot";
 import Tools from "./Tools";
 import Settings from "./Settings";
+import Experiment from "./Experiment";
+import Submission from "./Submission";
 
 // ─── Focus Home ──────────────────────────────────────────────────────────────
 
@@ -673,6 +675,8 @@ export default function FocusApp() {
           <Route path="/xiaoyan" element={<FocusLegacyRouteRedirect tab="xiaoyan" />} />
           <Route path="/copilot" element={<FocusLegacyRouteRedirect tab="copilot" />} />
           <Route path="/tools" element={<FocusLegacyRouteRedirect tab="tools" />} />
+          <Route path="/experiment" element={<Experiment />} />
+          <Route path="/submission" element={<Submission />} />
           <Route path="/settings" element={<FocusSettingsWrapper />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

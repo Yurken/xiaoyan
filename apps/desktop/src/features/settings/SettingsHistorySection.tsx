@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Card, Select } from "@research-copilot/ui";
+import { useMemo, useState } from "react";
+import { Card, ConfirmDialog, Select } from "@research-copilot/ui";
 import { History, Loader2, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { SettingsHistoryEntry } from "@research-copilot/types";
 import { SectionIcon, SettingInput } from "./shared";
@@ -61,6 +61,10 @@ function MetaChip({ label }: { label: string }) {
   );
 }
 
+type PendingHistoryAction =
+  | { type: "apply"; id: string }
+  | { type: "delete"; id: string };
+
 export default function SettingsHistorySection({
   entries,
   loading,
@@ -80,6 +84,7 @@ export default function SettingsHistorySection({
   onDeleteHistory,
   onReload,
 }: SettingsHistorySectionProps) {
+  const [pendingAction, setPendingAction] = useState<PendingHistoryAction | null>(null);
   const selectOptions = useMemo(
     () =>
       entries.map((item) => ({
@@ -91,25 +96,39 @@ export default function SettingsHistorySection({
 
   const handleApply = (id: string) => {
     if (!id) return;
-    const target = entries.find((item) => item.id === id);
-    const confirmed = window.confirm(
-      target
-        ? `应用“${target.name}”后，当前配置会被覆盖并立即生效。继续吗？`
-        : "应用这份历史配置后，当前配置会被覆盖并立即生效。继续吗？",
-    );
-    if (!confirmed) return;
-    void onApplyHistory(id);
+    setPendingAction({ type: "apply", id });
   };
 
   const handleDelete = (id: string) => {
-    const target = entries.find((item) => item.id === id);
-    const confirmed = window.confirm(
-      target
-        ? `确定要删除“${target.name}”这条配置历史吗？删除后将无法恢复。`
-        : "确定要删除这条配置历史吗？删除后将无法恢复。",
-    );
-    if (!confirmed) return;
-    void onDeleteHistory(id);
+    setPendingAction({ type: "delete", id });
+  };
+
+  const pendingEntry = pendingAction ? entries.find((item) => item.id === pendingAction.id) : undefined;
+  const confirmLoading = pendingAction?.type === "apply"
+    ? applyingId === pendingAction.id
+    : pendingAction?.type === "delete"
+      ? deletingId === pendingAction.id
+      : false;
+  const confirmTitle = pendingAction?.type === "delete" ? "删除配置历史" : "应用配置历史";
+  const confirmDescription = pendingAction?.type === "delete"
+    ? pendingEntry
+      ? `确定要删除“${pendingEntry.name}”这条配置历史吗？删除后将无法恢复。`
+      : "确定要删除这条配置历史吗？删除后将无法恢复。"
+    : pendingEntry
+      ? `应用“${pendingEntry.name}”后，当前配置会被覆盖并立即生效。继续吗？`
+      : "应用这份历史配置后，当前配置会被覆盖并立即生效。继续吗？";
+
+  const confirmPendingAction = () => {
+    if (!pendingAction || confirmLoading) return;
+
+    const action = pendingAction;
+    const task = action.type === "apply"
+      ? onApplyHistory(action.id)
+      : onDeleteHistory(action.id);
+
+    void Promise.resolve(task)
+      .catch(() => undefined)
+      .finally(() => setPendingAction(null));
   };
 
   return (
@@ -293,6 +312,20 @@ export default function SettingsHistorySection({
           </div>
         )}
       </Card>
+
+      <ConfirmDialog
+        open={pendingAction !== null}
+        title={confirmTitle}
+        description={confirmDescription}
+        confirmLabel={pendingAction?.type === "delete" ? "确认删除" : "确认应用"}
+        cancelLabel="取消"
+        tone={pendingAction?.type === "delete" ? "danger" : "default"}
+        loading={confirmLoading}
+        onClose={() => {
+          if (!confirmLoading) setPendingAction(null);
+        }}
+        onConfirm={confirmPendingAction}
+      />
     </div>
   );
 }

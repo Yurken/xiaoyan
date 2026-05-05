@@ -26,6 +26,7 @@ import { useSubmissionVersions } from "../features/submission/useSubmissionVersi
 import { useSubmissionVenues } from "../features/submission/useSubmissionVenues";
 import VenueTrackerWorkspace from "../features/submission/VenueTrackerWorkspace";
 import VersionWorkspace from "../features/submission/VersionWorkspace";
+import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import {
   countVerdicts,
   getDominantVerdict,
@@ -41,8 +42,15 @@ import {
   type SaveVersionFormState,
 } from "../features/submission/shared";
 
+const SUBMISSION_TABS = ["conferences", "kanban", "checklist", "versions", "reviews"] as const;
+type SubmissionTab = (typeof SUBMISSION_TABS)[number];
+
 export default function Submission() {
-  const [tab, setTab] = useState<"conferences" | "kanban" | "checklist" | "versions" | "reviews">("conferences");
+  const [tab, setTab] = usePersistentStringState<SubmissionTab>(
+    "rc:submission:active-tab",
+    "conferences",
+    SUBMISSION_TABS,
+  );
 
   const {
     conferences,

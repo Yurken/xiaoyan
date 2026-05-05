@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Bot,
@@ -32,6 +32,11 @@ import {
 } from "../features/copilot/shared";
 import { useCopilotAttachments } from "../features/copilot/useCopilotAttachments";
 import { useCopilotChatMode } from "../features/copilot/useCopilotChatMode";
+import {
+  clearPersistentValue,
+  readPersistentValue,
+  writePersistentValue,
+} from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, ResearchInterest, Skill } from "@research-copilot/types";
@@ -82,6 +87,7 @@ function interestFolderName(interest: ResearchInterest) {
 }
 
 const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
+const COPILOT_LAST_SESSION_KEY = "rc:copilot:last-session-id";
 
 export default function Copilot({ hideFolders = false }: { hideFolders?: boolean }) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -108,6 +114,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const { chatMode, setChatMode } = useCopilotChatMode();
   const bottomRef = useRef<HTMLDivElement>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
+  const restoredSessionRef = useRef(false);
   const memorySavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     attachments,
@@ -167,12 +174,17 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     }).catch(() => { });
   }, []);
 
+  const cancelActiveStream = useCallback(() => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+  }, []);
+
   useEffect(() => {
     return () => {
       cancelActiveStream();
       if (memorySavedTimerRef.current) clearTimeout(memorySavedTimerRef.current);
     };
-  }, []);
+  }, [cancelActiveStream]);
 
   const sessionGroups = useMemo(() => {
     return interests.map((interest) => ({
@@ -214,7 +226,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     }
   };
 
-  const loadSession = async (session: ChatSession) => {
+  const loadSession = useCallback(async (session: ChatSession) => {
     cancelActiveStream();
     try {
       setLoadError("");
@@ -223,6 +235,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         apiClient.chat.listAgentRuns(session.id),
       ]);
       setCurrentSession(sessionData);
+      writePersistentValue(COPILOT_LAST_SESSION_KEY, sessionData.id);
       setSelectedInterestId(
         sessionData.context_type === "interest" && sessionData.context_id ? sessionData.context_id : ""
       );
@@ -234,20 +247,34 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     } catch (error) {
       setLoadError(formatErrorMessage(error));
     }
-  };
+  }, [cancelActiveStream]);
+
+  useEffect(() => {
+    if (restoredSessionRef.current || currentSession || sessions.length === 0) {
+      return;
+    }
+
+    restoredSessionRef.current = true;
+    const storedSessionId = readPersistentValue(COPILOT_LAST_SESSION_KEY);
+    if (!storedSessionId) return;
+
+    const targetSession = sessions.find((session) => session.id === storedSessionId);
+    if (!targetSession) {
+      clearPersistentValue(COPILOT_LAST_SESSION_KEY);
+      return;
+    }
+
+    void loadSession(targetSession);
+  }, [currentSession, loadSession, sessions]);
 
   const syncSession = (updatedSession: ChatSession) => {
     setSessions((prev) => [updatedSession, ...prev.filter((session) => session.id !== updatedSession.id)]);
     setCurrentSession((prev) => (prev?.id === updatedSession.id ? updatedSession : prev));
   };
 
-  const cancelActiveStream = () => {
-    streamAbortRef.current?.abort();
-    streamAbortRef.current = null;
-  };
-
   const handleNewChat = () => {
     cancelActiveStream();
+    clearPersistentValue(COPILOT_LAST_SESSION_KEY);
     setCurrentSession(null);
     setMessages([]);
     setPlan([]);
@@ -284,6 +311,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       setSessions((prev) => prev.filter((item) => item.id !== sessionId));
       if (currentSession?.id === sessionId) {
         handleNewChat();
+      } else if (readPersistentValue(COPILOT_LAST_SESSION_KEY) === sessionId) {
+        clearPersistentValue(COPILOT_LAST_SESSION_KEY);
       }
     } catch (error) {
       setLoadError(formatErrorMessage(error));
@@ -419,7 +448,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         }
         if (chunk.type === "error") {
           const errorText = chunk.value || "请求未完成，请稍后重试。";
-          setLoadError(errorText);
           setMessages((prev) =>
             prev.map((message) =>
               message.id === assistantId ? { ...message, content: errorText } : message
@@ -430,15 +458,18 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
       if (sessionId && !currentSession && !abortController.signal.aborted) {
         const updated = await apiClient.chat.listSessions();
+        const nextSession = updated.find((session) => session.id === sessionId) ?? null;
         setSessions(updated);
-        setCurrentSession(updated.find((session) => session.id === sessionId) ?? null);
+        setCurrentSession(nextSession);
+        if (nextSession) {
+          writePersistentValue(COPILOT_LAST_SESSION_KEY, nextSession.id);
+        }
       }
     } catch (error) {
       if ((error as Error)?.name === "AbortError") {
         // User-initiated abort is not an error surface
       } else {
         const message = `请求未完成：${formatErrorMessage(error)}`;
-        setLoadError(message);
         setMessages((prev) =>
           prev.map((item) =>
             item.id === assistantId ? { ...item, content: message } : item
@@ -712,7 +743,15 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                   }}
                 >
                   <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                  <span className="break-all">{loadError}</span>
+                  <span className="min-w-0 flex-1 break-all">{loadError}</span>
+                  <button
+                    type="button"
+                    aria-label="关闭错误提示"
+                    onClick={() => setLoadError("")}
+                    className="rounded-lg p-0.5 text-apple-red/70 transition-colors hover:bg-apple-red/10 hover:text-apple-red"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
             )}

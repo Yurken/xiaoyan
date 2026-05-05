@@ -78,7 +78,7 @@ function Lightbox({ src, label, onClose }: { src: string; label: string; onClose
 }
 
 /** Attachment grid for one experiment */
-function AttachmentPanel({ experimentId }: { experimentId: string }) {
+function AttachmentPanel({ experimentId, onError }: { experimentId: string; onError: (message: string) => void }) {
   const [attachments, setAttachments] = useState<ExperimentAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState<ExperimentAttachment | null>(null);
@@ -104,15 +104,19 @@ function AttachmentPanel({ experimentId }: { experimentId: string }) {
       const att = await experimentApi.attachments.add(experimentId, filePath);
       setAttachments((prev) => [...prev, att]);
     } catch (err) {
-      alert(formatErrorMessage(err));
+      onError(formatErrorMessage(err));
     } finally {
       setUploading(false);
     }
   }
 
   async function handleDelete(id: string) {
-    await experimentApi.attachments.delete(id);
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
+    try {
+      await experimentApi.attachments.delete(id);
+      setAttachments((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      onError(formatErrorMessage(err));
+    }
   }
 
   async function handleLabelCommit(id: string, nextLabel: string) {
@@ -126,7 +130,7 @@ function AttachmentPanel({ experimentId }: { experimentId: string }) {
       await experimentApi.attachments.updateLabel(id, normalized);
       setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, label: normalized } : a)));
     } catch (err) {
-      alert(formatErrorMessage(err));
+      onError(formatErrorMessage(err));
     } finally {
       setEditingLabel(null);
     }
@@ -494,7 +498,7 @@ export default function Experiment() {
 
                 {/* Screenshots */}
                 <Card variant="inset" padding="sm">
-                  <AttachmentPanel experimentId={selected.id} />
+                  <AttachmentPanel experimentId={selected.id} onError={showToast} />
                 </Card>
 
                 {/* Notes */}
