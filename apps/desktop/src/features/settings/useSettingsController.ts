@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import type { AppSettings, AppUpdateInfo } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
+import { emitCompanionPreferenceChange, normalizeCompanionId } from "../companion/shared";
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 export type TestState = "idle" | "testing" | "ok" | "error";
@@ -91,6 +92,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
     setSaveState("saving");
     try {
       await apiClient.settings.update(form);
+      emitCompanionPreferenceChange(normalizeCompanionId(form.xiaoyan_companion_id));
       markSaved();
     } catch (error) {
       setSaveState("error");

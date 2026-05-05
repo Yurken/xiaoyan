@@ -6,6 +6,7 @@ import type { ProviderPresetId } from "./providerPresets";
 import ConnectionSection from "./ConnectionSection";
 import RolesSection from "./RolesSection";
 import { SectionIcon, ToggleRow } from "./shared";
+import CompanionSettingsSection from "../companion/CompanionSettingsSection";
 
 interface AssistantSettingsSectionProps {
   contentUnavailable: boolean;
@@ -70,6 +71,7 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
         loadOllamaModels={props.loadOllamaModels}
       />
       <LongTermMemorySection form={props.form} set={props.set} />
+      <CompanionSettingsSection form={props.form} set={props.set} />
       {!props.contentUnavailable ? (
         <RolesSection
           form={props.form}
