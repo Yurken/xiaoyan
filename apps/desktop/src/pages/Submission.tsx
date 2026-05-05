@@ -21,6 +21,7 @@ import ReviewWorkspace from "../features/submission/ReviewWorkspace";
 import SaveVersionModal from "../features/submission/SaveVersionModal";
 import { useSubmissionBoard } from "../features/submission/useSubmissionBoard";
 import { useSubmissionChecklist } from "../features/submission/useSubmissionChecklist";
+import { useRejectionRecovery } from "../features/submission/useRejectionRecovery";
 import { useSubmissionVersions } from "../features/submission/useSubmissionVersions";
 import { useSubmissionVenues } from "../features/submission/useSubmissionVenues";
 import VenueTrackerWorkspace from "../features/submission/VenueTrackerWorkspace";
@@ -79,6 +80,7 @@ export default function Submission() {
     moveSubmission,
     handleAddSubmission,
   } = useSubmissionBoard();
+  const rejectionRecoveryPlans = useRejectionRecovery(submissions);
 
   // Version control state
   const [versionSubId, setVersionSubId] = useState<string>("");
@@ -659,8 +661,18 @@ export default function Submission() {
         {tab === "kanban" && (
           <KanbanWorkspace
             submissions={submissions}
+            rejectionRecoveryPlans={rejectionRecoveryPlans}
             onOpenAddSubmission={() => setShowAddSubModal(true)}
             onMoveSubmission={moveSubmission}
+            onPrepareTransfer={(plan, target) => {
+              setAddSubForm({
+                title: plan.submission.title,
+                venue: target.name,
+                venueType: target.type,
+                deadline: "",
+              });
+              setShowAddSubModal(true);
+            }}
           />
         )}
 

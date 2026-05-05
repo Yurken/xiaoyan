@@ -68,6 +68,7 @@ export type RecommendationRiskPreference = "safe" | "balanced" | "stretch";
 export type RecommendationTimePreference = "fast" | "normal" | "any";
 export type RecommendationTier = "stretch" | "primary" | "backup";
 export type RecommendationRiskLevel = "low" | "medium" | "high";
+export type SubmissionTimelineStepState = "done" | "active" | "pending";
 
 export interface VenueRecommendationInput {
   title: string;
@@ -90,6 +91,32 @@ export interface VenueRecommendation extends VenueTemplate {
   riskLevel: RecommendationRiskLevel;
   riskTips: string[];
   rejectionReasons: string[];
+}
+
+export interface SubmissionTimelineStep {
+  key: string;
+  label: string;
+  state: SubmissionTimelineStepState;
+  detail: string;
+}
+
+export interface RejectionRecoveryTarget {
+  id: string;
+  name: string;
+  fullName: string;
+  type: VenueType;
+  area: string;
+  ccf: CcfRating;
+  sci?: boolean;
+  sciQuartile?: "Q1" | "Q2" | "Q3" | "Q4";
+  reason: string;
+}
+
+export interface RejectionRecoveryPlan {
+  submission: Submission;
+  summary: string;
+  actions: string[];
+  targets: RejectionRecoveryTarget[];
 }
 
 export type ReviewVerdict = "accept" | "minor_revision" | "major_revision" | "reject";
@@ -287,6 +314,64 @@ export const KANBAN_COLS: { key: SubmissionStatus; label: string }[] = [
   { key: "accepted", label: "已接收" },
   { key: "rejected", label: "已拒绝" },
 ];
+
+const TIMELINE_STEP_KEYS: SubmissionStatus[] = ["writing", "submitted", "reviewing", "accepted"];
+
+function formatDate(date?: Date): string {
+  return date ? date.toLocaleDateString("zh-CN", { month: "short", day: "numeric" }) : "";
+}
+
+function daysSince(date?: Date): number | null {
+  if (!date) return null;
+  return Math.max(0, Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+export function buildSubmissionTimeline(submission: Submission): SubmissionTimelineStep[] {
+  const statusIndex =
+    submission.status === "rejected"
+      ? TIMELINE_STEP_KEYS.indexOf("reviewing")
+      : TIMELINE_STEP_KEYS.indexOf(submission.status);
+  const waitingDays = daysSince(submission.submittedAt);
+
+  return TIMELINE_STEP_KEYS.map((key, index) => {
+    const state: SubmissionTimelineStepState =
+      index < statusIndex ? "done" : index === statusIndex ? "active" : "pending";
+
+    if (key === "writing") {
+      const deadlineDetail =
+        submission.deadline && submission.venueType === "conference"
+          ? `DDL ${formatDate(submission.deadline)}`
+          : "材料准备";
+      return { key, label: "准备", state, detail: deadlineDetail };
+    }
+
+    if (key === "submitted") {
+      return {
+        key,
+        label: "提交",
+        state,
+        detail: submission.submittedAt ? `已投 ${formatDate(submission.submittedAt)}` : "待提交",
+      };
+    }
+
+    if (key === "reviewing") {
+      const detail =
+        submission.status === "rejected"
+          ? "转投评估"
+          : waitingDays !== null && submission.status === "reviewing"
+            ? `等待 ${waitingDays} 天`
+            : "等待外审";
+      return { key, label: "外审", state, detail };
+    }
+
+    return {
+      key,
+      label: "结果",
+      state: submission.status === "accepted" ? "done" : state,
+      detail: submission.status === "accepted" ? "已录用" : submission.status === "rejected" ? "已拒稿" : "待决定",
+    };
+  });
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function rowToVenue(row: any): Venue {

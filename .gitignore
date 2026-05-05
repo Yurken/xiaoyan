@@ -234,3 +234,6 @@ upload/
 system-review*.md
 promo-video-planning.md
 *.dmg
+
+# master分支暂不更新
+apps/mac/*
