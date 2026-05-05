@@ -144,15 +144,9 @@ jobs:
           set -euo pipefail
           bundle_root="apps/desktop/src-tauri/target/${{ matrix.build_target_dir }}/bundle"
           output_dir=".release-artifacts/release-${{ matrix.updater_target }}"
-          mkdir -p "$output_dir"
-          find "$bundle_root" -type f \
-            \( \
-              -path '*/dmg/*.dmg' -o \
-              -path '*/msi/*.msi' -o \
-              -path '*/nsis/*setup.exe' \
-            \) \
-            -exec cp '{}' "$output_dir/" ';'
-          test -n "$(find "$output_dir" -type f | head -n 1)"
+          node scripts/collect-release-installers.mjs \
+            --input-dir "$bundle_root" \
+            --output-dir "$output_dir"
           ls -l "$output_dir"
 
       - name: Upload release installers
