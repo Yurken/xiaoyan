@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Library,
   Map,
+  MessageSquare,
   Send,
   Settings as SettingsIcon,
   Wrench,
@@ -22,8 +23,6 @@ import Tools from "./pages/Tools";
 import Submission from "./pages/Submission";
 import Experiment from "./pages/Experiment";
 import FocusApp from "./pages/FocusLayout";
-import hitLogo from "./assets/xiaoyany.svg";
-import hitLogoActive from "./assets/xiaoyanw.svg";
 import {
   getLayoutMode,
   landscapePathForFocusPath,
@@ -41,6 +40,7 @@ import XiaoYanPet from "./components/XiaoYanPet";
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "工作台" },
   { to: "/planner", icon: Map, label: "规划" },
+  { to: "/xiaoyan", icon: MessageSquare, label: "小妍" },
   { to: "/survey", icon: BookOpen, label: "综述" },
   { to: "/papers", icon: FileText, label: "论文" },
   { to: "/knowledge", icon: Library, label: "知识" },
@@ -112,18 +112,6 @@ export default function App() {
     <div className={`app-shell ${IS_MACOS_DESKTOP ? "app-shell--macos-overlay" : ""}`.trim()}>
       <aside className="app-sidebar">
         <MacWindowDragStrip className="app-sidebar__window-drag-region" />
-        <NavLink to="/xiaoyan" className="app-sidebar__logo" title="进入小妍对话" draggable={false}>
-          {({ isActive }) => (
-            <img
-              src={isActive ? hitLogoActive : hitLogo}
-              alt="小妍"
-              className="app-sidebar__logo-image"
-              draggable={false}
-            />
-          )}
-        </NavLink>
-
-        <div className="app-sidebar__divider" />
 
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
