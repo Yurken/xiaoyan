@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { FileText, FileSearch, Globe2, Languages, Presentation, Sparkles } from "lucide-react";
+import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import { ArxivFieldSearchPanel } from "../features/tools/ArxivFieldSearchPanel";
 import { ArxivSearchResults } from "../features/tools/ArxivSearchResults";
 import { FriendLinksPanel } from "../features/tools/FriendLinksPanel";
@@ -28,6 +28,7 @@ const TOOL_TABS = [
 ] as const;
 
 type ToolTabKey = (typeof TOOL_TABS)[number]["key"];
+const TOOL_TAB_KEYS = TOOL_TABS.map((tab) => tab.key);
 
 export default function Tools() {
   const {
@@ -42,7 +43,11 @@ export default function Tools() {
   const paperDiscovery = usePaperDiscoverySearch();
   const arxivFieldSearch = useArxivFieldSearch();
   const friendLinks = useFriendLinks();
-  const [activeTab, setActiveTab] = useState<ToolTabKey>("arxiv");
+  const [activeTab, setActiveTab] = usePersistentStringState<ToolTabKey>(
+    "rc:tools:active-tab",
+    "arxiv",
+    TOOL_TAB_KEYS,
+  );
 
   const {
     input: mdInput,

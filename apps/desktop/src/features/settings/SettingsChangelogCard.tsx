@@ -130,8 +130,8 @@ export default function SettingsChangelogCard() {
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-tertiary">{label}</p>
                   {items.length > 0 ? (
                     <ul className="space-y-1">
-                      {items.map((item, index) => (
-                        <li key={index} className="flex gap-2 text-xs leading-5 text-ink-secondary">
+                      {items.map((item) => (
+                        <li key={`${label}-${item}`} className="flex gap-2 text-xs leading-5 text-ink-secondary">
                           <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-ink-tertiary/50" />
                           {item}
                         </li>

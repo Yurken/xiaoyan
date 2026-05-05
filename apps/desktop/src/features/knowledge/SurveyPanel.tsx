@@ -993,8 +993,8 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
                       参考文献（{CITATION_FORMATS.find((f) => f.value === structured.citation_format)?.label ?? citationFormatLabel} 格式）
                     </p>
                     <div className="rounded-2xl border border-nm-dark/10 bg-white/30 p-3 space-y-1.5">
-                      {structured.formatted_citations.map((cite, index) => (
-                        <p key={index} className="text-[11px] leading-5 text-ink-secondary">{cite}</p>
+                      {structured.formatted_citations.map((cite) => (
+                        <p key={cite} className="text-[11px] leading-5 text-ink-secondary">{cite}</p>
                       ))}
                     </div>
                   </div>

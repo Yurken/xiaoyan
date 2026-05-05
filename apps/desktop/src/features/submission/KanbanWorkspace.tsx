@@ -1,17 +1,31 @@
 import { FilePlus, Trophy, Users } from "lucide-react";
 import { Button } from "@research-copilot/ui";
-import { KANBAN_COLS, STATUS_CFG, getDaysUntil, getDdlStyle, type Submission } from "./shared";
+import RejectionRecoveryPanel from "./RejectionRecoveryPanel";
+import SubmissionTimelineStrip from "./SubmissionTimelineStrip";
+import {
+  KANBAN_COLS,
+  STATUS_CFG,
+  getDaysUntil,
+  getDdlStyle,
+  type RejectionRecoveryPlan,
+  type RejectionRecoveryTarget,
+  type Submission,
+} from "./shared";
 
 interface KanbanWorkspaceProps {
   submissions: Submission[];
+  rejectionRecoveryPlans: RejectionRecoveryPlan[];
   onOpenAddSubmission: () => void;
   onMoveSubmission: (id: string, direction: "prev" | "next") => void;
+  onPrepareTransfer: (plan: RejectionRecoveryPlan, target: RejectionRecoveryTarget) => void;
 }
 
 export default function KanbanWorkspace({
   submissions,
+  rejectionRecoveryPlans,
   onOpenAddSubmission,
   onMoveSubmission,
+  onPrepareTransfer,
 }: KanbanWorkspaceProps) {
   const copyBibtex = (submission: Submission) => {
     const year = new Date().getFullYear();
@@ -82,6 +96,7 @@ export default function KanbanWorkspace({
                         投稿于 {submission.submittedAt.toLocaleDateString("zh-CN")}
                       </p>
                     ) : null}
+                    <SubmissionTimelineStrip submission={submission} />
                     {key === "accepted" ? (
                       <div className="mt-1.5 flex items-center gap-2">
                         <div className="flex items-center gap-1">
@@ -134,6 +149,11 @@ export default function KanbanWorkspace({
           );
         })}
       </div>
+
+      <RejectionRecoveryPanel
+        plans={rejectionRecoveryPlans}
+        onPrepareTransfer={onPrepareTransfer}
+      />
 
       <div
         className="rounded-3xl p-4 flex items-center gap-3 border-2 border-dashed opacity-50"

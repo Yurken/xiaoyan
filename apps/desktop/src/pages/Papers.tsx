@@ -20,6 +20,7 @@ import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
 import PaperDetailModal from "../features/papers/PaperDetailModal";
 import type { PaperFigure } from "../features/papers/shared";
+import { usePersistentState } from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, parsePaperTagVisibility } from "../lib/paperTags";
 
@@ -45,7 +46,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [confirmReanalyzePaperId, setConfirmReanalyzePaperId] = useState<string | null>(null);
   const [deletingPaperId, setDeletingPaperId] = useState<string | null>(null);
   const [visiblePaperTags, setVisiblePaperTags] = useState(() => parsePaperTagVisibility(DEFAULT_PAPER_TAG_VISIBILITY_VALUE));
-  const [selectedInterestId, setSelectedInterestId] = useState("");
+  const [selectedInterestId, setSelectedInterestId] = usePersistentState<string>("rc:papers:selected-interest-id", "");
   const [recognizeOpen, setRecognizeOpen] = useState(false);
   type RecognizeFlags = { title: boolean; authors: boolean; year: boolean; venue: boolean; keywords: boolean };
   const [recognizeFlags, setRecognizeFlags] = useState<RecognizeFlags>({
@@ -67,14 +68,17 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   type SortKey = "created_at" | "title" | "importance";
-  const [sortKeys, setSortKeys] = useState<Record<string, SortKey>>({});
-  const getSortKey = (groupId: string): SortKey => sortKeys[groupId] ?? "created_at";
+  const [sortKeys, setSortKeys] = usePersistentState<Record<string, SortKey>>("rc:papers:sort-keys", {});
+  const getSortKey = (groupId: string): SortKey => {
+    const key = sortKeys[groupId];
+    return key === "title" || key === "importance" || key === "created_at" ? key : "created_at";
+  };
   const setSortKey = (groupId: string, key: SortKey) =>
     setSortKeys((prev) => ({ ...prev, [groupId]: key }));
-  const [keywordFilters, setKeywordFilters] = useState<Record<string, string>>({});
+  const [keywordFilters, setKeywordFilters] = usePersistentState<Record<string, string>>("rc:papers:keyword-filters", {});
   const setKeywordFilter = (groupId: string, kw: string) =>
     setKeywordFilters((prev) => ({ ...prev, [groupId]: kw }));
-  const [titleFilters, setTitleFilters] = useState<Record<string, string>>({});
+  const [titleFilters, setTitleFilters] = usePersistentState<Record<string, string>>("rc:papers:title-filters", {});
   const setTitleFilter = (groupId: string, q: string) =>
     setTitleFilters((prev) => ({ ...prev, [groupId]: q }));
   const [editDraft, setEditDraft] = useState({
@@ -138,6 +142,13 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedInterestId || interests.length === 0) return;
+    if (!interests.some((interest) => interest.id === selectedInterestId)) {
+      setSelectedInterestId("");
+    }
+  }, [interests, selectedInterestId, setSelectedInterestId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -280,7 +291,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         setLoadError(failures.join("\n"));
       }
     } catch (error) {
-      console.error(error);
       setLoadError(formatErrorMessage(error));
     } finally {
       setUploading(false);
@@ -413,8 +423,8 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
 
       const yearText = editDraft.year.trim();
       const nextYear = yearText ? Number.parseInt(yearText, 10) : 0;
-      if (yearText && Number.isNaN(nextYear)) {
-        throw new Error("年份必须是合法数字");
+      if (yearText && !/^\d{4}$/.test(yearText)) {
+        throw new Error("年份需填写 4 位数字");
       }
 
       setSavingEdit(true);
@@ -517,6 +527,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   };
 
   const hasLoadedContent = papers.length > 0 || interests.length > 0;
+  const editTitleError = editingId && !editDraft.title.trim() ? "标题不能为空" : "";
+  const editYearText = editDraft.year.trim();
+  const editYearError = editingId && editYearText && !/^\d{4}$/.test(editYearText) ? "年份需填写 4 位数字" : "";
 
   const SORT_LABELS: Record<SortKey, string> = { created_at: "导入时间", title: "名称", importance: "重要性" };
 
@@ -822,6 +835,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           <Input
             label="标题"
             value={editDraft.title}
+            error={editTitleError}
             onChange={(event) => setEditDraft((prev) => ({ ...prev, title: event.target.value }))}
             placeholder="论文标题"
           />
@@ -840,6 +854,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           <Input
             label="年份"
             value={editDraft.year}
+            error={editYearError}
             onChange={(event) => setEditDraft((prev) => ({ ...prev, year: event.target.value }))}
             placeholder="例如：2024"
           />
@@ -915,7 +930,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             <Button size="sm" variant="secondary" onClick={() => setEditingId(null)}>
               取消
             </Button>
-            <Button size="sm" onClick={() => void handleSaveEdit(paper.id)} loading={savingEdit}>
+            <Button size="sm" onClick={() => void handleSaveEdit(paper.id)} loading={savingEdit} disabled={Boolean(editTitleError || editYearError)}>
               保存
             </Button>
           </div>

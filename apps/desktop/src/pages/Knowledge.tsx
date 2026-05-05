@@ -1,14 +1,20 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Select } from "@research-copilot/ui";
 import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspace";
 import { buildNoteClaimCountMap, interestDisplayName } from "../features/knowledge/shared";
 import { useKnowledgeGraphWorkspace } from "../features/knowledge/useKnowledgeGraphWorkspace";
 import NotesPanel from "../features/knowledge/NotesPanel";
+import { usePersistentStringState } from "../hooks/usePersistentStringState";
 
 type KnowledgeView = "graph" | "notes";
+const KNOWLEDGE_VIEWS: readonly KnowledgeView[] = ["graph", "notes"];
 
 export default function Knowledge({ hideFolders = false }: { hideFolders?: boolean }) {
-  const [view, setView] = useState<KnowledgeView>("graph");
+  const [view, setView] = usePersistentStringState<KnowledgeView>(
+    "rc:knowledge:view",
+    "graph",
+    KNOWLEDGE_VIEWS,
+  );
   const graphController = useKnowledgeGraphWorkspace();
   const interestOptions = useMemo(
     () => [
@@ -58,7 +64,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
         graphController.view?.visibleEvidenceLinks ?? graphController.snapshot.evidenceLinks,
       );
     },
-    [graphController.snapshot?.evidenceLinks, graphController.view?.visibleEvidenceLinks],
+    [graphController.snapshot, graphController.view?.visibleEvidenceLinks],
   );
 
   return (

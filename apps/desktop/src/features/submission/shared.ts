@@ -48,9 +48,11 @@ export interface Submission {
 
 export interface ChecklistItem {
   id: string;
+  submissionId?: string;
   label: string;
   checked: boolean;
   category: string;
+  sortOrder?: number;
 }
 
 export interface AddSubmissionFormState {
@@ -60,10 +62,61 @@ export interface AddSubmissionFormState {
   deadline: string;
 }
 
+export type RecommendationTargetType = "all" | VenueType;
+export type RecommendationTargetRank = "any" | "ccf-a" | "ccf-b" | "ccf-c" | "sci-q1" | "sci-q2" | "sci" | "custom";
+export type RecommendationRiskPreference = "safe" | "balanced" | "stretch";
+export type RecommendationTimePreference = "fast" | "normal" | "any";
+export type RecommendationTier = "stretch" | "primary" | "backup";
+export type RecommendationRiskLevel = "low" | "medium" | "high";
+export type SubmissionTimelineStepState = "done" | "active" | "pending";
+
+export interface VenueRecommendationInput {
+  title: string;
+  abstract: string;
+  keywords: string;
+  direction: string;
+  targetType: RecommendationTargetType;
+  targetRank: RecommendationTargetRank;
+  customRank: string;
+  riskPreference: RecommendationRiskPreference;
+  timePreference: RecommendationTimePreference;
+  extra: string;
+}
+
 export interface VenueRecommendation extends VenueTemplate {
   reason: string;
   matchScore: number;
   matchTags: string[];
+  tier: RecommendationTier;
+  riskLevel: RecommendationRiskLevel;
+  riskTips: string[];
+  rejectionReasons: string[];
+}
+
+export interface SubmissionTimelineStep {
+  key: string;
+  label: string;
+  state: SubmissionTimelineStepState;
+  detail: string;
+}
+
+export interface RejectionRecoveryTarget {
+  id: string;
+  name: string;
+  fullName: string;
+  type: VenueType;
+  area: string;
+  ccf: CcfRating;
+  sci?: boolean;
+  sciQuartile?: "Q1" | "Q2" | "Q3" | "Q4";
+  reason: string;
+}
+
+export interface RejectionRecoveryPlan {
+  submission: Submission;
+  summary: string;
+  actions: string[];
+  targets: RejectionRecoveryTarget[];
 }
 
 export type ReviewVerdict = "accept" | "minor_revision" | "major_revision" | "reject";
@@ -262,91 +315,220 @@ export const KANBAN_COLS: { key: SubmissionStatus; label: string }[] = [
   { key: "rejected", label: "已拒绝" },
 ];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function rowToVenue(row: any): Venue {
+const TIMELINE_STEP_KEYS: SubmissionStatus[] = ["writing", "submitted", "reviewing", "accepted"];
+
+function formatDate(date?: Date): string {
+  return date ? date.toLocaleDateString("zh-CN", { month: "short", day: "numeric" }) : "";
+}
+
+function daysSince(date?: Date): number | null {
+  if (!date) return null;
+  return Math.max(0, Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+export function buildSubmissionTimeline(submission: Submission): SubmissionTimelineStep[] {
+  const statusIndex =
+    submission.status === "rejected"
+      ? TIMELINE_STEP_KEYS.indexOf("reviewing")
+      : TIMELINE_STEP_KEYS.indexOf(submission.status);
+  const waitingDays = daysSince(submission.submittedAt);
+
+  return TIMELINE_STEP_KEYS.map((key, index) => {
+    const state: SubmissionTimelineStepState =
+      index < statusIndex ? "done" : index === statusIndex ? "active" : "pending";
+
+    if (key === "writing") {
+      const deadlineDetail =
+        submission.deadline && submission.venueType === "conference"
+          ? `DDL ${formatDate(submission.deadline)}`
+          : "材料准备";
+      return { key, label: "准备", state, detail: deadlineDetail };
+    }
+
+    if (key === "submitted") {
+      return {
+        key,
+        label: "提交",
+        state,
+        detail: submission.submittedAt ? `已投 ${formatDate(submission.submittedAt)}` : "待提交",
+      };
+    }
+
+    if (key === "reviewing") {
+      const detail =
+        submission.status === "rejected"
+          ? "转投评估"
+          : waitingDays !== null && submission.status === "reviewing"
+            ? `等待 ${waitingDays} 天`
+            : "等待外审";
+      return { key, label: "外审", state, detail };
+    }
+
+    return {
+      key,
+      label: "结果",
+      state: submission.status === "accepted" ? "done" : state,
+      detail: submission.status === "accepted" ? "已录用" : submission.status === "rejected" ? "已拒稿" : "待决定",
+    };
+  });
+}
+
+type UnknownRow = Record<string, unknown>;
+
+function asRow(value: unknown): UnknownRow {
+  return value !== null && typeof value === "object" ? value as UnknownRow : {};
+}
+
+function stringField(row: UnknownRow, key: string, fallback = ""): string {
+  const value = row[key];
+  return typeof value === "string" ? value : fallback;
+}
+
+function optionalStringField(row: UnknownRow, key: string): string | undefined {
+  const value = row[key];
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function booleanField(row: UnknownRow, key: string): boolean {
+  const value = row[key];
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") return value === "1" || value.toLowerCase() === "true";
+  return false;
+}
+
+function numberField(row: UnknownRow, key: string, fallback = 0): number {
+  const value = row[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function dateField(row: UnknownRow, key: string): Date | undefined {
+  const value = row[key];
+  if (typeof value !== "string" && typeof value !== "number" && !(value instanceof Date)) {
+    return undefined;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function ccfRatingField(row: UnknownRow): CcfRating {
+  const value = row.ccf;
+  return value === "A" || value === "B" || value === "C" || value === "none" ? value : "none";
+}
+
+function venueTypeField(row: UnknownRow): VenueType {
+  return row.venueType === "journal" ? "journal" : "conference";
+}
+
+function submissionStatusField(value: unknown): SubmissionStatus {
+  return value === "submitted" || value === "reviewing" || value === "accepted" || value === "rejected"
+    ? value
+    : "writing";
+}
+
+function stringArrayField(row: UnknownRow, key: string): string[] {
+  const value = row[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+export function rowToVenue(value: unknown): Venue {
+  const row = asRow(value);
   if (row.type === "journal") {
     return {
-      id: row.id,
+      id: stringField(row, "id"),
       type: "journal",
-      name: row.name,
-      fullName: row.fullName ?? "",
-      website: row.website || undefined,
-      ccf: (row.ccf || "none") as CcfRating,
-      area: row.area ?? "",
-      starred: Boolean(row.starred),
-      sci: Boolean(row.sci),
-      sciQuartile: row.sciQuartile || undefined,
-      ei: Boolean(row.ei),
-      specialIssueDeadline: row.specialIssueDeadline ? new Date(row.specialIssueDeadline) : undefined,
-      specialIssueTitle: row.specialIssueTitle || undefined,
+      name: stringField(row, "name"),
+      fullName: stringField(row, "fullName"),
+      website: optionalStringField(row, "website"),
+      ccf: ccfRatingField(row),
+      area: stringField(row, "area"),
+      starred: booleanField(row, "starred"),
+      sci: booleanField(row, "sci"),
+      sciQuartile: row.sciQuartile === "Q1" || row.sciQuartile === "Q2" || row.sciQuartile === "Q3" || row.sciQuartile === "Q4" ? row.sciQuartile : undefined,
+      ei: booleanField(row, "ei"),
+      specialIssueDeadline: dateField(row, "specialIssueDeadline"),
+      specialIssueTitle: optionalStringField(row, "specialIssueTitle"),
     } satisfies Journal;
   }
 
   return {
-    id: row.id,
+    id: stringField(row, "id"),
     type: "conference",
-    name: row.name,
-    fullName: row.fullName ?? "",
-    website: row.website || undefined,
-    deadline: row.deadline ? new Date(row.deadline) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-    notificationDate: row.notificationDate ? new Date(row.notificationDate) : undefined,
-    ccf: (row.ccf || "none") as CcfRating,
-    area: row.area ?? "",
-    starred: Boolean(row.starred),
-    ei: Boolean(row.ei),
+    name: stringField(row, "name"),
+    fullName: stringField(row, "fullName"),
+    website: optionalStringField(row, "website"),
+    deadline: dateField(row, "deadline") ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+    notificationDate: dateField(row, "notificationDate"),
+    ccf: ccfRatingField(row),
+    area: stringField(row, "area"),
+    starred: booleanField(row, "starred"),
+    ei: booleanField(row, "ei"),
   } satisfies Conference;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function rowToSubmission(row: any): Submission {
+export function rowToSubmission(value: unknown): Submission {
+  const row = asRow(value);
   return {
-    id: row.id,
-    title: row.title,
-    venue: row.venueName ?? "",
-    venueType: (row.venueType ?? "conference") as VenueType,
-    status: (row.status ?? "writing") as SubmissionStatus,
-    deadline: row.deadline ? new Date(row.deadline) : undefined,
-    submittedAt: row.submittedAt ? new Date(row.submittedAt) : undefined,
+    id: stringField(row, "id"),
+    title: stringField(row, "title"),
+    venue: stringField(row, "venueName"),
+    venueType: venueTypeField(row),
+    status: submissionStatusField(row.status),
+    deadline: dateField(row, "deadline"),
+    submittedAt: dateField(row, "submittedAt"),
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function rowToVersion(row: any): PaperVersion {
+export function rowToVersion(value: unknown): PaperVersion {
+  const row = asRow(value);
   return {
-    id: row.id,
-    submissionId: row.submissionId,
-    tag: row.tag ?? "",
-    label: row.label ?? "",
-    stage: (row.stage ?? "writing") as SubmissionStatus,
-    content: row.content ?? "",
-    notes: row.notes ?? "",
-    createdAt: row.createdAt ? new Date(row.createdAt) : new Date(),
-    filePath: row.filePath ?? undefined,
-    fileName: row.fileName ?? undefined,
+    id: stringField(row, "id"),
+    submissionId: stringField(row, "submissionId"),
+    tag: stringField(row, "tag"),
+    label: stringField(row, "label"),
+    stage: submissionStatusField(row.stage),
+    content: stringField(row, "content"),
+    notes: stringField(row, "notes"),
+    createdAt: dateField(row, "createdAt") ?? new Date(),
+    filePath: optionalStringField(row, "filePath"),
+    fileName: optionalStringField(row, "fileName"),
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function rowToRound(row: any): ReviewRound {
+export function rowToChecklistItem(value: unknown): ChecklistItem {
+  const row = asRow(value);
   return {
-    submissionId: row.submissionId,
-    round: row.round,
+    id: stringField(row, "id"),
+    submissionId: optionalStringField(row, "submissionId"),
+    label: stringField(row, "label"),
+    checked: booleanField(row, "checked"),
+    category: stringField(row, "category"),
+    sortOrder: typeof row.sortOrder === "number" ? row.sortOrder : undefined,
+  };
+}
+
+export function rowToRound(value: unknown): ReviewRound {
+  const row = asRow(value);
+  return {
+    submissionId: stringField(row, "submissionId"),
+    round: numberField(row, "round", 1),
     verdict: normalizeVerdict(row.verdict),
-    receivedAt: row.receivedAt ? new Date(row.receivedAt) : new Date(),
+    receivedAt: dateField(row, "receivedAt") ?? new Date(),
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function rowToComment(row: any): ReviewComment {
+export function rowToComment(value: unknown): ReviewComment {
+  const row = asRow(value);
   return {
-    id: row.id,
-    submissionId: row.submissionId,
-    round: row.round,
-    reviewer: row.reviewer ?? "",
-    content: row.content ?? "",
-    response: row.response ?? "",
-    resolved: Boolean(row.resolved),
-    tags: Array.isArray(row.tags) ? row.tags : [],
-    createdAt: row.createdAt ? new Date(row.createdAt) : new Date(),
+    id: stringField(row, "id"),
+    submissionId: stringField(row, "submissionId"),
+    round: numberField(row, "round", 1),
+    reviewer: stringField(row, "reviewer"),
+    content: stringField(row, "content"),
+    response: stringField(row, "response"),
+    resolved: booleanField(row, "resolved"),
+    tags: stringArrayField(row, "tags"),
+    createdAt: dateField(row, "createdAt") ?? new Date(),
   };
 }

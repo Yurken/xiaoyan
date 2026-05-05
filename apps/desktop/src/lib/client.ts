@@ -629,6 +629,11 @@ export const submissionApi = {
       stage: params.stage ?? null, content: params.content ?? null, notes: params.notes ?? null,
       filePath: params.filePath ?? null, fileName: params.fileName ?? null,
     }),
+  updateVersion: (id: string, params: Partial<{ tag: string; label: string; stage: string; content: string; notes: string; filePath: string; fileName: string }>) =>
+    invoke<void>("submission_update_version", {
+      id,
+      ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, v ?? null])),
+    }),
   deleteVersion: (id: string) => invoke<void>("submission_delete_version", { id }),
 
   listRounds: (submissionId: string) => invoke<{ rounds: unknown[] }>("submission_list_rounds", { submissionId }),

@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { relaunch } from "@tauri-apps/plugin-process";
+import { useState } from "react";
 import {
   AlertCircle,
   CheckCircle,
@@ -15,9 +14,6 @@ import { apiClient } from "../lib/client";
 import AboutSection from "../features/settings/AboutSection";
 import AssistantSettingsSection from "../features/settings/AssistantSettingsSection";
 import { PAPER_TAG_OPTIONS, parsePaperTagVisibility, togglePaperTagVisibility } from "../lib/paperTags";
-import { getLayoutMode, setLayoutMode, type LayoutMode } from "../lib/layoutMode";
-import { getThemePreference, setTheme, type ThemePreference } from "../lib/themeMode";
-import { getThemeStyle, setThemeStyle, type ThemeStyle } from "../lib/themeStyle";
 import CryptoConfigModal from "../features/settings/CryptoConfigModal";
 import MemorySection from "../features/settings/MemorySection";
 import SettingsHistorySection from "../features/settings/SettingsHistorySection";
@@ -32,7 +28,11 @@ import { useSettingsController } from "../features/settings/useSettingsControlle
 import { useSettingsCrypto } from "../features/settings/useSettingsCrypto";
 import { useSettingsHistory } from "../features/settings/useSettingsHistory";
 import { useSettingsMemories } from "../features/settings/useSettingsMemories";
+import { useLayoutSettingsController } from "../features/settings/useLayoutSettingsController";
+import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import type { LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
+
+const SETTINGS_SECTION_KEYS = SETTINGS_SECTIONS.map((section) => section.key);
 
 export default function Settings() {
   const {
@@ -58,10 +58,19 @@ export default function Settings() {
     handleCheckUpdate,
     handleInstallUpdate,
   } = useSettingsController(DEFAULT_SETTINGS);
-  const [activeSection, setActiveSection] = useState<SettingsSectionKey>("guided");
-  const [pendingLayout, setPendingLayout] = useState<LayoutMode>(getLayoutMode());
-  const [currentTheme, setCurrentTheme] = useState<ThemePreference>(getThemePreference());
-  const [currentStyle, setCurrentStyle] = useState<ThemeStyle>(getThemeStyle());
+  const [activeSection, setActiveSection] = usePersistentStringState<SettingsSectionKey>(
+    "rc:settings:active-section",
+    "guided",
+    SETTINGS_SECTION_KEYS,
+  );
+  const {
+    currentStyle,
+    currentTheme,
+    pendingLayout,
+    changeLayout,
+    changeStyle,
+    changeTheme,
+  } = useLayoutSettingsController();
   const {
     memories,
     observations,
@@ -265,7 +274,7 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
           {SETTINGS_SECTIONS.map((item) => (
             <SettingsSectionTab
               key={item.key}
@@ -424,24 +433,9 @@ export default function Settings() {
             currentTheme={currentTheme}
             currentStyle={currentStyle}
             pendingLayout={pendingLayout}
-            onThemeChange={(mode) => {
-              if (mode === currentTheme) return;
-              setCurrentTheme(mode);
-              setTheme(mode);
-            }}
-            onStyleChange={(style) => {
-              if (style === currentStyle) return;
-              setCurrentStyle(style);
-              setThemeStyle(style);
-            }}
-            onLayoutChange={(mode) => {
-              if (mode === pendingLayout) return;
-              setPendingLayout(mode);
-              setLayoutMode(mode);
-              const root = document.getElementById("root");
-              root?.classList.add("dissolve-out");
-              setTimeout(() => void relaunch(), 480);
-            }}
+            onThemeChange={changeTheme}
+            onStyleChange={changeStyle}
+            onLayoutChange={changeLayout}
           />
         ) : null}
 

@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
   FileText,
@@ -24,7 +24,12 @@ import Experiment from "./pages/Experiment";
 import FocusApp from "./pages/FocusLayout";
 import hitLogo from "./assets/xiaoyany.svg";
 import hitLogoActive from "./assets/xiaoyanw.svg";
-import { getLayoutMode } from "./lib/layoutMode";
+import {
+  getLayoutMode,
+  landscapePathForFocusPath,
+  LAYOUT_MODE_CHANGE_EVENT,
+  type LayoutMode,
+} from "./lib/layoutMode";
 import { applyTheme, getTheme, watchSystemTheme } from "./lib/themeMode";
 import { applyThemeStyle, getThemeStyle } from "./lib/themeStyle";
 import { useAutoUpdate } from "./lib/useAutoUpdate";
@@ -32,8 +37,6 @@ import { IS_MACOS_DESKTOP } from "./lib/windowChrome";
 import MacWindowDragStrip from "./components/MacWindowDragStrip";
 import UpdateNotification from "./components/UpdateNotification";
 import XiaoYanPet from "./components/XiaoYanPet";
-
-const layoutMode = getLayoutMode();
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "工作台" },
@@ -47,8 +50,15 @@ const navItems = [
   { to: "/settings", icon: SettingsIcon, label: "设置" },
 ];
 
+function LandscapeFocusRouteRedirect() {
+  const location = useLocation();
+  return <Navigate to={landscapePathForFocusPath(location.pathname)} replace />;
+}
+
 export default function App() {
   const autoUpdate = useAutoUpdate();
+  const navigate = useNavigate();
+  const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());
 
   useEffect(() => {
     applyTheme(getTheme());
@@ -63,6 +73,30 @@ export default function App() {
       unwatch();
     };
   }, []);
+
+  useEffect(() => {
+    const syncLayoutMode = () => setCurrentLayoutMode(getLayoutMode());
+
+    window.addEventListener("storage", syncLayoutMode);
+    window.addEventListener(LAYOUT_MODE_CHANGE_EVENT, syncLayoutMode);
+
+    return () => {
+      window.removeEventListener("storage", syncLayoutMode);
+      window.removeEventListener(LAYOUT_MODE_CHANGE_EVENT, syncLayoutMode);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === ",") {
+        event.preventDefault();
+        navigate("/settings");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [navigate]);
 
   if (layoutMode === "focus") {
     return (
@@ -131,6 +165,8 @@ export default function App() {
           <Route path="/copilot" element={<Navigate to="/xiaoyan" replace />} />
           <Route path="/knowledge" element={<Knowledge />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/workbench/*" element={<LandscapeFocusRouteRedirect />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       <UpdateNotification {...autoUpdate} />

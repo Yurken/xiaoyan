@@ -6,7 +6,7 @@ import AppErrorBoundary from "./components/AppErrorBoundary";
 import "./index.css";
 
 // 禁用默认右键菜单，只在可编辑元素上保留原生菜单（复制/粘贴等）
-document.addEventListener("contextmenu", (e) => {
+const handleContextMenu = (e: MouseEvent) => {
   const target = e.target as HTMLElement;
   if (
     target.tagName === "INPUT" ||
@@ -16,17 +16,22 @@ document.addEventListener("contextmenu", (e) => {
     return;
   }
   e.preventDefault();
-});
+};
 
-window.addEventListener("error", (event) => {
+const handleWindowError = (event: ErrorEvent) => {
   console.error("Window error", event.error ?? event.message);
-});
+};
 
-window.addEventListener("unhandledrejection", (event) => {
+const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
   console.error("Unhandled promise rejection", event.reason);
-});
+};
 
-createRoot(document.getElementById("root")!).render(
+document.addEventListener("contextmenu", handleContextMenu);
+window.addEventListener("error", handleWindowError);
+window.addEventListener("unhandledrejection", handleUnhandledRejection);
+
+const root = createRoot(document.getElementById("root")!);
+root.render(
   <StrictMode>
     <AppErrorBoundary>
       <BrowserRouter>
@@ -35,3 +40,12 @@ createRoot(document.getElementById("root")!).render(
     </AppErrorBoundary>
   </StrictMode>
 );
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    document.removeEventListener("contextmenu", handleContextMenu);
+    window.removeEventListener("error", handleWindowError);
+    window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+    root.unmount();
+  });
+}

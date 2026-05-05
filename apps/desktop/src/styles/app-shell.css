@@ -176,7 +176,7 @@
     font-size: 9px;
     font-weight: 600;
     line-height: 1.1;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
   }
 
   .app-sidebar__pet {
@@ -242,6 +242,32 @@
     height: 100%;
     overflow-y: auto;
     padding: calc(var(--rc-page-top-gap) - 2px) var(--rc-page-inline-gap) var(--rc-page-bottom-gap);
+  }
+
+  @media (max-width: 1279px) {
+    .app-shell {
+      --rc-page-inline-gap: 18px;
+      --rc-page-bottom-gap: 18px;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .app-shell {
+      --rc-page-inline-gap: 14px;
+      --rc-page-top-gap: 12px;
+      --rc-page-bottom-gap: 14px;
+    }
+
+    .app-sidebar {
+      width: 64px;
+      padding-left: 6px;
+      padding-right: 6px;
+    }
+
+    .app-nav-item {
+      padding: 7px 2px;
+      border-radius: 14px;
+    }
   }
 
   .rc-subtle-rule {
