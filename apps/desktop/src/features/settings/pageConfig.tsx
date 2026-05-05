@@ -57,13 +57,6 @@ export const SETTINGS_SECTIONS: Array<{
     color: "#FF9F0A",
   },
   {
-    key: "history",
-    label: "配置历史",
-    description: "保存与切换小妍配置",
-    icon: History,
-    color: "#0A84FF",
-  },
-  {
     key: "layout",
     label: "界面布局",
     description: "功能入口与界面形态",
@@ -76,6 +69,13 @@ export const SETTINGS_SECTIONS: Array<{
     description: "查看与管理小妍的记忆",
     icon: Brain,
     color: "#FF9F0A",
+  },
+  {
+    key: "history",
+    label: "配置历史",
+    description: "保存与切换小妍配置",
+    icon: History,
+    color: "#0A84FF",
   },
   {
     key: "about",
@@ -107,7 +107,7 @@ export function SettingsSectionTab({
       onClick={onClick}
       aria-pressed={active}
       title={description}
-      className="min-w-0 rounded-[22px] px-1.5 py-1.5 text-left transition-all duration-150 active:scale-[0.98]"
+      className="min-w-0 rounded-[22px] px-2.5 py-2 text-left transition-all duration-150 active:scale-[0.98]"
       style={
         active
           ? {
@@ -122,18 +122,18 @@ export function SettingsSectionTab({
             }
       }
     >
-      <div className="flex min-w-0 items-center justify-center gap-1.5">
+      <div className="flex min-w-0 items-center justify-center gap-2">
         <span
-          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
           style={{
             background: active ? `color-mix(in srgb, ${color} 14%, transparent)` : "transparent",
             color: active ? color : "var(--rc-text-muted)",
           }}
         >
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-4 w-4" />
         </span>
         <span
-          className="min-w-0 truncate text-[11px] font-semibold leading-none"
+          className="min-w-0 truncate text-[13px] font-semibold leading-none"
           style={{ color: active ? "var(--rc-text)" : "var(--rc-text-muted)" }}
         >
           {label}

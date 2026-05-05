@@ -144,27 +144,46 @@ export default function SettingsHistorySection({
           </div>
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr),auto] lg:items-end">
-          <SettingInput
-            label="历史配置名称（可选）"
-            value={draftName}
-            onChange={setDraftName}
-            placeholder="例如：论文精读方案 / 本地 Ollama / Survey 写作"
-            hint="不填名称时，会自动用当前时间生成一条历史记录。"
-          />
-          <button
-            type="button"
-            onClick={() => void onSaveCurrent()}
-            disabled={saving || busy}
-            className="flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-            style={{
-              background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-              boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
-            }}
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            {saving ? "保存中…" : "保存当前配置"}
-          </button>
+        <div className="space-y-1.5">
+          <label className="ml-1 block text-xs font-medium text-ink-tertiary">历史配置名称（可选）</label>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={draftName}
+                onChange={(event) => setDraftName(event.target.value)}
+                placeholder="例如：论文精读方案 / 本地 Ollama / Survey 写作"
+                className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary shadow-none outline-none transition-shadow duration-150 placeholder:text-ink-tertiary"
+                style={{
+                  background: "var(--rc-chip-inset-bg)",
+                  boxShadow: "var(--rc-chip-inset-shadow)",
+                }}
+                onFocus={(event) => {
+                  event.currentTarget.style.boxShadow =
+                    "var(--rc-chip-inset-shadow), 0 0 0 2px rgba(0,122,255,0.25)";
+                }}
+                onBlur={(event) => {
+                  event.currentTarget.style.boxShadow = "var(--rc-chip-inset-shadow)";
+                }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void onSaveCurrent()}
+              disabled={saving || busy}
+              className="flex shrink-0 items-center justify-center gap-1.5 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
+              style={{
+                background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
+                boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
+              }}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? "保存中…" : "保存当前配置"}
+            </button>
+          </div>
+          <p className="ml-1 text-xs leading-5 text-ink-tertiary">
+            不填名称时，会自动用当前时间生成一条历史记录。
+          </p>
         </div>
 
         {actionMessage ? (
