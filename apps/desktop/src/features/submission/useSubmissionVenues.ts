@@ -15,7 +15,7 @@ import {
   type VenueType,
 } from "./shared";
 
-export function useSubmissionVenues() {
+export function useSubmissionVenues(onError?: (error: unknown) => void) {
   const [conferences, setConferences] = useState<Conference[]>([]);
   const [journals, setJournals] = useState<Journal[]>([]);
   const [venueFilter, setVenueFilter] = useState<"all" | "conference" | "journal" | "starred">("all");
@@ -47,12 +47,14 @@ export function useSubmissionVenues() {
         setConferences(venues.filter((venue): venue is Conference => venue.type === "conference"));
         setJournals(venues.filter((venue): venue is Journal => venue.type === "journal"));
       })
-      .catch(console.error);
+      .catch((error) => {
+        onError?.(error);
+      });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [onError]);
 
   const allVenues = useMemo<Venue[]>(() => [...conferences, ...journals], [conferences, journals]);
   const visibleVenues = useMemo(
@@ -96,7 +98,9 @@ export function useSubmissionVenues() {
         currentJournals.map((journal) => (journal.id === id ? { ...journal, starred: !journal.starred } : journal))
       );
     }
-    submissionApi.toggleVenueStar(id).catch(console.error);
+    submissionApi.toggleVenueStar(id).catch((error) => {
+      onError?.(error);
+    });
   };
 
   const handleAddVenue = async (template: VenueTemplate) => {
@@ -152,7 +156,8 @@ export function useSubmissionVenues() {
         ]);
       }
     } catch (error) {
-      console.error(error);
+      onError?.(error);
+      return;
     }
 
     setShowAddModal(false);

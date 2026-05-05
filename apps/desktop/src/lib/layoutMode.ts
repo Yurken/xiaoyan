@@ -13,6 +13,16 @@ const FREE_WORKBENCH_LANDSCAPE_PATHS: Record<string, string> = {
   tools: "/tools",
 };
 
+const INTEREST_WORKBENCH_LANDSCAPE_PATHS: Record<string, string> = {
+  planner: "/planner",
+  papers: "/papers",
+  xiaoyan: "/xiaoyan",
+  copilot: "/xiaoyan",
+  notes: "/knowledge",
+  knowledge: "/knowledge",
+  tools: "/tools",
+};
+
 export function getLayoutMode(): LayoutMode {
   const stored = localStorage.getItem(KEY);
   return stored === "focus" ? "focus" : "landscape";
@@ -32,8 +42,10 @@ export function landscapePathForFocusPath(pathname: string): string {
     return FREE_WORKBENCH_LANDSCAPE_PATHS[tab] ?? "/survey";
   }
 
-  if (normalized.startsWith("/workbench/")) {
-    return "/";
+  const interestMatch = normalized.match(/^\/workbench\/[^/]+(?:\/([^/]+))?$/);
+  if (interestMatch) {
+    const tab = interestMatch[1] ?? "papers";
+    return INTEREST_WORKBENCH_LANDSCAPE_PATHS[tab] ?? "/";
   }
 
   return normalized;

@@ -6,6 +6,28 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--rc-accent) 72%, white 28%);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
 @font-face {
   font-family: "HYPixel11pxU-2";
   src: url("./HYPixel11pxU-2.ttf") format("truetype");

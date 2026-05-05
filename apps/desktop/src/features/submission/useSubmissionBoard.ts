@@ -14,7 +14,7 @@ const emptyAddSubmissionForm: AddSubmissionFormState = {
   deadline: "",
 };
 
-export function useSubmissionBoard() {
+export function useSubmissionBoard(onError?: (error: unknown) => void) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [showAddSubModal, setShowAddSubModal] = useState(false);
   const [addSubForm, setAddSubForm] = useState<AddSubmissionFormState>(emptyAddSubmissionForm);
@@ -31,12 +31,14 @@ export function useSubmissionBoard() {
 
         setSubmissions(response.submissions.map(rowToSubmission));
       })
-      .catch(console.error);
+      .catch((error) => {
+        onError?.(error);
+      });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [onError]);
 
   const moveSubmission = (id: string, direction: "prev" | "next") => {
     const currentSubmission = submissions.find((submission) => submission.id === id);
@@ -65,7 +67,9 @@ export function useSubmissionBoard() {
         status,
         submittedAt: submittedAt?.toISOString().slice(0, 10),
       })
-      .catch(console.error);
+      .catch((error) => {
+        onError?.(error);
+      });
   };
 
   const handleAddSubmission = async () => {
@@ -93,12 +97,11 @@ export function useSubmissionBoard() {
           deadline: addSubForm.deadline ? new Date(addSubForm.deadline) : undefined,
         },
       ]);
+      setShowAddSubModal(false);
+      setAddSubForm(emptyAddSubmissionForm);
     } catch (error) {
-      console.error(error);
+      onError?.(error);
     }
-
-    setShowAddSubModal(false);
-    setAddSubForm(emptyAddSubmissionForm);
   };
 
   return {

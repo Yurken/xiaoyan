@@ -131,7 +131,7 @@ function FreeTopicCard({ onEnter }: { onEnter: () => void }) {
         className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95 flex-shrink-0"
         style={{
           background: "var(--rc-surface)",
-          color: "#3C3C43",
+          color: "var(--rc-text-soft)",
           boxShadow: "var(--rc-chip-shadow)",
         }}
       >
@@ -244,7 +244,7 @@ function FocusHome() {
                       type="button"
                       onClick={() => setDiscovering(true)}
                       className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-medium transition-all duration-150"
-                      style={{ background: "var(--rc-surface)", color: "#3C3C43", boxShadow: "var(--rc-chip-shadow)" }}
+                      style={{ background: "var(--rc-surface)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       没想好要做什么？
@@ -391,6 +391,19 @@ const BASE_INTEREST_TABS: Array<{ key: InterestTab; label: string; icon: typeof 
 const PLANNER_TAB: { key: InterestTab; label: string; icon: typeof Sparkles } =
   { key: "planner", label: "规划", icon: Sparkles };
 
+const INTEREST_TAB_KEYS: readonly InterestTab[] = ["planner", "papers", "xiaoyan", "notes", "tools"];
+
+function isInterestTab(value?: string): value is InterestTab {
+  return INTEREST_TAB_KEYS.includes(value as InterestTab);
+}
+
+function normalizeInterestTab(value: string | undefined, planned: boolean): InterestTab {
+  if (isInterestTab(value) && (value !== "planner" || planned)) {
+    return value;
+  }
+  return planned ? "planner" : "papers";
+}
+
 function TabButton({
   active,
   icon: Icon,
@@ -481,6 +494,17 @@ function FocusWorkbench() {
     return () => { cancelled = true; };
   }, [interestId, isFree]);
 
+  useEffect(() => {
+    if (isFree || !interest || !interestId) return;
+    const nextTab = normalizeInterestTab(tab, interest.status === "planned");
+    if (nextTab !== interestTab) {
+      setInterestTab(nextTab);
+    }
+    if (tab !== nextTab) {
+      navigate(`/workbench/${interestId}/${nextTab}`, { replace: true });
+    }
+  }, [interest, interestId, interestTab, isFree, navigate, tab]);
+
   const title = isFree
     ? "自由主题"
     : interest?.folder_name?.trim() || interest?.topic || "研究主题";
@@ -558,7 +582,10 @@ function FocusWorkbench() {
                 active={interestTab === key}
                 icon={icon}
                 label={label}
-                onClick={() => setInterestTab(key)}
+                onClick={() => {
+                  setInterestTab(key);
+                  navigate(`/workbench/${interestId}/${key}`);
+                }}
               />
             ))}
           </div>
@@ -570,7 +597,7 @@ function FocusWorkbench() {
             type="button"
             onClick={() => navigate("/workbench/free/planner")}
             className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium ml-1"
-            style={{ background: "var(--rc-surface)", color: "#3C3C43", boxShadow: "var(--rc-chip-shadow)" }}
+            style={{ background: "var(--rc-surface)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
           >
             自由主题
           </button>

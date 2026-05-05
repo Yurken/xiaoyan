@@ -46,3 +46,22 @@ export function usePersistentStringState<T extends string>(
 
   return [value, setValue] as const;
 }
+
+export function usePersistentState<T>(key: string, fallback: T) {
+  const [value, setValue] = useState<T>(() => {
+    const stored = readPersistentValue(key);
+    if (!stored) return fallback;
+
+    try {
+      return JSON.parse(stored) as T;
+    } catch {
+      return fallback;
+    }
+  });
+
+  useEffect(() => {
+    writePersistentValue(key, JSON.stringify(value));
+  }, [key, value]);
+
+  return [value, setValue] as const;
+}

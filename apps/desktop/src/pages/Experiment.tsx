@@ -348,9 +348,9 @@ export default function Experiment() {
           <p className="mt-1 text-sm text-ink-tertiary">记录实验配置与结果，上传截图。小妍帮你追踪实验脉络，关联投稿同步进度。</p>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden max-lg:flex-col">
           {/* Left: list */}
-          <div className="w-60 flex-shrink-0 flex flex-col overflow-hidden border-r border-nm-dark/20">
+          <div className="w-60 flex-shrink-0 flex flex-col overflow-hidden border-r border-nm-dark/20 max-lg:h-52 max-lg:w-full max-lg:border-r-0 max-lg:border-b">
             {/* New button */}
             <div className="p-3 flex-shrink-0 border-b border-nm-dark/10">
               <Button
@@ -364,7 +364,7 @@ export default function Experiment() {
               </Button>
             </div>
             {/* List */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 max-lg:grid max-lg:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] max-lg:gap-2 max-lg:space-y-0">
               {loading ? (
                 <div className="flex justify-center pt-10"><Loader2 className="w-5 h-5 animate-spin text-ink-tertiary" /></div>
               ) : experiments.length === 0 ? (
@@ -420,7 +420,7 @@ export default function Experiment() {
           </div>
 
           {/* Right: detail */}
-          <div className="flex-1 overflow-y-auto p-5">
+          <div className="flex-1 min-h-0 overflow-y-auto p-5 max-lg:p-4">
             {!selected ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center space-y-2">

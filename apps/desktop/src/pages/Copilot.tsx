@@ -3,6 +3,8 @@ import {
   AlertCircle,
   Bot,
   BrainCircuit,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   Clock3,
   MessageSquare,
@@ -35,6 +37,7 @@ import { useCopilotChatMode } from "../features/copilot/useCopilotChatMode";
 import {
   clearPersistentValue,
   readPersistentValue,
+  usePersistentStringState,
   writePersistentValue,
 } from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
@@ -111,6 +114,11 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [memoryInput, setMemoryInput] = useState("");
   const [savingMemory, setSavingMemory] = useState(false);
   const [memorySaved, setMemorySaved] = useState(false);
+  const [sessionListMode, setSessionListMode] = usePersistentStringState<"open" | "collapsed">(
+    "rc:copilot:session-list-mode",
+    "open",
+    ["open", "collapsed"] as const,
+  );
   const { chatMode, setChatMode } = useCopilotChatMode();
   const bottomRef = useRef<HTMLDivElement>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
@@ -512,6 +520,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     .sort((a, b) => a.order_index - b.order_index);
 
   const artifacts = displayedRuns.flatMap((run) => run.artifacts ?? []);
+  const sessionListCollapsed = sessionListMode === "collapsed";
 
   const renderSessionItem = (session: ChatSession) => (
     <div
@@ -528,7 +537,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           : {
             background: "var(--rc-surface)",
             boxShadow: "var(--rc-chip-shadow)",
-            color: "#3C3C43",
+            color: "var(--rc-text-soft)",
           }
       }
     >
@@ -549,27 +558,39 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   return (
     <>
-      <div className="relative flex h-full overflow-hidden" style={{ background: "linear-gradient(180deg, #F3F6FA 0%, var(--rc-surface) 100%)" }}>
+      <div className="relative flex h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
         <div
-          className="w-52 flex-shrink-0 flex flex-col"
+          className={`${sessionListCollapsed ? "w-14" : "w-52"} flex-shrink-0 flex flex-col`}
           style={{
             background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
-            boxShadow: "4px 0 10px rgba(0,0,0,0.04)",
+            boxShadow: "4px 0 10px rgb(var(--rc-text-rgb) / 0.04)",
           }}
         >
           <div className="p-3 pb-2">
-            <button
-              onClick={handleNewChat}
-              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl text-sm font-medium text-white transition-all duration-150 active:scale-[0.98]"
-              style={{
-                background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                boxShadow: "4px 4px 10px rgba(0,62,204,0.35), -3px -3px 8px rgba(58,155,255,0.2)",
-              }}
-            >
-              <Plus className="w-4 h-4" />
-              新建对话
-            </button>
-            {!hideFolders && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleNewChat}
+                aria-label="新建对话"
+                className={`${sessionListCollapsed ? "h-9 w-9 justify-center px-0" : "flex-1 px-3"} flex items-center gap-2 rounded-2xl py-2.5 text-sm font-medium text-white transition-all duration-150 active:scale-[0.98]`}
+                style={{
+                  background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                  boxShadow: "4px 4px 10px rgba(0,62,204,0.35), -3px -3px 8px rgba(58,155,255,0.2)",
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                {!sessionListCollapsed && "新建对话"}
+              </button>
+              <button
+                type="button"
+                aria-label={sessionListCollapsed ? "展开会话列表" : "收起会话列表"}
+                onClick={() => setSessionListMode(sessionListCollapsed ? "open" : "collapsed")}
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl text-ink-tertiary transition-colors hover:text-ink-primary"
+                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }}
+              >
+                {sessionListCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              </button>
+            </div>
+            {!hideFolders && !sessionListCollapsed && (
               <div className="mt-2">
                 <Select
                   label="新对话主题文件夹"
@@ -588,6 +609,22 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             )}
           </div>
 
+          {sessionListCollapsed ? (
+            <div className="flex flex-1 flex-col items-center gap-2 px-2 pb-3">
+              <button
+                type="button"
+                onClick={() => setSessionListMode("open")}
+                className="flex h-9 w-9 items-center justify-center rounded-2xl text-ink-tertiary transition-colors hover:text-ink-primary"
+                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }}
+                title={`${sessions.length} 条对话`}
+              >
+                <MessageSquare className="h-4 w-4" />
+              </button>
+              <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-ink-tertiary">
+                {sessions.length}
+              </span>
+            </div>
+          ) : (
           <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
             {sessions.length === 0 && interests.length === 0 && (
               <div className="flex flex-col items-center py-8 gap-2">
@@ -678,6 +715,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               </>
             )}
           </div>
+          )}
         </div>
 
         <div className="flex-1 min-w-0 flex overflow-hidden">
@@ -738,8 +776,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                 <div
                   className="flex items-start gap-3 rounded-2xl px-4 py-3 text-sm text-apple-red"
                   style={{
-                    background: "#F2EAEA",
-                    boxShadow: "inset 2px 2px 5px rgba(180,59,48,0.14), inset -2px -2px 5px rgba(255,255,255,0.8)",
+                    background: "color-mix(in srgb, var(--rc-elevated) 82%, #FF3B30 10%)",
+                    boxShadow: "var(--rc-inset-shadow)",
                   }}
                 >
                   <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
@@ -813,14 +851,14 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                             <div
                               className="rounded-2xl px-3 py-3"
                               style={{
-                                background: "#F8EFE0",
-                                boxShadow: "inset 2px 2px 5px rgba(204,162,84,0.25), inset -2px -2px 5px rgba(255,255,255,0.7)",
+                                background: "color-mix(in srgb, var(--rc-elevated) 86%, #FF9500 10%)",
+                                boxShadow: "var(--rc-inset-shadow)",
                               }}
                             >
                               {parsed.thought && (
                                 <details open>
-                                  <summary className="cursor-pointer text-xs font-semibold text-[#9A6A00]">模型推理过程</summary>
-                                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#5A4A2F]">
+                                  <summary className="cursor-pointer text-xs font-semibold text-ink-secondary">模型推理过程</summary>
+                                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">
                                     {parsed.thought}
                                   </div>
                                 </details>
@@ -864,9 +902,9 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                           <div
                             className="rounded-3xl px-4 py-3 text-sm"
                             style={{
-                              background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)",
+                              background: "var(--rc-elevated)",
                               boxShadow: "var(--rc-chip-shadow)",
-                              color: "#1C1C1E",
+                              color: "var(--rc-text)",
                             }}
                           >
                             <MarkdownRenderer
@@ -982,7 +1020,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           style={{
             left: contextMenu.x,
             top: contextMenu.y,
-            background: "linear-gradient(145deg, #F2F6FA, var(--rc-surface))",
+            background: "var(--rc-elevated)",
             boxShadow: "var(--rc-chip-shadow)",
           }}
           onClick={(e) => e.stopPropagation()}

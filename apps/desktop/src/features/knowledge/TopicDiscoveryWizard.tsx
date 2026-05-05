@@ -56,7 +56,7 @@ export default function TopicDiscoveryWizard({ onSelect, onClose }: Props) {
   return (
     <div
       className="rounded-2xl p-4 space-y-4"
-      style={{ background: "linear-gradient(145deg, #F2F6FA, var(--rc-surface))", boxShadow: "var(--rc-inset-shadow)" }}
+      style={{ background: "var(--rc-elevated)", boxShadow: "var(--rc-inset-shadow)" }}
     >
       {/* 头部 */}
       <div className="flex items-start justify-between gap-3">
@@ -91,7 +91,7 @@ export default function TopicDiscoveryWizard({ onSelect, onClose }: Props) {
               className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
               style={{
                 background: field === f ? "#007AFF" : "var(--rc-surface)",
-                color: field === f ? "#fff" : "#3C3C43",
+                color: field === f ? "#fff" : "var(--rc-text-soft)",
                 boxShadow: field === f
                   ? "inset 1px 1px 3px rgba(0,0,0,0.2)"
                   : "var(--rc-chip-shadow)",
@@ -119,7 +119,7 @@ export default function TopicDiscoveryWizard({ onSelect, onClose }: Props) {
                 className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
                 style={{
                   background: goalType === g ? "#007AFF" : "var(--rc-surface)",
-                  color: goalType === g ? "#fff" : "#3C3C43",
+                  color: goalType === g ? "#fff" : "var(--rc-text-soft)",
                   boxShadow: goalType === g
                     ? "inset 1px 1px 3px rgba(0,0,0,0.2)"
                     : "var(--rc-chip-shadow)",

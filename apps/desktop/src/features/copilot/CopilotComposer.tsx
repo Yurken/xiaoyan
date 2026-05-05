@@ -150,7 +150,7 @@ export default function CopilotComposer({
                     }}
                     className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
                     style={{
-                      color: !selectedSkillId ? "#007AFF" : "#3C3C43",
+                      color: !selectedSkillId ? "#007AFF" : "var(--rc-text-soft)",
                       background: !selectedSkillId ? "rgba(0,122,255,0.08)" : "transparent",
                       fontWeight: !selectedSkillId ? 600 : 400,
                     }}
@@ -173,7 +173,7 @@ export default function CopilotComposer({
                         }}
                         className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
                         style={{
-                          color: selectedSkillId === skill.id ? "#007AFF" : "#3C3C43",
+                          color: selectedSkillId === skill.id ? "#007AFF" : "var(--rc-text-soft)",
                           background:
                             hoveredSkillId === skill.id || selectedSkillId === skill.id
                               ? "rgba(0,122,255,0.08)"

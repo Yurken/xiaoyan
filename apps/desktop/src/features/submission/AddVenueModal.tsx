@@ -219,7 +219,7 @@ export default function AddVenueModal({
           <button
             onClick={onClose}
             className="px-5 py-2 rounded-2xl text-sm font-medium transition-all duration-150"
-            style={{ background: "var(--rc-surface)", color: "#3C3C43", boxShadow: "var(--rc-chip-shadow)" }}
+            style={{ background: "var(--rc-surface)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
           >
             完成
           </button>

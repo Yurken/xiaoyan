@@ -4,7 +4,11 @@ import { rowToVersion, type PaperVersion, type Submission as SubmissionItem } fr
 
 type VersionsBySubmission = Record<string, PaperVersion[]>;
 
-export function useSubmissionVersions(submissions: SubmissionItem[], selectedSubmissionId: string) {
+export function useSubmissionVersions(
+  submissions: SubmissionItem[],
+  selectedSubmissionId: string,
+  onError?: (error: unknown) => void,
+) {
   const [versionsBySubmission, setVersionsBySubmission] = useState<VersionsBySubmission>({});
 
   useEffect(() => {
@@ -43,19 +47,21 @@ export function useSubmissionVersions(submissions: SubmissionItem[], selectedSub
               return;
             }
 
-            console.error(result.reason);
+            onError?.(result.reason);
             nextVersions[submissionId] = currentVersions[submissionId] ?? [];
           });
 
           return nextVersions;
         });
       })
-      .catch(console.error);
+      .catch((error) => {
+        onError?.(error);
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [submissions]);
+  }, [submissions, onError]);
 
   const versions = selectedSubmissionId ? versionsBySubmission[selectedSubmissionId] ?? [] : [];
   const versionCounts = submissions.reduce<Record<string, number>>((counts, submission) => {
@@ -87,7 +93,7 @@ export function useSubmissionVersions(submissions: SubmissionItem[], selectedSub
   ) => {
     updateVersion(versionId, (version) => ({ ...version, ...patch }));
     await submissionApi.updateVersion(versionId, patch).catch((error) => {
-      console.error(error);
+      onError?.(error);
       throw error;
     });
   };

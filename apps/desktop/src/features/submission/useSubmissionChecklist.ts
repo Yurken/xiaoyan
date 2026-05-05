@@ -7,7 +7,7 @@ import {
   type Submission,
 } from "./shared";
 
-export function useSubmissionChecklist(submissions: Submission[]) {
+export function useSubmissionChecklist(submissions: Submission[], onError?: (error: unknown) => void) {
   const [checklistSubId, setChecklistSubId] = useState("");
   const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
   const [checklistCat, setChecklistCat] = useState<string>("all");
@@ -38,7 +38,7 @@ export function useSubmissionChecklist(submissions: Submission[]) {
         setChecklist(items.length > 0 ? items : DEFAULT_CHECKLIST);
       })
       .catch((error) => {
-        console.error(error);
+        onError?.(error);
         if (!cancelled) {
           setChecklist(DEFAULT_CHECKLIST);
         }
@@ -47,7 +47,7 @@ export function useSubmissionChecklist(submissions: Submission[]) {
     return () => {
       cancelled = true;
     };
-  }, [checklistSubId]);
+  }, [checklistSubId, onError]);
 
   useEffect(() => {
     setChecklistCat("all");
@@ -65,7 +65,7 @@ export function useSubmissionChecklist(submissions: Submission[]) {
 
     if (checklistSubId) {
       submissionApi.toggleChecklist(id).catch((error) => {
-        console.error(error);
+        onError?.(error);
         setChecklist((currentChecklist) =>
           currentChecklist.map((entry) => (entry.id === id ? { ...entry, checked: item.checked } : entry))
         );
@@ -82,7 +82,7 @@ export function useSubmissionChecklist(submissions: Submission[]) {
     }
 
     Promise.all(checkedItems.map((item) => submissionApi.toggleChecklist(item.id))).catch((error) => {
-      console.error(error);
+      onError?.(error);
       setChecklist((currentChecklist) =>
         currentChecklist.map((item) =>
           checkedItems.some((checkedItem) => checkedItem.id === item.id)
