@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
+  Bot,
+  BrainCircuit,
   CheckCircle2,
   Clock3,
   MessageSquare,
   Plus,
   Trash2,
   User,
+  X,
   XCircle,
 } from "lucide-react";
 import { MarkdownRenderer, Select } from "@research-copilot/ui";
@@ -161,7 +164,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   useEffect(() => {
     apiClient.skills.list().then((data) => {
       setSkills(data.filter((s) => s.is_enabled && s.name !== "ppt-generate"));
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -487,15 +490,15 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       style={
         currentSession?.id === session.id
           ? {
-              background: "var(--rc-surface)",
-              boxShadow: "var(--rc-inset-shadow)",
-              color: "#007AFF",
-            }
+            background: "var(--rc-surface)",
+            boxShadow: "var(--rc-inset-shadow)",
+            color: "#007AFF",
+          }
           : {
-              background: "var(--rc-surface)",
-              boxShadow: "var(--rc-chip-shadow)",
-              color: "#3C3C43",
-            }
+            background: "var(--rc-surface)",
+            boxShadow: "var(--rc-chip-shadow)",
+            color: "#3C3C43",
+          }
       }
     >
       <button className="min-w-0 flex-1 text-left" onClick={() => void loadSession(session)}>
@@ -515,168 +518,33 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   return (
     <>
-	    <div className="relative flex h-full overflow-hidden" style={{ background: "linear-gradient(180deg, #F3F6FA 0%, var(--rc-surface) 100%)" }}>
-      <div
-        className="w-52 flex-shrink-0 flex flex-col"
-        style={{
-          background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
-          boxShadow: "4px 0 10px rgba(0,0,0,0.04)",
-        }}
-      >
-        <div className="p-3 pb-2">
-          <button
-            onClick={handleNewChat}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl text-sm font-medium text-white transition-all duration-150 active:scale-[0.98]"
-            style={{
-              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-              boxShadow: "4px 4px 10px rgba(0,62,204,0.35), -3px -3px 8px rgba(58,155,255,0.2)",
-            }}
-          >
-            <Plus className="w-4 h-4" />
-            新建对话
-          </button>
-          {!hideFolders && (
-          <div className="mt-2">
-            <Select
-              label="新对话主题文件夹"
-              value={selectedInterestId}
-              onChange={setSelectedInterestId}
-              className="text-xs"
-              options={[
-                { value: "", label: "未归类" },
-                ...interests.map((interest) => ({
-                  value: interest.id,
-                  label: interest.folder_name?.trim() || interest.topic,
-                })),
-              ]}
-            />
-          </div>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
-          {sessions.length === 0 && interests.length === 0 && (
-            <div className="flex flex-col items-center py-8 gap-2">
-              <MessageSquare className="w-8 h-8 text-ink-tertiary opacity-40" />
-              <p className="text-xs text-ink-tertiary">暂无对话记录</p>
-            </div>
-          )}
-
-          {hideFolders ? (
-            // 自由工作台：扁平展示所有会话
-            <div className="space-y-1.5">{sessions.map(renderSessionItem)}</div>
-          ) : selectedInterestId ? (
-            // 已选主题：只展示该主题下的会话
-            (() => {
-              const group = sessionGroups.find((g) => g.key === selectedInterestId);
-              const groupSessions = group?.sessions ?? [];
-              return groupSessions.length === 0 ? (
-                <div className="px-3 py-6 text-center text-xs text-ink-tertiary">该主题下暂无对话</div>
-              ) : (
-                <div className="space-y-1.5">{groupSessions.map(renderSessionItem)}</div>
-              );
-            })()
-          ) : (
-            // 未选主题：展示所有分类+ 未归类
-            <>
-              {sessionGroups.filter((group) => group.sessions.length > 0).map((group) => (
-                <CollapsibleGroup
-                  key={group.key}
-                  compact
-                  title={group.title}
-                  subtitle={group.subtitle}
-                  countLabel={`${group.sessions.length} 条`}
-                  defaultOpen={group.sessions.length > 0}
-                  bodyClassName="space-y-1.5"
-                  actions={
-                    confirmDeleteGroupId === group.key ? (
-                      <>
-                        <button
-                          type="button"
-                          disabled={deletingGroupId === group.key}
-                          onClick={() => void handleDeleteInterestGroup(group.key, false)}
-                          className="rounded-lg px-1.5 py-0.5 text-[10px] text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary disabled:opacity-50"
-                        >
-                          未归类
-                        </button>
-                        <button
-                          type="button"
-                          disabled={deletingGroupId === group.key}
-                          onClick={() => void handleDeleteInterestGroup(group.key, true)}
-                          className="rounded-lg px-1.5 py-0.5 text-[10px] text-apple-red transition-colors hover:bg-apple-red/10 disabled:opacity-50"
-                        >
-                          删除全部
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteGroupId(null)}
-                          className="text-ink-tertiary hover:text-ink-primary"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteGroupId(group.key)}
-                        className="text-ink-tertiary/30 transition-colors hover:text-apple-red"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )
-                  }
-                >
-                  {group.sessions.map(renderSessionItem)}
-                </CollapsibleGroup>
-              ))}
-
-              {ungroupedSessions.length > 0 && (
-                <div className="px-2 pt-2">
-                  <div className="px-2 pb-2">
-                    <p className="text-[11px] font-semibold text-ink-tertiary">未归类</p>
-                    <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">可在对话顶部关联到具体研究方向。</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    {ungroupedSessions.map(renderSessionItem)}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="flex-1 min-w-0 flex overflow-hidden">
-        <div className="flex-1 flex flex-col min-w-0 bg-nm-bg">
-          <div
-            className="flex h-[52px] items-center justify-between px-4"
-            style={{
-              background: "linear-gradient(180deg, var(--rc-surface), var(--rc-surface))",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className="w-10 h-10 rounded-2xl flex items-center justify-center text-white"
-                style={{
-                  background: "linear-gradient(145deg, #111827, #334155)",
-                  boxShadow: "4px 4px 10px rgba(15,23,42,0.24)",
-                }}
-              >
-                <BrainCircuit className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="font-semibold text-sm text-ink-primary">{MAIN_ASSISTANT_WORKSPACE_NAME}</span>
-                <p className="text-xs text-ink-tertiary mt-0.5">{MAIN_ASSISTANT_STATUS_DESCRIPTION}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {currentSession && (
+      <div className="relative flex h-full overflow-hidden" style={{ background: "linear-gradient(180deg, #F3F6FA 0%, var(--rc-surface) 100%)" }}>
+        <div
+          className="w-52 flex-shrink-0 flex flex-col"
+          style={{
+            background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
+            boxShadow: "4px 0 10px rgba(0,0,0,0.04)",
+          }}
+        >
+          <div className="p-3 pb-2">
+            <button
+              onClick={handleNewChat}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl text-sm font-medium text-white transition-all duration-150 active:scale-[0.98]"
+              style={{
+                background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                boxShadow: "4px 4px 10px rgba(0,62,204,0.35), -3px -3px 8px rgba(58,155,255,0.2)",
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              新建对话
+            </button>
+            {!hideFolders && (
+              <div className="mt-2">
                 <Select
+                  label="新对话主题文件夹"
                   value={selectedInterestId}
-                  onChange={(value) => void handleSessionInterestChange(value)}
-                  disabled={updatingSessionContext}
-                  className="min-w-[160px]"
+                  onChange={setSelectedInterestId}
+                  className="text-xs"
                   options={[
                     { value: "", label: "未归类" },
                     ...interests.map((interest) => ({
@@ -685,293 +553,428 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                     })),
                   ]}
                 />
-              )}
-              <div
-                className="px-3 py-1.5 rounded-full text-xs font-medium"
-                style={{
-                  background: "var(--rc-surface)",
-                  color: updatingSessionContext ? "#007AFF" : sending ? "#FF9500" : "#34C759",
-                  boxShadow: "var(--rc-inset-shadow)",
-                }}
-              >
-                {updatingSessionContext ? "正在更新归属" : sending ? "处理中" : "就绪"}
               </div>
-            </div>
+            )}
           </div>
 
-          {loadError && (
-            <div className="px-5 pt-4">
-              <div
-                className="flex items-start gap-3 rounded-2xl px-4 py-3 text-sm text-apple-red"
-                style={{
-                  background: "#F2EAEA",
-                  boxShadow: "inset 2px 2px 5px rgba(180,59,48,0.14), inset -2px -2px 5px rgba(255,255,255,0.8)",
-                }}
-              >
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                <span className="break-all">{loadError}</span>
+          <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
+            {sessions.length === 0 && interests.length === 0 && (
+              <div className="flex flex-col items-center py-8 gap-2">
+                <MessageSquare className="w-8 h-8 text-ink-tertiary opacity-40" />
+                <p className="text-xs text-ink-tertiary">暂无对话记录</p>
+              </div>
+            )}
+
+            {hideFolders ? (
+              // 自由工作台：扁平展示所有会话
+              <div className="space-y-1.5">{sessions.map(renderSessionItem)}</div>
+            ) : selectedInterestId ? (
+              // 已选主题：只展示该主题下的会话
+              (() => {
+                const group = sessionGroups.find((g) => g.key === selectedInterestId);
+                const groupSessions = group?.sessions ?? [];
+                return groupSessions.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-xs text-ink-tertiary">该主题下暂无对话</div>
+                ) : (
+                  <div className="space-y-1.5">{groupSessions.map(renderSessionItem)}</div>
+                );
+              })()
+            ) : (
+              // 未选主题：展示所有分类+ 未归类
+              <>
+                {sessionGroups.filter((group) => group.sessions.length > 0).map((group) => (
+                  <CollapsibleGroup
+                    key={group.key}
+                    compact
+                    title={group.title}
+                    subtitle={group.subtitle}
+                    countLabel={`${group.sessions.length} 条`}
+                    defaultOpen={group.sessions.length > 0}
+                    bodyClassName="space-y-1.5"
+                    actions={
+                      confirmDeleteGroupId === group.key ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={deletingGroupId === group.key}
+                            onClick={() => void handleDeleteInterestGroup(group.key, false)}
+                            className="rounded-lg px-1.5 py-0.5 text-[10px] text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary disabled:opacity-50"
+                          >
+                            未归类
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingGroupId === group.key}
+                            onClick={() => void handleDeleteInterestGroup(group.key, true)}
+                            className="rounded-lg px-1.5 py-0.5 text-[10px] text-apple-red transition-colors hover:bg-apple-red/10 disabled:opacity-50"
+                          >
+                            删除全部
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteGroupId(null)}
+                            className="text-ink-tertiary hover:text-ink-primary"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteGroupId(group.key)}
+                          className="text-ink-tertiary/30 transition-colors hover:text-apple-red"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )
+                    }
+                  >
+                    {group.sessions.map(renderSessionItem)}
+                  </CollapsibleGroup>
+                ))}
+
+                {ungroupedSessions.length > 0 && (
+                  <div className="px-2 pt-2">
+                    <div className="px-2 pb-2">
+                      <p className="text-[11px] font-semibold text-ink-tertiary">未归类</p>
+                      <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">可在对话顶部关联到具体研究方向。</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      {ungroupedSessions.map(renderSessionItem)}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0 flex overflow-hidden">
+          <div className="flex-1 flex flex-col min-w-0 bg-nm-bg">
+            <div
+              className="flex h-[52px] items-center justify-between px-4"
+              style={{
+                background: "linear-gradient(180deg, var(--rc-surface), var(--rc-surface))",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center text-white"
+                  style={{
+                    background: "linear-gradient(145deg, #111827, #334155)",
+                    boxShadow: "4px 4px 10px rgba(15,23,42,0.24)",
+                  }}
+                >
+                  <BrainCircuit className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="font-semibold text-sm text-ink-primary">{MAIN_ASSISTANT_WORKSPACE_NAME}</span>
+                  <p className="text-xs text-ink-tertiary mt-0.5">{MAIN_ASSISTANT_STATUS_DESCRIPTION}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {currentSession && (
+                  <Select
+                    value={selectedInterestId}
+                    onChange={(value) => void handleSessionInterestChange(value)}
+                    disabled={updatingSessionContext}
+                    className="min-w-[160px]"
+                    options={[
+                      { value: "", label: "未归类" },
+                      ...interests.map((interest) => ({
+                        value: interest.id,
+                        label: interest.folder_name?.trim() || interest.topic,
+                      })),
+                    ]}
+                  />
+                )}
+                <div
+                  className="px-3 py-1.5 rounded-full text-xs font-medium"
+                  style={{
+                    background: "var(--rc-surface)",
+                    color: updatingSessionContext ? "#007AFF" : sending ? "#FF9500" : "#34C759",
+                    boxShadow: "var(--rc-inset-shadow)",
+                  }}
+                >
+                  {updatingSessionContext ? "正在更新归属" : sending ? "处理中" : "就绪"}
+                </div>
               </div>
             </div>
-          )}
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full gap-4 pb-12">
-                <img
-                  src={appLogo}
-                  alt="小妍"
-                  draggable={false}
-                  className="w-20 h-20 object-contain"
+            {loadError && (
+              <div className="px-5 pt-4">
+                <div
+                  className="flex items-start gap-3 rounded-2xl px-4 py-3 text-sm text-apple-red"
                   style={{
-                    WebkitMaskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)",
-                    maskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)",
+                    background: "#F2EAEA",
+                    boxShadow: "inset 2px 2px 5px rgba(180,59,48,0.14), inset -2px -2px 5px rgba(255,255,255,0.8)",
                   }}
-                />
-                <div className="text-center max-w-md">
-                  <p className="font-semibold text-ink-primary">{MAIN_ASSISTANT_WELCOME_TITLE}</p>
-                  <p className="text-sm text-ink-tertiary mt-2 leading-6">{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</p>
+                >
+                  <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <span className="break-all">{loadError}</span>
                 </div>
               </div>
             )}
 
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}
-              >
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full gap-4 pb-12">
+                  <img
+                    src={appLogo}
+                    alt="小妍"
+                    draggable={false}
+                    className="w-20 h-20 object-contain"
+                    style={{
+                      WebkitMaskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)",
+                      maskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)",
+                    }}
+                  />
+                  <div className="text-center max-w-md">
+                    <p className="font-semibold text-ink-primary">{MAIN_ASSISTANT_WELCOME_TITLE}</p>
+                    <p className="text-sm text-ink-tertiary mt-2 leading-6">{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</p>
+                  </div>
+                </div>
+              )}
+
+              {messages.map((message) => (
                 <div
-                  className="w-8 h-8 rounded-2xl flex-shrink-0 flex items-center justify-center"
-                  style={
-                    message.role === "user"
-                      ? {
+                  key={message.id}
+                  className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}
+                >
+                  <div
+                    className="w-8 h-8 rounded-2xl flex-shrink-0 flex items-center justify-center"
+                    style={
+                      message.role === "user"
+                        ? {
                           background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
                           boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
                         }
-                      : {
+                        : {
                           background: "linear-gradient(145deg, #111827, #334155)",
                           boxShadow: "3px 3px 8px rgba(15,23,42,0.2)",
                         }
-                  }
-                >
-                  {message.role === "user"
-                    ? <User className="w-4 h-4 text-white" />
-                    : <Bot className="w-4 h-4 text-white" />}
-                </div>
+                    }
+                  >
+                    {message.role === "user"
+                      ? <User className="w-4 h-4 text-white" />
+                      : <Bot className="w-4 h-4 text-white" />}
+                  </div>
 
-                <div className="max-w-[78%] flex flex-col gap-2">
-                  {message.role === "assistant" && (() => {
-                    const parsed = splitThoughtFromContent(message.content || "");
-                    const isActiveAssistant = message.id === activeAssistantId;
-                    const planForBubble = isActiveAssistant ? plan : [];
-                    const runsForBubble = isActiveAssistant ? displayedRuns : [];
+                  <div className="max-w-[78%] flex flex-col gap-2">
+                    {message.role === "assistant" && (() => {
+                      const parsed = splitThoughtFromContent(message.content || "");
+                      const isActiveAssistant = message.id === activeAssistantId;
+                      const planForBubble = isActiveAssistant ? plan : [];
+                      const runsForBubble = isActiveAssistant ? displayedRuns : [];
 
-                    return (
-                      <>
-                        {(parsed.thought || planForBubble.length > 0 || runsForBubble.length > 0) && (
+                      return (
+                        <>
+                          {(parsed.thought || planForBubble.length > 0 || runsForBubble.length > 0) && (
+                            <div
+                              className="rounded-2xl px-3 py-3"
+                              style={{
+                                background: "#F8EFE0",
+                                boxShadow: "inset 2px 2px 5px rgba(204,162,84,0.25), inset -2px -2px 5px rgba(255,255,255,0.7)",
+                              }}
+                            >
+                              {parsed.thought && (
+                                <details open>
+                                  <summary className="cursor-pointer text-xs font-semibold text-[#9A6A00]">模型推理过程</summary>
+                                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#5A4A2F]">
+                                    {parsed.thought}
+                                  </div>
+                                </details>
+                              )}
+
+                              {planForBubble.length > 0 && (
+                                <div className={parsed.thought ? "mt-3" : ""}>
+                                  <div className="mb-2 text-xs font-semibold text-ink-secondary">执行步骤</div>
+                                  <div className="space-y-2">
+                                    {planForBubble.map((step, index) => {
+                                      const run = [...runsForBubble]
+                                        .reverse()
+                                        .find((item) => item.agent_name === step.agent_name);
+                                      const tone = runTone(run?.status || "pending");
+
+                                      return (
+                                        <div
+                                          key={`${step.agent_name}-${index}`}
+                                          className="rounded-xl px-3 py-2"
+                                          style={{
+                                            background: "var(--rc-surface)",
+                                            boxShadow: "var(--rc-inset-shadow)",
+                                          }}
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="text-xs font-semibold text-ink-primary">{index + 1}. {step.title}</span>
+                                            <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ color: tone.color, background: tone.background }}>
+                                              {tone.label}
+                                            </span>
+                                          </div>
+                                          <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{step.goal}</p>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           <div
-                            className="rounded-2xl px-3 py-3"
+                            className="rounded-3xl px-4 py-3 text-sm"
                             style={{
-                              background: "#F8EFE0",
-                              boxShadow: "inset 2px 2px 5px rgba(204,162,84,0.25), inset -2px -2px 5px rgba(255,255,255,0.7)",
+                              background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)",
+                              boxShadow: "var(--rc-chip-shadow)",
+                              color: "#1C1C1E",
                             }}
                           >
-                            {parsed.thought && (
-                              <details open>
-                                <summary className="cursor-pointer text-xs font-semibold text-[#9A6A00]">模型推理过程</summary>
-                                <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#5A4A2F]">
-                                  {parsed.thought}
-                                </div>
-                              </details>
-                            )}
-
-                            {planForBubble.length > 0 && (
-                              <div className={parsed.thought ? "mt-3" : ""}>
-                                <div className="mb-2 text-xs font-semibold text-ink-secondary">执行步骤</div>
-                                <div className="space-y-2">
-                                  {planForBubble.map((step, index) => {
-                                    const run = [...runsForBubble]
-                                      .reverse()
-                                      .find((item) => item.agent_name === step.agent_name);
-                                    const tone = runTone(run?.status || "pending");
-
-                                    return (
-                                      <div
-                                        key={`${step.agent_name}-${index}`}
-                                        className="rounded-xl px-3 py-2"
-                                        style={{
-                                          background: "var(--rc-surface)",
-                                          boxShadow: "var(--rc-inset-shadow)",
-                                        }}
-                                      >
-                                        <div className="flex items-center justify-between gap-2">
-                                          <span className="text-xs font-semibold text-ink-primary">{index + 1}. {step.title}</span>
-                                          <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ color: tone.color, background: tone.background }}>
-                                            {tone.label}
-                                          </span>
-                                        </div>
-                                        <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{step.goal}</p>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+                            <MarkdownRenderer
+                              content={parsed.answer || (sending && isActiveAssistant ? `${MAIN_ASSISTANT_NAME} 正在整理最终答...` : "")}
+                              onLinkClick={openLink}
+                            />
                           </div>
-                        )}
+                        </>
+                      );
+                    })()}
 
+                    {message.role === "user" && (() => {
+                      const parsedUserMessage = parseCopilotMessageContent(message.content);
+
+                      return (
                         <div
                           className="rounded-3xl px-4 py-3 text-sm"
                           style={{
-                            background: "linear-gradient(145deg, #F2F6FA, #E0E4E8)",
-                            boxShadow: "var(--rc-chip-shadow)",
-                            color: "#1C1C1E",
+                            background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                            boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
+                            color: "#FFFFFF",
                           }}
                         >
-                          <MarkdownRenderer
-                            content={parsed.answer || (sending && isActiveAssistant ? `${MAIN_ASSISTANT_NAME} 正在整理最终答...` : "")}
-                            onLinkClick={openLink}
-                          />
+                          {parsedUserMessage.attachments.length > 0 && (
+                            <div className="mb-3 flex flex-wrap gap-2">
+                              {parsedUserMessage.attachments.map((attachment, index) => (
+                                <span
+                                  key={`${attachment.name}-${index}`}
+                                  className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-medium"
+                                  style={{ background: "rgba(255,255,255,0.18)", color: "#FFFFFF" }}
+                                >
+                                  <MessageSquare className="w-3 h-3" />
+                                  {attachment.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <p className="whitespace-pre-wrap leading-relaxed">
+                            {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
+                          </p>
                         </div>
-                      </>
-                    );
-                  })()}
-
-                  {message.role === "user" && (() => {
-                    const parsedUserMessage = parseCopilotMessageContent(message.content);
-
-                    return (
-                      <div
-                        className="rounded-3xl px-4 py-3 text-sm"
-                        style={{
-                          background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                          boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
-                          color: "#FFFFFF",
-                        }}
-                      >
-                        {parsedUserMessage.attachments.length > 0 && (
-                          <div className="mb-3 flex flex-wrap gap-2">
-                            {parsedUserMessage.attachments.map((attachment, index) => (
-                              <span
-                                key={`${attachment.name}-${index}`}
-                                className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-medium"
-                                style={{ background: "rgba(255,255,255,0.18)", color: "#FFFFFF" }}
-                              >
-                                <MessageSquare className="w-3 h-3" />
-                                {attachment.name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <p className="whitespace-pre-wrap leading-relaxed">
-                          {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
-                        </p>
-                      </div>
-                    );
-                  })()}
-                  {message.role === "assistant" && message.sources && message.sources.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {message.sources.map((source, index) => (
-                        <ExternalLink
-                          key={`${source.source}-${index}`}
-                          href={source.url}
-                          className="px-2.5 py-1 rounded-full text-[11px] text-[#6B7280] hover:text-apple-blue"
-                          title={source.content}
-                        >
-                          <span
-                            className="rounded-full px-2.5 py-1"
-                            style={{
-                              background: "var(--rc-surface)",
-                              boxShadow: "var(--rc-inset-shadow)",
-                            }}
+                      );
+                    })()}
+                    {message.role === "assistant" && message.sources && message.sources.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {message.sources.map((source, index) => (
+                          <ExternalLink
+                            key={`${source.source}-${index}`}
+                            href={source.url}
+                            className="px-2.5 py-1 rounded-full text-[11px] text-[#6B7280] hover:text-apple-blue"
+                            title={source.content}
                           >
-                            {source.source || `来源 ${index + 1}`}
-                          </span>
-                        </ExternalLink>
-                      ))}
-                    </div>
-                  )}
+                            <span
+                              className="rounded-full px-2.5 py-1"
+                              style={{
+                                background: "var(--rc-surface)",
+                                boxShadow: "var(--rc-inset-shadow)",
+                              }}
+                            >
+                              {source.source || `来源 ${index + 1}`}
+                            </span>
+                          </ExternalLink>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            <div ref={bottomRef} />
+              ))}
+              <div ref={bottomRef} />
+            </div>
+
+            <CopilotComposer
+              chatMode={chatMode}
+              onChatModeChange={setChatMode}
+              input={input}
+              onInputChange={setInput}
+              onSubmit={handleSend}
+              sending={sending}
+              uploadingAttachments={uploadingAttachments}
+              attachments={attachments}
+              pickAttachments={pickAttachments}
+              removeAttachment={removeAttachment}
+              skills={skills}
+              selectedSkillId={selectedSkillId}
+              onSelectedSkillChange={setSelectedSkillId}
+            />
           </div>
 
-          <CopilotComposer
-            chatMode={chatMode}
-            onChatModeChange={setChatMode}
-            input={input}
-            onInputChange={setInput}
-            onSubmit={handleSend}
-            sending={sending}
-            uploadingAttachments={uploadingAttachments}
-            attachments={attachments}
-            pickAttachments={pickAttachments}
-            removeAttachment={removeAttachment}
-            skills={skills}
-            selectedSkillId={selectedSkillId}
-            onSelectedSkillChange={setSelectedSkillId}
-          />
         </div>
 
-	      </div>
-
-	      <CopilotOverviewSidebar
-	        activeRequestId={activeRequestId}
-	        plan={plan}
-	        runs={displayedRuns}
-	        sending={sending}
-	        artifacts={artifacts}
-	        memoryInput={memoryInput}
-	        memorySaved={memorySaved}
-	        savingMemory={savingMemory}
-	        onMemoryInputChange={(value) => {
-	          setMemoryInput(value);
-	          setMemorySaved(false);
-	        }}
-	        onSaveMemory={handleSaveMemory}
-	        onArtifactLinkClick={openLink}
-	      />
-	    </div>
-
-    {/* 会话右键菜单 */}
-    {contextMenu && (
-      <div
-        className="fixed z-50 min-w-[160px] overflow-hidden rounded-2xl py-1.5 text-xs"
-        style={{
-          left: contextMenu.x,
-          top: contextMenu.y,
-          background: "linear-gradient(145deg, #F2F6FA, var(--rc-surface))",
-          boxShadow: "var(--rc-chip-shadow)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-tertiary">
-          移动到主页
-        </div>
-        <button
-          className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
-          onClick={() => void handleMoveSession(contextMenu.session, "")}
-        >
-          未归类
-        </button>
-        {interests.map((interest) => (
-          <button
-            key={interest.id}
-            className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
-            onClick={() => void handleMoveSession(contextMenu.session, interest.id)}
-          >
-            {interestFolderName(interest)}
-          </button>
-        ))}
-        <div className="my-1 border-t border-nm-dark/10" />
-        <button
-          className="w-full px-3 py-1.5 text-left text-apple-red transition-colors hover:bg-apple-red/8"
-          onClick={() => { void handleDeleteSession(contextMenu.session.id); setContextMenu(null); }}
-        >
-          删除对话
-        </button>
+        <CopilotOverviewSidebar
+          activeRequestId={activeRequestId}
+          plan={plan}
+          runs={displayedRuns}
+          sending={sending}
+          artifacts={artifacts}
+          memoryInput={memoryInput}
+          memorySaved={memorySaved}
+          savingMemory={savingMemory}
+          onMemoryInputChange={(value) => {
+            setMemoryInput(value);
+            setMemorySaved(false);
+          }}
+          onSaveMemory={handleSaveMemory}
+          onArtifactLinkClick={openLink}
+        />
       </div>
-    )}
+
+      {/* 会话右键菜单 */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[160px] overflow-hidden rounded-2xl py-1.5 text-xs"
+          style={{
+            left: contextMenu.x,
+            top: contextMenu.y,
+            background: "linear-gradient(145deg, #F2F6FA, var(--rc-surface))",
+            boxShadow: "var(--rc-chip-shadow)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-tertiary">
+            移动到主页
+          </div>
+          <button
+            className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
+            onClick={() => void handleMoveSession(contextMenu.session, "")}
+          >
+            未归类
+          </button>
+          {interests.map((interest) => (
+            <button
+              key={interest.id}
+              className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
+              onClick={() => void handleMoveSession(contextMenu.session, interest.id)}
+            >
+              {interestFolderName(interest)}
+            </button>
+          ))}
+          <div className="my-1 border-t border-nm-dark/10" />
+          <button
+            className="w-full px-3 py-1.5 text-left text-apple-red transition-colors hover:bg-apple-red/8"
+            onClick={() => { void handleDeleteSession(contextMenu.session.id); setContextMenu(null); }}
+          >
+            删除对话
+          </button>
+        </div>
+      )}
     </>
   );
 }
