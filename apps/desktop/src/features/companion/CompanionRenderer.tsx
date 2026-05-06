@@ -167,7 +167,7 @@ function Tooltip({
 export default function CompanionRenderer({ inline = false }: { inline?: boolean } = {}) {
   const companionId = useCompanionPreference();
   const definition = useMemo(() => getCompanionDefinition(companionId), [companionId]);
-  const controller = useCompanionController();
+  const controller = useCompanionController({ allowIdleSleep: definition.allowIdleSleep !== false });
 
   if (!controller.visible) return null;
 

@@ -15,10 +15,10 @@ const xiaoyanAnimations = {
 
 const xiaoyanActionMap: Record<CompanionActionKey, keyof typeof xiaoyanAnimations> = {
   idle: "idle",
-  yawning: "waiting",
-  dozing: "waiting",
-  collapsing: "waiting",
-  sleeping: "waiting",
+  yawning: "idle",
+  dozing: "idle",
+  collapsing: "idle",
+  sleeping: "idle",
   waking: "waving",
   thinking: "review",
   working: "running",
@@ -125,6 +125,7 @@ export const COMPANION_DEFINITIONS: Record<CompanionId, CompanionDefinition> = {
     id: "xiaoyan",
     label: "小妍",
     description: "以小妍本体作为桌面伴侣，使用全身像 spritesheet 动作。",
+    allowIdleSleep: false,
     renderer: {
       kind: "sprite-atlas",
       image: "/pets/xiaoyan/spritesheet.webp",
@@ -141,6 +142,7 @@ export const COMPANION_DEFINITIONS: Record<CompanionId, CompanionDefinition> = {
     id: "xiaoyan-pet",
     label: "小妍的宠物",
     description: "保留原墩墩 SVG 动作资产，作为小妍的宠物形象。",
+    allowIdleSleep: true,
     renderer: {
       kind: "svg-set",
       assets: dundunSvg,

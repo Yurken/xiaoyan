@@ -63,6 +63,7 @@ export interface CompanionDefinition {
   id: CompanionId;
   label: string;
   description: string;
+  allowIdleSleep?: boolean;
   renderer: SpriteAtlasDefinition | SvgSetDefinition;
   actionMap: Partial<Record<CompanionActionKey, string>>;
   tooltips: Partial<Record<CompanionActionKey, string>>;

@@ -14,6 +14,10 @@ const IDLE_TO_SLEEP_MS = 3 * 60 * 1000;
 const CLICK_WINDOW = 400;
 const DRAG_THRESHOLD = 4;
 
+interface CompanionControllerOptions {
+  allowIdleSleep?: boolean;
+}
+
 function clearTimer(timer: MutableRefObject<ReturnType<typeof setTimeout> | null>) {
   if (timer.current) {
     clearTimeout(timer.current);
@@ -21,7 +25,7 @@ function clearTimer(timer: MutableRefObject<ReturnType<typeof setTimeout> | null
   }
 }
 
-export function useCompanionController() {
+export function useCompanionController({ allowIdleSleep = true }: CompanionControllerOptions = {}) {
   const [visible, setVisible] = useState(false);
   const [shownAction, setShownAction] = useState<CompanionActionKey>("idle");
   const [opacity, setOpacity] = useState(1);
@@ -34,6 +38,7 @@ export function useCompanionController() {
   const activeWork = useRef<Map<string, WorkItem>>(new Map());
 
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleSleepRunId = useRef(0);
   const oneshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,13 +76,20 @@ export function useCompanionController() {
 
   const cancelIdleTimer = useCallback(() => {
     clearTimer(idleTimer);
+    idleSleepRunId.current += 1;
     isSleeping.current = false;
   }, []);
 
   const startIdleTimer = useCallback(() => {
     clearTimer(idleTimer);
+    idleSleepRunId.current += 1;
+    if (!allowIdleSleep) {
+      isSleeping.current = false;
+      return;
+    }
+    const runId = idleSleepRunId.current;
     idleTimer.current = setTimeout(() => {
-      if (activeWork.current.size > 0 || isStreaming.current) return;
+      if (!allowIdleSleep || activeWork.current.size > 0 || isStreaming.current) return;
       isSleeping.current = true;
       const steps: [CompanionActionKey, number][] = [
         ["yawning", 3000],
@@ -88,12 +100,12 @@ export function useCompanionController() {
       let delay = 0;
       for (const [key, duration] of steps) {
         setTimeout(() => {
-          if (isSleeping.current) showAction(key);
+          if (isSleeping.current && idleSleepRunId.current === runId) showAction(key);
         }, delay);
         delay += duration;
       }
     }, IDLE_TO_SLEEP_MS);
-  }, [showAction]);
+  }, [allowIdleSleep, showAction]);
 
   const wakeIfSleeping = useCallback(() => {
     if (!isSleeping.current) return false;
@@ -123,6 +135,14 @@ export function useCompanionController() {
       resumeWork();
     }, ms);
   }, [resumeWork, showAction]);
+
+  useEffect(() => {
+    if (allowIdleSleep) return;
+    cancelIdleTimer();
+    if (activeWork.current.size === 0 && !isStreaming.current && !isReacting.current) {
+      showAction("idle");
+    }
+  }, [allowIdleSleep, cancelIdleTimer, showAction]);
 
   const startWork = useCallback((id: string, actionKey: CompanionActionKey) => {
     cancelIdleTimer();
