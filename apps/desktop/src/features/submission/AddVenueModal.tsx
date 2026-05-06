@@ -10,6 +10,7 @@ interface AddVenueModalProps {
   typeFilter: "all" | "conference" | "journal";
   areas: string[];
   filteredVenueTemplates: VenueTemplate[];
+  loading?: boolean;
   trackedCount: number;
   onClose: () => void;
   onSearchChange: (value: string) => void;
@@ -26,6 +27,7 @@ export default function AddVenueModal({
   typeFilter,
   areas,
   filteredVenueTemplates,
+  loading = false,
   trackedCount,
   onClose,
   onSearchChange,
@@ -106,7 +108,11 @@ export default function AddVenueModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          {filteredVenueTemplates.length === 0 ? (
+          {loading && filteredVenueTemplates.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-sm text-ink-tertiary">正在加载 CCF 目录与 DDL 数据…</p>
+            </div>
+          ) : filteredVenueTemplates.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-sm text-ink-tertiary">未找到匹配的会议或期刊</p>
             </div>
@@ -201,6 +207,14 @@ export default function AddVenueModal({
                           style={{ background: "rgba(88,86,214,0.12)", color: "#5856D6" }}
                         >
                           EI
+                        </span>
+                      ) : null}
+                      {venue.deadline ? (
+                        <span
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                          style={{ background: "rgba(255,149,0,0.12)", color: "#E65100" }}
+                        >
+                          DDL {venue.deadline}
                         </span>
                       ) : null}
                       <span className="text-[10px] text-ink-tertiary ml-auto">{venue.area}</span>

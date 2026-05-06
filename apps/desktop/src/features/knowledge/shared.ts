@@ -160,6 +160,18 @@ export function interestDisplayName(interest?: Pick<KnowledgeGraphInterest, "top
   return interest?.folderName?.trim() || interest?.topic || "未归类";
 }
 
+export function buildInterestSelectOptions(
+  interests: Array<Pick<KnowledgeGraphInterest, "id" | "topic" | "folderName">> = [],
+) {
+  return [
+    { value: "", label: "全部研究方向" },
+    ...interests.map((item) => ({
+      value: item.id,
+      label: interestDisplayName(item),
+    })),
+  ];
+}
+
 export function truncateText(text: string, max = 140) {
   const normalized = text.replace(/\s+/g, " ").trim();
   return normalized.length <= max ? normalized : `${normalized.slice(0, max - 1)}…`;

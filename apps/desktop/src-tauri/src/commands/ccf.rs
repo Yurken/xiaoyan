@@ -16,3 +16,10 @@ pub async fn ccf_lookup(query: String, limit: Option<usize>) -> Result<serde_jso
         "matches": ccf::lookup(trimmed, limit.unwrap_or(8)),
     }))
 }
+
+#[tauri::command]
+pub async fn ccf_list() -> Result<serde_json::Value, String> {
+    Ok(json!({
+        "venues": ccf::list_all(),
+    }))
+}

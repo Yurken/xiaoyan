@@ -10,7 +10,7 @@ export interface Conference {
   name: string;
   fullName: string;
   website?: string;
-  deadline: Date;
+  deadline?: Date;
   notificationDate?: Date;
   ccf: CcfRating;
   area: string;
@@ -458,7 +458,7 @@ export function rowToVenue(value: unknown): Venue {
     name: stringField(row, "name"),
     fullName: stringField(row, "fullName"),
     website: optionalStringField(row, "website"),
-    deadline: dateField(row, "deadline") ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+    deadline: dateField(row, "deadline"),
     notificationDate: dateField(row, "notificationDate"),
     ccf: ccfRatingField(row),
     area: stringField(row, "area"),

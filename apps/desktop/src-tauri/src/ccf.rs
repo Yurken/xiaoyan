@@ -80,6 +80,10 @@ pub fn lookup(query: &str, limit: usize) -> Vec<CcfTag> {
     scored_lookup(query, limit.max(1))
 }
 
+pub fn list_all() -> Vec<CcfTag> {
+    index().iter().map(|item| to_tag(&item.entry)).collect()
+}
+
 pub fn infer_from_text(text: &str) -> Option<CcfTag> {
     let words = format!(" {} ", normalize_words(text));
     if words.trim().is_empty() {

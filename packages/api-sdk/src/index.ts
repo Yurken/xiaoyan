@@ -1,4 +1,5 @@
 import type {
+  CcfListResponse,
   CcfLookupResponse,
   JournalLookupResponse,
   SourceLookupResponse,
@@ -225,6 +226,8 @@ export function createClient(config: ClientConfig) {
     },
 
     ccf: {
+      list: () =>
+        r<CcfListResponse>("/api/ccf/list"),
       lookup: (query: string, limit = 8) =>
         r<CcfLookupResponse>(`/api/ccf/lookup?query=${encodeURIComponent(query)}&limit=${limit}`),
     },

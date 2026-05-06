@@ -215,6 +215,10 @@ export interface CcfLookupResponse {
   matches: CcfEntry[];
 }
 
+export interface CcfListResponse {
+  venues: CcfEntry[];
+}
+
 export interface JournalPartitionEntry {
   title: string;
   issn?: string;

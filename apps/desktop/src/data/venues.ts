@@ -1,5 +1,4 @@
-// 精选常见会议期刊数据（基于 CCF 目录）
-// 完整数据见 src-tauri/src/data/ccf_catalog.json
+import type { CcfEntry } from "@research-copilot/types";
 
 export type CcfRating = "A" | "B" | "C" | "none";
 
@@ -11,15 +10,30 @@ export interface VenueTemplate {
   ccf: CcfRating;
   area: string;
   publisher?: string;
-  // 索引信息
-  sci?: boolean;        // SCI 收录
-  sciQuartile?: "Q1" | "Q2" | "Q3" | "Q4";  // JCR 分区
-  ei?: boolean;         // EI 收录
-  ccfci?: boolean;      // CCF C 推荐
-  website?: string;     // 官方网站链接
+  sci?: boolean;
+  sciQuartile?: "Q1" | "Q2" | "Q3" | "Q4";
+  ei?: boolean;
+  ccfci?: boolean;
+  website?: string;
+  deadline?: string;
+  notificationDate?: string;
+  conferenceDate?: string;
+  conferenceLocation?: string;
+  deadlineTimezone?: string;
+  dataSource?: string;
 }
 
-// 领域简称映射
+interface CcfddlDeadlineMeta {
+  website?: string;
+  deadline?: string;
+  notificationDate?: string;
+  conferenceDate?: string;
+  conferenceLocation?: string;
+  deadlineTimezone?: string;
+}
+
+const CCFDDL_SOURCE_URL = "https://ccfddl.top/";
+
 export const AREA_SHORT_NAMES: Record<string, string> = {
   "计算机体系结构/并行与分布计算/存储系统": "体系结构",
   "计算机网络": "网络",
@@ -33,213 +47,234 @@ export const AREA_SHORT_NAMES: Record<string, string> = {
   "交叉/综合/新兴": "交叉学科",
 };
 
-// 精选常见会议期刊
+const CCFDDL_DEADLINE_OVERRIDES: Record<string, CcfddlDeadlineMeta> = {
+  acl: {
+    website: "https://2026.aclweb.org/",
+    deadline: "2026-02-23",
+    notificationDate: "2026-05-18",
+    conferenceDate: "2026-07-05",
+    conferenceLocation: "San Diego, USA",
+    deadlineTimezone: "UTC-12",
+  },
+  icml: {
+    website: "https://icml.cc/Conferences/2026",
+    deadline: "2026-01-28",
+    notificationDate: "2026-05-01",
+    conferenceDate: "2026-07-12",
+    conferenceLocation: "Seoul, South Korea",
+    deadlineTimezone: "UTC-12",
+  },
+  iclr: {
+    website: "https://iclr.cc/Conferences/2026",
+    deadline: "2025-09-19",
+    notificationDate: "2026-01-22",
+    conferenceDate: "2026-04-23",
+    conferenceLocation: "Rio de Janeiro, Brazil",
+    deadlineTimezone: "UTC-12",
+  },
+  ijcai: {
+    website: "https://2026.ijcai.org/",
+    deadline: "2026-01-23",
+    notificationDate: "2026-04-20",
+    conferenceDate: "2026-08-15",
+    conferenceLocation: "Bremen, Germany",
+    deadlineTimezone: "UTC-12",
+  },
+  interspeech: {
+    website: "https://www.interspeech2026.org/",
+    deadline: "2026-03-27",
+    notificationDate: "2026-06-22",
+    conferenceDate: "2026-09-21",
+    conferenceLocation: "Sydney, Australia",
+    deadlineTimezone: "UTC-12",
+  },
+  iconip: {
+    website: "https://www.apnns.org/iconip2026/",
+    deadline: "2026-05-10",
+    notificationDate: "2026-07-15",
+    conferenceDate: "2026-11-20",
+    conferenceLocation: "Singapore",
+    deadlineTimezone: "UTC-12",
+  },
+  iccbr: {
+    website: "https://iccbr2026.github.io/",
+    deadline: "2026-04-24",
+    notificationDate: "2026-06-01",
+    conferenceDate: "2026-09-14",
+    conferenceLocation: "Limassol, Cyprus",
+    deadlineTimezone: "UTC-12",
+  },
+  ictai: {
+    website: "https://ictai.computer.org/2026/",
+    deadline: "2026-06-30",
+    notificationDate: "2026-08-03",
+    conferenceDate: "2026-10-26",
+    conferenceLocation: "Taormina, Italy",
+    deadlineTimezone: "UTC-12",
+  },
+  siggraph: {
+    website: "https://s2026.siggraph.org/",
+    deadline: "2026-01-22",
+    notificationDate: "2026-04-30",
+    conferenceDate: "2026-07-19",
+    conferenceLocation: "Anaheim, USA",
+    deadlineTimezone: "UTC-12",
+  },
+  siggraphasia: {
+    website: "https://sa2026.siggraph.org/",
+    deadline: "2026-05-20",
+    notificationDate: "2026-07-27",
+    conferenceDate: "2026-12-15",
+    conferenceLocation: "Hong Kong, China",
+    deadlineTimezone: "UTC-12",
+  },
+  vis: {
+    website: "https://ieeevis.org/year/2026/welcome",
+    deadline: "2026-03-31",
+    notificationDate: "2026-06-15",
+    conferenceDate: "2026-11-01",
+    conferenceLocation: "Baltimore, USA",
+    deadlineTimezone: "UTC-12",
+  },
+  cgf: {
+    website: "https://cgf2026.github.io/",
+    deadline: "2026-01-15",
+    notificationDate: "2026-03-01",
+    conferenceDate: "2026-06-01",
+    conferenceLocation: "Nanjing, China",
+    deadlineTimezone: "UTC-12",
+  },
+};
+
 export const POPULAR_VENUES: VenueTemplate[] = [
-  // ─── 人工智能 ───
-  // 会议
-  { id: "neurips", name: "NeurIPS", fullName: "Conference on Neural Information Processing Systems", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://neurips.cc" },
-  { id: "icml", name: "ICML", fullName: "International Conference on Machine Learning", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://icml.cc" },
-  { id: "iclr", name: "ICLR", fullName: "International Conference on Learning Representations", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://iclr.cc" },
-  { id: "aaai", name: "AAAI", fullName: "AAAI Conference on Artificial Intelligence", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://aaai.org" },
-  { id: "ijcai", name: "IJCAI", fullName: "International Joint Conference on Artificial Intelligence", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://ijcai.org" },
-  { id: "cvpr", name: "CVPR", fullName: "Conference on Computer Vision and Pattern Recognition", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://cvpr.thecvf.com" },
-  { id: "iccv", name: "ICCV", fullName: "International Conference on Computer Vision", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://iccv.thecvf.com" },
-  { id: "eccv", name: "ECCV", fullName: "European Conference on Computer Vision", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://eccv.eu" },
-  { id: "acl", name: "ACL", fullName: "Annual Meeting of the Association for Computational Linguistics", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://aclweb.org" },
-  { id: "emnlp", name: "EMNLP", fullName: "Conference on Empirical Methods in Natural Language Processing", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://aclweb.org/aclwiki/EMNLP" },
-  { id: "naacl", name: "NAACL", fullName: "North American Chapter of the ACL", type: "conference", ccf: "C", area: "人工智能", ei: true, website: "https://naacl.org" },
-  { id: "coling", name: "COLING", fullName: "International Conference on Computational Linguistics", type: "conference", ccf: "B", area: "人工智能", ei: true, website: "https://coling.org" },
-  { id: "lrec", name: "LREC", fullName: "International Conference on Language Resources and Evaluation", type: "conference", ccf: "B", area: "人工智能", ei: true, website: "https://lrec-conf.org" },
-  { id: "sigir", name: "SIGIR", fullName: "International Conference on Research on Development in Information Retrieval", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://sigir.org" },
-  { id: "www", name: "WWW", fullName: "The Web Conference", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://thewebconf.org" },
-  { id: "kdd", name: "KDD", fullName: "ACM SIGKDD Conference on Knowledge Discovery and Data Mining", type: "conference", ccf: "A", area: "人工智能", ei: true, website: "https://kdd.org" },
-  { id: "icdm", name: "ICDM", fullName: "IEEE International Conference on Data Mining", type: "conference", ccf: "B", area: "人工智能", ei: true, website: "https://icdm.bigdatahub.org" },
-  { id: "sdm", name: "SDM", fullName: "SIAM International Conference on Data Mining", type: "conference", ccf: "B", area: "人工智能", ei: true, website: "https://siam.org/conferences/sdm" },
-  { id: "ecai", name: "ECAI", fullName: "European Conference on Artificial Intelligence", type: "conference", ccf: "B", area: "人工智能", ei: true, website: "https://ecai.org" },
-  // 期刊
-  { id: "jmlr", name: "JMLR", fullName: "Journal of Machine Learning Research", type: "journal", ccf: "A", area: "人工智能", sci: true, ei: true, website: "https://jmlr.org" },
-  { id: "tpami", name: "TPAMI", fullName: "IEEE Transactions on Pattern Analysis and Machine Intelligence", type: "journal", ccf: "A", area: "人工智能", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=34" },
-  { id: "tkde", name: "TKDE", fullName: "IEEE Transactions on Knowledge and Data Engineering", type: "journal", ccf: "A", area: "人工智能", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=69" },
-  { id: "taml", name: "TAML", fullName: "ACM Transactions on Applied Mathematics and Computation", type: "journal", ccf: "A", area: "人工智能", sci: true, ei: true, website: "https://dl.acm.org/journal/taml" },
-  { id: "tacl", name: "TACL", fullName: "Transactions of the Association for Computational Linguistics", type: "journal", ccf: "A", area: "人工智能", sci: true, sciQuartile: "Q1", ei: true, website: "https://aclanthology.org/tacl" },
-  { id: "tist", name: "TIST", fullName: "ACM Transactions on Intelligent Systems and Technology", type: "journal", ccf: "B", area: "人工智能", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/tist" },
-  { id: "tnnls", name: "TNNLS", fullName: "IEEE Transactions on Neural Networks and Learning Systems", type: "journal", ccf: "A", area: "人工智能", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=5964" },
-  { id: "tip", name: "TIP", fullName: "IEEE Transactions on Image Processing", type: "journal", ccf: "A", area: "人工智能", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=83" },
-  { id: "tmm", name: "TMM", fullName: "IEEE Transactions on Multimedia", type: "journal", ccf: "A", area: "人工智能", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=6016" },
-  { id: "cl", name: "CL", fullName: "Computational Linguistics", type: "journal", ccf: "A", area: "人工智能", sci: true, sciQuartile: "Q1", ei: true, website: "https://aclweb.org/anthology/venues/CL" },
-
-  // ─── 软件工程/系统软件/程序设计语言 ───
-  // 会议
-  { id: "icse", name: "ICSE", fullName: "International Conference on Software Engineering", type: "conference", ccf: "A", area: "软件工程", ei: true, website: "https://icse-conferences.org" },
-  { id: "fse", name: "FSE/ESEC", fullName: "ACM SIGSOFT Symposium on the Foundations of Software Engineering", type: "conference", ccf: "A", area: "软件工程", ei: true, website: "https://sigsoft.org/events/fse" },
-  { id: "ase", name: "ASE", fullName: "IEEE International Conference on Automated Software Engineering", type: "conference", ccf: "A", area: "软件工程", ei: true, website: "https://ase-conferences.org" },
-  { id: "issta", name: "ISSTA", fullName: "International Symposium on Software Testing and Analysis", type: "conference", ccf: "A", area: "软件工程", ei: true, website: "https://issta.org" },
-  { id: "msr", name: "MSR", fullName: "International Conference on Mining Software Repositories", type: "conference", ccf: "B", area: "软件工程", ei: true, website: "https://msrconf.org" },
-  { id: "icsme", name: "ICSME", fullName: "IEEE International Conference on Software Maintenance and Evolution", type: "conference", ccf: "B", area: "软件工程", ei: true, website: "https://icsme.org" },
-  { id: "splc", name: "SPLC", fullName: "International Systems and Software Product Line Conference", type: "conference", ccf: "B", area: "软件工程", ei: true, website: "https://splc.net" },
-  { id: "icpc", name: "ICPC", fullName: "IEEE International Conference on Program Comprehension", type: "conference", ccf: "C", area: "软件工程", ei: true, website: "https://icpc-conference.org" },
-  { id: "pldi", name: "PLDI", fullName: "ACM SIGPLAN Conference on Programming Language Design and Implementation", type: "conference", ccf: "A", area: "软件工程", ei: true, website: "https://sigplan.org/conferences/pldi" },
-  { id: "oopsla", name: "OOPSLA", fullName: "Conference on Object-Oriented Programming, Systems, Languages, and Applications", type: "conference", ccf: "A", area: "软件工程", ei: true, website: "https://sigplan.org/conferences/oopsla" },
-  { id: "popl", name: "POPL", fullName: "ACM SIGACT-SIGPLAN Symposium on Principles of Programming Languages", type: "conference", ccf: "A", area: "软件工程", website: "https://sigplan.org/conferences/popl" },
-  { id: "asplos", name: "ASPLOS", fullName: "International Conference on Architectural Support for Programming Languages and Operating Systems", type: "conference", ccf: "A", area: "软件工程", website: "https://asplos-conference.org" },
-  { id: "cgoo", name: "CGO", fullName: "International Symposium on Code Generation and Optimization", type: "conference", ccf: "B", area: "软件工程", website: "https://cgo.org" },
-  { id: "cc", name: "CC", fullName: "International Conference on Compiler Construction", type: "conference", ccf: "C", area: "软件工程", website: "https://compiler-construction.org" },
-  // 期刊
-  { id: "tse", name: "TSE", fullName: "IEEE Transactions on Software Engineering", type: "journal", ccf: "A", area: "软件工程", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=32" },
-  { id: "tsc", name: "TSC", fullName: "IEEE Transactions on Service Computing", type: "journal", ccf: "A", area: "软件工程", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=4684" },
-  { id: "tosem", name: "TOSEM", fullName: "ACM Transactions on Software Engineering and Methodology", type: "journal", ccf: "A", area: "软件工程", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/tosem" },
-  { id: "jss", name: "JSS", fullName: "Journal of Systems and Software", type: "journal", ccf: "B", area: "软件工程", sci: true, sciQuartile: "Q1", ei: true, website: "https://sciencedirect.com/journal/journal-of-systems-and-software" },
-  { id: "ase-j", name: "ASE Journal", fullName: "Automated Software Engineering", type: "journal", ccf: "B", area: "软件工程", sci: true, sciQuartile: "Q1", ei: true, website: "https://sciencedirect.com/journal/automated-software-engineering" },
-  { id: "scp", name: "SCP", fullName: "Science of Computer Programming", type: "journal", ccf: "B", area: "软件工程", sci: true, ei: true, website: "https://sciencedirect.com/journal/science-of-computer-programming" },
-  { id: "toplas", name: "TOPLAS", fullName: "ACM Transactions on Programming Languages and Systems", type: "journal", ccf: "A", area: "软件工程", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/toplas" },
-
-  // ─── 计算机网络 ───
-  // 会议
-  { id: "sigcomm", name: "SIGCOMM", fullName: "ACM Conference on Applications, Technologies, Architectures, and Protocols for Computer Communication", type: "conference", ccf: "A", area: "网络", website: "https://sigcomm.org" },
-  { id: "nsdi", name: "NSDI", fullName: "Symposium on Networked Systems Design and Implementation", type: "conference", ccf: "A", area: "网络", website: "https://usenix.org/conferences/nsdi" },
-  { id: "mobicom", name: "MobiCom", fullName: "ACM International Conference on Mobile Computing and Networking", type: "conference", ccf: "A", area: "网络", website: "https://sigmobile.org/mobicom" },
-  { id: "mobisys", name: "MobiSys", fullName: "ACM International Conference on Mobile Systems, Applications, and Services", type: "conference", ccf: "A", area: "网络", website: "https://sigmobile.org/mobisys" },
-  { id: "infocom", name: "INFOCOM", fullName: "IEEE International Conference on Computer Communications", type: "conference", ccf: "A", area: "网络", website: "https://infocom.ieee.org" },
-  { id: "conext", name: "CoNEXT", fullName: "ACM International Conference on emerging Networking EXperiments and Technologies", type: "conference", ccf: "B", area: "网络", website: "https://conference.acm.org/conext" },
-  { id: "imc", name: "IMC", fullName: "ACM Internet Measurement Conference", type: "conference", ccf: "B", area: "网络", website: "https://imc-conference.org" },
-  { id: "sns", name: "SNS", fullName: "ACM Symposium on SDN Research", type: "conference", ccf: "C", area: "网络", website: "https://sigcomm.org/events/sns" },
-  // 期刊
-  { id: "ton", name: "TON", fullName: "IEEE/ACM Transactions on Networking", type: "journal", ccf: "A", area: "网络", website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=90" },
-  { id: "tmc", name: "TMC", fullName: "IEEE Transactions on Mobile Computing", type: "journal", ccf: "A", area: "网络", publisher: "IEEE", website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=7755" },
-  { id: "tnet", name: "TNET", fullName: "IEEE Transactions on Networking", type: "journal", ccf: "A", area: "网络", publisher: "IEEE", website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=90" },
-  { id: "tcc", name: "TCC", fullName: "IEEE Transactions on Cloud Computing", type: "journal", ccf: "A", area: "网络", publisher: "IEEE", website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=6174" },
-
-  // ─── 网络与信息安全 ───
-  // 会议
-  { id: "s-p", name: "S&P", fullName: "IEEE Symposium on Security and Privacy", type: "conference", ccf: "A", area: "安全", website: "https://sp.ieee.org" },
-  { id: "ccs", name: "CCS", fullName: "ACM Conference on Computer and Communications Security", type: "conference", ccf: "A", area: "安全", website: "https://sigsac.org/ccs" },
-  { id: "usenix-sec", name: "USENIX Security", fullName: "USENIX Security Symposium", type: "conference", ccf: "A", area: "安全", website: "https://usenix.org/conferences/security" },
-  { id: "ndss", name: "NDSS", fullName: "Network and Distributed System Security Symposium", type: "conference", ccf: "A", area: "安全", website: "https://ndss.org" },
-  { id: "crypto", name: "CRYPTO", fullName: "International Cryptology Conference", type: "conference", ccf: "A", area: "安全", website: "https://iacr.org/meetings/crypto" },
-  { id: "eurocrypt", name: "EUROCRYPT", fullName: "European Cryptology Conference", type: "conference", ccf: "A", area: "安全", website: "https://iacr.org/meetings/eurocrypt" },
-  { id: "asiacrypt", name: "ASIACRYPT", fullName: "International Conference on the Theory and Application of Cryptology and Information Security", type: "conference", ccf: "A", area: "安全", website: "https://iacr.org/meetings/asiacrypt" },
-  { id: "fc", name: "FC", fullName: "Financial Cryptography and Data Security", type: "conference", ccf: "B", area: "安全", website: "https://fc.ifca.ai" },
-  { id: "acsac", name: "ACSAC", fullName: "Annual Computer Security Applications Conference", type: "conference", ccf: "B", area: "安全", website: "https://acsac.org" },
-  { id: "esorics", name: "ESORICS", fullName: "European Symposium on Research in Computer Security", type: "conference", ccf: "B", area: "安全", website: "https://esorics.org" },
-  // 期刊
-  { id: "tifs", name: "TIFS", fullName: "IEEE Transactions on Information Forensics and Security", type: "journal", ccf: "A", area: "安全", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=10206" },
-  { id: "tdsc", name: "TDSC", fullName: "IEEE Transactions on Dependable and Secure Computing", type: "journal", ccf: "A", area: "安全", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=8858" },
-  { id: "tsec", name: "TSEC", fullName: "IEEE Transactions on Secure and Dependable Computing", type: "journal", ccf: "A", area: "安全", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=8858" },
-  { id: "jhcs", name: "JHCS", fullName: "Journal of High Speed Networks", type: "journal", ccf: "C", area: "安全", sci: true, ei: true, website: "https://iospress.com/journal-of-high-speed-networks" },
-
-  // ─── 数据库/数据挖掘/内容检索 ───
-  // 会议
+  { id: "neurips", name: "NeurIPS", fullName: "Conference on Neural Information Processing Systems", type: "conference", ccf: "A", area: "人工智能", website: "https://neurips.cc" },
+  { id: "icml", name: "ICML", fullName: "International Conference on Machine Learning", type: "conference", ccf: "A", area: "人工智能", website: "https://icml.cc/Conferences/2026", ...deadlineMetaToTemplate(CCFDDL_DEADLINE_OVERRIDES.icml) },
+  { id: "iclr", name: "ICLR", fullName: "International Conference on Learning Representations", type: "conference", ccf: "A", area: "人工智能", website: "https://iclr.cc/Conferences/2026", ...deadlineMetaToTemplate(CCFDDL_DEADLINE_OVERRIDES.iclr) },
+  { id: "cvpr", name: "CVPR", fullName: "IEEE/CVF Computer Vision and Pattern Recognition Conference", type: "conference", ccf: "A", area: "人工智能", website: "https://cvpr.thecvf.com" },
+  { id: "acl", name: "ACL", fullName: "Annual Meeting of the Association for Computational Linguistics", type: "conference", ccf: "A", area: "人工智能", website: "https://2026.aclweb.org/", ...deadlineMetaToTemplate(CCFDDL_DEADLINE_OVERRIDES.acl) },
   { id: "sigmod", name: "SIGMOD", fullName: "ACM International Conference on Management of Data", type: "conference", ccf: "A", area: "数据库", website: "https://sigmod.org" },
-  { id: "vldb", name: "VLDB", fullName: "International Conference on Very Large Data Bases", type: "conference", ccf: "A", area: "数据库", website: "https://vldb.org" },
-  { id: "icde", name: "ICDE", fullName: "IEEE International Conference on Data Engineering", type: "conference", ccf: "A", area: "数据库", website: "https://icde-conferences.org" },
-  { id: "pods", name: "PODS", fullName: "ACM SIGACT-SIGMOD Symposium on Principles of Database Systems", type: "conference", ccf: "A", area: "数据库", website: "https://sigmod.org/pods" },
-  { id: "cidr", name: "CIDR", fullName: "Conference on Innovative Data Systems Research", type: "conference", ccf: "B", area: "数据库", website: "https://cidrdb.org" },
-  { id: "ssdbm", name: "SSDBM", fullName: "International Conference on Scientific and Statistical Database Management", type: "conference", ccf: "C", area: "数据库", website: "https://ssdbm.org" },
-  // 期刊
-  { id: "tods", name: "TODS", fullName: "ACM Transactions on Database Systems", type: "journal", ccf: "A", area: "数据库", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/tods" },
-  { id: "vldb-j", name: "VLDBJ", fullName: "VLDB Journal", type: "journal", ccf: "A", area: "数据库", sci: true, sciQuartile: "Q1", ei: true, website: "https://vldb.org/vldb-journal" },
-  { id: "is", name: "IS", fullName: "Information Systems", type: "journal", ccf: "A", area: "数据库", sci: true, sciQuartile: "Q1", ei: true, website: "https://sciencedirect.com/journal/information-systems" },
-  { id: "tods-j", name: "TODS Journal", fullName: "ACM Transactions on Database Systems", type: "journal", ccf: "A", area: "数据库", sci: true, ei: true, website: "https://dl.acm.org/journal/tods" },
-
-  // ─── 计算机体系结构/并行与分布计算/存储系统 ───
-  // 会议
-  { id: "isca", name: "ISCA", fullName: "International Symposium on Computer Architecture", type: "conference", ccf: "A", area: "体系结构", website: "https://isca-conf.org" },
-  { id: "micro", name: "MICRO", fullName: "IEEE/ACM International Symposium on Microarchitecture", type: "conference", ccf: "A", area: "体系结构", website: "https://micro-conf.org" },
-  { id: "hpca", name: "HPCA", fullName: "IEEE International Symposium on High-Performance Computer Architecture", type: "conference", ccf: "A", area: "体系结构", website: "https://hpca-conf.org" },
-  { id: "sc", name: "SC", fullName: "International Conference for High Performance Computing, Networking, Storage and Analysis", type: "conference", ccf: "A", area: "体系结构", website: "https://sc-conference.org" },
-  { id: "asplos-hpca", name: "ASPLOS", fullName: "International Conference on Architectural Support for Programming Languages and Operating Systems", type: "conference", ccf: "A", area: "体系结构", website: "https://asplos-conference.org" },
-  { id: "dac", name: "DAC", fullName: "ACM/IEEE Design Automation Conference", type: "conference", ccf: "A", area: "体系结构", website: "https://dac.com" },
-  { id: "iccad", name: "ICCAD", fullName: "IEEE/ACM International Conference on Computer-Aided Design", type: "conference", ccf: "B", area: "体系结构", website: "https://iccad.com" },
-  { id: "hpdc", name: "HPDC", fullName: "IEEE International Symposium on High Performance Distributed Computing", type: "conference", ccf: "B", area: "体系结构", website: "https://hpdc.org" },
-  { id: "ipdps", name: "IPDPS", fullName: "IEEE International Parallel and Distributed Processing Symposium", type: "conference", ccf: "B", area: "体系结构", website: "https://ipdps.org" },
-  { id: "cgo", name: "CGO", fullName: "International Symposium on Code Generation and Optimization", type: "conference", ccf: "B", area: "体系结构", website: "https://cgo.org" },
-  { id: "pact", name: "PACT", fullName: "International Conference on Parallel Architectures and Compilation Techniques", type: "conference", ccf: "B", area: "体系结构", website: "https://pactconf.org" },
-  // 期刊
-  { id: "taco", name: "TACO", fullName: "ACM Transactions on Architecture and Code Optimization", type: "journal", ccf: "A", area: "体系结构", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/taco" },
-  { id: "tc", name: "TC", fullName: "IEEE Transactions on Computers", type: "journal", ccf: "A", area: "体系结构", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=12" },
-  { id: "tpds", name: "TPDS", fullName: "IEEE Transactions on Parallel and Distributed Systems", type: "journal", ccf: "A", area: "体系结构", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=71" },
-  { id: "tcad", name: "TCAD", fullName: "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems", type: "journal", ccf: "A", area: "体系结构", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=43" },
-  { id: "tocs", name: "TOCS", fullName: "ACM Transactions on Computer Systems", type: "journal", ccf: "A", area: "体系结构", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/tocs" },
-  { id: "tos", name: "TOS", fullName: "ACM Transactions on Storage", type: "journal", ccf: "A", area: "体系结构", sci: true, ei: true, website: "https://dl.acm.org/journal/tos" },
-  { id: "todaes", name: "TODAES", fullName: "ACM Transactions on Design Automation of Electronic Systems", type: "journal", ccf: "B", area: "体系结构", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/todaes" },
-
-  // ─── 计算机科学理论 ───
-  // 会议
-  { id: "stoc", name: "STOC", fullName: "ACM Symposium on Theory of Computing", type: "conference", ccf: "A", area: "理论", website: "https://sigact.org/stoc" },
-  { id: "focs", name: "FOCS", fullName: "IEEE Symposium on Foundations of Computer Science", type: "conference", ccf: "A", area: "理论", website: "https://focs-conference.org" },
-  { id: "soda", name: "SODA", fullName: "ACM-SIAM Symposium on Discrete Algorithms", type: "conference", ccf: "A", area: "理论", website: "https://siam.org/conferences/soda" },
-  { id: "icalp", name: "ICALP", fullName: "International Colloquium on Automata, Languages and Programming", type: "conference", ccf: "A", area: "理论", website: "https://icalp-conference.org" },
-  { id: "lics", name: "LICS", fullName: "IEEE Symposium on Logic in Computer Science", type: "conference", ccf: "A", area: "理论", website: "https://lics-conference.org" },
-  { id: "cav", name: "CAV", fullName: "International Conference on Computer Aided Verification", type: "conference", ccf: "A", area: "理论", website: "https://cav-conference.org" },
-  { id: "esop", name: "ESOP", fullName: "European Symposium on Programming", type: "conference", ccf: "A", area: "理论", website: "https://etaps.org/esop" },
-  { id: "ic", name: "IC", fullName: "IEEE International Conference on Intelligent Computing", type: "conference", ccf: "C", area: "理论", website: "https://ic-conference.org" },
-  { id: "ccc", name: "CCC", fullName: "IEEE Conference on Computational Complexity", type: "conference", ccf: "B", area: "理论", website: "https://ccc-conference.org" },
-  // 期刊
-  { id: "jacm", name: "JACM", fullName: "Journal of the ACM", type: "journal", ccf: "A", area: "理论", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/jacm" },
-  { id: "siamcomp", name: "SIAM J. Comput.", fullName: "SIAM Journal on Computing", type: "journal", ccf: "A", area: "理论", sci: true, sciQuartile: "Q1", ei: true, website: "https://siam.org/publications/journals/siam-journal-on-computing" },
-  { id: "tcs", name: "TCS", fullName: "Theoretical Computer Science", type: "journal", ccf: "B", area: "理论", sci: true, sciQuartile: "Q1", ei: true, website: "https://sciencedirect.com/journal/theoretical-computer-science" },
-  { id: "ipl", name: "IPL", fullName: "Information Processing Letters", type: "journal", ccf: "C", area: "理论", sci: true, ei: true, website: "https://sciencedirect.com/journal/information-processing-letters" },
-
-  // ─── 计算机图形学与多媒体 ───
-  // 会议
-  { id: "siggraph", name: "SIGGRAPH", fullName: "ACM SIGGRAPH Conference", type: "conference", ccf: "A", area: "图形多媒体", website: "https://siggraph.org" },
-  { id: "siggraph-asia", name: "SIGGRAPH Asia", fullName: "ACM SIGGRAPH Asia", type: "conference", ccf: "A", area: "图形多媒体", website: "https://siggraphasia.org" },
-  { id: "eg", name: "Eurographics", fullName: "Eurographics Conference", type: "conference", ccf: "B", area: "图形多媒体", website: "https://eurographics.org" },
-  { id: "pg", name: "PG", fullName: "Pacific Graphics", type: "conference", ccf: "C", area: "图形多媒体", website: "https://pacificgraphics.org" },
-  { id: "vr", name: "VR", fullName: "IEEE Conference on Virtual Reality and 3D User Interfaces", type: "conference", ccf: "A", area: "图形多媒体", website: "https://ieeevr.org" },
-  { id: "ismar", name: "ISMAR", fullName: "IEEE International Symposium on Mixed and Augmented Reality", type: "conference", ccf: "A", area: "图形多媒体", website: "https://ismar.net" },
-  { id: "vis", name: "VIS", fullName: "IEEE Visualization Conference", type: "conference", ccf: "A", area: "图形多媒体", website: "https://ieeevis.org" },
-  { id: "mvc", name: "MVC", fullName: "ACM Multimedia Systems Conference", type: "conference", ccf: "B", area: "图形多媒体", website: "https://acmmmsys.org" },
-  { id: "icme", name: "ICME", fullName: "IEEE International Conference on Multimedia and Expo", type: "conference", ccf: "B", area: "图形多媒体", website: "https://icme-conference.org" },
-  { id: "acmmm", name: "ACM MM", fullName: "ACM International Conference on Multimedia", type: "conference", ccf: "A", area: "图形多媒体", website: "https://acmmm.org" },
-  // 期刊
-  { id: "tog", name: "TOG", fullName: "ACM Transactions on Graphics", type: "journal", ccf: "A", area: "图形多媒体", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/tog" },
-  { id: "tvcg", name: "TVCG", fullName: "IEEE Transactions on Visualization and Computer Graphics", type: "journal", ccf: "A", area: "图形多媒体", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=2945" },
-  { id: "cga", name: "CG&A", fullName: "IEEE Computer Graphics and Applications", type: "journal", ccf: "B", area: "图形多媒体", publisher: "IEEE", sci: true, ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=38" },
-
-  // ─── 人机交互与普适计算 ───
-  // 会议
+  { id: "sigcomm", name: "SIGCOMM", fullName: "ACM Conference on Applications, Technologies, Architectures, and Protocols for Computer Communication", type: "conference", ccf: "A", area: "网络", website: "https://sigcomm.org" },
+  { id: "ccs", name: "CCS", fullName: "ACM Conference on Computer and Communications Security", type: "conference", ccf: "A", area: "安全", website: "https://sigsac.org/ccs" },
+  { id: "icse", name: "ICSE", fullName: "International Conference on Software Engineering", type: "conference", ccf: "A", area: "软件工程", website: "https://icse-conferences.org" },
   { id: "chi", name: "CHI", fullName: "ACM Conference on Human Factors in Computing Systems", type: "conference", ccf: "A", area: "人机交互", website: "https://sigchi.org/conferences/chi" },
-  { id: "uist", name: "UIST", fullName: "ACM Symposium on User Interface Software and Technology", type: "conference", ccf: "A", area: "人机交互", website: "https://sigchi.org/conferences/uist" },
-  { id: "ubicomp", name: "UbiComp", fullName: "ACM International Joint Conference on Pervasive and Ubiquitous Computing", type: "conference", ccf: "A", area: "人机交互", website: "https://sigchi.org/conferences/ubicomp" },
-  { id: "cscw", name: "CSCW", fullName: "ACM Conference on Computer-Supported Cooperative Work and Social Computing", type: "conference", ccf: "A", area: "人机交互", website: "https://sigchi.org/conferences/cscw" },
-  { id: "icmi", name: "ICMI", fullName: "ACM International Conference on Multimodal Interaction", type: "conference", ccf: "B", area: "人机交互", website: "https://icmi-conference.org" },
-  { id: "iui", name: "IUI", fullName: "ACM International Conference on Intelligent User Interfaces", type: "conference", ccf: "B", area: "人机交互", website: "https://iui-conference.org" },
-  { id: "mobilehci", name: "MobileHCI", fullName: "International Conference on Human-Computer Interaction with Mobile Devices and Services", type: "conference", ccf: "B", area: "人机交互", website: "https://mobilehci.org" },
-  { id: "hri", name: "HRI", fullName: "ACM/IEEE International Conference on Human-Robot Interaction", type: "conference", ccf: "B", area: "人机交互", website: "https://hri2025.org" },
-  // 期刊
-  { id: "tochi", name: "TOCHI", fullName: "ACM Transactions on Computer-Human Interaction", type: "journal", ccf: "A", area: "人机交互", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/tochi" },
-  { id: "ijmss", name: "IJMSS", fullName: "International Journal of Man-Machine Studies", type: "journal", ccf: "B", area: "人机交互", sci: true, ei: true, website: "https://sciencedirect.com/journal/international-journal-of-human-computer-studies" },
-  { id: "thri", name: "THRI", fullName: "ACM Transactions on Human-Robot Interaction", type: "journal", ccf: "C", area: "人机交互", sci: true, ei: true, website: "https://dl.acm.org/journal/thri" },
-
-  // ─── 交叉/综合/新兴 ───
-  // 会议
-  { id: "percom", name: "PerCom", fullName: "IEEE International Conference on Pervasive Computing and Communications", type: "conference", ccf: "A", area: "交叉学科", website: "https://percom.org" },
-  { id: "iot", name: "IoT", fullName: "IEEE International Conference on Internet of Things", type: "conference", ccf: "B", area: "交叉学科", website: "https://iot-conference.org" },
-  { id: "edge", name: "EDGE", fullName: "IEEE International Conference on Edge Computing", type: "conference", ccf: "C", area: "交叉学科", website: "https://edge-conference.org" },
-  // 期刊
-  { id: "acmcs", name: "ACM CSUR", fullName: "ACM Computing Surveys", type: "journal", ccf: "A", area: "交叉学科", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/csur" },
-  { id: "csur", name: "CSUR", fullName: "ACM Computing Surveys", type: "journal", ccf: "A", area: "交叉学科", sci: true, sciQuartile: "Q1", ei: true, website: "https://dl.acm.org/journal/csur" },
-  { id: "tkn", name: "TKN", fullName: "IEEE Transactions on Knowledge and Data Engineering", type: "journal", ccf: "A", area: "交叉学科", publisher: "IEEE", sci: true, sciQuartile: "Q1", ei: true, website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=69" },
-  { id: "ijcis", name: "IJCIS", fullName: "International Journal of Cooperative Information Systems", type: "journal", ccf: "C", area: "交叉学科", sci: true, ei: true, website: "https://worldscientific.com/worldscinet/ijcis" },
-  { id: "fgcs", name: "FGCS", fullName: "Future Generation Computer Systems", type: "journal", ccf: "B", area: "交叉学科", sci: true, sciQuartile: "Q1", ei: true, website: "https://sciencedirect.com/journal/future-generation-computer-systems" },
-  { id: "jhe", name: "JHE", fullName: "Journal of Healthcare Engineering", type: "journal", ccf: "C", area: "交叉学科", sci: true, ei: true, website: "https://hindawi.com/journals/jhe" },
-  { id: "kn", name: "KN", fullName: "Knowledge and Information Systems", type: "journal", ccf: "C", area: "交叉学科", sci: true, ei: true, website: "https://sciencedirect.com/journal/knowledge-and-information-systems" },
+  { id: "tpami", name: "TPAMI", fullName: "IEEE Transactions on Pattern Analysis and Machine Intelligence", type: "journal", ccf: "A", area: "人工智能", publisher: "IEEE", website: "https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=34" },
+  { id: "jacm", name: "JACM", fullName: "Journal of the ACM", type: "journal", ccf: "A", area: "理论", publisher: "ACM", website: "https://dl.acm.org/journal/jacm" },
 ];
 
-// 获取所有领域列表
-export function getAllAreas(): string[] {
-  return [...new Set(POPULAR_VENUES.map(v => v.area))];
+export function buildVenueTemplatesFromCcfCatalog(entries: CcfEntry[]) {
+  return entries
+    .map(mapCcfEntryToVenueTemplate)
+    .sort((left, right) => {
+      const areaOrder = left.area.localeCompare(right.area, "zh-Hans");
+      if (areaOrder !== 0) return areaOrder;
+      const ratingOrder = ccfRatingRank(right.ccf) - ccfRatingRank(left.ccf);
+      if (ratingOrder !== 0) return ratingOrder;
+      const typeOrder = left.type.localeCompare(right.type);
+      if (typeOrder !== 0) return typeOrder;
+      return left.name.localeCompare(right.name);
+    });
 }
 
-// 按领域分组
-export function getVenuesByArea(): Record<string, VenueTemplate[]> {
-  const result: Record<string, VenueTemplate[]> = {};
-  for (const venue of POPULAR_VENUES) {
-    if (!result[venue.area]) {
-      result[venue.area] = [];
-    }
-    result[venue.area].push(venue);
-  }
-  return result;
+export function mapCcfEntryToVenueTemplate(entry: CcfEntry): VenueTemplate {
+  const id = normalizeVenueKey(entry.label || entry.full_name);
+  const override = CCFDDL_DEADLINE_OVERRIDES[id];
+  const type = entry.kind === "journal" ? "journal" : "conference";
+
+  return {
+    id,
+    name: entry.label,
+    fullName: entry.full_name,
+    type,
+    ccf: normalizeCcfRating(entry.rating),
+    area: areaDisplayName(entry.area),
+    publisher: entry.publisher || undefined,
+    website: override?.website ?? normalizeWebsite(entry.url),
+    ...deadlineMetaToTemplate(override),
+  };
+}
+
+export function getAllAreas(venues: VenueTemplate[] = POPULAR_VENUES): string[] {
+  return [...new Set(venues.map((venue) => venue.area))].sort((left, right) => left.localeCompare(right, "zh-Hans"));
+}
+
+export function getVenuesByArea(venues: VenueTemplate[] = POPULAR_VENUES): Record<string, VenueTemplate[]> {
+  return venues.reduce<Record<string, VenueTemplate[]>>((result, venue) => {
+    result[venue.area] = [...(result[venue.area] ?? []), venue];
+    return result;
+  }, {});
+}
+
+export function filterVenueTemplates({
+  area,
+  query,
+  templates,
+  type,
+}: {
+  area: string;
+  query: string;
+  templates: VenueTemplate[];
+  type: "all" | "conference" | "journal";
+}) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  return templates.filter((venue) => {
+    const matchesQuery =
+      !normalizedQuery ||
+      venue.name.toLowerCase().includes(normalizedQuery) ||
+      venue.fullName.toLowerCase().includes(normalizedQuery) ||
+      venue.area.toLowerCase().includes(normalizedQuery);
+    const matchesArea = area === "all" || venue.area === area;
+    const matchesType = type === "all" || venue.type === type;
+    return matchesQuery && matchesArea && matchesType;
+  });
+}
+
+export function getVenueTemplateDates(template: VenueTemplate) {
+  return {
+    deadline: normalizeIsoDate(template.deadline),
+    notificationDate: normalizeIsoDate(template.notificationDate),
+  };
+}
+
+export function normalizeVenueKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function areaDisplayName(area: string) {
+  return AREA_SHORT_NAMES[area] ?? area;
+}
+
+function normalizeCcfRating(rating: string): CcfRating {
+  return rating === "A" || rating === "B" || rating === "C" ? rating : "none";
+}
+
+function normalizeWebsite(url: string) {
+  return url?.trim() || undefined;
+}
+
+function normalizeIsoDate(value?: string) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  return value;
+}
+
+function deadlineMetaToTemplate(meta?: CcfddlDeadlineMeta): Partial<VenueTemplate> {
+  if (!meta) return {};
+  return {
+    deadline: normalizeIsoDate(meta.deadline),
+    notificationDate: normalizeIsoDate(meta.notificationDate),
+    conferenceDate: normalizeIsoDate(meta.conferenceDate),
+    conferenceLocation: meta.conferenceLocation,
+    deadlineTimezone: meta.deadlineTimezone,
+    dataSource: CCFDDL_SOURCE_URL,
+  };
+}
+
+function ccfRatingRank(rating: CcfRating) {
+  if (rating === "A") return 3;
+  if (rating === "B") return 2;
+  if (rating === "C") return 1;
+  return 0;
 }

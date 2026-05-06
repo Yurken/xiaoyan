@@ -98,7 +98,7 @@ export default function VenueTrackerWorkspace({
         {visibleVenues.map((venue) => {
           const conference = venue.type === "conference";
           const days = conference
-            ? getDaysUntil(venue.deadline)
+            ? venue.deadline ? getDaysUntil(venue.deadline) : null
             : venue.specialIssueDeadline ? getDaysUntil(venue.specialIssueDeadline) : null;
           const deadlineStyle = days !== null ? getDdlStyle(days) : null;
           const ccfStyle = CCF_STYLE[venue.ccf];
@@ -181,10 +181,17 @@ export default function VenueTrackerWorkspace({
                   <div className="flex items-center gap-3 mt-1">
                     {conference ? (
                       <>
-                        <span className="flex items-center gap-1 text-[11px] text-ink-tertiary">
-                          <Clock className="w-3 h-3" />
-                          截止 {(venue as Conference).deadline.toLocaleDateString("zh-CN")}
-                        </span>
+                        {(venue as Conference).deadline ? (
+                          <span className="flex items-center gap-1 text-[11px] text-ink-tertiary">
+                            <Clock className="w-3 h-3" />
+                            截止 {(venue as Conference).deadline!.toLocaleDateString("zh-CN")}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-[11px] text-ink-tertiary">
+                            <Clock className="w-3 h-3" />
+                            等待官方 DDL
+                          </span>
+                        )}
                         {(venue as Conference).notificationDate ? (
                           <span className="flex items-center gap-1 text-[11px] text-ink-tertiary">
                             <Bell className="w-3 h-3" />

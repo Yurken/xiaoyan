@@ -9,6 +9,7 @@ import type {
   ArxivRankingMode,
   ArxivSearchRequest,
   ArxivSearchResponse,
+  CcfListResponse,
   CcfLookupResponse,
   JournalLookupResponse,
   SourceLookupResponse,
@@ -135,6 +136,8 @@ export const papersApi = {
 };
 
 export const ccfApi = {
+  list: (): Promise<CcfListResponse> =>
+    invoke("ccf_list"),
   lookup: (query: string, limit = 8): Promise<CcfLookupResponse> =>
     invoke("ccf_lookup", { query, limit }),
 };

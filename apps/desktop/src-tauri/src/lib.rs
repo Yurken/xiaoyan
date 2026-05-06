@@ -27,7 +27,7 @@ use tauri::Manager;
 
 use commands::{
     arxiv::arxiv_search,
-    ccf::ccf_lookup,
+    ccf::{ccf_list, ccf_lookup},
     chat::{
         chat_cancel, chat_delete_session, chat_get_session, chat_list_agent_runs,
         chat_list_sessions, chat_stream, chat_update_session_context,
@@ -248,6 +248,7 @@ pub fn run() {
             papers_reproduce,
             papers_list_figures,
             // CCF
+            ccf_list,
             ccf_lookup,
             // Journal partitions
             journal_lookup,

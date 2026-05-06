@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Select } from "@research-copilot/ui";
 import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspace";
-import { buildNoteClaimCountMap, interestDisplayName } from "../features/knowledge/shared";
+import { buildInterestSelectOptions, buildNoteClaimCountMap } from "../features/knowledge/shared";
 import { useKnowledgeGraphWorkspace } from "../features/knowledge/useKnowledgeGraphWorkspace";
 import NotesPanel from "../features/knowledge/NotesPanel";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
@@ -17,13 +17,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
   );
   const graphController = useKnowledgeGraphWorkspace();
   const interestOptions = useMemo(
-    () => [
-      { value: "", label: "全部研究方向" },
-      ...(graphController.snapshot?.interests ?? []).map((item) => ({
-        value: item.id,
-        label: interestDisplayName(item),
-      })),
-    ],
+    () => buildInterestSelectOptions(graphController.snapshot?.interests ?? []),
     [graphController.snapshot?.interests],
   );
   const initialInterests = useMemo(
@@ -109,7 +103,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
             })}
           </div>
 
-          {graphController.snapshot ? (
+          {view === "notes" && graphController.snapshot ? (
             <Select
               className="w-full lg:w-[260px]"
               prefix="聚焦："

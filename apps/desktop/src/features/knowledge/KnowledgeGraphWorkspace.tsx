@@ -1,31 +1,154 @@
-import { useEffect, useState } from "react";
-import { AlertCircle, Maximize2, Minimize2, RefreshCw } from "lucide-react";
-import { Card, CardHeader, CardTitle, IconButton } from "@research-copilot/ui";
+import { useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  Compass,
+  GitBranch,
+  Lightbulb,
+  Link2,
+  Maximize2,
+  Minimize2,
+  RefreshCw,
+  type LucideIcon,
+} from "lucide-react";
+import { Card, CardHeader, CardTitle, IconButton, Select } from "@research-copilot/ui";
 import KnowledgeClaimPanel from "./KnowledgeClaimPanel";
 import KnowledgeCitationPanel from "./KnowledgeCitationPanel";
 import KnowledgeGraphCanvas from "./KnowledgeGraphCanvas";
 import KnowledgeGraphComposer from "./KnowledgeGraphComposer";
 import KnowledgeGraphInspector from "./KnowledgeGraphInspector";
 import KnowledgeTimelinePanel from "./KnowledgeTimelinePanel";
+import { buildInterestSelectOptions } from "./shared";
 import { type KnowledgeGraphWorkspaceController } from "./useKnowledgeGraphWorkspace";
 
-function MetricTile({ label, value }: { label: string; value: number }) {
+interface MetricTileProps {
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  tone: {
+    background: string;
+    border: string;
+    color: string;
+  };
+}
+
+function MetricTile({ label, value, icon: Icon, tone }: MetricTileProps) {
   return (
     <div
-      className="rounded-[26px] border p-2"
+      className="flex min-h-[84px] items-center gap-3 rounded-[22px] border px-4 py-3"
+      style={{
+        borderColor: "var(--rc-card-inset-outline)",
+        background: "var(--rc-card-inset-bg)",
+        boxShadow: "var(--rc-card-inset-shadow)",
+      }}
+    >
+      <span
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"
+        style={{
+          background: tone.background,
+          borderColor: tone.border,
+          color: tone.color,
+        }}
+      >
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-ink-tertiary">{label}</p>
+        <p className="mt-1 text-2xl font-semibold leading-none text-ink-primary tabular-nums">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function GraphOverviewControls({
+  activeInterestId,
+  disabled,
+  interestOptions,
+  loading,
+  onChangeInterest,
+  onRefresh,
+}: {
+  activeInterestId: string | null;
+  disabled: boolean;
+  interestOptions: Array<{ value: string; label: string }>;
+  loading: boolean;
+  onChangeInterest: (value: string | null) => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <div
+      className="flex min-h-[84px] items-end gap-2 rounded-[22px] border px-3 py-3 md:col-span-2 xl:col-span-1"
+      style={{
+        borderColor: "var(--rc-card-inset-outline)",
+        background: "var(--rc-card-inset-bg)",
+        boxShadow: "var(--rc-card-inset-shadow)",
+      }}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="mb-2 text-xs font-medium text-ink-tertiary">聚焦范围</p>
+        <Select
+          aria-label="聚焦研究方向"
+          className="w-full"
+          disabled={disabled}
+          value={activeInterestId ?? ""}
+          onChange={(value) => onChangeInterest(value || null)}
+          options={interestOptions}
+          placeholder="全部研究方向"
+        />
+      </div>
+      <IconButton
+        className="mb-[1px] shrink-0"
+        onClick={onRefresh}
+        disabled={disabled}
+        aria-label="刷新图谱"
+        title="刷新图谱"
+        size="lg"
+      >
+        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+      </IconButton>
+    </div>
+  );
+}
+
+function GraphOverviewStrip({
+  activeInterestId,
+  disabled,
+  interestOptions,
+  loading,
+  metrics,
+  onChangeInterest,
+  onRefresh,
+}: {
+  activeInterestId: string | null;
+  disabled: boolean;
+  interestOptions: Array<{ value: string; label: string }>;
+  loading: boolean;
+  metrics: Array<MetricTileProps>;
+  onChangeInterest: (value: string | null) => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <div
+      className="rounded-[28px] border p-2"
       style={{
         borderColor: "var(--rc-border)",
-        background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.54))",
+        background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.52))",
+        boxShadow: "var(--rc-panel-shadow)",
       }}
     >
       <div
-        className="rc-muted-panel rounded-[22px] px-5 py-4"
-        style={{
-          boxShadow: "var(--rc-card-inset-shadow), inset 0 1px 0 rgb(255 255 255 / 0.45)",
-        }}
+        className="grid gap-2 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(280px,1.15fr)]"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-tertiary">{label}</p>
-        <p className="mt-3 text-[2.15rem] font-semibold leading-none text-ink-primary tabular-nums">{value}</p>
+        {metrics.map((item) => (
+          <MetricTile key={item.label} {...item} />
+        ))}
+        <GraphOverviewControls
+          activeInterestId={activeInterestId}
+          disabled={disabled}
+          interestOptions={interestOptions}
+          loading={loading}
+          onChangeInterest={onChangeInterest}
+          onRefresh={onRefresh}
+        />
       </div>
     </div>
   );
@@ -43,6 +166,7 @@ export default function KnowledgeGraphWorkspace({
     busy,
     error,
     activeInterestId,
+    setActiveInterestId,
     refresh,
     createClaim,
     deleteClaim,
@@ -60,6 +184,57 @@ export default function KnowledgeGraphWorkspace({
     if (selectedNodeId && view.nodes.some((item) => item.id === selectedNodeId)) return;
     setSelectedNodeId(view.nodes[0]?.id ?? null);
   }, [selectedNodeId, view]);
+
+  const interestOptions = useMemo(
+    () => buildInterestSelectOptions(snapshot?.interests ?? []),
+    [snapshot?.interests],
+  );
+
+  const metrics = useMemo(
+    () => [
+      {
+        label: "研究方向",
+        value: snapshot?.summary.interestCount ?? 0,
+        icon: Compass,
+        tone: {
+          background: "rgba(0, 122, 255, 0.12)",
+          border: "rgba(0, 122, 255, 0.18)",
+          color: "#007AFF",
+        },
+      },
+      {
+        label: "结论节点",
+        value: snapshot?.summary.claimCount ?? 0,
+        icon: Lightbulb,
+        tone: {
+          background: "rgba(52, 199, 89, 0.12)",
+          border: "rgba(52, 199, 89, 0.18)",
+          color: "#2E7D32",
+        },
+      },
+      {
+        label: "证据关系",
+        value: snapshot?.summary.evidenceCount ?? 0,
+        icon: Link2,
+        tone: {
+          background: "rgba(255, 149, 0, 0.12)",
+          border: "rgba(255, 149, 0, 0.2)",
+          color: "#B86A00",
+        },
+      },
+      {
+        label: "引用边",
+        value: snapshot?.summary.citationCount ?? 0,
+        icon: GitBranch,
+        tone: {
+          background: "rgba(88, 86, 214, 0.12)",
+          border: "rgba(88, 86, 214, 0.2)",
+          color: "#5856D6",
+        },
+      },
+    ],
+    [snapshot?.summary.citationCount, snapshot?.summary.claimCount, snapshot?.summary.evidenceCount, snapshot?.summary.interestCount],
+  );
 
   if (loading && !snapshot) {
     return (
@@ -81,25 +256,13 @@ export default function KnowledgeGraphWorkspace({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="mt-5 space-y-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
+        <div className="max-w-2xl">
           <h2 className="text-lg font-semibold text-ink-primary">知识图谱</h2>
           <p className="mt-1 text-sm text-ink-tertiary">
             把研究方向、论文、结论和实验串成可追溯关系网，回答“这个判断到底来自哪里”。
           </p>
-        </div>
-
-        <div className="flex justify-end">
-          <IconButton
-            onClick={() => void refresh()}
-            disabled={loading || busy}
-            aria-label="刷新图谱"
-            title="刷新图谱"
-            size="md"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          </IconButton>
         </div>
       </div>
 
@@ -113,12 +276,15 @@ export default function KnowledgeGraphWorkspace({
         </div>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricTile label="研究方向" value={snapshot.summary.interestCount} />
-        <MetricTile label="结论节点" value={snapshot.summary.claimCount} />
-        <MetricTile label="证据关系" value={snapshot.summary.evidenceCount} />
-        <MetricTile label="引用边" value={snapshot.summary.citationCount} />
-      </div>
+      <GraphOverviewStrip
+        activeInterestId={activeInterestId}
+        disabled={loading || busy}
+        interestOptions={interestOptions}
+        loading={loading}
+        metrics={metrics}
+        onChangeInterest={setActiveInterestId}
+        onRefresh={() => void refresh()}
+      />
 
       <div className="grid gap-5 xl:grid-cols-[1.5fr,0.85fr]">
         <Card padding="md">
