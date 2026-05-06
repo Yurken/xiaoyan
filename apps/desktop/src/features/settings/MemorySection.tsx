@@ -1,23 +1,50 @@
 import { useEffect, useRef } from "react";
-import { Loader2, Trash2, X } from "lucide-react";
+import { Loader2, LockKeyhole, Trash2, X } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { MemoryObservation, UserMemory } from "../../lib/client";
+import MemoryPrivacyPanel from "./MemoryPrivacyPanel";
+import type { MemoryPrivacyGate } from "./useMemoryPrivacyGate";
 
 interface MemorySectionProps {
   memories: UserMemory[];
   observations: MemoryObservation[];
   loading: boolean;
+  loadError: string;
   clearingAuto: boolean;
+  privacy: MemoryPrivacyGate;
   onEnter: () => void;
   onDelete: (id: string) => void;
   onClearAuto: () => void;
+}
+
+function ProtectedDetailsState({
+  label,
+  pending,
+}: {
+  label: string;
+  pending: boolean;
+}) {
+  return (
+    <div
+      className="flex items-center gap-2 rounded-2xl px-4 py-4 text-sm text-ink-tertiary"
+      style={{
+        background: "var(--rc-chip-inset-bg)",
+        boxShadow: "var(--rc-chip-inset-shadow)",
+      }}
+    >
+      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
+      {pending ? "正在检查详情密码…" : `输入密码后查看${label}详情。`}
+    </div>
+  );
 }
 
 export default function MemorySection({
   memories,
   observations,
   loading,
+  loadError,
   clearingAuto,
+  privacy,
   onEnter,
   onDelete,
   onClearAuto,
@@ -31,6 +58,7 @@ export default function MemorySection({
 
   const manualList = memories.filter((m) => m.type === "manual");
   const autoList = memories.filter((m) => m.type === "auto");
+  const detailsProtected = privacy.loading || (privacy.enabled && !privacy.unlocked);
 
   const formatTimestamp = (timestamp: string) => {
     try {
@@ -60,10 +88,18 @@ export default function MemorySection({
 
   return (
     <div className="space-y-4">
+      <MemoryPrivacyPanel privacy={privacy} />
+
       {loading ? (
         <Card padding="md" className="flex items-center gap-2 text-sm text-ink-tertiary">
           <Loader2 className="w-4 h-4 animate-spin" />
           加载记忆中…
+        </Card>
+      ) : null}
+
+      {loadError ? (
+        <Card padding="md" className="border border-rose-200 bg-rose-50 text-xs leading-5 text-rose-700">
+          {loadError}
         </Card>
       ) : null}
 
@@ -115,34 +151,53 @@ export default function MemorySection({
               系统自动记录的操作轨迹；启用长期记忆时，最近3小时逐条、近7天按天聚合后注入对话。最多保留1000条。
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClearAuto}
-            disabled={clearingAuto || autoList.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 disabled:opacity-40"
-            style={{
-              background: "var(--rc-chip-bg)",
-              color: "#FF3B30",
-              boxShadow: "var(--rc-chip-shadow)",
-            }}
-          >
-            {clearingAuto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-            清除所有自动记录
-          </button>
+          {!detailsProtected ? (
+            <button
+              type="button"
+              onClick={onClearAuto}
+              disabled={clearingAuto || autoList.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 disabled:opacity-40"
+              style={{
+                background: "var(--rc-chip-bg)",
+                color: "#FF3B30",
+                boxShadow: "var(--rc-chip-shadow)",
+              }}
+            >
+              {clearingAuto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+              清除所有自动记录
+            </button>
+          ) : null}
         </div>
-        {autoList.length === 0 ? (
+        {detailsProtected ? (
+          <ProtectedDetailsState label="自动操作记录" pending={privacy.loading} />
+        ) : autoList.length === 0 ? (
           <p className="text-xs text-ink-tertiary">暂无自动记录。</p>
         ) : (
           <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-1">
             {autoList.map((memory) => (
               <div
                 key={memory.id}
-                className="flex items-center gap-2 rounded-xl px-3 py-2"
+                className="flex items-start gap-2 rounded-xl px-3 py-2"
                 style={{ background: "rgba(0,0,0,0.03)" }}
               >
                 <div className="flex-1 min-w-0">
-                  <span className="text-xs text-ink-primary leading-relaxed">{memory.summary}</span>
-                  <span className="ml-2 text-[11px] text-ink-tertiary">{formatTimestamp(memory.created_at)}</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {memory.action ? (
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                        style={{ background: "rgba(10,132,255,0.1)", color: "#0A84FF" }}
+                      >
+                        {memory.action}
+                      </span>
+                    ) : null}
+                    <span className="text-xs text-ink-primary leading-relaxed">{memory.summary}</span>
+                    <span className="text-[11px] text-ink-tertiary">{formatTimestamp(memory.created_at)}</span>
+                  </div>
+                  {memory.detail ? (
+                    <p className="mt-1.5 break-all rounded-xl px-2.5 py-2 text-[11px] leading-5 text-ink-tertiary" style={{ background: "rgba(255,255,255,0.48)" }}>
+                      {memory.detail}
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -165,9 +220,11 @@ export default function MemorySection({
               当前已接入聊天主链路、能力域模型运行和知识笔记操作。高价值过程会沉淀为结构化观察，并在对话时按当前问题做相关召回。
             </p>
           </div>
-          <span className="text-xs text-ink-tertiary">{observations.length} 条</span>
+          <span className="text-xs text-ink-tertiary">{detailsProtected ? "已锁定" : `${observations.length} 条`}</span>
         </div>
-        {observations.length === 0 ? (
+        {detailsProtected ? (
+          <ProtectedDetailsState label="长期记忆观察" pending={privacy.loading} />
+        ) : observations.length === 0 ? (
           <p className="text-xs text-ink-tertiary">暂无长期记忆观察。先和小妍对话几轮后，这里会开始出现过程记录。</p>
         ) : (
           <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">

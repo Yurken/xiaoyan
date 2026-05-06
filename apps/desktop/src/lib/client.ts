@@ -513,6 +513,10 @@ export interface MemoryObservation {
   score?: number;
 }
 
+export interface MemoryPrivacyStatus {
+  enabled: boolean;
+}
+
 export const memoryApi = {
   add: (data: { type: MemoryType; action?: string; summary: string; detail?: string }): Promise<{ id: string }> =>
     invoke("memory_add", {
@@ -527,9 +531,26 @@ export const memoryApi = {
       limit: params?.limit ?? 50,
       offset: params?.offset ?? 0,
     }),
+  listManualRecords: (params?: { limit?: number; offset?: number }): Promise<UserMemory[]> =>
+    invoke("memory_list_manual_records", {
+      limit: params?.limit ?? 100,
+      offset: params?.offset ?? 0,
+    }),
+  listAutoRecords: (params?: { password?: string; limit?: number; offset?: number }): Promise<UserMemory[]> =>
+    invoke("memory_list_auto_records", {
+      password: params?.password ?? null,
+      limit: params?.limit ?? 100,
+      offset: params?.offset ?? 0,
+    }),
   listObservations: (params?: { limit?: number; offset?: number }): Promise<MemoryObservation[]> =>
     invoke("memory_list_observations", {
       limit: params?.limit ?? 30,
+      offset: params?.offset ?? 0,
+    }),
+  listPrivateObservations: (params?: { password?: string; limit?: number; offset?: number }): Promise<MemoryObservation[]> =>
+    invoke("memory_list_private_observations", {
+      password: params?.password ?? null,
+      limit: params?.limit ?? 50,
       offset: params?.offset ?? 0,
     }),
   searchObservations: (query: string, limit = 6): Promise<MemoryObservation[]> =>
@@ -537,6 +558,14 @@ export const memoryApi = {
       query,
       limit,
     }),
+  privacyStatus: (): Promise<MemoryPrivacyStatus> =>
+    invoke("memory_privacy_status"),
+  setPrivacyPassword: (password: string): Promise<MemoryPrivacyStatus> =>
+    invoke("memory_privacy_set_password", { password }),
+  verifyPrivacyPassword: (password: string): Promise<boolean> =>
+    invoke("memory_privacy_verify_password", { password }),
+  clearPrivacyPassword: (): Promise<MemoryPrivacyStatus> =>
+    invoke("memory_privacy_clear_password"),
   delete: (id: string): Promise<void> =>
     invoke("memory_delete", { id }),
   clearAuto: (): Promise<void> =>

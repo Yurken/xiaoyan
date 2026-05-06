@@ -9,6 +9,7 @@ pub mod knowledge;
 pub mod knowledge_graph;
 pub mod knowledge_notes;
 pub mod memory;
+pub mod memory_privacy;
 pub mod misc;
 pub mod paper_analysis_text;
 pub mod paper_artifacts;

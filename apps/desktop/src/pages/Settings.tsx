@@ -75,7 +75,9 @@ export default function Settings() {
     memories,
     observations,
     loading: memoriesLoading,
+    loadError: memoriesLoadError,
     clearingAuto,
+    privacy: memoryPrivacy,
     enter: enterMemories,
     deleteMemory,
     clearAuto: clearAutoMemories,
@@ -478,7 +480,9 @@ export default function Settings() {
             memories={memories}
             observations={observations}
             loading={memoriesLoading}
+            loadError={memoriesLoadError}
             clearingAuto={clearingAuto}
+            privacy={memoryPrivacy}
             onEnter={enterMemories}
             onDelete={deleteMemory}
             onClearAuto={clearAutoMemories}
