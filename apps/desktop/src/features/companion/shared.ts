@@ -12,6 +12,17 @@ export type CompanionActionKey =
   | "sleeping"
   | "waking"
   | "thinking"
+  | "planning"
+  | "searching"
+  | "reading"
+  | "writing"
+  | "summarizing"
+  | "looking"
+  | "peeking"
+  | "celebrating"
+  | "alerting"
+  | "arriving"
+  | "resting"
   | "working"
   | "building"
   | "sweeping"
@@ -88,6 +99,17 @@ export const WORK_PRIORITY: Record<CompanionActionKey, number> = {
   sleeping: 1,
   waking: 2,
   thinking: 2,
+  planning: 4,
+  searching: 3,
+  reading: 3,
+  writing: 3,
+  summarizing: 4,
+  looking: 2,
+  peeking: 2,
+  celebrating: 4,
+  alerting: 5,
+  arriving: 2,
+  resting: 1,
   working: 3,
   building: 4,
   sweeping: 3,
@@ -127,28 +149,28 @@ export function emitCompanionPreferenceChange(id: CompanionId) {
 
 export function chatAgentAction(agentName: string): CompanionActionKey {
   const map: Record<string, CompanionActionKey> = {
-    retrieval: "sweeping",
-    planner: "building",
-    literature_scout: "carrying",
-    survey: "working",
+    retrieval: "searching",
+    planner: "planning",
+    literature_scout: "reading",
+    survey: "writing",
     paper_analyst: "debugger",
     reproduction: "wizard",
-    synthesis: "ultrathink",
+    synthesis: "summarizing",
   };
   return map[agentName] ?? "thinking";
 }
 
 export function surveyAgentAction(name: string): CompanionActionKey {
-  if (name.includes("检索规划")) return "building";
-  if (name.includes("文献检索")) return "sweeping";
+  if (name.includes("检索规划")) return "planning";
+  if (name.includes("文献检索")) return "searching";
   if (name.includes("时序分析")) return "debugger";
-  if (name.includes("综述写作")) return "working";
+  if (name.includes("综述写作")) return "writing";
   return "thinking";
 }
 
 export function interestAgentAction(name: string): CompanionActionKey {
-  if (name.includes("规划") || name.includes("路径")) return "building";
-  if (name.includes("筛选") || name.includes("文献")) return "carrying";
+  if (name.includes("规划") || name.includes("路径")) return "planning";
+  if (name.includes("筛选") || name.includes("文献")) return "reading";
   return "thinking";
 }
 

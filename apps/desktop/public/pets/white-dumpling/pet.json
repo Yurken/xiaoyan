@@ -2,5 +2,5 @@
   "id": "white-dumpling",
   "displayName": "白团子",
   "description": "白团子是小妍的第三个陪伴宠物形象，圆润白色身体、浅青耳片，抱着研究笔记本。",
-  "imagePath": "base.png"
+  "spritesheetPath": "spritesheet.webp"
 }

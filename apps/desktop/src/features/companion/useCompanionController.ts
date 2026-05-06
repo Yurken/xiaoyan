@@ -92,8 +92,10 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
       if (!allowIdleSleep || activeWork.current.size > 0 || isStreaming.current) return;
       isSleeping.current = true;
       const steps: [CompanionActionKey, number][] = [
+        ["looking", 2500],
         ["yawning", 3000],
         ["dozing", 3000],
+        ["resting", 2500],
         ["collapsing", 2500],
         ["sleeping", 0],
       ];
@@ -125,7 +127,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
     }, ms);
   }, [resumeWork, showAction]);
 
-  const triggerFeedback = useCallback((key: "attention" | "error", ms: number, afterCb?: () => void) => {
+  const triggerFeedback = useCallback((key: CompanionActionKey, ms: number, afterCb?: () => void) => {
     clearTimer(oneshotTimer);
     isReacting.current = false;
     showAction(key);
@@ -160,9 +162,9 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
     } else if (isStreaming.current) {
       if (!isReacting.current) showAction("working");
     } else if (success) {
-      triggerFeedback("attention", 4000, () => startIdleTimer());
+      triggerFeedback("celebrating", 4000, () => startIdleTimer());
     } else {
-      triggerFeedback("error", 5000, () => startIdleTimer());
+      triggerFeedback("alerting", 5000, () => startIdleTimer());
     }
   }, [showAction, startIdleTimer, triggerFeedback]);
 
@@ -196,7 +198,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
           }
         }
         if (activeWork.current.size === 0) {
-          triggerFeedback("attention", 4000, () => startIdleTimer());
+          triggerFeedback("celebrating", 4000, () => startIdleTimer());
         }
       }));
 
@@ -208,14 +210,14 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
           }
         }
         if (activeWork.current.size === 0) {
-          triggerFeedback("error", 5000, () => startIdleTimer());
+          triggerFeedback("alerting", 5000, () => startIdleTimer());
         }
       }));
 
       unlisten.push(await listen("chat:plan", () => {
         cancelIdleTimer();
         wakeIfSleeping();
-        if (activeWork.current.size === 0 && !isReacting.current) showAction("thinking");
+        if (activeWork.current.size === 0 && !isReacting.current) showAction("planning");
       }));
 
       unlisten.push(await listen<{ request_id: string; agent: { id: string; name: string } }>(
@@ -230,18 +232,18 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
 
       unlisten.push(await listen("survey:done", () => {
         activeWork.current = new Map([...activeWork.current.entries()].filter(([id]) => !id.startsWith("survey_")));
-        if (activeWork.current.size === 0) triggerFeedback("attention", 4000, () => startIdleTimer());
+        if (activeWork.current.size === 0) triggerFeedback("celebrating", 4000, () => startIdleTimer());
       }));
 
       unlisten.push(await listen("survey:error", () => {
         activeWork.current = new Map([...activeWork.current.entries()].filter(([id]) => !id.startsWith("survey_")));
-        if (activeWork.current.size === 0) triggerFeedback("error", 5000, () => startIdleTimer());
+        if (activeWork.current.size === 0) triggerFeedback("alerting", 5000, () => startIdleTimer());
       }));
 
       unlisten.push(await listen<{ paper_id: string; status: string }>("paper:status", ({ payload }) => {
         const workId = `paper_${payload.paper_id}`;
         if (payload.status === "parsing" || payload.status === "metadata") {
-          startWork(workId, "carrying");
+          startWork(workId, "reading");
         } else if (payload.status === "analyzing") {
           activeWork.current.set(workId, { actionKey: "debugger", priority: WORK_PRIORITY.debugger });
           const next = resolveWorkAction(activeWork.current);
@@ -265,7 +267,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
 
       unlisten.push(await listen("interest:error", () => {
         activeWork.current = new Map([...activeWork.current.entries()].filter(([id]) => !id.startsWith("interest_")));
-        if (activeWork.current.size === 0) triggerFeedback("error", 5000, () => startIdleTimer());
+        if (activeWork.current.size === 0) triggerFeedback("alerting", 5000, () => startIdleTimer());
       }));
     })();
 
@@ -282,7 +284,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
     if (wakeIfSleeping()) return;
     const isWorking = activeWork.current.size > 0 || isStreaming.current;
     if (isWorking) {
-      playReaction("react_annoyed", 2000);
+      playReaction("alerting", 2000);
       return;
     }
     if (isReacting.current) return;
@@ -295,7 +297,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
     if (clickCount.current >= 4) {
       clickCount.current = 0;
       firstClickDir.current = null;
-      playReaction(Math.random() < 0.5 ? "react_double" : "react_jump", 3500);
+      playReaction(Math.random() < 0.5 ? "celebrating" : "react_jump", 3500);
       return;
     }
 
@@ -306,7 +308,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
       clickCount.current = 0;
       firstClickDir.current = null;
       if (count >= 2 && Math.random() < 0.5) {
-        playReaction("react_annoyed", 3500);
+        playReaction("peeking", 3000);
       } else {
         playReaction(firstDir === "left" ? "react_left" : "react_right", 2500);
       }
