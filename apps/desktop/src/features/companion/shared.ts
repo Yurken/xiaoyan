@@ -2,7 +2,7 @@ export const DEFAULT_COMPANION_ID = "xiaoyan";
 export const COMPANION_PREFERENCE_EVENT = "rc:companion-preference-change";
 export const COMPANION_PREFERENCE_STORAGE_KEY = "rc:companion:id";
 
-export type CompanionId = "xiaoyan" | "xiaoyan-pet";
+export type CompanionId = "xiaoyan" | "xiaoyan-pet" | "white-dumpling";
 
 export type CompanionActionKey =
   | "idle"
@@ -31,7 +31,7 @@ export type CompanionActionKey =
   | "react_jump"
   | "react_drag";
 
-export type CompanionRendererKind = "sprite-atlas" | "svg-set";
+export type CompanionRendererKind = "sprite-atlas" | "svg-set" | "static-image";
 
 export interface SpriteAnimation {
   row: number;
@@ -59,12 +59,18 @@ export interface SvgSetDefinition {
   assets: Record<string, string>;
 }
 
+export interface StaticImageDefinition {
+  kind: "static-image";
+  image: string;
+  alt: string;
+}
+
 export interface CompanionDefinition {
   id: CompanionId;
   label: string;
   description: string;
   allowIdleSleep?: boolean;
-  renderer: SpriteAtlasDefinition | SvgSetDefinition;
+  renderer: SpriteAtlasDefinition | SvgSetDefinition | StaticImageDefinition;
   actionMap: Partial<Record<CompanionActionKey, string>>;
   tooltips: Partial<Record<CompanionActionKey, string>>;
 }
@@ -103,7 +109,7 @@ export const WORK_PRIORITY: Record<CompanionActionKey, number> = {
 };
 
 export function isCompanionId(value: string): value is CompanionId {
-  return value === "xiaoyan" || value === "xiaoyan-pet";
+  return value === "xiaoyan" || value === "xiaoyan-pet" || value === "white-dumpling";
 }
 
 export function normalizeCompanionId(value: string | null | undefined): CompanionId {

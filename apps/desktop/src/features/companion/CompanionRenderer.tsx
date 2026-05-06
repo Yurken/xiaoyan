@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { getCompanionAnimationKey, getCompanionDefinition, getCompanionTooltip } from "./petRegistry";
-import type { CompanionActionKey, CompanionDefinition, SpriteAnimation, SpriteAtlasDefinition, SvgSetDefinition } from "./shared";
+import type {
+  CompanionActionKey,
+  CompanionDefinition,
+  SpriteAnimation,
+  SpriteAtlasDefinition,
+  StaticImageDefinition,
+  SvgSetDefinition,
+} from "./shared";
 import { useCompanionController } from "./useCompanionController";
 import { useCompanionPreference } from "./useCompanionPreference";
 
@@ -108,6 +115,35 @@ function SvgSetPet({
   );
 }
 
+function StaticImagePet({
+  renderer,
+  inline,
+  opacity,
+}: {
+  renderer: StaticImageDefinition;
+  inline: boolean;
+  opacity: number;
+}) {
+  return (
+    <img
+      src={renderer.image}
+      alt={renderer.alt}
+      draggable={false}
+      width={inline ? 58 : 108}
+      style={{
+        maxHeight: inline ? 64 : 122,
+        height: "auto",
+        opacity,
+        transition: "opacity 0.18s ease",
+        display: "block",
+        pointerEvents: "none",
+        objectFit: "contain",
+        imageRendering: "pixelated",
+      }}
+    />
+  );
+}
+
 function CompanionVisual({
   definition,
   actionKey,
@@ -123,6 +159,9 @@ function CompanionVisual({
   if (definition.renderer.kind === "sprite-atlas") {
     const animation = definition.renderer.animations[assetKey] ?? definition.renderer.animations.idle;
     return <SpriteAtlasPet renderer={definition.renderer} animation={animation} inline={inline} opacity={opacity} />;
+  }
+  if (definition.renderer.kind === "static-image") {
+    return <StaticImagePet renderer={definition.renderer} inline={inline} opacity={opacity} />;
   }
   return <SvgSetPet renderer={definition.renderer} assetKey={assetKey} inline={inline} opacity={opacity} />;
 }
