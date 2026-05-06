@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { submissionApi } from "../../lib/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ccfApi, submissionApi } from "../../lib/client";
 import {
   POPULAR_VENUES,
+  buildVenueTemplatesFromCcfCatalog,
+  filterVenueTemplates,
   getAllAreas,
+  getVenueTemplateDates,
+  normalizeVenueKey,
   type VenueTemplate,
 } from "../../data/venues";
 import { useVenueRecommendations } from "./useVenueRecommendations";
@@ -23,13 +27,16 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
   const [addModalSearch, setAddModalSearch] = useState("");
   const [addModalAreaFilter, setAddModalAreaFilter] = useState<string>("all");
   const [addModalTypeFilter, setAddModalTypeFilter] = useState<"all" | "conference" | "journal">("all");
+  const [loadedVenueTemplates, setLoadedVenueTemplates] = useState<VenueTemplate[]>([]);
+  const [venueTemplateLoading, setVenueTemplateLoading] = useState(true);
+  const venueTemplates = loadedVenueTemplates.length > 0 ? loadedVenueTemplates : POPULAR_VENUES;
   const {
     recInput,
     recommendations,
     recLoading,
     setRecInput,
     generateRecommendations,
-  } = useVenueRecommendations(conferences, journals);
+  } = useVenueRecommendations(conferences, journals, venueTemplates);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +61,30 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
     };
   }, [onError]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    ccfApi
+      .list()
+      .then((response) => {
+        if (!cancelled) {
+          setLoadedVenueTemplates(buildVenueTemplatesFromCcfCatalog(response.venues));
+        }
+      })
+      .catch((error) => {
+        onError?.(error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setVenueTemplateLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onError]);
+
   const allVenues = useMemo<Venue[]>(() => [...conferences, ...journals], [conferences, journals]);
   const visibleVenues = useMemo(
     () =>
@@ -67,16 +98,16 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
         .sort((left, right) => {
           const leftDays =
             left.type === "conference"
-              ? getDaysUntil(left.deadline)
+              ? left.deadline ? getDaysUntil(left.deadline) : 9999
               : left.specialIssueDeadline
                 ? getDaysUntil(left.specialIssueDeadline)
-                : 999;
+                : 9999;
           const rightDays =
             right.type === "conference"
-              ? getDaysUntil(right.deadline)
+              ? right.deadline ? getDaysUntil(right.deadline) : 9999
               : right.specialIssueDeadline
                 ? getDaysUntil(right.specialIssueDeadline)
-                : 999;
+                : 9999;
           if (leftDays < 0 && rightDays >= 0) return 1;
           if (rightDays < 0 && leftDays >= 0) return -1;
           return leftDays - rightDays;
@@ -84,7 +115,20 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
     [allVenues, venueFilter]
   );
 
-  const toggleVenueStar = (id: string, type: VenueType) => {
+  const areas = useMemo(() => getAllAreas(venueTemplates), [venueTemplates]);
+
+  const filteredVenueTemplates = useMemo(
+    () =>
+      filterVenueTemplates({
+        area: addModalAreaFilter,
+        query: addModalSearch,
+        templates: venueTemplates,
+        type: addModalTypeFilter,
+      }),
+    [addModalAreaFilter, addModalSearch, addModalTypeFilter, venueTemplates]
+  );
+
+  const toggleVenueStar = useCallback((id: string, type: VenueType) => {
     if (type === "conference") {
       setConferences((currentConferences) =>
         currentConferences.map((conference) =>
@@ -99,11 +143,10 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
     submissionApi.toggleVenueStar(id).catch((error) => {
       onError?.(error);
     });
-  };
+  }, [onError]);
 
-  const handleAddVenue = async (template: VenueTemplate) => {
-    const defaultConferenceDeadline =
-      template.type === "conference" ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) : null;
+  const handleAddVenue = useCallback(async (template: VenueTemplate) => {
+    const dates = getVenueTemplateDates(template);
 
     try {
       const response = await submissionApi.createVenue({
@@ -116,7 +159,8 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
         ei: template.ei,
         sci: template.sci,
         sciQuartile: template.sciQuartile,
-        deadline: defaultConferenceDeadline?.toISOString().slice(0, 10),
+        deadline: dates.deadline,
+        notificationDate: dates.notificationDate,
       });
 
       if (template.type === "conference") {
@@ -128,7 +172,8 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
             name: template.name,
             fullName: template.fullName,
             website: template.website,
-            deadline: defaultConferenceDeadline ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+            deadline: dates.deadline ? new Date(dates.deadline) : undefined,
+            notificationDate: dates.notificationDate ? new Date(dates.notificationDate) : undefined,
             ccf: template.ccf,
             area: template.area,
             starred: false,
@@ -159,25 +204,19 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
     }
 
     setShowAddModal(false);
-  };
+  }, [onError]);
 
-  const isVenueAdded = (template: VenueTemplate) =>
-    template.type === "conference"
-      ? conferences.some((conference) => conference.name === template.name)
-      : journals.some((journal) => journal.name === template.name);
-
-  const filteredVenueTemplates = useMemo(
-    () =>
-      POPULAR_VENUES.filter((venue) => {
-        const normalizedSearch = addModalSearch.toLowerCase();
-        const matchesSearch =
-          venue.name.toLowerCase().includes(normalizedSearch) ||
-          venue.fullName.toLowerCase().includes(normalizedSearch);
-        const matchesArea = addModalAreaFilter === "all" || venue.area === addModalAreaFilter;
-        const matchesType = addModalTypeFilter === "all" || venue.type === addModalTypeFilter;
-        return matchesSearch && matchesArea && matchesType;
-      }),
-    [addModalAreaFilter, addModalSearch, addModalTypeFilter]
+  const isVenueAdded = useCallback(
+    (template: VenueTemplate) => {
+      const templateName = normalizeVenueKey(template.name);
+      const templateFullName = normalizeVenueKey(template.fullName);
+      return allVenues.some((venue) => {
+        const venueName = normalizeVenueKey(venue.name);
+        const venueFullName = normalizeVenueKey(venue.fullName);
+        return venueName === templateName || venueFullName === templateFullName;
+      });
+    },
+    [allVenues]
   );
 
   return {
@@ -193,7 +232,9 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
     recommendations,
     recLoading,
     filteredVenueTemplates,
-    areas: getAllAreas(),
+    areas,
+    venueTemplateLoading,
+    venueTemplates,
     setVenueFilter,
     setShowAddModal,
     setAddModalSearch,

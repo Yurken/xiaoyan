@@ -63,6 +63,7 @@ export default function Submission() {
     recLoading,
     filteredVenueTemplates,
     areas,
+    venueTemplateLoading,
     setVenueFilter,
     setShowAddModal,
     setAddModalSearch,
@@ -754,6 +755,7 @@ export default function Submission() {
         typeFilter={addModalTypeFilter}
         areas={areas}
         filteredVenueTemplates={filteredVenueTemplates}
+        loading={venueTemplateLoading}
         trackedCount={conferences.length + journals.length}
         onClose={() => setShowAddModal(false)}
         onSearchChange={setAddModalSearch}

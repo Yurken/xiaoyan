@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { POPULAR_VENUES } from "../../data/venues";
+import { normalizeVenueKey, type VenueTemplate } from "../../data/venues";
 import type {
   CcfRating,
   Conference,
@@ -46,7 +46,7 @@ function getPrestigeScore(ccf: CcfRating, sci?: boolean, sciQuartile?: string): 
   return 6;
 }
 
-function getRankFit(input: VenueRecommendationInput, venue: (typeof POPULAR_VENUES)[number]): number {
+function getRankFit(input: VenueRecommendationInput, venue: VenueTemplate): number {
   if (input.targetRank === "any") return 8;
   if (input.targetRank === "custom") {
     const customRank = input.customRank.trim().toLowerCase();
@@ -87,7 +87,7 @@ function classifyRisk(tier: RecommendationTier, prestigeScore: number): Recommen
 
 function buildRiskTips(
   input: VenueRecommendationInput,
-  venue: (typeof POPULAR_VENUES)[number],
+  venue: VenueTemplate,
   riskLevel: RecommendationRiskLevel,
   matchTags: string[]
 ): string[] {
@@ -112,7 +112,7 @@ function buildRiskTips(
 
 function buildRejectionReasons(
   input: VenueRecommendationInput,
-  venue: (typeof POPULAR_VENUES)[number],
+  venue: VenueTemplate,
   riskLevel: RecommendationRiskLevel
 ): string[] {
   const reasons = [
@@ -133,7 +133,11 @@ function buildRejectionReasons(
   return reasons.slice(0, 4);
 }
 
-export function useVenueRecommendations(conferences: Conference[], journals: Journal[]) {
+export function useVenueRecommendations(
+  conferences: Conference[],
+  journals: Journal[],
+  venueTemplates: VenueTemplate[]
+) {
   const [recInput, setRecInput] = useState<VenueRecommendationInput>(INITIAL_RECOMMENDATION_INPUT);
   const [recommendations, setRecommendations] = useState<VenueRecommendation[]>([]);
   const [recLoading, setRecLoading] = useState(false);
@@ -152,11 +156,11 @@ export function useVenueRecommendations(conferences: Conference[], journals: Jou
         ].join(" ")
       );
       const trackedNames = new Set([
-        ...conferences.map((conference) => conference.name.split(" ")[0].toLowerCase()),
-        ...journals.map((journal) => journal.name.toLowerCase()),
+        ...conferences.map((conference) => normalizeVenueKey(conference.name)),
+        ...journals.map((journal) => normalizeVenueKey(journal.name)),
       ]);
 
-      const results = POPULAR_VENUES.filter((venue) => !trackedNames.has(venue.name.split(" ")[0].toLowerCase()))
+      const results = venueTemplates.filter((venue) => !trackedNames.has(normalizeVenueKey(venue.name)))
         .filter((venue) => recInput.targetType === "all" || venue.type === recInput.targetType)
         .map((venue) => {
           const haystack = `${venue.name} ${venue.fullName} ${venue.area}`.toLowerCase();
