@@ -1,5 +1,5 @@
 import { FilePlus, Trophy, Users } from "lucide-react";
-import { Button } from "@research-copilot/ui";
+import { Button, Card } from "@research-copilot/ui";
 import RejectionRecoveryPanel from "./RejectionRecoveryPanel";
 import SubmissionTimelineStrip from "./SubmissionTimelineStrip";
 import {
@@ -38,13 +38,13 @@ export default function KanbanWorkspace({
 
   return (
     <div className="space-y-4 h-full">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-ink-tertiary">点击「推进 →」更新论文投稿进度</p>
+      <Card padding="sm" variant="flat" className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-tertiary">点击「推进」更新论文投稿进度</p>
         <Button variant="secondary" size="sm" onClick={onOpenAddSubmission}>
           <FilePlus className="w-3.5 h-3.5" />
           新增投稿
         </Button>
-      </div>
+      </Card>
 
       <div className="flex gap-4 overflow-x-auto pb-4">
         {KANBAN_COLS.map(({ key, label }, columnIndex) => {
@@ -52,7 +52,11 @@ export default function KanbanWorkspace({
           const items = submissions.filter((submission) => submission.status === key);
 
           return (
-            <div key={key} className="flex-shrink-0 w-52">
+            <div
+              key={key}
+              className="flex-shrink-0 w-56 rounded-3xl p-3"
+              style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-card-inset-shadow)" }}
+            >
               <div className="flex items-center justify-between mb-3 px-1">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ background: statusConfig.color }} />
@@ -68,10 +72,11 @@ export default function KanbanWorkspace({
 
               <div className="space-y-2.5 min-h-[120px]">
                 {items.map((submission) => (
-                  <div
+                  <Card
+                    padding="sm"
+                    variant="flat"
                     key={submission.id}
-                    className="rounded-2xl p-3.5 transition-all duration-150 hover:-translate-y-px cursor-default"
-                    style={{ background: "var(--rc-card-bg)", boxShadow: "2px 2px 8px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.7)" }}
+                    className="cursor-default transition-transform duration-150 hover:-translate-y-px"
                   >
                     <p className="text-sm font-medium text-ink-primary leading-snug line-clamp-3">{submission.title}</p>
                     <div className="mt-1.5 flex items-center gap-1.5">
@@ -117,29 +122,31 @@ export default function KanbanWorkspace({
                     <div className="mt-2.5 flex gap-1">
                       {columnIndex > 0 ? (
                         <button
-                          className="text-[10px] text-ink-tertiary hover:text-ink-secondary px-1.5 py-0.5 rounded-md hover:bg-black/5 transition-colors"
+                          type="button"
+                          className="rounded-lg px-2 py-1 text-[10px] text-ink-tertiary transition-colors hover:bg-[var(--rc-button-ghost-bg-hover)] hover:text-ink-secondary"
                           onClick={() => onMoveSubmission(submission.id, "prev")}
                         >
-                          ← 回退
+                          回退
                         </button>
                       ) : null}
                       {key !== "accepted" && key !== "rejected" ? (
                         <button
-                          className="text-[10px] font-medium px-1.5 py-0.5 rounded-md hover:bg-black/5 transition-colors"
-                          style={{ color: "#007AFF" }}
+                          type="button"
+                          className="rounded-lg px-2 py-1 text-[10px] font-medium transition-colors hover:bg-[var(--rc-info-chip-bg-hover)]"
+                          style={{ color: "var(--rc-info-chip-text)" }}
                           onClick={() => onMoveSubmission(submission.id, "next")}
                         >
-                          推进 →
+                          推进
                         </button>
                       ) : null}
                     </div>
-                  </div>
+                  </Card>
                 ))}
 
                 {items.length === 0 ? (
                   <div
-                    className="rounded-2xl p-5 flex items-center justify-center border-2 border-dashed opacity-30"
-                    style={{ borderColor: "var(--rc-border)" }}
+                    className="flex min-h-[88px] items-center justify-center rounded-2xl border p-5 opacity-55"
+                    style={{ borderColor: "var(--rc-card-inset-outline)" }}
                   >
                     <p className="text-xs text-ink-tertiary">暂无</p>
                   </div>
@@ -156,8 +163,8 @@ export default function KanbanWorkspace({
       />
 
       <div
-        className="rounded-3xl p-4 flex items-center gap-3 border-2 border-dashed opacity-50"
-        style={{ borderColor: "var(--rc-border)" }}
+        className="rounded-3xl border p-4 flex items-center gap-3 opacity-60"
+        style={{ background: "var(--rc-card-inset-bg)", borderColor: "var(--rc-card-inset-outline)" }}
       >
         <Users className="w-5 h-5 text-ink-tertiary flex-shrink-0" />
         <div>

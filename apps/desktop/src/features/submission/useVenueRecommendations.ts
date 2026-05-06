@@ -134,7 +134,6 @@ function buildRejectionReasons(
 }
 
 export function useVenueRecommendations(conferences: Conference[], journals: Journal[]) {
-  const [showRecPanel, setShowRecPanel] = useState(false);
   const [recInput, setRecInput] = useState<VenueRecommendationInput>(INITIAL_RECOMMENDATION_INPUT);
   const [recommendations, setRecommendations] = useState<VenueRecommendation[]>([]);
   const [recLoading, setRecLoading] = useState(false);
@@ -206,11 +205,9 @@ export function useVenueRecommendations(conferences: Conference[], journals: Jou
   };
 
   return {
-    showRecPanel,
     recInput,
     recommendations,
     recLoading,
-    setShowRecPanel,
     setRecInput,
     generateRecommendations,
   };

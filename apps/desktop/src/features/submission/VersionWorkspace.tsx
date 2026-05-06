@@ -1,5 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Bot, Download, History, Save, Sparkles, Upload } from "lucide-react";
+import { Button } from "@research-copilot/ui";
+import SubmissionPaperSidebar from "./SubmissionPaperSidebar";
 import type { PaperVersion, Submission as SubmissionItem } from "./shared";
 import { STATUS_CFG, computeLineDiff } from "./shared";
 
@@ -65,47 +67,27 @@ export default function VersionWorkspace({
   );
 
   return (
-    <div className="flex gap-5 h-full min-h-0">
-      <div className="w-52 flex-shrink-0 flex flex-col gap-2">
-        <p className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider px-1">投稿论文</p>
-        {submissions.map((submission) => {
+    <div className="flex h-full min-h-0 flex-col gap-5 xl:flex-row">
+      <SubmissionPaperSidebar
+        submissions={submissions}
+        selectedSubmissionId={versionSubId}
+        onSelectSubmission={onSelectSubmission}
+        renderMeta={(submission, active) => {
           const statusStyle = STATUS_CFG[submission.status];
-          const active = submission.id === versionSubId;
           return (
-            <button
-              key={submission.id}
-              onClick={() => onSelectSubmission(submission.id)}
-              className="w-full text-left rounded-2xl p-3 transition-all duration-150"
+            <span
+              className="flex-shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
               style={
                 active
-                  ? { background: "#007AFF", color: "#fff", boxShadow: "2px 4px 12px rgba(0,122,255,0.3)" }
-                  : {
-                      background: "var(--rc-card-bg)",
-                      color: "var(--rc-text-primary)" as string,
-                      boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)",
-                    }
+                  ? { background: "rgba(255,255,255,0.22)", color: "#fff" }
+                  : { background: statusStyle.bg, color: statusStyle.color }
               }
             >
-              <p className="text-sm font-medium line-clamp-2 leading-snug">{submission.title}</p>
-              <div className="mt-1.5 flex items-center justify-between gap-1">
-                <span className="text-[10px] truncate" style={{ opacity: 0.65 }}>
-                  {submission.venue}
-                </span>
-                <span
-                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                  style={
-                    active
-                      ? { background: "rgba(255,255,255,0.25)", color: "#fff" }
-                      : { background: statusStyle.bg, color: statusStyle.color }
-                  }
-                >
-                  {versionCounts[submission.id] ?? 0} 版本
-                </span>
-              </div>
-            </button>
+              {versionCounts[submission.id] ?? 0} 版本
+            </span>
           );
-        })}
-      </div>
+        }}
+      />
 
       <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto">
         <div className="flex items-center justify-between">
@@ -116,14 +98,14 @@ export default function VersionWorkspace({
               {compareIds && compareIds[0] !== compareIds[1] && "  ·  已选择两个版本对比"}
             </p>
           </div>
-          <button
+          <Button
+            type="button"
+            size="sm"
             onClick={onOpenSaveModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all duration-150 hover:opacity-80"
-            style={{ background: "#007AFF", color: "#fff", boxShadow: "2px 4px 10px rgba(0,122,255,0.25)" }}
           >
             <Save className="w-3.5 h-3.5" />
             记录版本
-          </button>
+          </Button>
         </div>
 
         {subVersions.length === 0 ? (
@@ -158,10 +140,12 @@ export default function VersionWorkspace({
                     <div
                       className="flex-1 mb-3 rounded-2xl p-3.5 transition-all duration-150"
                       style={{
-                        background: inCompare ? "rgba(0,122,255,0.06)" : "var(--rc-card-bg)",
+                        background: inCompare
+                          ? "color-mix(in srgb, var(--rc-accent) 8%, var(--rc-card-bg))"
+                          : "var(--rc-card-bg)",
                         boxShadow: inCompare
-                          ? "0 0 0 1.5px #007AFF, 2px 2px 8px rgba(0,0,0,0.06)"
-                          : "2px 2px 8px rgba(0,0,0,0.07), -1px -1px 4px rgba(255,255,255,0.65)",
+                          ? "0 0 0 1.5px var(--rc-accent), var(--rc-card-flat-shadow)"
+                          : "var(--rc-card-flat-shadow)",
                       }}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -197,10 +181,10 @@ export default function VersionWorkspace({
                             className="text-[10px] font-medium px-2 py-0.5 rounded-lg transition-colors"
                             style={
                               compareIds?.[slot] === version.id
-                                ? { background: "#007AFF", color: "#fff" }
+                                ? { background: "var(--rc-button-primary-bg)", color: "#fff" }
                                 : {
                                     background: "var(--rc-card-inset-bg)",
-                                    color: "var(--rc-text-tertiary)" as string,
+                                    color: "var(--rc-text-muted)",
                                   }
                             }
                           >

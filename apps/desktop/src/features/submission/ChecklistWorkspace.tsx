@@ -1,5 +1,6 @@
 import { CheckCircle2, Circle, Users } from "lucide-react";
-import { Card } from "@research-copilot/ui";
+import { Button, Card } from "@research-copilot/ui";
+import SubmissionPaperSidebar from "./SubmissionPaperSidebar";
 import { STATUS_CFG, type ChecklistItem, type Submission } from "./shared";
 
 interface ChecklistWorkspaceProps {
@@ -45,51 +46,30 @@ export default function ChecklistWorkspace({
   }
 
   return (
-    <div className="flex gap-5 h-full min-h-0">
-      <div className="w-52 flex-shrink-0 flex flex-col gap-2">
-        <p className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider px-1">投稿论文</p>
-        {submissions.map((submission) => {
-          const active = submission.id === checklistSubId;
+    <div className="flex h-full min-h-0 flex-col gap-5 xl:flex-row">
+      <SubmissionPaperSidebar
+        submissions={submissions}
+        selectedSubmissionId={checklistSubId}
+        onSelectSubmission={onSelectSubmission}
+        renderMeta={(submission, active) => {
           const statusStyle = STATUS_CFG[submission.status];
-
           return (
-            <button
-              key={submission.id}
-              onClick={() => onSelectSubmission(submission.id)}
-              className="w-full text-left rounded-2xl p-3 transition-all duration-150"
+            <span
+              className="flex-shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
               style={
                 active
-                  ? { background: "#007AFF", color: "#fff", boxShadow: "2px 4px 12px rgba(0,122,255,0.3)" }
-                  : {
-                      background: "var(--rc-card-bg)",
-                      color: "var(--rc-text-primary)" as string,
-                      boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)",
-                    }
+                  ? { background: "rgba(255,255,255,0.22)", color: "#fff" }
+                  : { background: statusStyle.bg, color: statusStyle.color }
               }
             >
-              <p className="text-sm font-medium line-clamp-2 leading-snug">{submission.title}</p>
-              <div className="mt-1.5 flex items-center justify-between gap-1">
-                <span className="text-[10px] truncate" style={{ opacity: 0.65 }}>
-                  {submission.venue}
-                </span>
-                <span
-                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                  style={
-                    active
-                      ? { background: "rgba(255,255,255,0.25)", color: "#fff" }
-                      : { background: statusStyle.bg, color: statusStyle.color }
-                  }
-                >
-                  {statusStyle.label}
-                </span>
-              </div>
-            </button>
+              {statusStyle.label}
+            </span>
           );
-        })}
-      </div>
+        }}
+      />
 
       <div className="flex-1 min-w-0 space-y-5 overflow-y-auto">
-        <div className="flex items-center gap-6">
+        <Card padding="md" variant="flat" className="flex items-center gap-6">
           <div className="flex-1">
             <div className="flex items-center justify-between mb-2">
               <div>
@@ -105,7 +85,7 @@ export default function ChecklistWorkspace({
             </div>
             <div
               className="h-2 rounded-full overflow-hidden"
-              style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 1px 1px 3px rgba(0,0,0,0.12)" }}
+              style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-card-inset-shadow)" }}
             >
               <div
                 className="h-full rounded-full transition-all duration-500"
@@ -125,30 +105,27 @@ export default function ChecklistWorkspace({
               <span className="text-xs font-medium" style={{ color: "#34C759" }}>可以投稿了</span>
             </div>
           ) : null}
-          <button
-            className="text-xs text-ink-tertiary hover:text-ink-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-black/5"
-            onClick={onReset}
-          >
+          <Button type="button" variant="ghost" size="sm" onClick={onReset}>
             重置
-          </button>
-        </div>
+          </Button>
+        </Card>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div
+          className="inline-flex flex-wrap items-center gap-1 rounded-2xl p-1"
+          style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-card-inset-shadow)" }}
+        >
           {categories.map((category) => {
             const categoryCount = checklist.filter((item) => item.category === category).length;
             const categoryChecked = checklist.filter((item) => item.category === category && item.checked).length;
             return (
               <button
                 key={category}
+                type="button"
                 onClick={() => onSelectCategory(category)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
                 style={checklistCat === category
-                  ? { background: "#007AFF", color: "#fff" }
-                  : {
-                      background: "var(--rc-card-bg)",
-                      color: "var(--rc-text-secondary)" as string,
-                      boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)",
-                    }}
+                  ? { background: "var(--rc-elevated)", boxShadow: "var(--rc-raised-shadow)", color: "var(--rc-text)" }
+                  : { color: "var(--rc-text-muted)" }}
               >
                 {category === "all" ? "全部" : category}
                 {category !== "all" ? (
@@ -161,7 +138,7 @@ export default function ChecklistWorkspace({
           })}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 2xl:grid-cols-2">
           {visibleCategories.map((category) => (
             <div key={category} className="space-y-2">
               <p className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider px-1">
@@ -198,8 +175,8 @@ export default function ChecklistWorkspace({
         </div>
 
         <div
-          className="rounded-2xl p-3.5 flex items-center gap-3 border-2 border-dashed opacity-50"
-          style={{ borderColor: "var(--rc-border)" }}
+          className="rounded-2xl border p-3.5 flex items-center gap-3 opacity-60"
+          style={{ background: "var(--rc-card-inset-bg)", borderColor: "var(--rc-card-inset-outline)" }}
         >
           <Users className="w-4 h-4 text-ink-tertiary flex-shrink-0" />
           <div>

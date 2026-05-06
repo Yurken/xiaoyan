@@ -1,4 +1,5 @@
 import { ArrowRight, RefreshCcw } from "lucide-react";
+import { Button, Card } from "@research-copilot/ui";
 import { CCF_STYLE, type RejectionRecoveryPlan, type RejectionRecoveryTarget } from "./shared";
 
 interface RejectionRecoveryPanelProps {
@@ -15,7 +16,7 @@ export default function RejectionRecoveryPanel({
   }
 
   return (
-    <div className="rounded-3xl p-4" style={{ background: "var(--rc-card-bg)", boxShadow: "var(--rc-flat-shadow)" }}>
+    <Card padding="sm" variant="flat">
       <div className="mb-3 flex items-center gap-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
           <RefreshCcw className="h-4 w-4" />
@@ -31,7 +32,7 @@ export default function RejectionRecoveryPanel({
           <div
             key={plan.submission.id}
             className="rounded-2xl p-3"
-            style={{ background: "var(--rc-card-inset-bg)", border: "1px solid var(--rc-border)" }}
+            style={{ background: "var(--rc-card-inset-bg)", border: "1px solid var(--rc-card-inset-outline)" }}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -44,7 +45,7 @@ export default function RejectionRecoveryPanel({
             </div>
 
             <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-              <div className="rounded-xl px-3 py-2" style={{ background: "var(--rc-card-bg)" }}>
+              <div className="rounded-xl px-3 py-2" style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}>
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-tertiary">下一步</p>
                 <ul className="space-y-1">
                   {plan.actions.map((action) => (
@@ -62,7 +63,7 @@ export default function RejectionRecoveryPanel({
                     <div
                       key={`${plan.submission.id}-${target.id}`}
                       className="flex items-start gap-3 rounded-xl px-3 py-2"
-                      style={{ background: "var(--rc-card-bg)" }}
+                      style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -87,15 +88,15 @@ export default function RejectionRecoveryPanel({
                         <p className="mt-0.5 truncate text-[11px] text-ink-tertiary">{target.fullName}</p>
                         <p className="mt-1 text-xs leading-5 text-ink-secondary">{target.reason}</p>
                       </div>
-                      <button
+                      <Button
                         type="button"
+                        size="sm"
+                        variant="secondary"
                         onClick={() => onPrepareTransfer(plan, target)}
-                        className="flex flex-shrink-0 items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-medium"
-                        style={{ background: "rgba(0,122,255,0.12)", color: "#007AFF" }}
                       >
                         转投
                         <ArrowRight className="h-3 w-3" />
-                      </button>
+                      </Button>
                     </div>
                   );
                 })}
@@ -104,6 +105,6 @@ export default function RejectionRecoveryPanel({
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

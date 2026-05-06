@@ -1,4 +1,5 @@
-import { Bell, BookOpen, Clock, Plus, Star, StarOff, Users } from "lucide-react";
+import { useState } from "react";
+import { Bell, BookOpen, Clock, Plus, Star, StarOff } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
 import ExternalLink from "../../components/ExternalLink";
 import type { VenueTemplate } from "../../data/venues";
@@ -19,13 +20,11 @@ interface VenueTrackerWorkspaceProps {
   visibleVenues: Venue[];
   conferencesCount: number;
   journalsCount: number;
-  showRecommendations: boolean;
   recommendations: VenueRecommendation[];
   recommendationLoading: boolean;
   recommendationInput: VenueRecommendationInput;
   onVenueFilterChange: (value: "all" | "conference" | "journal" | "starred") => void;
   onOpenAddVenue: () => void;
-  onToggleRecommendations: () => void;
   onChangeRecommendationInput: (value: VenueRecommendationInput) => void;
   onGenerateRecommendations: () => void;
   isVenueAdded: (template: VenueTemplate) => boolean;
@@ -37,13 +36,13 @@ interface VenueTrackerWorkspaceProps {
 export default function VenueTrackerWorkspace({
   venueFilter,
   visibleVenues,
-  showRecommendations,
+  conferencesCount,
+  journalsCount,
   recommendations,
   recommendationLoading,
   recommendationInput,
   onVenueFilterChange,
   onOpenAddVenue,
-  onToggleRecommendations,
   onChangeRecommendationInput,
   onGenerateRecommendations,
   isVenueAdded,
@@ -51,24 +50,35 @@ export default function VenueTrackerWorkspace({
   onCreateSubmissionFromRecommendation,
   onToggleVenueStar,
 }: VenueTrackerWorkspaceProps) {
+  const [recommendationsOpen, setRecommendationsOpen] = useState(false);
+  const filterOptions = [
+    { value: "all", label: "全部", count: conferencesCount + journalsCount },
+    { value: "conference", label: "会议", count: conferencesCount },
+    { value: "journal", label: "期刊", count: journalsCount },
+    { value: "starred", label: "已关注" },
+  ] as const;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          {(["all", "conference", "journal", "starred"] as const).map((filter) => (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div
+          className="inline-flex rounded-2xl p-1 gap-0.5"
+          style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-card-inset-shadow)" }}
+        >
+          {filterOptions.map((filter) => (
             <button
-              key={filter}
-              onClick={() => onVenueFilterChange(filter)}
-              className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
-              style={venueFilter === filter
-                ? { background: "#007AFF", color: "#fff" }
-                : {
-                    background: "var(--rc-card-bg)",
-                    color: "var(--rc-text-secondary)" as string,
-                    boxShadow: "2px 2px 6px rgba(0,0,0,0.08), -1px -1px 4px rgba(255,255,255,0.6)",
-                  }}
+              key={filter.value}
+              type="button"
+              onClick={() => onVenueFilterChange(filter.value)}
+              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-150"
+              style={
+                venueFilter === filter.value
+                  ? { background: "var(--rc-elevated)", boxShadow: "var(--rc-raised-shadow)", color: "var(--rc-text)" }
+                  : { color: "var(--rc-text-muted)" }
+              }
             >
-              {filter === "all" ? "全部" : filter === "conference" ? "会议" : filter === "journal" ? "期刊" : "⭐ 已关注"}
+              {filter.label}
+              {"count" in filter ? <span className="text-[10px] opacity-60">{filter.count}</span> : null}
             </button>
           ))}
         </div>
@@ -78,20 +88,13 @@ export default function VenueTrackerWorkspace({
         </Button>
       </div>
 
-      <VenueRecommendationsPanel
-        open={showRecommendations}
-        recommendations={recommendations}
-        loading={recommendationLoading}
-        input={recommendationInput}
-        onToggle={onToggleRecommendations}
-        onChangeInput={onChangeRecommendationInput}
-        onGenerate={onGenerateRecommendations}
-        isVenueAdded={isVenueAdded}
-        onAddVenue={onAddVenue}
-        onCreateSubmission={onCreateSubmissionFromRecommendation}
-      />
-
       <div className="grid gap-2.5">
+        {visibleVenues.length === 0 ? (
+          <Card padding="lg" variant="inset" className="flex flex-col items-center justify-center gap-2 text-center">
+            <p className="text-sm font-semibold text-ink-primary">暂无匹配的刊会</p>
+            <p className="text-xs text-ink-tertiary">切换筛选条件，或添加新的会议 / 期刊到追踪列表。</p>
+          </Card>
+        ) : null}
         {visibleVenues.map((venue) => {
           const conference = venue.type === "conference";
           const days = conference
@@ -216,8 +219,10 @@ export default function VenueTrackerWorkspace({
                 ) : null}
 
                 <button
+                  type="button"
+                  aria-label={venue.starred ? "取消关注刊会" : "关注刊会"}
                   onClick={() => onToggleVenueStar(venue.id, venue.type)}
-                  className="flex-shrink-0 p-1.5 rounded-lg transition-all duration-150 hover:bg-black/5 opacity-0 group-hover:opacity-100"
+                  className="flex-shrink-0 rounded-xl p-2 opacity-100 transition-all duration-150 hover:bg-[var(--rc-button-ghost-bg-hover)] md:opacity-0 md:group-hover:opacity-100"
                 >
                   {venue.starred
                     ? <Star className="w-4 h-4 fill-current" style={{ color: "#FF9500" }} />
@@ -230,6 +235,20 @@ export default function VenueTrackerWorkspace({
         })}
       </div>
 
+      <VenueRecommendationsPanel
+        open={recommendationsOpen}
+        recommendations={recommendations}
+        loading={recommendationLoading}
+        input={recommendationInput}
+        onToggle={() => setRecommendationsOpen((currentOpen) => !currentOpen)}
+        onChangeInput={onChangeRecommendationInput}
+        onGenerate={onGenerateRecommendations}
+        isVenueAdded={isVenueAdded}
+        onAddVenue={onAddVenue}
+        onCreateSubmission={onCreateSubmissionFromRecommendation}
+      />
+
+      {/*
       <div
         className="rounded-3xl p-4 flex items-center gap-3 border-2 border-dashed opacity-50"
         style={{ borderColor: "var(--rc-border)" }}
@@ -240,6 +259,7 @@ export default function VenueTrackerWorkspace({
           <p className="text-xs text-ink-tertiary mt-0.5">邀请课题组成员，共同追踪会议与期刊，统一管理投稿节奏。</p>
         </div>
       </div>
+      */}
     </div>
   );
 }

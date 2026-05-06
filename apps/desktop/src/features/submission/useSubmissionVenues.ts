@@ -24,11 +24,9 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
   const [addModalAreaFilter, setAddModalAreaFilter] = useState<string>("all");
   const [addModalTypeFilter, setAddModalTypeFilter] = useState<"all" | "conference" | "journal">("all");
   const {
-    showRecPanel,
     recInput,
     recommendations,
     recLoading,
-    setShowRecPanel,
     setRecInput,
     generateRecommendations,
   } = useVenueRecommendations(conferences, journals);
@@ -191,7 +189,6 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
     addModalSearch,
     addModalAreaFilter,
     addModalTypeFilter,
-    showRecPanel,
     recInput,
     recommendations,
     recLoading,
@@ -202,7 +199,6 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
     setAddModalSearch,
     setAddModalAreaFilter,
     setAddModalTypeFilter,
-    setShowRecPanel,
     setRecInput,
     toggleVenueStar,
     handleAddVenue,

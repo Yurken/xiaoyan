@@ -1,15 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from "react";
 import { formatErrorMessage, submissionApi } from "../lib/client";
 import { listen } from "@tauri-apps/api/event";
-import {
-  Calendar,
-  CheckSquare,
-  AlertCircle,
-  GitBranch,
-  History,
-  KanbanSquare,
-  X,
-} from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import AddSubmissionModal from "../features/submission/AddSubmissionModal";
 import AddVenueModal from "../features/submission/AddVenueModal";
@@ -21,6 +12,9 @@ import PolishPanel from "../features/submission/PolishPanel";
 import ReviewEntryModal from "../features/submission/ReviewEntryModal";
 import ReviewWorkspace from "../features/submission/ReviewWorkspace";
 import SaveVersionModal from "../features/submission/SaveVersionModal";
+import SubmissionFeedbackBanner from "../features/submission/SubmissionFeedbackBanner";
+import SubmissionPageHeader from "../features/submission/SubmissionPageHeader";
+import { SUBMISSION_TAB_KEYS, type SubmissionTab } from "../features/submission/SubmissionTabs";
 import { useSubmissionBoard } from "../features/submission/useSubmissionBoard";
 import { useSubmissionChecklist } from "../features/submission/useSubmissionChecklist";
 import { useRejectionRecovery } from "../features/submission/useRejectionRecovery";
@@ -44,9 +38,6 @@ import {
   type SaveVersionFormState,
 } from "../features/submission/shared";
 
-const SUBMISSION_TABS = ["conferences", "kanban", "checklist", "versions", "reviews"] as const;
-type SubmissionTab = (typeof SUBMISSION_TABS)[number];
-
 export default function Submission() {
   const [feedback, setFeedback] = useState("");
   const showSubmissionError = useCallback((error: unknown) => {
@@ -55,7 +46,7 @@ export default function Submission() {
   const [tab, setTab] = usePersistentStringState<SubmissionTab>(
     "rc:submission:active-tab",
     "conferences",
-    SUBMISSION_TABS,
+    SUBMISSION_TAB_KEYS,
   );
 
   const {
@@ -67,7 +58,6 @@ export default function Submission() {
     addModalSearch,
     addModalAreaFilter,
     addModalTypeFilter,
-    showRecPanel,
     recInput,
     recommendations,
     recLoading,
@@ -78,7 +68,6 @@ export default function Submission() {
     setAddModalSearch,
     setAddModalAreaFilter,
     setAddModalTypeFilter,
-    setShowRecPanel,
     setRecInput,
     toggleVenueStar,
     handleAddVenue,
@@ -598,86 +587,16 @@ export default function Submission() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+      <SubmissionPageHeader
+        activeTab={tab}
+        conferencesCount={conferences.length}
+        journalsCount={journals.length}
+        activeCount={activeCount}
+        acceptedCount={acceptedCount}
+        onTabChange={setTab}
+      />
 
-      <div
-        className="flex-shrink-0 px-6 pt-5 pb-4"
-        style={{ borderBottom: "1px solid var(--rc-border)" }}
-      >
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-ink-primary">投稿管理</h1>
-            <p className="mt-1 text-sm text-ink-tertiary">追踪会议和期刊的截稿日期，小妍陪你走完论文投稿的每一步。</p>
-          </div>
-          <div className="flex gap-3">
-            {[
-              { label: "追踪会议",   value: conferences.length, color: "#007AFF" },
-              { label: "追踪期刊",   value: journals.length,   color: "#AF52DE" },
-              { label: "进行中",     value: activeCount,       color: "#FF9500" },
-              { label: "已接收",     value: acceptedCount,     color: "#34C759" },
-            ].map(stat => (
-              <div
-                key={stat.label}
-                className="text-center px-4 py-2 rounded-2xl"
-                style={{ background: "var(--rc-card-inset-bg)", boxShadow: "inset 2px 2px 5px rgba(0,0,0,0.10), inset -1px -1px 4px rgba(255,255,255,0.55)" }}
-              >
-                <p className="text-[11px] text-ink-tertiary">{stat.label}</p>
-                <p className="text-xl font-bold tabular-nums mt-0.5" style={{ color: stat.color }}>{stat.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex gap-1 -mb-px">
-          {[
-            { key: "conferences" as const, icon: Calendar,     label: "DDL 日历" },
-            { key: "kanban"      as const, icon: KanbanSquare, label: "投稿看板" },
-            { key: "checklist"   as const, icon: CheckSquare,  label: "提交清单" },
-            { key: "versions"    as const, icon: GitBranch,    label: "版本控制" },
-            { key: "reviews"     as const, icon: History,      label: "审稿归档" },
-          ].map(({ key, icon: Icon, label }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-xl transition-all duration-150 border-b-2"
-              style={tab === key ? {
-                color: "#007AFF",
-                borderBottomColor: "#007AFF",
-                background: "var(--rc-card-bg)",
-              } : {
-                color: "var(--rc-text-tertiary)" as string,
-                borderBottomColor: "transparent",
-              }}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {feedback ? (
-        <div className="flex-shrink-0 px-6 pt-4">
-          <div
-            className="flex items-start gap-3 rounded-2xl px-4 py-3 text-sm"
-            style={{
-              background: "color-mix(in srgb, var(--rc-elevated) 80%, var(--rc-danger, #FF3B30) 8%)",
-              border: "1px solid color-mix(in srgb, var(--rc-danger, #FF3B30) 24%, var(--rc-border))",
-              color: "var(--rc-danger, #B42318)",
-            }}
-          >
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span className="min-w-0 flex-1 break-all">{feedback}</span>
-            <button
-              type="button"
-              aria-label="关闭提示"
-              onClick={() => setFeedback("")}
-              className="rounded-lg p-0.5 transition-colors hover:bg-apple-red/10"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <SubmissionFeedbackBanner feedback={feedback} onDismiss={() => setFeedback("")} />
 
       <div className="flex-1 overflow-y-auto p-6">
         {tab === "conferences" && (
@@ -686,13 +605,11 @@ export default function Submission() {
             visibleVenues={visibleVenues}
             conferencesCount={conferences.length}
             journalsCount={journals.length}
-            showRecommendations={showRecPanel}
             recommendations={recommendations}
             recommendationLoading={recLoading}
             recommendationInput={recInput}
             onVenueFilterChange={setVenueFilter}
             onOpenAddVenue={() => setShowAddModal(true)}
-            onToggleRecommendations={() => setShowRecPanel((prev) => !prev)}
             onChangeRecommendationInput={setRecInput}
             onGenerateRecommendations={generateRecommendations}
             isVenueAdded={isVenueAdded}
