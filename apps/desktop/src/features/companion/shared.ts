@@ -4,47 +4,62 @@ export const COMPANION_PREFERENCE_STORAGE_KEY = "rc:companion:id";
 
 export type CompanionId = "xiaoyan" | "xiaoyan-pet" | "white-dumpling";
 
-export type CompanionActionKey =
-  | "idle"
-  | "yawning"
-  | "dozing"
-  | "collapsing"
-  | "sleeping"
-  | "waking"
-  | "thinking"
-  | "planning"
-  | "searching"
-  | "reading"
-  | "writing"
-  | "summarizing"
-  | "looking"
-  | "peeking"
-  | "celebrating"
-  | "alerting"
-  | "arriving"
-  | "resting"
-  | "working"
-  | "building"
-  | "sweeping"
-  | "carrying"
-  | "debugger"
-  | "wizard"
-  | "ultrathink"
-  | "juggling"
-  | "conducting"
-  | "attention"
-  | "error"
-  | "notification"
-  | "react_left"
-  | "react_right"
-  | "react_annoyed"
-  | "react_double"
-  | "react_jump"
-  | "react_drag";
+export const COMPANION_ACTION_KEYS = [
+  "idle",
+  "yawning",
+  "dozing",
+  "collapsing",
+  "sleeping",
+  "waking",
+  "thinking",
+  "planning",
+  "searching",
+  "reading",
+  "writing",
+  "summarizing",
+  "looking",
+  "peeking",
+  "celebrating",
+  "alerting",
+  "arriving",
+  "resting",
+  "working",
+  "building",
+  "sweeping",
+  "carrying",
+  "debugger",
+  "wizard",
+  "ultrathink",
+  "juggling",
+  "conducting",
+  "attention",
+  "error",
+  "notification",
+  "react_left",
+  "react_right",
+  "react_annoyed",
+  "react_double",
+  "react_jump",
+  "react_drag",
+] as const;
+
+export type CompanionActionKey = (typeof COMPANION_ACTION_KEYS)[number];
+export type CompanionActionExpansionPriority = "high" | "medium" | "low";
+
+export interface CompanionActionExpansionCandidate {
+  actionKey: CompanionActionKey;
+  label: string;
+  group: string;
+  currentAnimationKey: string;
+  targetAnimationKey: string;
+  priority: CompanionActionExpansionPriority;
+  intent: string;
+}
 
 export type CompanionRendererKind = "sprite-atlas" | "svg-set" | "static-image";
 
 export interface SpriteAnimation {
+  sheet?: string;
   row: number;
   frames: number;
   fps: number;
@@ -55,6 +70,12 @@ export interface SpriteAnimation {
   intervalMaxMs?: number;
 }
 
+export interface SpriteAtlasSheet {
+  image: string;
+  columns: number;
+  rows: number;
+}
+
 export interface SpriteAtlasDefinition {
   kind: "sprite-atlas";
   image: string;
@@ -62,6 +83,7 @@ export interface SpriteAtlasDefinition {
   cellHeight: number;
   columns: number;
   rows: number;
+  sheets?: Record<string, SpriteAtlasSheet>;
   animations: Record<string, SpriteAnimation>;
 }
 
@@ -84,6 +106,7 @@ export interface CompanionDefinition {
   renderer: SpriteAtlasDefinition | SvgSetDefinition | StaticImageDefinition;
   actionMap: Partial<Record<CompanionActionKey, string>>;
   tooltips: Partial<Record<CompanionActionKey, string>>;
+  actionExpansionCandidates?: readonly CompanionActionExpansionCandidate[];
 }
 
 export interface WorkItem {

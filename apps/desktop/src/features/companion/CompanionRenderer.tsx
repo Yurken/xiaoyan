@@ -5,6 +5,7 @@ import type {
   CompanionDefinition,
   SpriteAnimation,
   SpriteAtlasDefinition,
+  SpriteAtlasSheet,
   StaticImageDefinition,
   SvgSetDefinition,
 } from "./shared";
@@ -25,6 +26,7 @@ function SpriteAtlasPet({
   const [frame, setFrame] = useState(0);
   const width = inline ? 60 : 104;
   const height = Math.round(width * renderer.cellHeight / renderer.cellWidth);
+  const sheet = resolveSpriteAtlasSheet(renderer, animation);
 
   useEffect(() => {
     setFrame(0);
@@ -69,7 +71,7 @@ function SpriteAtlasPet({
       setFrame((current) => (current + 1) % animation.frames);
     }, frameMs);
     return () => window.clearInterval(interval);
-  }, [animation.fps, animation.frames, animation.intervalMaxMs, animation.intervalMinMs, animation.intervalMs, animation.playMode, animation.row, animation.sequence]);
+  }, [animation.fps, animation.frames, animation.intervalMaxMs, animation.intervalMinMs, animation.intervalMs, animation.playMode, animation.row, animation.sequence, animation.sheet]);
 
   return (
     <div
@@ -82,14 +84,28 @@ function SpriteAtlasPet({
         transition: "opacity 0.18s ease",
         display: "block",
         pointerEvents: "none",
-        backgroundImage: `url(${renderer.image})`,
+        backgroundImage: `url(${sheet.image})`,
         backgroundRepeat: "no-repeat",
-        backgroundSize: `${renderer.columns * width}px ${renderer.rows * height}px`,
+        backgroundSize: `${sheet.columns * width}px ${sheet.rows * height}px`,
         backgroundPosition: `-${frame * width}px -${animation.row * height}px`,
         imageRendering: "pixelated",
       }}
     />
   );
+}
+
+function resolveSpriteAtlasSheet(
+  renderer: SpriteAtlasDefinition,
+  animation: SpriteAnimation,
+): SpriteAtlasSheet {
+  if (animation.sheet && renderer.sheets?.[animation.sheet]) {
+    return renderer.sheets[animation.sheet];
+  }
+  return {
+    image: renderer.image,
+    columns: renderer.columns,
+    rows: renderer.rows,
+  };
 }
 
 function SvgSetPet({
