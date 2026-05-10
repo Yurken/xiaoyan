@@ -22,3 +22,4 @@ pub mod skills;
 pub mod source;
 pub mod submission;
 pub mod update;
+pub mod workbench;

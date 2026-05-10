@@ -5,7 +5,7 @@ import {
   type WorkbenchOverviewModel,
   type WorkbenchOverviewSource,
 } from "./shared";
-import { buildWorkbenchOverviewModel } from "./model";
+import { buildSourceSummary, buildWorkbenchOverviewModel } from "./model";
 
 interface WorkbenchOverviewState {
   model: WorkbenchOverviewModel | null;
@@ -34,7 +34,7 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
         upcomingDdls: [],
       })),
     ])
-      .then(([papers, interests, notes, sessions, submission]) => {
+      .then(async ([papers, interests, notes, sessions, submission]) => {
         if (cancelled) return;
 
         const source: WorkbenchOverviewSource = {
@@ -45,11 +45,32 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
           submission,
         };
 
-        setState({
-          model: buildWorkbenchOverviewModel(source),
-          loading: false,
-          error: "",
-        });
+        const model = buildWorkbenchOverviewModel(source);
+
+        // Try AI-generated overview text; fall back to static text silently
+        try {
+          const summary = buildSourceSummary(source);
+          const aiText = await apiClient.workbench.generateOverviewText(
+            JSON.stringify(summary),
+          );
+          if (!cancelled) {
+            if (aiText.heroTitle) {
+              model.heroTitle = aiText.heroTitle;
+            }
+            if (aiText.heroDescription) {
+              model.heroDescription = aiText.heroDescription;
+            }
+            if (aiText.summaryItems?.length === 3) {
+              model.summaryItems = aiText.summaryItems;
+            }
+            model.aiGenerated = true;
+          }
+        } catch {
+          // AI unavailable — keep static text from buildWorkbenchOverviewModel
+        }
+
+        if (cancelled) return;
+        setState({ model, loading: false, error: "" });
       })
       .catch((error) => {
         if (cancelled) return;

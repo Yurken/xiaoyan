@@ -741,6 +741,17 @@ export const experimentApi = {
   },
 };
 
+// ── Workbench API ──────────────────────────────────────────────────
+
+export const workbenchApi = {
+  generateOverviewText: (sourceJson: string) =>
+    invoke<{
+      heroTitle: string;
+      heroDescription: string;
+      summaryItems: Array<{ title: string; description: string }>;
+    }>("workbench_generate_overview_text", { sourceJson }),
+};
+
 // ── Export API ────────────────────────────────────────────────────
 
 export const exportApi = {
@@ -770,4 +781,5 @@ export const apiClient = {
   submission: submissionApi,
   experiment: experimentApi,
   export: exportApi,
+  workbench: workbenchApi,
 };

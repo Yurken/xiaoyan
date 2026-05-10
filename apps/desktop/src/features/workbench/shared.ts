@@ -73,6 +73,12 @@ export interface WorkbenchAssetItem {
   action: WorkbenchLinkAction;
 }
 
+export interface WorkbenchSectionLayout {
+  type: "agenda" | "interests" | "handoffs" | "risks" | "assets";
+  priority: number;
+  prominence: "normal" | "promoted";
+}
+
 export interface WorkbenchOverviewModel {
   heroTitle: string;
   heroDescription: string;
@@ -85,6 +91,14 @@ export interface WorkbenchOverviewModel {
   handoffs: WorkbenchHandoffItem[];
   risks: WorkbenchRiskItem[];
   assets: WorkbenchAssetItem[];
+  layout: WorkbenchSectionLayout[];
+  aiGenerated: boolean;
+}
+
+export interface WorkbenchOverviewText {
+  heroTitle: string;
+  heroDescription: string;
+  summaryItems: Array<{ title: string; description: string }>;
 }
 
 export function toneToBadgeVariant(tone: WorkbenchTone): "info" | "success" | "warning" | "danger" {

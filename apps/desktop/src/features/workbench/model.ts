@@ -8,6 +8,7 @@ import type {
   WorkbenchOverviewModel,
   WorkbenchOverviewSource,
   WorkbenchRiskItem,
+  WorkbenchSectionLayout,
   WorkbenchTone,
 } from "./shared";
 
@@ -408,6 +409,105 @@ function buildAssets(source: WorkbenchOverviewSource, snapshots: InterestSnapsho
   return items.slice(0, 3);
 }
 
+function buildLayout(
+  source: WorkbenchOverviewSource,
+  snapshots: InterestSnapshot[],
+): WorkbenchSectionLayout[] {
+  const hasUrgentRisks =
+    source.submission.pendingReviews > 0 ||
+    source.submission.upcomingDdls.length > 0;
+  const hasHandoffs =
+    source.papers.some((p) => Boolean(p.analysis)) ||
+    source.notes.length > 0 ||
+    source.sessions.length > 0;
+  const hasInterests = snapshots.length > 0;
+  const hasAgenda = hasUrgentRisks || hasInterests;
+  const hasAssets =
+    hasInterests || source.notes.length > 0 || source.papers.length > 0;
+
+  const sections: WorkbenchSectionLayout[] = [];
+
+  if (hasAgenda) {
+    sections.push({
+      type: "agenda",
+      priority: hasUrgentRisks ? 0 : 10,
+      prominence: hasUrgentRisks ? "promoted" : "normal",
+    });
+  }
+
+  if (hasUrgentRisks) {
+    sections.push({
+      type: "risks",
+      priority: 5,
+      prominence: "promoted",
+    });
+  } else if (
+    source.papers.some(
+      (p) => p.status === "failed" || p.status === "error" || p.status === "parsing" || p.status === "analyzing",
+    )
+  ) {
+    sections.push({ type: "risks", priority: 50, prominence: "normal" });
+  }
+
+  if (hasHandoffs) {
+    sections.push({
+      type: "handoffs",
+      priority: hasUrgentRisks ? 15 : 20,
+      prominence: "normal",
+    });
+  }
+
+  if (hasInterests) {
+    sections.push({
+      type: "interests",
+      priority: 30,
+      prominence: "normal",
+    });
+  }
+
+  if (hasAssets) {
+    sections.push({
+      type: "assets",
+      priority: 40,
+      prominence: "normal",
+    });
+  }
+
+  sections.sort((a, b) => a.priority - b.priority);
+  return sections;
+}
+
+export function buildSourceSummary(source: WorkbenchOverviewSource): Record<string, unknown> {
+  const analyzedCount = source.papers.filter((p) => Boolean(p.analysis)).length;
+  const processingCount = source.papers.filter(
+    (p) => p.status === "parsing" || p.status === "analyzing",
+  ).length;
+  const failedCount = source.papers.filter(
+    (p) => p.status === "failed" || p.status === "error",
+  ).length;
+
+  return {
+    interests: source.interests.map((i) => ({
+      name: i.folder_name || i.topic,
+      status: i.status,
+    })),
+    papers_total: source.papers.length,
+    papers_analyzed: analyzedCount,
+    papers_processing: processingCount,
+    papers_failed: failedCount,
+    notes_total: source.notes.length,
+    sessions_total: source.sessions.length,
+    submission: {
+      pending_reviews: source.submission.pendingReviews,
+      active_count: source.submission.active,
+      upcoming_ddls: source.submission.upcomingDdls.map((d) => ({
+        name: d.name,
+        deadline: d.deadline,
+      })),
+    },
+  };
+}
+
 export function buildWorkbenchOverviewModel(source: WorkbenchOverviewSource): WorkbenchOverviewModel {
   const snapshots = buildInterestSnapshots(source);
   const analyzedCount = source.papers.filter((paper) => Boolean(paper.analysis)).length;
@@ -468,5 +568,7 @@ export function buildWorkbenchOverviewModel(source: WorkbenchOverviewSource): Wo
     handoffs: buildHandoffs(source),
     risks: buildRisks(source),
     assets: buildAssets(source, snapshots),
+    layout: buildLayout(source, snapshots),
+    aiGenerated: false,
   };
 }

@@ -96,6 +96,7 @@ use commands::{
         submission_upsert_round,
     },
     update::{update_check, update_install, PendingUpdate},
+    workbench::workbench_generate_overview_text,
 };
 use state::{default_settings, AppState};
 
@@ -363,6 +364,8 @@ pub fn run() {
             survey_search,
             translate_text,
             markdown_format_chunk,
+            // Workbench
+            workbench_generate_overview_text,
         ])
         .run(tauri::generate_context!());
 
