@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useClickOutside } from "../hooks/useClickOutside";
 import {
   AlertCircle,
-  CheckCircle,
   ChevronDown,
   Eye,
   FileText,
@@ -494,31 +493,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     return <Badge variant="default">待分析</Badge>;
   };
 
-  const statusIcon = (status: string) => {
-    if (status === "analyzed" || status === "reproduced") {
-      return <CheckCircle className="w-5 h-5 text-apple-green" />;
-    }
-    if (status === "failed" || status === "error") {
-      return <AlertCircle className="w-5 h-5 text-apple-red" />;
-    }
-    if (status === "analyzing") {
-      return (
-        <div className="flex items-center gap-[3px]">
-          {([0, 0.18, 0.36] as number[]).map((delay, i) => (
-            <div
-              key={i}
-              className="w-1.5 h-1.5 rounded-full bg-apple-blue"
-              style={{ animation: "thinking-dot 1.1s ease-in-out infinite", animationDelay: `${delay}s` }}
-            />
-          ))}
-        </div>
-      );
-    }
-    if (status === "parsing" || status === "uploaded") {
-      return <Loader2 className="w-4 h-4 text-apple-blue animate-spin" />;
-    }
-    return <FileText className="w-5 h-5 text-ink-tertiary" />;
-  };
 
   const canStartAnalyze = (status: string) => !["analyzing", "parsing", "uploaded"].includes(status);
 
@@ -600,14 +574,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const renderPaperCard = (paper: Paper, groupId = "ungrouped") => (
     <Card key={paper.id} padding="sm" className="space-y-0 overflow-hidden" style={{ background: "rgba(255,255,255,0.82)", borderTop: paper.importance_color ? `3px solid ${paper.importance_color}` : undefined }}>
       <div className="flex items-start gap-3">
-        {/* 状态图标 */}
-        <div
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl mt-0.5"
-          style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
-        >
-          {statusIcon(paper.status)}
-        </div>
-
         {/* 主信息 */}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
