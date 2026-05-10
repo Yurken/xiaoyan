@@ -17,26 +17,55 @@ export const xiaoyanActionSheets = Object.fromEntries(
 
 const ACTION_FPS: Partial<Record<CompanionActionKey, number>> = {
   idle: 10,
-  resting: 4,
-  yawning: 6,
-  dozing: 5,
-  sleeping: 3,
-  collapsing: 5,
-  waking: 5,
+  resting: 2,
+  yawning: 2.5,
+  dozing: 1.5,
+  sleeping: 0.7,
+  collapsing: 2,
+  waking: 2.5,
   thinking: 4,
-  planning: 4,
-  reading: 4,
-  writing: 5,
-  summarizing: 7,
-  looking: 4,
-  peeking: 4,
-  alerting: 5,
-  error: 5,
-  react_annoyed: 4,
-  react_drag: 7,
-  react_left: 7,
-  react_right: 7,
+  planning: 3,
+  searching: 4,
+  reading: 3,
+  writing: 4,
+  summarizing: 4,
+  looking: 3,
+  peeking: 3,
+  celebrating: 3,
+  alerting: 3,
+  arriving: 4,
+  working: 3,
+  building: 3,
+  sweeping: 4,
+  carrying: 4,
+  debugger: 3,
+  wizard: 3,
+  ultrathink: 2,
+  juggling: 3,
+  conducting: 3,
+  attention: 3,
+  error: 3,
+  notification: 3,
+  react_annoyed: 3,
+  react_double: 3,
+  react_jump: 3,
+  react_drag: 4,
+  react_left: 3,
+  react_right: 3,
 };
+
+const PLAY_ONCE_ACTIONS = new Set<CompanionActionKey>([
+  "yawning",
+  "collapsing",
+  "waking",
+  "attention",
+  "celebrating",
+  "notification",
+  "react_left",
+  "react_right",
+  "react_double",
+  "react_jump",
+]);
 
 function createXiaoyanAnimation({
   actionKey,
@@ -75,11 +104,46 @@ function createXiaoyanAnimation({
     };
   }
 
+  if (actionKey === "resting") {
+    return {
+      sheet,
+      row,
+      frames,
+      fps: ACTION_FPS[actionKey] ?? 2,
+      playMode: "blink",
+      sequence: [0, 1, 2, 3, 2, 1, 0],
+      intervalMinMs: 1800,
+      intervalMaxMs: 5600,
+    };
+  }
+
+  if (actionKey === "dozing") {
+    return {
+      sheet,
+      row,
+      frames,
+      fps: ACTION_FPS[actionKey] ?? 1.5,
+      sequence: [0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1],
+    };
+  }
+
+  if (actionKey === "sleeping") {
+    return {
+      sheet,
+      row: 5,
+      frames: 8,
+      fps: ACTION_FPS[actionKey] ?? 0.7,
+      initialFrame: 7,
+      sequence: [7, 6, 5, 6],
+    };
+  }
+
   return {
     sheet,
     row,
     frames,
-    fps: ACTION_FPS[actionKey] ?? (frames >= 8 ? 10 : 6),
+    fps: ACTION_FPS[actionKey] ?? (frames >= 8 ? 4 : 3),
+    playMode: PLAY_ONCE_ACTIONS.has(actionKey) ? "once" : undefined,
   };
 }
 

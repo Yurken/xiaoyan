@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { getCompanionAnimationKey, getCompanionDefinition, getCompanionTooltip } from "./petRegistry";
 import type {
   CompanionActionKey,
@@ -12,6 +12,20 @@ import type {
 import { useCompanionController } from "./useCompanionController";
 import { useCompanionPreference } from "./useCompanionPreference";
 
+function clampFrame(frame: number, frames: number) {
+  return Math.min(Math.max(0, frame), Math.max(0, frames - 1));
+}
+
+function getInitialFrame(animation: SpriteAnimation) {
+  return clampFrame(animation.initialFrame ?? animation.sequence?.[0] ?? 0, animation.frames);
+}
+
+function getFrameSequence(animation: SpriteAnimation, fallback: number[]) {
+  const sequence = animation.sequence?.length ? animation.sequence : fallback;
+  const validFrames = sequence.filter((item) => item >= 0 && item < animation.frames);
+  return validFrames.length > 0 ? validFrames : [getInitialFrame(animation)];
+}
+
 function SpriteAtlasPet({
   renderer,
   animation,
@@ -23,21 +37,24 @@ function SpriteAtlasPet({
   inline: boolean;
   opacity: number;
 }) {
-  const [frame, setFrame] = useState(0);
+  const [frame, setFrame] = useState(() => getInitialFrame(animation));
   const width = inline ? 60 : 104;
   const height = Math.round(width * renderer.cellHeight / renderer.cellWidth);
   const sheet = resolveSpriteAtlasSheet(renderer, animation);
 
-  useEffect(() => {
-    setFrame(0);
+  useLayoutEffect(() => {
+    const initialFrame = getInitialFrame(animation);
+    setFrame(initialFrame);
     if (animation.frames <= 1 || animation.fps <= 0) return;
 
     const frameMs = Math.max(80, Math.round(1000 / animation.fps));
     if (animation.playMode === "blink") {
       let timeout: number | undefined;
-      const sequence = (animation.sequence?.length ? animation.sequence : [0, 1, 0])
-        .filter((item) => item >= 0 && item < animation.frames);
-      const blinkSequence = sequence.length > 0 ? sequence : [0];
+      const blinkSequence = getFrameSequence(animation, [
+        initialFrame,
+        clampFrame(initialFrame + 1, animation.frames),
+        initialFrame,
+      ]);
       const nextBlinkDelay = () => {
         const min = animation.intervalMinMs ?? animation.intervalMs ?? 3000;
         const max = Math.max(min, animation.intervalMaxMs ?? animation.intervalMs ?? 10000);
@@ -53,7 +70,7 @@ function SpriteAtlasPet({
             if (index < blinkSequence.length) {
               timeout = window.setTimeout(showNextFrame, frameMs);
             } else {
-              setFrame(0);
+              setFrame(initialFrame);
               scheduleBlink();
             }
           };
@@ -67,11 +84,46 @@ function SpriteAtlasPet({
       };
     }
 
+    if (animation.playMode === "once") {
+      let timeout: number | undefined;
+      const onceSequence = getFrameSequence(
+        animation,
+        Array.from({ length: animation.frames }, (_, index) => index),
+      );
+      let index = 0;
+
+      const showNextFrame = () => {
+        setFrame(onceSequence[index] ?? onceSequence[onceSequence.length - 1] ?? initialFrame);
+        index += 1;
+        if (index < onceSequence.length) {
+          timeout = window.setTimeout(showNextFrame, frameMs);
+        }
+      };
+
+      showNextFrame();
+      return () => {
+        if (timeout) window.clearTimeout(timeout);
+      };
+    }
+
+    if (animation.sequence?.length) {
+      const loopSequence = getFrameSequence(animation, [initialFrame]);
+      let index = 0;
+      const showNextFrame = () => {
+        setFrame(loopSequence[index] ?? initialFrame);
+        index = (index + 1) % loopSequence.length;
+      };
+
+      showNextFrame();
+      const interval = window.setInterval(showNextFrame, frameMs);
+      return () => window.clearInterval(interval);
+    }
+
     const interval = window.setInterval(() => {
       setFrame((current) => (current + 1) % animation.frames);
     }, frameMs);
     return () => window.clearInterval(interval);
-  }, [animation.fps, animation.frames, animation.intervalMaxMs, animation.intervalMinMs, animation.intervalMs, animation.playMode, animation.row, animation.sequence, animation.sheet]);
+  }, [animation]);
 
   return (
     <div

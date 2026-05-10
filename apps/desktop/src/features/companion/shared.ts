@@ -63,7 +63,8 @@ export interface SpriteAnimation {
   row: number;
   frames: number;
   fps: number;
-  playMode?: "loop" | "blink";
+  playMode?: "loop" | "blink" | "once";
+  initialFrame?: number;
   sequence?: number[];
   intervalMs?: number;
   intervalMinMs?: number;

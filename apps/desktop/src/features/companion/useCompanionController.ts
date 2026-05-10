@@ -92,11 +92,11 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
       if (!allowIdleSleep || activeWork.current.size > 0 || isStreaming.current) return;
       isSleeping.current = true;
       const steps: [CompanionActionKey, number][] = [
-        ["looking", 2500],
-        ["yawning", 3000],
-        ["dozing", 3000],
-        ["resting", 2500],
-        ["collapsing", 2500],
+        ["looking", 3500],
+        ["yawning", 4500],
+        ["dozing", 6500],
+        ["resting", 4200],
+        ["collapsing", 4500],
         ["sleeping", 0],
       ];
       let delay = 0;
@@ -113,7 +113,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
     if (!isSleeping.current) return false;
     cancelIdleTimer();
     showAction("waking");
-    setTimeout(() => resumeWork(), 1500);
+    setTimeout(() => resumeWork(), 2000);
     return true;
   }, [cancelIdleTimer, resumeWork, showAction]);
 
