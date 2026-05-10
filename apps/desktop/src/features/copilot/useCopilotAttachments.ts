@@ -93,6 +93,54 @@ export function useCopilotAttachments(onError: (message: string) => void) {
   const [attachments, setAttachments] = useState<PendingCopilotAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
 
+  const addAttachments = async (selectedPaths: string[]) => {
+    if (selectedPaths.length === 0) return;
+
+    setUploading(true);
+    const existingPaths = new Set(attachments.map((attachment) => attachment.path));
+    const acceptedPaths = selectedPaths
+      .filter((path) => !existingPaths.has(path))
+      .slice(0, MAX_ATTACHMENTS - attachments.length);
+
+    const nextAttachments: PendingCopilotAttachment[] = [];
+    const failedFiles: string[] = [];
+
+    for (const path of acceptedPaths) {
+      const extension = getExtension(path);
+      const name = getFileName(path);
+
+      try {
+        const content = (await readAttachmentContent(path, extension)).trim();
+        if (!content) {
+          throw new Error("没有提取到可读内容");
+        }
+
+        nextAttachments.push({
+          id: `${Date.now()}-${path}`,
+          path,
+          name,
+          extension,
+          mediaTypeLabel: toMediaTypeLabel(extension),
+          content,
+        });
+      } catch (error) {
+        failedFiles.push(`${name}：${formatErrorMessage(error)}`);
+      }
+    }
+
+    if (nextAttachments.length > 0) {
+      setAttachments((current) => [...current, ...nextAttachments]);
+    }
+
+    if (failedFiles.length > 0) {
+      onError(failedFiles.join("；"));
+    } else if (acceptedPaths.length < selectedPaths.length) {
+      onError(`部分文件未添加：已达到 ${MAX_ATTACHMENTS} 个附件上限，或文件已在列表中。`);
+    }
+
+    setUploading(false);
+  };
+
   const pickAttachments = async () => {
     if (uploading || attachments.length >= MAX_ATTACHMENTS) {
       if (attachments.length >= MAX_ATTACHMENTS) {
@@ -112,53 +160,24 @@ export function useCopilotAttachments(onError: (message: string) => void) {
       });
 
       const selectedPaths = normalizeSelectedPaths(selected);
-      if (selectedPaths.length === 0) return;
-
-      setUploading(true);
-      const existingPaths = new Set(attachments.map((attachment) => attachment.path));
-      const acceptedPaths = selectedPaths
-        .filter((path) => !existingPaths.has(path))
-        .slice(0, MAX_ATTACHMENTS - attachments.length);
-
-      const nextAttachments: PendingCopilotAttachment[] = [];
-      const failedFiles: string[] = [];
-
-      for (const path of acceptedPaths) {
-        const extension = getExtension(path);
-        const name = getFileName(path);
-
-        try {
-          const content = (await readAttachmentContent(path, extension)).trim();
-          if (!content) {
-            throw new Error("没有提取到可读内容");
-          }
-
-          nextAttachments.push({
-            id: `${Date.now()}-${path}`,
-            path,
-            name,
-            extension,
-            mediaTypeLabel: toMediaTypeLabel(extension),
-            content,
-          });
-        } catch (error) {
-          failedFiles.push(`${name}：${formatErrorMessage(error)}`);
-        }
-      }
-
-      if (nextAttachments.length > 0) {
-        setAttachments((current) => [...current, ...nextAttachments]);
-      }
-
-      if (failedFiles.length > 0) {
-        onError(failedFiles.join("；"));
-      } else if (acceptedPaths.length < selectedPaths.length) {
-        onError(`部分文件未添加：已达到 ${MAX_ATTACHMENTS} 个附件上限，或文件已在列表中。`);
-      }
+      await addAttachments(selectedPaths);
     } catch (error) {
       onError(formatErrorMessage(error));
-    } finally {
-      setUploading(false);
+    }
+  };
+
+  const pickFromDrop = async (paths: string[]) => {
+    if (uploading) return;
+    if (attachments.length >= MAX_ATTACHMENTS) {
+      onError(`最多只能添加 ${MAX_ATTACHMENTS} 个附件。`);
+      return;
+    }
+
+    try {
+      onError("");
+      await addAttachments(paths);
+    } catch (error) {
+      onError(formatErrorMessage(error));
     }
   };
 
@@ -174,6 +193,7 @@ export function useCopilotAttachments(onError: (message: string) => void) {
     attachments,
     uploading,
     pickAttachments,
+    pickFromDrop,
     removeAttachment,
     clearAttachments,
   };

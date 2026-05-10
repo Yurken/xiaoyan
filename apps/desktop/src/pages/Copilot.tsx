@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   AlertCircle,
-  Bot,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
@@ -10,7 +10,6 @@ import {
   MoreHorizontal,
   Plus,
   Trash2,
-  User,
   X,
   XCircle,
 } from "lucide-react";
@@ -115,6 +114,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [memoryInput, setMemoryInput] = useState("");
   const [savingMemory, setSavingMemory] = useState(false);
   const [memorySaved, setMemorySaved] = useState(false);
+  const [chatDragOver, setChatDragOver] = useState(false);
+  const chatDragCounterRef = useRef(0);
   const [sessionListMode, setSessionListMode] = usePersistentStringState<"open" | "collapsed">(
     "rc:copilot:session-list-mode",
     "open",
@@ -129,6 +130,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     attachments,
     uploading: uploadingAttachments,
     pickAttachments,
+    pickFromDrop,
     removeAttachment,
     clearAttachments,
   } = useCopilotAttachments(setLoadError);
@@ -194,6 +196,17 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       if (memorySavedTimerRef.current) clearTimeout(memorySavedTimerRef.current);
     };
   }, [cancelActiveStream]);
+
+  useEffect(() => {
+    const unlisten = getCurrentWindow().onDragDropEvent((event) => {
+      if (event.payload.type === "drop") {
+        pickFromDrop(event.payload.paths);
+      }
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [pickFromDrop]);
 
   const sessionGroups = useMemo(() => {
     return interests.map((interest) => ({
@@ -553,6 +566,38 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     }
   };
 
+  const handleChatDragEnter = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    chatDragCounterRef.current += 1;
+    if (event.dataTransfer.items && event.dataTransfer.items.length > 0) {
+      setChatDragOver(true);
+    }
+  };
+
+  const handleChatDragLeave = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    chatDragCounterRef.current -= 1;
+    if (chatDragCounterRef.current <= 0) {
+      chatDragCounterRef.current = 0;
+      setChatDragOver(false);
+    }
+  };
+
+  const handleChatDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handleChatDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    chatDragCounterRef.current = 0;
+    setChatDragOver(false);
+    // 文件路径由 Tauri onDragDropEvent 获取
+  };
+
   const activeRequestId =
     requestId ||
     [...agentRuns].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.request_id;
@@ -871,7 +916,30 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div
+              className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+              onDragEnter={handleChatDragEnter}
+              onDragLeave={handleChatDragLeave}
+              onDragOver={handleChatDragOver}
+              onDrop={handleChatDrop}
+            >
+              {chatDragOver && (
+                <div
+                  className="absolute inset-2 z-30 rounded-3xl flex items-center justify-center"
+                  style={{
+                    background: "rgba(0,122,255,0.08)",
+                    border: "2px dashed #007AFF",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <span
+                    className="text-lg font-semibold"
+                    style={{ color: "#007AFF" }}
+                  >
+                    释放文件以上传
+                  </span>
+                </div>
+              )}
               {messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full gap-4 pb-12">
                   <img
@@ -892,126 +960,90 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               )}
 
               {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}
-                >
-                  <div
-                    className="w-8 h-8 rounded-2xl flex-shrink-0 flex items-center justify-center"
-                    style={
-                      message.role === "user"
-                        ? {
-                          background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                          boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
-                        }
-                        : {
-                          background: "linear-gradient(145deg, #111827, #334155)",
-                          boxShadow: "3px 3px 8px rgba(15,23,42,0.2)",
-                        }
-                    }
-                  >
-                    {message.role === "user"
-                      ? <User className="w-4 h-4 text-white" />
-                      : <Bot className="w-4 h-4 text-white" />}
-                  </div>
+                <div key={message.id} className="space-y-2">
+                  {message.role === "assistant" && (() => {
+                    const parsed = splitThoughtFromContent(message.content || "");
+                    const isActiveAssistant = message.id === activeAssistantId;
+                    const planForBubble = isActiveAssistant ? plan : [];
+                    const runsForBubble = isActiveAssistant ? displayedRuns : [];
 
-                  <div className="max-w-[78%] flex flex-col gap-2">
-                    {message.role === "assistant" && (() => {
-                      const parsed = splitThoughtFromContent(message.content || "");
-                      const isActiveAssistant = message.id === activeAssistantId;
-                      const planForBubble = isActiveAssistant ? plan : [];
-                      const runsForBubble = isActiveAssistant ? displayedRuns : [];
-
-                      return (
-                        <>
-                          {(parsed.thought || planForBubble.length > 0 || runsForBubble.length > 0) && (
-                            <div
-                              className="rounded-2xl px-3 py-3"
-                              style={{
-                                background: "color-mix(in srgb, var(--rc-elevated) 86%, #FF9500 10%)",
-                                boxShadow: "var(--rc-inset-shadow)",
-                              }}
-                            >
-                              {parsed.thought && (
-                                <details open>
-                                  <summary className="cursor-pointer text-xs font-semibold text-ink-secondary">模型推理过程</summary>
-                                  <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">
-                                    {parsed.thought}
-                                  </div>
-                                </details>
-                              )}
-
-                              {planForBubble.length > 0 && (
-                                <div className={parsed.thought ? "mt-3" : ""}>
-                                  <div className="mb-2 text-xs font-semibold text-ink-secondary">执行步骤</div>
-                                  <div className="space-y-2">
-                                    {planForBubble.map((step, index) => {
-                                      const run = [...runsForBubble]
-                                        .reverse()
-                                        .find((item) => item.agent_name === step.agent_name);
-                                      const tone = runTone(run?.status || "pending");
-
-                                      return (
-                                        <div
-                                          key={`${step.agent_name}-${index}`}
-                                          className="rounded-xl px-3 py-2"
-                                          style={{
-                                            background: "var(--rc-surface)",
-                                            boxShadow: "var(--rc-inset-shadow)",
-                                          }}
-                                        >
-                                          <div className="flex items-center justify-between gap-2">
-                                            <span className="text-xs font-semibold text-ink-primary">{index + 1}. {step.title}</span>
-                                            <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ color: tone.color, background: tone.background }}>
-                                              {tone.label}
-                                            </span>
-                                          </div>
-                                          <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{step.goal}</p>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
+                    return (
+                      <>
+                        {(parsed.thought || planForBubble.length > 0 || runsForBubble.length > 0) && (
                           <div
-                            className="rounded-3xl px-4 py-3 text-sm"
+                            className="rounded-2xl px-3 py-3"
                             style={{
-                              background: "var(--rc-elevated)",
-                              boxShadow: "var(--rc-chip-shadow)",
-                              color: "var(--rc-text)",
+                              background: "color-mix(in srgb, var(--rc-elevated) 86%, #FF9500 10%)",
+                              boxShadow: "var(--rc-inset-shadow)",
                             }}
                           >
-                            <MarkdownRenderer
-                              content={parsed.answer || (sending && isActiveAssistant ? `${MAIN_ASSISTANT_NAME} 正在整理最终答...` : "")}
-                              onLinkClick={openLink}
-                            />
+                            {parsed.thought && (
+                              <details open>
+                                <summary className="cursor-pointer text-xs font-semibold text-ink-secondary">模型推理过程</summary>
+                                <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">
+                                  {parsed.thought}
+                                </div>
+                              </details>
+                            )}
+
+                            {planForBubble.length > 0 && (
+                              <div className={parsed.thought ? "mt-3" : ""}>
+                                <div className="mb-2 text-xs font-semibold text-ink-secondary">执行步骤</div>
+                                <div className="space-y-2">
+                                  {planForBubble.map((step, index) => {
+                                    const run = [...runsForBubble]
+                                      .reverse()
+                                      .find((item) => item.agent_name === step.agent_name);
+                                    const tone = runTone(run?.status || "pending");
+
+                                    return (
+                                      <div
+                                        key={`${step.agent_name}-${index}`}
+                                        className="rounded-xl px-3 py-2"
+                                        style={{
+                                          background: "var(--rc-surface)",
+                                          boxShadow: "var(--rc-inset-shadow)",
+                                        }}
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="text-xs font-semibold text-ink-primary">{index + 1}. {step.title}</span>
+                                          <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ color: tone.color, background: tone.background }}>
+                                            {tone.label}
+                                          </span>
+                                        </div>
+                                        <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{step.goal}</p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </>
-                      );
-                    })()}
+                        )}
 
-                    {message.role === "user" && (() => {
-                      const parsedUserMessage = parseCopilotMessageContent(message.content);
+                        <div className="text-sm leading-relaxed" style={{ color: "var(--rc-text)" }}>
+                          <MarkdownRenderer
+                            content={parsed.answer || (sending && isActiveAssistant ? `${MAIN_ASSISTANT_NAME} 正在整理最终答...` : "")}
+                            onLinkClick={openLink}
+                          />
+                        </div>
+                      </>
+                    );
+                  })()}
 
-                      return (
-                        <div
-                          className="rounded-3xl px-4 py-3 text-sm"
-                          style={{
-                            background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                            boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
-                            color: "#FFFFFF",
-                          }}
-                        >
+                  {message.role === "user" && (() => {
+                    const parsedUserMessage = parseCopilotMessageContent(message.content);
+
+                    return (
+                      <div className="flex justify-end">
+                        <div className="max-w-[85%]">
                           {parsedUserMessage.attachments.length > 0 && (
-                            <div className="mb-3 flex flex-wrap gap-2">
+                            <div className="mb-2 flex flex-wrap gap-1.5 justify-end">
                               {parsedUserMessage.attachments.map((attachment, index) => (
                                 <span
                                   key={`${attachment.name}-${index}`}
-                                  className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-medium"
-                                  style={{ background: "rgba(255,255,255,0.18)", color: "#FFFFFF" }}
+                                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium"
+                                  style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
                                 >
                                   <MessageSquare className="w-3 h-3" />
                                   {attachment.name}
@@ -1019,35 +1051,45 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                               ))}
                             </div>
                           )}
-                          <p className="whitespace-pre-wrap leading-relaxed">
-                            {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
-                          </p>
-                        </div>
-                      );
-                    })()}
-                    {message.role === "assistant" && message.sources && message.sources.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {message.sources.map((source, index) => (
-                          <ExternalLink
-                            key={`${source.source}-${index}`}
-                            href={source.url}
-                            className="px-2.5 py-1 rounded-full text-[11px] text-[#6B7280] hover:text-apple-blue"
-                            title={source.content}
+                          <div
+                            className="rounded-3xl px-4 py-3 text-sm"
+                            style={{
+                              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                              boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
+                              color: "#FFFFFF",
+                            }}
                           >
-                            <span
-                              className="rounded-full px-2.5 py-1"
-                              style={{
-                                background: "var(--rc-surface)",
-                                boxShadow: "var(--rc-inset-shadow)",
-                              }}
-                            >
-                              {source.source || `来源 ${index + 1}`}
-                            </span>
-                          </ExternalLink>
-                        ))}
+                            <p className="whitespace-pre-wrap leading-relaxed">
+                              {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()}
+
+                  {message.role === "assistant" && message.sources && message.sources.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {message.sources.map((source, index) => (
+                        <ExternalLink
+                          key={`${source.source}-${index}`}
+                          href={source.url}
+                          className="px-2.5 py-1 rounded-full text-[11px] text-[#6B7280] hover:text-apple-blue"
+                          title={source.content}
+                        >
+                          <span
+                            className="rounded-full px-2.5 py-1"
+                            style={{
+                              background: "var(--rc-surface)",
+                              boxShadow: "var(--rc-inset-shadow)",
+                            }}
+                          >
+                            {source.source || `来源 ${index + 1}`}
+                          </span>
+                        </ExternalLink>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               <div ref={bottomRef} />
