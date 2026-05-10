@@ -18,6 +18,19 @@ const handleContextMenu = (e: MouseEvent) => {
   e.preventDefault();
 };
 
+const handleDragStart = (event: DragEvent) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+
+  if (
+    target.closest(
+      "button, [role='button'], a, img, svg, [data-no-drag='true'], .rc-icon-button, .app-nav-link"
+    )
+  ) {
+    event.preventDefault();
+  }
+};
+
 const handleWindowError = (event: ErrorEvent) => {
   console.error("Window error", event.error ?? event.message);
 };
@@ -27,6 +40,7 @@ const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
 };
 
 document.addEventListener("contextmenu", handleContextMenu);
+document.addEventListener("dragstart", handleDragStart);
 window.addEventListener("error", handleWindowError);
 window.addEventListener("unhandledrejection", handleUnhandledRejection);
 
@@ -44,6 +58,7 @@ root.render(
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     document.removeEventListener("contextmenu", handleContextMenu);
+    document.removeEventListener("dragstart", handleDragStart);
     window.removeEventListener("error", handleWindowError);
     window.removeEventListener("unhandledrejection", handleUnhandledRejection);
     root.unmount();

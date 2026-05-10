@@ -16,6 +16,25 @@
     outline-offset: 3px;
   }
 
+  button,
+  [role="button"],
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  .rc-icon-button,
+  .app-nav-link,
+  .app-nav-item {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  svg,
+  img,
+  [data-no-drag="true"] {
+    -webkit-user-drag: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
