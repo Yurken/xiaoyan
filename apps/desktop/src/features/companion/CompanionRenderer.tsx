@@ -175,8 +175,8 @@ function SvgSetPet({
     <object
       data={renderer.assets[assetKey] ?? renderer.assets.idle}
       type="image/svg+xml"
-      width={inline ? 60 : 120}
-      height={inline ? 60 : 120}
+      width={inline ? 65 : 120}
+      height={inline ? 65 : 120}
       style={{ opacity, transition: "opacity 0.18s ease", display: "block", pointerEvents: "none" }}
       aria-label="小妍"
     />
@@ -212,7 +212,7 @@ function StaticImagePet({
   );
 }
 
-function CompanionVisual({
+export function CompanionVisual({
   definition,
   actionKey,
   inline,

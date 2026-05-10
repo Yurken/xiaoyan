@@ -1,10 +1,10 @@
 import { Sparkles } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppSettings } from "@research-copilot/types";
-import { AgentChip, SectionIcon } from "../settings/shared";
-import { getCompanionMotionCoverage } from "./actionExpansion";
+import { SectionIcon } from "../settings/shared";
 import { COMPANION_OPTIONS, getCompanionDefinition } from "./petRegistry";
 import { emitCompanionPreferenceChange, normalizeCompanionId } from "./shared";
+import { CompanionVisual } from "./CompanionRenderer";
 
 interface CompanionSettingsSectionProps {
   form: AppSettings;
@@ -16,9 +16,6 @@ export default function CompanionSettingsSection({
   set,
 }: CompanionSettingsSectionProps) {
   const activeId = normalizeCompanionId(form.xiaoyan_companion_id);
-  const activeDefinition = getCompanionDefinition(activeId);
-  const coverage = getCompanionMotionCoverage(activeDefinition);
-  const actionPreview = coverage.highPriorityCandidates.slice(0, 6);
 
   const chooseCompanion = (id: string) => {
     const next = normalizeCompanionId(id);
@@ -38,70 +35,43 @@ export default function CompanionSettingsSection({
         </div>
       </div>
 
-      <div
-        className="rounded-3xl px-4 py-4 space-y-3"
-        style={{
-          background: "var(--rc-chip-inset-bg)",
-          boxShadow: "var(--rc-chip-inset-shadow)",
-        }}
-      >
-        <div className="flex flex-wrap gap-2">
-          {COMPANION_OPTIONS.map((option) => (
-            <AgentChip
+      <div className="flex gap-3">
+        {COMPANION_OPTIONS.map((option) => {
+          const def = getCompanionDefinition(option.id);
+          const isSelected = activeId === option.id;
+          return (
+            <button
               key={option.id}
-              label={option.label}
-              active={activeId === option.id}
+              type="button"
               onClick={() => chooseCompanion(option.id)}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div
-        className="rounded-3xl px-4 py-4 space-y-3"
-        style={{
-          background: "var(--rc-chip-inset-bg)",
-          boxShadow: "var(--rc-chip-inset-shadow)",
-        }}
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-ink-primary">动作覆盖</p>
-            <p className="mt-1 text-xs leading-5 text-ink-secondary">
-              {activeDefinition.label}当前接入 {coverage.animationCount} 个实际动画，覆盖 {coverage.semanticActionCount} 个语义动作。
-            </p>
-          </div>
-          <span
-            className="rounded-2xl px-3 py-1.5 text-xs font-medium"
-            style={{
-              background: "var(--rc-chip-bg)",
-              color: "var(--rc-text-soft)",
-              boxShadow: "var(--rc-chip-shadow)",
-            }}
-          >
-            {coverage.fallbackActionCount > 0 ? `${coverage.fallbackActionCount} 个动作待独立化` : "已完整独立"}
-          </span>
-        </div>
-
-        {actionPreview.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {actionPreview.map((item) => (
+              className="flex-1 rounded-2xl p-3 flex flex-col items-center gap-2 transition-all duration-150 cursor-pointer"
+              style={{
+                background: isSelected
+                  ? "linear-gradient(145deg, rgba(26,138,255,0.12), rgba(26,138,255,0.06))"
+                  : "var(--rc-chip-inset-bg)",
+                boxShadow: isSelected
+                  ? "0 0 0 2px rgba(26,138,255,0.4), var(--rc-chip-inset-shadow)"
+                  : "var(--rc-chip-inset-shadow)",
+              }}
+            >
+              <div className="flex items-center justify-center h-16">
+                <CompanionVisual
+                  definition={def}
+                  actionKey="idle"
+                  inline
+                  opacity={1}
+                />
+              </div>
               <span
-                key={item.actionKey}
-                className="rounded-2xl px-3 py-1.5 text-xs font-medium text-ink-secondary"
-                style={{
-                  background: "var(--rc-chip-bg)",
-                  boxShadow: "var(--rc-chip-shadow)",
-                }}
-                title={`${item.group}：${item.intent}`}
+                className={`text-xs font-medium ${
+                  isSelected ? "text-[#1A8AFF]" : "text-ink-secondary"
+                }`}
               >
-                {item.label}
+                {option.label}
               </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs leading-5 text-ink-secondary">这个形象已经有完整的独立动作资源。</p>
-        )}
+            </button>
+          );
+        })}
       </div>
     </Card>
   );
