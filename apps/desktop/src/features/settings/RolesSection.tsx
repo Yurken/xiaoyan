@@ -43,16 +43,16 @@ export default function RolesSection({
         <div>
           <h2 className="text-base font-semibold text-ink-primary">任务分工</h2>
           <p className="text-xs text-ink-tertiary mt-0.5">
-            把更合适的模型分给阅读、综述、复现和搜索等高频任务。完全留空时，默认继续由上方的小妍模型承担。
+            为各专项任务指定模型。留空则沿用上方的小妍默认模型。
           </p>
         </div>
       </div>
 
       <RecommendationList
         items={[
-          "建议分工：溯源负责向量化与检索，流光负责极速轻量问答，小妍默认模型承担均衡主力，探知处理联网检索，谋策负责深度推理，洞见专注长文精读，翰章用于结构化写作，构域用于代码工程，视界主攻多模态解析。按场景分配，效果与成本更优。",
-          "即使全部留空也可正常使用：所有角色会自动回退到上方的小妍默认对话模型。",
-          "如需让探知联网，可在其卡片中单独配置支持搜索的接口；其余角色仍使用主服务商。",
+          "流光是极速轻量应答，谋策负责深度推理，洞见做长文精读，翰章做结构化写作，构域处理代码工程，溯源负责向量化和检索，视界负责多模态，探知负责联网搜索。按场景分配，效果与成本更优。",
+          "全部留空也可正常使用，所有角色回退到上方默认模型。",
+          "探知模型可单独配置支持联网搜索的接口，其余角色共用主服务商。",
         ]}
       />
 
@@ -90,14 +90,14 @@ export default function RolesSection({
           <div>
             <h2 className="text-base font-semibold text-ink-primary">多能力域协作</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">
-              控制小妍在复杂问题上的协作方式、选路策略与可用角色。
+              控制复杂问题的协作方式与路由策略。
             </p>
           </div>
         </div>
 
         <ToggleRow
           title="启用多能力域模型编排"
-          description="关闭后将只使用小妍轻量对话模型直接回复，不再拆分复杂任务，也不展示中间能力域模型推理过程。"
+          description="关闭后仅使用默认模型直接回复，不拆分复杂任务。"
           checked={form.multi_agent_enabled === "true"}
           onToggle={() =>
             set("multi_agent_enabled")(form.multi_agent_enabled === "true" ? "false" : "true")
@@ -132,7 +132,7 @@ export default function RolesSection({
             <Route className="w-4 h-4 text-[#1A8AFF]" />
             <p className="text-sm font-semibold text-ink-primary">能力域模型开关</p>
           </div>
-          <p className="text-xs text-ink-tertiary">选择小妍在多能力域模型协作时允许唤醒的能力域模型。关闭某个能力域模型后，调度模型将不会将其纳入考量。</p>
+          <p className="text-xs text-ink-tertiary">选择允许调度的能力域模型，关闭后不会被纳入考量。</p>
 
           <div className="flex gap-2 flex-wrap pb-2">
             {AGENT_OPTIONS.map(([value, label]) => (
@@ -161,14 +161,14 @@ export default function RolesSection({
             value={form.multi_agent_max_steps}
             onChange={set("multi_agent_max_steps")}
             placeholder="6"
-            hint="超过该步数将强行中断能力域模型思考流程，防止发散。"
+            hint="超过该步数将强制中断多能力域模型流程。"
           />
           <SettingInput
             label="文献检索模型抓取条数上限"
             value={form.multi_agent_search_limit}
             onChange={set("multi_agent_search_limit")}
             placeholder="8"
-            hint="限制搜索接口每次带回来的文献条数，过大可能会导致被拦截或上下文超限。"
+            hint="搜索接口每次返回的文献条数上限。"
           />
         </div>
       </div>

@@ -313,14 +313,14 @@ export function GroupedModelCard({
           value={modelValue}
           onChange={onModelChange}
           placeholder={modelPlaceholder}
-          hint="留空表示继续按主模型或高级设置中的细分配置继承。"
+          hint="留空则沿用上方主模型。"
         />
         <SettingInput
           label={secondaryFieldLabel ?? "统一温度"}
           value={temperatureValue}
           onChange={onTemperatureChange}
           placeholder={temperaturePlaceholder}
-          hint={secondaryFieldHint ?? "留空表示继续沿用各自已有温度；重新填写会统一覆盖这一组。"}
+          hint={secondaryFieldHint ?? "留空沿用现有温度，填写则统一覆盖。"}
         />
       </div>
       <button
@@ -345,7 +345,7 @@ export function GroupedModelCard({
             value={baseUrlValue}
             onChange={onBaseUrlChange}
             placeholder="https://api.example.com/v1"
-            hint="为这一组场景单独指定接口地址，例如猎犬场景可接入支持联网的服务商。"
+            hint="为该组单独指定接口地址。"
           />
           <SettingInput
             label="接口密钥（留空继承主服务商）"
@@ -484,8 +484,8 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "溯源 · 向量化与检索",
-    description: "负责知识库向量化、语义检索与 RAG 证据回溯，决定答案的可验证性。",
-    recommendation: "优先选择稳定的 embedding 模型与向量接口；检索数量建议 5-8，过高会拉长响应且引入噪声。",
+    description: "负责知识库向量化、语义检索与 RAG 证据回溯。",
+    recommendation: "优先选稳定的 embedding 模型；检索数量建议 5-8。",
     affectedScopes: "知识库向量化、语义检索与 RAG 溯源",
     icon: Database,
     iconColor: "#1F8A70",
@@ -534,8 +534,8 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "洞见 · 深度总结",
-    description: "擅长长文本阅读与核心结论提炼，负责单篇大文献精读与长上下文读取。",
-    recommendation: "优先选上下文窗口大、长文阅读能力强的模型；推理深度比速度重要。",
+    description: "擅长长文本阅读与核心结论提炼。",
+    recommendation: "优先选上下文窗口大、长文阅读能力强的模型。",
     affectedScopes: "论文精读、深度分析",
     icon: FileSearch,
     iconColor: "#5AC8FA",
@@ -616,8 +616,8 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "视界 · 视觉",
-    description: "扫描 PDF 中的图表、架构图与公式截图，补充 lopdf 无法提取的矢量图和表格。",
-    recommendation: "需要多模态能力，推荐 GPT-4o / Gemini / Claude Sonnet 等原生支持图像输入的模型。",
+    description: "扫描 PDF 中的图表、架构图与公式截图。",
+    recommendation: "需要多模态能力，推荐 GPT-4o / Gemini / Claude Sonnet 等支持图像输入的模型。",
     affectedScopes: "论文解读时的图表扫描（矢量图、表格补充识别）",
     icon: Eye,
     iconColor: "#30B0C7",
@@ -630,8 +630,8 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "译衡 · 翻译",
-    description: "中英学术互译，要求忠实原文，温度极低，适合专门优化了翻译的模型。",
-    recommendation: "翻译不同于总结，忠实度优先于流畅度。建议选专注翻译或支持术语锁定的模型，温度设 0.1 或更低。",
+    description: "中英学术互译，要求忠实原文、温度极低。",
+    recommendation: "忠实度优先于流畅度，建议选专注翻译的模型，温度 ≤ 0.1。",
     affectedScopes: "论文全文翻译、段落翻译（Beta，后端开发中）",
     icon: Languages,
     iconColor: "#5856D6",

@@ -33,7 +33,7 @@ export default function CompanionSettingsSection({
         <div>
           <h2 className="text-base font-semibold text-ink-primary">桌面伴侣形象</h2>
           <p className="mt-0.5 text-xs text-ink-tertiary">
-            选择右下角与侧栏里的陪伴形象；后续新形象会接入同一套动作注册表。
+            选择桌面陪伴形象。
           </p>
         </div>
       </div>
@@ -53,13 +53,6 @@ export default function CompanionSettingsSection({
               active={activeId === option.id}
               onClick={() => chooseCompanion(option.id)}
             />
-          ))}
-        </div>
-        <div className="grid gap-2 md:grid-cols-2">
-          {COMPANION_OPTIONS.map((option) => (
-            <p key={option.id} className="text-xs leading-5 text-ink-secondary">
-              {option.label}：{option.description}
-            </p>
           ))}
         </div>
       </div>

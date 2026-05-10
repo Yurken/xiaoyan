@@ -124,12 +124,12 @@ export default function ConnectionSection({
     : form.openai_compatible_embedding_model;
 
   const embeddingHint = isOpenAI
-    ? "默认用于小妍和未单独分工任务的向量能力；需要时仍可在下方分工区单独覆盖。"
+    ? "默认向量模型，可在下方分工区覆盖。"
     : activePreset === "moonshot" || activePreset === "gemini"
-      ? "该服务商通常不提供向量接口，建议在下方分工区为溯源模型单独配置 embedding。"
+      ? "该服务商无向量接口，建议在分工区为溯源模型单独配置。"
       : activePreset === "custom"
-        ? "如果当前兼容服务没有 embedding，可先留空，后面再在下方分工区补充。"
-        : "留空时继续使用当前主服务商对应的默认向量模型。";
+        ? "如无 embedding 可留空，在下方分工区补充。"
+        : "留空则沿用当前主服务商的默认向量模型。";
 
   return (
     <Card padding="md" className="space-y-4">
@@ -138,7 +138,7 @@ export default function ConnectionSection({
         <div>
           <h2 className="text-base font-semibold text-ink-primary">小妍</h2>
           <p className="mt-0.5 text-xs text-ink-tertiary">
-            常见厂商只作为快捷模板使用。点一下就会自动填入接口 URL 和推荐模型，后面仍然可以手动改。
+            点击厂商卡片自动填入接口地址和推荐模型，之后仍可手动修改。
           </p>
         </div>
       </div>
@@ -148,7 +148,6 @@ export default function ConnectionSection({
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <label className="ml-1 block text-xs font-medium text-ink-tertiary">常见厂商</label>
-              <span className="text-[11px] text-ink-tertiary">点击后自动切换模板</span>
             </div>
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {PROVIDER_PRESETS.map((preset) => (
@@ -167,8 +166,7 @@ export default function ConnectionSection({
             className="rounded-2xl px-4 py-3 text-xs leading-5 text-ink-tertiary"
             style={{ background: "var(--rc-card-inset-bg)", border: "1px solid var(--rc-card-inset-outline)" }}
           >
-            当前预设：<span className="font-medium text-ink-secondary">{activePresetMeta?.label ?? "自定义兼容服务"}</span>。
-            这里优先关注 URL、API Key 和默认模型；向量模型、任务分工、本地 Ollama 辅助等内容放在当前分区下方。
+            当前预设：<span className="font-medium text-ink-secondary">{activePresetMeta?.label ?? "自定义兼容服务"}</span>。下方可继续配置任务分工与高级选项。
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
@@ -176,7 +174,7 @@ export default function ConnectionSection({
               <ReadonlyField
                 label="接口地址"
                 value={ANTHROPIC_ENDPOINT}
-                hint="Anthropic 主模型使用原生 Messages API，当前主模型设置不提供自定义 URL。"
+                hint="Anthropic 使用原生 Messages API，不支持自定义 URL。"
               />
             ) : (
               <SettingInput
@@ -184,7 +182,7 @@ export default function ConnectionSection({
                 value={baseUrlValue}
                 onChange={set(isOpenAI ? "openai_base_url" : "openai_compatible_base_url")}
                 placeholder={activePresetMeta?.baseUrl || "https://api.example.com/v1"}
-                hint={activePreset === "custom" ? "任何兼容 OpenAI 接口格式的服务商或转发都可以接在这里。" : undefined}
+                hint={activePreset === "custom" ? "填写兼容 OpenAI 接口格式的地址。" : undefined}
               />
             )}
 
@@ -202,7 +200,7 @@ export default function ConnectionSection({
               sensitive
               hint={
                 activePreset === "ollama"
-                  ? "本地 Ollama 可填任意字符或留空。"
+                  ? "本地 Ollama 可留空。"
                   : `留空或输入 ${MASK} 表示不更改`
               }
             />
@@ -219,7 +217,7 @@ export default function ConnectionSection({
                       : "openai_compatible_chat_model",
                 )}
                 placeholder={activePresetMeta?.defaultChatModel || "模型名称"}
-                hint="小妍主对话默认用这个模型；阅读、综述、复现等任务可以在下方分工区继续覆盖。"
+                hint="小妍主对话默认模型；专项任务可在下方分工区单独指定。"
               />
             </div>
           </div>
@@ -248,15 +246,14 @@ export default function ConnectionSection({
                   className="rounded-2xl px-4 py-3 text-xs leading-5 text-ink-tertiary"
                   style={{ background: "var(--rc-card-inset-bg)", border: "1px solid var(--rc-card-inset-outline)" }}
                 >
-                  Anthropic 主模型本身没有向量模型字段。如果要做检索与 embedding，建议在下方分工区为溯源模型单独配置向量接口。
+                  Anthropic 不提供向量模型。如需 embedding 请在下方分工区为溯源模型配置。
                 </div>
               )}
 
               {activePreset === "ollama" ? (
                 <div className="space-y-3 rounded-2xl border border-green-200 bg-green-50/80 px-4 py-3">
                   <p className="text-xs leading-5 text-green-800">
-                    Ollama 本地运行时默认不需要 API Key，接口地址通常是 <code className="font-mono">http://localhost:11434/v1</code>。
-                    你也可以先从下面获取本地模型名，再直接填到“默认对话模型”里。
+                    默认地址 <code className="font-mono">http://localhost:11434/v1</code>。点击下方按钮获取本地模型列表。
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
                     <button

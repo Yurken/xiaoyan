@@ -191,7 +191,7 @@ export default function Settings() {
             onClick={openExportModal}
             className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
             style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
-            title="将当前配置（含 API Key）加密导出为 .rcconf 文件"
+            title="加密导出配置为 .rcconf 文件"
           >
             <Download className="w-3.5 h-3.5" />
             导出配置
@@ -202,7 +202,7 @@ export default function Settings() {
             onClick={() => void openImportPicker()}
             className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
             style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
-            title="从 .rcconf 文件导入配置（会覆盖当前配置）"
+            title="从 .rcconf 文件导入配置"
           >
             <Upload className="w-3.5 h-3.5" />
             导入配置
@@ -367,7 +367,7 @@ export default function Settings() {
                 <div>
                   <h2 className="text-base font-semibold text-ink-primary">导入论文识别内容</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">
-                    导入时由小妍从 PDF 正文中自动识别并填写论文元数据，关闭某项后该字段将保留文件名猜测值或留空。模型优先使用"方向提示模型"，未单独配置则回退到默认对话模型。
+                    导入 PDF 时自动识别并填写论文元数据，关闭后对应字段留空。
                   </p>
                 </div>
               </div>
@@ -391,11 +391,11 @@ export default function Settings() {
                 </div>
                 <div className="grid gap-1.5 md:grid-cols-2">
                   {([
-                    { label: "名称", description: "从正文提取正式标题，比文件名猜测更准确" },
-                    { label: "作者", description: "提取所有作者姓名，英文逗号分隔" },
-                    { label: "年份", description: "提取发表年份，用于排序与筛选" },
-                    { label: "期刊 / 会议", description: "提取发表场所，用于来源标签显示" },
-                    { label: "关键词", description: "AI 提取 3-8 个核心学术关键词，比文本统计更贴合主题" },
+                    { label: "名称", description: "从正文提取正式标题" },
+                    { label: "作者", description: "提取作者姓名，英文逗号分隔" },
+                    { label: "年份", description: "提取发表年份" },
+                    { label: "期刊 / 会议", description: "提取发表场所" },
+                    { label: "关键词", description: "提取 3-8 个核心学术关键词" },
                   ]).map((item) => (
                     <p key={item.label} className="text-xs leading-5 text-ink-secondary">
                       {item.label}：{item.description}
@@ -410,7 +410,7 @@ export default function Settings() {
                 <div>
                   <h2 className="text-base font-semibold text-ink-primary">论文标签显示</h2>
                   <p className="text-xs text-ink-tertiary mt-0.5">
-                    控制论文库卡片上展示哪些来源标签。关闭后不会影响后端识别，只是不显示在卡片上。
+                    控制论文卡片上展示哪些来源标签，关闭仅影响显示。
                   </p>
                 </div>
               </div>

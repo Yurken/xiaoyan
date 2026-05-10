@@ -15,7 +15,7 @@ export const COMPANION_DEFINITIONS: Record<CompanionId, CompanionDefinition> = {
   xiaoyan: {
     id: "xiaoyan",
     label: "小妍",
-    description: "以小妍本体作为桌面伴侣，使用全身像 spritesheet 动作。",
+    description: "",
     allowIdleSleep: false,
     renderer: {
       kind: "sprite-atlas",
@@ -33,7 +33,7 @@ export const COMPANION_DEFINITIONS: Record<CompanionId, CompanionDefinition> = {
   "xiaoyan-pet": {
     id: "xiaoyan-pet",
     label: "墩墩",
-    description: "保留原墩墩 SVG 动作资产，作为小妍的宠物形象。",
+    description: "",
     allowIdleSleep: true,
     renderer: {
       kind: "svg-set",
@@ -47,7 +47,7 @@ export const COMPANION_DEFINITIONS: Record<CompanionId, CompanionDefinition> = {
   "white-dumpling": {
     id: "white-dumpling",
     label: "团子",
-    description: "新增的白色圆团宠物形象，抱着研究笔记本，使用完整 spritesheet 动作。",
+    description: "",
     allowIdleSleep: true,
     renderer: {
       kind: "sprite-atlas",
