@@ -4,6 +4,7 @@ import {
   type SubmissionOverviewStats,
   type WorkbenchOverviewModel,
   type WorkbenchOverviewSource,
+  type WorkbenchOverviewText,
 } from "./shared";
 import { buildSourceSummary, buildWorkbenchOverviewModel } from "./model";
 
@@ -11,6 +12,37 @@ interface WorkbenchOverviewState {
   model: WorkbenchOverviewModel | null;
   loading: boolean;
   error: string;
+}
+
+function applyGeneratedText(
+  model: WorkbenchOverviewModel,
+  text: Partial<WorkbenchOverviewText>,
+): WorkbenchOverviewModel {
+  let changed = false;
+  const next: WorkbenchOverviewModel = { ...model };
+  const heroTitle = text.heroTitle?.trim();
+  const heroDescription = text.heroDescription?.trim();
+  const summaryItems = text.summaryItems
+    ?.map((item) => ({
+      title: item.title.trim(),
+      description: item.description.trim(),
+    }))
+    .filter((item) => item.title && item.description);
+
+  if (heroTitle) {
+    next.heroTitle = heroTitle;
+    changed = true;
+  }
+  if (heroDescription) {
+    next.heroDescription = heroDescription;
+    changed = true;
+  }
+  if (summaryItems?.length === 3) {
+    next.summaryItems = summaryItems;
+    changed = true;
+  }
+
+  return changed ? { ...next, aiGenerated: true } : model;
 }
 
 export function useWorkbenchOverview(): WorkbenchOverviewState {
@@ -34,7 +66,7 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
         upcomingDdls: [],
       })),
     ])
-      .then(async ([papers, interests, notes, sessions, submission]) => {
+      .then(([papers, interests, notes, sessions, submission]) => {
         if (cancelled) return;
 
         const source: WorkbenchOverviewSource = {
@@ -46,31 +78,22 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
         };
 
         const model = buildWorkbenchOverviewModel(source);
-
-        // Try AI-generated overview text; fall back to static text silently
-        try {
-          const summary = buildSourceSummary(source);
-          const aiText = await apiClient.workbench.generateOverviewText(
-            JSON.stringify(summary),
-          );
-          if (!cancelled) {
-            if (aiText.heroTitle) {
-              model.heroTitle = aiText.heroTitle;
-            }
-            if (aiText.heroDescription) {
-              model.heroDescription = aiText.heroDescription;
-            }
-            if (aiText.summaryItems?.length === 3) {
-              model.summaryItems = aiText.summaryItems;
-            }
-            model.aiGenerated = true;
-          }
-        } catch {
-          // AI unavailable — keep static text from buildWorkbenchOverviewModel
-        }
-
-        if (cancelled) return;
         setState({ model, loading: false, error: "" });
+
+        const summary = buildSourceSummary(source);
+        void apiClient.workbench
+          .generateOverviewText(JSON.stringify(summary))
+          .then((aiText) => {
+            if (cancelled) return;
+            setState((current) => {
+              if (!current.model) return current;
+              return {
+                ...current,
+                model: applyGeneratedText(current.model, aiText),
+              };
+            });
+          })
+          .catch(() => {});
       })
       .catch((error) => {
         if (cancelled) return;
