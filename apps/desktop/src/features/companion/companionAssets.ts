@@ -62,6 +62,19 @@ function createXiaoyanAnimation({
     };
   }
 
+  if (actionKey === "thinking") {
+    return {
+      sheet: "coordination",
+      row: 0,
+      frames: 6,
+      fps: 2,
+      playMode: "blink",
+      sequence: [0, 1, 2, 3, 2, 1, 0],
+      intervalMinMs: 1800,
+      intervalMaxMs: 5200,
+    };
+  }
+
   return {
     sheet,
     row,
