@@ -2,13 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   AlertCircle,
+  Check,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
   Clock3,
+  Copy,
   MessageSquare,
   MoreHorizontal,
+  Pencil,
   Plus,
+  RefreshCw,
   Trash2,
   X,
   XCircle,
@@ -116,6 +120,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [memorySaved, setMemorySaved] = useState(false);
   const [chatDragOver, setChatDragOver] = useState(false);
   const chatDragCounterRef = useRef(0);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const [sessionListMode, setSessionListMode] = usePersistentStringState<"open" | "collapsed">(
     "rc:copilot:session-list-mode",
     "open",
@@ -590,6 +596,47 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     event.stopPropagation();
   };
 
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = async (text: string, messageId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(messageId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // clipboard API may fail in some contexts
+    }
+  };
+
+  const handleStartEdit = (message: ChatMessage) => {
+    const parsed = parseCopilotMessageContent(message.content);
+    setEditingMessageId(message.id);
+    setEditText(parsed.text);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editText.trim()) return;
+    setInput(editText.trim());
+    setEditingMessageId(null);
+    setEditText("");
+    setTimeout(() => { void handleSend(); }, 0);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText("");
+  };
+
+  const handleRetry = (assistantMsgId: string) => {
+    const idx = messages.findIndex((m) => m.id === assistantMsgId);
+    if (idx <= 0) return;
+    const userMsg = messages[idx - 1];
+    if (userMsg.role !== "user") return;
+    const parsed = parseCopilotMessageContent(userMsg.content);
+    setInput(parsed.text);
+    setTimeout(() => { void handleSend(); }, 0);
+  };
+
   const handleChatDrop = (event: React.DragEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1027,42 +1074,127 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                             onLinkClick={openLink}
                           />
                         </div>
+                        {parsed.answer && (
+                          <div className="flex items-center gap-0.5 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(parsed.answer, message.id)}
+                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors hover:bg-nm-dark/8"
+                              style={{ color: "var(--rc-text-tertiary)" }}
+                            >
+                              {copiedId === message.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRetry(message.id)}
+                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors hover:bg-nm-dark/8"
+                              style={{ color: "var(--rc-text-tertiary)" }}
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
                       </>
                     );
                   })()}
 
                   {message.role === "user" && (() => {
                     const parsedUserMessage = parseCopilotMessageContent(message.content);
+                    const isEditing = editingMessageId === message.id;
 
                     return (
                       <div className="flex justify-end">
                         <div className="max-w-[85%]">
-                          {parsedUserMessage.attachments.length > 0 && (
-                            <div className="mb-2 flex flex-wrap gap-1.5 justify-end">
-                              {parsedUserMessage.attachments.map((attachment, index) => (
-                                <span
-                                  key={`${attachment.name}-${index}`}
-                                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium"
-                                  style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <textarea
+                                rows={3}
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSaveEdit();
+                                  }
+                                  if (e.key === "Escape") {
+                                    handleCancelEdit();
+                                  }
+                                }}
+                                className="w-full rounded-2xl px-3 py-2 text-xs text-ink-primary outline-none resize-none"
+                                style={{
+                                  background: "var(--rc-surface)",
+                                  boxShadow: "var(--rc-inset-shadow)",
+                                }}
+                                autoFocus
+                              />
+                              <div className="flex justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEdit}
+                                  className="rounded-lg px-2 py-1 text-[11px] transition-colors hover:bg-nm-dark/8"
+                                  style={{ color: "var(--rc-text-tertiary)" }}
                                 >
-                                  <MessageSquare className="w-3 h-3" />
-                                  {attachment.name}
-                                </span>
-                              ))}
+                                  取消
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleSaveEdit}
+                                  disabled={!editText.trim()}
+                                  className="rounded-lg px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-40"
+                                  style={{ color: "#FFFFFF", background: "#007AFF" }}
+                                >
+                                  保存并发送
+                                </button>
+                              </div>
                             </div>
+                          ) : (
+                            <>
+                              {parsedUserMessage.attachments.length > 0 && (
+                                <div className="mb-2 flex flex-wrap gap-1.5 justify-end">
+                                  {parsedUserMessage.attachments.map((attachment, index) => (
+                                    <span
+                                      key={`${attachment.name}-${index}`}
+                                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium"
+                                      style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}
+                                    >
+                                      <MessageSquare className="w-3 h-3" />
+                                      {attachment.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <div
+                                className="rounded-2xl px-3 py-1.5 text-xs"
+                                style={{
+                                  background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                                  boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
+                                  color: "#FFFFFF",
+                                }}
+                              >
+                                <p className="whitespace-pre-wrap leading-relaxed">
+                                  {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
+                                </p>
+                              </div>
+                              <div className="flex justify-end gap-0.5 mt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopy(parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT, message.id)}
+                                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors hover:bg-nm-dark/8"
+                                  style={{ color: "var(--rc-text-tertiary)" }}
+                                >
+                                  {copiedId === message.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEdit(message)}
+                                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors hover:bg-nm-dark/8"
+                                  style={{ color: "var(--rc-text-tertiary)" }}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </>
                           )}
-                          <div
-                            className="rounded-3xl px-4 py-3 text-sm"
-                            style={{
-                              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                              boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)",
-                              color: "#FFFFFF",
-                            }}
-                          >
-                            <p className="whitespace-pre-wrap leading-relaxed">
-                              {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
-                            </p>
-                          </div>
                         </div>
                       </div>
                     );
