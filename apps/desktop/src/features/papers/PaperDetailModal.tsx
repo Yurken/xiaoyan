@@ -240,7 +240,7 @@ export default function PaperDetailModal({
                               <figure key={figure.id} className="space-y-1.5">
                                 <img
                                   src={figure.data_url}
-                                  alt={figure.caption ?? `图 ${figure.fig_index}`}
+                                  alt={figure.caption ?? `${figure.kind === "table" ? "表" : "图"} ${figure.fig_index}`}
                                   title={figure.caption ?? undefined}
                                   loading="lazy"
                                   className="max-h-[380px] w-full rounded-2xl object-contain"

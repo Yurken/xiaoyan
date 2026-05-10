@@ -70,10 +70,11 @@ use commands::{
     misc::{
         markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text,
     },
+    paper_figures::papers_list_figures,
     paper_search::paper_search,
     papers::{
         papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list,
-        papers_list_figures, papers_open_pdf, papers_reproduce, papers_update, papers_upload,
+        papers_open_pdf, papers_reproduce, papers_update, papers_upload,
     },
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,

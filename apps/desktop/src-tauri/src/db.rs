@@ -150,8 +150,12 @@ CREATE TABLE IF NOT EXISTS paper_figures (
     id         TEXT PRIMARY KEY,
     paper_id   TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
     fig_index  INTEGER NOT NULL,
+    kind       TEXT NOT NULL DEFAULT 'figure',
     caption    TEXT,
     file_path  TEXT NOT NULL,
+    page_number INTEGER,
+    bbox       TEXT,
+    source     TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -263,13 +267,44 @@ async fn ensure_paper_figures_table(pool: &SqlitePool) -> Result<()> {
             id         TEXT PRIMARY KEY,
             paper_id   TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
             fig_index  INTEGER NOT NULL,
+            kind       TEXT NOT NULL DEFAULT 'figure',
             caption    TEXT,
             file_path  TEXT NOT NULL,
+            page_number INTEGER,
+            bbox       TEXT,
+            source     TEXT,
             created_at TEXT NOT NULL
         );",
     )
     .execute(pool)
     .await?;
+    ensure_table_column(pool, "paper_figures", "kind", "TEXT NOT NULL DEFAULT 'figure'").await?;
+    ensure_table_column(pool, "paper_figures", "page_number", "INTEGER").await?;
+    ensure_table_column(pool, "paper_figures", "bbox", "TEXT").await?;
+    ensure_table_column(pool, "paper_figures", "source", "TEXT").await?;
+    Ok(())
+}
+
+async fn ensure_table_column(
+    pool: &SqlitePool,
+    table: &str,
+    column: &str,
+    definition: &str,
+) -> Result<()> {
+    let columns = sqlx::query(&format!("PRAGMA table_info({table})"))
+        .fetch_all(pool)
+        .await?;
+    let has_column = columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == column
+    });
+
+    if !has_column {
+        sqlx::query(&format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"))
+            .execute(pool)
+            .await?;
+    }
+
     Ok(())
 }
 
