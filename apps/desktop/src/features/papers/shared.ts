@@ -1,3 +1,5 @@
+import type { Paper } from "@research-copilot/types";
+
 export type PaperFigure = {
   id: string;
   fig_index: number;
@@ -90,4 +92,133 @@ function normalizeCaption(caption: string) {
     .replace(/\btab\./g, "tab")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export type PaperCitationFormat = "gbt7714" | "apa" | "mla" | "ieee" | "bibtex";
+
+export const PAPER_CITATION_FORMATS: Array<{ value: PaperCitationFormat; label: string }> = [
+  { value: "gbt7714", label: "GB/T 7714" },
+  { value: "apa", label: "APA" },
+  { value: "mla", label: "MLA" },
+  { value: "ieee", label: "IEEE" },
+  { value: "bibtex", label: "BibTeX" },
+];
+
+export function formatPaperCitation(paper: Paper, format: PaperCitationFormat): string {
+  const title = cleanCitationPart(paper.title) || "Untitled";
+  const authors = cleanCitationPart(paper.authors);
+  const year = paper.year ? String(paper.year) : "";
+  const venue = cleanCitationPart(paper.venue);
+  const doi = cleanDoi(paper.doi);
+  const doiUrl = doi ? `https://doi.org/${doi}` : "";
+
+  if (format === "bibtex") {
+    return formatBibTeX({ paper, title, authors, year, venue, doi });
+  }
+
+  if (format === "apa") {
+    return [
+      authors ? `${authors}.` : "",
+      year ? `(${year}).` : "",
+      `${title}.`,
+      venue ? `${venue}.` : "",
+      doiUrl,
+    ].filter(Boolean).join(" ");
+  }
+
+  if (format === "mla") {
+    return [
+      authors ? `${authors}.` : "",
+      `"${title}."`,
+      venue ? `${venue},` : "",
+      year ? `${year}.` : "",
+      doi ? `doi:${doi}` : "",
+    ].filter(Boolean).join(" ");
+  }
+
+  if (format === "ieee") {
+    return [
+      authors ? `${authors},` : "",
+      `"${title},"`,
+      venue ? `${venue},` : "",
+      year ? `${year}.` : "",
+      doi ? `doi: ${doi}` : "",
+    ].filter(Boolean).join(" ");
+  }
+
+  const sourceMark = paper.ccf_type === "journal" || paper.journal_issn || paper.journal_eissn ? "J" : "C";
+  return [
+    authors ? `${authors}.` : "",
+    `${title}[${sourceMark}].`,
+    venue ? `${venue},` : "",
+    year ? `${year}.` : "",
+    doi ? `DOI:${doi}` : "",
+  ].filter(Boolean).join(" ");
+}
+
+function formatBibTeX({
+  paper,
+  title,
+  authors,
+  year,
+  venue,
+  doi,
+}: {
+  paper: Paper;
+  title: string;
+  authors: string;
+  year: string;
+  venue: string;
+  doi: string;
+}) {
+  const entryType = paper.ccf_type === "journal" || paper.journal_issn || paper.journal_eissn ? "article" : "inproceedings";
+  const venueField = entryType === "article" ? "journal" : "booktitle";
+  const fields = [
+    ["title", title],
+    ["author", authorsToBibTeX(authors)],
+    [venueField, venue],
+    ["year", year],
+    ["doi", doi],
+  ].filter(([, value]) => value);
+
+  const body = fields
+    .map(([key, value]) => `  ${key} = {${escapeBibTeX(String(value))}}`)
+    .join(",\n");
+
+  return `@${entryType}{${makeBibTeXKey(paper, authors, year, title)},\n${body}\n}`;
+}
+
+function cleanCitationPart(value?: string | null) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function cleanDoi(value?: string | null) {
+  return cleanCitationPart(value)
+    .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "")
+    .replace(/^doi:\s*/i, "");
+}
+
+function authorsToBibTeX(authors: string) {
+  if (!authors) return "";
+  return authors
+    .split(/\s*(?:,|;|；|，)\s*/)
+    .map((author) => author.trim())
+    .filter(Boolean)
+    .join(" and ");
+}
+
+function makeBibTeXKey(paper: Paper, authors: string, year: string, title: string) {
+  const firstAuthor = authors
+    .split(/\s*(?:,|;|；|，)\s*/)
+    .find(Boolean)
+    ?.split(/\s+/)
+    .at(-1) ?? "paper";
+  const firstTitleWord = title.match(/[A-Za-z0-9]+/)?.[0] ?? paper.id.slice(0, 6);
+  return `${firstAuthor}${year || "nd"}${firstTitleWord}`
+    .replace(/[^A-Za-z0-9_:-]/g, "")
+    .slice(0, 64);
+}
+
+function escapeBibTeX(value: string) {
+  return value.replace(/[{}]/g, "");
 }

@@ -8,6 +8,7 @@ import {
   FileText,
   Loader2,
   Pencil,
+  Quote,
   Trash2,
   Upload,
   X,
@@ -18,6 +19,7 @@ import type { Paper, ResearchInterest } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, VenueTypeBadge, WosIndexBadge } from "../components/CcfBadges";
 import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
+import PaperCitationPanel from "../features/papers/PaperCitationPanel";
 import PaperDetailModal from "../features/papers/PaperDetailModal";
 import type { PaperFigure } from "../features/papers/shared";
 import { usePersistentState } from "../hooks/usePersistentStringState";
@@ -44,6 +46,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   const [savingEdit, setSavingEdit] = useState(false);
   const [confirmDeletePaperId, setConfirmDeletePaperId] = useState<string | null>(null);
   const [confirmReanalyzePaperId, setConfirmReanalyzePaperId] = useState<string | null>(null);
+  const [citationPaperId, setCitationPaperId] = useState<string | null>(null);
   const [deletingPaperId, setDeletingPaperId] = useState<string | null>(null);
   const [visiblePaperTags, setVisiblePaperTags] = useState(() => parsePaperTagVisibility(DEFAULT_PAPER_TAG_VISIBILITY_VALUE));
   const [selectedInterestId, setSelectedInterestId] = usePersistentState<string>("rc:papers:selected-interest-id", "");
@@ -694,6 +697,24 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           {/* 次要操作：图标按钮 */}
           <button
             type="button"
+            onClick={() => setCitationPaperId((prev) => (prev === paper.id ? null : paper.id))}
+            className={[
+              "w-7 h-7 flex items-center justify-center rounded-lg transition-colors",
+              citationPaperId === paper.id ? "text-apple-blue" : "text-ink-tertiary hover:text-ink-primary",
+            ].join(" ")}
+            style={{
+              background: "var(--rc-surface)",
+              boxShadow: citationPaperId === paper.id
+                ? "var(--rc-inset-shadow)"
+                : "var(--rc-chip-shadow)",
+            }}
+            title={citationPaperId === paper.id ? "收起引用" : "复制引用"}
+          >
+            <Quote className="h-3.5 w-3.5" />
+          </button>
+
+          <button
+            type="button"
             onClick={() => {
               if (editingId === paper.id) {
                 setEditingId(null);
@@ -828,6 +849,10 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             </button>
           </div>
         </div>
+      )}
+
+      {citationPaperId === paper.id && (
+        <PaperCitationPanel paper={paper} onClose={() => setCitationPaperId(null)} />
       )}
 
       {editingId === paper.id && (
