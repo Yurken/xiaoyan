@@ -56,9 +56,9 @@ function createXiaoyanAnimation({
       frames,
       fps: 10,
       playMode: "blink",
-      sequence: [0, 1, 2, 1, 0],
-      intervalMinMs: 3000,
-      intervalMaxMs: 10000,
+      sequence: [0, 1, 2, 3, 2, 1, 0],
+      intervalMinMs: 2200,
+      intervalMaxMs: 7200,
     };
   }
 
@@ -102,7 +102,7 @@ export const xiaoyanActionMap = Object.fromEntries(
 ) as Record<CompanionActionKey, keyof typeof xiaoyanAnimations>;
 
 export const compactSpriteAnimations = {
-  idle: { row: 0, frames: 6, fps: 10, playMode: "blink", sequence: [0, 1, 2, 1, 0], intervalMinMs: 3000, intervalMaxMs: 10000 },
+  idle: { row: 0, frames: 6, fps: 10, playMode: "blink", sequence: [0, 1, 2, 3, 2, 1, 0], intervalMinMs: 2200, intervalMaxMs: 7200 },
   runningRight: { row: 1, frames: 8, fps: 10 },
   runningLeft: { row: 2, frames: 8, fps: 10 },
   waving: { row: 3, frames: 4, fps: 5 },
