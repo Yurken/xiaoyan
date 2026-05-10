@@ -138,6 +138,8 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("multi_agent_max_steps".into(), "6".into());
     m.insert("multi_agent_search_limit".into(), "8".into());
     m.insert("multi_agent_supervisor_model".into(), "".into());
+    m.insert("web_search_enabled".into(), "true".into());
+    m.insert("web_search_max_rounds".into(), "3".into());
     m.insert("multi_agent_supervisor_base_url".into(), "".into());
     m.insert("multi_agent_supervisor_api_key".into(), "".into());
     m.insert("multi_agent_supervisor_temperature".into(), "0.1".into());

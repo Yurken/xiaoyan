@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use serde_json::json;
+use serde_json::{json, Map, Value};
 
 use super::LlmMessage;
 
@@ -15,7 +15,75 @@ pub(super) fn compact_preview(text: &str, max_chars: usize) -> String {
 pub(super) fn build_message_array(messages: &[LlmMessage]) -> serde_json::Value {
     json!(messages
         .iter()
-        .map(|m| json!({ "role": m.role, "content": m.content }))
+        .map(|m| build_single_message(m))
+        .collect::<Vec<_>>())
+}
+
+fn build_single_message(m: &LlmMessage) -> Value {
+    let mut obj = Map::new();
+    obj.insert("role".into(), json!(m.role));
+    obj.insert("content".into(), json!(m.content));
+    if let Some(ref tci) = m.tool_call_id {
+        obj.insert("tool_call_id".into(), json!(tci));
+    }
+    if let Some(ref tc) = m.tool_calls {
+        obj.insert(
+            "tool_calls".into(),
+            json!(tc
+                .iter()
+                .map(|tc| json!({
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.name,
+                        "arguments": tc.arguments
+                    }
+                }))
+                .collect::<Vec<_>>()),
+        );
+    }
+    Value::Object(obj)
+}
+
+pub(super) fn build_anthropic_user_messages(messages: &[LlmMessage]) -> Vec<Value> {
+    messages
+        .iter()
+        .filter(|m| m.role != "system")
+        .map(|m| {
+            if m.role == "tool" {
+                json!({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": m.tool_call_id.as_deref().unwrap_or(""),
+                        "content": m.content,
+                    }]
+                })
+            } else if let Some(ref tc) = m.tool_calls {
+                json!({
+                    "role": "assistant",
+                    "content": tc.iter().map(|tc| json!({
+                        "type": "tool_use",
+                        "id": tc.id,
+                        "name": tc.name,
+                        "input": serde_json::from_str::<Value>(&tc.arguments).unwrap_or(json!({}))
+                    })).collect::<Vec<_>>()
+                })
+            } else {
+                json!({ "role": m.role, "content": m.content })
+            }
+        })
+        .collect()
+}
+
+pub(super) fn build_anthropic_tools(tools: &[super::ToolDefinition]) -> Value {
+    json!(tools
+        .iter()
+        .map(|t| json!({
+            "name": t.name,
+            "description": t.description,
+            "input_schema": t.parameters,
+        }))
         .collect::<Vec<_>>())
 }
 

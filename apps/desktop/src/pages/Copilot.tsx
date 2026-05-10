@@ -118,6 +118,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [memoryInput, setMemoryInput] = useState("");
   const [savingMemory, setSavingMemory] = useState(false);
   const [memorySaved, setMemorySaved] = useState(false);
+  const [searchingQuery, setSearchingQuery] = useState<string | null>(null);
   const [chatDragOver, setChatDragOver] = useState(false);
   const chatDragCounterRef = useRef(0);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -497,7 +498,11 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         if (chunk.type === "agent_start" || chunk.type === "agent_complete" || chunk.type === "agent_error") {
           setAgentRuns((prev) => upsertAgentRun(prev, chunk.value));
         }
+        if (chunk.type === "searching") {
+          setSearchingQuery(chunk.query);
+        }
         if (chunk.type === "delta") {
+          if (searchingQuery) setSearchingQuery(null);
           setMessages((prev) =>
             prev.map((message) =>
               message.id === assistantId
@@ -1068,9 +1073,21 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                           </div>
                         )}
 
+                        {searchingQuery && isActiveAssistant && (
+                          <div
+                            className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
+                            style={{
+                              background: "rgba(0,122,255,0.06)",
+                              color: "#007AFF",
+                            }}
+                          >
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            正在搜索：{searchingQuery}
+                          </div>
+                        )}
                         <div className="text-sm leading-relaxed" style={{ color: "var(--rc-text)" }}>
                           <MarkdownRenderer
-                            content={parsed.answer || (sending && isActiveAssistant ? `${MAIN_ASSISTANT_NAME} 正在整理最终答...` : "")}
+                            content={parsed.answer || (sending && isActiveAssistant ? "小妍思考中..." : "")}
                             onLinkClick={openLink}
                           />
                         </div>

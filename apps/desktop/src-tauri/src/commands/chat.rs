@@ -2,7 +2,11 @@ use crate::agent_graph::run_agentic_graph;
 use crate::agent_nodes::{agent_goal, agent_title};
 use crate::assistant_prompts::{main_chat_system, supervisor_system};
 use crate::commands::memory::is_long_term_memory_enabled;
-use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
+use crate::llm::{
+    resolve_model, resolve_temperature, web_search_tool_definition, LlmClient, LlmMessage,
+    StreamOutcome,
+};
+use crate::web_search::web_search;
 use crate::services::chat_context_service::{build_chat_context_summary, collect_chat_sources};
 use crate::state::AppState;
 use serde::Deserialize;
@@ -457,12 +461,94 @@ async fn run_simple(
     let temperature = resolve_temperature(settings, "copilot_simple_temperature", 0.4);
     let model = resolve_model(settings, &["copilot_simple_model"]);
     let rid = request_id.to_string();
-    let app = app.clone();
-    client
-        .stream_chat(&msgs, model.as_deref(), temperature, move |delta| {
-            let _ = app.emit("chat:delta", json!({ "request_id": rid, "delta": delta }));
-        })
-        .await
+    let app_ref = app.clone();
+
+    let web_search_enabled = settings
+        .get("web_search_enabled")
+        .map(|v| v == "true")
+        .unwrap_or(false);
+    let max_tool_rounds: usize = settings
+        .get("web_search_max_rounds")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3);
+
+    let tools = if web_search_enabled {
+        vec![web_search_tool_definition()]
+    } else {
+        vec![]
+    };
+
+    let mut tool_rounds = 0usize;
+
+    loop {
+        let outcome = if tools.is_empty() || tool_rounds >= max_tool_rounds {
+            let text = client
+                .stream_chat(&msgs, model.as_deref(), temperature, {
+                    let app = app_ref.clone();
+                    let rid = rid.clone();
+                    move |delta| {
+                        let _ = app.emit("chat:delta", json!({ "request_id": rid, "delta": delta }));
+                    }
+                })
+                .await?;
+            StreamOutcome::TextCompleted(text)
+        } else {
+            client
+                .stream_chat_with_tools(&msgs, &tools, model.as_deref(), temperature, {
+                    let app = app_ref.clone();
+                    let rid = rid.clone();
+                    move |delta| {
+                        let _ = app.emit("chat:delta", json!({ "request_id": rid, "delta": delta }));
+                    }
+                })
+                .await?
+        };
+
+        match outcome {
+            StreamOutcome::TextCompleted(text) => return Ok(text),
+            StreamOutcome::ToolCalls(tool_calls) => {
+                tool_rounds += 1;
+                msgs.push(LlmMessage::assistant_with_tool_calls(tool_calls.clone()));
+
+                for tc in &tool_calls {
+                    if tc.name == "web_search" {
+                        let query: String = serde_json::from_str::<serde_json::Value>(&tc.arguments)
+                            .ok()
+                            .and_then(|v| v["query"].as_str().map(|s| s.to_string()))
+                            .unwrap_or_default();
+
+                        let _ = app_ref.emit(
+                            "chat:searching",
+                            json!({ "request_id": rid, "query": query }),
+                        );
+
+                        if query.is_empty() {
+                            msgs.push(LlmMessage::tool(&tc.id, "搜索查询为空，请提供有效的搜索词。"));
+                            continue;
+                        }
+
+                        match web_search(&query).await {
+                            Ok(results) => {
+                                msgs.push(LlmMessage::tool(&tc.id, &results));
+                            }
+                            Err(e) => {
+                                msgs.push(LlmMessage::tool(
+                                    &tc.id,
+                                    format!("搜索失败：{}", e),
+                                ));
+                            }
+                        }
+                    }
+                }
+
+                if tool_rounds >= max_tool_rounds {
+                    msgs.push(LlmMessage::user(
+                        "已达到搜索次数上限，请基于已有信息给出当前最佳回答，无需再调用搜索工具。",
+                    ));
+                }
+            }
+        }
+    }
 }
 
 async fn run_agentic(
@@ -860,6 +946,8 @@ async fn fetch_history(
         .map(|r| LlmMessage {
             role: r.get("role"),
             content: r.get("content"),
+            tool_call_id: None,
+            tool_calls: None,
         })
         .collect())
 }

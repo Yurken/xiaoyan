@@ -180,26 +180,28 @@ export default function CopilotComposer({
 
         {/* 输入框 + 内嵌按钮栏 */}
         <div
-          className="rounded-3xl overflow-hidden"
+          className="rounded-3xl"
           style={{
             background: "var(--rc-surface)",
             boxShadow: "var(--rc-inset-shadow)",
           }}
         >
-          <textarea
-            rows={3}
-            value={input}
-            onChange={(event) => onInputChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void onSubmit();
-              }
-            }}
-            placeholder={getCopilotInputPlaceholder(chatMode)}
-            className="w-full px-5 pt-4 pb-2 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none"
-            style={{ background: "transparent" }}
-          />
+          <div className="rounded-t-3xl overflow-hidden">
+            <textarea
+              rows={3}
+              value={input}
+              onChange={(event) => onInputChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void onSubmit();
+                }
+              }}
+              placeholder={getCopilotInputPlaceholder(chatMode)}
+              className="w-full px-5 pt-4 pb-2 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none"
+              style={{ background: "transparent" }}
+            />
+          </div>
 
           <div className="flex items-center justify-between px-3 pb-3 gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">

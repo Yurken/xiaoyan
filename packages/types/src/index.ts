@@ -417,6 +417,7 @@ export type ChatStreamChunk =
   | { type: "agent_error"; value: AgentRun }
   | { type: "delta"; value: string }
   | { type: "sources"; value: NonNullable<ChatMessage["sources"]> }
+  | { type: "searching"; query: string }
   | { type: "error"; value: string }
   | { type: "done" };
 

@@ -22,6 +22,7 @@ mod rag;
 mod repositories;
 mod services;
 mod state;
+mod web_search;
 
 use tauri::Manager;
 

@@ -382,6 +382,10 @@ export async function* streamChat(
         if (e.payload.request_id === request_id)
           enqueue({ type: "delta", value: e.payload.delta });
       }),
+      listen<{ request_id: string; query: string }>(`chat:searching`, (e) => {
+        if (e.payload.request_id === request_id)
+          enqueue({ type: "searching", query: e.payload.query });
+      }),
       listen<{ request_id: string; value: NonNullable<ChatMessage["sources"]> }>(`chat:sources`, (e) => {
         if (e.payload.request_id === request_id)
           enqueue({ type: "sources", value: e.payload.value });

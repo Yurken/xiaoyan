@@ -7,6 +7,7 @@ mod shared;
 mod transport;
 
 use self::shared::{
+    build_anthropic_tools, build_anthropic_user_messages,
     build_message_array as build_message_array_impl,
     extract_anthropic_response_text as extract_anthropic_response_text_impl,
 };
@@ -19,6 +20,28 @@ use self::transport::{
 pub struct LlmMessage {
     pub role: String,
     pub content: String,
+    pub tool_call_id: Option<String>,
+    pub tool_calls: Option<Vec<ToolCall>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ToolDefinition {
+    pub name: String,
+    pub description: String,
+    pub parameters: serde_json::Value,
+}
+
+#[derive(Clone, Debug)]
+pub struct ToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: String,
+}
+
+#[derive(Clone, Debug)]
+pub enum StreamOutcome {
+    TextCompleted(String),
+    ToolCalls(Vec<ToolCall>),
 }
 
 impl LlmMessage {
@@ -26,13 +49,58 @@ impl LlmMessage {
         Self {
             role: "system".into(),
             content: content.into(),
+            tool_call_id: None,
+            tool_calls: None,
         }
     }
     pub fn user(content: impl Into<String>) -> Self {
         Self {
             role: "user".into(),
             content: content.into(),
+            tool_call_id: None,
+            tool_calls: None,
         }
+    }
+    pub fn assistant(content: impl Into<String>) -> Self {
+        Self {
+            role: "assistant".into(),
+            content: content.into(),
+            tool_call_id: None,
+            tool_calls: None,
+        }
+    }
+    pub fn assistant_with_tool_calls(tool_calls: Vec<ToolCall>) -> Self {
+        Self {
+            role: "assistant".into(),
+            content: String::new(),
+            tool_call_id: None,
+            tool_calls: Some(tool_calls),
+        }
+    }
+    pub fn tool(tool_call_id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            role: "tool".into(),
+            content: content.into(),
+            tool_call_id: Some(tool_call_id.into()),
+            tool_calls: None,
+        }
+    }
+}
+
+pub fn web_search_tool_definition() -> ToolDefinition {
+    ToolDefinition {
+        name: "web_search".into(),
+        description: "搜索互联网获取实时信息。当需要查找最新资料、事实核查、或用户询问近期事件、新闻、当前信息时使用此工具。搜索结果包含来自网络的相关摘要和链接。".into(),
+        parameters: json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "搜索查询词，应简洁明确。建议使用关键词而非自然语言问题。"
+                }
+            },
+            "required": ["query"]
+        }),
     }
 }
 
@@ -408,6 +476,54 @@ impl LlmClient {
                     api_key,
                     model.unwrap_or(chat_model),
                     messages,
+                    temperature,
+                    16_384,
+                    &on_delta,
+                )
+                .await
+            }
+        }
+    }
+
+    /// Streaming chat with tool support — returns either text or tool calls.
+    pub async fn stream_chat_with_tools(
+        &self,
+        messages: &[LlmMessage],
+        tools: &[ToolDefinition],
+        model: Option<&str>,
+        temperature: f32,
+        on_delta: impl Fn(String) + Send + Sync,
+    ) -> Result<StreamOutcome> {
+        match self {
+            LlmClient::OpenAI {
+                base_url,
+                api_key,
+                chat_model,
+                ..
+            } => {
+                stream_openai_with_tools(
+                    base_url,
+                    api_key,
+                    model.unwrap_or(chat_model),
+                    messages,
+                    tools,
+                    temperature,
+                    16_384,
+                    &on_delta,
+                )
+                .await
+            }
+            LlmClient::Anthropic {
+                base_url,
+                api_key,
+                chat_model,
+            } => {
+                stream_anthropic_with_tools(
+                    base_url,
+                    api_key,
+                    model.unwrap_or(chat_model),
+                    messages,
+                    tools,
                     temperature,
                     16_384,
                     &on_delta,
@@ -829,4 +945,228 @@ async fn stream_anthropic(
         }
     }
     Ok(full)
+}
+
+// ── OpenAI streaming with tools ────────────────────────────────────
+
+async fn stream_openai_with_tools(
+    base_url: &str,
+    api_key: &str,
+    model: &str,
+    messages: &[LlmMessage],
+    tools: &[ToolDefinition],
+    temperature: f32,
+    max_tokens: u32,
+    on_delta: &(impl Fn(String) + Send + Sync),
+) -> Result<StreamOutcome> {
+    let client = reqwest::Client::new();
+    let mut body = json!({
+        "model": model,
+        "messages": build_message_array_impl(messages),
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": true,
+    });
+    if !tools.is_empty() {
+        body["tools"] = json!(tools
+            .iter()
+            .map(|t| json!({
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.parameters,
+                }
+            }))
+            .collect::<Vec<_>>());
+        body["tool_choice"] = json!("auto");
+    }
+    let resp = client
+        .post(format!(
+            "{}/chat/completions",
+            base_url.trim_end_matches('/')
+        ))
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .header("User-Agent", USER_AGENT)
+        .json(&body)
+        .send()
+        .await?;
+
+    let resp = ensure_http_success(resp, |status, body| {
+        format_openai_http_error_impl(status, body, base_url, "LLM streaming API error")
+    })
+    .await?;
+
+    let mut full = String::new();
+    let mut buf = String::new();
+    let mut stream = resp.bytes_stream();
+    let mut tool_calls_acc: Vec<serde_json::Value> = Vec::new();
+    let mut finish_reason = String::new();
+
+    while let Some(chunk) = stream.next().await {
+        let bytes = chunk?;
+        append_sse_chunk(&mut buf, &bytes);
+        for data in drain_sse_payloads(&mut buf) {
+            if data == "[DONE]" {
+                break;
+            }
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                if let Some(fr) = v["choices"][0]["finish_reason"].as_str() {
+                    finish_reason = fr.to_string();
+                }
+                if let Some(c) = v["choices"][0]["delta"]["content"].as_str() {
+                    if !c.is_empty() {
+                        full.push_str(c);
+                        on_delta(c.to_string());
+                    }
+                }
+                if let Some(tc_array) = v["choices"][0]["delta"]["tool_calls"].as_array() {
+                    for tc_delta in tc_array {
+                        let index = tc_delta["index"].as_u64().unwrap_or(0) as usize;
+                        while tool_calls_acc.len() <= index {
+                            tool_calls_acc.push(json!({"id":"","function":{"name":"","arguments":""}}));
+                        }
+                        if let Some(id) = tc_delta["id"].as_str() {
+                            tool_calls_acc[index]["id"] = json!(id);
+                        }
+                        if let Some(name) = tc_delta["function"]["name"].as_str() {
+                            tool_calls_acc[index]["function"]["name"] = json!(name);
+                        }
+                        if let Some(args) = tc_delta["function"]["arguments"].as_str() {
+                            let prev = tool_calls_acc[index]["function"]["arguments"]
+                                .as_str()
+                                .unwrap_or("");
+                            tool_calls_acc[index]["function"]["arguments"] =
+                                json!(format!("{prev}{args}"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if finish_reason == "tool_calls" && !tool_calls_acc.is_empty() {
+        let calls: Vec<ToolCall> = tool_calls_acc
+            .iter()
+            .filter_map(|tc| {
+                Some(ToolCall {
+                    id: tc["id"].as_str()?.to_string(),
+                    name: tc["function"]["name"].as_str()?.to_string(),
+                    arguments: tc["function"]["arguments"].as_str()?.to_string(),
+                })
+            })
+            .collect();
+        if calls.is_empty() {
+            Ok(StreamOutcome::TextCompleted(full))
+        } else {
+            Ok(StreamOutcome::ToolCalls(calls))
+        }
+    } else {
+        Ok(StreamOutcome::TextCompleted(full))
+    }
+}
+
+// ── Anthropic streaming with tools ─────────────────────────────────
+
+async fn stream_anthropic_with_tools(
+    base_url: &str,
+    api_key: &str,
+    model: &str,
+    messages: &[LlmMessage],
+    tools: &[ToolDefinition],
+    temperature: f32,
+    max_tokens: u32,
+    on_delta: &(impl Fn(String) + Send + Sync),
+) -> Result<StreamOutcome> {
+    let client = reqwest::Client::new();
+    let system = messages
+        .iter()
+        .find(|m| m.role == "system")
+        .map(|m| m.content.clone());
+    let user_msgs = build_anthropic_user_messages(messages);
+    let mut body = json!({
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": user_msgs,
+        "temperature": temperature,
+        "stream": true,
+    });
+    if let Some(s) = system {
+        body["system"] = json!(s);
+    }
+    if !tools.is_empty() {
+        body["tools"] = build_anthropic_tools(tools);
+    }
+    let resp = client
+        .post(build_anthropic_messages_url(base_url))
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&body)
+        .send()
+        .await?;
+
+    let resp = ensure_http_success(resp, |status, body| {
+        format_http_error(status, body, "Anthropic streaming error")
+    })
+    .await?;
+
+    let mut full = String::new();
+    let mut buf = String::new();
+    let mut stream = resp.bytes_stream();
+    let mut tool_calls_acc: Vec<ToolCall> = Vec::new();
+    let mut stop_reason = String::new();
+
+    while let Some(chunk) = stream.next().await {
+        let bytes = chunk?;
+        append_sse_chunk(&mut buf, &bytes);
+        for data in drain_sse_payloads(&mut buf) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                match v["type"].as_str() {
+                    Some("content_block_start") => {
+                        if v["content_block"]["type"].as_str() == Some("tool_use") {
+                            let id = v["content_block"]["id"]
+                                .as_str().unwrap_or("").to_string();
+                            let name = v["content_block"]["name"]
+                                .as_str().unwrap_or("").to_string();
+                            tool_calls_acc.push(ToolCall {
+                                id,
+                                name,
+                                arguments: String::new(),
+                            });
+                        }
+                    }
+                    Some("content_block_delta") => {
+                        if v["delta"]["type"].as_str() == Some("input_json_delta") {
+                            if let Some(partial) = v["delta"]["partial_json"].as_str() {
+                                if let Some(last) = tool_calls_acc.last_mut() {
+                                    last.arguments.push_str(partial);
+                                }
+                            }
+                        }
+                        if v["delta"]["type"].as_str() == Some("text_delta") {
+                            if let Some(t) = v["delta"]["text"].as_str() {
+                                if !t.is_empty() {
+                                    full.push_str(t);
+                                    on_delta(t.to_string());
+                                }
+                            }
+                        }
+                    }
+                    Some("message_delta") => {
+                        if let Some(sr) = v["delta"]["stop_reason"].as_str() {
+                            stop_reason = sr.to_string();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if stop_reason == "tool_use" && !tool_calls_acc.is_empty() {
+        Ok(StreamOutcome::ToolCalls(tool_calls_acc))
+    } else {
+        Ok(StreamOutcome::TextCompleted(full))
+    }
 }
