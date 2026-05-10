@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookMarked, CheckCircle2, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { BookMarked, CheckCircle2, ChevronsLeft, ChevronsRight, PanelRightOpen, PanelRightClose } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
 import type { AgentArtifact, AgentPlanStep, AgentRun } from "@research-copilot/types";
 import AgentStateGraphPanel from "./AgentStateGraphPanel";
@@ -37,6 +37,7 @@ export default function CopilotOverviewSidebar({
   onArtifactLinkClick,
 }: CopilotOverviewSidebarProps) {
   const [expanded, setExpanded] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     if (!expanded) {
@@ -56,6 +57,25 @@ export default function CopilotOverviewSidebar({
   }, [expanded]);
 
   const visibleArtifacts = expanded ? artifacts : artifacts.slice(0, 4);
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        aria-label="展开任务纵览"
+        onClick={() => setCollapsed(false)}
+        className="absolute top-3 right-3 z-10 h-9 w-9 flex items-center justify-center rounded-2xl transition-all duration-150 hover:scale-[1.02] active:scale-95"
+        style={{
+          background: "var(--rc-card-inset-bg)",
+          boxShadow: "var(--rc-inset-shadow)",
+          color: "var(--rc-text-secondary)",
+        }}
+        title="展开任务纵览"
+      >
+        <PanelRightOpen className="h-4 w-4" />
+      </button>
+    );
+  }
 
   return (
     <div
@@ -100,21 +120,37 @@ export default function CopilotOverviewSidebar({
                 </p>
               </div>
 
-              <button
-                type="button"
-                aria-label={expanded ? "收起任务总览" : "展开任务总览"}
-                aria-pressed={expanded}
-                onClick={() => setExpanded((currentExpanded) => !currentExpanded)}
-                className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl transition-all duration-150 hover:scale-[1.02] active:scale-95"
-                style={{
-                  background: expanded ? "rgba(0,122,255,0.12)" : "var(--rc-card-inset-bg)",
-                  boxShadow: expanded ? "0 0 0 1px rgba(0,122,255,0.18)" : "var(--rc-inset-shadow)",
-                  color: expanded ? "#007AFF" : "var(--rc-text-secondary)",
-                }}
-                title={expanded ? "收起任务总览" : "展开任务总览"}
-              >
-                {expanded ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label={expanded ? "收起任务总览" : "展开任务总览"}
+                  aria-pressed={expanded}
+                  onClick={() => setExpanded((currentExpanded) => !currentExpanded)}
+                  className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl transition-all duration-150 hover:scale-[1.02] active:scale-95"
+                  style={{
+                    background: expanded ? "rgba(0,122,255,0.12)" : "var(--rc-card-inset-bg)",
+                    boxShadow: expanded ? "0 0 0 1px rgba(0,122,255,0.18)" : "var(--rc-inset-shadow)",
+                    color: expanded ? "#007AFF" : "var(--rc-text-secondary)",
+                  }}
+                  title={expanded ? "收起任务总览" : "展开任务总览"}
+                >
+                  {expanded ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+                </button>
+                <button
+                  type="button"
+                  aria-label="折叠任务纵览"
+                  onClick={() => setCollapsed(true)}
+                  className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl transition-all duration-150 hover:scale-[1.02] active:scale-95"
+                  style={{
+                    background: "var(--rc-card-inset-bg)",
+                    boxShadow: "var(--rc-inset-shadow)",
+                    color: "var(--rc-text-secondary)",
+                  }}
+                  title="折叠任务纵览"
+                >
+                  <PanelRightClose className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {activeRequestId ? (

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Bot,
-  BrainCircuit,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
   Clock3,
   MessageSquare,
+  MoreHorizontal,
   Plus,
   Trash2,
   User,
@@ -17,10 +17,8 @@ import {
 import { MarkdownRenderer, Select } from "@research-copilot/ui";
 import {
   MAIN_ASSISTANT_NAME,
-  MAIN_ASSISTANT_STATUS_DESCRIPTION,
   MAIN_ASSISTANT_WELCOME_DESCRIPTION,
   MAIN_ASSISTANT_WELCOME_TITLE,
-  MAIN_ASSISTANT_WORKSPACE_NAME,
 } from "@research-copilot/types";
 import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
@@ -109,6 +107,9 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; session: ChatSession } | null>(null);
+  const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [memoryInput, setMemoryInput] = useState("");
@@ -327,6 +328,47 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     }
   };
 
+  const handlePinSession = (sessionId: string) => {
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === sessionId);
+      if (idx <= 0) return prev;
+      const item = prev[idx];
+      const next = [...prev];
+      next.splice(idx, 1);
+      next.unshift(item);
+      return next;
+    });
+  };
+
+  const startRename = (session: ChatSession) => {
+    setRenamingId(session.id);
+    setRenameTitle(session.title || "");
+    setMenuSessionId(null);
+  };
+
+  const commitRename = () => {
+    if (renamingId && renameTitle.trim()) {
+      setSessions((prev) =>
+        prev.map((s) => (s.id === renamingId ? { ...s, title: renameTitle.trim() } : s)),
+      );
+    }
+    setRenamingId(null);
+    setRenameTitle("");
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameTitle("");
+  };
+
+  // 关闭三点菜单的点击外部监听
+  useEffect(() => {
+    if (!menuSessionId) return;
+    const handler = () => setMenuSessionId(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [menuSessionId]);
+
   const handleDeleteInterestGroup = async (interestId: string, deleteAll: boolean) => {
     try {
       setDeletingGroupId(interestId);
@@ -522,39 +564,88 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const artifacts = displayedRuns.flatMap((run) => run.artifacts ?? []);
   const sessionListCollapsed = sessionListMode === "collapsed";
 
-  const renderSessionItem = (session: ChatSession) => (
-    <div
-      key={session.id}
-      className="group flex items-start gap-2 rounded-2xl px-3 py-2.5 text-xs transition-all duration-150"
-      onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, session }); }}
-      style={
-        currentSession?.id === session.id
-          ? {
-            background: "var(--rc-surface)",
-            boxShadow: "var(--rc-inset-shadow)",
-            color: "#007AFF",
-          }
-          : {
-            background: "var(--rc-surface)",
-            boxShadow: "var(--rc-chip-shadow)",
-            color: "var(--rc-text-soft)",
-          }
-      }
-    >
-      <button className="min-w-0 flex-1 text-left" onClick={() => void loadSession(session)}>
-        <div className="truncate font-medium">{session.title || "新对话"}</div>
-        <div className="mt-1 text-[11px] opacity-70">
-          {new Date(session.updated_at || session.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
-        </div>
-      </button>
-      <button
-        onClick={() => void handleDeleteSession(session.id)}
-        className="opacity-0 group-hover:opacity-100 transition-opacity text-ink-tertiary hover:text-apple-red"
+  const renderSessionItem = (session: ChatSession) => {
+    const isRenaming = renamingId === session.id;
+    return (
+      <div
+        key={session.id}
+        className="group relative flex items-center gap-2 rounded-2xl px-3 py-2.5 text-xs transition-all duration-150"
+        onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, session }); }}
+        style={
+          currentSession?.id === session.id
+            ? {
+              background: "var(--rc-surface)",
+              boxShadow: "var(--rc-inset-shadow)",
+              color: "#007AFF",
+            }
+            : {
+              background: "var(--rc-surface)",
+              boxShadow: "var(--rc-chip-shadow)",
+              color: "var(--rc-text-soft)",
+            }
+        }
       >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  );
+        {isRenaming ? (
+          <input
+            className="min-w-0 flex-1 rounded-lg px-2 py-1 text-xs font-medium text-ink-primary outline-none"
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
+            value={renameTitle}
+            onChange={(e) => setRenameTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") cancelRename();
+            }}
+            onBlur={commitRename}
+            autoFocus
+          />
+        ) : (
+          <button className="min-w-0 flex-1 text-left" onClick={() => void loadSession(session)}>
+            <div className="truncate font-medium">{session.title || "新对话"}</div>
+            {/* <div className="mt-1 text-[11px] opacity-70">
+              {new Date(session.updated_at || session.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+            </div> */}
+          </button>
+        )}
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); setMenuSessionId(menuSessionId === session.id ? null : session.id); }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-ink-tertiary hover:text-ink-primary"
+          >
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+          {menuSessionId === session.id && (
+            <div
+              className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-2xl py-1.5 text-xs"
+              style={{
+                background: "var(--rc-elevated)",
+                boxShadow: "var(--rc-chip-shadow)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
+                onClick={() => { handlePinSession(session.id); setMenuSessionId(null); }}
+              >
+                置顶
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
+                onClick={() => startRename(session)}
+              >
+                重命名
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-apple-red transition-colors hover:bg-apple-red/8"
+                onClick={() => { void handleDeleteSession(session.id); setMenuSessionId(null); }}
+              >
+                删除
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -727,21 +818,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                 boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
               }}
             >
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center text-white"
-                  style={{
-                    background: "linear-gradient(145deg, #111827, #334155)",
-                    boxShadow: "4px 4px 10px rgba(15,23,42,0.24)",
-                  }}
-                >
-                  <BrainCircuit className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="font-semibold text-sm text-ink-primary">{MAIN_ASSISTANT_WORKSPACE_NAME}</span>
-                  <p className="text-xs text-ink-tertiary mt-0.5">{MAIN_ASSISTANT_STATUS_DESCRIPTION}</p>
-                </div>
-              </div>
+              <div className="flex-1" />
               <div className="flex items-center gap-3">
                 {currentSession && (
                   <Select
