@@ -1,18 +1,18 @@
 import type { ReactNode } from "react";
-import { ArrowRight, BookOpen, Library, MessageSquare, Sparkles } from "lucide-react";
-import { Badge, Card } from "@research-copilot/ui";
+import { BookOpen, Library, MessageSquare, Sparkles } from "lucide-react";
+import { Card } from "@research-copilot/ui";
 import { Link } from "react-router-dom";
 import { clsx } from "clsx";
 import {
-  toneStyle,
-  toneToBadgeVariant,
-  type WorkbenchAgendaItem,
-  type WorkbenchAssetItem,
-  type WorkbenchHandoffItem,
-  type WorkbenchInterestItem,
+  AgendaTimeline,
+  AssetShelf,
+  HandoffQueue,
+  InterestBoard,
+  RiskAlertList,
+} from "./OverviewModuleViews";
+import {
   type WorkbenchMetric,
   type WorkbenchOverviewModel,
-  type WorkbenchRiskItem,
   type WorkbenchSectionLayout,
 } from "./shared";
 
@@ -42,35 +42,6 @@ function InsetSurface({ children, className }: InsetSurfaceProps) {
   );
 }
 
-function TextActionLink({ to, label }: { to: string; label: string }) {
-  return (
-    <Link
-      to={to}
-      className="inline-flex items-center gap-1 text-xs font-medium text-apple-blue transition-opacity hover:opacity-75"
-    >
-      {label}
-      <ArrowRight className="h-3.5 w-3.5" />
-    </Link>
-  );
-}
-
-function IconActionLink({ to, label }: { to: string; label: string }) {
-  return (
-    <Link
-      to={to}
-      aria-label={label}
-      className="mt-0.5 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-2xl text-ink-tertiary transition-colors hover:text-apple-blue"
-      style={{
-        background: "var(--rc-chip-bg)",
-        border: "1px solid var(--rc-card-outline)",
-        boxShadow: "var(--rc-chip-shadow)",
-      }}
-    >
-      <ArrowRight className="h-4 w-4" />
-    </Link>
-  );
-}
-
 function SectionHeading({ title, description, action }: SectionHeadingProps) {
   return (
     <div className="flex items-end justify-between gap-3">
@@ -90,19 +61,6 @@ function SectionHeading({ title, description, action }: SectionHeadingProps) {
   );
 }
 
-function ToneTag({ label, tone }: { label: string; tone: WorkbenchAgendaItem["tone"] }) {
-  const style = toneStyle(tone);
-
-  return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
-      style={{ background: style.background, color: style.color }}
-    >
-      {label}
-    </span>
-  );
-}
-
 export function SummaryItem({ title, description }: { title: string; description: string }) {
   return (
     <InsetSurface className="min-h-[74px]">
@@ -119,98 +77,6 @@ export function MetricItem({ metric }: { metric: WorkbenchMetric }) {
       <p className="mt-1 text-lg font-semibold leading-6 tabular-nums text-ink-primary">{metric.value}</p>
       <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-ink-secondary">{metric.note}</p>
     </div>
-  );
-}
-
-function AgendaItem({ item }: { item: WorkbenchAgendaItem }) {
-  return (
-    <Card variant="inset" padding="sm" className="group">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-2">
-          <ToneTag label={item.label} tone={item.tone} />
-          <div>
-            <p className="text-sm font-semibold text-ink-primary">{item.title}</p>
-            <p className="mt-1 text-xs leading-5 text-ink-secondary">{item.description}</p>
-          </div>
-        </div>
-        <IconActionLink to={item.action.to} label={item.action.label} />
-      </div>
-    </Card>
-  );
-}
-
-function InterestItem({ item }: { item: WorkbenchInterestItem }) {
-  return (
-    <Card variant="inset" padding="sm" className="flex min-h-[178px] flex-col">
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 truncate text-sm font-semibold text-ink-primary">{item.title}</p>
-        <Badge variant={toneToBadgeVariant(item.stageTone)}>{item.stage}</Badge>
-      </div>
-
-      <p className="mt-2 line-clamp-3 flex-1 text-xs leading-5 text-ink-secondary">{item.summary}</p>
-
-      <div className="mt-3 space-y-3 border-t pt-3" style={{ borderColor: "var(--rc-border)" }}>
-        <div className="flex flex-wrap gap-1.5">
-          {item.stats.map((stat) => (
-            <span
-              key={stat}
-              className="inline-flex items-center rounded-lg px-2 py-1 text-[11px] font-medium text-ink-tertiary"
-              style={{ background: "rgb(var(--rc-bg-rgb) / 0.18)" }}
-            >
-              {stat}
-            </span>
-          ))}
-        </div>
-        <div className="flex items-start justify-between gap-3">
-          <p className="line-clamp-2 text-xs leading-5 text-ink-tertiary">
-            <span className="font-semibold text-ink-secondary">下一步 </span>
-            {item.nextStep}
-          </p>
-          <TextActionLink to={item.action.to} label={item.action.label} />
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function HandoffItem({ item }: { item: WorkbenchHandoffItem }) {
-  return (
-    <InsetSurface className="group">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <ToneTag label={item.label} tone={item.tone} />
-          <p className="mt-2 text-sm font-semibold text-ink-primary">{item.title}</p>
-          <p className="mt-1 text-xs leading-5 text-ink-secondary">{item.description}</p>
-        </div>
-        <IconActionLink to={item.action.to} label={item.action.label} />
-      </div>
-    </InsetSurface>
-  );
-}
-
-function RiskItem({ item }: { item: WorkbenchRiskItem }) {
-  return (
-    <InsetSurface>
-      <ToneTag label={item.label} tone={item.tone} />
-      <p className="mt-2 text-sm font-semibold text-ink-primary">{item.title}</p>
-      <p className="mt-1 text-xs leading-5 text-ink-secondary">{item.description}</p>
-      <div className="mt-2.5">
-        <TextActionLink to={item.action.to} label={item.action.label} />
-      </div>
-    </InsetSurface>
-  );
-}
-
-function AssetItem({ item }: { item: WorkbenchAssetItem }) {
-  return (
-    <Card variant="inset" padding="sm" className="flex min-h-[144px] flex-col">
-      <p className="text-[11px] font-semibold text-ink-tertiary">{item.label}</p>
-      <p className="mt-1.5 text-sm font-semibold text-ink-primary">{item.title}</p>
-      <p className="mt-1 line-clamp-3 flex-1 text-xs leading-5 text-ink-secondary">{item.description}</p>
-      <div className="mt-2.5">
-        <TextActionLink to={item.action.to} label={item.action.label} />
-      </div>
-    </Card>
   );
 }
 
@@ -240,11 +106,7 @@ export function OverviewSection({
           {model.agenda.length === 0 ? (
             <EmptyState>今日待办已清空。做点随手记或者开启新的规划吧。</EmptyState>
           ) : (
-            <div className="grid gap-2.5">
-              {model.agenda.map((item) => (
-                <AgendaItem key={item.id} item={item} />
-              ))}
-            </div>
+            <AgendaTimeline items={model.agenda} />
           )}
         </section>
       );
@@ -260,11 +122,7 @@ export function OverviewSection({
           {model.interests.length === 0 ? (
             <EmptyState>还没有明确的研究主题，去规划里建立一个吧。</EmptyState>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {model.interests.map((item) => (
-                <InterestItem key={item.id} item={item} />
-              ))}
-            </div>
+            <InterestBoard items={model.interests} />
           )}
         </section>
       );
@@ -280,11 +138,7 @@ export function OverviewSection({
           {model.handoffs.length === 0 ? (
             <EmptyState>所有任务已交接。</EmptyState>
           ) : (
-            <div className="grid gap-2.5">
-              {model.handoffs.map((item) => (
-                <HandoffItem key={item.id} item={item} />
-              ))}
-            </div>
+            <HandoffQueue items={model.handoffs} />
           )}
         </section>
       );
@@ -299,11 +153,7 @@ export function OverviewSection({
             description="容易拖慢研究推进的紧急事项。"
             action={{ label: "去投稿", to: "/submission" }}
           />
-          <div className="grid gap-2.5">
-            {model.risks.map((item) => (
-              <RiskItem key={item.id} item={item} />
-            ))}
-          </div>
+          <RiskAlertList items={model.risks} />
         </section>
       );
 
@@ -314,11 +164,7 @@ export function OverviewSection({
             title="近期沉淀"
             description="当前目标相关的论文、笔记和知识线索。"
           />
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3">
-            {model.assets.map((item) => (
-              <AssetItem key={item.id} item={item} />
-            ))}
-          </div>
+          <AssetShelf items={model.assets} />
         </section>
       );
 
