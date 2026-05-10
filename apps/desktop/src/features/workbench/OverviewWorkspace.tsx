@@ -30,11 +30,6 @@ export default function OverviewWorkspace({ model }: OverviewWorkspaceProps) {
               <div className="space-y-2.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="rc-kicker">小妍工作台</p>
-                  {model.aiGenerated ? (
-                    <span className="rc-accent-chip rounded-full px-2 py-0.5 text-[11px] font-medium">
-                      AI 概览
-                    </span>
-                  ) : null}
                 </div>
                 <h1 className="max-w-3xl text-[clamp(1.55rem,2.25vw,2.35rem)] font-semibold leading-tight tracking-normal text-ink-primary">
                   {model.heroTitle}
