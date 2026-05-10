@@ -21,6 +21,7 @@ import ExternalLink from "../components/ExternalLink";
 import PaperCitationPanel from "../features/papers/PaperCitationPanel";
 import PaperDetailModal from "../features/papers/PaperDetailModal";
 import type { PaperFigure } from "../features/papers/shared";
+import { usePaperDetailRoute } from "../features/papers/usePaperDetailRoute";
 import { usePersistentState } from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, parsePaperTagVisibility } from "../lib/paperTags";
@@ -238,6 +239,11 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     () => papers.find((paper) => paper.id === detailPaperId) ?? null,
     [detailPaperId, papers],
   );
+  const { closePaperDetail, openPaperDetail } = usePaperDetailRoute({
+    papers,
+    detailPaperId,
+    setDetailPaperId,
+  });
 
   const toFilePath = (item: unknown): string => {
     if (typeof item === "string") return item;
@@ -743,7 +749,11 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               type="button"
               onClick={() => {
                 const isOpening = detailPaperId !== paper.id;
-                setDetailPaperId(isOpening ? paper.id : null);
+                if (isOpening) {
+                  openPaperDetail(paper.id);
+                } else {
+                  closePaperDetail();
+                }
                 if (isOpening) {
                   void apiClient.memory.add({
                     type: "auto",
@@ -1161,7 +1171,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       <PaperDetailModal
         paper={detailPaper}
         figures={detailPaper ? (paperFigures[detailPaper.id] ?? []) : []}
-        onClose={() => setDetailPaperId(null)}
+        onClose={closePaperDetail}
       />
     </div>
     </>

@@ -27,6 +27,26 @@ export interface WorkbenchLinkAction {
   to: string;
 }
 
+const PAPER_TITLE_PREVIEW_LENGTH = 18;
+
+export function paperDetailPath(paper: Paper): string {
+  return `/papers?paper=${encodeURIComponent(paper.id)}`;
+}
+
+export function paperTitlePreview(paper: Paper): string {
+  const title = paper.title.trim() || "这篇论文";
+  if (title.length <= PAPER_TITLE_PREVIEW_LENGTH) return title;
+  return `${title.slice(0, PAPER_TITLE_PREVIEW_LENGTH)}…`;
+}
+
+export function paperAction(label: string, paper: Paper): WorkbenchLinkAction {
+  return { label, to: paperDetailPath(paper) };
+}
+
+export function paperActionLabel(verb: string, paper: Paper): string {
+  return `${verb}《${paperTitlePreview(paper)}》`;
+}
+
 export interface WorkbenchAgendaItem {
   id: string;
   label: string;

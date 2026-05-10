@@ -1,4 +1,5 @@
 import type { ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
+import { paperAction, paperActionLabel, paperTitlePreview } from "./shared";
 import type {
   SubmissionOverviewStats,
   WorkbenchAgendaItem,
@@ -60,6 +61,12 @@ function interestTitle(interest: ResearchInterest): string {
   return interest.folder_name?.trim() || interest.topic;
 }
 
+function latestPaperByUpdate(papers: Paper[]): Paper | undefined {
+  return [...papers].sort(
+    (left, right) => toTimestamp(right.updated_at || right.created_at) - toTimestamp(left.updated_at || left.created_at),
+  )[0];
+}
+
 function latestTimestamp(values: Array<string | null | undefined>): number {
   return values.reduce((max, value) => Math.max(max, toTimestamp(value)), 0);
 }
@@ -73,6 +80,7 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
       const notes = source.notes.filter((note) => note.research_interest_id === interest.id);
       const sessions = source.sessions.filter((session) => session.context_type === "interest" && session.context_id === interest.id);
       const analyzedCount = papers.filter((paper) => Boolean(paper.analysis)).length;
+      const latestPaper = latestPaperByUpdate(papers);
       const recentAt = latestTimestamp([
         interest.created_at,
         ...papers.map((paper) => paper.updated_at || paper.created_at),
@@ -96,13 +104,17 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
         stageTone = "amber";
         summary = "路线已经成形，但还没有和这个主题关联的核心论文。";
         nextStep = "先导入 1 篇最能代表问题边界的论文。";
-        action = { label: "去论文", to: "/papers" };
+        action = { label: "导入论文", to: "/papers" };
       } else if (interest.status === "planned" && analyzedCount === 0) {
         stage = "论文精读";
         stageTone = "blue";
         summary = `已经关联 ${papers.length} 篇论文，下一步先完成首篇解读。`;
-        nextStep = "先让小妍把一篇核心论文解读清楚。";
-        action = { label: "看论文", to: "/papers" };
+        nextStep = latestPaper
+          ? `先让小妍解读《${paperTitlePreview(latestPaper)}》。`
+          : "先让小妍把一篇核心论文解读清楚。";
+        action = latestPaper
+          ? paperAction(paperActionLabel("解读", latestPaper), latestPaper)
+          : { label: "打开论文库", to: "/papers" };
       } else if (interest.status === "planned" && notes.length === 0) {
         stage = "沉淀知识";
         stageTone = "green";
@@ -238,7 +250,7 @@ function buildHandoffs(source: WorkbenchOverviewSource): WorkbenchHandoffItem[] 
       title: `小妍刚整理完《${latestAnalyzedPaper.title}》`,
       description: `最近更新于 ${formatDateTime(latestAnalyzedPaper.updated_at || latestAnalyzedPaper.created_at)}，可以继续查看方法、结论和复现提示。`,
       tone: "blue",
-      action: { label: "查看论文", to: "/papers" },
+      action: paperAction("打开这篇", latestAnalyzedPaper),
     });
   }
 
@@ -311,24 +323,34 @@ function buildRisks(source: WorkbenchOverviewSource): WorkbenchRiskItem[] {
     });
 
   if (failedPapers.length > 0) {
+    const firstFailedPaper = latestPaperByUpdate(failedPapers);
     items.push({
       id: "risk-failed-papers",
       label: "处理中断",
       title: `${failedPapers.length} 篇论文处理失败`,
-      description: "解析或解读失败会直接中断后面的知识沉淀和追问，建议尽快处理。",
+      description: firstFailedPaper
+        ? `先检查《${paperTitlePreview(firstFailedPaper)}》，避免后续知识沉淀和追问中断。`
+        : "解析或解读失败会直接中断后面的知识沉淀和追问，建议尽快处理。",
       tone: "rust",
-      action: { label: "去论文", to: "/papers" },
+      action: firstFailedPaper
+        ? paperAction(paperActionLabel("处理", firstFailedPaper), firstFailedPaper)
+        : { label: "打开论文库", to: "/papers" },
     });
   }
 
   if (processingPapers.length > 0) {
+    const firstProcessingPaper = latestPaperByUpdate(processingPapers);
     items.push({
       id: "risk-processing-papers",
       label: "正在处理中",
       title: `${processingPapers.length} 篇论文仍在处理中`,
-      description: "可以先去看其他已完成的材料，等处理结束后再继续补知识或追问。",
+      description: firstProcessingPaper
+        ? `《${paperTitlePreview(firstProcessingPaper)}》还在处理中，可以先查看其他已完成材料。`
+        : "可以先去看其他已完成的材料，等处理结束后再继续补知识或追问。",
       tone: "blue",
-      action: { label: "查看论文", to: "/papers" },
+      action: firstProcessingPaper
+        ? paperAction(paperActionLabel("查看", firstProcessingPaper), firstProcessingPaper)
+        : { label: "打开论文库", to: "/papers" },
     });
   }
 
@@ -361,8 +383,7 @@ function buildAssets(source: WorkbenchOverviewSource, snapshots: InterestSnapsho
   const latestInterest = snapshots[0];
   const latestNote = [...source.notes]
     .sort((left, right) => toTimestamp(right.updated_at || right.created_at) - toTimestamp(left.updated_at || left.created_at))[0];
-  const latestPaper = [...source.papers]
-    .sort((left, right) => toTimestamp(right.updated_at || right.created_at) - toTimestamp(left.updated_at || left.created_at))[0];
+  const latestPaper = latestPaperByUpdate(source.papers);
 
   const items: WorkbenchAssetItem[] = [];
 
@@ -392,7 +413,7 @@ function buildAssets(source: WorkbenchOverviewSource, snapshots: InterestSnapsho
       label: "最近论文",
       title: latestPaper.title,
       description: `最近更新于 ${formatDateTime(latestPaper.updated_at || latestPaper.created_at)}。`,
-      action: { label: "去论文", to: "/papers" },
+      action: paperAction("打开这篇", latestPaper),
     });
   }
 
