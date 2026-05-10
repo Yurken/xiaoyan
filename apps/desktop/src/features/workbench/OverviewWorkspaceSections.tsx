@@ -114,10 +114,10 @@ export function SummaryItem({ title, description }: { title: string; description
 
 export function MetricItem({ metric }: { metric: WorkbenchMetric }) {
   return (
-    <div className="rc-home-metric-item rounded-[18px] px-3.5 py-3">
-      <p className="text-xs font-medium text-ink-tertiary">{metric.label}</p>
-      <p className="mt-1.5 text-xl font-semibold tabular-nums text-ink-primary">{metric.value}</p>
-      <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-ink-secondary">{metric.note}</p>
+    <div className="rc-home-metric-item rounded-2xl px-3 py-2.5">
+      <p className="text-[11px] font-medium leading-4 text-ink-tertiary">{metric.label}</p>
+      <p className="mt-1 text-lg font-semibold leading-6 tabular-nums text-ink-primary">{metric.value}</p>
+      <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-ink-secondary">{metric.note}</p>
     </div>
   );
 }

@@ -57,6 +57,12 @@ export default function OverviewWorkspace({ model }: OverviewWorkspaceProps) {
                   </Button>
                 </Link>
               </div>
+
+              <div className="grid max-w-2xl gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {model.metrics.map((metric) => (
+                  <MetricItem key={metric.label} metric={metric} />
+                ))}
+              </div>
             </div>
 
             <div className="grid content-start gap-2">
@@ -64,12 +70,6 @@ export default function OverviewWorkspace({ model }: OverviewWorkspaceProps) {
                 <SummaryItem key={item.title} title={item.title} description={item.description} />
               ))}
             </div>
-          </div>
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {model.metrics.map((metric) => (
-              <MetricItem key={metric.label} metric={metric} />
-            ))}
           </div>
         </Card>
 
