@@ -6,3 +6,4 @@ export { Input, Textarea } from "./Input";
 export { default as Select } from "./Select";
 export { default as ConfirmDialog } from "./ConfirmDialog";
 export { default as MarkdownRenderer } from "./MarkdownRenderer";
+export { CapsuleTabs } from "./CapsuleTabs";

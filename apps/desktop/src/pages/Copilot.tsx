@@ -853,21 +853,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             >
               <div className="flex-1" />
               <div className="flex items-center gap-3">
-                {currentSession && (
-                  <Select
-                    value={selectedInterestId}
-                    onChange={(value) => void handleSessionInterestChange(value)}
-                    disabled={updatingSessionContext}
-                    className="min-w-[160px]"
-                    options={[
-                      { value: "", label: "未归类" },
-                      ...interests.map((interest) => ({
-                        value: interest.id,
-                        label: interest.folder_name?.trim() || interest.topic,
-                      })),
-                    ]}
-                  />
-                )}
                 <div
                   className="px-3 py-1.5 rounded-full text-xs font-medium"
                   style={{

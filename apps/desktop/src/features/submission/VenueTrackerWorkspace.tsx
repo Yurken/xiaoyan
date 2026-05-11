@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Bell, BookOpen, Clock, Plus, RefreshCw, Star, StarOff } from "lucide-react";
-import { Button, Card } from "@research-copilot/ui";
+import { Button, CapsuleTabs, Card } from "@research-copilot/ui";
 import ExternalLink from "../../components/ExternalLink";
 import type { VenueTemplate } from "../../data/venues";
 import VenueRecommendationsPanel from "./VenueRecommendationsPanel";
@@ -65,26 +65,21 @@ export default function VenueTrackerWorkspace({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div
-          className="inline-flex rounded-2xl p-1 gap-0.5"
-          style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-card-inset-shadow)" }}
-        >
-          {filterOptions.map((filter) => (
-            <button
-              key={filter.value}
-              type="button"
-              onClick={() => onVenueFilterChange(filter.value)}
-              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-150"
-              style={
-                venueFilter === filter.value
-                  ? { background: "var(--rc-elevated)", boxShadow: "var(--rc-raised-shadow)", color: "var(--rc-text)" }
-                  : { color: "var(--rc-text-muted)" }
-              }
-            >
-              {filter.label}
-              {"count" in filter ? <span className="text-[10px] opacity-60">{filter.count}</span> : null}
-            </button>
-          ))}
+        <div>
+          {(() => {
+            const tabs = filterOptions.map((f) => ({
+              value: f.value,
+              label: "count" in f ? `${f.label} ${f.count}` : f.label,
+            }));
+            return (
+              <CapsuleTabs
+                compact
+                options={tabs}
+                value={venueFilter}
+                onChange={(v) => onVenueFilterChange(v as typeof venueFilter)}
+              />
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2">
           {onSyncDdl ? (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle,
@@ -21,7 +21,7 @@ import SkillsSection from "../features/settings/SkillsSection";
 import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from "../features/settings/SettingsChangelogCard";
 import TaskSetupSection from "../features/settings/TaskSetupSection";
 import LayoutSettingsSection from "../features/settings/LayoutSettingsSection";
-import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, SettingsSectionTab, type SettingsSectionKey } from "../features/settings/pageConfig";
+import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
 import { AgentChip, SectionIcon } from "../features/settings/shared";
 import { applyProviderPreset, detectPreset, PROVIDER_PRESETS, type ProviderPresetId } from "../features/settings/providerPresets";
 import { useSettingsController } from "../features/settings/useSettingsController";
@@ -33,6 +33,99 @@ import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import type { LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
 
 const SETTINGS_SECTION_KEYS = SETTINGS_SECTIONS.map((section) => section.key);
+
+function SettingsTabBar({
+  sections,
+  activeSection,
+  onSelect,
+}: {
+  sections: typeof SETTINGS_SECTIONS;
+  activeSection: string;
+  onSelect: (key: string) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const [glow, setGlow] = useState({ left: 0, width: 0, opacity: 0 });
+
+  useEffect(() => {
+    const el = buttonRefs.current.get(activeSection);
+    const container = containerRef.current;
+    if (!el || !container) return;
+    const cr = container.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
+    setGlow({ left: er.left - cr.left + 4, width: er.width - 8, opacity: 1 });
+  }, [activeSection, sections]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative grid min-w-0 gap-1 rounded-[28px] p-1"
+      style={{
+        gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))`,
+        background: "var(--rc-chip-inset-bg)",
+        border: "1px solid var(--rc-card-inset-outline)",
+        boxShadow: "var(--rc-chip-inset-shadow)",
+      }}
+    >
+      {/* Sliding glow indicator */}
+      <div
+        className="absolute top-1 rounded-[22px] transition-all duration-500 pointer-events-none"
+        style={{
+          height: "calc(100% - 8px)",
+          left: glow.left,
+          width: glow.width,
+          opacity: glow.opacity,
+          background: `radial-gradient(ellipse at center, color-mix(in srgb, var(--rc-accent) 18%, transparent), transparent 70%)`,
+          boxShadow: `0 0 24px color-mix(in srgb, var(--rc-accent) 14%, transparent)`,
+        }}
+      />
+      {sections.map((item) => (
+        <button
+          key={item.key}
+          ref={(el) => {
+            if (el) buttonRefs.current.set(item.key, el);
+          }}
+          type="button"
+          onClick={() => onSelect(item.key)}
+          aria-pressed={activeSection === item.key}
+          title={item.description}
+          className="relative z-10 min-w-0 rounded-[22px] px-2.5 py-2 text-left transition-all duration-300 active:scale-[0.98]"
+          style={
+            activeSection === item.key
+              ? {
+                  background: "color-mix(in srgb, var(--rc-accent) 10%, var(--rc-elevated))",
+                  border: "1px solid color-mix(in srgb, var(--rc-accent) 22%, var(--rc-border))",
+                  boxShadow: "var(--rc-card-flat-shadow)",
+                }
+              : { border: "1px solid transparent" }
+          }
+        >
+          <div className="flex min-w-0 items-center justify-center gap-2">
+            <span
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl transition-all duration-300"
+              style={{
+                background: activeSection === item.key
+                  ? `color-mix(in srgb, ${item.color} 16%, transparent)`
+                  : "transparent",
+                color: activeSection === item.key ? item.color : "var(--rc-text-muted)",
+              }}
+            >
+              <item.icon className="h-4 w-4" />
+            </span>
+            <span
+              className="min-w-0 truncate text-[13px] font-semibold leading-none transition-colors duration-200"
+              style={{
+                color: activeSection === item.key ? "var(--rc-text)" : "var(--rc-text-muted)",
+              }}
+            >
+              {item.label}
+            </span>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function Settings() {
   const {
@@ -276,27 +369,11 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        <div
-          className="grid min-w-0 gap-1 rounded-[28px] p-1"
-          style={{
-            gridTemplateColumns: `repeat(${SETTINGS_SECTIONS.length}, minmax(0, 1fr))`,
-            background: "var(--rc-chip-inset-bg)",
-            border: "1px solid var(--rc-card-inset-outline)",
-            boxShadow: "var(--rc-chip-inset-shadow)",
-          }}
-        >
-          {SETTINGS_SECTIONS.map((item) => (
-            <SettingsSectionTab
-              key={item.key}
-              icon={item.icon}
-              color={item.color}
-              label={item.label}
-              description={item.description}
-              active={activeSection === item.key}
-              onClick={() => setActiveSection(item.key)}
-            />
-          ))}
-        </div>
+        <SettingsTabBar
+          sections={SETTINGS_SECTIONS}
+          activeSection={activeSection}
+          onSelect={setActiveSection}
+        />
 
         {/* 当前分区摘要卡与上方导航重复，先注释掉。 */}
         {/*

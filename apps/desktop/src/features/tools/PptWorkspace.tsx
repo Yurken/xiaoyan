@@ -1,16 +1,11 @@
 import { AlertCircle, AlignLeft, CheckCircle2, Download, FileText, Loader2, Presentation, Upload, Wand2 } from "lucide-react";
-import { Button, Card } from "@research-copilot/ui";
+import { Button, CapsuleTabs, Card } from "@research-copilot/ui";
 import { Link } from "react-router-dom";
 import { PptPreviewPanel } from "./PptPreviewPanel";
 import { LANGUAGE_OPTIONS, PAGE_OPTIONS, STYLE_OPTIONS, type PptData, type PptMode, type PptStatus } from "./pptShared";
 
 const insetShadow = "var(--rc-inset-shadow)";
 const raisedShadow = "var(--rc-raised-shadow)";
-const activeTabStyle = {
-  background: "var(--rc-elevated)",
-  boxShadow: raisedShadow,
-  color: "var(--rc-text)",
-} as const;
 const activeChipStyle = {
   background: "var(--rc-card-inset-bg)",
   color: "#007AFF",
@@ -118,20 +113,11 @@ export function PptWorkspace({
           </div>
         </div>
 
-        <div className="flex gap-0.5 rounded-2xl p-1" style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}>
-          {MODE_OPTIONS.map(({ key, icon, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onModeChange(key)}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150"
-              style={mode === key ? activeTabStyle : { color: "var(--rc-text-muted)" }}
-            >
-              {icon}
-              {label}
-            </button>
-          ))}
-        </div>
+        <CapsuleTabs
+          options={MODE_OPTIONS.map((m) => ({ value: m.key, label: m.label, icon: m.icon }))}
+          value={mode}
+          onChange={(v) => onModeChange(v as PptMode)}
+        />
 
         {mode === "topic" ? (
           <div className="space-y-2">

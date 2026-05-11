@@ -1,0 +1,81 @@
+import { useRef, useEffect, useState, type ReactNode } from "react";
+
+export interface CapsuleTab {
+  value: string;
+  label: string;
+  icon?: ReactNode;
+}
+
+interface CapsuleTabsProps {
+  options: readonly CapsuleTab[];
+  value: string;
+  onChange: (value: string) => void;
+  compact?: boolean;
+}
+
+export function CapsuleTabs({ options, value, onChange, compact }: CapsuleTabsProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const [indicatorStyle, setIndicatorStyle] = useState<{
+    left: number;
+    width: number;
+    opacity: number;
+  }>({ left: 0, width: 0, opacity: 0 });
+
+  useEffect(() => {
+    const el = buttonRefs.current.get(value);
+    const container = containerRef.current;
+    if (!el || !container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+
+    setIndicatorStyle({
+      left: elRect.left - containerRect.left,
+      width: elRect.width,
+      opacity: 1,
+    });
+  }, [value, options]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative inline-flex rounded-2xl p-1 gap-0.5"
+      style={{
+        background: "var(--rc-surface)",
+        boxShadow: "var(--rc-inset-shadow)",
+      }}
+    >
+      <div
+        className="absolute top-1 rounded-xl transition-all duration-300 ease-out"
+        style={{
+          height: "calc(100% - 8px)",
+          left: indicatorStyle.left,
+          width: indicatorStyle.width,
+          opacity: indicatorStyle.opacity,
+          background: "var(--rc-elevated)",
+          boxShadow: "var(--rc-raised-shadow)",
+        }}
+      />
+      {options.map((tab) => (
+        <button
+          key={tab.value}
+          ref={(el) => {
+            if (el) buttonRefs.current.set(tab.value, el);
+          }}
+          type="button"
+          onClick={() => onChange(tab.value)}
+          className={`relative z-10 inline-flex items-center gap-1.5 rounded-xl font-medium transition-colors duration-200 ${
+            compact ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"
+          }`}
+          style={{
+            color: value === tab.value ? "var(--rc-text)" : "var(--rc-text-muted)",
+          }}
+        >
+          {tab.icon}
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}

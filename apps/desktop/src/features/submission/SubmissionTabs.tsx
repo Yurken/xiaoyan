@@ -1,20 +1,16 @@
-import type { ComponentType } from "react";
 import { Calendar, CheckSquare, GitBranch, History, KanbanSquare } from "lucide-react";
+import { CapsuleTabs } from "@research-copilot/ui";
 
 export const SUBMISSION_TAB_KEYS = ["conferences", "kanban", "checklist", "versions", "reviews"] as const;
 export type SubmissionTab = (typeof SUBMISSION_TAB_KEYS)[number];
 
-const SUBMISSION_TABS: Array<{
-  key: SubmissionTab;
-  icon: ComponentType<{ className?: string }>;
-  label: string;
-}> = [
-  { key: "conferences", icon: Calendar, label: "DDL 日历" },
-  { key: "kanban", icon: KanbanSquare, label: "投稿看板" },
-  { key: "checklist", icon: CheckSquare, label: "提交清单" },
-  { key: "versions", icon: GitBranch, label: "版本控制" },
-  { key: "reviews", icon: History, label: "审稿归档" },
-];
+const SUBMISSION_TABS = [
+  { value: "conferences", icon: <Calendar className="h-4 w-4" />, label: "DDL 日历" },
+  { value: "kanban", icon: <KanbanSquare className="h-4 w-4" />, label: "投稿看板" },
+  { value: "checklist", icon: <CheckSquare className="h-4 w-4" />, label: "提交清单" },
+  { value: "versions", icon: <GitBranch className="h-4 w-4" />, label: "版本控制" },
+  { value: "reviews", icon: <History className="h-4 w-4" />, label: "审稿归档" },
+] as const;
 
 interface SubmissionTabsProps {
   activeTab: SubmissionTab;
@@ -23,26 +19,10 @@ interface SubmissionTabsProps {
 
 export default function SubmissionTabs({ activeTab, onTabChange }: SubmissionTabsProps) {
   return (
-    <div
-      className="inline-flex rounded-2xl p-1 gap-0.5"
-      style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
-    >
-      {SUBMISSION_TABS.map(({ key, icon: Icon, label }) => (
-        <button
-          key={key}
-          type="button"
-          onClick={() => onTabChange(key)}
-          className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150"
-          style={
-            activeTab === key
-              ? { background: "var(--rc-elevated)", boxShadow: "var(--rc-raised-shadow)", color: "var(--rc-text)" }
-              : { color: "var(--rc-text-muted)" }
-          }
-        >
-          <Icon className="h-4 w-4" />
-          {label}
-        </button>
-      ))}
-    </div>
+    <CapsuleTabs
+      options={SUBMISSION_TABS.map((t) => ({ value: t.value, label: t.label, icon: t.icon }))}
+      value={activeTab}
+      onChange={(v) => onTabChange(v as SubmissionTab)}
+    />
   );
 }
