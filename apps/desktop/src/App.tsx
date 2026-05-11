@@ -117,6 +117,37 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate]);
 
+  // Navigation indicator
+  const location = useLocation();
+  const navRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
+  const [indicatorStyle, setIndicatorStyle] = useState<{ top: number; height: number; opacity: number }>({ top: 0, height: 0, opacity: 0 });
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  const updateIndicator = useCallback(() => {
+    const path = location.pathname;
+    const key = navItems
+      .filter((item) => item.to !== "/" && path.startsWith(item.to))
+      .sort((a, b) => b.to.length - a.to.length)[0]?.to ?? "/";
+    if (!key) return;
+    const el = navRefs.current.get(key);
+    const sidebar = sidebarRef.current;
+    if (!el || !sidebar) return;
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    setIndicatorStyle({
+      top: elRect.top - sidebarRect.top,
+      height: elRect.height,
+      opacity: 1,
+    });
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (locked || !lockChecked) return;
+    // Delay to let DOM settle after route change or unlock
+    const timer = setTimeout(updateIndicator, 50);
+    return () => clearTimeout(timer);
+  }, [updateIndicator, locked, lockChecked]);
+
   // Lock screen — shown before any app content
   if (locked) {
     return (
@@ -132,34 +163,6 @@ export default function App() {
       />
     );
   }
-
-  // Navigation indicator
-  const location = useLocation();
-  const navRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
-  const [indicatorStyle, setIndicatorStyle] = useState<{ top: number; height: number; opacity: number }>({ top: 0, height: 0, opacity: 0 });
-  const sidebarRef = useRef<HTMLElement>(null);
-
-  const updateIndicator = useCallback(() => {
-    const path = location.pathname;
-    const key = path === "/" ? "/" : navItems.find((item) => path.startsWith(item.to))?.to;
-    if (!key) return;
-    const el = navRefs.current.get(key);
-    const sidebar = sidebarRef.current;
-    if (!el || !sidebar) return;
-    const sidebarRect = sidebar.getBoundingClientRect();
-    const elRect = el.getBoundingClientRect();
-    setIndicatorStyle({
-      top: elRect.top - sidebarRect.top,
-      height: elRect.height,
-      opacity: 1,
-    });
-  }, [location.pathname]);
-
-  useEffect(() => {
-    // Delay to let DOM settle after route change
-    const timer = setTimeout(updateIndicator, 50);
-    return () => clearTimeout(timer);
-  }, [updateIndicator]);
 
   // Don't render app until lock status has been checked
   if (!lockChecked) return null;
