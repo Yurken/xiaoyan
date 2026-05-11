@@ -35,7 +35,7 @@
   .app-shell--macos-overlay {
     --rc-shell-sidebar-top-gap: 6px;
     --rc-window-drag-height: 34px;
-    --rc-page-top-gap: 2px;
+    --rc-page-top-gap: 14px;
   }
 
   .app-sidebar__window-drag-region {
@@ -256,7 +256,7 @@
 
     .app-shell--macos-overlay {
       --rc-window-drag-height: 28px;
-      --rc-page-top-gap: 2px;
+      --rc-page-top-gap: 14px;
     }
 
     .app-sidebar {

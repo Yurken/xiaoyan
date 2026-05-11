@@ -141,7 +141,7 @@ export default function Tools() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-5">
+      <div className="flex-1 overflow-y-auto px-6 pt-3 pb-6 space-y-5">
 
       {activeTab === "arxiv" && <>
       <PaperDiscoveryPanel {...paperDiscovery.panelProps} />

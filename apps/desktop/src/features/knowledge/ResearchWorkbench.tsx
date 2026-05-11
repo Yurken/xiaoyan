@@ -511,7 +511,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
 
       {/* ── 工具 ── */}
       {activeTab === "tools" && (
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden pt-2">
           <Tools />
         </div>
       )}
