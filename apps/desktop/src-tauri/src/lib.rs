@@ -28,8 +28,10 @@ use tauri::Manager;
 
 use commands::{
     app_lock::{
-        app_lock_clear_password, app_lock_set_password, app_lock_set_timeout,
-        app_lock_status, app_lock_verify_password,
+        app_lock_clear_password, app_lock_get_hint, app_lock_get_recovery_info,
+        app_lock_reset_password, app_lock_set_password, app_lock_set_security,
+        app_lock_set_timeout, app_lock_status, app_lock_verify_password,
+        app_lock_verify_recovery,
     },
     arxiv::arxiv_search,
     ccf::{ccf_list, ccf_lookup},
@@ -389,6 +391,11 @@ pub fn run() {
             app_lock_verify_password,
             app_lock_clear_password,
             app_lock_set_timeout,
+            app_lock_get_hint,
+            app_lock_get_recovery_info,
+            app_lock_set_security,
+            app_lock_verify_recovery,
+            app_lock_reset_password,
             // Workbench
             workbench_generate_overview_text,
         ])

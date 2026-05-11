@@ -129,6 +129,23 @@ export default function App() {
             return false;
           }
         }}
+        onGetRecoveryInfo={async () => {
+          try {
+            return await apiClient.settings.appLock.getRecoveryInfo();
+          } catch {
+            return { hint: "", question: "" };
+          }
+        }}
+        onVerifyRecovery={async (email, answer) => {
+          try {
+            return await apiClient.settings.appLock.verifyRecovery(email, answer);
+          } catch {
+            return false;
+          }
+        }}
+        onResetPassword={async (email, answer, newPassword) => {
+          await apiClient.settings.appLock.resetPassword(email, answer, newPassword);
+        }}
       />
     );
   }

@@ -84,16 +84,26 @@ export const settingsApi = {
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
   appLock: {
-    status: (): Promise<{ enabled: boolean; timeoutMinutes: number }> =>
+    status: (): Promise<{ enabled: boolean; timeoutMinutes: number; hasSecurity: boolean; hasHint: boolean; hasEmail: boolean }> =>
       invoke("app_lock_status"),
-    setPassword: (password: string): Promise<{ enabled: boolean }> =>
-      invoke("app_lock_set_password", { password }),
+    setPassword: (password: string, hint?: string, email?: string): Promise<{ enabled: boolean }> =>
+      invoke("app_lock_set_password", { password, hint: hint ?? null, email: email ?? "" }),
     verifyPassword: (password: string): Promise<boolean> =>
       invoke("app_lock_verify_password", { password }),
     clearPassword: (): Promise<{ enabled: boolean }> =>
       invoke("app_lock_clear_password"),
     setTimeout: (minutes: string): Promise<void> =>
       invoke("app_lock_set_timeout", { minutes }),
+    getHint: (): Promise<string> =>
+      invoke("app_lock_get_hint"),
+    getRecoveryInfo: (): Promise<{ hint: string; question: string; hasEmail: boolean }> =>
+      invoke("app_lock_get_recovery_info"),
+    setSecurity: (question: string, answer: string): Promise<void> =>
+      invoke("app_lock_set_security", { question, answer }),
+    verifyRecovery: (email: string, answer: string): Promise<boolean> =>
+      invoke("app_lock_verify_recovery", { email, answer }),
+    resetPassword: (email: string, answer: string, newPassword: string): Promise<{ enabled: boolean }> =>
+      invoke("app_lock_reset_password", { email, answer, newPassword }),
   },
   history: {
     list: (): Promise<SettingsHistoryEntry[]> =>

@@ -418,9 +418,12 @@ export default function Settings() {
             onOpenAssistant={() => setActiveSection("assistant")}
             onOpenPaperLibrary={() => setActiveSection("paper_tags")}
             onOpenAbout={() => setActiveSection("about")}
-            onSetAppLockPassword={async (password) => {
-              await apiClient.settings.appLock.setPassword(password);
+            onSetAppLockPassword={async (password, hint, email) => {
+              await apiClient.settings.appLock.setPassword(password, hint, email);
               set("app_lock_enabled")("true");
+            }}
+            onSetAppLockSecurity={async (question, answer) => {
+              await apiClient.settings.appLock.setSecurity(question, answer);
             }}
             onClearAppLock={async () => {
               await apiClient.settings.appLock.clearPassword();
