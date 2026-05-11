@@ -222,6 +222,9 @@ pub fn run() {
                 if let Some(icon) = app.default_window_icon() {
                     let _ = window.set_icon(icon.clone());
                 }
+                // 仅在开发构建中允许开发者工具
+                #[cfg(not(debug_assertions))]
+                window.as_ref().set_devtools(false);
             }
 
             Ok(())

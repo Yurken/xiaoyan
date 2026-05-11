@@ -25,6 +25,7 @@ export function usePptGenerator() {
   const [documentLoading, setDocumentLoading] = useState(false);
   const [fileBaseName, setFileBaseName] = useState("slides");
   const runIdRef = useRef(0);
+  const prevInputKeyRef = useRef("");
 
   useEffect(() => {
     apiClient.skills.list().then((skills) => {
@@ -36,6 +37,21 @@ export function usePptGenerator() {
   const featureDisabled = skillEnabled === false;
 
   useEffect(() => {
+    const inputKey = JSON.stringify([
+      mode,
+      topic,
+      outline,
+      documentContent,
+      documentName,
+      styleValue,
+      customStyle,
+      language,
+      pageCount,
+      customPages,
+    ]);
+    if (inputKey === prevInputKeyRef.current) return;
+    prevInputKeyRef.current = inputKey;
+
     if (status !== "ready" && status !== "error") return;
     setStatus("idle");
     setBuffer(null);
@@ -212,15 +228,22 @@ export function usePptGenerator() {
   };
 
   const download = async () => {
-    if (!buffer) return;
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const { writeFile } = await import("@tauri-apps/plugin-fs");
-    const path = await save({
-      filters: [{ name: "PowerPoint", extensions: ["pptx"] }],
-      defaultPath: `${fileBaseName}.pptx`,
-    });
-    if (path) {
-      await writeFile(path, new Uint8Array(buffer));
+    if (!buffer) {
+      setError("文件数据为空，请重新生成。");
+      return;
+    }
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { writeFile } = await import("@tauri-apps/plugin-fs");
+      const path = await save({
+        filters: [{ name: "PowerPoint", extensions: ["pptx"] }],
+        defaultPath: `${fileBaseName}.pptx`,
+      });
+      if (path) {
+        await writeFile(path, new Uint8Array(buffer));
+      }
+    } catch (err) {
+      setError(formatErrorMessage(err));
     }
   };
 

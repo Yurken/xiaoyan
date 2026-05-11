@@ -10,8 +10,7 @@
     "dialog:default",
     "shell:default",
     "updater:default",
-    "fs:read-files",
-    "fs:allow-write-text-file",
+    "fs:default",
     "fs:scope-home-recursive"
   ]
 }

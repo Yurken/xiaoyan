@@ -21,6 +21,7 @@ export interface PptData {
 
 export const STYLE_OPTIONS = [
   { value: "auto", label: "小妍推荐" },
+  { value: "拟态", label: "拟态" },
   { value: "文献综述", label: "文献综述" },
   { value: "实验汇报", label: "实验汇报" },
   { value: "开题答辩", label: "开题答辩" },
