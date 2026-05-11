@@ -45,6 +45,7 @@ function SettingsTabBar({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const [ready, setReady] = useState(false);
   const [glow, setGlow] = useState({ left: 0, width: 0, opacity: 0 });
 
   useEffect(() => {
@@ -54,7 +55,10 @@ function SettingsTabBar({
     const cr = container.getBoundingClientRect();
     const er = el.getBoundingClientRect();
     setGlow({ left: er.left - cr.left + 4, width: er.width - 8, opacity: 1 });
-  }, [activeSection, sections]);
+    if (!ready) {
+      requestAnimationFrame(() => setReady(true));
+    }
+  }, [activeSection, sections, ready]);
 
   return (
     <div
@@ -69,7 +73,7 @@ function SettingsTabBar({
     >
       {/* Sliding glow indicator */}
       <div
-        className="absolute top-1 rounded-[22px] transition-all duration-500 pointer-events-none"
+        className={`absolute top-1 rounded-[22px] pointer-events-none ${ready ? "transition-all duration-500" : ""}`}
         style={{
           height: "calc(100% - 8px)",
           left: glow.left,
@@ -409,9 +413,23 @@ export default function Settings() {
             rolesReady={rolesReady}
             multiAgentReady={multiAgentReady}
             paperImportReady={paperImportReady}
+            appLockEnabled={form.app_lock_enabled === "true"}
+            appLockTimeoutMinutes={Number(form.app_lock_timeout_minutes) || 0}
             onOpenAssistant={() => setActiveSection("assistant")}
             onOpenPaperLibrary={() => setActiveSection("paper_tags")}
             onOpenAbout={() => setActiveSection("about")}
+            onSetAppLockPassword={async (password) => {
+              await apiClient.settings.appLock.setPassword(password);
+              set("app_lock_enabled")("true");
+            }}
+            onClearAppLock={async () => {
+              await apiClient.settings.appLock.clearPassword();
+              set("app_lock_enabled")("false");
+            }}
+            onSetAppLockTimeout={async (minutes) => {
+              await apiClient.settings.appLock.setTimeout(minutes);
+              set("app_lock_timeout_minutes")(minutes);
+            }}
           />
         ) : null}
 
