@@ -1,3 +1,4 @@
+pub mod app_lock;
 pub mod arxiv;
 pub mod ccf;
 pub mod chat;

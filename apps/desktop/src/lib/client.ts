@@ -55,8 +55,8 @@ export function formatErrorMessage(error: unknown): string {
 
   const directMap: Record<string, string> = {
     "Session not found": "未找到对应会话。",
-    "Research interest not found": "未找到对应研究方向。",
-    "Interest not found": "未找到对应研究方向。",
+    "Research interest not found": "未找到对应研究主题。",
+    "Interest not found": "未找到对应研究主题。",
     "Note not found": "未找到对应笔记。",
     "Paper not found": "未找到对应论文。",
     "Expected object": "请求参数格式不正确。",
@@ -83,6 +83,18 @@ export const settingsApi = {
     invoke("settings_import", { data, password }),
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
+  appLock: {
+    status: (): Promise<{ enabled: boolean; timeoutMinutes: number }> =>
+      invoke("app_lock_status"),
+    setPassword: (password: string): Promise<{ enabled: boolean }> =>
+      invoke("app_lock_set_password", { password }),
+    verifyPassword: (password: string): Promise<boolean> =>
+      invoke("app_lock_verify_password", { password }),
+    clearPassword: (): Promise<{ enabled: boolean }> =>
+      invoke("app_lock_clear_password"),
+    setTimeout: (minutes: string): Promise<void> =>
+      invoke("app_lock_set_timeout", { minutes }),
+  },
   history: {
     list: (): Promise<SettingsHistoryEntry[]> =>
       invoke("settings_history_list"),

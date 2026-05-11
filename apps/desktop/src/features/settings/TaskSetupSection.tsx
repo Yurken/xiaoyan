@@ -1,4 +1,5 @@
-import { ArrowRight, Bot, CheckCircle2, Circle, FileSearch, Link2, Route } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Bot, CheckCircle2, Circle, FileSearch, Link2, Lock, Route, Unlock } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 
 interface TaskSetupSectionProps {
@@ -7,9 +8,14 @@ interface TaskSetupSectionProps {
   rolesReady: boolean;
   multiAgentReady: boolean;
   paperImportReady: boolean;
+  appLockEnabled: boolean;
+  appLockTimeoutMinutes: number;
   onOpenAssistant: () => void;
   onOpenPaperLibrary: () => void;
   onOpenAbout: () => void;
+  onSetAppLockPassword: (password: string) => Promise<void>;
+  onClearAppLock: () => Promise<void>;
+  onSetAppLockTimeout: (minutes: string) => Promise<void>;
 }
 
 function StatusDot({ ready }: { ready: boolean }) {
@@ -26,10 +32,20 @@ export default function TaskSetupSection({
   rolesReady,
   multiAgentReady,
   paperImportReady,
+  appLockEnabled,
+  appLockTimeoutMinutes,
   onOpenAssistant,
   onOpenPaperLibrary,
   onOpenAbout,
+  onSetAppLockPassword,
+  onClearAppLock,
+  onSetAppLockTimeout,
 }: TaskSetupSectionProps) {
+  const [lockPassword, setLockPassword] = useState("");
+  const [lockConfirm, setLockConfirm] = useState("");
+  const [lockBusy, setLockBusy] = useState(false);
+  const [lockMsg, setLockMsg] = useState("");
+  const [showLockForm, setShowLockForm] = useState(false);
   const steps = [
     {
       title: "先接通小妍",
@@ -143,6 +159,96 @@ export default function TaskSetupSection({
               打开升级与备份
             </button>
           </div>
+        </div>
+
+        {/* App Lock */}
+        <div className="rounded-3xl px-4 py-4 mt-3" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: appLockEnabled ? "rgba(255,149,0,0.14)" : "transparent", color: appLockEnabled ? "#FF9500" : "var(--rc-text-muted)" }}>
+                {appLockEnabled ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-ink-primary">应用锁</p>
+                <p className="text-xs leading-5 text-ink-secondary">
+                  {appLockEnabled
+                    ? `已开启${appLockTimeoutMinutes > 0 ? `，${appLockTimeoutMinutes} 分钟无操作自动锁定` : "，启动时需输入密码"}`
+                    : "设置密码后，打开应用需验证身份"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (appLockEnabled) {
+                  void onClearAppLock().then(() => { setShowLockForm(false); setLockPassword(""); setLockConfirm(""); setLockMsg(""); });
+                } else {
+                  setShowLockForm(!showLockForm);
+                }
+              }}
+              className="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+              style={{
+                background: appLockEnabled ? "rgba(255,59,48,0.1)" : "var(--rc-chip-bg)",
+                color: appLockEnabled ? "#FF3B30" : "var(--rc-accent)",
+              }}
+            >
+              {appLockEnabled ? "关闭" : showLockForm ? "取消" : "设置密码"}
+            </button>
+          </div>
+
+          {showLockForm && !appLockEnabled && (
+            <div className="mt-4 space-y-3">
+              <input
+                type="password"
+                value={lockPassword}
+                onChange={(e) => setLockPassword(e.target.value)}
+                placeholder="输入密码"
+                className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)", color: "var(--rc-text)" }}
+              />
+              <input
+                type="password"
+                value={lockConfirm}
+                onChange={(e) => setLockConfirm(e.target.value)}
+                placeholder="确认密码"
+                className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)", color: "var(--rc-text)" }}
+              />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-ink-tertiary shrink-0">自动锁定：</span>
+                <select
+                  value={String(appLockTimeoutMinutes)}
+                  onChange={(e) => { void onSetAppLockTimeout(e.target.value); }}
+                  className="rounded-xl px-2 py-1 text-xs outline-none"
+                  style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)", color: "var(--rc-text)" }}
+                >
+                  <option value="0">仅启动时</option>
+                  <option value="1">1 分钟</option>
+                  <option value="5">5 分钟</option>
+                  <option value="15">15 分钟</option>
+                  <option value="30">30 分钟</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                disabled={lockBusy || !lockPassword.trim() || lockPassword !== lockConfirm}
+                onClick={async () => {
+                  if (lockPassword !== lockConfirm) { setLockMsg("两次密码不一致"); return; }
+                  setLockBusy(true); setLockMsg("");
+                  try {
+                    await onSetAppLockPassword(lockPassword);
+                    setLockPassword(""); setLockConfirm(""); setShowLockForm(false);
+                  } catch (e) { setLockMsg(String(e)); }
+                  finally { setLockBusy(false); }
+                }}
+                className="w-full rounded-xl py-2 text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
+                style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)" }}
+              >
+                {lockBusy ? "设置中…" : "确认设置"}
+              </button>
+              {lockMsg && <p className="text-xs text-apple-red">{lockMsg}</p>}
+            </div>
+          )}
         </div>
       </Card>
     </div>

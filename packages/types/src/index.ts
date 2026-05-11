@@ -610,6 +610,10 @@ export interface AppSettings {
   translation_max_tokens: string;
   translation_presence_penalty: string;
   translation_frequency_penalty: string;
+  app_lock_enabled: string;
+  app_lock_password_salt: string;
+  app_lock_password_hash: string;
+  app_lock_timeout_minutes: string;
 }
 
 export interface SettingsHistoryEntry {

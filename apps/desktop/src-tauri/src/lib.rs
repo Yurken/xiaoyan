@@ -27,6 +27,10 @@ mod web_search;
 use tauri::Manager;
 
 use commands::{
+    app_lock::{
+        app_lock_clear_password, app_lock_set_password, app_lock_set_timeout,
+        app_lock_status, app_lock_verify_password,
+    },
     arxiv::arxiv_search,
     ccf::{ccf_list, ccf_lookup},
     chat::{
@@ -379,6 +383,12 @@ pub fn run() {
             survey_search,
             translate_text,
             markdown_format_chunk,
+            // App lock
+            app_lock_status,
+            app_lock_set_password,
+            app_lock_verify_password,
+            app_lock_clear_password,
+            app_lock_set_timeout,
             // Workbench
             workbench_generate_overview_text,
         ])

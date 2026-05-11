@@ -27,6 +27,8 @@ pub const SENSITIVE_KEYS: &[&str] = &[
     "multi_agent_synthesis_api_key",
     "vision_api_key",
     "translation_api_key",
+    "app_lock_password_salt",
+    "app_lock_password_hash",
 ];
 
 /// All settings keys exposed through the API, with their default values.
@@ -257,6 +259,10 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("translation_max_tokens".into(), "16384".into());
     m.insert("translation_presence_penalty".into(), "".into());
     m.insert("translation_frequency_penalty".into(), "".into());
+    m.insert("app_lock_enabled".into(), "false".into());
+    m.insert("app_lock_password_salt".into(), "".into());
+    m.insert("app_lock_password_hash".into(), "".into());
+    m.insert("app_lock_timeout_minutes".into(), "0".into());
     m
 }
 
