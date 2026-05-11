@@ -116,18 +116,20 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
         </div>
       </div>
 
-      {view === "graph" ? (
-        <KnowledgeGraphWorkspace controller={graphController} />
-      ) : (
-        <NotesPanel
-          hideFolders={hideFolders}
-          researchInterestId={graphController.activeInterestId ?? undefined}
-          initialNotes={initialNotes}
-          initialInterests={initialInterests}
-          linkedNoteClaimCounts={linkedNoteClaimCounts}
-          onNotesChanged={() => graphController.refresh()}
-        />
-      )}
+      <div key={view} className="mt-6" style={{ animation: "rc-view-enter 0.28s ease-out" }}>
+        {view === "graph" ? (
+          <KnowledgeGraphWorkspace controller={graphController} />
+        ) : (
+          <NotesPanel
+            hideFolders={hideFolders}
+            researchInterestId={graphController.activeInterestId ?? undefined}
+            initialNotes={initialNotes}
+            initialInterests={initialInterests}
+            linkedNoteClaimCounts={linkedNoteClaimCounts}
+            onNotesChanged={() => graphController.refresh()}
+          />
+        )}
+      </div>
     </div>
   );
 }

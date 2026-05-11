@@ -256,16 +256,7 @@ export default function KnowledgeGraphWorkspace({
   }
 
   return (
-    <div className="mt-5 space-y-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="max-w-2xl">
-          <h2 className="text-lg font-semibold text-ink-primary">知识图谱</h2>
-          <p className="mt-1 text-sm text-ink-tertiary">
-            把研究方向、论文、结论和实验串成可追溯关系网，回答“这个判断到底来自哪里”。
-          </p>
-        </div>
-      </div>
-
+    <div className="mt-5 space-y-6">
       {error ? (
         <div
           className="flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm"

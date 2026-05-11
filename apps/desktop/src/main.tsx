@@ -5,6 +5,11 @@ import App from "./App";
 import AppErrorBoundary from "./components/AppErrorBoundary";
 import "./index.css";
 
+// 生产环境下禁止文本选择，开发环境允许复制文字
+if (!import.meta.env.DEV) {
+  document.documentElement.setAttribute("data-production", "");
+}
+
 // 禁用默认右键菜单，只在可编辑元素上保留原生菜单（复制/粘贴等）
 const handleContextMenu = (e: MouseEvent) => {
   const target = e.target as HTMLElement;

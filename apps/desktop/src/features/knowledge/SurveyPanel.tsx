@@ -3,13 +3,11 @@ import {
   AlertCircle,
   Bot,
   FileSearch,
-  Folder,
   GitBranch,
   Loader2,
-  Search,
   Settings2,
 } from "lucide-react";
-import { Badge, Button, Card, Input, MarkdownRenderer } from "@research-copilot/ui";
+import { Badge, Button, Card, Input, MarkdownRenderer, Select } from "@research-copilot/ui";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
@@ -339,156 +337,40 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
   const allPapersSelected = interestPapers.length > 0 && selectedPaperIds.length === interestPapers.length;
   const somePapersSelected = selectedPaperIds.length > 0 && selectedPaperIds.length < interestPapers.length;
 
-  // 兴趣面板列表（抽出以复用）
-  const interestPanel = interests.length > 0 && (
-    <Card padding="sm" className="space-y-0 overflow-hidden">
-      <p className="px-1 pb-2 text-xs font-semibold text-ink-tertiary">研究方向</p>
-      <div className="overflow-hidden rounded-xl border border-nm-dark/10">
-        {/* 自由检索 */}
-        <button
-          type="button"
-          onClick={() => setSelectedInterestId("")}
-          className={`flex w-full items-center gap-2.5 border-b border-nm-dark/8 px-3 py-2.5 text-left transition-colors ${
-            !selectedInterestId ? "bg-apple-blue/8" : "hover:bg-white/50"
-          }`}
-        >
-          <span
-            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg"
-            style={
-              !selectedInterestId
-                ? { background: "rgba(0,122,255,0.15)", color: "rgb(0,122,255)" }
-                : { background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)", color: "var(--color-ink-tertiary)" }
-            }
-          >
-            <Search className="h-3 w-3" />
-          </span>
-          <p className={`text-sm font-medium ${!selectedInterestId ? "text-apple-blue" : "text-ink-secondary"}`}>
-            自由检索
-          </p>
-        </button>
-
-        {interests.map((interest, index) => {
-          const isSelected = selectedInterestId === interest.id;
-          const isLast = index === interests.length - 1;
-          const folderName = interestFolderName(interest);
-          const showTopic = interest.folder_name?.trim() && interest.folder_name.trim() !== interest.topic;
-          return (
-            <button
-              key={interest.id}
-              type="button"
-              onClick={() => {
-                setSelectedInterestId(interest.id);
-                setQuery(interest.topic);
-              }}
-              className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
-                isLast ? "" : "border-b border-nm-dark/8"
-              } ${isSelected ? "bg-apple-blue/8" : "hover:bg-white/50"}`}
-            >
-              <span
-                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg"
-                style={
-                  isSelected
-                    ? { background: "rgba(0,122,255,0.15)", color: "rgb(0,122,255)" }
-                    : { background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)", color: "var(--color-ink-tertiary)" }
-                }
-              >
-                <Folder className="h-3 w-3" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className={`truncate text-sm font-medium ${isSelected ? "text-apple-blue" : "text-ink-primary"}`}>
-                  {folderName}
-                </p>
-                {showTopic && (
-                  <p className="truncate text-xs text-ink-tertiary">{interest.topic}</p>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 论文选择区 —— 仅当选中某个研究方向时显示 */}
-      {selectedInterestId && (
-        <div className="mt-3 space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-xs font-semibold text-ink-tertiary">
-              论文库
-              {interestPapers.length > 0 && (
-                <span className="ml-1 font-normal text-ink-tertiary/70">
-                  （{selectedPaperIds.length}/{interestPapers.length}）
-                </span>
-              )}
-            </p>
-            {interestPapers.length > 0 && (
-              <button
-                type="button"
-                onClick={toggleAllPapers}
-                className="text-[11px] text-apple-blue hover:underline"
-              >
-                {allPapersSelected ? "取消全选" : "全选"}
-              </button>
-            )}
-          </div>
-
-          {loadingPapers ? (
-            <div className="flex items-center gap-1.5 px-1 py-2 text-xs text-ink-tertiary">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              正在加载…
-            </div>
-          ) : interestPapers.length === 0 ? (
-            <p className="px-1 text-xs text-ink-tertiary">该研究方向下暂无论文</p>
-          ) : (
-            <div className="overflow-hidden rounded-xl border border-nm-dark/10">
-              {interestPapers.map((paper, index) => {
-                const checked = selectedPaperIds.includes(paper.id);
-                const isLast = index === interestPapers.length - 1;
-                return (
-                  <label
-                    key={paper.id}
-                    className={`flex cursor-pointer items-start gap-2.5 px-3 py-2 transition-colors ${
-                      isLast ? "" : "border-b border-nm-dark/8"
-                    } ${checked ? "bg-apple-blue/5" : "hover:bg-white/50"}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => togglePaper(paper.id)}
-                      className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 accent-apple-blue"
-                    />
-                    <div className="min-w-0">
-                      <p className="line-clamp-2 text-xs leading-4 text-ink-primary">{paper.title}</p>
-                      {(paper.year || paper.venue) && (
-                        <p className="mt-0.5 truncate text-[11px] text-ink-tertiary">
-                          {[paper.year, paper.venue].filter(Boolean).join(" · ")}
-                        </p>
-                      )}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-
-          {somePapersSelected && (
-            <p className="px-1 text-[11px] text-ink-tertiary">
-              当前仅使用已勾选的 {selectedPaperIds.length} 篇论文生成综述
-            </p>
-          )}
-        </div>
-      )}
-    </Card>
-  );
-
   // 生成区内容（输入 + 参数 + 结果）
   const generationArea = (
     <div className="min-w-0 flex-1 space-y-3">
       {/* ── 综述生成 Card ── */}
       <Card padding="sm" className="space-y-3">
-        <div>
-          <p className="text-sm font-semibold text-ink-primary">结构化文献综述生成</p>
-          <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-            多能力域模型协作完成范围规划、发展脉络梳理与综述生成，并输出带参考文献格式的结构化结果。
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink-primary">结构化文献综述生成</p>
+            <p className="mt-1 text-xs leading-5 text-ink-tertiary">
+              多能力域模型协作完成范围规划、发展脉络梳理与综述生成，并输出带参考文献格式的结构化结果。
+            </p>
+          </div>
+          {interests.length > 0 && (
+            <Select
+              className="w-48 flex-shrink-0"
+              prefix="研究方向："
+              value={selectedInterestId}
+              onChange={(v) => {
+                setSelectedInterestId(v);
+                if (v) {
+                  const interest = interests.find((i) => i.id === v);
+                  if (interest) setQuery(interest.topic);
+                }
+              }}
+              options={[
+                { value: "", label: "自由检索" },
+                ...interests.map((interest) => ({
+                  value: interest.id,
+                  label: interestFolderName(interest),
+                })),
+              ]}
+              placeholder="选择研究方向"
+            />
+          )}
         </div>
         <div className="flex gap-2">
           <div className="flex-1">
@@ -528,6 +410,76 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
           </div>
         )}
       </Card>
+
+      {/* ── 选中研究方向的论文选择区 ── */}
+      {selectedInterestId && (
+        <Card padding="sm" className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-ink-tertiary">
+              该方向论文库
+              {interestPapers.length > 0 && (
+                <span className="ml-1 font-normal text-ink-tertiary/70">
+                  （{selectedPaperIds.length}/{interestPapers.length}）
+                </span>
+              )}
+            </p>
+            {interestPapers.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleAllPapers}
+                className="text-[11px] text-apple-blue hover:underline"
+              >
+                {allPapersSelected ? "取消全选" : "全选"}
+              </button>
+            )}
+          </div>
+
+          {loadingPapers ? (
+            <div className="flex items-center gap-1.5 py-2 text-xs text-ink-tertiary">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              正在加载…
+            </div>
+          ) : interestPapers.length === 0 ? (
+            <p className="text-xs text-ink-tertiary">该研究方向下暂无论文</p>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-nm-dark/10">
+              {interestPapers.map((paper, index) => {
+                const checked = selectedPaperIds.includes(paper.id);
+                const isLast = index === interestPapers.length - 1;
+                return (
+                  <label
+                    key={paper.id}
+                    className={`flex cursor-pointer items-start gap-2.5 px-3 py-2 transition-colors ${
+                      isLast ? "" : "border-b border-nm-dark/8"
+                    } ${checked ? "bg-apple-blue/5" : "hover:bg-white/50"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => togglePaper(paper.id)}
+                      className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 accent-apple-blue"
+                    />
+                    <div className="min-w-0">
+                      <p className="line-clamp-2 text-xs leading-4 text-ink-primary">{paper.title}</p>
+                      {(paper.year || paper.venue) && (
+                        <p className="mt-0.5 truncate text-[11px] text-ink-tertiary">
+                          {[paper.year, paper.venue].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          {somePapersSelected && (
+            <p className="text-[11px] text-ink-tertiary">
+              当前仅使用已勾选的 {selectedPaperIds.length} 篇论文生成综述
+            </p>
+          )}
+        </Card>
+      )}
 
       {/* ── 生成参数配置 Card ── */}
       {advancedOpen && (
@@ -1039,13 +991,5 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
     </div>
   );
 
-  // ── 最终布局：左侧研究方向面板 + 右侧生成区 ──
-  return !hideInterestPanel && interests.length > 0 ? (
-    <div className="flex gap-3 items-start">
-      <div className="w-48 flex-shrink-0 lg:w-56">{interestPanel}</div>
-      {generationArea}
-    </div>
-  ) : (
-    generationArea
-  );
+  return generationArea;
 }

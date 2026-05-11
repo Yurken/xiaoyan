@@ -7,19 +7,19 @@
 @tailwind utilities;
 
 @layer base {
-  body {
+  [data-production] body {
     user-select: none;
     -webkit-user-select: none;
   }
 
-  .rc-selectable,
-  textarea,
-  input[type="text"],
-  input[type="search"],
-  input[type="number"],
-  input[type="email"],
-  input[type="password"],
-  input[type="url"] {
+  [data-production] .rc-selectable,
+  [data-production] textarea,
+  [data-production] input[type="text"],
+  [data-production] input[type="search"],
+  [data-production] input[type="number"],
+  [data-production] input[type="email"],
+  [data-production] input[type="password"],
+  [data-production] input[type="url"] {
     user-select: text;
     -webkit-user-select: text;
   }
@@ -368,6 +368,17 @@
 
   100% {
     transform: translateX(250%) rotate(18deg);
+  }
+}
+
+@keyframes rc-view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

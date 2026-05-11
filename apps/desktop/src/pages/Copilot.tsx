@@ -823,7 +823,11 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                 );
               })()
             ) : (
-              <div className="space-y-1.5">{sessions.map(renderSessionItem)}</div>
+              ungroupedSessions.length === 0 ? (
+                <div className="px-3 py-6 text-center text-xs text-ink-tertiary">没有未归类的对话</div>
+              ) : (
+                <div className="space-y-1.5">{ungroupedSessions.map(renderSessionItem)}</div>
+              )
             )}
           </div>
           )}
