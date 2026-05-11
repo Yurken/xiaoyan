@@ -16,6 +16,7 @@ interface CapsuleTabsProps {
 export function CapsuleTabs({ options, value, onChange, compact }: CapsuleTabsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const [ready, setReady] = useState(false);
   const [indicatorStyle, setIndicatorStyle] = useState<{
     left: number;
     width: number;
@@ -35,7 +36,12 @@ export function CapsuleTabs({ options, value, onChange, compact }: CapsuleTabsPr
       width: elRect.width,
       opacity: 1,
     });
-  }, [value, options]);
+
+    // Enable transition only after first paint to avoid mount animation
+    if (!ready) {
+      requestAnimationFrame(() => setReady(true));
+    }
+  }, [value, options, ready]);
 
   return (
     <div
@@ -47,7 +53,9 @@ export function CapsuleTabs({ options, value, onChange, compact }: CapsuleTabsPr
       }}
     >
       <div
-        className="absolute top-1 rounded-xl transition-all duration-300 ease-out"
+        className={`absolute top-1 rounded-xl ${
+          ready ? "transition-all duration-300 ease-out" : ""
+        }`}
         style={{
           height: "calc(100% - 8px)",
           left: indicatorStyle.left,
