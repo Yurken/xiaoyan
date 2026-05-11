@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, IconButton, Select } from "@research-copilot/ui";
+import { IS_MACOS_DESKTOP, MACOS_WINDOW_DRAG_HEIGHT } from "../../lib/windowChrome";
 import KnowledgeClaimPanel from "./KnowledgeClaimPanel";
 import KnowledgeCitationPanel from "./KnowledgeCitationPanel";
 import KnowledgeGraphCanvas from "./KnowledgeGraphCanvas";
@@ -334,7 +335,11 @@ export default function KnowledgeGraphWorkspace({
       {isCanvasExpanded ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-6"
-          style={{ background: "rgba(15, 23, 42, 0.18)", backdropFilter: "blur(10px)" }}
+          style={{
+            background: "rgba(15, 23, 42, 0.18)",
+            backdropFilter: "blur(10px)",
+            paddingTop: IS_MACOS_DESKTOP ? `calc(1.5rem + ${MACOS_WINDOW_DRAG_HEIGHT}px)` : undefined,
+          }}
         >
           <div
             className="flex h-full w-full max-w-[1440px] flex-col rounded-[32px] p-5"

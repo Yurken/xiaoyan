@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowLeft, Eye, Globe, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
 import { Badge, Button, Card, Input, MarkdownRenderer, Select } from "@research-copilot/ui";
+import { IS_MACOS_DESKTOP, MACOS_WINDOW_DRAG_HEIGHT } from "../../lib/windowChrome";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 import { useKnowledgeNotesWorkspace } from "./useKnowledgeNotesWorkspace";
@@ -172,6 +173,7 @@ function NoteDetailModal({
           boxShadow: "-8px 0 32px rgba(0,0,0,0.1)",
           transform: visible ? "translateX(0)" : "translateX(100%)",
           transition: "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)",
+          paddingTop: IS_MACOS_DESKTOP ? MACOS_WINDOW_DRAG_HEIGHT : 0,
         }}
       >
         {/* Header */}
