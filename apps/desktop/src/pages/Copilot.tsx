@@ -748,7 +748,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     <>
       <div className="relative flex h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
         <div
-          className={`${sessionListCollapsed ? "w-14" : "w-52"} flex-shrink-0 flex flex-col`}
+          className={`${sessionListCollapsed ? "hidden" : "w-52"} flex-shrink-0 flex flex-col`}
           style={{
             background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
             boxShadow: "4px 0 10px rgb(var(--rc-text-rgb) / 0.04)",
@@ -756,18 +756,20 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         >
           <div className="p-3 pb-2">
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleNewChat}
-                aria-label="新建对话"
-                className={`${sessionListCollapsed ? "h-9 w-9 justify-center px-0" : "flex-1 px-3"} flex items-center gap-2 rounded-2xl py-2.5 text-sm font-medium text-white transition-all duration-150 active:scale-[0.98]`}
-                style={{
-                  background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                  boxShadow: "4px 4px 10px rgba(0,62,204,0.35), -3px -3px 8px rgba(58,155,255,0.2)",
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                {!sessionListCollapsed && "新建对话"}
-              </button>
+              {!sessionListCollapsed && (
+                <button
+                  onClick={handleNewChat}
+                  aria-label="新建对话"
+                  className="flex-1 px-3 flex items-center gap-2 rounded-2xl py-2.5 text-sm font-medium text-white transition-all duration-150 active:scale-[0.98]"
+                  style={{
+                    background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                    boxShadow: "4px 4px 10px rgba(0,62,204,0.35), -3px -3px 8px rgba(58,155,255,0.2)",
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  新建对话
+                </button>
+              )}
               <button
                 type="button"
                 aria-label={sessionListCollapsed ? "展开会话列表" : "收起会话列表"}
@@ -797,22 +799,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             )}
           </div>
 
-          {sessionListCollapsed ? (
-            <div className="flex flex-1 flex-col items-center gap-2 px-2 pb-3">
-              <button
-                type="button"
-                onClick={() => setSessionListMode("open")}
-                className="flex h-9 w-9 items-center justify-center rounded-2xl text-ink-tertiary transition-colors hover:text-ink-primary"
-                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }}
-                title={`${sessions.length} 条对话`}
-              >
-                <MessageSquare className="h-4 w-4" />
-              </button>
-              <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-ink-tertiary">
-                {sessions.length}
-              </span>
-            </div>
-          ) : (
+          {!sessionListCollapsed && (
           <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
             {sessions.length === 0 && interests.length === 0 && (
               <div className="flex flex-col items-center py-8 gap-2">
@@ -843,28 +830,18 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         </div>
 
         <div className="flex-1 min-w-0 flex overflow-hidden">
-          <div className="flex-1 flex flex-col min-w-0 bg-nm-bg">
-            <div
-              className="flex h-[52px] items-center justify-between px-4"
-              style={{
-                background: "linear-gradient(180deg, var(--rc-surface), var(--rc-surface))",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-              }}
-            >
-              <div className="flex-1" />
-              <div className="flex items-center gap-3">
-                <div
-                  className="px-3 py-1.5 rounded-full text-xs font-medium"
-                  style={{
-                    background: "var(--rc-surface)",
-                    color: updatingSessionContext ? "#007AFF" : sending ? "#FF9500" : "#34C759",
-                    boxShadow: "var(--rc-inset-shadow)",
-                  }}
-                >
-                  {updatingSessionContext ? "正在更新归属" : sending ? "处理中" : "就绪"}
-                </div>
-              </div>
-            </div>
+          <div className="flex-1 flex flex-col min-w-0 bg-nm-bg relative">
+            {sessionListCollapsed && (
+              <button
+                type="button"
+                aria-label="展开会话列表"
+                onClick={() => setSessionListMode("open")}
+                className="absolute top-3 left-3 z-10 flex h-9 w-9 items-center justify-center rounded-2xl text-ink-tertiary transition-colors hover:text-ink-primary"
+                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            )}
 
             {loadError && (
               <div className="px-5 pt-4">
@@ -1189,6 +1166,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           plan={plan}
           runs={displayedRuns}
           sending={sending}
+          updatingSessionContext={updatingSessionContext}
           artifacts={artifacts}
           memoryInput={memoryInput}
           memorySaved={memorySaved}

@@ -41,6 +41,7 @@ export default function Select({
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const togglingRef = useRef(false);
   const generatedId = useId();
   const triggerId = id ?? `${generatedId}-trigger`;
   const labelId = label ? `${triggerId}-label` : undefined;
@@ -175,6 +176,10 @@ export default function Select({
       ref={rootRef}
       className={clsx("relative", className)}
       onBlurCapture={(event) => {
+        if (togglingRef.current) {
+          togglingRef.current = false;
+          return;
+        }
         const nextFocusTarget = event.relatedTarget;
         if (nextFocusTarget instanceof Node && rootRef.current?.contains(nextFocusTarget)) return;
         closeMenu();
@@ -193,6 +198,7 @@ export default function Select({
         aria-controls={listboxId}
         onClick={() => {
           if (disabled) return;
+          togglingRef.current = true;
           if (open) {
             closeMenu();
             return;

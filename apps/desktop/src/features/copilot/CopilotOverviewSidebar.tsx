@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookMarked, CheckCircle2, ChevronsLeft, ChevronsRight, PanelRightOpen, PanelRightClose } from "lucide-react";
+import { BookMarked, CheckCircle2, Maximize2, Minimize2, PanelRightOpen, PanelRightClose } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
 import type { AgentArtifact, AgentPlanStep, AgentRun } from "@research-copilot/types";
 import AgentStateGraphPanel from "./AgentStateGraphPanel";
@@ -9,6 +9,7 @@ interface CopilotOverviewSidebarProps {
   plan: AgentPlanStep[];
   runs: AgentRun[];
   sending: boolean;
+  updatingSessionContext: boolean;
   artifacts: AgentArtifact[];
   memoryInput: string;
   memorySaved: boolean;
@@ -28,6 +29,7 @@ export default function CopilotOverviewSidebar({
   plan,
   runs,
   sending,
+  updatingSessionContext,
   artifacts,
   memoryInput,
   memorySaved,
@@ -107,6 +109,49 @@ export default function CopilotOverviewSidebar({
               : "space-y-3.5"
           }
         >
+          <div className={`flex items-center justify-between ${expanded ? "col-span-2" : ""}`}>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label={expanded ? "退出全屏" : "全屏任务总览"}
+                onClick={() => setExpanded((currentExpanded) => !currentExpanded)}
+                className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl transition-all duration-150 hover:scale-[1.02] active:scale-95"
+                style={{
+                  background: "var(--rc-chip-bg)",
+                  boxShadow: "var(--rc-card-shadow)",
+                  color: "var(--rc-text-secondary)",
+                }}
+                title={expanded ? "退出全屏" : "全屏任务总览"}
+              >
+                {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                aria-label="折叠任务纵览"
+                onClick={() => setCollapsed(true)}
+                className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl transition-all duration-150 hover:scale-[1.02] active:scale-95"
+                style={{
+                  background: "var(--rc-chip-bg)",
+                  boxShadow: "var(--rc-card-shadow)",
+                  color: "var(--rc-text-secondary)",
+                }}
+                title="折叠任务纵览"
+              >
+                <PanelRightClose className="h-4 w-4" />
+              </button>
+            </div>
+            <div
+              className="px-3 py-1.5 rounded-full text-xs font-medium"
+              style={{
+                background: "var(--rc-card-bg)",
+                color: updatingSessionContext ? "#007AFF" : sending ? "#FF9500" : "#34C759",
+                boxShadow: "var(--rc-chip-shadow)",
+              }}
+            >
+              {updatingSessionContext ? "正在更新归属" : sending ? "处理中" : "就绪"}
+            </div>
+          </div>
+
           <section
             className={expanded ? "col-span-2 rounded-[28px] p-5" : "rounded-3xl p-4"}
             style={CARD_STYLE}
@@ -118,38 +163,6 @@ export default function CopilotOverviewSidebar({
                 <p className="mt-1 text-xs leading-5 text-ink-tertiary">
                   {expanded ? "已切换为专注视图，可覆盖当前对话区查看任务推进细节。按 Esc 收起。" : "查看小妍当前的调度路径、状态图和结构化产物。"}
                 </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  aria-label={expanded ? "收起任务总览" : "展开任务总览"}
-                  aria-pressed={expanded}
-                  onClick={() => setExpanded((currentExpanded) => !currentExpanded)}
-                  className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl transition-all duration-150 hover:scale-[1.02] active:scale-95"
-                  style={{
-                    background: expanded ? "rgba(0,122,255,0.12)" : "var(--rc-card-inset-bg)",
-                    boxShadow: expanded ? "0 0 0 1px rgba(0,122,255,0.18)" : "var(--rc-inset-shadow)",
-                    color: expanded ? "#007AFF" : "var(--rc-text-secondary)",
-                  }}
-                  title={expanded ? "收起任务总览" : "展开任务总览"}
-                >
-                  {expanded ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-                </button>
-                <button
-                  type="button"
-                  aria-label="折叠任务纵览"
-                  onClick={() => setCollapsed(true)}
-                  className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl transition-all duration-150 hover:scale-[1.02] active:scale-95"
-                  style={{
-                    background: "var(--rc-card-inset-bg)",
-                    boxShadow: "var(--rc-inset-shadow)",
-                    color: "var(--rc-text-secondary)",
-                  }}
-                  title="折叠任务纵览"
-                >
-                  <PanelRightClose className="h-4 w-4" />
-                </button>
               </div>
             </div>
 

@@ -369,7 +369,7 @@ export default function CopilotComposer({
                 onClick={() => void pickAttachments()}
                 disabled={sending || uploadingAttachments}
                 className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 flex-shrink-0"
-                style={{ color: "#636366", background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
+                style={{ color: "#636366", background: "var(--rc-chip-bg)", boxShadow: "var(--rc-card-shadow)" }}
               >
                 <Plus className="w-3 h-3" />
                 {uploadingAttachments ? "读取文件中..." : "上传文件"}
