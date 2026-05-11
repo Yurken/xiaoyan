@@ -38,7 +38,7 @@ struct DuckDuckGoResult {
 pub async fn web_search(query: &str) -> Result<String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(12))
-        .user_agent("xiaoyan-desktop/0.3.2")
+        .user_agent("xiaoyan-desktop/0.3.3")
         .build()?;
 
     let resp = client

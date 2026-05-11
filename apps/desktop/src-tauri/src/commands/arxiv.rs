@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use tauri::State;
 
 const ARXIV_API_URL: &str = "https://export.arxiv.org/api/query";
-const ARXIV_USER_AGENT: &str = "xiaoyan-desktop/0.3.2";
+const ARXIV_USER_AGENT: &str = "xiaoyan-desktop/0.3.3";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -374,7 +374,7 @@ pub async fn search_recent_paper_hints(
 }
 
 const SEMANTIC_SCHOLAR_API_URL: &str = "https://api.semanticscholar.org/graph/v1/paper/search";
-const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.3.2";
+const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.3.3";
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
