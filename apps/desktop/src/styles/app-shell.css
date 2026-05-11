@@ -66,7 +66,6 @@
 
   .app-nav-item {
     position: relative;
-    z-index: 10;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -83,17 +82,6 @@
       box-shadow 0.18s ease;
   }
 
-  .app-nav-indicator {
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    z-index: 0;
-    border-radius: 16px;
-    background: var(--rc-nav-item-active-bg, var(--rc-elevated));
-    box-shadow: var(--rc-nav-item-active-shadow, var(--rc-card-shadow));
-    transition: top 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
-  }
-
   .app-nav-item:hover {
     transform: translateY(-1px);
     color: var(--rc-text-soft);
@@ -102,9 +90,9 @@
 
   .app-nav-item.is-active {
     color: var(--rc-nav-item-active-text);
-    background: transparent;
-    border-color: transparent;
-    box-shadow: none;
+    background: var(--rc-nav-item-active-bg);
+    border-color: var(--rc-nav-item-active-border);
+    box-shadow: var(--rc-nav-item-active-shadow);
   }
 
   .app-nav-item__marker {

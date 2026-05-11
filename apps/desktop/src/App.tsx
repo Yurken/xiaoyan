@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
@@ -6,7 +6,7 @@ import {
   FlaskConical,
   LayoutDashboard,
   Library,
-  Map as MapIcon,
+  Map,
   MessageSquare,
   Send,
   Settings as SettingsIcon,
@@ -42,7 +42,7 @@ import XiaoYanPet from "./components/XiaoYanPet";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "工作台" },
-  { to: "/planner", icon: MapIcon, label: "规划" },
+  { to: "/planner", icon: Map, label: "规划" },
   { to: "/xiaoyan", icon: MessageSquare, label: "对话" },
   { to: "/survey", icon: BookOpen, label: "综述" },
   { to: "/papers", icon: FileText, label: "论文" },
@@ -117,37 +117,6 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate]);
 
-  // Navigation indicator
-  const location = useLocation();
-  const navRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
-  const [indicatorStyle, setIndicatorStyle] = useState<{ top: number; height: number; opacity: number }>({ top: 0, height: 0, opacity: 0 });
-  const sidebarRef = useRef<HTMLElement>(null);
-
-  const updateIndicator = useCallback(() => {
-    const path = location.pathname;
-    const key = navItems
-      .filter((item) => item.to !== "/" && path.startsWith(item.to))
-      .sort((a, b) => b.to.length - a.to.length)[0]?.to ?? "/";
-    if (!key) return;
-    const el = navRefs.current.get(key);
-    const sidebar = sidebarRef.current;
-    if (!el || !sidebar) return;
-    const sidebarRect = sidebar.getBoundingClientRect();
-    const elRect = el.getBoundingClientRect();
-    setIndicatorStyle({
-      top: elRect.top - sidebarRect.top,
-      height: elRect.height,
-      opacity: 1,
-    });
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (locked || !lockChecked) return;
-    // Delay to let DOM settle after route change or unlock
-    const timer = setTimeout(updateIndicator, 50);
-    return () => clearTimeout(timer);
-  }, [updateIndicator, locked, lockChecked]);
-
   // Lock screen — shown before any app content
   if (locked) {
     return (
@@ -179,17 +148,8 @@ export default function App() {
 
   return (
     <div className={`app-shell ${IS_MACOS_DESKTOP ? "app-shell--macos-overlay" : ""}`.trim()}>
-      <aside ref={sidebarRef} className="app-sidebar">
+      <aside className="app-sidebar">
         <MacWindowDragStrip className="app-sidebar__window-drag-region" />
-
-        <div
-          className="app-nav-indicator"
-          style={{
-            top: indicatorStyle.top,
-            height: indicatorStyle.height,
-            opacity: indicatorStyle.opacity,
-          }}
-        />
 
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
@@ -202,9 +162,6 @@ export default function App() {
           >
             {({ isActive }) => (
               <span
-                ref={(el) => {
-                  if (el) navRefs.current.set(to, el);
-                }}
                 className={`app-nav-item ${isActive ? "is-active" : ""}`.trim()}
               >
                 <span className="app-nav-item__marker" />
