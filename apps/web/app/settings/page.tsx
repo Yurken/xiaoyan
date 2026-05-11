@@ -185,6 +185,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   translation_max_tokens: "16384",
   translation_presence_penalty: "",
   translation_frequency_penalty: "",
+  app_lock_enabled: "false",
+  app_lock_password_salt: "",
+  app_lock_password_hash: "",
+  app_lock_timeout_minutes: "0",
 };
 
 const AGENT_OPTIONS = [
