@@ -144,7 +144,7 @@ export function LearningPathView({ path }: { path: LearningPath }) {
 
       {path.research_directions && path.research_directions.length > 0 && (
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">研究方向</p>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">研究主题</p>
           <div className="grid gap-2 md:grid-cols-2">
             {path.research_directions.map((direction, index) => (
               <div key={`${direction.direction}-${index}`} className="rounded-2xl border border-nm-dark/10 bg-white/40 p-3">
@@ -420,7 +420,7 @@ export default function InterestsPanel() {
             </button>
             <Button size="sm" onClick={() => { setCreating((prev) => !prev); setDiscovering(false); }}>
               <Plus className="h-4 w-4" />
-              {creating ? "收起表单" : "添加研究方向"}
+              {creating ? "收起表单" : "添加研究主题"}
             </Button>
           </div>
         </div>
@@ -446,7 +446,7 @@ export default function InterestsPanel() {
               setWizardTopic("");
               if (meta?.failedUploads.length) {
                 const uploadedSummary = meta.uploadedReferences > 0 ? `已导入 ${meta.uploadedReferences} 篇，` : "";
-                setError(`研究方向已创建，${uploadedSummary}${meta.failedUploads.length} 篇参考文献导入失败：${meta.failedUploads.join("；")}`);
+                setError(`研究主题已创建，${uploadedSummary}${meta.failedUploads.length} 篇参考文献导入失败：${meta.failedUploads.join("；")}`);
                 setNotice("");
                 return;
               }
@@ -454,7 +454,7 @@ export default function InterestsPanel() {
               setError("");
               setNotice(
                 meta?.uploadedReferences
-                  ? `研究方向已创建，并导入 ${meta.uploadedReferences} 篇参考文献。后续修改主题文件夹名不会影响论文归属。`
+                  ? `研究主题已创建，并导入 ${meta.uploadedReferences} 篇参考文献。后续修改主题文件夹名不会影响论文归属。`
                   : ""
               );
             }}
@@ -485,8 +485,8 @@ export default function InterestsPanel() {
             <Sparkles className="h-7 w-7 text-ink-tertiary" />
           </div>
           <div>
-            <p className="font-medium text-ink-secondary">暂无研究方向</p>
-            <p className="mt-1 text-sm text-ink-tertiary">添加研究方向，小妍会为你生成系统化路线。</p>
+            <p className="font-medium text-ink-secondary">暂无研究主题</p>
+            <p className="mt-1 text-sm text-ink-tertiary">添加研究主题，小妍会为你生成系统化路线。</p>
           </div>
         </Card>
       ) : (
@@ -555,7 +555,7 @@ export default function InterestsPanel() {
                     )}
                     {confirmDeleteId === interest.id ? (
                       <div className="flex items-center gap-2 rounded-2xl border border-apple-red/20 bg-[#FEF0EE] px-3 py-1.5">
-                        <span className="text-xs text-apple-red">确认删除研究方向？论文和笔记将置为未归档。</span>
+                        <span className="text-xs text-apple-red">确认删除研究主题？论文和笔记将置为未归档。</span>
                         <Button
                           size="sm"
                           variant="secondary"

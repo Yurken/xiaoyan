@@ -40,7 +40,7 @@ export default function Home() {
         <div>
           <p className="text-base font-semibold text-ink-primary">还没有工作台概览</p>
           <p className="mt-2 max-w-md text-sm leading-6 text-ink-tertiary">
-            可以先规划一个研究方向，或者直接让小妍帮你整理当前想法，开启你的研究之旅。
+            可以先规划一个研究主题，或者直接让小妍帮你整理当前想法，开启你的研究之旅。
           </p>
         </div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-2.5">

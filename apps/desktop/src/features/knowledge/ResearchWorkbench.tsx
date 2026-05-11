@@ -308,7 +308,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
             <div className="flex h-full flex-col items-center justify-center text-center py-16">
               <p className="text-sm font-medium text-ink-primary">暂无规划路线</p>
               <p className="mt-2 text-xs leading-6 text-ink-tertiary">
-                路线生成后会在这里展示学习阶段、经典论文和研究方向。
+                路线生成后会在这里展示学习阶段、经典论文和研究主题。
               </p>
             </div>
           )}

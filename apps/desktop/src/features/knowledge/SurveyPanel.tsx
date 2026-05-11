@@ -352,7 +352,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
           {interests.length > 0 && (
             <Select
               className="w-48 flex-shrink-0"
-              prefix="研究方向："
+              prefix="研究主题："
               value={selectedInterestId}
               onChange={(v) => {
                 setSelectedInterestId(v);
@@ -368,7 +368,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
                   label: interestFolderName(interest),
                 })),
               ]}
-              placeholder="选择研究方向"
+              placeholder="选择研究主题"
             />
           )}
         </div>
@@ -411,7 +411,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
         )}
       </Card>
 
-      {/* ── 选中研究方向的论文选择区 ── */}
+      {/* ── 选中研究主题的论文选择区 ── */}
       {selectedInterestId && (
         <Card padding="sm" className="space-y-2">
           <div className="flex items-center justify-between">
@@ -440,7 +440,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
               正在加载…
             </div>
           ) : interestPapers.length === 0 ? (
-            <p className="text-xs text-ink-tertiary">该研究方向下暂无论文</p>
+            <p className="text-xs text-ink-tertiary">该研究主题下暂无论文</p>
           ) : (
             <div className="overflow-hidden rounded-xl border border-nm-dark/10">
               {interestPapers.map((paper, index) => {
@@ -905,7 +905,7 @@ export default function SurveyPanel({ hideInterestPanel = false }: { hideInteres
                 {/* Future Directions */}
                 {structured.report.future_directions && structured.report.future_directions.length > 0 && (
                   <div>
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">未来研究方向</p>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">未来研究主题</p>
                     <ul className="space-y-1.5 pl-4 text-sm leading-6 text-ink-secondary">
                       {structured.report.future_directions.map((dir, index) => (
                         <li key={`${dir}-${index}`} className="list-disc">{dir}</li>

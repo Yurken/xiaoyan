@@ -87,13 +87,13 @@ function GraphOverviewControls({
       <div className="min-w-0 flex-1">
         <p className="mb-2 text-xs font-medium text-ink-tertiary">聚焦范围</p>
         <Select
-          aria-label="聚焦研究方向"
+          aria-label="聚焦研究主题"
           className="w-full"
           disabled={disabled}
           value={activeInterestId ?? ""}
           onChange={(value) => onChangeInterest(value || null)}
           options={interestOptions}
-          placeholder="全部研究方向"
+          placeholder="全部研究主题"
         />
       </div>
       <IconButton
@@ -194,7 +194,7 @@ export default function KnowledgeGraphWorkspace({
   const metrics = useMemo(
     () => [
       {
-        label: "研究方向",
+        label: "研究主题",
         value: snapshot?.summary.interestCount ?? 0,
         icon: Compass,
         tone: {

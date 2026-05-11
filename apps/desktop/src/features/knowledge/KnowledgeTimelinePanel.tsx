@@ -25,7 +25,7 @@ export default function KnowledgeTimelinePanel({
     return (
       <Card padding="md">
         <CardHeader>
-          <CardTitle>研究方向演进时间线</CardTitle>
+          <CardTitle>研究主题演进时间线</CardTitle>
         </CardHeader>
         <p className="text-sm text-ink-tertiary">
           目前还没有足够事件形成时间线。先导入论文，或补充结论与实验记录。
@@ -43,7 +43,7 @@ export default function KnowledgeTimelinePanel({
   return (
     <Card padding="md">
       <CardHeader>
-        <CardTitle>研究方向演进时间线</CardTitle>
+        <CardTitle>研究主题演进时间线</CardTitle>
       </CardHeader>
 
       <div className="space-y-5">

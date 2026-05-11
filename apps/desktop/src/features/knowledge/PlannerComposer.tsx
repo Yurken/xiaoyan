@@ -337,8 +337,8 @@ export default function PlannerComposer({ onCancel, onCreated, initialTopic }: P
   const createButtonLabel = submitPhase === "uploading"
     ? "正在导入参考文献…"
     : pendingReferences.length > 0
-      ? "创建研究方向并导入参考文献"
-      : "创建研究方向";
+      ? "创建研究主题并导入参考文献"
+      : "创建研究主题";
 
   return (
     <Card padding="md" className="space-y-4">
@@ -604,7 +604,7 @@ export default function PlannerComposer({ onCancel, onCreated, initialTopic }: P
               </div>
 
               <p className="text-xs leading-5 text-ink-tertiary">
-                当前选中的 PDF 会在创建研究方向后自动导入对应主题文件夹，并绑定到稳定的研究方向 ID。
+                当前选中的 PDF 会在创建研究主题后自动导入对应主题文件夹，并绑定到稳定的研究主题 ID。
                 后续修改主题文件夹名，不会影响这些参考文献的归属。
               </p>
 

@@ -146,8 +146,8 @@ export default function PlannerPage() {
           <Map className="w-5 h-5 text-blue-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">研究方向规划</h1>
-          <p className="text-sm text-gray-500">告诉小妍你的研究方向，她来帮你梳理学习路径和先修知识</p>
+          <h1 className="text-2xl font-bold text-gray-900">研究主题规划</h1>
+          <p className="text-sm text-gray-500">告诉小妍你的研究主题，她来帮你梳理学习路径和先修知识</p>
         </div>
       </div>
 

@@ -11,8 +11,8 @@ const features = [
   {
     href: "/planner",
     icon: Map,
-    title: "研究方向规划",
-    description: `告诉小妍你的研究方向，她来帮你拆解学习路径、补齐先修知识、推荐必读论文`,
+    title: "研究主题规划",
+    description: `告诉小妍你的研究主题，她来帮你拆解学习路径、补齐先修知识、推荐必读论文`,
     color: "text-blue-600",
     bg: "bg-blue-50",
   },

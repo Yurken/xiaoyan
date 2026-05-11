@@ -801,7 +801,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             placeholder="例如：2024"
           />
           <Select
-            label="主题文件夹"
+            label="研究主题"
             value={editDraft.research_interest_id}
             onChange={(value) => setEditDraft((prev) => ({ ...prev, research_interest_id: value }))}
             options={[
@@ -1100,7 +1100,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               <div className="flex items-center justify-between gap-2 px-1">
                 <div>
                   <p className="text-sm font-semibold text-ink-primary">未归档论文</p>
-                  <p className="mt-0.5 text-xs text-ink-tertiary">这些论文暂未绑定主题，编辑后可移动到主题文件夹。</p>
+                  <p className="mt-0.5 text-xs text-ink-tertiary">这些论文暂未绑定主题，编辑后可移动到研究主题。</p>
                 </div>
                 {renderGroupControls("ungrouped")}
               </div>

@@ -259,7 +259,7 @@ function FocusHome() {
                       }}
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      添加研究方向
+                      添加研究主题
                     </button>
                   </div>
                 </div>
@@ -286,7 +286,7 @@ function FocusHome() {
                   {/* inline TopicDiscoveryWizard via dynamic import would work, but we reuse the navigate pattern */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-ink-primary">帮我找研究方向</p>
+                      <p className="text-sm font-semibold text-ink-primary">帮我找研究主题</p>
                       <button
                         type="button"
                         onClick={() => setDiscovering(false)}
@@ -332,7 +332,7 @@ function FocusHome() {
                 <Microscope className="w-10 h-10 text-ink-tertiary mx-auto mb-3" />
                 <p className="text-sm font-semibold text-ink-primary">还没有研究主题</p>
                 <p className="text-xs text-ink-tertiary mt-2 leading-5">
-                  点击「添加研究方向」，小妍帮你整理路线和文献。
+                  点击「添加研究主题」，小妍帮你整理路线和文献。
                 </p>
               </div>
             ) : (

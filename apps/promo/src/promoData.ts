@@ -78,7 +78,7 @@ export const WORKFLOW_STEPS = [
 
 export const AGENTS = [
   { name: "Supervisor", role: "任务拆解与整合", tone: "amber" },
-  { name: "Topic Analyst", role: "研究方向分析", tone: "teal" },
+  { name: "Topic Analyst", role: "研究主题分析", tone: "teal" },
   { name: "Paper Scout", role: "文献检索与筛选", tone: "blue" },
   { name: "Survey Writer", role: "结构化综述写作", tone: "rose" },
   { name: "Reproduction Advisor", role: "代码复现建议", tone: "green" },

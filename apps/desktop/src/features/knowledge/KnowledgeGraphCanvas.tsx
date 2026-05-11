@@ -34,7 +34,7 @@ export default function KnowledgeGraphCanvas({
   const height = computeKnowledgeGraphCanvasHeight(nodes);
   const viewWidth = 1000;
   const laneLabels = [
-    { key: "interest", label: "研究方向", x: "12%" },
+    { key: "interest", label: "研究主题", x: "12%" },
     { key: "claim", label: "观点 / 结论", x: "42%" },
     { key: "evidence", label: "论文 / 实验 / 笔记", x: "75%" },
   ];

@@ -162,7 +162,7 @@ export default function TopicDiscoveryWizard({ onSelect, onClose }: Props) {
       {step === "results" && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-ink-secondary">选一个感兴趣的方向</p>
+            <p className="text-xs font-medium text-ink-secondary">选一个感兴趣的主题</p>
             <button
               type="button"
               onClick={() => void handleGenerate()}

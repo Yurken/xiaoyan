@@ -296,7 +296,7 @@ function NoteDetailModal({
                 placeholder="知识卡片标题"
               />
               <div className="space-y-1">
-                <label className="ml-1 block text-xs font-medium text-ink-tertiary">主题文件夹</label>
+                <label className="ml-1 block text-xs font-medium text-ink-tertiary">研究主题</label>
                 <Select
                   value={draft.research_interest_id}
                   onChange={(value) => setDraft((prev) => ({ ...prev, research_interest_id: value }))}
@@ -540,10 +540,10 @@ export default function NotesPanel({
           <div>
             <p className="text-sm font-semibold text-ink-primary">知识卡片库</p>
             <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-              支持语义搜索、标签归档，并可把笔记关联到具体研究方向。
+              支持语义搜索、标签归档，并可把笔记关联到具体研究主题。
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {researchInterestId ? <Badge variant="default">已按研究方向聚焦</Badge> : null}
+              {researchInterestId ? <Badge variant="default">已按研究主题聚焦</Badge> : null}
               {hasGraphCoverage && scopedNotes.length > 0 ? (
                 <Badge variant={linkedVisibleNoteCount > 0 ? "info" : "default"}>
                   图谱关联 {linkedVisibleNoteCount}/{scopedNotes.length}
@@ -600,7 +600,7 @@ export default function NotesPanel({
 
             {!researchInterestId && (
               <div className="space-y-1">
-                <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究方向</label>
+                <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究主题</label>
                 <Select
                   value={selectedInterestId}
                   onChange={setSelectedInterestId}
@@ -657,7 +657,7 @@ export default function NotesPanel({
             />
             {!researchInterestId && (
               <div className="space-y-1">
-                <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究方向（可选）</label>
+                <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究主题（可选）</label>
                 <Select
                   value={selectedInterestId}
                   onChange={setSelectedInterestId}
@@ -782,7 +782,7 @@ export default function NotesPanel({
             <section className="space-y-3">
               <div className="px-1">
                 <p className="text-sm font-semibold text-ink-primary">未归档笔记</p>
-                <p className="mt-1 text-xs text-ink-tertiary">这些笔记暂未绑定主题，可直接编辑并移动到主题文件夹。</p>
+                <p className="mt-1 text-xs text-ink-tertiary">这些笔记暂未绑定主题，可直接编辑并移动到研究主题。</p>
               </div>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {ungroupedNotes.map(renderNoteCard)}

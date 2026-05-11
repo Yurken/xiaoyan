@@ -783,7 +783,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             {!hideFolders && !sessionListCollapsed && (
               <div className="mt-2">
                 <Select
-                  label="新对话主题文件夹"
+                  label="新对话研究主题"
                   value={selectedInterestId}
                   onChange={setSelectedInterestId}
                   className="text-xs"

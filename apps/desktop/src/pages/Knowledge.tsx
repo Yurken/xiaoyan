@@ -110,7 +110,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
               value={graphController.activeInterestId ?? ""}
               onChange={(value) => graphController.setActiveInterestId(value || null)}
               options={interestOptions}
-              placeholder="全部研究方向"
+              placeholder="全部研究主题"
             />
           ) : null}
         </div>

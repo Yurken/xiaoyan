@@ -68,7 +68,7 @@ export default function VenueRecommendationForm({
             onChange={(event) => onChangeInput({ ...input, title: event.target.value })}
           />
           <Input
-            label="研究方向"
+            label="研究主题"
             type="text"
             placeholder="如：多模态检索、图神经网络、软件工程"
             value={input.direction}

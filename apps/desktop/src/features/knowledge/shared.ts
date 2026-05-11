@@ -164,7 +164,7 @@ export function buildInterestSelectOptions(
   interests: Array<Pick<KnowledgeGraphInterest, "id" | "topic" | "folderName">> = [],
 ) {
   return [
-    { value: "", label: "全部研究方向" },
+    { value: "", label: "全部研究主题" },
     ...interests.map((item) => ({
       value: item.id,
       label: interestDisplayName(item),
