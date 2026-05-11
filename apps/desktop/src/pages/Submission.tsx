@@ -39,6 +39,8 @@ import {
 } from "../features/submission/shared";
 
 export default function Submission() {
+  const [syncingDdl, setSyncingDdl] = useState(false);
+  const [ddlSyncResult, setDdlSyncResult] = useState("");
   const [feedback, setFeedback] = useState("");
   const showSubmissionError = useCallback((error: unknown) => {
     setFeedback(formatErrorMessage(error));
@@ -601,31 +603,49 @@ export default function Submission() {
 
       <div className="flex-1 overflow-y-auto p-6">
         {tab === "conferences" && (
-          <VenueTrackerWorkspace
-            venueFilter={venueFilter}
-            visibleVenues={visibleVenues}
-            conferencesCount={conferences.length}
-            journalsCount={journals.length}
-            recommendations={recommendations}
-            recommendationLoading={recLoading}
-            recommendationInput={recInput}
-            onVenueFilterChange={setVenueFilter}
-            onOpenAddVenue={() => setShowAddModal(true)}
-            onChangeRecommendationInput={setRecInput}
-            onGenerateRecommendations={generateRecommendations}
-            isVenueAdded={isVenueAdded}
-            onAddVenue={handleAddVenue}
-            onCreateSubmissionFromRecommendation={(recommendation) => {
-              setAddSubForm({
-                title: recInput.title.trim(),
-                venue: recommendation.name,
-                venueType: recommendation.type,
-                deadline: "",
-              });
-              setShowAddSubModal(true);
-            }}
-            onToggleVenueStar={toggleVenueStar}
-          />
+          <>
+            <VenueTrackerWorkspace
+              venueFilter={venueFilter}
+              visibleVenues={visibleVenues}
+              conferencesCount={conferences.length}
+              journalsCount={journals.length}
+              recommendations={recommendations}
+              recommendationLoading={recLoading}
+              recommendationInput={recInput}
+              onVenueFilterChange={setVenueFilter}
+              onOpenAddVenue={() => setShowAddModal(true)}
+              onChangeRecommendationInput={setRecInput}
+              onGenerateRecommendations={generateRecommendations}
+              isVenueAdded={isVenueAdded}
+              onAddVenue={handleAddVenue}
+              onCreateSubmissionFromRecommendation={(recommendation) => {
+                setAddSubForm({
+                  title: recInput.title.trim(),
+                  venue: recommendation.name,
+                  venueType: recommendation.type,
+                  deadline: "",
+                });
+                setShowAddSubModal(true);
+              }}
+              onToggleVenueStar={toggleVenueStar}
+              onSyncDdl={async () => {
+                setSyncingDdl(true);
+                setDdlSyncResult("");
+                try {
+                  const result = await submissionApi.syncCcfDdl();
+                  setDdlSyncResult(`已同步 ${result.fetched} 个会议，更新 ${result.updated} 条记录`);
+                } catch (err) {
+                  setDdlSyncResult(formatErrorMessage(err));
+                } finally {
+                  setSyncingDdl(false);
+                }
+              }}
+              syncingDdl={syncingDdl}
+            />
+            {ddlSyncResult ? (
+              <p className="mt-2 text-xs text-ink-tertiary">{ddlSyncResult}</p>
+            ) : null}
+          </>
         )}
 
         {tab === "kanban" && (

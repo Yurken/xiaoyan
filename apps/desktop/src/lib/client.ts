@@ -704,6 +704,8 @@ export const submissionApi = {
     invoke<void>("submission_polish_abstract", { submissionId, text }),
   generateCoverLetter: (submissionId: string) =>
     invoke<void>("submission_generate_cover_letter", { submissionId }),
+  syncCcfDdl: () =>
+    invoke<{ fetched: number; updated: number }>("submission_sync_ccfddl"),
 };
 
 // ── Experiment API ────────────────────────────────────────────────

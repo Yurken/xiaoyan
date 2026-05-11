@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, BookOpen, Clock, Plus, Star, StarOff } from "lucide-react";
+import { Bell, BookOpen, Clock, Plus, RefreshCw, Star, StarOff } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
 import ExternalLink from "../../components/ExternalLink";
 import type { VenueTemplate } from "../../data/venues";
@@ -31,6 +31,8 @@ interface VenueTrackerWorkspaceProps {
   onAddVenue: (template: VenueTemplate) => void | Promise<void>;
   onCreateSubmissionFromRecommendation: (recommendation: VenueRecommendation) => void;
   onToggleVenueStar: (id: string, type: Venue["type"]) => void;
+  onSyncDdl?: () => void | Promise<void>;
+  syncingDdl?: boolean;
 }
 
 export default function VenueTrackerWorkspace({
@@ -49,6 +51,8 @@ export default function VenueTrackerWorkspace({
   onAddVenue,
   onCreateSubmissionFromRecommendation,
   onToggleVenueStar,
+  onSyncDdl,
+  syncingDdl,
 }: VenueTrackerWorkspaceProps) {
   const [recommendationsOpen, setRecommendationsOpen] = useState(false);
   const filterOptions = [
@@ -82,10 +86,18 @@ export default function VenueTrackerWorkspace({
             </button>
           ))}
         </div>
-        <Button variant="secondary" size="sm" onClick={onOpenAddVenue}>
-          <Plus className="w-3.5 h-3.5" />
-          添加会议/期刊
-        </Button>
+        <div className="flex items-center gap-2">
+          {onSyncDdl ? (
+            <Button variant="secondary" size="sm" loading={syncingDdl} onClick={() => void onSyncDdl()}>
+              <RefreshCw className="w-3.5 h-3.5" />
+              同步 DDL
+            </Button>
+          ) : null}
+          <Button variant="secondary" size="sm" onClick={onOpenAddVenue}>
+            <Plus className="w-3.5 h-3.5" />
+            添加会议/期刊
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-2.5">

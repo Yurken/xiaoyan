@@ -90,6 +90,7 @@ use commands::{
         submission_delete_comment, submission_delete_venue, submission_delete_version,
         submission_generate_cover_letter, submission_get_checklist, submission_list,
         submission_list_comments, submission_list_rounds, submission_list_venues,
+        submission_sync_ccfddl,
         submission_list_versions, submission_polish_abstract, submission_stats,
         submission_toggle_checklist, submission_toggle_venue_star, submission_update,
         submission_update_comment, submission_update_venue, submission_update_version,
@@ -345,6 +346,7 @@ pub fn run() {
             submission_ai_review,
             submission_polish_abstract,
             submission_generate_cover_letter,
+            submission_sync_ccfddl,
             // Experiment
             experiment_list,
             experiment_get,

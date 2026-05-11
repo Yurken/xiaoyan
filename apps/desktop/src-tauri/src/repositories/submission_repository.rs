@@ -14,6 +14,9 @@ pub struct VenueRow {
     pub sci_quartile: String,
     pub deadline: Option<String>,
     pub notification_date: Option<String>,
+    pub deadline_timezone: String,
+    pub conference_date: String,
+    pub conference_location: String,
     pub special_issue_deadline: Option<String>,
     pub special_issue_title: String,
     pub created_at: String,
@@ -56,7 +59,8 @@ pub struct UpdateVenueInput<'a> {
 pub async fn list_venues(pool: &SqlitePool) -> Result<Vec<VenueRow>, String> {
     let rows = sqlx::query(
         "SELECT id, type, name, full_name, website, ccf, area, starred, ei, sci, sci_quartile,
-                deadline, notification_date, special_issue_deadline, special_issue_title, created_at
+                deadline, notification_date, deadline_timezone, conference_date, conference_location,
+                special_issue_deadline, special_issue_title, created_at
          FROM venues ORDER BY starred DESC, name ASC",
     )
     .fetch_all(pool)
@@ -79,6 +83,9 @@ pub async fn list_venues(pool: &SqlitePool) -> Result<Vec<VenueRow>, String> {
             sci_quartile: row.get("sci_quartile"),
             deadline: row.get("deadline"),
             notification_date: row.get("notification_date"),
+            deadline_timezone: row.get("deadline_timezone"),
+            conference_date: row.get("conference_date"),
+            conference_location: row.get("conference_location"),
             special_issue_deadline: row.get("special_issue_deadline"),
             special_issue_title: row.get("special_issue_title"),
             created_at: row.get("created_at"),

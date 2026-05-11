@@ -54,3 +54,4 @@ rand = "0.8"
 # Regex for HTML parsing in web clip
 regex = "1"
 petgraph = "0.6"
+serde_yaml = "0.9"

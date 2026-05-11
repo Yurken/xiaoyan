@@ -518,6 +518,9 @@ pub async fn ensure_submission_tables(pool: &SqlitePool) -> Result<()> {
             sci_quartile            TEXT NOT NULL DEFAULT '',
             deadline                TEXT,
             notification_date       TEXT,
+            deadline_timezone       TEXT NOT NULL DEFAULT '',
+            conference_date         TEXT NOT NULL DEFAULT '',
+            conference_location     TEXT NOT NULL DEFAULT '',
             special_issue_deadline  TEXT,
             special_issue_title     TEXT NOT NULL DEFAULT '',
             created_at              TEXT NOT NULL DEFAULT (datetime('now'))
@@ -575,6 +578,17 @@ pub async fn ensure_submission_tables(pool: &SqlitePool) -> Result<()> {
     )
     .execute(pool)
     .await?;
+
+    // Migration: add columns that may not exist in older databases
+    for column in &[
+        "deadline_timezone TEXT NOT NULL DEFAULT ''",
+        "conference_date TEXT NOT NULL DEFAULT ''",
+        "conference_location TEXT NOT NULL DEFAULT ''",
+    ] {
+        let sql = format!("ALTER TABLE venues ADD COLUMN {column}");
+        let _ = sqlx::raw_sql(&sql).execute(pool).await;
+    }
+
     Ok(())
 }
 
