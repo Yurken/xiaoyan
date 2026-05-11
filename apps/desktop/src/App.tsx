@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
@@ -6,7 +6,7 @@ import {
   FlaskConical,
   LayoutDashboard,
   Library,
-  Map,
+  Map as MapIcon,
   MessageSquare,
   Send,
   Settings as SettingsIcon,
@@ -23,6 +23,9 @@ import Tools from "./pages/Tools";
 import Submission from "./pages/Submission";
 import Experiment from "./pages/Experiment";
 import FocusApp from "./pages/FocusLayout";
+import LockScreen from "./features/appLock/LockScreen";
+import { useInactivityLock } from "./features/appLock/useInactivityLock";
+import { apiClient } from "./lib/client";
 import {
   getLayoutMode,
   landscapePathForFocusPath,
@@ -39,7 +42,7 @@ import XiaoYanPet from "./components/XiaoYanPet";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "工作台" },
-  { to: "/planner", icon: Map, label: "规划" },
+  { to: "/planner", icon: MapIcon, label: "规划" },
   { to: "/xiaoyan", icon: MessageSquare, label: "对话" },
   { to: "/survey", icon: BookOpen, label: "综述" },
   { to: "/papers", icon: FileText, label: "论文" },
@@ -59,6 +62,22 @@ export default function App() {
   const autoUpdate = useAutoUpdate();
   const navigate = useNavigate();
   const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());
+  const [locked, setLocked] = useState(false);
+  const [lockChecked, setLockChecked] = useState(false);
+  const [lockTimeout, setLockTimeout] = useState(0);
+
+  // Check lock status on mount
+  useEffect(() => {
+    apiClient.settings.appLock.status()
+      .then((status) => {
+        setLockTimeout(status.timeoutMinutes);
+        if (status.enabled) setLocked(true);
+      })
+      .catch(() => {})
+      .finally(() => setLockChecked(true));
+  }, []);
+
+  useInactivityLock(lockTimeout, locked, () => setLocked(true));
 
   useEffect(() => {
     applyTheme(getTheme());
@@ -98,6 +117,53 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate]);
 
+  // Lock screen — shown before any app content
+  if (locked) {
+    return (
+      <LockScreen
+        onVerified={() => setLocked(false)}
+        onVerify={async (password) => {
+          try {
+            return await apiClient.settings.appLock.verifyPassword(password);
+          } catch {
+            return false;
+          }
+        }}
+      />
+    );
+  }
+
+  // Navigation indicator
+  const location = useLocation();
+  const navRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
+  const [indicatorStyle, setIndicatorStyle] = useState<{ top: number; height: number; opacity: number }>({ top: 0, height: 0, opacity: 0 });
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  const updateIndicator = useCallback(() => {
+    const path = location.pathname;
+    const key = path === "/" ? "/" : navItems.find((item) => path.startsWith(item.to))?.to;
+    if (!key) return;
+    const el = navRefs.current.get(key);
+    const sidebar = sidebarRef.current;
+    if (!el || !sidebar) return;
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    setIndicatorStyle({
+      top: elRect.top - sidebarRect.top,
+      height: elRect.height,
+      opacity: 1,
+    });
+  }, [location.pathname]);
+
+  useEffect(() => {
+    // Delay to let DOM settle after route change
+    const timer = setTimeout(updateIndicator, 50);
+    return () => clearTimeout(timer);
+  }, [updateIndicator]);
+
+  // Don't render app until lock status has been checked
+  if (!lockChecked) return null;
+
   if (layoutMode === "focus") {
     return (
       <>
@@ -110,8 +176,17 @@ export default function App() {
 
   return (
     <div className={`app-shell ${IS_MACOS_DESKTOP ? "app-shell--macos-overlay" : ""}`.trim()}>
-      <aside className="app-sidebar">
+      <aside ref={sidebarRef} className="app-sidebar">
         <MacWindowDragStrip className="app-sidebar__window-drag-region" />
+
+        <div
+          className="app-nav-indicator"
+          style={{
+            top: indicatorStyle.top,
+            height: indicatorStyle.height,
+            opacity: indicatorStyle.opacity,
+          }}
+        />
 
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
@@ -124,6 +199,9 @@ export default function App() {
           >
             {({ isActive }) => (
               <span
+                ref={(el) => {
+                  if (el) navRefs.current.set(to, el);
+                }}
                 className={`app-nav-item ${isActive ? "is-active" : ""}`.trim()}
               >
                 <span className="app-nav-item__marker" />
