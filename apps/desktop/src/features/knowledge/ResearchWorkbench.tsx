@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, FileText, FlaskConical, Loader2, MessageSquare, Send, Upload, Wrench } from "lucide-react";
-import { listen } from "@tauri-apps/api/event";
 import { Badge, Button, Input, MarkdownRenderer, Select } from "@research-copilot/ui";
 import NotesPanel from "./NotesPanel";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
 import AgentStateGraphPanel from "../copilot/AgentStateGraphPanel";
+import PaperTaskProgressPanel from "../papers/PaperTaskProgressPanel";
+import { usePaperTaskProgress } from "../papers/usePaperTaskProgress";
 import { upsertAgentRun } from "../copilot/shared";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { openLink } from "../../lib/links";
@@ -52,6 +53,10 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
   const [chatInput, setChatInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const onStatsRef = useRef(onStats);
+  const { taskProgressByPaperId, markPaperTaskStarted, markPaperTaskFailed } = usePaperTaskProgress({
+    setPapers,
+    setError,
+  });
 
   useEffect(() => {
     onStatsRef.current = onStats;
@@ -132,16 +137,6 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
   }, [messages]);
 
   useEffect(() => {
-    const unlisten = listen<{ paper_id: string; status: string }>("paper:status", (event) => {
-      if (event.payload.status === "metadata") return;
-      setPapers((prev) =>
-        prev.map((p) => p.id === event.payload.paper_id ? { ...p, status: event.payload.status } : p)
-      );
-    });
-    return () => { void unlisten.then((cleanup) => cleanup()); };
-  }, []);
-
-  useEffect(() => {
     if (sending) return;
     if (!selectedSessionId) {
       setMessages([]);
@@ -195,9 +190,11 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
       setConfirmReanalyzePaperId(null);
       setError("");
       setPapers((prev) => prev.map((p) => p.id === paperId ? { ...p, status: "analyzing" } : p));
+      markPaperTaskStarted(paperId, "analysis");
       await apiClient.papers.analyze(paperId);
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
+      markPaperTaskFailed(paperId);
       setPapers((prev) => prev.map((p) => p.id === paperId ? { ...p, status: "failed" } : p));
     }
   };
@@ -206,9 +203,11 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
     try {
       setError("");
       setPapers((prev) => prev.map((p) => p.id === paperId ? { ...p, status: "analyzing" } : p));
+      markPaperTaskStarted(paperId, "reproduction");
       await apiClient.papers.reproduce(paperId);
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
+      markPaperTaskFailed(paperId);
       setPapers((prev) => prev.map((p) => p.id === paperId ? { ...p, status: "failed" } : p));
     }
   };
@@ -385,6 +384,9 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
                       复现
                     </Button>
                   </div>
+                  {paper.status === "analyzing" && taskProgressByPaperId[paper.id] ? (
+                    <PaperTaskProgressPanel progress={taskProgressByPaperId[paper.id]} />
+                  ) : null}
                   {confirmReanalyzePaperId === paper.id && (
                     <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-[rgba(0,122,255,0.08)] px-3 py-2">
                       <span className="text-xs text-[#0A62D0]">该论文已有分析结果，确认要重新分析并覆盖现有结果吗？</span>

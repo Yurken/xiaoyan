@@ -1665,6 +1665,10 @@ pub async fn papers_reproduce(
             max_tokens,
             &msgs,
         );
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": pid, "status": "analyzing", "step": "复现指南生成中…" }),
+        );
 
         match client
             .chat_with_max_tokens(&msgs, model.as_deref(), temperature, max_tokens)
@@ -1672,6 +1676,10 @@ pub async fn papers_reproduce(
         {
             Ok(response) => {
                 log_llm_response("paper-reproduce", &pid, "guide", &response);
+                let _ = app.emit(
+                    "paper:status",
+                    json!({ "paper_id": pid, "status": "analyzing", "step": "复现指南整理中…" }),
+                );
                 let v = match parse_llm_json_value(&response) {
                     Ok(value) => value,
                     Err(error) => {

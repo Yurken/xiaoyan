@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useClickOutside } from "../hooks/useClickOutside";
 import {
   AlertCircle,
@@ -12,7 +12,6 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { listen } from "@tauri-apps/api/event";
 import { Badge, Button, Card, Input, Select } from "@research-copilot/ui";
 import type { Paper, ResearchInterest } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, VenueTypeBadge, WosIndexBadge } from "../components/CcfBadges";
@@ -20,8 +19,10 @@ import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
 import PaperCitationPanel from "../features/papers/PaperCitationPanel";
 import PaperDetailModal from "../features/papers/PaperDetailModal";
+import PaperTaskProgressPanel from "../features/papers/PaperTaskProgressPanel";
 import type { PaperFigure } from "../features/papers/shared";
 import { usePaperDetailRoute } from "../features/papers/usePaperDetailRoute";
+import { usePaperTaskProgress } from "../features/papers/usePaperTaskProgress";
 import { usePersistentState } from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE, parsePaperTagVisibility } from "../lib/paperTags";
@@ -31,10 +32,6 @@ function interestFolderName(interest: ResearchInterest) {
 }
 
 export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
-  // Tracks papers where BOTH analyze + reproduce are in-flight.
-  // Only when both events arrive do we fetch and surface results.
-  const pendingPairs = useRef(new Map<string, Set<"analyzed" | "reproduced">>());
-
   const [papers, setPapers] = useState<Paper[]>([]);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +53,10 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     title: true, authors: true, year: true, venue: true, keywords: true,
   });
   const [paperFigures, setPaperFigures] = useState<Record<string, PaperFigure[]>>({});
+  const { taskProgressByPaperId, markPaperTaskStarted, markPaperTaskFailed } = usePaperTaskProgress({
+    setPapers,
+    setError: setLoadError,
+  });
 
   const recognizeRef = useClickOutside(recognizeOpen, () => setRecognizeOpen(false));
 
@@ -306,69 +307,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     }
   };
 
-  useEffect(() => {
-    const doFetch = (paper_id: string, finalStatus: string) => {
-      void apiClient.papers
-        .get(paper_id)
-        .then((latest) => {
-          setPapers((prev) => prev.map((p) => (p.id === paper_id ? latest : p)));
-        })
-        .catch((fetchError) => {
-          setLoadError(formatErrorMessage(fetchError));
-        });
-      // Update status locally immediately so the badge reflects completion
-      setPapers((prev) => prev.map((p) => (p.id === paper_id ? { ...p, status: finalStatus } : p)));
-    };
-
-    const unlisten = listen<{ paper_id: string; status: string; error?: string }>("paper:status", (event) => {
-      const { paper_id, status, error } = event.payload;
-
-      if (status === "analyzed" || status === "reproduced") {
-        const pending = pendingPairs.current.get(paper_id);
-        if (pending) {
-          // We initiated this pair — wait until both arrive before surfacing results
-          pending.delete(status as "analyzed" | "reproduced");
-          if (pending.size === 0) {
-            pendingPairs.current.delete(paper_id);
-            doFetch(paper_id, status);
-          }
-          // While still waiting for the partner event, keep status as "analyzing" (no state update)
-          return;
-        }
-        // Single-task completion (e.g. loaded from a previous session's background task)
-        doFetch(paper_id, status);
-        return;
-      }
-
-      if (status === "metadata") {
-        // 元数据识别完成：刷新论文字段，但保留当前处理状态（parsing）
-        void apiClient.papers.get(paper_id).then((latest) => {
-          setPapers((prev) => prev.map((p) => (p.id === paper_id ? { ...latest, status: p.status } : p)));
-        }).catch(() => {});
-        return;
-      }
-
-      if (status === "parsed") {
-        doFetch(paper_id, status);
-        return;
-      }
-
-      if (status === "error" || status === "failed") {
-        pendingPairs.current.delete(paper_id);
-        setPapers((prev) => prev.map((p) => (p.id === paper_id ? { ...p, status } : p)));
-        if (error) setLoadError(error);
-        return;
-      }
-
-      // Any other status update (e.g. "analyzing" from backend)
-      setPapers((prev) => prev.map((p) => (p.id === paper_id ? { ...p, status } : p)));
-    });
-
-    return () => {
-      void unlisten.then((cleanup) => cleanup());
-    };
-  }, []);
-
   // Fetch figures when the detail modal opens for the first time.
   useEffect(() => {
     if (!detailPaperId || paperFigures[detailPaperId] !== undefined) return;
@@ -384,8 +322,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       setConfirmReanalyzePaperId(null);
       setLoadError("");
       setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "analyzing" } : paper)));
-      // Register both expected completion events before firing requests
-      pendingPairs.current.set(id, new Set(["analyzed", "reproduced"]));
+      markPaperTaskStarted(id, "combined");
       const paper = papers.find((p) => p.id === id);
       if (paper) {
         void apiClient.memory.add({
@@ -401,7 +338,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       ]);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
-      pendingPairs.current.delete(id);
+      markPaperTaskFailed(id);
       setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "failed" } : paper)));
     }
   };
@@ -780,6 +717,10 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           </p>
         </div>
       </div>
+
+      {paper.status === "analyzing" && taskProgressByPaperId[paper.id] ? (
+        <PaperTaskProgressPanel progress={taskProgressByPaperId[paper.id]} />
+      ) : null}
 
       {confirmDeletePaperId === paper.id && (
         <div

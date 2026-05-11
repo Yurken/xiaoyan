@@ -222,3 +222,156 @@ function makeBibTeXKey(paper: Paper, authors: string, year: string, title: strin
 function escapeBibTeX(value: string) {
   return value.replace(/[{}]/g, "");
 }
+
+export type PaperTaskMode = "analysis" | "reproduction" | "combined";
+export type PaperTaskFinalStatus = "analyzed" | "reproduced";
+
+export interface PaperStatusEventPayload {
+  paper_id: string;
+  status: string;
+  error?: string;
+  step?: string;
+  progress?: number;
+}
+
+export interface PaperTaskProgress {
+  label: string;
+  detail: string;
+  percent: number;
+}
+
+const PAPER_TASK_STEP_RULES: Array<{ needle: string; label: string; detail: string; percent: number }> = [
+  {
+    needle: "图表提取超时",
+    label: "图表提取超时，继续解读正文",
+    detail: "图表识别没有卡住流程，小妍会先用正文上下文完成后续分析。",
+    percent: 24,
+  },
+  {
+    needle: "图表提取",
+    label: "提取论文图表",
+    detail: "正在整理 Figure / Table 上下文，后续分析会尽量引用图表编号。",
+    percent: 14,
+  },
+  {
+    needle: "问题背景分析",
+    label: "分析研究问题与背景",
+    detail: "正在梳理论文想解决的问题、动机和研究场景。",
+    percent: 32,
+  },
+  {
+    needle: "方法深度解析",
+    label: "拆解核心方法",
+    detail: "正在对齐方法模块、关键假设和与已有工作的差异。",
+    percent: 50,
+  },
+  {
+    needle: "实验结果分析",
+    label: "核对实验设计与结果",
+    detail: "正在检查数据集、指标、基线、消融和结果边界。",
+    percent: 68,
+  },
+  {
+    needle: "综合评审",
+    label: "整理贡献、局限与结论",
+    detail: "正在把前面几轮解读收束成可阅读的综合结论。",
+    percent: 82,
+  },
+  {
+    needle: "复现指南生成",
+    label: "生成复现指南",
+    detail: "正在整理代码、环境、数据、训练和评估路径。",
+    percent: 46,
+  },
+  {
+    needle: "复现指南整理",
+    label: "整理复现指南",
+    detail: "正在校验复现字段并保存结果。",
+    percent: 88,
+  },
+];
+
+export function expectedPaperTaskFinalStatuses(mode: PaperTaskMode): PaperTaskFinalStatus[] {
+  if (mode === "combined") return ["analyzed", "reproduced"];
+  if (mode === "reproduction") return ["reproduced"];
+  return ["analyzed"];
+}
+
+export function initialPaperTaskProgress(mode: PaperTaskMode): PaperTaskProgress {
+  if (mode === "reproduction") {
+    return {
+      label: "准备复现指南",
+      detail: "正在读取论文上下文并连接复现模型。",
+      percent: 8,
+    };
+  }
+
+  if (mode === "combined") {
+    return {
+      label: "准备小妍解读",
+      detail: "会同步生成论文解读和复现指南，完成后一起展示。",
+      percent: 8,
+    };
+  }
+
+  return {
+    label: "准备论文解读",
+    detail: "正在读取论文上下文并连接精读模型。",
+    percent: 8,
+  };
+}
+
+export function progressFromPaperStatusEvent(
+  payload: PaperStatusEventPayload,
+  previous?: PaperTaskProgress,
+): PaperTaskProgress {
+  const step = payload.step?.trim();
+  const matched = step ? PAPER_TASK_STEP_RULES.find((rule) => step.includes(rule.needle)) : undefined;
+  const explicitPercent = typeof payload.progress === "number" && Number.isFinite(payload.progress)
+    ? clampPaperTaskPercent(payload.progress)
+    : undefined;
+  const nextPercent = explicitPercent ?? matched?.percent ?? previous?.percent ?? 12;
+
+  return {
+    label: matched?.label ?? cleanPaperTaskStep(step) ?? previous?.label ?? "小妍正在处理论文",
+    detail: matched?.detail ?? cleanPaperTaskStep(step) ?? previous?.detail ?? "后台任务已开始，正在等待阶段信息。",
+    percent: Math.max(previous?.percent ?? 0, clampPaperTaskPercent(nextPercent)),
+  };
+}
+
+export function progressForPendingPaperCompletions(
+  waiting: Set<PaperTaskFinalStatus>,
+  previous?: PaperTaskProgress,
+): PaperTaskProgress {
+  if (waiting.has("reproduced") && !waiting.has("analyzed")) {
+    return {
+      label: "论文解读已完成，复现指南收尾中",
+      detail: "解读内容已经生成，正在等待复现指南完成后统一展示。",
+      percent: Math.max(previous?.percent ?? 0, 88),
+    };
+  }
+
+  if (waiting.has("analyzed") && !waiting.has("reproduced")) {
+    return {
+      label: "复现指南已完成，论文解读收尾中",
+      detail: "复现部分已经生成，正在等待论文精读结果完成。",
+      percent: Math.max(previous?.percent ?? 0, 72),
+    };
+  }
+
+  return {
+    label: "小妍正在并行处理论文",
+    detail: "论文解读和复现指南仍在推进。",
+    percent: Math.max(previous?.percent ?? 0, 60),
+  };
+}
+
+function cleanPaperTaskStep(step?: string) {
+  return step
+    ?.replace(/[.。…\s]+$/g, "")
+    .trim();
+}
+
+function clampPaperTaskPercent(value: number) {
+  return Math.min(99, Math.max(0, Math.round(value)));
+}
