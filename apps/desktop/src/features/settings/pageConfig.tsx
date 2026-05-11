@@ -54,7 +54,7 @@ export const SETTINGS_SECTIONS: Array<{
     label: "技能模板",
     description: "提示词技能管理",
     icon: Zap,
-    color: "#FF9F0A",
+    color: "#FF375F",
   },
   {
     key: "layout",
@@ -68,7 +68,7 @@ export const SETTINGS_SECTIONS: Array<{
     label: "记忆管理",
     description: "查看与管理小妍的记忆",
     icon: Brain,
-    color: "#FF9F0A",
+    color: "#FFD60A",
   },
   {
     key: "history",
@@ -127,7 +127,7 @@ export function SettingsSectionTab({
           className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
           style={{
             background: active ? `color-mix(in srgb, ${color} 14%, transparent)` : "transparent",
-            color: active ? color : "var(--rc-text-muted)",
+            color: active ? color : `color-mix(in srgb, ${color} 55%, transparent)`,
           }}
         >
           <Icon className="h-4 w-4" />
@@ -322,4 +322,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   translation_max_tokens: "16384",
   translation_presence_penalty: "",
   translation_frequency_penalty: "",
+  app_lock_enabled: "false",
+  app_lock_password_salt: "",
+  app_lock_password_hash: "",
+  app_lock_timeout_minutes: "0",
 };

@@ -41,7 +41,7 @@ import UpdateNotification from "./components/UpdateNotification";
 import XiaoYanPet from "./components/XiaoYanPet";
 
 const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "工作台" },
+  { to: "/", icon: LayoutDashboard, label: "首页" },
   { to: "/planner", icon: Map, label: "规划" },
   { to: "/xiaoyan", icon: MessageSquare, label: "对话" },
   { to: "/survey", icon: BookOpen, label: "综述" },

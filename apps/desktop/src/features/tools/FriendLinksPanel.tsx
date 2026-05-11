@@ -4,7 +4,10 @@ import ExternalLink from "../../components/ExternalLink";
 import { friendLinkInitial, friendLinkSectionId } from "./shared";
 import { YANWEB_FRIEND_LINK_SECTIONS, YANWEB_FRIEND_LINK_TOTAL } from "../../lib/yanweb-links";
 
-const raisedShadow = "var(--rc-raised-shadow)";
+const chipStyle = {
+  background: "var(--rc-chip-bg)",
+  boxShadow: "var(--rc-chip-shadow)",
+} as const;
 
 interface FriendLinksPanelProps {
   openSections: Record<string, boolean>;
@@ -31,15 +34,14 @@ export function FriendLinksPanel({
           <p className="text-sm font-semibold text-ink-primary">科研友链</p>
           <p className="text-xs text-ink-tertiary">{`共 ${YANWEB_FRIEND_LINK_TOTAL} 条 · ${YANWEB_FRIEND_LINK_SECTIONS.length} 个分类`}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onToggleAll}
-            className="inline-flex items-center rounded-full bg-white/45 px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
-          >
-            {allExpanded ? "收起全部" : "展开全部"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onToggleAll}
+          className="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:scale-[1.02] active:scale-95"
+          style={chipStyle}
+        >
+          {allExpanded ? "收起全部" : "展开全部"}
+        </button>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -48,7 +50,8 @@ export function FriendLinksPanel({
             type="button"
             key={section.title}
             onClick={() => onRevealSection(section.title, index)}
-            className="inline-flex items-center gap-2 rounded-full bg-white/45 px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:bg-white/70 hover:text-apple-blue"
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium text-ink-secondary transition hover:scale-[1.02] active:scale-95"
+            style={chipStyle}
             aria-expanded={openSections[section.title] ?? false}
             aria-controls={friendLinkSectionId(index)}
           >
@@ -63,13 +66,17 @@ export function FriendLinksPanel({
           <section
             key={section.title}
             id={friendLinkSectionId(index)}
-            className="scroll-mt-6 overflow-hidden rounded-3xl border border-white/55 bg-white/25"
-            style={{ boxShadow: "var(--rc-inset-shadow)" }}
+            className="scroll-mt-6 overflow-hidden rounded-3xl"
+            style={{
+              background: "var(--rc-card-bg)",
+              border: "1px solid var(--rc-card-outline)",
+              boxShadow: "var(--rc-card-shadow)",
+            }}
           >
             <button
               type="button"
               onClick={() => onToggleSection(section.title)}
-              className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-white/20"
+              className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:opacity-80"
               aria-expanded={openSections[section.title] ?? false}
               aria-controls={`${friendLinkSectionId(index)}-panel`}
             >
@@ -88,18 +95,29 @@ export function FriendLinksPanel({
             </button>
 
             {openSections[section.title] ? (
-              <div id={`${friendLinkSectionId(index)}-panel`} className="border-t border-white/55 px-1 pb-1 pt-3">
+              <div
+                id={`${friendLinkSectionId(index)}-panel`}
+                className="border-t px-1 pb-1 pt-3"
+                style={{ borderColor: "var(--rc-border)" }}
+              >
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {section.items.map((item) => (
                     <ExternalLink
                       key={`${section.title}-${item.name}-${item.href}`}
                       href={item.href}
                       title={`${item.name} · ${item.href}`}
-                      className="group flex items-center gap-3 rounded-2xl bg-white/45 px-3 py-3 transition hover:bg-white/70"
+                      className="group flex items-center gap-3 rounded-2xl px-3 py-3 transition hover:scale-[1.01] active:scale-[0.99]"
+                      style={{
+                        background: "var(--rc-card-inset-bg)",
+                        boxShadow: "var(--rc-card-inset-shadow)",
+                      }}
                     >
                       <div
                         className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl text-sm font-semibold text-ink-secondary transition-transform duration-150 group-hover:-translate-y-0.5"
-                        style={{ background: "var(--rc-elevated)", boxShadow: raisedShadow }}
+                        style={{
+                          background: "var(--rc-chip-bg)",
+                          boxShadow: "var(--rc-chip-shadow)",
+                        }}
                       >
                         <span
                           className="absolute inset-0 flex items-center justify-center transition-opacity duration-150"
