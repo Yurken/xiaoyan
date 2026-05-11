@@ -14,7 +14,7 @@ export default function MarkdownRenderer({ content, className, onLinkClick }: Ma
   return (
     <div
       className={clsx(
-        "prose prose-sm max-w-none",
+        "rc-selectable prose prose-sm max-w-none",
         "prose-headings:font-semibold prose-headings:text-ink-primary",
         "prose-p:text-ink-secondary prose-p:leading-relaxed",
         "prose-strong:text-ink-primary prose-strong:font-semibold",

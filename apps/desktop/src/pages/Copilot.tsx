@@ -836,71 +836,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                 );
               })()
             ) : (
-              // 未选主题：展示所有分类+ 未归类
-              <>
-                {sessionGroups.filter((group) => group.sessions.length > 0).map((group) => (
-                  <CollapsibleGroup
-                    key={group.key}
-                    compact
-                    title={group.title}
-                    subtitle={group.subtitle}
-                    countLabel={`${group.sessions.length} 条`}
-                    defaultOpen={group.sessions.length > 0}
-                    bodyClassName="space-y-1.5"
-                    actions={
-                      confirmDeleteGroupId === group.key ? (
-                        <>
-                          <button
-                            type="button"
-                            disabled={deletingGroupId === group.key}
-                            onClick={() => void handleDeleteInterestGroup(group.key, false)}
-                            className="rounded-lg px-1.5 py-0.5 text-[10px] text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary disabled:opacity-50"
-                          >
-                            未归类
-                          </button>
-                          <button
-                            type="button"
-                            disabled={deletingGroupId === group.key}
-                            onClick={() => void handleDeleteInterestGroup(group.key, true)}
-                            className="rounded-lg px-1.5 py-0.5 text-[10px] text-apple-red transition-colors hover:bg-apple-red/10 disabled:opacity-50"
-                          >
-                            删除全部
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteGroupId(null)}
-                            className="text-ink-tertiary hover:text-ink-primary"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteGroupId(group.key)}
-                          className="text-ink-tertiary/30 transition-colors hover:text-apple-red"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      )
-                    }
-                  >
-                    {group.sessions.map(renderSessionItem)}
-                  </CollapsibleGroup>
-                ))}
-
-                {ungroupedSessions.length > 0 && (
-                  <div className="px-2 pt-2">
-                    <div className="px-2 pb-2">
-                      <p className="text-[11px] font-semibold text-ink-tertiary">未归类</p>
-                      <p className="mt-1 text-[10px] leading-4 text-ink-tertiary/80">可在对话顶部关联到具体研究方向。</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      {ungroupedSessions.map(renderSessionItem)}
-                    </div>
-                  </div>
-                )}
-              </>
+              <div className="space-y-1.5">{sessions.map(renderSessionItem)}</div>
             )}
           </div>
           )}
@@ -955,7 +891,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                   }}
                 >
                   <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                  <span className="min-w-0 flex-1 break-all">{loadError}</span>
+                  <span className="rc-selectable min-w-0 flex-1 break-all">{loadError}</span>
                   <button
                     type="button"
                     aria-label="关闭错误提示"
@@ -1085,7 +1021,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                             正在搜索：{searchingQuery}
                           </div>
                         )}
-                        <div className="text-sm leading-relaxed" style={{ color: "var(--rc-text)" }}>
+                        <div className="rc-selectable text-sm leading-relaxed" style={{ color: "var(--rc-text)" }}>
                           <MarkdownRenderer
                             content={parsed.answer || (sending && isActiveAssistant ? "小妍思考中..." : "")}
                             onLinkClick={openLink}
@@ -1188,7 +1124,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                                   color: "#FFFFFF",
                                 }}
                               >
-                                <p className="whitespace-pre-wrap leading-relaxed">
+                                <p className="rc-selectable whitespace-pre-wrap leading-relaxed">
                                   {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
                                 </p>
                               </div>

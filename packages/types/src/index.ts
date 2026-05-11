@@ -346,6 +346,7 @@ export interface ChatSession {
   title: string;
   context_type: string;
   context_id?: string;
+  tag?: string;
   created_at: string;
   updated_at: string | null;
   messages?: ChatMessage[];

@@ -632,7 +632,13 @@ export default function Submission() {
                 setSyncingDdl(true);
                 setDdlSyncResult("");
                 try {
-                  const result = await submissionApi.syncCcfDdl();
+                  // 优先使用内置数据，失败时尝试 GitHub
+                  let result;
+                  try {
+                    result = await submissionApi.syncCcfDdlLocal();
+                  } catch {
+                    result = await submissionApi.syncCcfDdl();
+                  }
                   setDdlSyncResult(`已同步 ${result.fetched} 个会议，更新 ${result.updated} 条记录`);
                 } catch (err) {
                   setDdlSyncResult(formatErrorMessage(err));

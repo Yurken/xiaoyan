@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     title        TEXT NOT NULL DEFAULT 'New Conversation',
     context_type TEXT NOT NULL DEFAULT 'general',
     context_id   TEXT,
+    tag          TEXT NOT NULL DEFAULT '0',
     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -588,6 +589,9 @@ pub async fn ensure_submission_tables(pool: &SqlitePool) -> Result<()> {
         let sql = format!("ALTER TABLE venues ADD COLUMN {column}");
         let _ = sqlx::raw_sql(&sql).execute(pool).await;
     }
+
+    // Migration: add tag column to chat_sessions
+    let _ = sqlx::raw_sql("ALTER TABLE chat_sessions ADD COLUMN tag TEXT NOT NULL DEFAULT '0'").execute(pool).await;
 
     Ok(())
 }

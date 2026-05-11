@@ -308,6 +308,7 @@ export async function* streamChat(
     context_type?: string;
     context_id?: string;
     chat_mode?: ChatMode;
+    tag?: string;
   },
   signal?: AbortSignal
 ): AsyncGenerator<ChatStreamChunk> {
@@ -325,6 +326,7 @@ export async function* streamChat(
     contextType: body.context_type ?? null,
     contextId: body.context_id ?? null,
     chatMode: body.chat_mode ?? null,
+    tag: body.tag ?? null,
   });
 
   // Collect events emitted by the Rust backend
@@ -706,6 +708,8 @@ export const submissionApi = {
     invoke<void>("submission_generate_cover_letter", { submissionId }),
   syncCcfDdl: () =>
     invoke<{ fetched: number; updated: number }>("submission_sync_ccfddl"),
+  syncCcfDdlLocal: () =>
+    invoke<{ fetched: number; updated: number }>("submission_sync_ccfddl_local"),
 };
 
 // ── Experiment API ────────────────────────────────────────────────

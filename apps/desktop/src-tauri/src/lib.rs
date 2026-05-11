@@ -90,7 +90,7 @@ use commands::{
         submission_delete_comment, submission_delete_venue, submission_delete_version,
         submission_generate_cover_letter, submission_get_checklist, submission_list,
         submission_list_comments, submission_list_rounds, submission_list_venues,
-        submission_sync_ccfddl,
+        submission_sync_ccfddl, submission_sync_ccfddl_local,
         submission_list_versions, submission_polish_abstract, submission_stats,
         submission_toggle_checklist, submission_toggle_venue_star, submission_update,
         submission_update_comment, submission_update_venue, submission_update_version,
@@ -117,7 +117,7 @@ fn configure_diagnostic_log_path(app_data_dir: &std::path::Path) {
     }
 }
 
-fn append_diagnostic_log(message: &str) {
+pub fn append_diagnostic_log(message: &str) {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
@@ -192,6 +192,15 @@ pub fn run() {
 
                 let app_state = AppState::new(pool.clone(), settings);
                 handle.manage(app_state);
+
+                // Auto-sync CCF DDL from bundled data on first launch
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    let app_handle = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        commands::submission::auto_sync_ccfddl_on_startup(&state, &app_handle).await;
+                    });
+                }
 
                 // Backfill keywords for existing papers that have full_text but empty tags
                 tauri::async_runtime::spawn(async move {
@@ -347,6 +356,7 @@ pub fn run() {
             submission_polish_abstract,
             submission_generate_cover_letter,
             submission_sync_ccfddl,
+            submission_sync_ccfddl_local,
             // Experiment
             experiment_list,
             experiment_get,

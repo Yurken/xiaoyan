@@ -7,6 +7,23 @@
 @tailwind utilities;
 
 @layer base {
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .rc-selectable,
+  textarea,
+  input[type="text"],
+  input[type="search"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="url"] {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
   :focus {
     outline: none;
   }

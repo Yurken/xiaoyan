@@ -5,9 +5,10 @@ use crate::services::submission_service::{
 use crate::state::AppState;
 use serde_json::json;
 use sqlx::Row;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 use chrono::Datelike;
+use crate::append_diagnostic_log;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1033,17 +1034,8 @@ pub async fn submission_generate_cover_letter(
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  CCF DDL Sync (from ccfddl/ccf-deadlines GitHub repo)
+//  CCF DDL Sync (from bundled JSON or GitHub repo)
 // ══════════════════════════════════════════════════════════════════════════
-
-const CCFDDL_CATEGORIES: &[&str] = &["AI", "SE", "DB", "CT", "CG", "HI", "MX", "NW", "SC", "DS"];
-const CCFDDL_API_BASE: &str = "https://api.github.com/repos/ccfddl/ccf-deadlines/contents/conference";
-
-#[derive(serde::Deserialize)]
-struct GithubContent {
-    name: String,
-    download_url: Option<String>,
-}
 
 #[derive(serde::Deserialize)]
 struct CcfConfEntry {
@@ -1058,46 +1050,131 @@ struct CcfConfEntry {
 #[derive(serde::Deserialize)]
 struct CcfTimeline {
     deadline: Option<String>,
+    #[serde(rename = "abstract_deadline")]
+    _abstract_deadline: Option<String>,
+    comment: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
-struct CcfRank {
-    ccf: Option<String>,
-}
-
-#[derive(serde::Deserialize)]
-struct CcfVenueYaml {
+struct CcfVenueJson {
     title: String,
-    sub: Option<String>,
-    rank: Option<CcfRank>,
+    ccf: Option<String>,
     confs: Option<Vec<CcfConfEntry>>,
 }
 
+async fn sync_venues_from_entries(
+    db: &sqlx::SqlitePool,
+    entries: &[CcfVenueJson],
+) -> (u32, u32) {
+    let current_year = chrono::Utc::now().year();
+    let mut fetched = 0u32;
+    let mut updated = 0u32;
+
+    for venue in entries {
+        let Some(confs) = &venue.confs else { continue };
+        fetched += 1;
+
+        // Pick the latest future-year conference entry
+        let latest_conf = confs.iter().fold(None, |best: Option<&CcfConfEntry>, entry| {
+            let entry_year = entry.year.unwrap_or(0);
+            if entry_year < current_year { return best; }
+            match best {
+                Some(b) if b.year.unwrap_or(0) >= entry_year => Some(b),
+                _ => Some(entry),
+            }
+        });
+
+        let Some(conf) = latest_conf else { continue };
+
+        // Prefer the primary deadline (first entry in timeline without abstract_ prefix)
+        let deadline = conf.timeline.as_ref().and_then(|t| {
+            t.iter().find_map(|tl| {
+                if tl.deadline.is_some() && tl._abstract_deadline.is_none() && tl.comment.is_none() {
+                    tl.deadline.as_deref()
+                } else {
+                    None
+                }
+            })
+            .or_else(|| t.first().and_then(|tl| tl.deadline.as_deref()))
+        }).map(|d| d.trim().to_string());
+
+        let timezone = conf.timezone.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
+        let conference_date = conf.date.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
+        let conference_location = conf.place.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
+        let website = conf.link.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
+
+        let matched = sqlx::query(
+            "UPDATE venues SET deadline = ?, deadline_timezone = ?, conference_date = ?, conference_location = ?, website = CASE WHEN ? != '' THEN ? ELSE website END WHERE LOWER(name) = LOWER(?)",
+        )
+        .bind(&deadline)
+        .bind(&timezone)
+        .bind(&conference_date)
+        .bind(&conference_location)
+        .bind(&website)
+        .bind(&website)
+        .bind(&venue.title)
+        .execute(db)
+        .await;
+
+        if let Ok(r) = matched {
+            if r.rows_affected() > 0 {
+                updated += 1;
+            }
+        }
+    }
+
+    (fetched, updated)
+}
+
+/// Sync from bundled ccfddl.json resource (offline, always available)
+#[tauri::command]
+pub async fn submission_sync_ccfddl_local(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let resource_path = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("resources/ccfddl.json");
+
+    let json_text = std::fs::read_to_string(&resource_path)
+        .map_err(|e| format!("无法读取内置 DDL 数据: {e}"))?;
+    let entries: Vec<CcfVenueJson> =
+        serde_json::from_str(&json_text).map_err(|e| format!("解析 DDL 数据失败: {e}"))?;
+
+    let (fetched, updated) = sync_venues_from_entries(&state.db, &entries).await;
+    Ok(serde_json::json!({ "fetched": fetched, "updated": updated, "source": "bundled" }))
+}
+
+/// Sync from GitHub (online, fresher data)
 #[tauri::command]
 pub async fn submission_sync_ccfddl(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::new();
-    let current_year = chrono::Utc::now().year();
     let mut fetched = 0u32;
     let mut updated = 0u32;
 
-    for category in CCFDDL_CATEGORIES {
-        let list_url = format!("{CCFDDL_API_BASE}/{category}");
-        let resp = client
+    for category in &["AI", "SE", "DB", "CT", "CG", "HI", "MX", "NW", "SC", "DS"] {
+        let list_url = format!("https://api.github.com/repos/ccfddl/ccf-deadlines/contents/conference/{category}");
+        let entries: Vec<serde_json::Value> = match client
             .get(&list_url)
             .header("User-Agent", "xiaoyan-desktop")
             .send()
             .await
-            .map_err(|e| e.to_string())?;
-        let entries: Vec<GithubContent> = resp.json().await.map_err(|e| e.to_string())?;
+        {
+            Ok(r) => r.json().await.unwrap_or_default(),
+            Err(_) => continue,
+        };
 
         for entry in entries {
-            let Some(download_url) = entry.download_url else { continue };
-            if !entry.name.ends_with(".yml") { continue; }
+            let Some(download_url) = entry["download_url"].as_str() else { continue };
+            let name = entry["name"].as_str().unwrap_or("");
+            if !name.ends_with(".yml") { continue; }
 
             let yaml_text = match client
-                .get(&download_url)
+                .get(download_url)
                 .header("User-Agent", "xiaoyan-desktop")
                 .send()
                 .await
@@ -1106,57 +1183,48 @@ pub async fn submission_sync_ccfddl(
                 Err(_) => continue,
             };
 
-            let venues: Vec<CcfVenueYaml> =
+            let yaml_venues: Vec<serde_json::Value> =
                 serde_yaml::from_str(&yaml_text).unwrap_or_default();
-            let Some(best) = venues.into_iter().next() else { continue };
+            let Some(first) = yaml_venues.into_iter().next() else { continue };
 
-            // Pick the latest future-year conference entry
-            let latest_conf = best.confs.iter().flat_map(|c| c.iter()).fold(
-                None,
-                |best: Option<&CcfConfEntry>, entry| {
-                    let entry_year = entry.year.unwrap_or(0);
-                    if entry_year < current_year { return best; }
-                    match best {
-                        Some(b) if b.year.unwrap_or(0) >= entry_year => Some(b),
-                        _ => Some(entry),
-                    }
-                },
-            );
+            let venue = CcfVenueJson {
+                title: first["title"].as_str().unwrap_or("").to_string(),
+                ccf: first.get("rank").and_then(|r| r["ccf"].as_str()).map(|s| s.to_string()),
+                confs: serde_json::from_value::<Vec<CcfConfEntry>>(first["confs"].clone()).ok(),
+            };
 
-            fetched += 1;
-
-            let Some(conf) = latest_conf else { continue };
-            let deadline = conf
-                .timeline
-                .as_ref()
-                .and_then(|t| t.first())
-                .and_then(|t| t.deadline.as_deref())
-                .map(|d| d.trim().to_string());
-            let timezone = conf.timezone.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
-            let conference_date = conf.date.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
-            let conference_location = conf.place.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
-            let website = conf.link.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
-
-            // Match by case-insensitive short name
-            let matched = sqlx::query(
-                "UPDATE venues SET deadline = ?, deadline_timezone = ?, conference_date = ?, conference_location = ?, website = CASE WHEN ? != '' THEN ? ELSE website END WHERE LOWER(name) = LOWER(?)",
-            )
-            .bind(&deadline)
-            .bind(&timezone)
-            .bind(&conference_date)
-            .bind(&conference_location)
-            .bind(&website)
-            .bind(&website)
-            .bind(&best.title)
-            .execute(&state.db)
-            .await
-            .map_err(|e| e.to_string())?;
-
-            if matched.rows_affected() > 0 {
-                updated += 1;
-            }
+            let (f, u) = sync_venues_from_entries(&state.db, &[venue]).await;
+            fetched += f;
+            updated += u;
         }
     }
 
-    Ok(serde_json::json!({ "fetched": fetched, "updated": updated }))
+    Ok(serde_json::json!({ "fetched": fetched, "updated": updated, "source": "github" }))
+}
+
+/// Auto-sync on startup if venues have no deadlines
+pub async fn auto_sync_ccfddl_on_startup(state: &AppState, app_handle: &tauri::AppHandle) {
+    let count: Result<i64, _> =
+        sqlx::query_scalar("SELECT COUNT(*) FROM venues WHERE deadline IS NOT NULL")
+            .fetch_one(&state.db)
+            .await;
+    if let Ok(n) = count {
+        if n > 0 { return; } // Already have deadlines, skip
+    }
+
+    let resource_path = match app_handle.path().resource_dir() {
+        Ok(p) => p.join("resources/ccfddl.json"),
+        Err(_) => return,
+    };
+    let json_text = match std::fs::read_to_string(&resource_path) {
+        Ok(t) => t,
+        Err(_) => return,
+    };
+    let entries: Vec<CcfVenueJson> = match serde_json::from_str(&json_text) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    let (f, u) = sync_venues_from_entries(&state.db, &entries).await;
+    append_diagnostic_log(&format!("ccfddl auto-sync: {f} fetched, {u} updated"));
 }

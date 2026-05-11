@@ -260,6 +260,7 @@ pub fn default_settings() -> HashMap<String, String> {
     m
 }
 
+#[derive(Clone)]
 pub struct AppState {
     pub db: SqlitePool,
     /// In-memory settings cache; loaded from DB at startup.

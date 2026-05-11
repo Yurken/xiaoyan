@@ -21,7 +21,7 @@ use uuid::Uuid;
 #[tauri::command]
 pub async fn chat_list_sessions(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let rows = sqlx::query(
-        "SELECT id, title, context_type, context_id, created_at, updated_at FROM chat_sessions ORDER BY updated_at DESC",
+        "SELECT id, title, context_type, context_id, tag, created_at, updated_at FROM chat_sessions WHERE tag = '0' ORDER BY updated_at DESC",
     )
     .fetch_all(&state.db)
     .await
@@ -35,6 +35,7 @@ pub async fn chat_list_sessions(state: State<'_, AppState>) -> Result<serde_json
                 "title": r.get::<String, _>("title"),
                 "context_type": r.get::<String, _>("context_type"),
                 "context_id": r.get::<Option<String>, _>("context_id"),
+                "tag": r.get::<String, _>("tag"),
                 "created_at": r.get::<String, _>("created_at"),
                 "updated_at": r.get::<Option<String>, _>("updated_at"),
             })
@@ -220,6 +221,7 @@ pub async fn chat_stream(
     context_type: Option<String>,
     context_id: Option<String>,
     chat_mode: Option<String>,
+    tag: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let request_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -258,9 +260,9 @@ pub async fn chat_stream(
                 ""
             };
         sqlx::query(
-            "INSERT INTO chat_sessions (id, title, context_type, context_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO chat_sessions (id, title, context_type, context_id, tag, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
-        .bind(&id).bind(&title).bind(&ctx_type).bind(&normalized_context_id).bind(&now).bind(&now)
+        .bind(&id).bind(&title).bind(&ctx_type).bind(&normalized_context_id).bind(&tag.unwrap_or_else(|| "0".into())).bind(&now).bind(&now)
         .execute(&state.db).await.map_err(|e| e.to_string())?;
         id
     };

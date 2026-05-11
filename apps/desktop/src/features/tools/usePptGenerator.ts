@@ -161,6 +161,7 @@ export function usePptGenerator() {
     for await (const chunk of apiClient.chat.stream({
       message,
       session_id: sessionId || undefined,
+      tag: "1",
     })) {
       if (runId !== runIdRef.current) return null;
       if (chunk.type === "session_id") nextSessionId = chunk.value;
