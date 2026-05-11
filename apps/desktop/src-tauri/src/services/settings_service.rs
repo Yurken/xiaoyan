@@ -8,10 +8,12 @@ use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use rand::RngCore;
+use sqlx::{Column, Row};
 use std::collections::{BTreeMap, HashMap};
 use uuid::Uuid;
 
-const MAGIC: &[u8; 6] = b"RCCFG1";
+const MAGIC_SETTINGS: &[u8; 6] = b"RCCFG1";
+pub const MAGIC_BACKUP: &[u8; 6] = b"RCBAK1";
 const PBKDF2_ROUNDS: u32 = 600_000;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
@@ -29,6 +31,37 @@ const ERR_NO_VALID_CONFIG_ITEMS: &str = "文件中未找到有效配置项。";
 const ERR_SETTINGS_HISTORY_NOT_FOUND: &str = "未找到对应的配置历史。";
 const ERR_SETTINGS_HISTORY_EMPTY: &str = "这份配置历史中没有可应用的设置项。";
 const SETTINGS_HISTORY_SNAPSHOT_PREFIX: &str = "配置快照";
+
+const BACKUP_TABLES: &[&str] = &[
+    "settings",
+    "settings_history",
+    "research_interests",
+    "chat_sessions",
+    "skills",
+    "venues",
+    "papers",
+    "knowledge_notes",
+    "knowledge_graph_claims",
+    "submissions",
+    "experiment_records",
+    "chat_messages",
+    "agent_runs",
+    "paper_chunks",
+    "paper_analyses",
+    "reproduction_guides",
+    "paper_figures",
+    "paper_versions",
+    "review_rounds",
+    "review_comments",
+    "submission_checklist",
+    "experiment_attachments",
+    "knowledge_graph_evidence_links",
+    "knowledge_paper_citations",
+    "agent_artifacts",
+    "memory_events",
+    "memory_observations",
+    "user_memories",
+];
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SettingsHistoryEntry {
@@ -48,7 +81,7 @@ fn derive_key(password: &[u8], salt: &[u8]) -> [u8; KEY_LEN] {
     key
 }
 
-fn encrypt_blob(plaintext: &[u8], password: &str) -> Result<String, String> {
+pub fn encrypt_blob(plaintext: &[u8], password: &str, magic: &[u8]) -> Result<String, String> {
     let mut salt = [0u8; SALT_LEN];
     let mut nonce_bytes = [0u8; NONCE_LEN];
     rand::thread_rng().fill_bytes(&mut salt);
@@ -60,27 +93,27 @@ fn encrypt_blob(plaintext: &[u8], password: &str) -> Result<String, String> {
         .encrypt(Nonce::from_slice(&nonce_bytes), plaintext)
         .map_err(|e| format!("加密失败: {e}"))?;
 
-    let mut blob = Vec::with_capacity(MAGIC.len() + SALT_LEN + NONCE_LEN + ciphertext.len());
-    blob.extend_from_slice(MAGIC);
+    let mut blob = Vec::with_capacity(magic.len() + SALT_LEN + NONCE_LEN + ciphertext.len());
+    blob.extend_from_slice(magic);
     blob.extend_from_slice(&salt);
     blob.extend_from_slice(&nonce_bytes);
     blob.extend_from_slice(&ciphertext);
     Ok(B64.encode(&blob))
 }
 
-fn decrypt_blob(b64_data: &str, password: &str) -> Result<Vec<u8>, String> {
+pub fn decrypt_blob(b64_data: &str, password: &str, magic: &[u8]) -> Result<Vec<u8>, String> {
     let blob = B64
         .decode(b64_data)
         .map_err(|_| ERR_INVALID_FILE_FORMAT.to_string())?;
-    let min_len = MAGIC.len() + SALT_LEN + NONCE_LEN + 16;
+    let min_len = magic.len() + SALT_LEN + NONCE_LEN + 16;
     if blob.len() < min_len {
         return Err(ERR_CORRUPTED_FILE.to_string());
     }
-    if &blob[..MAGIC.len()] != MAGIC {
+    if &blob[..magic.len()] != magic {
         return Err(ERR_INVALID_CONFIG_FILE.to_string());
     }
 
-    let offset = MAGIC.len();
+    let offset = magic.len();
     let salt = &blob[offset..offset + SALT_LEN];
     let nonce_bytes = &blob[offset + SALT_LEN..offset + SALT_LEN + NONCE_LEN];
     let ciphertext = &blob[offset + SALT_LEN + NONCE_LEN..];
@@ -90,6 +123,34 @@ fn decrypt_blob(b64_data: &str, password: &str) -> Result<Vec<u8>, String> {
     cipher
         .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
         .map_err(|_| ERR_INVALID_PASSWORD_OR_CORRUPTED.to_string())
+}
+
+fn row_to_json(row: &sqlx::sqlite::SqliteRow) -> Result<serde_json::Value, String> {
+    let mut map = serde_json::Map::new();
+    for col in row.columns() {
+        let name = col.name();
+        let value = if let Ok(v) = row.try_get::<String, _>(name) {
+            serde_json::Value::String(v)
+        } else if let Ok(v) = row.try_get::<i64, _>(name) {
+            serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<f64, _>(name) {
+            serde_json::json!(v)
+        } else {
+            serde_json::Value::Null
+        };
+        map.insert(name.to_string(), value);
+    }
+    Ok(serde_json::Value::Object(map))
+}
+
+fn json_value_to_string(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Null => String::new(),
+        _ => v.to_string(),
+    }
 }
 
 fn is_exposed_key(defaults: &HashMap<String, String>, key: &str) -> bool {
@@ -266,7 +327,7 @@ pub async fn export_settings(state: &AppState, password: &str) -> Result<String,
     }
 
     let json = serde_json::to_string(&map).map_err(|e| e.to_string())?;
-    encrypt_blob(json.as_bytes(), password)
+    encrypt_blob(json.as_bytes(), password, MAGIC_SETTINGS)
 }
 
 pub async fn import_settings(
@@ -279,7 +340,7 @@ pub async fn import_settings(
     }
 
     let defaults = default_settings();
-    let plaintext = decrypt_blob(data.trim(), password)?;
+    let plaintext = decrypt_blob(data.trim(), password, MAGIC_SETTINGS)?;
     let json_str = std::str::from_utf8(&plaintext)
         .map_err(|_| ERR_INVALID_DECRYPTED_DATA.to_string())?;
     let map: BTreeMap<String, String> =
@@ -304,6 +365,102 @@ pub async fn import_settings(
     }
 
     Ok(to_save.keys().cloned().collect())
+}
+
+pub async fn export_all_data(state: &AppState, password: &str) -> Result<String, String> {
+    if password.is_empty() {
+        return Err(ERR_EMPTY_PASSWORD.to_string());
+    }
+
+    let mut tables = serde_json::Map::new();
+    for table in BACKUP_TABLES {
+        let rows = sqlx::query(&format!("SELECT * FROM {table}"))
+            .fetch_all(&state.db)
+            .await
+            .map_err(|e| format!("导出表 {table} 失败: {e}"))?;
+
+        let mut array = Vec::with_capacity(rows.len());
+        for row in &rows {
+            array.push(row_to_json(row)?);
+        }
+
+        tables.insert(table.to_string(), serde_json::Value::Array(array));
+    }
+
+    let payload = serde_json::json!({
+        "version": 1,
+        "exported_at": chrono::Utc::now().to_rfc3339(),
+        "tables": tables,
+    });
+
+    let json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
+    encrypt_blob(json.as_bytes(), password, MAGIC_BACKUP)
+}
+
+pub async fn import_all_data(
+    state: &AppState,
+    data: &str,
+    password: &str,
+) -> Result<(), String> {
+    if password.is_empty() {
+        return Err(ERR_EMPTY_PASSWORD.to_string());
+    }
+
+    let plaintext = decrypt_blob(data.trim(), password, MAGIC_BACKUP)?;
+    let json_str = std::str::from_utf8(&plaintext)
+        .map_err(|_| ERR_INVALID_DECRYPTED_DATA.to_string())?;
+    let payload: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|_| ERR_INVALID_CONFIG_CONTENT.to_string())?;
+
+    let tables = payload.get("tables")
+        .and_then(|t| t.as_object())
+        .ok_or("备份文件格式错误：缺少 tables 字段")?;
+
+    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
+
+    // Clear all tables in reverse dependency order
+    for table in BACKUP_TABLES.iter().rev() {
+        sqlx::query(&format!("DELETE FROM {table}"))
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| format!("清空表 {table} 失败: {e}"))?;
+    }
+
+    // Insert data in forward dependency order
+    for table in BACKUP_TABLES {
+        let Some(rows) = tables.get(*table).and_then(|r| r.as_array()) else {
+            continue;
+        };
+
+        for row in rows {
+            let Some(obj) = row.as_object() else { continue; };
+            if obj.is_empty() { continue; }
+
+            let columns: Vec<String> = obj.keys().cloned().collect();
+            let values: Vec<String> = obj.values().map(json_value_to_string).collect();
+            let columns_str = columns.join(", ");
+            let placeholders: String = (0..values.len()).map(|_| "?").collect::<Vec<_>>().join(", ");
+
+            let sql = format!("INSERT INTO {table} ({columns_str}) VALUES ({placeholders})");
+            let mut query = sqlx::query(&sql);
+            for value in &values {
+                query = query.bind(value);
+            }
+            query.execute(&mut *tx).await.map_err(|e| format!("插入表 {table} 失败: {e}"))?;
+        }
+    }
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+
+    // Refresh settings cache
+    let raw_settings = load_all_settings(&state.db).await?;
+    let mut cache = state.settings.write().await;
+    cache.clear();
+    for (key, value) in raw_settings {
+        cache.insert(key, value);
+    }
+
+    Ok(())
 }
 
 pub async fn test_settings(state: &AppState, data: &serde_json::Value) -> Result<String, String> {

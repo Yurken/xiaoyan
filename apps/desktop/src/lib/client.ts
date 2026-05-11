@@ -81,6 +81,12 @@ export const settingsApi = {
     invoke("settings_export", { password }),
   import: (data: string, password: string): Promise<string[]> =>
     invoke("settings_import", { data, password }),
+  dataBackup: {
+    export: (password: string): Promise<string> =>
+      invoke("data_backup_export", { password }),
+    import: (data: string, password: string): Promise<void> =>
+      invoke("data_backup_import", { data, password }),
+  },
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
   appLock: {

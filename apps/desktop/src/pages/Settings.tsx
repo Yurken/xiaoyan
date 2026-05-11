@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle,
+  Database,
   Download,
   FileSearch,
   Layers3,
@@ -24,6 +25,7 @@ import LayoutSettingsSection from "../features/settings/LayoutSettingsSection";
 import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
 import { AgentChip, SectionIcon } from "../features/settings/shared";
 import { applyProviderPreset, detectPreset, PROVIDER_PRESETS, type ProviderPresetId } from "../features/settings/providerPresets";
+import { useDataBackup } from "../features/settings/useDataBackup";
 import { useSettingsController } from "../features/settings/useSettingsController";
 import { useSettingsCrypto } from "../features/settings/useSettingsCrypto";
 import { useSettingsHistory } from "../features/settings/useSettingsHistory";
@@ -195,6 +197,19 @@ export default function Settings() {
     onImported: replaceForm,
     onSaved: () => markSaved(),
   });
+  const {
+    modal: backupModal,
+    password: backupPassword,
+    confirm: backupConfirm,
+    busy: backupBusy,
+    error: backupError,
+    setPassword: setBackupPassword,
+    setConfirm: setBackupConfirm,
+    closeModal: closeBackupModal,
+    openExportModal: openBackupExportModal,
+    openImportPicker: openBackupImportPicker,
+    handleConfirm: handleBackupConfirm,
+  } = useDataBackup();
   const settingsHistory = useSettingsHistory({
     form,
     onApplied: replaceForm,
@@ -303,6 +318,28 @@ export default function Settings() {
           >
             <Upload className="w-3.5 h-3.5" />
             导入配置
+          </button>
+          {/* 导出全部数据 */}
+          <button
+            type="button"
+            onClick={openBackupExportModal}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
+            style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
+            title="加密导出所有数据为 .rcbak 文件"
+          >
+            <Database className="w-3.5 h-3.5" />
+            导出全部数据
+          </button>
+          {/* 导入全部数据 */}
+          <button
+            type="button"
+            onClick={() => void openBackupImportPicker()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
+            style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
+            title="从 .rcbak 文件导入全部数据"
+          >
+            <Database className="w-3.5 h-3.5" />
+            导入全部数据
           </button>
           <div className="relative">
             <button
@@ -621,6 +658,25 @@ export default function Settings() {
         }}
         onClose={closeCryptoModal}
         onSubmit={handleCryptoConfirm}
+      />
+    )}
+
+    {/* 数据备份弹窗 */}
+    {backupModal !== null && (
+      <CryptoConfigModal
+        modal={backupModal}
+        password={backupPassword}
+        confirm={backupConfirm}
+        busy={backupBusy}
+        error={backupError}
+        onPasswordChange={(value) => {
+          setBackupPassword(value);
+        }}
+        onConfirmChange={(value) => {
+          setBackupConfirm(value);
+        }}
+        onClose={closeBackupModal}
+        onSubmit={handleBackupConfirm}
       />
     )}
     </>

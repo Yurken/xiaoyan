@@ -43,6 +43,7 @@ use commands::{
         knowledge_graph_citation_centrality, knowledge_graph_citation_shortest_path,
         knowledge_graph_citation_subgraph,
     },
+    data_backup::{data_backup_export, data_backup_import},
     experiment::{
         experiment_add_attachment, experiment_create, experiment_delete,
         experiment_delete_attachment, experiment_get, experiment_list, experiment_list_attachments,
@@ -396,6 +397,9 @@ pub fn run() {
             app_lock_set_security,
             app_lock_verify_recovery,
             app_lock_reset_password,
+            // Data backup
+            data_backup_export,
+            data_backup_import,
             // Workbench
             workbench_generate_overview_text,
         ])
