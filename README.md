@@ -17,14 +17,19 @@
 - **论文库**：上传 PDF，自动提取全文、分块向量化，支持语义检索与论文精读分析。导入时可开启 AI 自动重命名，按自定义模板（作者、标题、年份等）就地改名原文件。
 - **小妍解读（论文精读）**：点击解读后自动提取 PDF 图表（lopdf 位图 + 视觉模型扫描矢量图/表格），AI 分析时积极引用图表编号，结果以文字 + 图片并排呈现。
 - **视界·视觉模型**：独立配置视觉模型（`vision_model` / `vision_base_url` / `vision_api_key`），小妍解读自动调用，扫描 PDF 各页识别 lopdf 无法提取的矢量图与表格。
-- **记忆管理**：支持手动录入和 AI 自动提取用户操作记忆，小妍对话时自动注入相关上下文。
+- **记忆管理**：支持手动录入和 AI 自动提取用户操作记忆，小妍对话时自动注入相关上下文。支持记忆隐私分层，自动操作记录与长期记忆可独立设置密码保护。
 - **知识图谱与 Graph RAG**：论文引用关系自动构建图结构（`citation_graph.rs`），知识库检索时融合图邻域上下文（`graph_rag.rs`），提升多跳关联问题的回答质量。
 - **知识卡片**：创建笔记，自动生成 Embedding，支持语义搜索。
 - **研究规划**：输入研究方向，AI 生成系统化学习路线（前置知识、阶段、经典论文、开放问题）。
 - **文献综述**：基于知识库 RAG + LLM 流式生成结构化综述。
 - **PPT 生成与预览**：基于研究内容一键生成 PPT，内置幻灯片预览面板，可在工作区直接翻页浏览，支持导出为 `.pptx`。
-- **投稿管理**：统一追踪会议与期刊截止日期（DDL 日历）、投稿状态看板、提交前检查清单、论文版本控制（含 PDF 上传 / 下载）、审稿意见归档与作者回复跟踪；支持智能推荐刊会。
+- **投稿管理**：统一追踪会议与期刊截止日期（DDL 日历）、投稿状态看板、提交前检查清单、论文版本控制（含 PDF 上传 / 下载）、审稿意见归档与作者回复跟踪；支持智能推荐刊会、投稿时间线、拒稿转投恢复。
 - **AI 模拟审稿**：在版本控制中对任意已上传 PDF（或版本快照文本）一键触发，使用 `pdfjs-dist` 本地提取全文，基于研究领域、方法关键词生成 2–4 位模拟审稿人意见（含分类标签与大修 / 小修 / 接收 / 拒稿结论），结果可直接导入审稿归档进行跟踪回复。
+- **实验记录工作区**：结构化实验记录管理，支持配置/结果/备注独立字段与附件上传，可与投稿关联建立证据链。
+- **桌面伴侣**：基于 Canvas Sprite 动画的桌面宠物「墩墩」，多状态动画联动 Agent 执行状态，支持动作扩展与偏好配置。
+- **应用锁**：支持闲置超时自动锁定应用，PBKDF2 + SHA-256 密码保护，防止他人窥屏。
+- **设置历史与配置切换**：支持保存多组配置快照，快速切换不同工作场景（如论文精读 / 本地 Ollama / Survey 写作）。
+- **一键导出**：知识笔记与论文分析支持一键导出为 Obsidian Markdown，含 Frontmatter 元数据。
 - **实用工具**：
   - **arXiv 智能检索**：关键词 + 时间窗口 + LLM 重排，支持三步级联筛选（研究领域 × 类型 × 等级）自动填充检索范围
   - **期刊分区查询**：WoS / JCR / 中科院，支持按 CCF-A/B/C、中科院1-4区、Top期刊、JCR Q1/Q2/Q3、SCIE、SSCI 等级动态过滤
@@ -44,9 +49,10 @@
 | `/papers` | 论文库与 PDF 分析 |
 | `/knowledge` | 知识卡片、语义检索与知识图谱 |
 | `/xiaoyan` | 小妍多 Agent 协同工作台 |
-| `/submission` | 投稿管理：DDL 日历、投稿看板、提交清单、版本控制（PDF 上传 + AI 模拟审稿）、审稿归档 |
+| `/submission` | 投稿管理：DDL 日历、投稿看板、提交清单、版本控制（PDF 上传 + AI 模拟审稿）、审稿归档、时间线与转投恢复 |
+| `/experiment` | 实验记录工作区：结构化实验记录、附件上传、投稿关联 |
 | `/tools` | arXiv 检索、期刊分区查询、CCF 查询、科研友链 |
-| `/settings` | Provider、常用模型分工、多 Agent 与运行设置 |
+| `/settings` | Provider、常用模型分工、多 Agent 与运行设置、配置快照与切换 |
 
 ## 架构
 
@@ -66,17 +72,19 @@ Rust 后端 (Tauri Commands)
     ├── journal_partitions.rs 期刊分区索引与查询（WoS / JCR / 中科院，22804 条）
     ├── db.rs                 SQLite 初始化与 Schema 迁移
     ├── state.rs              AppState（线程安全 Arc<RwLock>）
-    └── commands/
-        ├── settings        设置读写（事务）、加密导入/导出
-        ├── papers          PDF 上传、解析、图表提取（lopdf + 视觉扫描）、分析、复现、AI 重命名
-        ├── knowledge       研究方向 + 知识笔记
-        ├── knowledge_graph 知识图谱构建与查询
-        ├── memory          记忆管理（手动 / 自动提取 / 上下文构建）
-        ├── chat            多 Agent 编排与流式对话
-        ├── arxiv           arXiv 检索与 LLM 重排
-        ├── journal         期刊分区查询 + 按等级/学科过滤（journal_rank_filter）
-        ├── submission      投稿管理、版本控制、审稿归档
-        └── misc            规划器、综述生成、搜索
+    ├── services/             服务层（settings / submission / memory / chat_context / source）
+    └── commands/             命令层（参数校验与调度，委托 service 层执行）
+        ├── settings          设置读写（事务）、加密导入/导出、配置快照
+        ├── papers            PDF 上传、解析、图表提取（lopdf + 视觉扫描）、分析、复现、AI 重命名
+        ├── knowledge         研究方向 + 知识笔记
+        ├── knowledge_graph   知识图谱构建与查询
+        ├── memory            记忆管理（手动 / 自动提取 / 上下文构建 / 隐私分层）
+        ├── chat              多 Agent 编排与流式对话
+        ├── arxiv             arXiv 检索与 LLM 重排
+        ├── journal           期刊分区查询 + 按等级/学科过滤（journal_rank_filter）
+        ├── submission        投稿管理、版本控制、审稿归档
+        ├── experiment        实验记录管理
+        └── misc              规划器、综述生成、搜索
 SQLite（本地嵌入式，无需独立服务）
 ```
 
@@ -455,16 +463,22 @@ pnpm tauri signer generate -w ~/.tauri/research-copilot-updater.key
 ├── apps/
 │   ├── desktop/               # Tauri v2 桌面端（主要）
 │   │   ├── src/               # React 前端
+│   │   │   └── features/      # 功能模块（companion / appLock / copilot / knowledge / papers / settings / submission / tools / workbench）
 │   │   └── src-tauri/
 │   │       └── src/
-│   │           ├── commands/  # Tauri Commands（settings/papers/knowledge/memory/chat/arxiv/journal/misc）
-│   │           ├── data/      # 本地数据（ccf_catalog.json / journal_partitions.json）
+│   │           ├── llm.rs     # LLM 客户端（含视觉模型）
+│   │           ├── rag.rs     # 向量检索
+│   │           ├── citation_graph.rs  # 论文引用关系图
+│   │           ├── graph_rag.rs      # Graph RAG
+│   │           ├── agent_graph.rs    # Agent 状态图
+│   │           ├── agent_nodes.rs    # Agent 节点实现
 │   │           ├── ccf.rs     # CCF 目录（679 条）
 │   │           ├── journal_partitions.rs  # 期刊分区（22804 条，含动态过滤）
 │   │           ├── db.rs      # SQLite 初始化
-│   │           ├── llm.rs     # LLM 客户端（含视觉模型）
-│   │           ├── rag.rs     # 向量检索
 │   │           ├── state.rs   # 应用状态
+│   │           ├── services/  # 服务层（settings / submission / memory / chat_context / source）
+│   │           ├── commands/  # Tauri Commands（settings/papers/knowledge/memory/chat/arxiv/journal/submission/experiment/misc）
+│   │           ├── data/      # 本地数据（ccf_catalog.json / journal_partitions.json）
 │   │           └── lib.rs     # 入口
 │   ├── mobile/                # Expo 移动端（Android APK）
 │   └── web/                   # Next.js Web 端
