@@ -86,7 +86,9 @@ pub fn extract_lopdf_full_text(path: &Path) -> Option<String> {
         page_numbers.sort_unstable();
 
         // Extract page by page to tolerate per-page failures
+        let total_pages = page_numbers.len();
         let mut all_text = String::new();
+        let mut failed_pages: Vec<u32> = Vec::new();
         for &page_num in &page_numbers {
             match doc.extract_text(&[page_num]) {
                 Ok(text) => {
@@ -97,12 +99,18 @@ pub fn extract_lopdf_full_text(path: &Path) -> Option<String> {
                     }
                 }
                 Err(_) => {
-                    eprintln!(
-                        "[pdf-extract] lopdf page {} extraction failed, skipping",
-                        page_num
-                    );
+                    failed_pages.push(page_num);
                 }
             }
+        }
+
+        if !failed_pages.is_empty() {
+            eprintln!(
+                "[pdf-extract] lopdf {}/{} pages extracted, failed pages: {:?}",
+                total_pages - failed_pages.len(),
+                total_pages,
+                failed_pages
+            );
         }
 
         if all_text.trim().is_empty() {
