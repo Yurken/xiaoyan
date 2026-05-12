@@ -331,14 +331,14 @@ fn builtin_skills() -> &'static [BuiltinSkill] {
             prompt: "请为以下论文生成投稿前核查清单，目标投稿平台：[会议 / 期刊名称]\n\n**内容完整性**\n- [ ] 摘要完整包含背景、方法、结果、结论\n- [ ] 实验有充分的基线对比和消融实验\n- [ ] 相关工作引用了近 2 年代表性工作\n- [ ] 局限性和未来工作诚实说明\n\n**格式规范**\n- [ ] 参考文献格式符合目标会议要求\n- [ ] 图表清晰，caption 完整\n- [ ] 页数在限制内（含参考文献）\n\n**科研伦理**\n- [ ] 数据集使用合规并注明来源\n- [ ] 利益冲突声明（如需要）\n\n论文基本信息（标题、摘要、目标会议）：",
             tags: &["投稿", "核查"],
         },
-        // BuiltinSkill {
-        //     id: "00000000-0016-0000-0000-000000000000",
-        //     name: "ppt-generate",
-        //     title: "AI 幻灯片生成",
-        //     description: "根据主题、大纲或文档内容，生成结构清晰的 PowerPoint 演示文稿（.pptx）",
-        //     prompt: "你是一个专业的演示文稿设计助手。根据用户输入生成结构化幻灯片数据。\n\n严格只输出一个 JSON 对象，禁止包含 markdown 代码块或任何额外文字。JSON 格式：\n{\"title\":\"演示标题\",\"slides\":[{\"layout\":\"title\",\"title\":\"主标题\",\"subtitle\":\"副标题\"},{\"layout\":\"section\",\"title\":\"章节名\"},{\"layout\":\"content\",\"title\":\"页标题\",\"bullets\":[\"要点1\",\"要点2\"]},{\"layout\":\"two_column\",\"title\":\"对比标题\",\"left\":[\"左1\"],\"right\":[\"右1\"]}]}\n\nlayout 仅限：title / section / content / two_column。第一页固定 title，最后一页为致谢 title，包含 2~3 个 section 分隔页，bullets 每条不超过 20 字且最多 5 条。",
-        //     tags: &["工具", "PPT", "演示"],
-        // },
+        BuiltinSkill {
+            id: "00000000-0016-0000-0000-000000000000",
+            name: "ppt-generate",
+            title: "AI 幻灯片生成",
+            description: "根据主题、大纲或文档内容，生成结构清晰的 PowerPoint 演示文稿（.pptx）",
+            prompt: "你是一个专业的演示文稿设计助手。根据用户输入生成结构化幻灯片数据。\n\n严格只输出一个 JSON 对象，禁止包含 markdown 代码块或任何额外文字。JSON 格式：\n{\"title\":\"演示标题\",\"slides\":[{\"layout\":\"title\",\"title\":\"主标题\",\"subtitle\":\"副标题\"},{\"layout\":\"section\",\"title\":\"章节名\",\"subtitle\":\"章节说明\"},{\"layout\":\"content\",\"title\":\"页标题\",\"bullets\":[\"要点1\",\"要点2\"]},{\"layout\":\"two_column\",\"title\":\"对比标题\",\"left\":[\"左1\"],\"right\":[\"右1\"]},{\"layout\":\"highlight\",\"title\":\"结论标题\",\"highlight\":\"一句话结论\",\"bullets\":[\"支撑点1\"]},{\"layout\":\"timeline\",\"title\":\"流程标题\",\"steps\":[\"阶段1\",\"阶段2\"],\"note\":\"流程说明\"}]}\n\nlayout 仅限：title / section / content / two_column / highlight / timeline。第一页固定 title，最后一页为致谢或总结 title，包含 2~3 个 section 分隔页，bullets 每条不超过 22 字且最多 5 条。",
+            tags: &["工具", "PPT", "演示"],
+        },
     ]
 }
 

@@ -52,6 +52,15 @@ export const PPT_LAYOUT_LABELS: Record<PptLayout, string> = {
   timeline: "流程页",
 };
 
+export function parsePptPageCount(value: string) {
+  const normalized = value.trim();
+  if (!/^\d+$/.test(normalized)) return null;
+
+  const pageCount = Number.parseInt(normalized, 10);
+  if (pageCount < 4 || pageCount > 40) return null;
+  return pageCount;
+}
+
 export function summarizeSlideContent(slide: PptSlide) {
   if (slide.layout === "highlight") {
     return [slide.highlight, ...(slide.bullets ?? [])].filter(Boolean).join(" · ");

@@ -6,7 +6,12 @@ export function sanitizePptFileName(name: string) {
     .trim()
     .replace(/[\\/:*?"<>|]/g, "")
     .replace(/\s+/g, " ")
-    .slice(0, 40);
+    .slice(0, 40)
+    .trim()
+    .replace(/[. ]+$/g, "");
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(cleaned)) {
+    return `${cleaned}-slides`;
+  }
   return cleaned || "slides";
 }
 

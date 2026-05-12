@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { buildPptx, extractJsonObject, normalizePptData, sanitizePptFileName } from "./ppt";
 import { buildPptPrompt, buildPptRepairPrompt } from "./pptPrompt";
 import { apiClient, formatErrorMessage } from "../../lib/client";
-import type { PptData, PptMode, PptStatus } from "./pptShared";
+import { parsePptPageCount, type PptData, type PptMode, type PptStatus } from "./pptShared";
+
+function isGeneratingStatus(status: PptStatus) {
+  return status === "drafting" || status === "repairing" || status === "building";
+}
 
 export function usePptGenerator() {
   const [mode, setMode] = useState<PptMode>("topic");
@@ -25,6 +29,7 @@ export function usePptGenerator() {
   const [documentLoading, setDocumentLoading] = useState(false);
   const [fileBaseName, setFileBaseName] = useState("slides");
   const runIdRef = useRef(0);
+  const documentRunIdRef = useRef(0);
   const prevInputKeyRef = useRef("");
 
   useEffect(() => {
@@ -52,6 +57,16 @@ export function usePptGenerator() {
     if (inputKey === prevInputKeyRef.current) return;
     prevInputKeyRef.current = inputKey;
 
+    if (isGeneratingStatus(status)) {
+      runIdRef.current += 1;
+      setStatus("idle");
+      setBuffer(null);
+      setPptData(null);
+      setSlideCount(0);
+      setError("");
+      return;
+    }
+
     if (status !== "ready" && status !== "error") return;
     setStatus("idle");
     setBuffer(null);
@@ -73,6 +88,7 @@ export function usePptGenerator() {
   ]);
 
   const resetDocument = () => {
+    documentRunIdRef.current += 1;
     setDocumentName(null);
     setDocumentContent(null);
     setDocumentError("");
@@ -80,18 +96,23 @@ export function usePptGenerator() {
   };
 
   const loadDocument = async (name: string, loader: () => Promise<string>) => {
+    const documentRunId = ++documentRunIdRef.current;
     setDocumentName(name);
     setDocumentLoading(true);
     setDocumentContent(null);
     setDocumentError("");
     try {
       const text = await loader();
+      if (documentRunId !== documentRunIdRef.current) return;
       setDocumentContent(text);
     } catch (err) {
+      if (documentRunId !== documentRunIdRef.current) return;
       setDocumentContent(null);
       setDocumentError(formatErrorMessage(err));
     } finally {
-      setDocumentLoading(false);
+      if (documentRunId === documentRunIdRef.current) {
+        setDocumentLoading(false);
+      }
     }
   };
 
@@ -130,10 +151,9 @@ export function usePptGenerator() {
     await loadDocument(name, () => readTextFile(path));
   };
 
-  const customPageCount = Number.parseInt(customPages.trim(), 10);
-  const customPageInvalid = pageCount === "custom" && (!Number.isFinite(customPageCount) || customPageCount < 4 || customPageCount > 40);
+  const customPageInvalid = pageCount === "custom" && parsePptPageCount(customPages) === null;
   const documentCharacterCount = documentContent?.length ?? 0;
-  const generating = status === "drafting" || status === "repairing" || status === "building";
+  const generating = isGeneratingStatus(status);
   const generateDisabledReason = featureDisabled
     ? "请先在技能库中启用 PPT 生成功能。"
     : generating
@@ -161,6 +181,7 @@ export function usePptGenerator() {
     for await (const chunk of apiClient.chat.stream({
       message,
       session_id: sessionId || undefined,
+      chat_mode: "direct",
       tag: "1",
     })) {
       if (runId !== runIdRef.current) return null;

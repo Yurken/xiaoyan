@@ -1,4 +1,4 @@
-import type { PptMode } from "./pptShared";
+import { parsePptPageCount, type PptMode } from "./pptShared";
 
 interface BuildPptPromptInput {
   mode: PptMode;
@@ -53,11 +53,11 @@ function resolveLanguageHint(language: string) {
 
 function resolvePageHint(pageCount: string, customPages: string) {
   const effectivePages = pageCount === "custom" ? customPages.trim() : pageCount;
-  const customPageCount = Number.parseInt(effectivePages, 10);
-  if (!Number.isFinite(customPageCount)) {
+  const customPageCount = parsePptPageCount(effectivePages);
+  if (customPageCount === null) {
     return "页数由小妍根据内容深度自动决定，建议控制在 10 到 16 页";
   }
-  return `总页数控制在 ${Math.min(40, Math.max(4, customPageCount))} 页左右，含标题页和致谢页`;
+  return `总页数控制在 ${customPageCount} 页左右，含标题页和致谢页`;
 }
 
 function buildRules(styleHint: string, languageHint: string, pageHint: string) {
