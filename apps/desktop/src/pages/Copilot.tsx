@@ -5,8 +5,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
-  Clock3,
   Copy,
   MessageSquare,
   MoreHorizontal,
@@ -15,7 +13,6 @@ import {
   RefreshCw,
   Trash2,
   X,
-  XCircle,
 } from "lucide-react";
 import { MarkdownRenderer, Select } from "@research-copilot/ui";
 import {
@@ -27,6 +24,7 @@ import CollapsibleGroup from "../components/CollapsibleGroup";
 import ExternalLink from "../components/ExternalLink";
 import CopilotComposer from "../features/copilot/CopilotComposer";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
+import ThinkingProcessPanel from "../features/copilot/ThinkingProcessPanel";
 import appLogo from "../assets/xiaoyanv.svg";
 import {
   buildCopilotMessageContent,
@@ -58,31 +56,6 @@ function splitThoughtFromContent(content: string) {
   return {
     thought: thoughts.join("\n\n"),
     answer: content.replace(thinkTagPattern, "").trim(),
-  };
-}
-
-function runTone(status: AgentRun["status"]) {
-  if (status === "done") {
-    return {
-      color: "#34C759",
-      background: "rgba(52,199,89,0.12)",
-      icon: <CheckCircle2 className="w-3.5 h-3.5" />,
-      label: "已完成",
-    };
-  }
-  if (status === "failed") {
-    return {
-      color: "#FF3B30",
-      background: "rgba(255,59,48,0.12)",
-      icon: <XCircle className="w-3.5 h-3.5" />,
-      label: "失败",
-    };
-  }
-  return {
-    color: "#FF9500",
-    background: "rgba(255,149,0,0.12)",
-    icon: <Clock3 className="w-3.5 h-3.5" />,
-    label: status === "running" ? "处理中" : "待处理",
   };
 }
 
@@ -923,70 +896,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
                     return (
                       <>
-                        {(parsed.thought || planForBubble.length > 0 || runsForBubble.length > 0) && (
-                          <div
-                            className="rounded-2xl px-3 py-3"
-                            style={{
-                              background: "color-mix(in srgb, var(--rc-elevated) 86%, #FF9500 10%)",
-                              boxShadow: "var(--rc-inset-shadow)",
-                            }}
-                          >
-                            {parsed.thought && (
-                              <details open>
-                                <summary className="cursor-pointer text-xs font-semibold text-ink-secondary">模型推理过程</summary>
-                                <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">
-                                  {parsed.thought}
-                                </div>
-                              </details>
-                            )}
-
-                            {planForBubble.length > 0 && (
-                              <div className={parsed.thought ? "mt-3" : ""}>
-                                <div className="mb-2 text-xs font-semibold text-ink-secondary">执行步骤</div>
-                                <div className="space-y-2">
-                                  {planForBubble.map((step, index) => {
-                                    const run = [...runsForBubble]
-                                      .reverse()
-                                      .find((item) => item.agent_name === step.agent_name);
-                                    const tone = runTone(run?.status || "pending");
-
-                                    return (
-                                      <div
-                                        key={`${step.agent_name}-${index}`}
-                                        className="rounded-xl px-3 py-2"
-                                        style={{
-                                          background: "var(--rc-surface)",
-                                          boxShadow: "var(--rc-inset-shadow)",
-                                        }}
-                                      >
-                                        <div className="flex items-center justify-between gap-2">
-                                          <span className="text-xs font-semibold text-ink-primary">{index + 1}. {step.title}</span>
-                                          <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ color: tone.color, background: tone.background }}>
-                                            {tone.label}
-                                          </span>
-                                        </div>
-                                        <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{step.goal}</p>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {searchingQuery && isActiveAssistant && (
-                          <div
-                            className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
-                            style={{
-                              background: "rgba(0,122,255,0.06)",
-                              color: "#007AFF",
-                            }}
-                          >
-                            <RefreshCw className="w-3 h-3 animate-spin" />
-                            正在搜索：{searchingQuery}
-                          </div>
-                        )}
+                        <ThinkingProcessPanel
+                          thought={parsed.thought}
+                          plan={planForBubble}
+                          runs={runsForBubble}
+                          searchingQuery={isActiveAssistant ? searchingQuery : null}
+                          isThinking={sending && isActiveAssistant}
+                        />
                         <div className="rc-selectable text-sm leading-relaxed" style={{ color: "var(--rc-text)" }}>
                           <MarkdownRenderer
                             content={parsed.answer || (sending && isActiveAssistant ? "小妍思考中..." : "")}
@@ -1166,7 +1082,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         </div>
 
         <CopilotOverviewSidebar
-          activeRequestId={activeRequestId}
           plan={plan}
           runs={displayedRuns}
           sending={sending}

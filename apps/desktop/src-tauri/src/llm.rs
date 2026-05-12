@@ -44,6 +44,20 @@ pub enum StreamOutcome {
     ToolCalls(Vec<ToolCall>),
 }
 
+fn http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+fn stream_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
 impl LlmMessage {
     pub fn system(content: impl Into<String>) -> Self {
         Self {
@@ -319,7 +333,7 @@ impl LlmClient {
                 chat_model,
                 ..
             } => {
-                let client = reqwest::Client::new();
+                let client = http_client();
                 let body = json!({
                     "model": model.unwrap_or(chat_model),
                     "temperature": temperature,
@@ -357,7 +371,7 @@ impl LlmClient {
                 api_key,
                 chat_model,
             } => {
-                let client = reqwest::Client::new();
+                let client = http_client();
                 let body = json!({
                     "model": model.unwrap_or(chat_model),
                     "max_tokens": 1024,
@@ -713,7 +727,7 @@ async fn openai_chat(
     temperature: f32,
     max_tokens: u32,
 ) -> Result<String> {
-    let client = reqwest::Client::new();
+    let client = http_client();
     let body = json!({
         "model": model,
         "messages": build_message_array_impl(messages),
@@ -751,7 +765,7 @@ async fn stream_openai(
     max_tokens: u32,
     on_delta: &(impl Fn(String) + Send + Sync),
 ) -> Result<String> {
-    let client = reqwest::Client::new();
+    let client = stream_http_client();
     let body = json!({
         "model": model,
         "messages": build_message_array_impl(messages),
@@ -779,23 +793,49 @@ async fn stream_openai(
     let mut full = String::new();
     let mut buf = String::new();
     let mut stream = resp.bytes_stream();
+    let mut in_think = false;
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk?;
         append_sse_chunk(&mut buf, &bytes);
         for data in drain_sse_payloads(&mut buf) {
             if data == "[DONE]" {
+                if in_think {
+                    full.push_str("</think>");
+                    on_delta("</think>".to_string());
+                }
                 return Ok(full);
             }
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
-                if let Some(c) = v["choices"][0]["delta"]["content"].as_str() {
+                let delta = &v["choices"][0]["delta"];
+                if let Some(r) = delta["reasoning_content"].as_str().or_else(|| delta["reasoning"].as_str()) {
+                    if !r.is_empty() {
+                        if !in_think {
+                            in_think = true;
+                            full.push_str("<think>");
+                            on_delta("<think>".to_string());
+                        }
+                        full.push_str(r);
+                        on_delta(r.to_string());
+                    }
+                }
+                if let Some(c) = delta["content"].as_str() {
                     if !c.is_empty() {
+                        if in_think {
+                            in_think = false;
+                            full.push_str("</think>");
+                            on_delta("</think>".to_string());
+                        }
                         full.push_str(c);
                         on_delta(c.to_string());
                     }
                 }
             }
         }
+    }
+    if in_think {
+        full.push_str("</think>");
+        on_delta("</think>".to_string());
     }
     Ok(full)
 }
@@ -806,7 +846,7 @@ async fn embed_openai(
     model: &str,
     texts: &[String],
 ) -> Result<Vec<Vec<f32>>> {
-    let client = reqwest::Client::new();
+    let client = stream_http_client();
     let body = json!({ "model": model, "input": texts });
     let resp = client
         .post(format!("{}/embeddings", base_url.trim_end_matches('/')))
@@ -847,7 +887,7 @@ async fn anthropic_chat(
     temperature: f32,
     max_tokens: u32,
 ) -> Result<String> {
-    let client = reqwest::Client::new();
+    let client = http_client();
     let system = messages
         .iter()
         .find(|m| m.role == "system")
@@ -891,7 +931,7 @@ async fn stream_anthropic(
     max_tokens: u32,
     on_delta: &(impl Fn(String) + Send + Sync),
 ) -> Result<String> {
-    let client = reqwest::Client::new();
+    let client = stream_http_client();
     let system = messages
         .iter()
         .find(|m| m.role == "system")
@@ -927,6 +967,7 @@ async fn stream_anthropic(
     let mut full = String::new();
     let mut buf = String::new();
     let mut stream = resp.bytes_stream();
+    let mut in_think = false;
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk?;
@@ -934,8 +975,25 @@ async fn stream_anthropic(
         for data in drain_sse_payloads(&mut buf) {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
                 if v["type"] == "content_block_delta" {
-                    if let Some(t) = v["delta"]["text"].as_str() {
+                    let delta = &v["delta"];
+                    if let Some(t) = delta["thinking"].as_str() {
                         if !t.is_empty() {
+                            if !in_think {
+                                in_think = true;
+                                full.push_str("<think>");
+                                on_delta("<think>".to_string());
+                            }
+                            full.push_str(t);
+                            on_delta(t.to_string());
+                        }
+                    }
+                    if let Some(t) = delta["text"].as_str() {
+                        if !t.is_empty() {
+                            if in_think {
+                                in_think = false;
+                                full.push_str("</think>");
+                                on_delta("</think>".to_string());
+                            }
                             full.push_str(t);
                             on_delta(t.to_string());
                         }
@@ -943,6 +1001,10 @@ async fn stream_anthropic(
                 }
             }
         }
+    }
+    if in_think {
+        full.push_str("</think>");
+        on_delta("</think>".to_string());
     }
     Ok(full)
 }
@@ -959,7 +1021,7 @@ async fn stream_openai_with_tools(
     max_tokens: u32,
     on_delta: &(impl Fn(String) + Send + Sync),
 ) -> Result<StreamOutcome> {
-    let client = reqwest::Client::new();
+    let client = stream_http_client();
     let mut body = json!({
         "model": model,
         "messages": build_message_array_impl(messages),
@@ -1003,6 +1065,7 @@ async fn stream_openai_with_tools(
     let mut stream = resp.bytes_stream();
     let mut tool_calls_acc: Vec<serde_json::Value> = Vec::new();
     let mut finish_reason = String::new();
+    let mut in_think = false;
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk?;
@@ -1015,8 +1078,25 @@ async fn stream_openai_with_tools(
                 if let Some(fr) = v["choices"][0]["finish_reason"].as_str() {
                     finish_reason = fr.to_string();
                 }
-                if let Some(c) = v["choices"][0]["delta"]["content"].as_str() {
+                let delta = &v["choices"][0]["delta"];
+                if let Some(r) = delta["reasoning_content"].as_str().or_else(|| delta["reasoning"].as_str()) {
+                    if !r.is_empty() {
+                        if !in_think {
+                            in_think = true;
+                            full.push_str("<think>");
+                            on_delta("<think>".to_string());
+                        }
+                        full.push_str(r);
+                        on_delta(r.to_string());
+                    }
+                }
+                if let Some(c) = delta["content"].as_str() {
                     if !c.is_empty() {
+                        if in_think {
+                            in_think = false;
+                            full.push_str("</think>");
+                            on_delta("</think>".to_string());
+                        }
                         full.push_str(c);
                         on_delta(c.to_string());
                     }
@@ -1044,6 +1124,11 @@ async fn stream_openai_with_tools(
                 }
             }
         }
+    }
+
+    if in_think {
+        full.push_str("</think>");
+        on_delta("</think>".to_string());
     }
 
     if finish_reason == "tool_calls" && !tool_calls_acc.is_empty() {
@@ -1079,7 +1164,7 @@ async fn stream_anthropic_with_tools(
     max_tokens: u32,
     on_delta: &(impl Fn(String) + Send + Sync),
 ) -> Result<StreamOutcome> {
-    let client = reqwest::Client::new();
+    let client = stream_http_client();
     let system = messages
         .iter()
         .find(|m| m.role == "system")
@@ -1116,6 +1201,7 @@ async fn stream_anthropic_with_tools(
     let mut stream = resp.bytes_stream();
     let mut tool_calls_acc: Vec<ToolCall> = Vec::new();
     let mut stop_reason = String::new();
+    let mut in_think = false;
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk?;
@@ -1137,16 +1223,33 @@ async fn stream_anthropic_with_tools(
                         }
                     }
                     Some("content_block_delta") => {
-                        if v["delta"]["type"].as_str() == Some("input_json_delta") {
-                            if let Some(partial) = v["delta"]["partial_json"].as_str() {
+                        let delta = &v["delta"];
+                        if delta["type"].as_str() == Some("input_json_delta") {
+                            if let Some(partial) = delta["partial_json"].as_str() {
                                 if let Some(last) = tool_calls_acc.last_mut() {
                                     last.arguments.push_str(partial);
                                 }
                             }
                         }
-                        if v["delta"]["type"].as_str() == Some("text_delta") {
-                            if let Some(t) = v["delta"]["text"].as_str() {
+                        if let Some(t) = delta["thinking"].as_str() {
+                            if !t.is_empty() {
+                                if !in_think {
+                                    in_think = true;
+                                    full.push_str("<think>");
+                                    on_delta("<think>".to_string());
+                                }
+                                full.push_str(t);
+                                on_delta(t.to_string());
+                            }
+                        }
+                        if delta["type"].as_str() == Some("text_delta") {
+                            if let Some(t) = delta["text"].as_str() {
                                 if !t.is_empty() {
+                                    if in_think {
+                                        in_think = false;
+                                        full.push_str("</think>");
+                                        on_delta("</think>".to_string());
+                                    }
                                     full.push_str(t);
                                     on_delta(t.to_string());
                                 }
@@ -1162,6 +1265,11 @@ async fn stream_anthropic_with_tools(
                 }
             }
         }
+    }
+
+    if in_think {
+        full.push_str("</think>");
+        on_delta("</think>".to_string());
     }
 
     if stop_reason == "tool_use" && !tool_calls_acc.is_empty() {

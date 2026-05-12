@@ -5,7 +5,6 @@ import type { AgentArtifact, AgentPlanStep, AgentRun } from "@research-copilot/t
 import AgentStateGraphPanel from "./AgentStateGraphPanel";
 
 interface CopilotOverviewSidebarProps {
-  activeRequestId?: string;
   plan: AgentPlanStep[];
   runs: AgentRun[];
   sending: boolean;
@@ -25,7 +24,6 @@ const CARD_STYLE = {
 } as const;
 
 export default function CopilotOverviewSidebar({
-  activeRequestId,
   plan,
   runs,
   sending,
@@ -166,14 +164,6 @@ export default function CopilotOverviewSidebar({
               </div>
             </div>
 
-            {activeRequestId ? (
-              <div
-                className="mt-3 rounded-2xl px-3 py-2 text-[11px] text-white break-all"
-                style={{ background: "linear-gradient(145deg, #111827, #334155)" }}
-              >
-                {activeRequestId}
-              </div>
-            ) : null}
           </section>
 
           <section

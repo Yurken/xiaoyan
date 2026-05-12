@@ -328,7 +328,7 @@ pub async fn chat_stream(
                 json!({ "request_id": rid, "error": e.to_string() }),
             );
         }
-
+        let _ = app.emit("chat:done", json!({ "request_id": rid }));
         let _ = chat_handles.lock().await.remove(&rid);
     });
 
