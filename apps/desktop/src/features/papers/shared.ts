@@ -331,7 +331,7 @@ export interface PaperTaskTrackProgress {
 
 const TRACK_LABELS: Record<PaperTaskTrackKey, string> = {
   analysis: "论文解读",
-  reproduction: "复现指南",
+  reproduction: "复现/验证指南",
 };
 
 const COMBINED_TRACK_WEIGHTS: Record<PaperTaskTrackKey, number> = {
@@ -375,8 +375,8 @@ const PAPER_TASK_STEP_RULES: Array<{
   {
     needle: "问题背景分析",
     track: "analysis",
-    label: "分析研究问题与背景",
-    detail: "正在梳理论文想解决的问题、动机和研究场景。",
+    label: "分析问题、论题与语境",
+    detail: "正在按论文类型梳理问题、动机、理论空白或材料语境。",
     percent: 30,
     step: 2,
     total: 6,
@@ -384,17 +384,17 @@ const PAPER_TASK_STEP_RULES: Array<{
   {
     needle: "方法深度解析",
     track: "analysis",
-    label: "拆解核心方法",
-    detail: "正在对齐方法模块、关键假设和与已有工作的差异。",
+    label: "拆解方法、框架或论证路径",
+    detail: "正在对齐技术方法、综述框架、证明链条或解释策略。",
     percent: 48,
     step: 3,
     total: 6,
   },
   {
-    needle: "实验结果分析",
+    needle: "证据与结果分析",
     track: "analysis",
-    label: "核对实验设计与结果",
-    detail: "正在检查数据集、指标、基线、消融和结果边界。",
+    label: "核对证据、验证与结果",
+    detail: "正在按论文类型检查实验、证明、综述归纳或材料证据。",
     percent: 66,
     step: 4,
     total: 6,
@@ -409,19 +409,19 @@ const PAPER_TASK_STEP_RULES: Array<{
     total: 6,
   },
   {
-    needle: "复现指南生成",
+    needle: "复现/验证指南生成",
     track: "reproduction",
-    label: "生成复现指南",
-    detail: "正在整理代码、环境、数据、训练和评估路径。",
+    label: "生成复现/验证指南",
+    detail: "正在判断适合工程复现、理论复核、综述复核还是材料复核。",
     percent: 45,
     step: 1,
     total: 2,
   },
   {
-    needle: "复现指南整理",
+    needle: "复现/验证指南整理",
     track: "reproduction",
-    label: "整理复现指南",
-    detail: "正在校验复现字段并保存结果。",
+    label: "整理复现/验证指南",
+    detail: "正在校验可用字段并保存结果。",
     percent: 86,
     step: 2,
     total: 2,
@@ -437,8 +437,8 @@ export function expectedPaperTaskFinalStatuses(mode: PaperTaskMode): PaperTaskFi
 export function initialPaperTaskProgress(mode: PaperTaskMode): PaperTaskProgress {
   if (mode === "reproduction") {
     return buildPaperTaskProgress({
-      label: "准备复现指南",
-      detail: "正在读取论文上下文并连接复现模型。",
+      label: "准备复现/验证指南",
+      detail: "正在读取论文上下文并连接复现/验证模型。",
       mode,
       tracks: {
         reproduction: initialTrackProgress("reproduction"),
@@ -449,7 +449,7 @@ export function initialPaperTaskProgress(mode: PaperTaskMode): PaperTaskProgress
   if (mode === "combined") {
     return buildPaperTaskProgress({
       label: "准备小妍解读",
-      detail: "会同步生成论文解读和复现指南，完成后一起展示。",
+      detail: "会同步生成论文解读和复现/验证指南，完成后一起展示。",
       mode,
       tracks: {
         analysis: initialTrackProgress("analysis"),
@@ -518,8 +518,8 @@ export function progressForPendingPaperCompletions(
 
   if (waiting.has("reproduced") && !waiting.has("analyzed")) {
     return buildPaperTaskProgress({
-      label: "论文解读已完成，复现指南收尾中",
-      detail: "解读内容已经生成，正在等待复现指南完成后统一展示。",
+      label: "论文解读已完成，复现/验证指南收尾中",
+      detail: "解读内容已经生成，正在等待复现/验证指南完成后统一展示。",
       mode,
       tracks,
       previousPercent: previous?.percent,
@@ -528,8 +528,8 @@ export function progressForPendingPaperCompletions(
 
   if (waiting.has("analyzed") && !waiting.has("reproduced")) {
     return buildPaperTaskProgress({
-      label: "复现指南已完成，论文解读收尾中",
-      detail: "复现部分已经生成，正在等待论文精读结果完成。",
+      label: "复现/验证指南已完成，论文解读收尾中",
+      detail: "复现/验证部分已经生成，正在等待论文精读结果完成。",
       mode,
       tracks,
       previousPercent: previous?.percent,
@@ -538,7 +538,7 @@ export function progressForPendingPaperCompletions(
 
   return buildPaperTaskProgress({
     label: "小妍正在并行处理论文",
-    detail: "论文解读和复现指南仍在推进。",
+    detail: "论文解读和复现/验证指南仍在推进。",
     mode,
     tracks,
     previousPercent: previous?.percent,

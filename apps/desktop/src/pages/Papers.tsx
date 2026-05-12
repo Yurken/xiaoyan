@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Eye,
   FileText,
+  FlaskConical,
   Loader2,
   Pencil,
   Quote,
@@ -322,7 +323,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       setConfirmReanalyzePaperId(null);
       setLoadError("");
       setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "analyzing" } : paper)));
-      markPaperTaskStarted(id, "combined");
+      markPaperTaskStarted(id, "analysis");
       const paper = papers.find((p) => p.id === id);
       if (paper) {
         void apiClient.memory.add({
@@ -332,10 +333,20 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           detail: JSON.stringify({ paper_id: id }),
         });
       }
-      await Promise.all([
-        apiClient.papers.analyze(id),
-        apiClient.papers.reproduce(id),
-      ]);
+      await apiClient.papers.analyze(id);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      markPaperTaskFailed(id);
+      setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "failed" } : paper)));
+    }
+  };
+
+  const handleReproduce = async (id: string) => {
+    try {
+      setLoadError("");
+      setPapers((prev) => prev.map((paper) => (paper.id === id ? { ...paper, status: "analyzing" } : paper)));
+      markPaperTaskStarted(id, "reproduction");
+      await apiClient.papers.reproduce(id);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
       markPaperTaskFailed(id);
@@ -680,6 +691,17 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             {analyzeButtonLabel(paper.status)}
           </Button>
 
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void handleReproduce(paper.id)}
+            disabled={!canStartAnalyze(paper.status)}
+            title="生成复现/验证指南"
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+            复现
+          </Button>
+
           {/* 展开按钮 */}
           {(paper.analysis || paper.reproduction_guide) && (
             <button
@@ -902,7 +924,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             {`共 ${papers.length} 篇论文 · ${interests.length} 个主题分组`}
           </p>
           <p className="mt-1 text-sm text-ink-tertiary">
-            上传 PDF，小妍帮你精读论文、提取图表、生成复现指南。
+            上传 PDF，小妍会按论文类型精读内容；需要时可单独生成复现/验证指南。
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">

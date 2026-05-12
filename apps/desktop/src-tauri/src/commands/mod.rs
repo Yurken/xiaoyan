@@ -13,6 +13,7 @@ pub mod knowledge_notes;
 pub mod memory;
 pub mod memory_privacy;
 pub mod misc;
+pub mod paper_analysis_prompts;
 pub mod paper_analysis_text;
 pub mod paper_artifacts;
 pub mod paper_figures;

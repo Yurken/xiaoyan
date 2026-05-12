@@ -10,13 +10,13 @@ const ANALYSIS_SECTIONS: Array<{
   color: string;
   background: string;
 }> = [
-  { key: "research_question", label: "研究问题", color: "#007AFF", background: "rgba(0,122,255,0.05)" },
-  { key: "core_method", label: "核心方法", color: "#AF52DE", background: "rgba(175,82,222,0.05)" },
-  { key: "experiment_design", label: "实验设计", color: "#5856D6", background: "rgba(88,86,214,0.05)" },
-  { key: "experiment_results", label: "实验结果", color: "#34C759", background: "rgba(52,199,89,0.05)" },
-  { key: "innovations", label: "创新点", color: "#FF9500", background: "rgba(255,149,0,0.05)" },
-  { key: "limitations", label: "局限性", color: "#FF3B30", background: "rgba(255,59,48,0.05)" },
-  { key: "key_conclusions", label: "关键结论", color: "#00C7BE", background: "rgba(0,199,190,0.05)" },
+  { key: "research_question", label: "问题与语境", color: "#007AFF", background: "rgba(0,122,255,0.05)" },
+  { key: "core_method", label: "方法/框架", color: "#AF52DE", background: "rgba(175,82,222,0.05)" },
+  { key: "experiment_design", label: "证据/验证设计", color: "#5856D6", background: "rgba(88,86,214,0.05)" },
+  { key: "experiment_results", label: "结果/发现", color: "#34C759", background: "rgba(52,199,89,0.05)" },
+  { key: "innovations", label: "贡献与洞察", color: "#FF9500", background: "rgba(255,149,0,0.05)" },
+  { key: "limitations", label: "边界与局限", color: "#FF3B30", background: "rgba(255,59,48,0.05)" },
+  { key: "key_conclusions", label: "阅读收束", color: "#00C7BE", background: "rgba(0,199,190,0.05)" },
 ];
 
 const REPRODUCTION_SECTIONS: Array<[string, keyof NonNullable<Paper["reproduction_guide"]>]> = [
@@ -27,7 +27,7 @@ const REPRODUCTION_SECTIONS: Array<[string, keyof NonNullable<Paper["reproductio
   ["训练流程", "training_process"],
   ["推理流程", "inference_process"],
   ["评估指标", "evaluation_metrics"],
-  ["风险与注意事项", "risks_and_notes"],
+  ["风险与复核路径", "risks_and_notes"],
 ];
 
 interface PaperDetailModalProps {
@@ -294,7 +294,7 @@ export default function PaperDetailModal({
             <aside className="flex min-h-0 flex-col overflow-hidden">
               <div className="flex items-center gap-2 px-0.5">
                 <FileText className="h-4 w-4 text-[#007AFF]" />
-                <p className="text-[11px] font-semibold tracking-[0.18em] text-ink-tertiary uppercase">复现指南</p>
+                <p className="text-[11px] font-semibold tracking-[0.18em] text-ink-tertiary uppercase">复现/验证指南</p>
               </div>
               <div className="mt-3 min-h-0 space-y-3 overflow-y-auto pr-1.5">
                 {reproductionSections.length > 0 ? (
@@ -348,7 +348,7 @@ export default function PaperDetailModal({
                     className="rounded-[22px] px-4 py-6 text-sm text-ink-tertiary"
                     style={{ background: "rgba(15,23,42,0.03)", boxShadow: "var(--rc-chip-inset-shadow)" }}
                   >
-                    当前还没有可展示的复现指南内容。
+                    当前还没有可展示的复现/验证指南内容。
                   </div>
                 )}
               </div>

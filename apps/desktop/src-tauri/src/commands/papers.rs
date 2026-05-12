@@ -1,9 +1,12 @@
 use crate::assistant_prompts::specialist_system;
 use crate::ccf::{infer_from_text, match_venue};
-use crate::commands::paper_analysis_text::{build_analysis_slices, build_reproduction_context};
-use crate::commands::paper_figures::{
-    ensure_figures_extracted as ensure_paper_figures_extracted, PaperFigureContext,
+use crate::commands::paper_analysis_prompts::{
+    agent1_system, agent2_system, agent3_system, agent4_system, build_agent1_prompt,
+    build_agent2_prompt, build_agent3_prompt, build_agent4_prompt, build_method_figure_context,
+    build_reproduce_prompt, reproduce_system,
 };
+use crate::commands::paper_analysis_text::{build_analysis_slices, build_reproduction_context};
+use crate::commands::paper_figures::ensure_figures_extracted as ensure_paper_figures_extracted;
 use crate::commands::paper_text::{
     extract_pdf_preview_text, extract_pdf_text_with_filtered_stderr, preview_from_text,
 };
@@ -985,232 +988,12 @@ pub async fn papers_upload(
 
 // ── Analyze (Multi-Agent Deep Analysis) ─────────────────────────
 
-// Agent 1 — 研究问题与背景深度分析（读引言区段）
-const AGENT1_PROMPT: &str = r#"请对以下论文内容进行深度问题背景分析，仅返回严格合法的 JSON，不输出任何其他内容。
-
-论文文本（引言/相关工作区段）：
-{text}
-
-输出要求：
-- research_question 字段值使用中文富文本，段落间用 \n\n 分隔，段内换行用 \n
-- 每个分析维度必须结合论文实际内容，严禁空泛或复制摘要，每维度至少 3-5 句实质性分析
-- 字段值以加粗标题（**标题**）组织，标题单独成段，标题行与内容之间必须用空行隔开（即 \\n\\n）
-- 所有数学公式必须使用 LaTeX 格式：行内公式用 $...$，独立公式用 $$...$$，不得用纯文本写公式
-- 图表引用必须按需：研究问题部分不要主动要求返回图片或占位符；只有原文明确围绕某个图表展开、且引用对理解研究背景必要时，才可自然引用编号
-- 严禁为了让前端展示图片而编造 Figure/Table 编号或写图片占位符
-
-返回格式（严格 JSON，不得有多余字符）：
-{"research_question": "**一、核心研究问题**\n\n（精确描述：本文究竟要解决什么技术/科学问题？给出精确定义而非模糊表述）\n\n**二、问题重要性与动机**\n\n（为什么这个问题重要？有什么实际应用价值或科学意义？是否有现实中已知的失败场景？）\n\n**三、现有方法的具体不足**\n\n（引用文中提到的具体方法或工作，分别说明它们失败在哪里：计算代价？泛化性？准确性？理论缺陷？）\n\n**四、本文填补的研究空白**\n\n（在整个领域坐标系里，这篇文章填补了哪个具体位置？是方法突破、理论建立、还是系统工程上的创新？）\n\n**五、核心假设与适用边界**\n\n（本文依赖的前提假设是什么？方法在什么场景下成立，在什么场景下可能失效或不适用？）"}"#;
-
-// Agent 2 — 方法深度解析（读方法区段 + A1 上下文）
-const AGENT2_PROMPT: &str = r#"请对以下论文内容进行深度方法分析，仅返回严格合法的 JSON，不输出任何其他内容。
-
-前置分析（研究问题概述，供参考）：
-{problem_summary}
-
-论文文本（方法核心区段）：
-{text}
-
-输出要求：
-- core_method 字段值使用中文富文本，公式名称/变量名保持英文
-- 必须解释"为什么这样做有效"，而不只是描述"做了什么"
-- 每个维度至少 3-5 句实质性内容，以加粗标题组织，标题单独成段（标题行与内容之间用 \\n\\n 隔开）
-- 所有数学公式必须使用 LaTeX 格式：行内公式用 $...$，独立公式用 $$...$$，不得用纯文本写公式
-- 图表引用必须按需：只有架构图、流程图、模块示意图等方法图能帮助解释方法时才引用编号；不要引用实验结果图、对比图、消融曲线或表格
-- 不要输出图片占位符，不要为了让前端显示图片而强行写 Figure/Table 编号
-
-返回格式：
-{"core_method": "**一、核心技术思路与直觉**\n\n（最关键的洞察是什么？为什么这个思路能解决前述问题？背后的数学直觉或工程洞见是什么？）\n\n**二、关键技术细节**\n\n（算法步骤、网络结构、损失函数、关键公式——尽可能具体，引用公式编号或名称，说明各模块的作用）\n\n**三、与现有方法的本质区别**\n\n（与最相关基线相比，本文方法的核心差异在哪一步？为什么这个差异是关键的？）\n\n**四、关键设计选择与权衡**\n\n（作者做了哪些重要设计决策？这些选择带来了什么好处，又付出了什么代价或限制？）\n\n**五、理论保证**\n\n（是否有收敛性证明、复杂度分析、误差界？若无理论保证，说明方法在何种意义上属于启发式，以及作者如何用实验弥补）"}"#;
-
-// Agent 3 — 实验证据深度分析（读实验区段 + A2 上下文）
-const AGENT3_PROMPT: &str = r#"请对以下论文实验部分进行深度分析，仅返回严格合法的 JSON，不输出任何其他内容。
-
-前置分析（方法概述，供参考）：
-{method_summary}
-
-论文文本（实验/结果区段）：
-{text}
-
-输出要求：
-- 两个字段均使用中文富文本，以加粗标题组织，标题单独成段（标题行与内容之间用 \\n\\n 隔开）
-- 要有批判性视角，不只是复述数字
-- 每个维度至少 2-4 句实质性分析
-- 所有数学公式必须使用 LaTeX 格式：行内公式用 $...$，独立公式用 $$...$$，不得用纯文本写公式
-- 不要为了展示图片而引用图表编号；实验结果以文字和必要的编号说明即可，默认不触发截图、曲线图或结果图展示
-- 严禁输出图片占位符或编造图表编号
-
-返回格式：
-{"experiment_design": "**一、数据集与评估协议**\n\n（用了哪些数据集？选择理由是什么？评估指标是否合理覆盖了论文声称的贡献？是否存在数据选择偏差风险？）\n\n**二、基线方法选择与公平性**\n\n（与哪些方法对比？这些基线是否代表当时最强水平？比较是否公平（相同计算预算/数据量/预训练资源）？有无刻意回避某些强基线？）\n\n**三、核心实验设置**\n\n（关键超参数、训练细节、随机种子处理——对可复现性重要的细节是否充分披露？）\n\n**四、消融实验设计**\n\n（消融了哪些组件？实验设计是否充分验证了作者声称的每个贡献？是否存在遗漏的重要消融组合？）", "experiment_results": "**一、主要定量结果**\n\n（核心指标上的具体数字，提升幅度，是否报告了标准差或置信区间？）\n\n**二、消融实验揭示了什么**\n\n（哪个组件贡献最大？去掉哪个组件性能下降最多？这与作者的贡献声称是否一致，是否有意外发现？）\n\n**三、定性分析与案例**\n\n（如果有可视化或案例分析，说明其支持了什么结论，或是否暴露了方法的边界）\n\n**四、结果的边界与例外**\n\n（在哪些情况下方法表现不佳？有没有失败案例被报告？作者是否回避了某些不利结果？）\n\n**五、结果与贡献声称的一致性**\n\n（实验结果是否充分支持引言中的全部贡献声称？有无夸大或未完全验证的部分？）"}"#;
-
-// Agent 4 — 综合评审（基于 A1+A2+A3 摘要，无原始论文文本）
-const AGENT4_PROMPT: &str = r#"基于对一篇论文多阶段精读的结果，请从资深同行评审员视角做最终综合评价，仅返回严格合法的 JSON，不输出任何其他内容。
-
-研究问题分析：
-{problem_summary}
-
-方法分析：
-{method_summary}
-
-实验分析：
-{experiment_summary}
-
-输出要求：
-- 三个字段均使用中文富文本，以加粗标题组织，标题单独成段（标题行与内容之间用 \\n\\n 隔开）
-- 区分"作者自我宣称的贡献"与"真正有价值的贡献"，保持独立判断
-- 局限性不只复述作者承认的，还要从评审视角独立识别
-- 所有数学公式必须使用 LaTeX 格式：行内公式用 $...$，独立公式用 $$...$$，不得用纯文本写公式
-- 综合评价不要新增图表引用；如需提及图表，只复用前序分析中已经必要引用的编号，严禁为了展示图片而写占位符
-
-返回格式：
-{"innovations": "**真正新颖的技术贡献**\n\n（逐条列出，区分「真正新颖」「工程改进」「组合式创新」，说明每个贡献在领域中的位置，避免简单照搬摘要）\n\n**核心洞察的价值**\n\n（这篇文章最核心的一个 insight 是什么？为什么这个 insight 有独立的学术或工程价值？）\n\n**对后续工作的影响预测**\n\n（这个贡献可能打开哪些新方向？还是会很快被更强的方法取代？影响力可能主要在哪个社区？）", "limitations": "**方法层面的实质性局限**\n\n（独立分析：假设是否过强？适用场景是否受限？有没有作者未承认但显而易见的瓶颈？）\n\n**实验层面的潜在问题**\n\n（数据集多样性是否足够？有无可能对特定 benchmark 过拟合？有无重要缺失对比或不公平比较？）\n\n**可复现性与工程可行性**\n\n（复现难度评估：开源情况、计算资源要求、工程实现复杂度、对超参数的敏感度）", "key_conclusions": "**最值得记住的核心结论**\n\n（用 1-2 句话说清楚：读完这篇文章，你最应该记住什么？）\n\n**适合哪类读者优先阅读**\n\n（从事该方向的研究者？工程实践者？想了解该领域的外部研究者？各自应重点关注什么章节？）\n\n**三个最直接的后续研究切入点**\n\n（如果基于这篇文章做后续工作，最自然的三个延伸方向是什么？各自的技术难点在哪里？）\n\n**综合评分（供参考）**\n技术新颖性 X/5 · 实验充分性 X/5 · 实用性 X/5 · 论文清晰度 X/5\n（一句话说明评分依据，尤其是最低分项的理由）"}"#;
-
-fn agent1_system() -> String {
-    specialist_system(
-        "论文精读 · 问题背景分析专家",
-        "基于论文开头部分，深度解析研究问题的本质、动机与现有方法的具体不足。",
-        Some("不得编造，不得空泛，每个方面必须结合论文原文给出具体信息。"),
-    )
-}
-
-fn agent2_system() -> String {
-    specialist_system(
-        "论文精读 · 方法深度解析专家",
-        "基于论文方法部分，深度解析技术贡献的核心思路、关键设计决策与技术细节。",
-        Some("必须说清楚为什么这个方法有效，而不只是描述它做了什么。"),
-    )
-}
-
-fn agent3_system() -> String {
-    specialist_system(
-        "论文精读 · 实验证据分析专家",
-        "基于论文实验部分，深度分析实验设计的合理性、结果的可信度与边界。",
-        Some("要有批判性视角，不只是复述结果数字。"),
-    )
-}
-
-fn agent4_system() -> String {
-    specialist_system(
-        "论文精读 · 综合评审专家",
-        "基于对论文的多阶段精读，从同行评审视角综合评价真正的创新点、实质性局限和核心结论。",
-        Some("区分作者自我宣称的贡献与真正有价值的贡献，保持独立判断。"),
-    )
-}
-
 fn missing_full_text_message(status: &str) -> &'static str {
     match status {
         "uploaded" | "parsing" => "论文仍在解析中，请稍后再试。",
         "failed" | "error" => "论文解析失败，请重新导入 PDF 后再试。",
         _ => "论文正文为空，请重新导入或更换可复制文本的 PDF。",
     }
-}
-
-fn build_method_figure_context(figures: &[PaperFigureContext]) -> String {
-    let method_figures = figures
-        .iter()
-        .filter(|figure| is_method_figure_context(figure))
-        .take(8)
-        .map(|figure| {
-            let label = figure.reference_label();
-            if let Some(caption) = figure.caption.as_deref() {
-                format!("  • {label}: {caption}")
-            } else {
-                format!("  • {label}")
-            }
-        })
-        .collect::<Vec<_>>();
-
-    if method_figures.is_empty() {
-        return String::new();
-    }
-
-    format!(
-        "【可选方法图上下文（仅供核心方法解析按需引用）】\n{}\n请只在解释方法结构、流程或模块时引用这些 Figure 编号；不要引用实验结果截图、曲线图或表格，不要为了展示图片而写占位符。\n\n",
-        method_figures.join("\n")
-    )
-}
-
-fn is_method_figure_context(figure: &PaperFigureContext) -> bool {
-    if !figure.kind.eq_ignore_ascii_case("figure") {
-        return false;
-    }
-
-    let Some(caption) = figure.caption.as_deref() else {
-        return true;
-    };
-    let normalized = caption.to_ascii_lowercase();
-    const EXCLUDE_KEYWORDS: &[&str] = &[
-        "result",
-        "performance",
-        "experiment",
-        "comparison",
-        "ablation",
-        "quantitative",
-        "qualitative",
-        "accuracy",
-        "benchmark",
-        "dataset",
-        "baseline",
-        "evaluation",
-        "visualization",
-        "curve",
-        "结果",
-        "性能",
-        "实验",
-        "对比",
-        "消融",
-        "准确",
-        "指标",
-        "曲线",
-        "评估",
-        "数据集",
-        "基线",
-        "可视化",
-    ];
-    const INCLUDE_KEYWORDS: &[&str] = &[
-        "architecture",
-        "framework",
-        "overview",
-        "pipeline",
-        "model",
-        "module",
-        "method",
-        "network",
-        "algorithm",
-        "workflow",
-        "system",
-        "approach",
-        "schema",
-        "diagram",
-        "structure",
-        "encoder",
-        "decoder",
-        "架构",
-        "框架",
-        "流程",
-        "方法",
-        "模型",
-        "模块",
-        "网络",
-        "算法",
-        "结构",
-        "示意",
-        "概览",
-    ];
-
-    if EXCLUDE_KEYWORDS
-        .iter()
-        .any(|keyword| normalized.contains(keyword))
-    {
-        return false;
-    }
-    if INCLUDE_KEYWORDS
-        .iter()
-        .any(|keyword| normalized.contains(keyword))
-    {
-        return true;
-    }
-
-    true
 }
 
 #[tauri::command]
@@ -1358,7 +1141,7 @@ pub async fn papers_analyze(
             "paper:status",
             json!({ "paper_id": pid, "status": "analyzing", "step": "问题背景分析中（1/4）…" }),
         );
-        let prompt1 = AGENT1_PROMPT.replace("{text}", &intro_text);
+        let prompt1 = build_agent1_prompt(&intro_text);
         let msgs1 = vec![
             LlmMessage::system(agent1_system()),
             LlmMessage::user(&prompt1),
@@ -1379,7 +1162,10 @@ pub async fn papers_analyze(
             Ok(resp) => {
                 log_llm_response("paper-analyze", &pid, "agent1", &resp);
                 match parse_llm_json_value(&resp) {
-                    Ok(value) => value["research_question"].as_str().unwrap_or("").to_string(),
+                    Ok(value) => value["research_question"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string(),
                     Err(error) => {
                         eprintln!("[paper-analyze][{}] agent1 parse failed: {}", pid, error);
                         agent_errors.push(format!("问题背景分析返回格式错误：{error}"));
@@ -1399,9 +1185,8 @@ pub async fn papers_analyze(
             "paper:status",
             json!({ "paper_id": pid, "status": "analyzing", "step": "方法深度解析中（2/4）…" }),
         );
-        let prompt2 = AGENT2_PROMPT
-            .replace("{problem_summary}", &research_question)
-            .replace("{text}", &format!("{method_figure_context}{method_text}"));
+        let method_prompt_text = format!("{method_figure_context}{method_text}");
+        let prompt2 = build_agent2_prompt(&research_question, &method_prompt_text);
         let msgs2 = vec![
             LlmMessage::system(agent2_system()),
             LlmMessage::user(&prompt2),
@@ -1440,11 +1225,9 @@ pub async fn papers_analyze(
         // ── Agent 3: Experiment Analysis ──────────────────────────
         let _ = app.emit(
             "paper:status",
-            json!({ "paper_id": pid, "status": "analyzing", "step": "实验结果分析中（3/4）…" }),
+            json!({ "paper_id": pid, "status": "analyzing", "step": "证据与结果分析中（3/4）…" }),
         );
-        let prompt3 = AGENT3_PROMPT
-            .replace("{method_summary}", &core_method)
-            .replace("{text}", &experiment_text);
+        let prompt3 = build_agent3_prompt(&core_method, &experiment_text);
         let msgs3 = vec![
             LlmMessage::system(agent3_system()),
             LlmMessage::user(&prompt3),
@@ -1458,31 +1241,36 @@ pub async fn papers_analyze(
             max_tokens,
             &msgs3,
         );
-        let (experiment_design, experiment_results) =
-            match client
-                .chat_with_max_tokens(&msgs3, model.as_deref(), temperature, max_tokens)
-                .await
-            {
-                Ok(resp) => {
-                    log_llm_response("paper-analyze", &pid, "agent3", &resp);
-                    match parse_llm_json_value(&resp) {
-                        Ok(value) => (
-                            value["experiment_design"].as_str().unwrap_or("").to_string(),
-                            value["experiment_results"].as_str().unwrap_or("").to_string(),
-                        ),
-                        Err(error) => {
-                            eprintln!("[paper-analyze][{}] agent3 parse failed: {}", pid, error);
-                            agent_errors.push(format!("实验分析返回格式错误：{error}"));
-                            (String::new(), String::new())
-                        }
+        let (experiment_design, experiment_results) = match client
+            .chat_with_max_tokens(&msgs3, model.as_deref(), temperature, max_tokens)
+            .await
+        {
+            Ok(resp) => {
+                log_llm_response("paper-analyze", &pid, "agent3", &resp);
+                match parse_llm_json_value(&resp) {
+                    Ok(value) => (
+                        value["experiment_design"]
+                            .as_str()
+                            .unwrap_or("")
+                            .to_string(),
+                        value["experiment_results"]
+                            .as_str()
+                            .unwrap_or("")
+                            .to_string(),
+                    ),
+                    Err(error) => {
+                        eprintln!("[paper-analyze][{}] agent3 parse failed: {}", pid, error);
+                        agent_errors.push(format!("证据与结果分析返回格式错误：{error}"));
+                        (String::new(), String::new())
                     }
                 }
-                Err(error) => {
-                    eprintln!("[paper-analyze][{}] agent3 failed: {}", pid, error);
-                    agent_errors.push(format!("实验分析失败：{error}"));
-                    (String::new(), String::new())
-                }
-            };
+            }
+            Err(error) => {
+                eprintln!("[paper-analyze][{}] agent3 failed: {}", pid, error);
+                agent_errors.push(format!("证据与结果分析失败：{error}"));
+                (String::new(), String::new())
+            }
+        };
 
         // ── Agent 4: Synthesis & Critique ─────────────────────────
         let _ = app.emit(
@@ -1490,10 +1278,7 @@ pub async fn papers_analyze(
             json!({ "paper_id": pid, "status": "analyzing", "step": "综合评审中（4/4）…" }),
         );
         let experiment_summary = format!("{}\n\n{}", experiment_design, experiment_results);
-        let prompt4 = AGENT4_PROMPT
-            .replace("{problem_summary}", &research_question)
-            .replace("{method_summary}", &core_method)
-            .replace("{experiment_summary}", &experiment_summary);
+        let prompt4 = build_agent4_prompt(&research_question, &core_method, &experiment_summary);
         let msgs4 = vec![
             LlmMessage::system(agent4_system()),
             LlmMessage::user(&prompt4),
@@ -1507,32 +1292,31 @@ pub async fn papers_analyze(
             max_tokens,
             &msgs4,
         );
-        let (innovations, limitations, key_conclusions) =
-            match client
-                .chat_with_max_tokens(&msgs4, model.as_deref(), temperature, max_tokens)
-                .await
-            {
-                Ok(resp) => {
-                    log_llm_response("paper-analyze", &pid, "agent4", &resp);
-                    match parse_llm_json_value(&resp) {
-                        Ok(value) => (
-                            value["innovations"].as_str().unwrap_or("").to_string(),
-                            value["limitations"].as_str().unwrap_or("").to_string(),
-                            value["key_conclusions"].as_str().unwrap_or("").to_string(),
-                        ),
-                        Err(error) => {
-                            eprintln!("[paper-analyze][{}] agent4 parse failed: {}", pid, error);
-                            agent_errors.push(format!("综合评审返回格式错误：{error}"));
-                            (String::new(), String::new(), String::new())
-                        }
+        let (innovations, limitations, key_conclusions) = match client
+            .chat_with_max_tokens(&msgs4, model.as_deref(), temperature, max_tokens)
+            .await
+        {
+            Ok(resp) => {
+                log_llm_response("paper-analyze", &pid, "agent4", &resp);
+                match parse_llm_json_value(&resp) {
+                    Ok(value) => (
+                        value["innovations"].as_str().unwrap_or("").to_string(),
+                        value["limitations"].as_str().unwrap_or("").to_string(),
+                        value["key_conclusions"].as_str().unwrap_or("").to_string(),
+                    ),
+                    Err(error) => {
+                        eprintln!("[paper-analyze][{}] agent4 parse failed: {}", pid, error);
+                        agent_errors.push(format!("综合评审返回格式错误：{error}"));
+                        (String::new(), String::new(), String::new())
                     }
                 }
-                Err(error) => {
-                    eprintln!("[paper-analyze][{}] agent4 failed: {}", pid, error);
-                    agent_errors.push(format!("综合评审失败：{error}"));
-                    (String::new(), String::new(), String::new())
-                }
-            };
+            }
+            Err(error) => {
+                eprintln!("[paper-analyze][{}] agent4 failed: {}", pid, error);
+                agent_errors.push(format!("综合评审失败：{error}"));
+                (String::new(), String::new(), String::new())
+            }
+        };
 
         if [
             research_question.trim(),
@@ -1550,7 +1334,9 @@ pub async fn papers_analyze(
             let error_message = agent_errors
                 .into_iter()
                 .find(|value| !value.trim().is_empty())
-                .unwrap_or_else(|| "论文解读未生成有效内容，请检查模型配置或稍后重试。".to_string());
+                .unwrap_or_else(|| {
+                    "论文解读未生成有效内容，请检查模型配置或稍后重试。".to_string()
+                });
             let _ = app.emit(
                 "paper:status",
                 json!({
@@ -1611,78 +1397,6 @@ pub async fn papers_analyze(
 
 // ── Reproduce ────────────────────────────────────────────────────
 
-const REPRODUCE_PROMPT: &str = r#"请根据以下论文内容生成详尽的复现指南，仅返回严格合法的 JSON，不要输出 JSON 以外的内容。
-
-核心原则：
-- 所有字段内容使用中文，URL 除外
-- 字段值使用 Markdown 格式：有序列表用 `1. 2. 3.`，子项用缩进，重点用 **加粗**，代码/命令/库名用 `反引号`
-- 内容要完整但克制，优先给最小可执行步骤，不要写成长篇背景综述
-- 单个字段尽量控制在 300-800 中文字；确需更长时，优先保留步骤、版本、命令和链接，删去解释性赘述
-- 不要使用 Markdown 表格
-- 不要输出超过 10 行的长代码块，不要给大段 Python 脚本；如需示例，只给最小命令骨架或 3-6 行伪代码
-- **若论文未开源代码**：不要填"暂无"，而是主动给出替代复现方案（可参考的社区实现、相似开源项目链接等）
-
-各字段要求：
-
-code_repository：
-- 若论文提供了官方代码，填写仓库链接
-- 若未开源，搜索 GitHub/HuggingFace/Papers With Code 上已知的社区复现仓库，提供链接
-- 若完全无可参考实现，说明方法类别并给出同类开源项目（如"同类 GNN 框架可参考 PyG: https://github.com/pyg-team/pytorch_geometric"）
-- 多个链接用 \n 分隔
-
-environment_setup：
-- 具体到操作系统要求、Python/CUDA/框架版本
-- 给出推荐安装方式（conda / pip / docker），提供实际可用的命令示例
-- 若论文未说明，根据使用的方法合理推断并标注"（推断）"
-
-dependencies：
-- 逐项列出核心依赖库及推荐版本号
-- 附上官方文档或下载链接（尤其是冷门库）
-- 给出一键安装命令示例
-- 优先用项目列表，不要输出表格
-
-dataset_preparation：
-- 论文使用的数据集：名称、规模、获取链接（官方下载页、Kaggle、HuggingFace Datasets 等）
-- 若数据集不公开，提供相似的替代公开数据集及下载链接
-- 给出数据预处理步骤（格式转换、划分方式、关键参数）
-- 不要提供长篇数据处理脚本，必要时只给命令骨架或极短伪代码
-
-training_process：
-- 分阶段描述完整训练流程
-- 列出关键超参数及论文给出的值（或合理推荐值）
-- 给出参考训练命令结构（如 `python train.py --lr 1e-4 --epochs 100`）
-- 说明预期训练时长和资源需求（GPU 显存、内存）
-- 不要贴完整训练脚本
-
-inference_process：
-- 模型加载与推理步骤
-- 输入格式要求和输出解读方式
-- 给出推理命令示例
-- 不要贴完整推理脚本
-
-evaluation_metrics：
-- 列出所有评估指标及计算方式
-- 说明复现时可参考的基准数值（论文报告值）
-- 若有现成的评估工具库，给出使用方式
-
-risks_and_notes：
-- 复现难点与潜在坑点（数据获取限制、版本兼容问题、随机性来源等）
-- 对资源受限用户的降级方案（小规模数据、轻量版模型）
-- 若论文存在可复现性疑问，给出客观说明
-
-{text}
-
-返回格式：
-{{"code_repository":"...","environment_setup":"...","dependencies":"...","dataset_preparation":"...","training_process":"...","inference_process":"...","evaluation_metrics":"...","risks_and_notes":"..."}}"#;
-
-fn reproduce_system() -> String {
-    specialist_system(
-        "论文复现工程师",
-        "将论文的方法转化为其他研究者可实际执行的完整复现方案，包括代码、数据、环境、训练和评估的全链路指导。",
-        Some("即使论文未开源，也必须给出可行的替代方案和参考资源，绝不以「暂无」敷衍。字段内容使用 Markdown 格式，确保步骤清晰可操作。"),
-    )
-}
-
 #[tauri::command]
 pub async fn papers_reproduce(
     app: tauri::AppHandle,
@@ -1706,7 +1420,7 @@ pub async fn papers_reproduce(
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
     let pid = id.clone();
-    let prompt = REPRODUCE_PROMPT.replace("{text}", &reproduction_context);
+    let prompt = build_reproduce_prompt(&reproduction_context);
     let previous_status = status.clone();
 
     let now_pre = chrono::Utc::now().to_rfc3339();
@@ -1761,7 +1475,7 @@ pub async fn papers_reproduce(
         );
         let _ = app.emit(
             "paper:status",
-            json!({ "paper_id": pid, "status": "analyzing", "step": "复现指南生成中…" }),
+            json!({ "paper_id": pid, "status": "analyzing", "step": "复现/验证指南生成中…" }),
         );
 
         match client
@@ -1772,7 +1486,7 @@ pub async fn papers_reproduce(
                 log_llm_response("paper-reproduce", &pid, "guide", &response);
                 let _ = app.emit(
                     "paper:status",
-                    json!({ "paper_id": pid, "status": "analyzing", "step": "复现指南整理中…" }),
+                    json!({ "paper_id": pid, "status": "analyzing", "step": "复现/验证指南整理中…" }),
                 );
                 let v = match parse_llm_json_value(&response) {
                     Ok(value) => value,
@@ -1793,7 +1507,7 @@ pub async fn papers_reproduce(
                         json!({
                             "paper_id": pid,
                             "status": "error",
-                            "error": "复现指南生成结果为空，请检查模型配置或稍后重试。"
+                            "error": "复现/验证指南生成结果为空，请检查模型配置或稍后重试。"
                         }),
                     );
                     eprintln!(

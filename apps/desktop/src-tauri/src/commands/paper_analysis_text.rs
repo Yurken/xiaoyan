@@ -144,7 +144,7 @@ pub(crate) fn build_reproduction_context(full_text: &str, max_bytes: usize) -> S
 
     push_context_section(&mut sections, "引言与问题定义", &slices.intro_text);
     push_context_section(&mut sections, "方法细节", &slices.method_text);
-    push_context_section(&mut sections, "实验与结果", &slices.experiment_text);
+    push_context_section(&mut sections, "证据/验证/结果", &slices.experiment_text);
 
     if sections.is_empty() {
         return safe_text_preview_owned(full_text, max_bytes);
