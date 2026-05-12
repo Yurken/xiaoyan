@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Card, ConfirmDialog, Select } from "@research-copilot/ui";
 import { History, Loader2, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { SettingsHistoryEntry } from "@research-copilot/types";
-import { SectionIcon, SettingInput } from "./shared";
+import DataConfigTransferCard from "./DataConfigTransferCard";
+import { SectionIcon } from "./shared";
 
 interface SettingsHistorySectionProps {
   entries: SettingsHistoryEntry[];
@@ -16,8 +17,14 @@ interface SettingsHistorySectionProps {
   actionError: string;
   actionMessage: string;
   busy?: boolean;
+  settingsTransferBusy?: boolean;
+  dataTransferBusy?: boolean;
   setDraftName: (value: string) => void;
   setSelectedId: (value: string) => void;
+  onExportSettings: () => void;
+  onImportSettings: () => Promise<void> | void;
+  onExportAllData: () => void;
+  onImportAllData: () => Promise<void> | void;
   onSaveCurrent: () => Promise<void> | void;
   onApplyHistory: (id: string) => Promise<void> | void;
   onDeleteHistory: (id: string) => Promise<void> | void;
@@ -77,8 +84,14 @@ export default function SettingsHistorySection({
   actionError,
   actionMessage,
   busy,
+  settingsTransferBusy,
+  dataTransferBusy,
   setDraftName,
   setSelectedId,
+  onExportSettings,
+  onImportSettings,
+  onExportAllData,
+  onImportAllData,
   onSaveCurrent,
   onApplyHistory,
   onDeleteHistory,
@@ -133,6 +146,15 @@ export default function SettingsHistorySection({
 
   return (
     <div className="space-y-4">
+      <DataConfigTransferCard
+        onExportSettings={onExportSettings}
+        onImportSettings={onImportSettings}
+        onExportAllData={onExportAllData}
+        onImportAllData={onImportAllData}
+        settingsBusy={settingsTransferBusy}
+        dataBusy={dataTransferBusy}
+      />
+
       <Card padding="md" className="space-y-4">
         <div className="flex items-center gap-3">
           <SectionIcon icon={History} color="#0A84FF" />

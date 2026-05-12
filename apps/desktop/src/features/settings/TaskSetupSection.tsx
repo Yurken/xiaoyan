@@ -14,7 +14,7 @@ interface TaskSetupSectionProps {
   appLockTimeoutMinutes: number;
   onOpenAssistant: () => void;
   onOpenPaperLibrary: () => void;
-  onOpenAbout: () => void;
+  onOpenDataConfig: () => void;
   onSetAppLockPassword: (password: string, hint?: string, email?: string) => Promise<void>;
   onClearAppLock: () => Promise<void>;
   onSetAppLockTimeout: (minutes: string) => Promise<void>;
@@ -39,7 +39,7 @@ export default function TaskSetupSection({
   appLockTimeoutMinutes,
   onOpenAssistant,
   onOpenPaperLibrary,
-  onOpenAbout,
+  onOpenDataConfig,
   onSetAppLockPassword,
   onClearAppLock,
   onSetAppLockTimeout,
@@ -170,17 +170,17 @@ export default function TaskSetupSection({
           </div>
 
           <div className="rounded-3xl px-4 py-4" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
-            <p className="text-sm font-semibold text-ink-primary">版本与备份</p>
+            <p className="text-sm font-semibold text-ink-primary">数据与配置</p>
             <p className="mt-1 text-xs leading-5 text-ink-secondary">
-              导出配置、导入配置和桌面端升级都在同一处。只有当你开始跨设备迁移或准备发布版时，才需要频繁进入这里。
+              配置历史、配置文件和全量数据备份都在同一处。跨设备迁移前，先在这里导出一份加密备份。
             </p>
             <button
               type="button"
-              onClick={onOpenAbout}
+              onClick={onOpenDataConfig}
               className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#007AFF]"
             >
               <ArrowRight className="w-3.5 h-3.5" />
-              打开升级与备份
+              打开数据与配置
             </button>
           </div>
         </div>

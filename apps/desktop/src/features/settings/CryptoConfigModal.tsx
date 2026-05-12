@@ -1,9 +1,14 @@
 import { KeyRound, Loader2 } from "lucide-react";
 import PasswordInput from "../../components/PasswordInput";
-import type { CryptoModalState } from "./useSettingsCrypto";
+
+type CryptoFileModalState = { mode: "export" } | { mode: "import"; fileData: string };
 
 interface CryptoConfigModalProps {
-  modal: Exclude<CryptoModalState, null>;
+  modal: CryptoFileModalState;
+  resourceLabel?: string;
+  exportDescription?: string;
+  importDescription?: string;
+  exportWarning?: string;
   password: string;
   confirm: string;
   busy: boolean;
@@ -16,6 +21,10 @@ interface CryptoConfigModalProps {
 
 export default function CryptoConfigModal({
   modal,
+  resourceLabel = "配置",
+  exportDescription,
+  importDescription,
+  exportWarning,
   password,
   confirm,
   busy,
@@ -25,6 +34,10 @@ export default function CryptoConfigModal({
   onClose,
   onSubmit,
 }: CryptoConfigModalProps) {
+  const exportHint = exportDescription ?? `设置一个密码保护${resourceLabel}文件，导入时需要输入同一密码。`;
+  const importHint = importDescription ?? `输入导出时设置的密码解锁${resourceLabel}文件。`;
+  const warning = exportWarning ?? "配置文件包含所有 API Key，请妥善保管，切勿分享给他人。";
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -46,12 +59,10 @@ export default function CryptoConfigModal({
           </div>
           <div>
             <h3 className="text-sm font-semibold text-ink-primary">
-              {modal.mode === "export" ? "加密导出配置" : "解密导入配置"}
+              {modal.mode === "export" ? `加密导出${resourceLabel}` : `解密导入${resourceLabel}`}
             </h3>
             <p className="text-xs text-ink-tertiary mt-0.5">
-              {modal.mode === "export"
-                ? "设置一个密码保护配置文件，导入时需要输入同一密码。"
-                : "输入导出时设置的密码解锁配置文件。"}
+              {modal.mode === "export" ? exportHint : importHint}
             </p>
           </div>
         </div>
@@ -90,7 +101,7 @@ export default function CryptoConfigModal({
 
           {modal.mode === "export" ? (
             <p className="text-xs text-ink-tertiary leading-relaxed px-1">
-              配置文件包含所有 API Key，请妥善保管，切勿分享给他人。
+              {warning}
             </p>
           ) : null}
 

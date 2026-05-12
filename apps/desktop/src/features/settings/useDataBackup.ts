@@ -6,7 +6,11 @@ export type DataBackupModalState =
   | { mode: "import"; fileData: string }
   | null;
 
-export function useDataBackup() {
+interface UseDataBackupOptions {
+  onImported?: () => Promise<void> | void;
+}
+
+export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
   const [modal, setModal] = useState<DataBackupModalState>(null);
   const [password, setPasswordValue] = useState("");
   const [confirm, setConfirmValue] = useState("");
@@ -102,6 +106,7 @@ export function useDataBackup() {
       }
 
       await apiClient.settings.dataBackup.import(modal.fileData, password);
+      await onImported?.();
       closeModal();
       void apiClient.memory.add({
         type: "auto",

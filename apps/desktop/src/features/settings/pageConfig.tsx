@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import {
   Brain,
   Compass,
-  History,
+  Database,
   Info,
   LayoutDashboard,
   Layers3,
@@ -72,15 +72,15 @@ export const SETTINGS_SECTIONS: Array<{
   },
   {
     key: "history",
-    label: "配置历史",
-    description: "保存与切换小妍配置",
-    icon: History,
+    label: "数据与配置",
+    description: "配置历史、导入导出与全量备份",
+    icon: Database,
     color: "#0A84FF",
   },
   {
     key: "about",
     label: "升级与说明",
-    description: "版本、备份与说明",
+    description: "版本与说明",
     icon: Info,
     color: "#5AC8FA",
   },

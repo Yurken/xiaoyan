@@ -2,12 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle,
-  Database,
-  Download,
   FileSearch,
   Layers3,
   Loader2,
-  Upload,
   Wifi,
 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
@@ -190,12 +187,17 @@ export default function Settings() {
     setPassword: setCryptoPassword,
     setConfirm: setCryptoConfirm,
     closeModal: closeCryptoModal,
-    openExportModal,
-    openImportPicker,
+    openExportModal: openConfigExportModal,
+    openImportPicker: openConfigImportPicker,
     handleConfirm: handleCryptoConfirm,
   } = useSettingsCrypto({
     onImported: replaceForm,
     onSaved: () => markSaved(),
+  });
+  const settingsHistory = useSettingsHistory({
+    form,
+    onApplied: replaceForm,
+    onMarkedSaved: () => markSaved(),
   });
   const {
     modal: backupModal,
@@ -209,11 +211,13 @@ export default function Settings() {
     openExportModal: openBackupExportModal,
     openImportPicker: openBackupImportPicker,
     handleConfirm: handleBackupConfirm,
-  } = useDataBackup();
-  const settingsHistory = useSettingsHistory({
-    form,
-    onApplied: replaceForm,
-    onMarkedSaved: () => markSaved(),
+  } = useDataBackup({
+    onImported: async () => {
+      const fresh = await apiClient.settings.get();
+      replaceForm(fresh);
+      markSaved();
+      await settingsHistory.reload();
+    },
   });
 
   // Ollama models
@@ -297,50 +301,6 @@ export default function Settings() {
           <h1 className="text-2xl font-bold text-ink-primary">设置</h1>
         </div>
         <div className="flex items-center gap-2">
-          {/* 导出配置 */}
-          <button
-            type="button"
-            onClick={openExportModal}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
-            style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
-            title="加密导出配置为 .rcconf 文件"
-          >
-            <Download className="w-3.5 h-3.5" />
-            导出配置
-          </button>
-          {/* 导入配置 */}
-          <button
-            type="button"
-            onClick={() => void openImportPicker()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
-            style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
-            title="从 .rcconf 文件导入配置"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            导入配置
-          </button>
-          {/* 导出全部数据 */}
-          <button
-            type="button"
-            onClick={openBackupExportModal}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
-            style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
-            title="加密导出所有数据为 .rcbak 文件"
-          >
-            <Database className="w-3.5 h-3.5" />
-            导出全部数据
-          </button>
-          {/* 导入全部数据 */}
-          <button
-            type="button"
-            onClick={() => void openBackupImportPicker()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95"
-            style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
-            title="从 .rcbak 文件导入全部数据"
-          >
-            <Database className="w-3.5 h-3.5" />
-            导入全部数据
-          </button>
           <div className="relative">
             <button
               type="button"
@@ -454,7 +414,7 @@ export default function Settings() {
             appLockTimeoutMinutes={Number(form.app_lock_timeout_minutes) || 0}
             onOpenAssistant={() => setActiveSection("assistant")}
             onOpenPaperLibrary={() => setActiveSection("paper_tags")}
-            onOpenAbout={() => setActiveSection("about")}
+            onOpenDataConfig={() => setActiveSection("history")}
             onSetAppLockPassword={async (password, hint, email) => {
               await apiClient.settings.appLock.setPassword(password, hint, email);
               set("app_lock_enabled")("true");
@@ -597,8 +557,14 @@ export default function Settings() {
             actionError={settingsHistory.actionError}
             actionMessage={settingsHistory.actionMessage}
             busy={settingsHistory.busy}
+            settingsTransferBusy={cryptoBusy}
+            dataTransferBusy={backupBusy}
             setDraftName={settingsHistory.setDraftName}
             setSelectedId={settingsHistory.setSelectedId}
+            onExportSettings={openConfigExportModal}
+            onImportSettings={openConfigImportPicker}
+            onExportAllData={openBackupExportModal}
+            onImportAllData={openBackupImportPicker}
             onSaveCurrent={settingsHistory.saveCurrent}
             onApplyHistory={settingsHistory.applyHistory}
             onDeleteHistory={settingsHistory.deleteHistory}
@@ -665,6 +631,10 @@ export default function Settings() {
     {backupModal !== null && (
       <CryptoConfigModal
         modal={backupModal}
+        resourceLabel="全部数据备份"
+        exportDescription="设置一个密码保护全量数据备份，导入时需要输入同一密码。"
+        importDescription="输入导出时设置的密码解锁备份文件，导入后会覆盖本机现有数据。"
+        exportWarning="备份包含配置、配置历史、论文、会话、记忆、投稿和实验数据，请妥善保管。"
         password={backupPassword}
         confirm={backupConfirm}
         busy={backupBusy}
