@@ -33,7 +33,7 @@ function PasswordField({
           }
         }}
         placeholder={placeholder}
-        className="!rounded-2xl !px-4 !py-2.5"
+        className="!rounded-2xl !pl-4 !pr-10 !py-2.5"
         style={{
           background: "var(--rc-chip-inset-bg)",
           boxShadow: "var(--rc-chip-inset-shadow)",

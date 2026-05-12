@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Eye, FileText, X } from "lucide-react";
 import { Badge, MarkdownRenderer } from "@research-copilot/ui";
 import type { Paper } from "@research-copilot/types";
-import { findReferencedFigures, type PaperFigure } from "./shared";
+import { findMethodReferencedFigures, type PaperFigure } from "./shared";
 
 const ANALYSIS_SECTIONS: Array<{
   key: keyof NonNullable<Paper["analysis"]>;
@@ -61,20 +61,47 @@ export default function PaperDetailModal({
 }: PaperDetailModalProps) {
   const [visible, setVisible] = useState(false);
   const [copiedSectionKey, setCopiedSectionKey] = useState<string | null>(null);
+  const onCloseRef = useRef(onClose);
+  const closeTimerRef = useRef<number | null>(null);
+  const paperId = paper?.id;
 
   useEffect(() => {
-    if (!paper) return undefined;
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
+  const requestClose = useCallback(() => {
+    setVisible(false);
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      onCloseRef.current();
+    }, 220);
+  }, []);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!paperId) return undefined;
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
     setVisible(true);
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setVisible(false);
-        window.setTimeout(onClose, 220);
+        requestClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, paper]);
+  }, [paperId, requestClose]);
 
   useEffect(() => {
     if (!copiedSectionKey) return undefined;
@@ -91,7 +118,7 @@ export default function PaperDetailModal({
         return {
           ...section,
           content,
-          figures: findReferencedFigures(content, figures),
+          figures: section.key === "core_method" ? findMethodReferencedFigures(content, figures) : [],
         };
       })
       .filter((section): section is NonNullable<typeof section> => section !== null);
@@ -110,11 +137,6 @@ export default function PaperDetailModal({
 
   if (!paper) return null;
 
-  const handleClose = () => {
-    setVisible(false);
-    window.setTimeout(onClose, 220);
-  };
-
   const handleCopy = async (sectionKey: string, content: string) => {
     await copyMarkdownContent(content);
     setCopiedSectionKey(sectionKey);
@@ -128,7 +150,7 @@ export default function PaperDetailModal({
         transition: "background 0.22s ease",
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) handleClose();
+        if (event.target === event.currentTarget) requestClose();
       }}
     >
       <div
@@ -171,7 +193,7 @@ export default function PaperDetailModal({
           </div>
           <button
             type="button"
-            onClick={handleClose}
+            onClick={requestClose}
             className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl transition-colors hover:text-ink-primary"
             style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" as string }}
             aria-label="关闭详情弹窗"

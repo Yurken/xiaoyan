@@ -288,12 +288,14 @@ async fn add_embedded_image_fallbacks(
     let mut expected_figures = captions
         .iter()
         .filter_map(|((kind, index), caption)| {
-            (kind == &FigureKind::Figure && !extracted.contains(&(kind.clone(), *index)))
-                .then(|| (*index, caption.clone()))
+            (kind == &FigureKind::Figure
+                && !extracted.contains(&(kind.clone(), *index))
+                && is_likely_method_figure_caption(caption))
+            .then(|| (*index, caption.clone()))
         })
         .collect::<Vec<_>>();
     expected_figures.sort_by_key(|(index, _)| *index);
-    expected_figures.truncate(12);
+    expected_figures.truncate(6);
 
     if expected_figures.is_empty() {
         return;
@@ -310,9 +312,11 @@ async fn add_embedded_image_fallbacks(
         .into_iter()
         .filter(is_likely_paper_figure_image)
         .collect::<Vec<_>>();
-    candidates.sort_by_key(|image| std::cmp::Reverse(image.area()));
-    candidates.truncate(expected_figures.len());
+    if candidates.len() > expected_figures.len().saturating_add(2) {
+        return;
+    }
     candidates.sort_by(|left, right| left.file_path.cmp(&right.file_path));
+    candidates.truncate(expected_figures.len());
 
     for ((index, caption), image) in expected_figures.into_iter().zip(candidates.into_iter()) {
         let key = (FigureKind::Figure, index);
@@ -925,6 +929,75 @@ fn is_likely_paper_figure_image(image: &RawPdfImage) -> bool {
     }
     let aspect = image.width as f32 / image.height as f32;
     aspect > 0.22 && aspect < 5.2
+}
+
+fn is_likely_method_figure_caption(caption: &str) -> bool {
+    let normalized = caption.to_ascii_lowercase();
+    const EXCLUDE_KEYWORDS: &[&str] = &[
+        "result",
+        "performance",
+        "experiment",
+        "comparison",
+        "ablation",
+        "quantitative",
+        "qualitative",
+        "accuracy",
+        "benchmark",
+        "dataset",
+        "baseline",
+        "evaluation",
+        "visualization",
+        "curve",
+        "结果",
+        "性能",
+        "实验",
+        "对比",
+        "消融",
+        "准确",
+        "指标",
+        "曲线",
+        "评估",
+        "数据集",
+        "基线",
+        "可视化",
+    ];
+    const INCLUDE_KEYWORDS: &[&str] = &[
+        "architecture",
+        "framework",
+        "overview",
+        "pipeline",
+        "model",
+        "module",
+        "method",
+        "network",
+        "algorithm",
+        "workflow",
+        "system",
+        "approach",
+        "schema",
+        "diagram",
+        "structure",
+        "encoder",
+        "decoder",
+        "架构",
+        "框架",
+        "流程",
+        "方法",
+        "模型",
+        "模块",
+        "网络",
+        "算法",
+        "结构",
+        "示意",
+        "概览",
+    ];
+
+    !EXCLUDE_KEYWORDS
+        .iter()
+        .any(|keyword| normalized.contains(keyword))
+        && INCLUDE_KEYWORDS
+            .iter()
+            .any(|keyword| normalized.contains(keyword))
 }
 
 #[tauri::command]

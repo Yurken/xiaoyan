@@ -13,36 +13,32 @@ function sleep(ms: number) {
 export default function MorphingText({ text, tag: Tag = "p", className }: MorphingTextProps) {
   const [displayText, setDisplayText] = useState(text);
   const [visible, setVisible] = useState(true);
-  const latestTextRef = useRef(text);
+  const displayTextRef = useRef(text);
   const mountedRef = useRef(false);
   const runIdRef = useRef(0);
 
   useEffect(() => {
-    latestTextRef.current = text;
-  }, [text]);
-
-  useEffect(() => {
     if (!mountedRef.current) {
       mountedRef.current = true;
+      displayTextRef.current = text;
       setDisplayText(text);
+      setVisible(true);
       return;
     }
 
-    if (text === displayText) return;
+    if (text === displayTextRef.current) return;
 
     const runId = ++runIdRef.current;
     let cancelled = false;
 
     const run = async () => {
-      // Dissolve old text
       setVisible(false);
       await sleep(1200);
 
       if (cancelled || runId !== runIdRef.current) return;
 
-      // Switch to latest text (still invisible)
-      const nextText = latestTextRef.current;
-      setDisplayText(nextText);
+      displayTextRef.current = text;
+      setDisplayText(text);
       await sleep(60);
 
       if (cancelled || runId !== runIdRef.current) return;
@@ -52,7 +48,7 @@ export default function MorphingText({ text, tag: Tag = "p", className }: Morphi
 
     run();
     return () => { cancelled = true; };
-  }, [text, displayText]);
+  }, [text]);
 
   return (
     <Tag className={className} aria-label={text}>

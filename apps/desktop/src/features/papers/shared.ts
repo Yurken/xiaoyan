@@ -36,6 +36,85 @@ export function findReferencedFigures(text: string, figures: PaperFigure[]): Pap
   return result;
 }
 
+export function findMethodReferencedFigures(text: string, figures: PaperFigure[]): PaperFigure[] {
+  return findReferencedFigures(text, figures).filter(isDisplayableMethodFigure);
+}
+
+const METHOD_FIGURE_INCLUDE_KEYWORDS = [
+  "architecture",
+  "framework",
+  "overview",
+  "pipeline",
+  "model",
+  "module",
+  "method",
+  "network",
+  "algorithm",
+  "workflow",
+  "system",
+  "approach",
+  "schema",
+  "diagram",
+  "structure",
+  "encoder",
+  "decoder",
+  "架构",
+  "框架",
+  "流程",
+  "方法",
+  "模型",
+  "模块",
+  "网络",
+  "算法",
+  "结构",
+  "示意",
+  "概览",
+] as const;
+
+const METHOD_FIGURE_EXCLUDE_KEYWORDS = [
+  "result",
+  "performance",
+  "experiment",
+  "comparison",
+  "ablation",
+  "quantitative",
+  "qualitative",
+  "accuracy",
+  "benchmark",
+  "dataset",
+  "baseline",
+  "evaluation",
+  "visualization",
+  "curve",
+  "结果",
+  "性能",
+  "实验",
+  "对比",
+  "消融",
+  "准确",
+  "指标",
+  "曲线",
+  "评估",
+  "数据集",
+  "基线",
+  "可视化",
+] as const;
+
+function isDisplayableMethodFigure(figure: PaperFigure) {
+  if (normalizeFigureKind(figure.kind) !== "figure") return false;
+
+  const caption = normalizeCaption(figure.caption ?? "");
+  if (!caption) return true;
+  if (METHOD_FIGURE_EXCLUDE_KEYWORDS.some((keyword) => caption.includes(keyword))) {
+    return false;
+  }
+  if (METHOD_FIGURE_INCLUDE_KEYWORDS.some((keyword) => caption.includes(keyword))) {
+    return true;
+  }
+
+  return true;
+}
+
 function extractFigureReferences(text: string): FigureReference[] {
   const refs: FigureReference[] = [];
   const patterns: Array<{ kind: FigureReferenceKind; regex: RegExp }> = [
@@ -225,6 +304,7 @@ function escapeBibTeX(value: string) {
 
 export type PaperTaskMode = "analysis" | "reproduction" | "combined";
 export type PaperTaskFinalStatus = "analyzed" | "reproduced";
+export type PaperTaskTrackKey = "analysis" | "reproduction";
 
 export interface PaperStatusEventPayload {
   paper_id: string;
@@ -238,56 +318,113 @@ export interface PaperTaskProgress {
   label: string;
   detail: string;
   percent: number;
+  mode: PaperTaskMode;
+  tracks?: Partial<Record<PaperTaskTrackKey, PaperTaskTrackProgress>>;
 }
 
-const PAPER_TASK_STEP_RULES: Array<{ needle: string; label: string; detail: string; percent: number }> = [
+export interface PaperTaskTrackProgress {
+  label: string;
+  detail: string;
+  percent: number;
+  done?: boolean;
+}
+
+const TRACK_LABELS: Record<PaperTaskTrackKey, string> = {
+  analysis: "论文解读",
+  reproduction: "复现指南",
+};
+
+const COMBINED_TRACK_WEIGHTS: Record<PaperTaskTrackKey, number> = {
+  analysis: 0.68,
+  reproduction: 0.32,
+};
+
+const COMBINED_BASE_PERCENT = 6;
+const COMBINED_WORK_PERCENT = 93;
+
+const TRACK_INITIAL_PERCENT = 4;
+const TRACK_DONE_PERCENT = 100;
+
+const PAPER_TASK_STEP_RULES: Array<{
+  needle: string;
+  track: PaperTaskTrackKey;
+  label: string;
+  detail: string;
+  percent: number;
+  step: number;
+  total: number;
+}> = [
   {
     needle: "图表提取超时",
+    track: "analysis",
     label: "图表提取超时，继续解读正文",
     detail: "图表识别没有卡住流程，小妍会先用正文上下文完成后续分析。",
-    percent: 24,
+    percent: 18,
+    step: 1,
+    total: 6,
   },
   {
     needle: "图表提取",
+    track: "analysis",
     label: "提取论文图表",
-    detail: "正在整理 Figure / Table 上下文，后续分析会尽量引用图表编号。",
-    percent: 14,
+    detail: "正在整理可用的方法图上下文，后续只在需要时引用。",
+    percent: 12,
+    step: 1,
+    total: 6,
   },
   {
     needle: "问题背景分析",
+    track: "analysis",
     label: "分析研究问题与背景",
     detail: "正在梳理论文想解决的问题、动机和研究场景。",
-    percent: 32,
+    percent: 30,
+    step: 2,
+    total: 6,
   },
   {
     needle: "方法深度解析",
+    track: "analysis",
     label: "拆解核心方法",
     detail: "正在对齐方法模块、关键假设和与已有工作的差异。",
-    percent: 50,
+    percent: 48,
+    step: 3,
+    total: 6,
   },
   {
     needle: "实验结果分析",
+    track: "analysis",
     label: "核对实验设计与结果",
     detail: "正在检查数据集、指标、基线、消融和结果边界。",
-    percent: 68,
+    percent: 66,
+    step: 4,
+    total: 6,
   },
   {
     needle: "综合评审",
+    track: "analysis",
     label: "整理贡献、局限与结论",
     detail: "正在把前面几轮解读收束成可阅读的综合结论。",
-    percent: 82,
+    percent: 84,
+    step: 5,
+    total: 6,
   },
   {
     needle: "复现指南生成",
+    track: "reproduction",
     label: "生成复现指南",
     detail: "正在整理代码、环境、数据、训练和评估路径。",
-    percent: 46,
+    percent: 45,
+    step: 1,
+    total: 2,
   },
   {
     needle: "复现指南整理",
+    track: "reproduction",
     label: "整理复现指南",
     detail: "正在校验复现字段并保存结果。",
-    percent: 88,
+    percent: 86,
+    step: 2,
+    total: 2,
   },
 ];
 
@@ -299,26 +436,36 @@ export function expectedPaperTaskFinalStatuses(mode: PaperTaskMode): PaperTaskFi
 
 export function initialPaperTaskProgress(mode: PaperTaskMode): PaperTaskProgress {
   if (mode === "reproduction") {
-    return {
+    return buildPaperTaskProgress({
       label: "准备复现指南",
       detail: "正在读取论文上下文并连接复现模型。",
-      percent: 8,
-    };
+      mode,
+      tracks: {
+        reproduction: initialTrackProgress("reproduction"),
+      },
+    });
   }
 
   if (mode === "combined") {
-    return {
+    return buildPaperTaskProgress({
       label: "准备小妍解读",
       detail: "会同步生成论文解读和复现指南，完成后一起展示。",
-      percent: 8,
-    };
+      mode,
+      tracks: {
+        analysis: initialTrackProgress("analysis"),
+        reproduction: initialTrackProgress("reproduction"),
+      },
+    });
   }
 
-  return {
+  return buildPaperTaskProgress({
     label: "准备论文解读",
     detail: "正在读取论文上下文并连接精读模型。",
-    percent: 8,
-  };
+    mode,
+    tracks: {
+      analysis: initialTrackProgress("analysis"),
+    },
+  });
 }
 
 export function progressFromPaperStatusEvent(
@@ -330,40 +477,72 @@ export function progressFromPaperStatusEvent(
   const explicitPercent = typeof payload.progress === "number" && Number.isFinite(payload.progress)
     ? clampPaperTaskPercent(payload.progress)
     : undefined;
-  const nextPercent = explicitPercent ?? matched?.percent ?? previous?.percent ?? 12;
+  const mode = previous?.mode ?? modeFromTrack(matched?.track);
+  const tracks = ensureTracksForMode(mode, previous?.tracks);
 
-  return {
+  if (matched) {
+    const previousTrack = tracks[matched.track];
+    const trackPercent = Math.max(
+      previousTrack?.percent ?? 0,
+      clampPaperTaskPercent(explicitPercent ?? matched.percent),
+    );
+    tracks[matched.track] = {
+      label: TRACK_LABELS[matched.track],
+      detail: `${matched.step}/${matched.total} · ${matched.label}`,
+      percent: trackPercent,
+    };
+  }
+
+  return buildPaperTaskProgress({
     label: matched?.label ?? cleanPaperTaskStep(step) ?? previous?.label ?? "小妍正在处理论文",
     detail: matched?.detail ?? cleanPaperTaskStep(step) ?? previous?.detail ?? "后台任务已开始，正在等待阶段信息。",
-    percent: Math.max(previous?.percent ?? 0, clampPaperTaskPercent(nextPercent)),
-  };
+    mode,
+    tracks,
+    previousPercent: previous?.percent,
+  });
 }
 
 export function progressForPendingPaperCompletions(
   waiting: Set<PaperTaskFinalStatus>,
   previous?: PaperTaskProgress,
 ): PaperTaskProgress {
+  const mode = previous?.mode ?? "combined";
+  const tracks = ensureTracksForMode(mode, previous?.tracks);
+
+  if (!waiting.has("analyzed") && tracks.analysis) {
+    tracks.analysis = completeTrackProgress("analysis");
+  }
+  if (!waiting.has("reproduced") && tracks.reproduction) {
+    tracks.reproduction = completeTrackProgress("reproduction");
+  }
+
   if (waiting.has("reproduced") && !waiting.has("analyzed")) {
-    return {
+    return buildPaperTaskProgress({
       label: "论文解读已完成，复现指南收尾中",
       detail: "解读内容已经生成，正在等待复现指南完成后统一展示。",
-      percent: Math.max(previous?.percent ?? 0, 88),
-    };
+      mode,
+      tracks,
+      previousPercent: previous?.percent,
+    });
   }
 
   if (waiting.has("analyzed") && !waiting.has("reproduced")) {
-    return {
+    return buildPaperTaskProgress({
       label: "复现指南已完成，论文解读收尾中",
       detail: "复现部分已经生成，正在等待论文精读结果完成。",
-      percent: Math.max(previous?.percent ?? 0, 72),
-    };
+      mode,
+      tracks,
+      previousPercent: previous?.percent,
+    });
   }
 
-  return {
+  return buildPaperTaskProgress({
     label: "小妍正在并行处理论文",
     detail: "论文解读和复现指南仍在推进。",
-    percent: Math.max(previous?.percent ?? 0, 60),
-  };
+    mode,
+    tracks,
+    previousPercent: previous?.percent,
+  });
 }
 
 function cleanPaperTaskStep(step?: string) {
@@ -374,4 +553,85 @@ function cleanPaperTaskStep(step?: string) {
 
 function clampPaperTaskPercent(value: number) {
   return Math.min(99, Math.max(0, Math.round(value)));
+}
+
+function modeFromTrack(track: PaperTaskTrackKey | undefined): PaperTaskMode {
+  if (track === "reproduction") return "reproduction";
+  return "analysis";
+}
+
+function initialTrackProgress(track: PaperTaskTrackKey): PaperTaskTrackProgress {
+  return {
+    label: TRACK_LABELS[track],
+    detail: "等待阶段信息",
+    percent: TRACK_INITIAL_PERCENT,
+  };
+}
+
+function completeTrackProgress(track: PaperTaskTrackKey): PaperTaskTrackProgress {
+  return {
+    label: TRACK_LABELS[track],
+    detail: "已完成",
+    percent: TRACK_DONE_PERCENT,
+    done: true,
+  };
+}
+
+function ensureTracksForMode(
+  mode: PaperTaskMode,
+  previous?: Partial<Record<PaperTaskTrackKey, PaperTaskTrackProgress>>,
+): Partial<Record<PaperTaskTrackKey, PaperTaskTrackProgress>> {
+  const tracks: Partial<Record<PaperTaskTrackKey, PaperTaskTrackProgress>> = {
+    ...previous,
+  };
+
+  if (mode === "analysis" || mode === "combined") {
+    tracks.analysis ??= initialTrackProgress("analysis");
+  }
+  if (mode === "reproduction" || mode === "combined") {
+    tracks.reproduction ??= initialTrackProgress("reproduction");
+  }
+
+  return tracks;
+}
+
+function buildPaperTaskProgress({
+  label,
+  detail,
+  mode,
+  tracks,
+  previousPercent,
+}: {
+  label: string;
+  detail: string;
+  mode: PaperTaskMode;
+  tracks?: Partial<Record<PaperTaskTrackKey, PaperTaskTrackProgress>>;
+  previousPercent?: number;
+}): PaperTaskProgress {
+  const nextPercent = calculateTaskPercent(mode, tracks);
+  return {
+    label,
+    detail,
+    mode,
+    tracks,
+    percent: Math.max(previousPercent ?? 0, nextPercent),
+  };
+}
+
+function calculateTaskPercent(
+  mode: PaperTaskMode,
+  tracks?: Partial<Record<PaperTaskTrackKey, PaperTaskTrackProgress>>,
+) {
+  if (mode === "combined") {
+    const weightedTrackPercent = (
+      (tracks?.analysis?.percent ?? TRACK_INITIAL_PERCENT) * COMBINED_TRACK_WEIGHTS.analysis
+      + (tracks?.reproduction?.percent ?? TRACK_INITIAL_PERCENT) * COMBINED_TRACK_WEIGHTS.reproduction
+    );
+    return clampPaperTaskPercent(
+      COMBINED_BASE_PERCENT + weightedTrackPercent / 100 * COMBINED_WORK_PERCENT,
+    );
+  }
+
+  const track = mode === "reproduction" ? tracks?.reproduction : tracks?.analysis;
+  return clampPaperTaskPercent(track?.percent ?? TRACK_INITIAL_PERCENT);
 }

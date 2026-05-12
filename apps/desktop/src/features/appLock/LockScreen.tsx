@@ -182,7 +182,7 @@ export default function LockScreen({
                 onKeyDown={(e) => { if (e.key === "Enter") handleUnlock(); }}
                 placeholder="输入应用锁密码"
                 autoFocus
-                className="!rounded-2xl !px-4 !py-2.5"
+                className="!rounded-2xl !pl-4 !pr-10 !py-2.5"
               />
               <button
                 type="button"
@@ -278,14 +278,14 @@ export default function LockScreen({
               onKeyDown={(e) => { if (e.key === "Enter") handleReset(); }}
               placeholder="输入新密码"
               autoFocus
-              className="!rounded-2xl !px-4 !py-2.5"
+              className="!rounded-2xl !pl-4 !pr-10 !py-2.5"
             />
             <PasswordInput
               value={newPasswordConfirm}
               onChange={(v) => { setNewPasswordConfirm(v); setError(""); }}
               onKeyDown={(e) => { if (e.key === "Enter") handleReset(); }}
               placeholder="确认新密码"
-              className="!rounded-2xl !px-4 !py-2.5"
+              className="!rounded-2xl !pl-4 !pr-10 !py-2.5"
             />
             <button
               type="button"

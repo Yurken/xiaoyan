@@ -67,7 +67,7 @@ export default function CryptoConfigModal({
               }}
               placeholder="输入密码"
               autoFocus
-              className="!rounded-2xl !px-4 !py-2.5"
+              className="!rounded-2xl !pl-4 !pr-10 !py-2.5"
               style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
             />
           </div>
@@ -82,7 +82,7 @@ export default function CryptoConfigModal({
                   if (event.key === "Enter" && !busy) void onSubmit();
                 }}
                 placeholder="再次输入密码"
-                className="!rounded-2xl !px-4 !py-2.5"
+                className="!rounded-2xl !pl-4 !pr-10 !py-2.5"
                 style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
               />
             </div>

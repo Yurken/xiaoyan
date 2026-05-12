@@ -26,6 +26,31 @@ function getFrameSequence(animation: SpriteAnimation, fallback: number[]) {
   return validFrames.length > 0 ? validFrames : [getInitialFrame(animation)];
 }
 
+const COMPANION_BOX_SIZE = {
+  inline: { width: 72, height: 84 },
+  floating: { width: 128, height: 136 },
+} as const;
+
+const SPRITE_VISUAL_WIDTH = {
+  inline: 64,
+  floating: 112,
+} as const;
+
+const STATIC_VISUAL_WIDTH = {
+  inline: 64,
+  floating: 112,
+} as const;
+
+const SVG_VISUAL_SIZE = {
+  inline: 72,
+  floating: 128,
+} as const;
+
+const SVG_VISUAL_SCALE = {
+  inline: 2.15,
+  floating: 2.25,
+} as const;
+
 function SpriteAtlasPet({
   renderer,
   animation,
@@ -38,7 +63,7 @@ function SpriteAtlasPet({
   opacity: number;
 }) {
   const [frame, setFrame] = useState(() => getInitialFrame(animation));
-  const width = inline ? 60 : 104;
+  const width = inline ? SPRITE_VISUAL_WIDTH.inline : SPRITE_VISUAL_WIDTH.floating;
   const height = Math.round(width * renderer.cellHeight / renderer.cellWidth);
   const sheet = resolveSpriteAtlasSheet(renderer, animation);
 
@@ -171,13 +196,23 @@ function SvgSetPet({
   inline: boolean;
   opacity: number;
 }) {
+  const size = inline ? SVG_VISUAL_SIZE.inline : SVG_VISUAL_SIZE.floating;
+  const scale = inline ? SVG_VISUAL_SCALE.inline : SVG_VISUAL_SCALE.floating;
+
   return (
     <object
       data={renderer.assets[assetKey] ?? renderer.assets.idle}
       type="image/svg+xml"
-      width={inline ? 65 : 120}
-      height={inline ? 65 : 120}
-      style={{ opacity, transition: "opacity 0.18s ease", display: "block", pointerEvents: "none" }}
+      width={size}
+      height={size}
+      style={{
+        opacity,
+        transition: "opacity 0.18s ease",
+        display: "block",
+        pointerEvents: "none",
+        transform: `scale(${scale})`,
+        transformOrigin: "50% 90%",
+      }}
       aria-label="小妍"
     />
   );
@@ -197,9 +232,9 @@ function StaticImagePet({
       src={renderer.image}
       alt={renderer.alt}
       draggable={false}
-      width={inline ? 58 : 108}
+      width={inline ? STATIC_VISUAL_WIDTH.inline : STATIC_VISUAL_WIDTH.floating}
       style={{
-        maxHeight: inline ? 64 : 122,
+        maxHeight: inline ? COMPANION_BOX_SIZE.inline.height : COMPANION_BOX_SIZE.floating.height,
         height: "auto",
         opacity,
         transition: "opacity 0.18s ease",
@@ -287,12 +322,21 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
         className="relative flex w-full select-none justify-center py-2 group"
       >
         <Tooltip text={tooltipText} inline />
-        <CompanionVisual
-          definition={definition}
-          actionKey={controller.shownAction}
-          inline
-          opacity={controller.opacity}
-        />
+        <div
+          className="flex items-end justify-center"
+          style={{
+            width: COMPANION_BOX_SIZE.inline.width,
+            height: COMPANION_BOX_SIZE.inline.height,
+            overflow: "visible",
+          }}
+        >
+          <CompanionVisual
+            definition={definition}
+            actionKey={controller.shownAction}
+            inline
+            opacity={controller.opacity}
+          />
+        </div>
       </div>
     );
   }
@@ -307,10 +351,11 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
       style={{
         right: controller.pos.right,
         bottom: controller.pos.bottom,
-        width: 120,
-        height: 128,
+        width: COMPANION_BOX_SIZE.floating.width,
+        height: COMPANION_BOX_SIZE.floating.height,
         cursor: controller.isDragging.current ? "grabbing" : "grab",
         touchAction: "none",
+        overflow: "visible",
       }}
     >
       <Tooltip text={tooltipText} inline={false} />
