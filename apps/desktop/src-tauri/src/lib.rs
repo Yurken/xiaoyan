@@ -104,7 +104,7 @@ use commands::{
         submission_upsert_round,
     },
     update::{update_check, update_install, PendingUpdate},
-    workbench::workbench_generate_overview_text,
+    workbench::{workbench_generate_overview_text, workbench_get_overview_text_cache},
 };
 use state::{default_settings, AppState};
 
@@ -401,6 +401,7 @@ pub fn run() {
             data_backup_export,
             data_backup_import,
             // Workbench
+            workbench_get_overview_text_cache,
             workbench_generate_overview_text,
         ])
         .run(tauri::generate_context!());

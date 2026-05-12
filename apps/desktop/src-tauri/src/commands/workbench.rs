@@ -1,8 +1,12 @@
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
+use crate::repositories::settings_repository::upsert_settings;
 use crate::state::AppState;
-use serde_json::json;
+use serde_json::{json, Value};
+use std::collections::HashMap;
 use tauri::{Emitter, State};
 use uuid::Uuid;
+
+const WORKBENCH_OVERVIEW_CACHE_KEY: &str = "workbench_overview_text_cache";
 
 const WORKBENCH_OVERVIEW_SYSTEM: &str = r#"你是一位研究助手"小妍"，负责为研究者生成工作台首页的动态概览文案。
 
@@ -24,6 +28,113 @@ const WORKBENCH_OVERVIEW_SYSTEM: &str = r#"你是一位研究助手"小妍"，�
 - summary_items 必须 3 条，分别覆盖：投稿状态、最优先主题、知识沉淀
 - 如果某项数据为空或不存在，诚实说明而不是编造
 - 只输出 JSON，不要包含其他文字或 markdown 标记"#;
+
+fn string_field(value: &Value, camel_key: &str, snake_key: &str) -> String {
+    value
+        .get(camel_key)
+        .or_else(|| value.get(snake_key))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_default()
+}
+
+fn normalize_overview_text(value: &Value) -> Value {
+    let hero_title = string_field(value, "heroTitle", "hero_title");
+    let hero_description = string_field(value, "heroDescription", "hero_description");
+    let summary_items: Vec<Value> = value
+        .get("summaryItems")
+        .or_else(|| value.get("summary_items"))
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .map(|item| {
+                    json!({
+                        "title": item.get("title").and_then(|v| v.as_str()).unwrap_or("").trim(),
+                        "description": item.get("description").and_then(|v| v.as_str()).unwrap_or("").trim(),
+                    })
+                })
+                .filter(|item| {
+                    item.get("title").and_then(|v| v.as_str()).unwrap_or("").len() > 0
+                        && item
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .len()
+                            > 0
+                })
+                .take(3)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    json!({
+        "heroTitle": hero_title,
+        "heroDescription": hero_description,
+        "summaryItems": summary_items,
+    })
+}
+
+fn has_overview_text_content(value: &Value) -> bool {
+    value
+        .get("heroTitle")
+        .and_then(|v| v.as_str())
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false)
+        || value
+            .get("heroDescription")
+            .and_then(|v| v.as_str())
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false)
+        || value
+            .get("summaryItems")
+            .and_then(|v| v.as_array())
+            .map(|items| !items.is_empty())
+            .unwrap_or(false)
+}
+
+async fn persist_overview_text_cache(state: &AppState, value: &Value) -> Result<(), String> {
+    if !has_overview_text_content(value) {
+        return Ok(());
+    }
+
+    let raw = serde_json::to_string(value).map_err(|e| e.to_string())?;
+    let mut to_save = HashMap::new();
+    to_save.insert(WORKBENCH_OVERVIEW_CACHE_KEY.to_string(), raw.clone());
+    upsert_settings(&state.db, &to_save).await?;
+    state
+        .settings
+        .write()
+        .await
+        .insert(WORKBENCH_OVERVIEW_CACHE_KEY.to_string(), raw);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn workbench_get_overview_text_cache(
+    state: State<'_, AppState>,
+) -> Result<Option<Value>, String> {
+    let cached = state
+        .settings
+        .read()
+        .await
+        .get(WORKBENCH_OVERVIEW_CACHE_KEY)
+        .cloned();
+    let Some(raw) = cached else {
+        return Ok(None);
+    };
+
+    let parsed: Value = match serde_json::from_str(&raw) {
+        Ok(value) => value,
+        Err(_) => return Ok(None),
+    };
+    let normalized = normalize_overview_text(&parsed);
+    if has_overview_text_content(&normalized) {
+        Ok(Some(normalized))
+    } else {
+        Ok(None)
+    }
+}
 
 #[tauri::command]
 pub async fn workbench_generate_overview_text(
@@ -60,41 +171,11 @@ pub async fn workbench_generate_overview_text(
             .await
             .map_err(|e| e.to_string())?;
         let clean = crate::commands::papers::extract_json_pub(&response);
-        let parsed: serde_json::Value =
+        let parsed: Value =
             serde_json::from_str(&clean).map_err(|e| format!("无法解析工作台概览 JSON: {e}"))?;
-
-        let hero_title = parsed
-            .get("hero_title")
-            .and_then(|v| v.as_str())
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_default();
-        let hero_description = parsed
-            .get("hero_description")
-            .and_then(|v| v.as_str())
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_default();
-        let summary_items: Vec<serde_json::Value> = parsed
-            .get("summary_items")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .map(|item| {
-                        json!({
-                            "title": item.get("title").and_then(|v| v.as_str()).unwrap_or(""),
-                            "description": item.get("description").and_then(|v| v.as_str()).unwrap_or(""),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        Ok::<_, String>(json!({
-            "heroTitle": hero_title,
-            "heroDescription": hero_description,
-            "summaryItems": summary_items,
-        }))
+        let normalized = normalize_overview_text(&parsed);
+        persist_overview_text_cache(state.inner(), &normalized).await?;
+        Ok::<_, String>(normalized)
     }
     .await;
 

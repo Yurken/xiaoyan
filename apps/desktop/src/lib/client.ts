@@ -778,6 +778,12 @@ export const experimentApi = {
 // ── Workbench API ──────────────────────────────────────────────────
 
 export const workbenchApi = {
+  getOverviewTextCache: () =>
+    invoke<{
+      heroTitle: string;
+      heroDescription: string;
+      summaryItems: Array<{ title: string; description: string }>;
+    } | null>("workbench_get_overview_text_cache"),
   generateOverviewText: (sourceJson: string) =>
     invoke<{
       heroTitle: string;

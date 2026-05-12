@@ -65,8 +65,9 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
         pendingReviews: 0,
         upcomingDdls: [],
       })),
+      apiClient.workbench.getOverviewTextCache().catch(() => null),
     ])
-      .then(([papers, interests, notes, sessions, submission]) => {
+      .then(([papers, interests, notes, sessions, submission, cachedText]) => {
         if (cancelled) return;
 
         const source: WorkbenchOverviewSource = {
@@ -77,7 +78,8 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
           submission,
         };
 
-        const model = buildWorkbenchOverviewModel(source);
+        const baseModel = buildWorkbenchOverviewModel(source);
+        const model = cachedText ? applyGeneratedText(baseModel, cachedText) : baseModel;
         setState({ model, loading: false, error: "" });
 
         const summary = buildSourceSummary(source);
