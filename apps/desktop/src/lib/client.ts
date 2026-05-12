@@ -489,6 +489,7 @@ export const surveyApi = {
     citationFormat?: string,
     language?: string,
     paperIds?: string[],
+    requestId?: string,
   ): Promise<void> =>
     invoke("survey_generate", {
       query,
@@ -500,6 +501,7 @@ export const surveyApi = {
       citationFormat: citationFormat ?? null,
       language: language ?? null,
       paperIds: paperIds ?? null,
+      requestId: requestId ?? null,
     }),
   search: (query: string, limit = 20): Promise<unknown[]> =>
     invoke("survey_search", { query, limit }),

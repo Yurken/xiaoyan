@@ -219,8 +219,31 @@ export function createClient(config: ClientConfig) {
     },
 
     survey: {
-      generate: (query: string, max_papers = 20) =>
-        r("/api/survey/generate", { method: "POST", body: JSON.stringify({ query, max_papers }) }),
+      generate: (
+        query: string,
+        max_papers = 20,
+        time_from?: number,
+        time_to?: number,
+        lit_types?: string[],
+        databases?: string[],
+        citation_format?: string,
+        language?: string,
+        paper_ids?: string[],
+      ) =>
+        r("/api/survey/generate", {
+          method: "POST",
+          body: JSON.stringify({
+            query,
+            max_papers,
+            time_from,
+            time_to,
+            lit_types,
+            databases,
+            citation_format,
+            language,
+            paper_ids,
+          }),
+        }),
       search: (query: string, limit = 20) =>
         r(`/api/survey/search?query=${encodeURIComponent(query)}&limit=${limit}`),
     },

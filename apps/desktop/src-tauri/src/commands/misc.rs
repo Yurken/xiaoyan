@@ -103,7 +103,7 @@ pub async fn planner_generate(
 
 // ── Survey ───────────────────────────────────────────────────────
 
-const SURVEY_PLANNER_TPL: &str = r#"请针对研究问题「{query}」输出检索规划。时间范围：{time_range}。文献类型：{lit_types}。检索数据库偏好：{databases}。仅返回合法 JSON：
+const SURVEY_PLANNER_TPL: &str = r#"请针对研究问题「{query}」输出检索规划。时间范围：{time_range}。文献类型：{lit_types}。检索数据库偏好：{databases}。输出语言偏好：{language}。仅返回合法 JSON：
 {
     "scope": "一句话定义本次综述范围",
     "search_queries": ["用于检索的短语，3-6条"],
@@ -131,7 +131,8 @@ const SURVEY_TIMELINE_TPL: &str = r#"请根据以下候选文献，梳理「{que
 候选文献（按年份排序）：
 {papers_by_year}"#;
 
-const SURVEY_WRITER_TPL: &str = r#"请基于研究问题、文献及发展脉络，输出全面的结构化文献综述。仅返回合法 JSON：
+const SURVEY_WRITER_TPL: &str = r#"请基于研究问题、文献及发展脉络，输出全面的结构化文献综述。仅返回合法 JSON。所有代表性工作、趋势和判断都必须优先来自候选文献或补充语义证据；证据不足时请明确写成研究缺口，不要杜撰论文、作者或结论。
+输出语言要求：{language}。
 {
     "background": "研究背景（2-4句，含领域定义、重要性与应用价值）",
     "major_methods": [
@@ -184,6 +185,7 @@ const SURVEY_WRITER_TPL: &str = r#"请基于研究问题、文献及发展脉络
 任务范围：{scope}
 时间范围：{time_range}
 文献类型：{lit_types}
+输出语言：{language}
 必须覆盖：{must_cover}
 候选方法：{expected_methods}
 
@@ -233,13 +235,15 @@ pub async fn survey_generate(
     citation_format: Option<String>,
     language: Option<String>,
     paper_ids: Option<Vec<String>>,
+    request_id: Option<String>,
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
+    let request_id = request_id
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
     tokio::spawn(async move {
-        let request_id = uuid::Uuid::new_v4().to_string();
-
         let client = match LlmClient::from_settings(&settings) {
             Ok(c) => c,
             Err(e) => {
@@ -265,6 +269,11 @@ pub async fn survey_generate(
             .as_ref()
             .map(|v| v.join("、"))
             .unwrap_or_else(|| "不限".to_string());
+        let language_str = match language.as_deref().unwrap_or("both") {
+            "zh" => "仅使用简体中文输出".to_string(),
+            "en" => "Use English only".to_string(),
+            _ => "优先使用简体中文，保留英文术语与论文标题".to_string(),
+        };
 
         // ── Agent 1: Intent Planner ──────────────────────────────────────
 
@@ -286,7 +295,8 @@ pub async fn survey_generate(
             .replace("{query}", &query)
             .replace("{time_range}", &time_range_str)
             .replace("{lit_types}", &lit_types_str)
-            .replace("{databases}", &databases_str);
+            .replace("{databases}", &databases_str)
+            .replace("{language}", &language_str);
         let plan_msgs = vec![
             LlmMessage::system(survey_planner_system()),
             LlmMessage::user(plan_prompt),
@@ -372,6 +382,7 @@ pub async fn survey_generate(
             .map(|v| {
                 v.iter()
                     .filter(|s| !s.is_empty())
+                    .take(paper_limit as usize)
                     .cloned()
                     .collect::<Vec<_>>()
             })
@@ -516,7 +527,13 @@ pub async fn survey_generate(
                         .map(|results| {
                             results
                                 .iter()
-                                .map(|r| format!("【{}】\n{}", r.source, r.content))
+                                .map(|r| {
+                                    format!(
+                                        "【{}】\n{}",
+                                        r.source,
+                                        truncate_for_prompt(&r.content, 1200)
+                                    )
+                                })
                                 .collect::<Vec<_>>()
                                 .join("\n\n")
                         })
@@ -636,6 +653,7 @@ pub async fn survey_generate(
             )
             .replace("{time_range}", &time_range_str)
             .replace("{lit_types}", &lit_types_str)
+            .replace("{language}", &language_str)
             .replace(
                 "{must_cover}",
                 &plan_json
@@ -833,6 +851,16 @@ fn extract_json(s: &str) -> String {
     s[start..end].to_string()
 }
 
+fn truncate_for_prompt(text: &str, max_chars: usize) -> String {
+    let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.chars().count() <= max_chars {
+        return normalized;
+    }
+    let mut truncated = normalized.chars().take(max_chars).collect::<String>();
+    truncated.push_str("...");
+    truncated
+}
+
 fn build_papers_text(papers: &[serde_json::Value]) -> String {
     if papers.is_empty() {
         return "无匹配论文。".to_string();
@@ -851,7 +879,10 @@ fn build_papers_text(papers: &[serde_json::Value]) -> String {
                     .map(|y| y.to_string())
                     .unwrap_or_default(),
                 p.get("venue").and_then(|v| v.as_str()).unwrap_or(""),
-                p.get("abstract").and_then(|v| v.as_str()).unwrap_or("")
+                truncate_for_prompt(
+                    p.get("abstract").and_then(|v| v.as_str()).unwrap_or(""),
+                    900,
+                )
             )
         })
         .collect::<Vec<_>>()
@@ -955,6 +986,13 @@ async fn fetch_papers_by_ids(
         }
         papers.push(paper);
     }
+    papers.sort_by_key(|paper| {
+        paper
+            .get("id")
+            .and_then(|value| value.as_str())
+            .and_then(|id| ids.iter().position(|item| item == id))
+            .unwrap_or(usize::MAX)
+    });
     Ok(papers)
 }
 
