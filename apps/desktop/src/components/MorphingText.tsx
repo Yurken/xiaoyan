@@ -13,36 +13,41 @@ function sleep(ms: number) {
 export default function MorphingText({ text, tag: Tag = "p", className }: MorphingTextProps) {
   const [displayText, setDisplayText] = useState(text);
   const [visible, setVisible] = useState(true);
-  const animatingRef = useRef(false);
+  const latestTextRef = useRef(text);
   const mountedRef = useRef(false);
+  const runIdRef = useRef(0);
+
+  useEffect(() => {
+    latestTextRef.current = text;
+  }, [text]);
 
   useEffect(() => {
     if (!mountedRef.current) {
       mountedRef.current = true;
-      // Initial render: show immediately without animation
       setDisplayText(text);
       return;
     }
 
     if (text === displayText) return;
 
+    const runId = ++runIdRef.current;
     let cancelled = false;
-    animatingRef.current = true;
 
     const run = async () => {
       // Dissolve old text
       setVisible(false);
-      await sleep(1400);
+      await sleep(1200);
 
-      if (cancelled) return;
-      // Switch to new text (invisible)
-      setDisplayText(text);
+      if (cancelled || runId !== runIdRef.current) return;
+
+      // Switch to latest text (still invisible)
+      const nextText = latestTextRef.current;
+      setDisplayText(nextText);
       await sleep(60);
 
-      if (cancelled) return;
-      // Appear new text, staggered per character via CSS transitionDelay
+      if (cancelled || runId !== runIdRef.current) return;
+
       setVisible(true);
-      animatingRef.current = false;
     };
 
     run();

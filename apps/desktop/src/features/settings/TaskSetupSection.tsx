@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Bot, CheckCircle2, Circle, FileSearch, Link2, Lock, Route, ShieldCheck, Unlock } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { apiClient } from "../../lib/client";
+import PasswordInput from "../../components/PasswordInput";
 
 interface TaskSetupSectionProps {
   currentProviderLabel: string;
@@ -55,6 +56,8 @@ export default function TaskSetupSection({
   const [showLockForm, setShowLockForm] = useState(false);
   const [showSecurityForm, setShowSecurityForm] = useState(false);
   const [appLockHasSecurity, setAppLockHasSecurity] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [closePassword, setClosePassword] = useState("");
 
   useEffect(() => {
     void apiClient.settings.appLock.status().then((s) => {
@@ -202,7 +205,9 @@ export default function TaskSetupSection({
               type="button"
               onClick={() => {
                 if (appLockEnabled) {
-                  void onClearAppLock().then(() => { setShowLockForm(false); setShowSecurityForm(false); setLockPassword(""); setLockConfirm(""); setLockEmail(""); setLockHint(""); setLockQuestion(""); setLockAnswer(""); setLockMsg(""); });
+                  setShowCloseConfirm(!showCloseConfirm);
+                  setClosePassword("");
+                  setLockMsg("");
                 } else {
                   setShowLockForm(!showLockForm);
                 }
@@ -213,27 +218,21 @@ export default function TaskSetupSection({
                 color: appLockEnabled ? "#FF3B30" : "var(--rc-accent)",
               }}
             >
-              {appLockEnabled ? "关闭" : showLockForm ? "取消" : "设置密码"}
+              {appLockEnabled ? (showCloseConfirm ? "取消" : "关闭") : showLockForm ? "取消" : "设置密码"}
             </button>
           </div>
 
           {showLockForm && !appLockEnabled && (
             <div className="mt-4 space-y-3">
-              <input
-                type="password"
+              <PasswordInput
                 value={lockPassword}
-                onChange={(e) => { setLockPassword(e.target.value); setLockMsg(""); }}
+                onChange={(v) => { setLockPassword(v); setLockMsg(""); }}
                 placeholder="输入密码"
-                className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)", color: "var(--rc-text)" }}
               />
-              <input
-                type="password"
+              <PasswordInput
                 value={lockConfirm}
-                onChange={(e) => { setLockConfirm(e.target.value); setLockMsg(""); }}
+                onChange={(v) => { setLockConfirm(v); setLockMsg(""); }}
                 placeholder="确认密码"
-                className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)", color: "var(--rc-text)" }}
               />
               <input
                 type="email"
@@ -361,7 +360,43 @@ export default function TaskSetupSection({
                     {lockMsg && <p className="text-xs text-apple-red">{lockMsg}</p>}
                   </div>
                 )}
-              </div>
+
+              {/* 关闭确认 —— 需输入密码验证身份 */}
+              {showCloseConfirm && (
+                <div className="mt-4 space-y-3 rounded-2xl border border-apple-red/20 bg-apple-red/5 p-4">
+                  <p className="text-xs font-medium text-ink-primary">关闭应用锁需要验证密码</p>
+                  <PasswordInput
+                    value={closePassword}
+                    onChange={(v) => { setClosePassword(v); setLockMsg(""); }}
+                    placeholder="输入当前密码"
+                    onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("confirm-close-lock")?.click(); }}
+                  />
+                  <button
+                    id="confirm-close-lock"
+                    type="button"
+                    disabled={lockBusy || !closePassword}
+                    onClick={async () => {
+                      setLockBusy(true); setLockMsg("");
+                      try {
+                        const ok = await apiClient.settings.appLock.verifyPassword(closePassword);
+                        if (!ok) { setLockMsg("密码错误"); setLockBusy(false); return; }
+                        await onClearAppLock();
+                        setShowLockForm(false); setShowSecurityForm(false);
+                        setLockPassword(""); setLockConfirm(""); setLockEmail("");
+                        setLockHint(""); setLockQuestion(""); setLockAnswer("");
+                        setShowCloseConfirm(false); setClosePassword("");
+                      } catch (e) { setLockMsg(String(e)); }
+                      finally { setLockBusy(false); }
+                    }}
+                    className="w-full rounded-xl py-2 text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
+                    style={{ background: "linear-gradient(145deg,#FF3B30,#D32F2F)" }}
+                  >
+                    {lockBusy ? "验证中…" : "确认关闭应用锁"}
+                  </button>
+                  {lockMsg && <p className="text-xs text-apple-red">{lockMsg}</p>}
+                </div>
+              )}
+            </div>
             </div>
           )}
         </div>

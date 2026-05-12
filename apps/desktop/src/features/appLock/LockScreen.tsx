@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { ArrowLeft, Lock, ShieldCheck, XCircle } from "lucide-react";
 import appLogo from "../../assets/xiaoyanv.svg";
+import PasswordInput from "../../components/PasswordInput";
 
 interface RecoveryInfo {
   hint: string;
@@ -174,20 +175,14 @@ export default function LockScreen({
         {mode === "unlock" && (
           <>
             <div className="flex items-center gap-2 w-full">
-              <input
+              <PasswordInput
                 ref={inputRef}
-                type="password"
                 value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(""); setSuccessMsg(""); }}
+                onChange={(v) => { setPassword(v); setError(""); setSuccessMsg(""); }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleUnlock(); }}
                 placeholder="输入应用锁密码"
                 autoFocus
-                className="w-full rounded-2xl px-4 py-2.5 text-sm outline-none"
-                style={{
-                  background: "var(--rc-surface)",
-                  boxShadow: "var(--rc-inset-shadow)",
-                  color: "var(--rc-text)",
-                }}
+                className="!rounded-2xl !px-4 !py-2.5"
               />
               <button
                 type="button"
@@ -277,32 +272,20 @@ export default function LockScreen({
 
         {mode === "reset" && (
           <div className="w-full space-y-3">
-            <input
-              type="password"
+            <PasswordInput
               value={newPassword}
-              onChange={(e) => { setNewPassword(e.target.value); setError(""); }}
+              onChange={(v) => { setNewPassword(v); setError(""); }}
               onKeyDown={(e) => { if (e.key === "Enter") handleReset(); }}
               placeholder="输入新密码"
               autoFocus
-              className="w-full rounded-2xl px-4 py-2.5 text-sm outline-none"
-              style={{
-                background: "var(--rc-surface)",
-                boxShadow: "var(--rc-inset-shadow)",
-                color: "var(--rc-text)",
-              }}
+              className="!rounded-2xl !px-4 !py-2.5"
             />
-            <input
-              type="password"
+            <PasswordInput
               value={newPasswordConfirm}
-              onChange={(e) => { setNewPasswordConfirm(e.target.value); setError(""); }}
+              onChange={(v) => { setNewPasswordConfirm(v); setError(""); }}
               onKeyDown={(e) => { if (e.key === "Enter") handleReset(); }}
               placeholder="确认新密码"
-              className="w-full rounded-2xl px-4 py-2.5 text-sm outline-none"
-              style={{
-                background: "var(--rc-surface)",
-                boxShadow: "var(--rc-inset-shadow)",
-                color: "var(--rc-text)",
-              }}
+              className="!rounded-2xl !px-4 !py-2.5"
             />
             <button
               type="button"
