@@ -520,7 +520,7 @@ export default function SkillsSection() {
             <div>
               <h2 className="text-base font-semibold text-ink-primary">技能库</h2>
               <p className="text-xs text-ink-tertiary mt-0.5">
-                内置 15 条研究技能，迁移自 Claude / Codex；也可新建自定义技能
+                内置 15 条研究技能，也可新建自定义技能
               </p>
             </div>
           </div>
