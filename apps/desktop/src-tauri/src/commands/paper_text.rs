@@ -84,12 +84,31 @@ pub fn extract_lopdf_full_text(path: &Path) -> Option<String> {
             return None;
         }
         page_numbers.sort_unstable();
-        let text = doc.extract_text(&page_numbers).ok()?;
-        let normalized = text.replace("\r\n", "\n").trim().to_string();
-        if normalized.is_empty() {
+
+        // Extract page by page to tolerate per-page failures
+        let mut all_text = String::new();
+        for &page_num in &page_numbers {
+            match doc.extract_text(&[page_num]) {
+                Ok(text) => {
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() {
+                        all_text.push_str(trimmed);
+                        all_text.push('\n');
+                    }
+                }
+                Err(_) => {
+                    eprintln!(
+                        "[pdf-extract] lopdf page {} extraction failed, skipping",
+                        page_num
+                    );
+                }
+            }
+        }
+
+        if all_text.trim().is_empty() {
             None
         } else {
-            Some(normalized)
+            Some(all_text)
         }
     }))
     .ok()
@@ -176,5 +195,5 @@ fn should_suppress_pdf_stderr_line(line: &str) -> bool {
     if trimmed.is_empty() {
         return true;
     }
-    trimmed.contains("Unicode mismatch")
+    trimmed.contains("Unicode mismatch") || trimmed.contains("missing char") || trimmed.contains("ToUnicode")
 }

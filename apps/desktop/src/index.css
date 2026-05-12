@@ -382,6 +382,20 @@
   }
 }
 
+.morph-char {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(5px);
+  transform: scale(0.95) translateY(2px);
+  transition: opacity 1.2s ease-out, filter 1.2s ease-out, transform 1.2s ease-out;
+}
+
+.morph-char.visible {
+  opacity: 1;
+  filter: blur(0px);
+  transform: scale(1) translateY(0);
+}
+
 @keyframes agentProgress {
   0% {
     width: 20%;

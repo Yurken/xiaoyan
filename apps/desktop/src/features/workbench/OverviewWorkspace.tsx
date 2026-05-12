@@ -1,6 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
 import { Link } from "react-router-dom";
+import MorphingText from "../../components/MorphingText";
 import {
   MetricItem,
   OverviewSection,
@@ -31,12 +32,16 @@ export default function OverviewWorkspace({ model }: OverviewWorkspaceProps) {
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="rc-kicker">小妍工作台</p>
                 </div>
-                <h1 className="max-w-3xl text-[clamp(1.55rem,2.25vw,2.35rem)] font-semibold leading-tight tracking-normal text-ink-primary">
-                  {model.heroTitle}
-                </h1>
-                <p className="max-w-3xl text-sm leading-6 text-ink-secondary">
-                  {model.heroDescription}
-                </p>
+                <MorphingText
+                  tag="h1"
+                  text={model.heroTitle}
+                  className="max-w-3xl text-[clamp(1.55rem,2.25vw,2.35rem)] font-semibold leading-tight tracking-normal text-ink-primary"
+                />
+                <MorphingText
+                  tag="p"
+                  text={model.heroDescription}
+                  className="max-w-3xl text-sm leading-6 text-ink-secondary"
+                />
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5">
