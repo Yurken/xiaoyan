@@ -30,6 +30,7 @@ import {
   MACOS_WINDOW_DRAG_HEIGHT,
 } from "../lib/windowChrome";
 import Survey from "./Survey";
+import Planner from "./Planner";
 import Papers from "./Papers";
 import Knowledge from "./Knowledge";
 import Copilot from "./Copilot";
@@ -362,7 +363,7 @@ function FocusHome() {
 
 type FreeTab = "survey" | "papers" | "knowledge" | "xiaoyan" | "tools";
 
-type LegacyFreeTab = FreeTab | "copilot" | "planner";
+type LegacyFreeTab = FreeTab | "copilot";
 
 const FREE_TABS: Array<{ key: FreeTab; label: string; icon: typeof Sparkles }> = [
   { key: "survey",    label: "综述",    icon: BookOpen },
@@ -595,7 +596,7 @@ function FocusWorkbench() {
         {!isFree && (
           <button
             type="button"
-            onClick={() => navigate("/workbench/free/planner")}
+            onClick={() => navigate("/workbench/free/survey")}
             className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium ml-1"
             style={{ background: "var(--rc-surface)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
           >
@@ -695,7 +696,7 @@ export default function FocusApp() {
           <Route path="/" element={<FocusHome />} />
           <Route path="/workbench/:interestId" element={<FocusWorkbench />} />
           <Route path="/workbench/:interestId/:tab" element={<FocusWorkbench />} />
-          <Route path="/planner" element={<FocusLegacyRouteRedirect tab="planner" />} />
+          <Route path="/planner" element={<Planner />} />
           <Route path="/survey" element={<FocusLegacyRouteRedirect tab="survey" />} />
           <Route path="/papers" element={<FocusLegacyRouteRedirect tab="papers" />} />
           <Route path="/knowledge" element={<FocusLegacyRouteRedirect tab="knowledge" />} />

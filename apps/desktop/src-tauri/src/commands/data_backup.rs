@@ -4,17 +4,19 @@ use tauri::State;
 
 #[tauri::command]
 pub async fn data_backup_export(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     password: String,
 ) -> Result<String, String> {
-    export_all_data(state.inner(), &password).await
+    export_all_data(state.inner(), &app, &password).await
 }
 
 #[tauri::command]
 pub async fn data_backup_import(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     data: String,
     password: String,
 ) -> Result<(), String> {
-    import_all_data(state.inner(), &data, &password).await
+    import_all_data(state.inner(), &app, &data, &password).await
 }

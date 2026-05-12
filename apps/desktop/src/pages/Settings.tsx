@@ -13,6 +13,7 @@ import AboutSection from "../features/settings/AboutSection";
 import AssistantSettingsSection from "../features/settings/AssistantSettingsSection";
 import { PAPER_TAG_OPTIONS, parsePaperTagVisibility, togglePaperTagVisibility } from "../lib/paperTags";
 import CryptoConfigModal from "../features/settings/CryptoConfigModal";
+import { emitAppLockStatusChange } from "../features/appLock/shared";
 import MemorySection from "../features/settings/MemorySection";
 import SettingsHistorySection from "../features/settings/SettingsHistorySection";
 import SkillsSection from "../features/settings/SkillsSection";
@@ -217,6 +218,10 @@ export default function Settings() {
       replaceForm(fresh);
       markSaved();
       await settingsHistory.reload();
+      emitAppLockStatusChange({
+        enabled: fresh.app_lock_enabled === "true",
+        timeoutMinutes: Number(fresh.app_lock_timeout_minutes) || 0,
+      });
     },
   });
 
@@ -418,6 +423,10 @@ export default function Settings() {
             onSetAppLockPassword={async (password, hint, email) => {
               await apiClient.settings.appLock.setPassword(password, hint, email);
               set("app_lock_enabled")("true");
+              emitAppLockStatusChange({
+                enabled: true,
+                timeoutMinutes: Number(form.app_lock_timeout_minutes) || 0,
+              });
             }}
             onSetAppLockSecurity={async (question, answer) => {
               await apiClient.settings.appLock.setSecurity(question, answer);
@@ -425,10 +434,15 @@ export default function Settings() {
             onClearAppLock={async () => {
               await apiClient.settings.appLock.clearPassword();
               set("app_lock_enabled")("false");
+              emitAppLockStatusChange({ enabled: false, timeoutMinutes: 0 });
             }}
             onSetAppLockTimeout={async (minutes) => {
               await apiClient.settings.appLock.setTimeout(minutes);
               set("app_lock_timeout_minutes")(minutes);
+              emitAppLockStatusChange({
+                enabled: form.app_lock_enabled === "true",
+                timeoutMinutes: Number(minutes) || 0,
+              });
             }}
           />
         ) : null}
@@ -634,7 +648,7 @@ export default function Settings() {
         resourceLabel="全部数据备份"
         exportDescription="设置一个密码保护全量数据备份，导入时需要输入同一密码。"
         importDescription="输入导出时设置的密码解锁备份文件，导入后会覆盖本机现有数据。"
-        exportWarning="备份包含配置、配置历史、论文、会话、记忆、投稿和实验数据，请妥善保管。"
+        exportWarning="备份包含配置、配置历史、论文、会话、记忆、投稿、实验数据和托管文件，请妥善保管。"
         password={backupPassword}
         confirm={backupConfirm}
         busy={backupBusy}

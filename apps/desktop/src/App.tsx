@@ -24,6 +24,7 @@ import Submission from "./pages/Submission";
 import Experiment from "./pages/Experiment";
 import FocusApp from "./pages/FocusLayout";
 import LockScreen from "./features/appLock/LockScreen";
+import { APP_LOCK_STATUS_CHANGE_EVENT, type AppLockStatusChangeDetail } from "./features/appLock/shared";
 import { useInactivityLock } from "./features/appLock/useInactivityLock";
 import { apiClient } from "./lib/client";
 import {
@@ -80,6 +81,19 @@ export default function App() {
   useInactivityLock(lockTimeout, locked, () => setLocked(true));
 
   useEffect(() => {
+    const handleStatusChange = (event: Event) => {
+      const detail = (event as CustomEvent<AppLockStatusChangeDetail>).detail;
+      setLockTimeout(detail.timeoutMinutes);
+      if (!detail.enabled) {
+        setLocked(false);
+      }
+    };
+
+    window.addEventListener(APP_LOCK_STATUS_CHANGE_EVENT, handleStatusChange);
+    return () => window.removeEventListener(APP_LOCK_STATUS_CHANGE_EVENT, handleStatusChange);
+  }, []);
+
+  useEffect(() => {
     applyTheme(getTheme());
     applyThemeStyle(getThemeStyle());
     const unwatch = watchSystemTheme(() => { });
@@ -133,7 +147,7 @@ export default function App() {
           try {
             return await apiClient.settings.appLock.getRecoveryInfo();
           } catch {
-            return { hint: "", question: "", hasEmail: false };
+            return { hint: "", question: "", hasEmail: false, hasSecurity: false };
           }
         }}
         onVerifyRecovery={async (email, answer) => {

@@ -1,3 +1,4 @@
+use crate::repositories::settings_repository::upsert_settings;
 use crate::state::AppState;
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use rand::RngCore;
@@ -21,14 +22,18 @@ const HASH_LEN: usize = 32;
 fn password_parts(settings: &HashMap<String, String>) -> Option<(&str, &str)> {
     let salt = settings.get(SALT_KEY)?.trim();
     let hash = settings.get(HASH_KEY)?.trim();
-    if salt.is_empty() || hash.is_empty() { return None; }
+    if salt.is_empty() || hash.is_empty() {
+        return None;
+    }
     Some((salt, hash))
 }
 
 fn security_parts(settings: &HashMap<String, String>) -> Option<(&str, &str)> {
     let salt = settings.get(SECURITY_SALT_KEY)?.trim();
     let hash = settings.get(SECURITY_HASH_KEY)?.trim();
-    if salt.is_empty() || hash.is_empty() { return None; }
+    if salt.is_empty() || hash.is_empty() {
+        return None;
+    }
     Some((salt, hash))
 }
 
@@ -43,13 +48,11 @@ fn derive_hash(password: &str, salt: &[u8]) -> [u8; HASH_LEN] {
 }
 
 async fn save(state: &State<'_, AppState>, updates: HashMap<String, String>) -> Result<(), String> {
-    for (key, value) in &updates {
-        sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?")
-            .bind(key).bind(value).bind(value)
-            .execute(&state.db).await.map_err(|e| e.to_string())?;
-    }
+    upsert_settings(&state.db, &updates).await?;
     let mut cache = state.settings.write().await;
-    for (key, value) in updates { cache.insert(key, value); }
+    for (key, value) in updates {
+        cache.insert(key, value);
+    }
     Ok(())
 }
 
@@ -58,11 +61,25 @@ pub async fn app_lock_status(state: State<'_, AppState>) -> Result<serde_json::V
     let settings = state.settings.read().await;
     let parts = password_parts(&settings);
     let enabled = settings.get(ENABLED_KEY).map(|v| v.as_str()) == Some("true") && parts.is_some();
-    let timeout = settings.get(TIMEOUT_KEY).and_then(|v| v.parse::<u32>().ok()).unwrap_or(0);
-    let has_security = settings.get(SECURITY_HASH_KEY).map(|v| !v.trim().is_empty()).unwrap_or(false);
-    let has_hint = settings.get(HINT_KEY).map(|v| !v.trim().is_empty()).unwrap_or(false);
-    let has_email = settings.get(EMAIL_KEY).map(|v| !v.trim().is_empty()).unwrap_or(false);
-    Ok(json!({ "enabled": enabled, "timeoutMinutes": timeout, "hasSecurity": has_security, "hasHint": has_hint, "hasEmail": has_email }))
+    let timeout = settings
+        .get(TIMEOUT_KEY)
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(0);
+    let has_security = settings
+        .get(SECURITY_HASH_KEY)
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false);
+    let has_hint = settings
+        .get(HINT_KEY)
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false);
+    let has_email = settings
+        .get(EMAIL_KEY)
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false);
+    Ok(
+        json!({ "enabled": enabled, "timeoutMinutes": timeout, "hasSecurity": has_security, "hasHint": has_hint, "hasEmail": has_email }),
+    )
 }
 
 #[tauri::command]
@@ -74,8 +91,12 @@ pub async fn app_lock_set_password(
 ) -> Result<serde_json::Value, String> {
     let password = password.trim().to_string();
     let email = normalize_email(&email);
-    if password.is_empty() { return Err("密码不能为空。".into()); }
-    if email.is_empty() { return Err("邮箱不能为空。".into()); }
+    if password.is_empty() {
+        return Err("密码不能为空。".into());
+    }
+    if email.is_empty() {
+        return Err("邮箱不能为空。".into());
+    }
 
     let mut salt_bytes = [0u8; SALT_LEN];
     rand::rngs::OsRng.fill_bytes(&mut salt_bytes);
@@ -100,23 +121,40 @@ pub async fn app_lock_verify_password(
     password: String,
 ) -> Result<bool, String> {
     let settings = state.settings.read().await;
-    let Some((salt_b64, hash_b64)) = password_parts(&settings) else { return Ok(true); };
-    let salt = B64.decode(salt_b64).map_err(|_| "密码状态异常。".to_string())?;
-    let expected = B64.decode(hash_b64).map_err(|_| "密码状态异常。".to_string())?;
+    let Some((salt_b64, hash_b64)) = password_parts(&settings) else {
+        return Ok(true);
+    };
+    let salt = B64
+        .decode(salt_b64)
+        .map_err(|_| "密码状态异常。".to_string())?;
+    let expected = B64
+        .decode(hash_b64)
+        .map_err(|_| "密码状态异常。".to_string())?;
     let actual = derive_hash(&password.trim(), &salt);
 
     let mut diff = 0u8;
-    for i in 0..HASH_LEN { diff |= expected.get(i).unwrap_or(&0) ^ actual[i]; }
-    if diff != 0 { return Err("密码错误。".into()); }
+    for i in 0..HASH_LEN {
+        diff |= expected.get(i).unwrap_or(&0) ^ actual[i];
+    }
+    if diff != 0 {
+        return Err("密码错误。".into());
+    }
     Ok(true)
 }
 
 #[tauri::command]
-pub async fn app_lock_clear_password(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+pub async fn app_lock_clear_password(
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
     let mut updates = HashMap::new();
     updates.insert(SALT_KEY.into(), "".into());
     updates.insert(HASH_KEY.into(), "".into());
     updates.insert(ENABLED_KEY.into(), "false".into());
+    updates.insert(HINT_KEY.into(), "".into());
+    updates.insert(EMAIL_KEY.into(), "".into());
+    updates.insert(SECURITY_QUESTION_KEY.into(), "".into());
+    updates.insert(SECURITY_SALT_KEY.into(), "".into());
+    updates.insert(SECURITY_HASH_KEY.into(), "".into());
     save(&state, updates).await?;
     Ok(json!({ "enabled": false }))
 }
@@ -139,12 +177,23 @@ pub async fn app_lock_get_hint(state: State<'_, AppState>) -> Result<String, Str
 }
 
 #[tauri::command]
-pub async fn app_lock_get_recovery_info(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+pub async fn app_lock_get_recovery_info(
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
     let settings = state.settings.read().await;
     let hint = settings.get(HINT_KEY).cloned().unwrap_or_default();
-    let question = settings.get(SECURITY_QUESTION_KEY).cloned().unwrap_or_default();
-    let has_email = settings.get(EMAIL_KEY).map(|v| !v.trim().is_empty()).unwrap_or(false);
-    Ok(json!({ "hint": hint, "question": question, "hasEmail": has_email }))
+    let question = settings
+        .get(SECURITY_QUESTION_KEY)
+        .cloned()
+        .unwrap_or_default();
+    let has_email = settings
+        .get(EMAIL_KEY)
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false);
+    let has_security = security_parts(&settings).is_some();
+    Ok(
+        json!({ "hint": hint, "question": question, "hasEmail": has_email, "hasSecurity": has_security }),
+    )
 }
 
 #[tauri::command]
@@ -189,13 +238,22 @@ pub async fn app_lock_verify_recovery(
         return Err("邮箱不匹配。".into());
     }
 
-    if let Some((salt_b64, hash_b64)) = security_parts(&settings) {
-        let salt = B64.decode(salt_b64).map_err(|_| "密保状态异常。".to_string())?;
-        let expected = B64.decode(hash_b64).map_err(|_| "密保状态异常。".to_string())?;
-        let actual = derive_hash(&answer, &salt);
-        let mut diff = 0u8;
-        for i in 0..HASH_LEN { diff |= expected.get(i).unwrap_or(&0) ^ actual[i]; }
-        if diff != 0 { return Err("密保答案错误。".into()); }
+    let Some((salt_b64, hash_b64)) = security_parts(&settings) else {
+        return Err("未设置密保，无法找回密码。".into());
+    };
+    let salt = B64
+        .decode(salt_b64)
+        .map_err(|_| "密保状态异常。".to_string())?;
+    let expected = B64
+        .decode(hash_b64)
+        .map_err(|_| "密保状态异常。".to_string())?;
+    let actual = derive_hash(&answer, &salt);
+    let mut diff = 0u8;
+    for i in 0..HASH_LEN {
+        diff |= expected.get(i).unwrap_or(&0) ^ actual[i];
+    }
+    if diff != 0 {
+        return Err("密保答案错误。".into());
     }
 
     Ok(true)
@@ -211,7 +269,9 @@ pub async fn app_lock_reset_password(
     let new_password = new_password.trim().to_string();
     let email = normalize_email(&email);
     let answer = answer.trim().to_string();
-    if new_password.is_empty() { return Err("新密码不能为空。".into()); }
+    if new_password.is_empty() {
+        return Err("新密码不能为空。".into());
+    }
 
     let settings = state.settings.read().await;
 
@@ -224,14 +284,22 @@ pub async fn app_lock_reset_password(
         return Err("邮箱不匹配。".into());
     }
 
-    // Verify security answer if set
-    if let Some((salt_b64, hash_b64)) = security_parts(&settings) {
-        let salt = B64.decode(salt_b64).map_err(|_| "密保状态异常。".to_string())?;
-        let expected = B64.decode(hash_b64).map_err(|_| "密保状态异常。".to_string())?;
-        let actual = derive_hash(&answer, &salt);
-        let mut diff = 0u8;
-        for i in 0..HASH_LEN { diff |= expected.get(i).unwrap_or(&0) ^ actual[i]; }
-        if diff != 0 { return Err("密保答案错误。".into()); }
+    let Some((salt_b64, hash_b64)) = security_parts(&settings) else {
+        return Err("未设置密保，无法找回密码。".into());
+    };
+    let salt = B64
+        .decode(salt_b64)
+        .map_err(|_| "密保状态异常。".to_string())?;
+    let expected = B64
+        .decode(hash_b64)
+        .map_err(|_| "密保状态异常。".to_string())?;
+    let actual = derive_hash(&answer, &salt);
+    let mut diff = 0u8;
+    for i in 0..HASH_LEN {
+        diff |= expected.get(i).unwrap_or(&0) ^ actual[i];
+    }
+    if diff != 0 {
+        return Err("密保答案错误。".into());
     }
 
     drop(settings);

@@ -7,6 +7,7 @@ interface RecoveryInfo {
   hint: string;
   question: string;
   hasEmail?: boolean;
+  hasSecurity?: boolean;
 }
 
 interface LockScreenProps {
@@ -33,6 +34,7 @@ export default function LockScreen({
   const [recoveryHint, setRecoveryHint] = useState("");
   const [recoveryQuestion, setRecoveryQuestion] = useState("");
   const [recoveryHasEmail, setRecoveryHasEmail] = useState(true);
+  const [recoveryHasSecurity, setRecoveryHasSecurity] = useState(true);
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [recoveryAnswer, setRecoveryAnswer] = useState("");
 
@@ -93,6 +95,7 @@ export default function LockScreen({
       setRecoveryHint(info.hint);
       setRecoveryQuestion(info.question);
       setRecoveryHasEmail(info.hasEmail !== false);
+      setRecoveryHasSecurity(info.hasSecurity !== false);
       setMode("forgot");
     } catch (err) {
       setError(typeof err === "string" ? err : "获取找回信息失败");
@@ -100,7 +103,7 @@ export default function LockScreen({
   };
 
   const handleVerifyRecovery = async () => {
-    if (busy || !recoveryHasEmail || !recoveryEmail.trim()) return;
+    if (busy || !recoveryHasEmail || !recoveryHasSecurity || !recoveryEmail.trim()) return;
     setBusy(true);
     setError("");
     try {
@@ -233,13 +236,18 @@ export default function LockScreen({
                 当前应用锁未绑定邮箱，无法通过邮箱找回密码。
               </div>
             )}
+            {recoveryHasEmail && !recoveryHasSecurity && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+                当前应用锁未设置密保问题，无法通过邮箱找回密码。
+              </div>
+            )}
             <input
               type="email"
               value={recoveryEmail}
               onChange={(e) => { setRecoveryEmail(e.target.value); setError(""); }}
               onKeyDown={(e) => { if (e.key === "Enter") handleVerifyRecovery(); }}
               placeholder="输入绑定邮箱"
-              disabled={!recoveryHasEmail}
+              disabled={!recoveryHasEmail || !recoveryHasSecurity}
               className="w-full rounded-2xl px-4 py-2.5 text-sm outline-none"
               style={{
                 background: "var(--rc-surface)",
@@ -252,8 +260,8 @@ export default function LockScreen({
               value={recoveryAnswer}
               onChange={(e) => { setRecoveryAnswer(e.target.value); setError(""); }}
               onKeyDown={(e) => { if (e.key === "Enter") handleVerifyRecovery(); }}
-              placeholder={recoveryQuestion ? "输入密保答案" : "未设置密保，留空即可"}
-              disabled={!recoveryHasEmail}
+              placeholder={recoveryQuestion ? "输入密保答案" : "未设置密保，无法找回"}
+              disabled={!recoveryHasEmail || !recoveryHasSecurity}
               className="w-full rounded-2xl px-4 py-2.5 text-sm outline-none"
               style={{
                 background: "var(--rc-surface)",
@@ -264,7 +272,7 @@ export default function LockScreen({
             <button
               type="button"
               onClick={handleVerifyRecovery}
-              disabled={busy || !recoveryHasEmail || !recoveryEmail.trim()}
+              disabled={busy || !recoveryHasEmail || !recoveryHasSecurity || !recoveryEmail.trim()}
               className="w-full flex items-center justify-center gap-1.5 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
               style={{
                 background: "linear-gradient(145deg,#1A8AFF,#0062CC)",

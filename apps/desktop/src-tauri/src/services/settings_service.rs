@@ -10,6 +10,8 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use rand::RngCore;
 use sqlx::{Column, Row};
 use std::collections::{BTreeMap, HashMap};
+use std::path::{Component, Path, PathBuf};
+use tauri::Manager;
 use uuid::Uuid;
 
 const MAGIC_SETTINGS: &[u8; 6] = b"RCCFG1";
@@ -31,6 +33,17 @@ const ERR_NO_VALID_CONFIG_ITEMS: &str = "文件中未找到有效配置项。";
 const ERR_SETTINGS_HISTORY_NOT_FOUND: &str = "未找到对应的配置历史。";
 const ERR_SETTINGS_HISTORY_EMPTY: &str = "这份配置历史中没有可应用的设置项。";
 const SETTINGS_HISTORY_SNAPSHOT_PREFIX: &str = "配置快照";
+const LOCAL_ONLY_SETTINGS_KEYS: &[&str] = &[
+    "app_lock_enabled",
+    "app_lock_password_salt",
+    "app_lock_password_hash",
+    "app_lock_timeout_minutes",
+    "app_lock_password_hint",
+    "app_lock_email",
+    "app_lock_security_question",
+    "app_lock_security_answer_salt",
+    "app_lock_security_answer_hash",
+];
 
 const BACKUP_TABLES: &[&str] = &[
     "settings",
@@ -143,18 +156,12 @@ fn row_to_json(row: &sqlx::sqlite::SqliteRow) -> Result<serde_json::Value, Strin
     Ok(serde_json::Value::Object(map))
 }
 
-fn json_value_to_string(v: &serde_json::Value) -> String {
-    match v {
-        serde_json::Value::String(s) => s.clone(),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Null => String::new(),
-        _ => v.to_string(),
-    }
-}
-
 fn is_exposed_key(defaults: &HashMap<String, String>, key: &str) -> bool {
     defaults.contains_key(key)
+}
+
+fn is_local_only_settings_key(key: &str) -> bool {
+    LOCAL_ONLY_SETTINGS_KEYS.contains(&key)
 }
 
 fn mask_value(key: &str, value: &str) -> String {
@@ -182,12 +189,10 @@ fn apply_settings_overrides(
     target: &mut HashMap<String, String>,
     data: &serde_json::Value,
 ) -> Result<(), String> {
-    let map = data
-        .as_object()
-        .ok_or(ERR_INVALID_REQUEST.to_string())?;
+    let map = data.as_object().ok_or(ERR_INVALID_REQUEST.to_string())?;
 
     for (key, raw) in map {
-        if !target.contains_key(key) {
+        if !target.contains_key(key) || is_local_only_settings_key(key) {
             continue;
         }
         let value = raw.as_str().unwrap_or("").trim().to_string();
@@ -200,6 +205,163 @@ fn apply_settings_overrides(
     Ok(())
 }
 
+fn sanitize_asset_segment(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    for ch in input.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+            output.push(ch);
+        } else {
+            output.push('_');
+        }
+    }
+    if output.is_empty() {
+        "asset".to_string()
+    } else {
+        output
+    }
+}
+
+fn relative_path_string(path: &Path) -> String {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(part) => Some(part.to_string_lossy().to_string()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn safe_relative_path(value: &str) -> Option<PathBuf> {
+    let path = Path::new(value);
+    if path.is_absolute() {
+        return None;
+    }
+
+    let mut result = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => result.push(part),
+            Component::CurDir => {}
+            _ => return None,
+        }
+    }
+
+    if result.as_os_str().is_empty() {
+        None
+    } else {
+        Some(result)
+    }
+}
+
+fn collect_file_asset(
+    assets: &mut serde_json::Map<String, serde_json::Value>,
+    app_data_dir: &Path,
+    file_path: &str,
+    fallback_prefix: &str,
+) {
+    if file_path.trim().is_empty() || assets.contains_key(file_path) {
+        return;
+    }
+
+    let source = PathBuf::from(file_path);
+    let Ok(bytes) = std::fs::read(&source) else {
+        return;
+    };
+    let relative_path = source
+        .strip_prefix(app_data_dir)
+        .ok()
+        .map(relative_path_string)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| {
+            let file_name = source
+                .file_name()
+                .and_then(|value| value.to_str())
+                .map(sanitize_asset_segment)
+                .unwrap_or_else(|| "asset.bin".to_string());
+            format!(
+                "restored_assets/{}/{}",
+                sanitize_asset_segment(fallback_prefix),
+                file_name
+            )
+        });
+
+    assets.insert(
+        file_path.to_string(),
+        serde_json::json!({
+            "relative_path": relative_path,
+            "data": B64.encode(bytes),
+        }),
+    );
+}
+
+fn collect_row_assets(
+    table: &str,
+    row: &serde_json::Value,
+    app_data_dir: &Path,
+    assets: &mut serde_json::Map<String, serde_json::Value>,
+) {
+    if !matches!(table, "papers" | "paper_figures" | "experiment_attachments") {
+        return;
+    }
+
+    let Some(file_path) = row.get("file_path").and_then(|value| value.as_str()) else {
+        return;
+    };
+    let id = row
+        .get("id")
+        .and_then(|value| value.as_str())
+        .unwrap_or("row");
+    collect_file_asset(assets, app_data_dir, file_path, &format!("{table}/{id}"));
+}
+
+fn restore_file_asset(
+    assets: Option<&serde_json::Map<String, serde_json::Value>>,
+    app_data_dir: &Path,
+    file_path: &str,
+) -> Result<Option<String>, String> {
+    let Some(asset) = assets.and_then(|items| items.get(file_path)) else {
+        return Ok(None);
+    };
+
+    let relative_path = asset
+        .get("relative_path")
+        .and_then(|value| value.as_str())
+        .and_then(safe_relative_path)
+        .ok_or_else(|| format!("备份文件资产路径无效：{file_path}"))?;
+    let data = asset
+        .get("data")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| format!("备份文件资产缺少数据：{file_path}"))?;
+    let bytes = B64
+        .decode(data)
+        .map_err(|_| format!("备份文件资产损坏：{file_path}"))?;
+    let destination = app_data_dir.join(relative_path);
+    if let Some(parent) = destination.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建资产目录失败：{e}"))?;
+    }
+    std::fs::write(&destination, bytes).map_err(|e| format!("恢复文件资产失败：{e}"))?;
+    Ok(Some(destination.to_string_lossy().to_string()))
+}
+
+fn restore_row_assets(
+    table: &str,
+    row: &mut serde_json::Map<String, serde_json::Value>,
+    assets: Option<&serde_json::Map<String, serde_json::Value>>,
+    app_data_dir: &Path,
+) -> Result<(), String> {
+    if !matches!(table, "papers" | "paper_figures" | "experiment_attachments") {
+        return Ok(());
+    }
+
+    let Some(file_path) = row.get("file_path").and_then(|value| value.as_str()) else {
+        return Ok(());
+    };
+    if let Some(restored) = restore_file_asset(assets, app_data_dir, file_path)? {
+        row.insert("file_path".to_string(), serde_json::Value::String(restored));
+    }
+    Ok(())
+}
+
 async fn resolve_snapshot_settings(
     state: &AppState,
     data: &serde_json::Value,
@@ -208,6 +370,7 @@ async fn resolve_snapshot_settings(
     let cache = state.settings.read().await.clone();
     let mut merged = merge_with_defaults(&defaults, &cache);
     apply_settings_overrides(&mut merged, data)?;
+    merged.retain(|key, _| !is_local_only_settings_key(key));
     Ok(merged)
 }
 
@@ -291,7 +454,7 @@ pub async fn update_settings(
     let mut to_save: HashMap<String, String> = HashMap::new();
 
     for (key, raw) in map {
-        if !is_exposed_key(&defaults, key) {
+        if !is_exposed_key(&defaults, key) || is_local_only_settings_key(key) {
             continue;
         }
         let value = raw.as_str().unwrap_or("").trim().to_string();
@@ -321,6 +484,9 @@ pub async fn export_settings(state: &AppState, password: &str) -> Result<String,
     let mut map = BTreeMap::new();
 
     for key in defaults.keys() {
+        if is_local_only_settings_key(key) {
+            continue;
+        }
         if let Some(value) = raw_settings.get(key) {
             map.insert(key.clone(), value.clone());
         }
@@ -341,14 +507,14 @@ pub async fn import_settings(
 
     let defaults = default_settings();
     let plaintext = decrypt_blob(data.trim(), password, MAGIC_SETTINGS)?;
-    let json_str = std::str::from_utf8(&plaintext)
-        .map_err(|_| ERR_INVALID_DECRYPTED_DATA.to_string())?;
+    let json_str =
+        std::str::from_utf8(&plaintext).map_err(|_| ERR_INVALID_DECRYPTED_DATA.to_string())?;
     let map: BTreeMap<String, String> =
         serde_json::from_str(json_str).map_err(|_| ERR_INVALID_CONFIG_CONTENT.to_string())?;
 
     let mut to_save = HashMap::new();
     for (key, value) in map {
-        if is_exposed_key(&defaults, &key) {
+        if is_exposed_key(&defaults, &key) && !is_local_only_settings_key(&key) {
             to_save.insert(key, value);
         }
     }
@@ -367,12 +533,18 @@ pub async fn import_settings(
     Ok(to_save.keys().cloned().collect())
 }
 
-pub async fn export_all_data(state: &AppState, password: &str) -> Result<String, String> {
+pub async fn export_all_data(
+    state: &AppState,
+    app: &tauri::AppHandle,
+    password: &str,
+) -> Result<String, String> {
     if password.is_empty() {
         return Err(ERR_EMPTY_PASSWORD.to_string());
     }
 
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let mut tables = serde_json::Map::new();
+    let mut assets = serde_json::Map::new();
     for table in BACKUP_TABLES {
         let rows = sqlx::query(&format!("SELECT * FROM {table}"))
             .fetch_all(&state.db)
@@ -381,7 +553,9 @@ pub async fn export_all_data(state: &AppState, password: &str) -> Result<String,
 
         let mut array = Vec::with_capacity(rows.len());
         for row in &rows {
-            array.push(row_to_json(row)?);
+            let value = row_to_json(row)?;
+            collect_row_assets(table, &value, &app_data_dir, &mut assets);
+            array.push(value);
         }
 
         tables.insert(table.to_string(), serde_json::Value::Array(array));
@@ -391,6 +565,7 @@ pub async fn export_all_data(state: &AppState, password: &str) -> Result<String,
         "version": 1,
         "exported_at": chrono::Utc::now().to_rfc3339(),
         "tables": tables,
+        "assets": assets,
     });
 
     let json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
@@ -399,6 +574,7 @@ pub async fn export_all_data(state: &AppState, password: &str) -> Result<String,
 
 pub async fn import_all_data(
     state: &AppState,
+    app: &tauri::AppHandle,
     data: &str,
     password: &str,
 ) -> Result<(), String> {
@@ -407,14 +583,17 @@ pub async fn import_all_data(
     }
 
     let plaintext = decrypt_blob(data.trim(), password, MAGIC_BACKUP)?;
-    let json_str = std::str::from_utf8(&plaintext)
-        .map_err(|_| ERR_INVALID_DECRYPTED_DATA.to_string())?;
-    let payload: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|_| ERR_INVALID_CONFIG_CONTENT.to_string())?;
+    let json_str =
+        std::str::from_utf8(&plaintext).map_err(|_| ERR_INVALID_DECRYPTED_DATA.to_string())?;
+    let payload: serde_json::Value =
+        serde_json::from_str(json_str).map_err(|_| ERR_INVALID_CONFIG_CONTENT.to_string())?;
 
-    let tables = payload.get("tables")
+    let tables = payload
+        .get("tables")
         .and_then(|t| t.as_object())
         .ok_or("备份文件格式错误：缺少 tables 字段")?;
+    let assets = payload.get("assets").and_then(|value| value.as_object());
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
 
     let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
 
@@ -433,20 +612,54 @@ pub async fn import_all_data(
         };
 
         for row in rows {
-            let Some(obj) = row.as_object() else { continue; };
-            if obj.is_empty() { continue; }
+            let Some(source_obj) = row.as_object() else {
+                continue;
+            };
+            let mut obj = source_obj.clone();
+            if obj.is_empty() {
+                continue;
+            }
+            restore_row_assets(table, &mut obj, assets, &app_data_dir)?;
 
-            let columns: Vec<String> = obj.keys().cloned().collect();
-            let values: Vec<String> = obj.values().map(json_value_to_string).collect();
+            let entries: Vec<(&String, &serde_json::Value)> = obj.iter().collect();
+            let columns: Vec<String> = entries.iter().map(|(key, _)| (*key).clone()).collect();
             let columns_str = columns.join(", ");
-            let placeholders: String = (0..values.len()).map(|_| "?").collect::<Vec<_>>().join(", ");
+            let placeholders: String = (0..entries.len())
+                .map(|_| "?")
+                .collect::<Vec<_>>()
+                .join(", ");
 
             let sql = format!("INSERT INTO {table} ({columns_str}) VALUES ({placeholders})");
             let mut query = sqlx::query(&sql);
-            for value in &values {
-                query = query.bind(value);
+            for (_, value) in entries {
+                query = match value {
+                    serde_json::Value::Null => query.bind(Option::<String>::None),
+                    serde_json::Value::String(value) => query.bind(value.clone()),
+                    serde_json::Value::Bool(value) => {
+                        query.bind(if *value { 1_i64 } else { 0_i64 })
+                    }
+                    serde_json::Value::Number(value) => {
+                        if let Some(int_value) = value.as_i64() {
+                            query.bind(int_value)
+                        } else if let Some(uint_value) = value.as_u64() {
+                            if uint_value <= i64::MAX as u64 {
+                                query.bind(uint_value as i64)
+                            } else {
+                                query.bind(uint_value.to_string())
+                            }
+                        } else if let Some(float_value) = value.as_f64() {
+                            query.bind(float_value)
+                        } else {
+                            query.bind(value.to_string())
+                        }
+                    }
+                    _ => query.bind(value.to_string()),
+                };
             }
-            query.execute(&mut *tx).await.map_err(|e| format!("插入表 {table} 失败: {e}"))?;
+            query
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| format!("插入表 {table} 失败: {e}"))?;
         }
     }
 
@@ -454,8 +667,12 @@ pub async fn import_all_data(
 
     // Refresh settings cache
     let raw_settings = load_all_settings(&state.db).await?;
+    let defaults = default_settings();
     let mut cache = state.settings.write().await;
     cache.clear();
+    for (key, value) in defaults {
+        cache.insert(key, value);
+    }
     for (key, value) in raw_settings {
         cache.insert(key, value);
     }
@@ -573,12 +790,12 @@ pub async fn apply_settings_history_entry(
         .await?
         .ok_or_else(|| ERR_SETTINGS_HISTORY_NOT_FOUND.to_string())?;
     let defaults = default_settings();
-    let snapshot: HashMap<String, String> = serde_json::from_str(&row.settings_json)
-        .map_err(|e| format!("解析配置历史失败: {e}"))?;
+    let snapshot: HashMap<String, String> =
+        serde_json::from_str(&row.settings_json).map_err(|e| format!("解析配置历史失败: {e}"))?;
 
     let mut to_save = HashMap::new();
     for (key, value) in snapshot {
-        if defaults.contains_key(&key) {
+        if defaults.contains_key(&key) && !is_local_only_settings_key(&key) {
             to_save.insert(key, value);
         }
     }

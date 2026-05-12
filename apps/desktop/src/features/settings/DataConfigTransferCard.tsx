@@ -72,7 +72,7 @@ export default function DataConfigTransferCard({
         <div>
           <h2 className="text-base font-semibold text-ink-primary">导入与导出</h2>
           <p className="mt-0.5 text-xs text-ink-tertiary">
-            配置文件只迁移小妍设置；全部数据备份会包含配置历史、论文、会话、记忆、投稿和实验数据。
+            配置文件只迁移小妍设置；全部数据备份会包含配置历史、论文、会话、记忆、投稿、实验数据和托管文件。
           </p>
         </div>
       </div>

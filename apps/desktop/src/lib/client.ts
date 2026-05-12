@@ -102,7 +102,7 @@ export const settingsApi = {
       invoke("app_lock_set_timeout", { minutes }),
     getHint: (): Promise<string> =>
       invoke("app_lock_get_hint"),
-    getRecoveryInfo: (): Promise<{ hint: string; question: string; hasEmail: boolean }> =>
+    getRecoveryInfo: (): Promise<{ hint: string; question: string; hasEmail: boolean; hasSecurity: boolean }> =>
       invoke("app_lock_get_recovery_info"),
     setSecurity: (question: string, answer: string): Promise<void> =>
       invoke("app_lock_set_security", { question, answer }),
