@@ -32,6 +32,10 @@ fn security_parts(settings: &HashMap<String, String>) -> Option<(&str, &str)> {
     Some((salt, hash))
 }
 
+fn normalize_email(email: &str) -> String {
+    email.trim().to_lowercase()
+}
+
 fn derive_hash(password: &str, salt: &[u8]) -> [u8; HASH_LEN] {
     let mut hash = [0u8; HASH_LEN];
     pbkdf2::pbkdf2_hmac::<sha2::Sha256>(password.as_bytes(), salt, PBKDF2_ROUNDS, &mut hash);
@@ -69,7 +73,7 @@ pub async fn app_lock_set_password(
     email: String,
 ) -> Result<serde_json::Value, String> {
     let password = password.trim().to_string();
-    let email = email.trim().to_string();
+    let email = normalize_email(&email);
     if password.is_empty() { return Err("密码不能为空。".into()); }
     if email.is_empty() { return Err("邮箱不能为空。".into()); }
 
@@ -173,11 +177,14 @@ pub async fn app_lock_verify_recovery(
     email: String,
     answer: String,
 ) -> Result<bool, String> {
-    let email = email.trim().to_string();
+    let email = normalize_email(&email);
     let answer = answer.trim().to_string();
     let settings = state.settings.read().await;
 
-    let stored_email = settings.get(EMAIL_KEY).cloned().unwrap_or_default();
+    let stored_email = settings
+        .get(EMAIL_KEY)
+        .map(|value| normalize_email(value))
+        .unwrap_or_default();
     if stored_email != email {
         return Err("邮箱不匹配。".into());
     }
@@ -202,14 +209,17 @@ pub async fn app_lock_reset_password(
     new_password: String,
 ) -> Result<serde_json::Value, String> {
     let new_password = new_password.trim().to_string();
-    let email = email.trim().to_string();
+    let email = normalize_email(&email);
     let answer = answer.trim().to_string();
     if new_password.is_empty() { return Err("新密码不能为空。".into()); }
 
     let settings = state.settings.read().await;
 
     // Verify email
-    let stored_email = settings.get(EMAIL_KEY).cloned().unwrap_or_default();
+    let stored_email = settings
+        .get(EMAIL_KEY)
+        .map(|value| normalize_email(value))
+        .unwrap_or_default();
     if stored_email != email {
         return Err("邮箱不匹配。".into());
     }

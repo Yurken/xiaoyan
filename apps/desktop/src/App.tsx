@@ -133,15 +133,11 @@ export default function App() {
           try {
             return await apiClient.settings.appLock.getRecoveryInfo();
           } catch {
-            return { hint: "", question: "" };
+            return { hint: "", question: "", hasEmail: false };
           }
         }}
         onVerifyRecovery={async (email, answer) => {
-          try {
-            return await apiClient.settings.appLock.verifyRecovery(email, answer);
-          } catch {
-            return false;
-          }
+          return await apiClient.settings.appLock.verifyRecovery(email, answer);
         }}
         onResetPassword={async (email, answer, newPassword) => {
           await apiClient.settings.appLock.resetPassword(email, answer, newPassword);
