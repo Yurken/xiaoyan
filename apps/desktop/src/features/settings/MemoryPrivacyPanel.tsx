@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { KeyRound, Loader2, LockKeyhole, ShieldCheck, Trash2, UnlockKeyhole } from "lucide-react";
 import { Card } from "@research-copilot/ui";
+import PasswordInput from "../../components/PasswordInput";
 import type { MemoryPrivacyGate } from "./useMemoryPrivacyGate";
 
 interface MemoryPrivacyPanelProps {
@@ -23,27 +24,19 @@ function PasswordField({
   return (
     <label className="block space-y-1.5">
       <span className="ml-1 block text-xs font-medium text-ink-tertiary">{label}</span>
-      <input
-        type="password"
+      <PasswordInput
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={onChange}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             onEnter?.();
           }
         }}
         placeholder={placeholder}
-        className="w-full rounded-2xl border-0 px-4 py-2.5 text-sm text-ink-primary outline-none transition-shadow duration-150 placeholder:text-ink-tertiary"
+        className="!rounded-2xl !px-4 !py-2.5"
         style={{
           background: "var(--rc-chip-inset-bg)",
           boxShadow: "var(--rc-chip-inset-shadow)",
-        }}
-        onFocus={(event) => {
-          event.currentTarget.style.boxShadow =
-            "var(--rc-chip-inset-shadow), 0 0 0 2px rgba(0,122,255,0.25)";
-        }}
-        onBlur={(event) => {
-          event.currentTarget.style.boxShadow = "var(--rc-chip-inset-shadow)";
         }}
       />
     </label>

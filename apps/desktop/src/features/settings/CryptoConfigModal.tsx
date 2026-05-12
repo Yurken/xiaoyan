@@ -1,4 +1,5 @@
 import { KeyRound, Loader2 } from "lucide-react";
+import PasswordInput from "../../components/PasswordInput";
 import type { CryptoModalState } from "./useSettingsCrypto";
 
 interface CryptoConfigModalProps {
@@ -58,16 +59,15 @@ export default function CryptoConfigModal({
         <div className="space-y-2.5">
           <div className="space-y-1">
             <label className="text-xs font-medium text-ink-tertiary ml-1">密码</label>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
-              onChange={(event) => onPasswordChange(event.target.value)}
+              onChange={onPasswordChange}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !busy) void onSubmit();
               }}
               placeholder="输入密码"
               autoFocus
-              className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
+              className="!rounded-2xl !px-4 !py-2.5"
               style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
             />
           </div>
@@ -75,15 +75,14 @@ export default function CryptoConfigModal({
           {modal.mode === "export" ? (
             <div className="space-y-1">
               <label className="text-xs font-medium text-ink-tertiary ml-1">确认密码</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={confirm}
-                onChange={(event) => onConfirmChange(event.target.value)}
+                onChange={onConfirmChange}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !busy) void onSubmit();
                 }}
                 placeholder="再次输入密码"
-                className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none"
+                className="!rounded-2xl !px-4 !py-2.5"
                 style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
               />
             </div>
