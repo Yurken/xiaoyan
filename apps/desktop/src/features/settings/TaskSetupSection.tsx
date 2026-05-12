@@ -256,7 +256,7 @@ export default function TaskSetupSection({
                   value={String(appLockTimeoutMinutes)}
                   onChange={(e) => { void onSetAppLockTimeout(e.target.value); }}
                   className="rounded-xl px-2 py-1 text-xs outline-none"
-                  style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)", color: "var(--rc-text)" }}
+                  style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text)" }}
                 >
                   <option value="0">仅启动时</option>
                   <option value="1">1 分钟</option>
@@ -294,7 +294,7 @@ export default function TaskSetupSection({
                   value={String(appLockTimeoutMinutes)}
                   onChange={(e) => { void onSetAppLockTimeout(e.target.value); }}
                   className="rounded-xl px-2 py-1 text-xs outline-none"
-                  style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)", color: "var(--rc-text)" }}
+                  style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text)" }}
                 >
                   <option value="0">仅启动时</option>
                   <option value="1">1 分钟</option>
