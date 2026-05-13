@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  View, Text, FlatList, StyleSheet, ActivityIndicator,
+  View, Text, FlatList, StyleSheet, ActivityIndicator, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -105,10 +105,19 @@ export default function PapersScreen() {
   useEffect(() => { load(); }, [load]);
 
   const handleAnalyze = async (id: string) => {
-    await apiClient.papers.analyze(id);
+    const previous = papers.find((paper) => paper.id === id);
     setPapers((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status: "analyzing" } : p))
     );
+    try {
+      await apiClient.papers.analyze(id);
+      await load(true);
+    } catch (error) {
+      if (previous) {
+        setPapers((prev) => prev.map((paper) => (paper.id === id ? previous : paper)));
+      }
+      Alert.alert("分析未启动", error instanceof Error ? error.message : "请检查网络或稍后重试。");
+    }
   };
 
   if (loading) {

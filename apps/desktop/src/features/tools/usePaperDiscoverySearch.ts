@@ -37,6 +37,7 @@ export function usePaperDiscoverySearch() {
 
   useEffect(() => {
     if (selectedDomains.length === 0 || selectedRanks.length === 0) {
+      setVenueFilterLoading(false);
       setCategories([]);
       setJournalTerms("");
       setDynamicJournalTerms([]);
@@ -52,12 +53,14 @@ export function usePaperDiscoverySearch() {
 
     const dynamicRanks = selectedRanks.filter((rank) => RANK_OPTIONS.find((option) => option.key === rank)?.dynamic);
     if (dynamicRanks.length === 0) {
+      setVenueFilterLoading(false);
       setDynamicJournalTerms([]);
       setJournalTerms(staticTerms.join(", "));
       return;
     }
 
     if (venueType === "conference") {
+      setVenueFilterLoading(false);
       setDynamicJournalTerms([]);
       setJournalTerms(staticTerms.join(", "));
       return;
@@ -65,15 +68,23 @@ export function usePaperDiscoverySearch() {
 
     const wosCategories = [...new Set(selectedDomains.flatMap((domainKey) => DOMAIN_VENUES[domainKey]?.wosCats ?? []))];
     setVenueFilterLoading(true);
+    let cancelled = false;
     journalApi.rankFilter(wosCategories, dynamicRanks).then((titles) => {
+      if (cancelled) return;
       setDynamicJournalTerms(titles);
       setJournalTerms([...new Set([...staticTerms, ...titles])].join(", "));
     }).catch(() => {
+      if (cancelled) return;
       setDynamicJournalTerms([]);
       setJournalTerms(staticTerms.join(", "));
     }).finally(() => {
+      if (cancelled) return;
       setVenueFilterLoading(false);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedDomains, selectedRanks, venueType]);
 
   const request = useMemo<ArxivSearchRequest>(

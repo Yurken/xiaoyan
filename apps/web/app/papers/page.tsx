@@ -8,9 +8,13 @@ import { papersApi } from "@/lib/client";
 import type { Paper } from "@research-copilot/types";
 
 const statusMap: Record<string, { label: string; variant: "default" | "info" | "success" | "warning" }> = {
+  pending: { label: "待分析", variant: "default" },
   uploaded: { label: "已上传", variant: "default" },
   parsed: { label: "已解析", variant: "info" },
+  analyzing: { label: "处理中", variant: "warning" },
   analyzed: { label: "已分析", variant: "success" },
+  reproduced: { label: "已生成复现", variant: "success" },
+  failed: { label: "失败", variant: "warning" },
 };
 
 export default function PapersPage() {

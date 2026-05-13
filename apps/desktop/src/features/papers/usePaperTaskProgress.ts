@@ -20,6 +20,7 @@ interface UsePaperTaskProgressOptions {
 
 export function usePaperTaskProgress({ setPapers, setError }: UsePaperTaskProgressOptions) {
   const pendingTasks = useRef(new Map<string, Set<PaperTaskFinalStatus>>());
+  const fetchRequestSeq = useRef(new Map<string, number>());
   const [taskProgressByPaperId, setTaskProgressByPaperId] = useState<Record<string, PaperTaskProgress>>({});
 
   const clearPaperTaskProgress = useCallback((paperId: string) => {
@@ -45,17 +46,30 @@ export function usePaperTaskProgress({ setPapers, setError }: UsePaperTaskProgre
   }, [clearPaperTaskProgress]);
 
   useEffect(() => {
-    const fetchLatestPaper = (paperId: string, finalStatus: string) => {
-      clearPaperTaskProgress(paperId);
-      void apiClient.papers
-        .get(paperId)
+    const fetchPaperSnapshot = (
+      paperId: string,
+      applySnapshot: (latest: Paper, current: Paper) => Paper,
+    ) => {
+      const nextSeq = (fetchRequestSeq.current.get(paperId) ?? 0) + 1;
+      fetchRequestSeq.current.set(paperId, nextSeq);
+
+      void apiClient.papers.get(paperId)
         .then((latest) => {
-          setPapers((prev) => prev.map((paper) => (paper.id === paperId ? latest : paper)));
+          if (fetchRequestSeq.current.get(paperId) !== nextSeq) return;
+          setPapers((prev) =>
+            prev.map((paper) => (paper.id === paperId ? applySnapshot(latest, paper) : paper))
+          );
         })
         .catch((fetchError) => {
-          setError(formatErrorMessage(fetchError));
+          if (fetchRequestSeq.current.get(paperId) === nextSeq) {
+            setError(formatErrorMessage(fetchError));
+          }
         });
-      setPapers((prev) => prev.map((paper) => (paper.id === paperId ? { ...paper, status: finalStatus } : paper)));
+    };
+
+    const fetchLatestPaper = (paperId: string) => {
+      clearPaperTaskProgress(paperId);
+      fetchPaperSnapshot(paperId, (latest) => latest);
     };
 
     const unlisten = listen<PaperStatusEventPayload>("paper:status", (event) => {
@@ -68,7 +82,7 @@ export function usePaperTaskProgress({ setPapers, setError }: UsePaperTaskProgre
           pending.delete(finalStatus);
           if (pending.size === 0) {
             pendingTasks.current.delete(paperId);
-            fetchLatestPaper(paperId, status);
+            fetchLatestPaper(paperId);
           } else {
             setTaskProgressByPaperId((prev) => ({
               ...prev,
@@ -78,24 +92,17 @@ export function usePaperTaskProgress({ setPapers, setError }: UsePaperTaskProgre
           return;
         }
 
-        fetchLatestPaper(paperId, status);
+        fetchLatestPaper(paperId);
         return;
       }
 
       if (status === "metadata") {
-        void apiClient.papers
-          .get(paperId)
-          .then((latest) => {
-            setPapers((prev) => prev.map((paper) => (
-              paper.id === paperId ? { ...latest, status: paper.status } : paper
-            )));
-          })
-          .catch(() => {});
+        fetchPaperSnapshot(paperId, (latest, current) => ({ ...latest, status: current.status }));
         return;
       }
 
       if (status === "parsed") {
-        fetchLatestPaper(paperId, status);
+        fetchLatestPaper(paperId);
         return;
       }
 
