@@ -686,7 +686,7 @@ pub async fn test_settings(state: &AppState, data: &serde_json::Value) -> Result
     if let Some(map) = data.as_object() {
         for (key, value) in map {
             let next_value = value.as_str().unwrap_or("").trim().to_string();
-            if !next_value.is_empty() && next_value != MASK {
+            if next_value != MASK {
                 merged.insert(key.clone(), next_value);
             }
         }
