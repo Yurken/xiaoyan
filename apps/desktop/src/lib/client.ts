@@ -4,7 +4,6 @@
  * require minimal changes.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import type {
   ArxivRankingMode,
   ArxivSearchRequest,
@@ -15,9 +14,6 @@ import type {
   SourceLookupResponse,
   Paper,
   ChatSession,
-  ChatMessage,
-  ChatStreamChunk,
-  ChatMode,
   ResearchInterest,
   ResearchInterestProfile,
   ResearchInterestHintRequest,
@@ -29,6 +25,8 @@ import type {
   AgentRun,
   SettingsHistoryEntry,
 } from "@research-copilot/types";
+import { streamChat } from "./chatStream";
+export { streamChat } from "./chatStream";
 import type {
   CitationCentralityEntry,
   CitationPathResult,
@@ -328,131 +326,6 @@ export const knowledgeApi = {
 };
 
 // ── Chat / Streaming ──────────────────────────────────────────────
-
-export async function* streamChat(
-  body: {
-    session_id?: string;
-    message: string;
-    context_type?: string;
-    context_id?: string;
-    chat_mode?: ChatMode;
-    tag?: string;
-  },
-  signal?: AbortSignal
-): AsyncGenerator<ChatStreamChunk> {
-  if (signal?.aborted) {
-    throw new DOMException("Aborted", "AbortError");
-  }
-
-  // Start the backend stream, get request_id + session_id
-  const { request_id, session_id } = await invoke<{
-    request_id: string;
-    session_id: string;
-  }>("chat_stream", {
-    message: body.message,
-    sessionId: body.session_id ?? null,
-    contextType: body.context_type ?? null,
-    contextId: body.context_id ?? null,
-    chatMode: body.chat_mode ?? null,
-    tag: body.tag ?? null,
-  });
-
-  // Collect events emitted by the Rust backend
-  const queue: ChatStreamChunk[] = [];
-  let done = false;
-  let resolve: (() => void) | null = null;
-  let unlisteners: Array<() => void> = [];
-
-  const cancelBackend = () => {
-    invoke("chat_cancel", { requestId: request_id }).catch(() => {});
-  };
-  const onAbort = () => {
-    done = true;
-    resolve?.();
-    resolve = null;
-    cancelBackend();
-  };
-
-  const enqueue = (chunk: ChatStreamChunk) => {
-    queue.push(chunk);
-    resolve?.();
-    resolve = null;
-  };
-
-  const wait = () =>
-    new Promise<void>((r) => {
-      if (queue.length > 0 || done) return r();
-      resolve = r;
-    });
-
-  try {
-    signal?.addEventListener("abort", onAbort);
-    if (signal?.aborted) {
-      onAbort();
-      throw new DOMException("Aborted", "AbortError");
-    }
-
-    yield { type: "request_id", value: request_id };
-    yield { type: "session_id", value: session_id };
-
-    unlisteners = await Promise.all([
-      listen<{ request_id: string; plan: unknown[] }>(`chat:plan`, (e) => {
-        if (e.payload.request_id === request_id)
-          enqueue({ type: "plan", value: e.payload.plan as never });
-      }),
-      listen<{ request_id: string; value: AgentRun }>(`chat:agent_start`, (e) => {
-        if (e.payload.request_id === request_id)
-          enqueue({ type: "agent_start", value: e.payload.value });
-      }),
-      listen<{ request_id: string; value: AgentRun }>(`chat:agent_complete`, (e) => {
-        if (e.payload.request_id === request_id)
-          enqueue({ type: "agent_complete", value: e.payload.value });
-      }),
-      listen<{ request_id: string; delta: string }>(`chat:delta`, (e) => {
-        if (e.payload.request_id === request_id)
-          enqueue({ type: "delta", value: e.payload.delta });
-      }),
-      listen<{ request_id: string; query: string }>(`chat:searching`, (e) => {
-        if (e.payload.request_id === request_id)
-          enqueue({ type: "searching", query: e.payload.query });
-      }),
-      listen<{ request_id: string; value: NonNullable<ChatMessage["sources"]> }>(`chat:sources`, (e) => {
-        if (e.payload.request_id === request_id)
-          enqueue({ type: "sources", value: e.payload.value });
-      }),
-      listen<{ request_id: string }>(`chat:done`, (e) => {
-        if (e.payload.request_id === request_id) {
-          enqueue({ type: "done" });
-          done = true;
-          resolve?.();
-          resolve = null;
-        }
-      }),
-      listen<{ request_id: string; error: string }>(`chat:error`, (e) => {
-        if (e.payload.request_id === request_id) {
-          enqueue({ type: "error", value: e.payload.error });
-          done = true;
-          resolve?.();
-          resolve = null;
-        }
-      }),
-    ]);
-
-    while (true) {
-      await wait();
-      while (queue.length > 0) {
-        yield queue.shift()!;
-      }
-      if (done) break;
-    }
-  } finally {
-    signal?.removeEventListener("abort", onAbort);
-    if (!done) {
-      cancelBackend();
-    }
-    unlisteners.forEach((u) => u());
-  }
-}
 
 export const chatApi = {
   listSessions: (): Promise<ChatSession[]> => invoke("chat_list_sessions"),

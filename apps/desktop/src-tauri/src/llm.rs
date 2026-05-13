@@ -1064,7 +1064,6 @@ async fn stream_openai_with_tools(
     let mut buf = String::new();
     let mut stream = resp.bytes_stream();
     let mut tool_calls_acc: Vec<serde_json::Value> = Vec::new();
-    let mut finish_reason = String::new();
     let mut in_think = false;
 
     while let Some(chunk) = stream.next().await {
@@ -1075,9 +1074,6 @@ async fn stream_openai_with_tools(
                 break;
             }
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
-                if let Some(fr) = v["choices"][0]["finish_reason"].as_str() {
-                    finish_reason = fr.to_string();
-                }
                 let delta = &v["choices"][0]["delta"];
                 if let Some(r) = delta["reasoning_content"].as_str().or_else(|| delta["reasoning"].as_str()) {
                     if !r.is_empty() {
@@ -1131,7 +1127,7 @@ async fn stream_openai_with_tools(
         on_delta("</think>".to_string());
     }
 
-    if finish_reason == "tool_calls" && !tool_calls_acc.is_empty() {
+    if !tool_calls_acc.is_empty() {
         let calls: Vec<ToolCall> = tool_calls_acc
             .iter()
             .filter_map(|tc| {

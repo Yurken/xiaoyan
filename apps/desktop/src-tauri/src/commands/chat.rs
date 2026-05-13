@@ -222,8 +222,11 @@ pub async fn chat_stream(
     context_id: Option<String>,
     chat_mode: Option<String>,
     tag: Option<String>,
+    request_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let request_id = Uuid::new_v4().to_string();
+    let request_id = request_id
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
     let now = chrono::Utc::now().to_rfc3339();
     let normalized_context_id = context_id.and_then(|value| {
         let trimmed = value.trim().to_string();
@@ -443,7 +446,6 @@ async fn run_chat(
             json!({ "request_id": request_id, "value": sources }),
         );
     }
-    let _ = app.emit("chat:done", json!({ "request_id": request_id }));
     Ok(())
 }
 
