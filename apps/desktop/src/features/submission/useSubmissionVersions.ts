@@ -91,8 +91,18 @@ export function useSubmissionVersions(
     versionId: string,
     patch: Partial<Pick<PaperVersion, "tag" | "label" | "stage" | "content" | "notes" | "filePath" | "fileName">>
   ) => {
+    const previousVersion = Object.values(versionsBySubmission)
+      .flat()
+      .find((version) => version.id === versionId);
     updateVersion(versionId, (version) => ({ ...version, ...patch }));
     await submissionApi.updateVersion(versionId, patch).catch((error) => {
+      if (previousVersion) {
+        updateVersion(versionId, (version) => {
+          const stillOptimistic = (Object.entries(patch) as Array<[keyof typeof patch, unknown]>)
+            .every(([key, value]) => version[key] === value);
+          return stillOptimistic ? previousVersion : version;
+        });
+      }
       onError?.(error);
       throw error;
     });

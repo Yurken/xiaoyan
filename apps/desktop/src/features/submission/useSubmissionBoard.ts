@@ -68,6 +68,11 @@ export function useSubmissionBoard(onError?: (error: unknown) => void) {
         submittedAt: submittedAt?.toISOString().slice(0, 10),
       })
       .catch((error) => {
+        setSubmissions((currentSubmissions) =>
+          currentSubmissions.map((submission) =>
+            submission.id === id && submission.status === status ? currentSubmission : submission
+          )
+        );
         onError?.(error);
       });
   };

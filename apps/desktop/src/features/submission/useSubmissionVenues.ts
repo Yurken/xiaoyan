@@ -129,6 +129,31 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
   );
 
   const toggleVenueStar = useCallback((id: string, type: VenueType) => {
+    const previousVenue =
+      type === "conference"
+        ? conferences.find((conference) => conference.id === id)
+        : journals.find((journal) => journal.id === id);
+    const optimisticStarred = previousVenue ? !previousVenue.starred : undefined;
+
+    const restoreStar = (starred: boolean) => {
+      if (type === "conference") {
+        setConferences((currentConferences) =>
+          currentConferences.map((conference) =>
+            conference.id === id && conference.starred === optimisticStarred
+              ? { ...conference, starred }
+              : conference
+          )
+        );
+        return;
+      }
+
+      setJournals((currentJournals) =>
+        currentJournals.map((journal) =>
+          journal.id === id && journal.starred === optimisticStarred ? { ...journal, starred } : journal
+        )
+      );
+    };
+
     if (type === "conference") {
       setConferences((currentConferences) =>
         currentConferences.map((conference) =>
@@ -141,9 +166,12 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
       );
     }
     submissionApi.toggleVenueStar(id).catch((error) => {
+      if (previousVenue) {
+        restoreStar(previousVenue.starred);
+      }
       onError?.(error);
     });
-  }, [onError]);
+  }, [conferences, journals, onError]);
 
   const handleAddVenue = useCallback(async (template: VenueTemplate) => {
     const dates = getVenueTemplateDates(template);
