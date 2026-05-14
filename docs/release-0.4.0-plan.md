@@ -2,9 +2,9 @@
 
 ## 版本定位
 
-0.4.0 的目标不是继续横向堆新入口，而是把 0.3.x 已经具备的论文、知识、实验、投稿、小妍协同与长期记忆能力收束成一个可持续推进科研任务的闭环版本。
+0.4.0 的目标不是继续横向堆新入口，而是把 0.3.x 已经具备的论文、知识、实验、投稿、小妍协同与长期记忆能力收束成一个可持续推进科研任务的闭环版本，并借鉴 Hermes Agent 的 runtime / tool / event / memory 设计重构小妍自己的 Agent 内核。
 
-版本主题：**研究闭环稳定版**。
+版本主题：**研究闭环稳定版 + 小妍内核收束**。
 
 建议周期：2026-05-12 至 2026-06-09。实际发布时间以核心验收项完成和桌面端发布质量达标为准。
 
@@ -16,6 +16,7 @@
 - 论文导入、正文抽取、图表提取、论文精读、复现建议与 Graph RAG 已经支撑研究材料处理。
 - 长期记忆、记忆隐私分层、应用锁、设置快照与桌面伴侣已经增强了持续使用体验。
 - 后端已开始按 commands / services 拆分，前端也开始沉淀 features，但仍需要避免继续把复杂逻辑塞回大页面。
+- 当前小妍协同仍以固定 Agent 图和关键词规则选路为主，能跑通基础科研流程，但后续继续扩展主题、记忆、工具、投稿与实验链路时，需要更清晰的 runtime、工具层和事件协议。
 
 因此 0.4.0 应重点解决“能力已经有了，但流程仍不够连贯、结果不够可追溯、解析质量不够稳定、工程结构还需继续收束”的问题。
 
@@ -25,7 +26,8 @@
 2. 让论文解析结果更稳定、可回退、可比较，并为后续 MinerU 或多解析器接入打好能力层。
 3. 让小妍长期记忆从“近期片段召回”升级为“会话 checkpoint + 实体关联 + 可控注入”。
 4. 让投稿与实验模块形成证据链，减少投稿前自检、修改计划和审稿回复之间的断裂。
-5. 提升桌面端发布质量，保证结构性修改后能通过相关 type-check 和 lint。
+5. 让小妍从固定多 Agent 节点逐步升级为工具驱动的唯一助手内核：用户始终只面对小妍，背后由 runtime、context builder、tool registry 和统一事件流支撑。
+6. 提升桌面端发布质量，保证结构性修改后能通过相关 type-check 和 lint。
 
 ## 非目标
 
@@ -34,6 +36,8 @@
 - 不在 0.4.0 强制用 MinerU 替换现有 PDF 解析链路；只做可选能力层和样本验证。
 - 不追求 Web / Mobile 与 Desktop 功能完全对齐；Desktop 仍是唯一开发优先级。
 - 不新增大而全页面，不把远程调用、Tauri、副作用、节流、防抖或状态机逻辑继续留在页面 JSX 中。
+- 不把 Hermes Agent 作为前端可见助手、不新增“切换到 Hermes”的用户模式、不让 Hermes 身份写入小妍记忆；Hermes 只作为架构参考或后续可选底层适配。
+- 不在 0.4.0 直接复制或内嵌 Hermes Agent 的 Python runtime 到桌面端发布包；若做验证，只允许以开发期 sidecar / adapter 方式隔离评估。
 
 ## 必做能力
 
@@ -109,7 +113,28 @@
 - 报告中的高风险问题能落到 checklist 或修改任务。
 - 修改任务能追溯到实验记录或论文版本。
 
-### 5. 结构收束与发布质量
+### 5. 小妍 Agent 内核重构
+
+目标：借鉴 Hermes 的 runtime / tool / event / context 分层，但保留小妍为唯一产品身份与唯一对话主体。
+
+交付项：
+
+- [ ] 抽象 `AgentRuntime` 边界，定义统一的 `AgentRequest`、`AgentEvent`、`AgentResult` 和取消语义；现有 `run_agentic` / `agent_graph` 先包成 `XiaoyanNativeRuntime`，不改变默认行为。
+- [ ] 将 `rule / llm / hybrid` 选路下沉为 `RoutingPolicy`，规则模式保留为稳定 fallback，不再作为页面或业务流程的硬编码扩展点。
+- [ ] 将小妍领域能力工具化，优先覆盖研究主题上下文、论文库检索、论文全文读取、Graph RAG、记忆 checkpoint、投稿诊断和实验证据查询。
+- [ ] 新增小妍版 context builder，集中组装小妍身份、当前研究主题、论文 / 笔记 / 实验 / 投稿上下文、记忆 checkpoint、隐私边界和工具使用约束。
+- [ ] 统一 Agent 事件流，把计划、节点开始、工具开始、工具完成、产物生成、文本 delta、完成和失败都收敛为后端事件模型，再映射到现有 `chat:*` 前端事件。
+- [ ] 协同台文案从“多个外部助手”收束为“小妍正在执行的步骤 / 工具 / 证据链”，避免用户感知到第二个助手身份。
+- [ ] 保留 Hermes adapter 设计草案：只描述如何通过 API server / sidecar 接入，不作为 0.4.0 默认运行路径。
+
+验收标准：
+
+- 用户可见的助手身份始终是小妍，设置、会话、记忆、协同台和导出内容不出现 Hermes 作为回答主体。
+- 现有小妍对话在默认配置下行为不回退；旧的固定 Agent 图可通过 `XiaoyanNativeRuntime` 继续运行。
+- 新增工具或上下文能力时，不需要继续修改大段页面 JSX 或在 `chat.rs` 中追加关键词规则。
+- Agent 事件能被协同台稳定消费，并可追溯到具体工具调用、证据来源或失败原因。
+
+### 6. 结构收束与发布质量
 
 目标：在 0.4.0 中显式偿还核心页面和功能域的结构债，避免功能越多越难改。
 
@@ -135,6 +160,7 @@
 - 论文解析 adapter 与解析质量摘要。
 - 长期记忆 checkpoint 的数据结构、写入和召回。
 - 投稿前诊断报告与 checklist / 修改任务联动。
+- 小妍唯一助手内核重构的 runtime 接口、context builder、RoutingPolicy fallback 和统一事件流。
 - 本版本触达页面的结构拆分和 type-check。
 
 ### P1：尽量进入 0.4.0
@@ -143,6 +169,7 @@
 - 主题详情中的最近决策、开放问题和下一步建议。
 - 实验证据链在投稿页和实验页的双向入口。
 - 审稿意见结构化解析的第一版。
+- Hermes sidecar / API server 的开发期验证方案与适配器草案，默认关闭且不暴露给普通用户。
 
 ### P2：推迟到 0.4.x
 
@@ -150,6 +177,7 @@
 - MinerU sidecar API 或外部服务配置。
 - Web / Mobile 的主题闭环展示。
 - 更完整的审稿回复协作工作台。
+- 完整 HermesRuntime 适配、Hermes 工具桥接和跨 runtime 会话迁移。
 
 ## 里程碑
 
@@ -159,6 +187,7 @@
 - 完成论文解析 adapter 设计。
 - 完成 `memory_session_summaries`、`memory_links` 迁移设计。
 - 梳理投稿诊断报告的数据结构。
+- 完成小妍 `AgentRuntime`、`AgentEvent`、`RoutingPolicy`、context builder 的接口设计，确认 Hermes 仅作为参考实现不作为用户可见身份。
 
 ### M2：核心链路打通
 
@@ -166,6 +195,7 @@
 - 论文重解析与质量摘要可用。
 - 会话 checkpoint 写入和召回可用。
 - 投稿前诊断报告可生成并保存。
+- 现有小妍多 Agent 流程通过 `XiaoyanNativeRuntime` 跑通，前端继续消费统一事件流。
 
 ### M3：联动与体验
 
@@ -173,6 +203,7 @@
 - 论文、实验、投稿与研究主题互相跳转。
 - 诊断报告转 checklist / 修改任务。
 - 小妍能引用主题上下文和 checkpoint。
+- 小妍协同台展示工具驱动的执行步骤，旧 Agent 节点文案逐步收束为小妍的任务步骤。
 
 ### M4：发布收口
 
@@ -190,6 +221,7 @@
 - `features/memory/`：checkpoint 列表、隐私校验后的详情展示。
 - `features/submission/`：投稿前诊断报告、checklist / 修改任务联动。
 - `features/experiment/`：实验记录与论文版本、诊断问题关联。
+- `features/copilot/`：统一 Agent 事件展示、工具步骤、证据链和小妍唯一助手文案收束。
 
 ### 后端
 
@@ -197,6 +229,9 @@
 - `services/memory_checkpoint_service.rs`：会话 checkpoint 生成、检索与实体关联。
 - `services/research_context_service.rs`：研究主题聚合查询。
 - `services/submission_diagnosis_service.rs`：诊断报告生成与结果落库。
+- `services/agent_runtime_service.rs`：小妍 Agent runtime 抽象、默认 runtime 调度、取消和结果归档。
+- `services/agent_context_builder.rs`：集中构造小妍身份、主题、记忆、实体上下文和工具约束。
+- `services/agent_tool_service.rs`：把论文、知识图谱、记忆、投稿和实验能力整理为小妍可调用的领域工具。
 - `commands/*`：只保留 Tauri 参数入口、校验和 service 调用。
 
 ### 数据库
@@ -206,6 +241,7 @@
 - `memory_links`：连接记忆与论文、笔记、主题、投稿、实验等实体。
 - `submission_diagnosis_reports`：保存投稿前诊断报告。
 - `submission_revision_tasks`：保存从诊断报告或审稿意见转出的修改任务。
+- 复用并扩展 `agent_runs`、`agent_artifacts`：记录 runtime、工具步骤、证据摘要和失败原因；能复用时不新增重复表。
 
 ## 风险与应对
 
@@ -215,6 +251,9 @@
 | 论文解析适配器牵动旧链路 | 导入与分析回归 | 保留现有默认解析路径，adapter 先包住现有能力 |
 | 长期记忆注入过多 | token 成本和回答漂移 | checkpoint 只注入摘要与引用索引，详情按需补充 |
 | 投稿诊断报告过度依赖模型质量 | 输出不稳定 | 固定报告 schema，保留用户编辑和 checklist 转化 |
+| 直接替换成 Hermes 导致小妍身份稀释 | 产品体验割裂、记忆归属混乱 | Hermes 只作为架构参考；用户可见身份、prompt、记忆和事件命名都归小妍 |
+| Python sidecar 增加发布复杂度 | 安装包体积、权限、依赖和诊断成本上升 | 0.4.0 不默认内嵌 sidecar，只保留开发期验证方案 |
+| 工具驱动内核权限过宽 | 本地文件、终端或外部服务调用风险 | 小妍领域工具优先，危险工具默认不进入 0.4.0 主路径；所有副作用进入 service/hook 边界 |
 | 大页面继续膨胀 | 后续维护困难 | 触达即拆分，先抽 hook / feature 组件再加功能 |
 
 ## 发布验收清单
@@ -223,9 +262,10 @@
 - [ ] 新增数据表带迁移和兼容策略。
 - [ ] 旧用户数据库升级后核心页面可正常打开。
 - [ ] 论文导入、论文详情、小妍对话、知识主题、实验记录、投稿管理主链路可用。
+- [ ] 小妍仍是唯一助手身份；普通用户路径下无 Hermes 可见模式、可见助手名或记忆来源。
+- [ ] 小妍 Agent runtime 默认路径、取消逻辑、事件流和旧会话兼容性完成验证。
 - [ ] `pnpm --filter @research-copilot/desktop type-check` 通过。
 - [ ] 跨工作区修改时 `pnpm type-check` 和 `pnpm lint` 通过。
 - [ ] `CHANGELOG.md` 已补充 0.4.0 条目。
 - [ ] 版本号通过 `node scripts/sync-version.mjs --tag v0.4.0` 同步。
 - [ ] macOS 安装包和自动更新链路完成验证。
-
