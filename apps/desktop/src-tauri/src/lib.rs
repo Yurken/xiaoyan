@@ -30,8 +30,7 @@ use commands::{
     app_lock::{
         app_lock_clear_password, app_lock_get_hint, app_lock_get_recovery_info,
         app_lock_reset_password, app_lock_set_password, app_lock_set_security,
-        app_lock_set_timeout, app_lock_status, app_lock_verify_password,
-        app_lock_verify_recovery,
+        app_lock_set_timeout, app_lock_status, app_lock_verify_password, app_lock_verify_recovery,
     },
     arxiv::arxiv_search,
     ccf::{ccf_list, ccf_lookup},
@@ -82,7 +81,8 @@ use commands::{
     paper_search::paper_search,
     papers::{
         papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list,
-        papers_list_parse_runs, papers_open_pdf, papers_reproduce, papers_update, papers_upload,
+        papers_list_parse_runs, papers_open_pdf, papers_reparse, papers_reproduce, papers_update,
+        papers_upload,
     },
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
@@ -265,6 +265,7 @@ pub fn run() {
             papers_delete,
             papers_open_pdf,
             papers_extract_pdf_text,
+            papers_reparse,
             papers_analyze,
             papers_reproduce,
             papers_list_figures,

@@ -17,6 +17,7 @@ use crate::state::AppState;
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::Row;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tauri::{Emitter, Manager, State};
@@ -265,6 +266,95 @@ pub async fn papers_list_parse_runs(
     list_paper_parse_runs(&state.db, &paper_id)
         .await
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn papers_reparse(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let row = sqlx::query("SELECT file_path FROM papers WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "未找到对应论文。".to_string())?;
+
+    let file_path = row
+        .get::<Option<String>, _>("file_path")
+        .ok_or_else(|| "这篇论文没有可重解析的 PDF 文件。".to_string())?;
+    let managed_path = canonical_managed_pdf_path(&app, Path::new(&file_path))?;
+    let db = state.db.clone();
+    let settings = state.settings.read().await.clone();
+    let paper_id = id.clone();
+
+    tokio::spawn(async move {
+        let started_at = Instant::now();
+        let now = chrono::Utc::now().to_rfc3339();
+        let _ = sqlx::query("UPDATE papers SET status = 'parsing', updated_at = ? WHERE id = ?")
+            .bind(&now)
+            .bind(&paper_id)
+            .execute(&db)
+            .await;
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": paper_id, "status": "parsing" }),
+        );
+
+        let parse_result = match parse_pdf_document(&db, &paper_id, managed_path).await {
+            Ok(value) => value,
+            Err(error) => {
+                let now = chrono::Utc::now().to_rfc3339();
+                let _ =
+                    sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
+                        .bind(&now)
+                        .bind(&paper_id)
+                        .execute(&db)
+                        .await;
+                let _ = app.emit(
+                    "paper:status",
+                    json!({ "paper_id": paper_id, "status": "failed", "error": error }),
+                );
+                return;
+            }
+        };
+
+        let text = parse_result.text;
+        let refreshed_keywords =
+            crate::commands::paper_analysis_text::extract_keywords_from_text(&text);
+        let refreshed_tags =
+            serde_json::to_string(&refreshed_keywords).unwrap_or_else(|_| "[]".to_string());
+        let parsed_now = chrono::Utc::now().to_rfc3339();
+        let _ = sqlx::query(
+            "UPDATE papers SET full_text = ?, tags = ?, status = 'parsed', updated_at = ? WHERE id = ?",
+        )
+        .bind(&text)
+        .bind(&refreshed_tags)
+        .bind(&parsed_now)
+        .bind(&paper_id)
+        .execute(&db)
+        .await;
+
+        if let Err(error) = replace_paper_chunks(&db, &settings, &paper_id, &text).await {
+            eprintln!(
+                "[paper-reparse][{}] chunk refresh failed: {}",
+                paper_id, error
+            );
+        }
+
+        let _ = app.emit(
+            "paper:status",
+            json!({ "paper_id": paper_id, "status": "parsed" }),
+        );
+        eprintln!(
+            "[paper-reparse][{}] complete elapsed_ms={}",
+            paper_id,
+            started_at.elapsed().as_millis()
+        );
+    });
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -1912,6 +2002,70 @@ async fn embed_in_batches(
         }
     }
     Some(all_embeddings)
+}
+
+fn chunking_settings(settings: &HashMap<String, String>) -> (usize, usize, usize) {
+    let chunk_size = settings
+        .get("chunk_size")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(800);
+    let chunk_overlap = settings
+        .get("chunk_overlap")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(150);
+    let embedding_batch_size = settings
+        .get("embedding_batch_size")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(48)
+        .clamp(8, 128);
+    (chunk_size, chunk_overlap, embedding_batch_size)
+}
+
+async fn replace_paper_chunks(
+    db: &sqlx::SqlitePool,
+    settings: &HashMap<String, String>,
+    paper_id: &str,
+    text: &str,
+) -> Result<(), String> {
+    let (chunk_size, chunk_overlap, embedding_batch_size) = chunking_settings(settings);
+    let chunks = chunk_text(text, chunk_size, chunk_overlap);
+    let contents: Vec<String> = chunks.iter().map(|chunk| chunk.content.clone()).collect();
+    let embeddings = if let Ok(client) = LlmClient::embed_client_from_settings(settings) {
+        embed_in_batches(&client, &contents, embedding_batch_size).await
+    } else {
+        None
+    };
+    let chunk_now = chrono::Utc::now().to_rfc3339();
+
+    let mut tx = db.begin().await.map_err(|error| error.to_string())?;
+    sqlx::query("DELETE FROM paper_chunks WHERE paper_id = ?")
+        .bind(paper_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| error.to_string())?;
+
+    for (index, chunk) in chunks.iter().enumerate() {
+        let chunk_id = Uuid::new_v4().to_string();
+        let embedding = embeddings
+            .as_ref()
+            .and_then(|values| values.get(index))
+            .map(|value| serialize_embedding(value));
+        sqlx::query(
+            "INSERT INTO paper_chunks (id, paper_id, chunk_index, content, embedding, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&chunk_id)
+        .bind(paper_id)
+        .bind(chunk.chunk_index as i64)
+        .bind(&chunk.content)
+        .bind(&embedding)
+        .bind(&chunk_now)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| error.to_string())?;
+    }
+
+    tx.commit().await.map_err(|error| error.to_string())
 }
 
 fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> serde_json::Value {

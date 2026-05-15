@@ -155,6 +155,8 @@ export const papersApi = {
     invoke("papers_open_pdf", { id }),
   analyze: (id: string): Promise<void> =>
     invoke("papers_analyze", { id }),
+  reparse: (id: string): Promise<void> =>
+    invoke("papers_reparse", { id }),
   reproduce: (id: string): Promise<void> =>
     invoke("papers_reproduce", { id }),
   listFigures: (paper_id: string): Promise<Array<{ id: string; paper_id: string; fig_index: number; kind?: string; caption: string | null; data_url: string }>> =>

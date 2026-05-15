@@ -66,7 +66,7 @@ export default function PaperDetailModal({
   const onCloseRef = useRef(onClose);
   const closeTimerRef = useRef<number | null>(null);
   const paperId = paper?.id;
-  const { parseRuns, parseRunsLoading } = usePaperParseRuns(paperId);
+  const { parseRuns, parseRunsLoading, reparseLoading, reparseError, reparsePaper } = usePaperParseRuns(paperId);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -300,7 +300,13 @@ export default function PaperDetailModal({
                 <p className="text-[11px] font-semibold tracking-[0.18em] text-ink-tertiary uppercase">复现/验证指南</p>
               </div>
               <div className="mt-3 min-h-0 space-y-3 overflow-y-auto pr-1.5">
-                <PaperParseQualityPanel runs={parseRuns} loading={parseRunsLoading} />
+                <PaperParseQualityPanel
+                  runs={parseRuns}
+                  loading={parseRunsLoading}
+                  reparsing={reparseLoading}
+                  reparseError={reparseError}
+                  onReparse={reparsePaper}
+                />
 
                 {reproductionSections.length > 0 ? (
                   reproductionSections.map((section) => (

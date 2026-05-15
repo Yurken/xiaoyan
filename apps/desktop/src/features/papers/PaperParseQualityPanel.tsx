@@ -1,9 +1,13 @@
-import { AlertTriangle, CheckCircle2, FileScan, Loader2, Timer } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileScan, Loader2, RefreshCw, Timer } from "lucide-react";
+import { Button } from "@research-copilot/ui";
 import type { PaperParseRun } from "./shared";
 
 interface PaperParseQualityPanelProps {
   runs: PaperParseRun[];
   loading: boolean;
+  reparsing: boolean;
+  reparseError: string;
+  onReparse: () => void | Promise<void>;
 }
 
 const STATUS_STYLE: Record<PaperParseRun["status"], { label: string; color: string; bg: string }> = {
@@ -29,9 +33,16 @@ function formatDuration(value?: number): string {
   return `${(value / 1000).toFixed(1)} s`;
 }
 
-export default function PaperParseQualityPanel({ runs, loading }: PaperParseQualityPanelProps) {
+export default function PaperParseQualityPanel({
+  runs,
+  loading,
+  reparsing,
+  reparseError,
+  onReparse,
+}: PaperParseQualityPanelProps) {
   const latest = runs[0];
   const statusStyle = latest ? STATUS_STYLE[latest.status] : null;
+  const busy = loading || reparsing || latest?.status === "running";
 
   return (
     <section
@@ -43,7 +54,20 @@ export default function PaperParseQualityPanel({ runs, loading }: PaperParseQual
           <FileScan className="h-4 w-4 text-[#5856D6]" />
           <p className="text-sm font-semibold text-ink-primary">解析质量</p>
         </div>
-        {loading ? <Loader2 className="h-4 w-4 animate-spin text-ink-tertiary" /> : null}
+        <div className="flex items-center gap-2">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin text-ink-tertiary" /> : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => void onReparse()}
+            title="重新解析 PDF"
+          >
+            {reparsing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            重解析
+          </Button>
+        </div>
       </div>
 
       {!latest ? (
@@ -84,6 +108,11 @@ export default function PaperParseQualityPanel({ runs, loading }: PaperParseQual
           {latest.fallbackPath || latest.error ? (
             <p className="rounded-2xl px-3 py-2 text-xs leading-5 text-ink-secondary" style={{ background: "rgba(255,149,0,0.08)" }}>
               {latest.error ?? `回退路径：${latest.fallbackPath}`}
+            </p>
+          ) : null}
+          {reparseError ? (
+            <p className="rounded-2xl px-3 py-2 text-xs leading-5 text-ink-secondary" style={{ background: "rgba(255,59,48,0.08)" }}>
+              {reparseError}
             </p>
           ) : null}
         </div>
