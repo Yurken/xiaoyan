@@ -356,6 +356,8 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   };
 
   const requiresReanalyzeConfirm = (paper: Paper) => paper.status === "analyzed" || paper.status === "reproduced";
+  const canOpenDetail = (paper: Paper) =>
+    Boolean(paper.analysis || paper.reproduction_guide || ["parsed", "failed", "error"].includes(paper.status));
 
   const openEditor = (paper: Paper) => {
     setEditingId(paper.id);
@@ -704,7 +706,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           </Button>
 
           {/* 展开按钮 */}
-          {(paper.analysis || paper.reproduction_guide) && (
+          {canOpenDetail(paper) && (
             <button
               type="button"
               onClick={() => {

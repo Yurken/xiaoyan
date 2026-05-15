@@ -82,7 +82,7 @@ use commands::{
     paper_search::paper_search,
     papers::{
         papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list,
-        papers_open_pdf, papers_reproduce, papers_update, papers_upload,
+        papers_list_parse_runs, papers_open_pdf, papers_reproduce, papers_update, papers_upload,
     },
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
@@ -259,6 +259,7 @@ pub fn run() {
             // Papers
             papers_list,
             papers_get,
+            papers_list_parse_runs,
             papers_upload,
             papers_update,
             papers_delete,

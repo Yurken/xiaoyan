@@ -12,7 +12,7 @@ use crate::journal_partitions::match_journal;
 use crate::links::paper_reference_url;
 use crate::llm::{resolve_max_tokens, resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{chunk_text, serialize_embedding};
-use crate::services::paper_parser_service::parse_pdf_document;
+use crate::services::paper_parser_service::{list_paper_parse_runs, parse_pdf_document};
 use crate::state::AppState;
 use serde::Deserialize;
 use serde_json::json;
@@ -255,6 +255,16 @@ pub async fn papers_get(
         );
     }
     Ok(paper)
+}
+
+#[tauri::command]
+pub async fn papers_list_parse_runs(
+    state: State<'_, AppState>,
+    paper_id: String,
+) -> Result<serde_json::Value, String> {
+    list_paper_parse_runs(&state.db, &paper_id)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

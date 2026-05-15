@@ -2,8 +2,8 @@ use crate::commands::paper_text::{
     extract_pdf_preview_text, extract_pdf_text_with_filtered_stderr, preview_from_text,
 };
 use anyhow::Result;
-use serde_json::json;
-use sqlx::SqlitePool;
+use serde_json::{json, Value};
+use sqlx::{Row, SqlitePool};
 use std::path::PathBuf;
 use std::time::Instant;
 use uuid::Uuid;
@@ -225,6 +225,49 @@ pub async fn parse_pdf_document(
         .map_err(|error| error.to_string())?;
 
     Ok(result)
+}
+
+pub async fn list_paper_parse_runs(db: &SqlitePool, paper_id: &str) -> Result<Value> {
+    let rows = sqlx::query(
+        "SELECT id, paper_id, parser_name, status, started_at, finished_at, duration_ms,
+                text_length, preview_length, section_count, figure_count, fallback_path, error,
+                metadata_json, created_at, updated_at
+         FROM paper_parse_runs
+         WHERE paper_id = ?
+         ORDER BY created_at DESC",
+    )
+    .bind(paper_id)
+    .fetch_all(db)
+    .await?;
+
+    let runs = rows
+        .iter()
+        .map(|row| {
+            let metadata_raw = row.get::<String, _>("metadata_json");
+            let metadata =
+                serde_json::from_str::<Value>(&metadata_raw).unwrap_or_else(|_| json!({}));
+            json!({
+                "id": row.get::<String, _>("id"),
+                "paperId": row.get::<String, _>("paper_id"),
+                "parserName": row.get::<String, _>("parser_name"),
+                "status": row.get::<String, _>("status"),
+                "startedAt": row.get::<String, _>("started_at"),
+                "finishedAt": row.get::<Option<String>, _>("finished_at"),
+                "durationMs": row.get::<Option<i64>, _>("duration_ms"),
+                "textLength": row.get::<i64, _>("text_length"),
+                "previewLength": row.get::<i64, _>("preview_length"),
+                "sectionCount": row.get::<i64, _>("section_count"),
+                "figureCount": row.get::<i64, _>("figure_count"),
+                "fallbackPath": row.get::<Option<String>, _>("fallback_path"),
+                "error": row.get::<Option<String>, _>("error"),
+                "metadata": metadata,
+                "createdAt": row.get::<String, _>("created_at"),
+                "updatedAt": row.get::<String, _>("updated_at"),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Ok(json!({ "runs": runs }))
 }
 
 #[cfg(test)]
