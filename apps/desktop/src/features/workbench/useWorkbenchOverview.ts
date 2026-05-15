@@ -6,8 +6,10 @@ import {
   type WorkbenchOverviewModel,
   type WorkbenchOverviewSource,
   type WorkbenchOverviewText,
+  rowToWorkbenchCheckpoint,
 } from "./shared";
-import { buildSourceSummary, buildWorkbenchOverviewModel } from "./model";
+import { buildWorkbenchOverviewModel } from "./model";
+import { buildSourceSummary } from "./sourceSummary";
 
 interface WorkbenchOverviewState {
   model: WorkbenchOverviewModel | null;
@@ -56,12 +58,14 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
   useEffect(() => {
     let cancelled = false;
 
+<<<<<<< HEAD
     const loadOverview = () => {
       Promise.all([
         apiClient.papers.list(0, 100),
         apiClient.knowledge.listInterests(),
         apiClient.knowledge.listNotes(),
         apiClient.chat.listSessions(),
+        apiClient.memory.listCheckpoints(8).catch(() => ({ checkpoints: [] })),
         submissionApi.stats().catch<SubmissionOverviewStats>(() => ({
           active: 0,
           pendingReviews: 0,
@@ -69,7 +73,7 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
         })),
         apiClient.workbench.getOverviewTextCache().catch(() => null),
       ])
-        .then(([papers, interests, notes, sessions, submission, cachedText]) => {
+        .then(([papers, interests, notes, sessions, checkpointResult, submission, cachedText]) => {
           if (cancelled) return;
 
           const source: WorkbenchOverviewSource = {
@@ -77,6 +81,7 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
             interests,
             notes,
             sessions,
+            checkpoints: checkpointResult.checkpoints.map(rowToWorkbenchCheckpoint),
             submission,
           };
 

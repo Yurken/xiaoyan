@@ -12,6 +12,7 @@ pub mod knowledge_graph;
 pub mod knowledge_notes;
 pub mod knowledge_plan_status;
 pub mod memory;
+pub mod memory_checkpoints;
 pub mod memory_privacy;
 pub mod misc;
 pub mod paper_analysis_prompts;

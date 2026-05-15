@@ -1,4 +1,6 @@
 use anyhow::Result;
+use serde_json::{json, Value};
+use sqlx::Row;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -219,6 +221,42 @@ pub async fn record_chat_failure_checkpoint(
 
 pub fn parse_checkpoint_list(raw: &str) -> Vec<String> {
     serde_json::from_str::<Vec<String>>(raw).unwrap_or_default()
+}
+
+pub async fn list_recent_checkpoints(db: &SqlitePool, limit: i64) -> Result<Value> {
+    let rows = sqlx::query(
+        "SELECT id, session_id, request_id, context_type, context_id, goal, summary,
+                completed_items, open_questions, next_steps, status, created_at, updated_at
+         FROM memory_session_summaries
+         ORDER BY updated_at DESC
+         LIMIT ?",
+    )
+    .bind(limit.clamp(1, 30))
+    .fetch_all(db)
+    .await?;
+
+    let checkpoints: Vec<Value> = rows
+        .iter()
+        .map(|row| {
+            json!({
+                "id": row.get::<String, _>("id"),
+                "session_id": row.get::<String, _>("session_id"),
+                "request_id": row.get::<Option<String>, _>("request_id"),
+                "context_type": row.get::<String, _>("context_type"),
+                "context_id": row.get::<Option<String>, _>("context_id"),
+                "goal": row.get::<String, _>("goal"),
+                "summary": row.get::<String, _>("summary"),
+                "completed_items": parse_checkpoint_list(&row.get::<String, _>("completed_items")),
+                "open_questions": parse_checkpoint_list(&row.get::<String, _>("open_questions")),
+                "next_steps": parse_checkpoint_list(&row.get::<String, _>("next_steps")),
+                "status": row.get::<String, _>("status"),
+                "created_at": row.get::<String, _>("created_at"),
+                "updated_at": row.get::<String, _>("updated_at"),
+            })
+        })
+        .collect();
+
+    Ok(json!({ "checkpoints": checkpoints }))
 }
 
 pub fn checkpoint_to_memory_line(

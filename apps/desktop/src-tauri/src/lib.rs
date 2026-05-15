@@ -69,6 +69,7 @@ use commands::{
         memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list,
         memory_list_observations, memory_search_observations,
     },
+    memory_checkpoints::memory_list_checkpoints,
     memory_privacy::{
         memory_list_auto_records, memory_list_manual_records, memory_list_private_observations,
         memory_privacy_clear_password, memory_privacy_set_password, memory_privacy_status,
@@ -326,6 +327,7 @@ pub fn run() {
             memory_add,
             memory_list,
             memory_list_observations,
+            memory_list_checkpoints,
             memory_search_observations,
             memory_list_manual_records,
             memory_list_auto_records,

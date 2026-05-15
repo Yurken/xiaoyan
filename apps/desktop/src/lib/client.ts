@@ -429,6 +429,26 @@ export interface MemoryObservation {
   score?: number;
 }
 
+export interface MemoryCheckpoint {
+  id: string;
+  session_id: string;
+  request_id: string | null;
+  context_type: string;
+  context_id: string | null;
+  goal: string;
+  summary: string;
+  completed_items: string[];
+  open_questions: string[];
+  next_steps: string[];
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryCheckpointListResponse {
+  checkpoints: MemoryCheckpoint[];
+}
+
 export interface MemoryPrivacyStatus {
   enabled: boolean;
 }
@@ -474,6 +494,8 @@ export const memoryApi = {
       query,
       limit,
     }),
+  listCheckpoints: (limit = 8): Promise<MemoryCheckpointListResponse> =>
+    invoke("memory_list_checkpoints", { limit }),
   privacyStatus: (): Promise<MemoryPrivacyStatus> =>
     invoke("memory_privacy_status"),
   setPrivacyPassword: (password: string): Promise<MemoryPrivacyStatus> =>
