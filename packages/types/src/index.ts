@@ -32,9 +32,9 @@ const CAPABILITY_MODEL_NAME_MAP: Record<string, string> = {
 export function replaceAgentWording(text: string): string {
   if (!text) return text;
   return text
-    .replace(/\bAgent\s*(\d+)\b/gi, "能力域模型 $1")
-    .replace(/\bAgent\b/g, "能力域模型")
-    .replace(/\bagent\b/g, "能力域模型");
+    .replace(/\bAgent\s*(\d+)\b/gi, "小妍能力步骤 $1")
+    .replace(/\bAgent\b/g, "小妍能力步骤")
+    .replace(/\bagent\b/g, "小妍能力步骤");
 }
 
 export function toCapabilityModelName(name: string): string {
@@ -45,7 +45,7 @@ export function toCapabilityModelName(name: string): string {
   if (mapped) return mapped;
 
   return replaceAgentWording(raw)
-    .replace(/\s*能力域模型$/, "模型")
+    .replace(/\s*小妍能力步骤$/, "模型")
     .replace(/\s+/g, " ")
     .trim();
 }

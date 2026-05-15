@@ -38,6 +38,7 @@
 - 2026-05-15：已将内部 prompt 文案从“外部/子 Agent”收束为“小妍内部步骤 / 专项能力”，避免生成内容中出现第二助手身份。
 - 2026-05-15：已新增 `memory_session_summaries` 与 `memory_links`，小妍完成或失败一次会话后会写入轻量 checkpoint，并在长期记忆上下文中召回最近 checkpoint。
 - 2026-05-15：已新增 `paper_parse_runs` 与 `paper_parser_service.rs`，现有 PDF 解析路径被包成默认 adapter，并记录解析状态、耗时、正文长度、预览长度、回退路径和错误。
+- 2026-05-15：已将前端用户可见的协同文案从 Agent / 能力域模型收束为“小妍步骤 / 小妍能力”，保留内部协议字段不变。
 
 ## 非目标
 

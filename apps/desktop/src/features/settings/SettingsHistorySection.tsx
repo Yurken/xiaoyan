@@ -313,7 +313,7 @@ export default function SettingsHistorySection({
                         <MetaChip label={PROVIDER_LABELS[entry.llm_provider] ?? entry.llm_provider} />
                         <MetaChip label={entry.chat_model || "未配置主模型"} />
                         <MetaChip label={SEARCH_ENGINE_LABELS[entry.paper_search_engine] ?? entry.paper_search_engine} />
-                        <MetaChip label={entry.multi_agent_enabled ? `多能力域模型 ${entry.enabled_agents_count} 个` : "已关闭多能力域模型"} />
+                        <MetaChip label={entry.multi_agent_enabled ? `小妍步骤 ${entry.enabled_agents_count} 个` : "已关闭小妍步骤"} />
                       </div>
                     </div>
 

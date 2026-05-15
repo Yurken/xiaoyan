@@ -613,7 +613,7 @@ export default function InterestsPanel() {
                             </div>
 
                             <p className={`mt-3 text-[11px] leading-5 ${agent.error ? "text-apple-red" : "text-ink-secondary"}`}>
-                              {agent.error || agent.summary || "等待该能力域模型输出阶段性结果。"}
+                              {agent.error || agent.summary || "等待小妍步骤输出阶段性结果。"}
                             </p>
 
                             <div className="agent-flow-progress" aria-hidden="true">

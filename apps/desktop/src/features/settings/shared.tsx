@@ -374,18 +374,18 @@ export const AGENT_OPTIONS = [
 export const ROUTING_MODE_COPY: Record<MultiAgentRoutingMode, { label: string; description: string; note: string }> = {
   rule: {
     label: "规则判断",
-    description: "根据关键词和上下文类型固定选择能力域模型，最稳定，也最容易复现。",
+    description: "根据关键词和上下文类型固定选择小妍步骤，最稳定，也最容易复现。",
     note: "这一模式不会调用调度模型，适合你想严格控制成本和行为边界时使用。",
   },
   llm: {
     label: "模型判断",
-    description: "由调度模型实时决定该启用哪些能力域模型，更灵活，也更依赖模型本身。",
+    description: "由调度模型实时决定该启用哪些小妍步骤，更灵活，也更依赖模型本身。",
     note: "适合复杂提问和开放式任务。建议给调度模型配置快一些、判断力强一些的模型。",
   },
   hybrid: {
     label: "混合判断",
     description: "先用规则确定基础班底，再由调度模型补充和重排，兼顾稳定性和灵活性。",
-    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键能力域模型，再由模型补充额外角色。",
+    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键小妍步骤，再由模型补充额外分工。",
   },
 };
 
@@ -396,7 +396,7 @@ export const AGENT_GUIDES = [
   { key: "paper_analyst", label: "洞见模型", description: "聚焦单篇论文的方法、实验和局限。" },
   { key: "survey", label: "翰章模型", description: "把线索整理成结构化综述和趋势判断。" },
   { key: "reproduction", label: "构域模型", description: "聚焦实现细节、实验配置和复现风险。" },
-  { key: "synthesis", label: "整合模型", description: "把各专项能力域模型的结果整合成最终回答。" },
+  { key: "synthesis", label: "整合模型", description: "把各小妍步骤的结果整合成最终回答。" },
 ];
 
 export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
@@ -430,7 +430,7 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "谋策 · 规划",
     description: "具备极强逻辑推理与拆解能力，负责深度调度与研究思路分析。",
     recommendation: "这里更适合旗舰推理模型，不必追求速度，准确性和逻辑性优先。",
-    affectedScopes: "多能力域模型调度、研究规划分析与生成",
+    affectedScopes: "小妍步骤调度、研究规划分析与生成",
     icon: Brain,
     iconColor: "#AF52DE",
     modelKeys: [
@@ -464,7 +464,7 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     title: "小妍 · 默认回退",
     description: "没有单独指定时，作为各专项任务的统一执行回退。",
     recommendation: "如果上方的小妍默认模型已经足够稳定，这里可以留空；只有想让工作节点统一切到另一模型时再单独设置。",
-    affectedScopes: "多能力域模型通用工作节点",
+    affectedScopes: "小妍步骤通用工作节点",
     icon: Compass,
     iconColor: "#34C759",
     modelKeys: [
