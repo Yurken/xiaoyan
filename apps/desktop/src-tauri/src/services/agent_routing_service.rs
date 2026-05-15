@@ -8,6 +8,30 @@ struct RoutingDecision {
     agents: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoutingPolicy {
+    Rule,
+    Llm,
+    Hybrid,
+}
+
+impl RoutingPolicy {
+    pub fn from_settings(settings: &HashMap<String, String>) -> Self {
+        settings
+            .get("multi_agent_routing_mode")
+            .map(|value| Self::from_str(value))
+            .unwrap_or(Self::Hybrid)
+    }
+
+    fn from_str(value: &str) -> Self {
+        match value {
+            "rule" => Self::Rule,
+            "llm" => Self::Llm,
+            _ => Self::Hybrid,
+        }
+    }
+}
+
 pub async fn select_agents(
     client: &LlmClient,
     settings: &HashMap<String, String>,
@@ -15,13 +39,13 @@ pub async fn select_agents(
     context_type: &str,
     enabled: &[String],
     max_steps: usize,
-    routing_mode: &str,
+    policy: RoutingPolicy,
 ) -> Vec<String> {
     let rule_selected = select_agents_by_rule(message, context_type, enabled, max_steps);
 
-    let selected = match routing_mode {
-        "rule" => rule_selected.clone(),
-        "llm" => select_agents_by_llm(
+    let selected = match policy {
+        RoutingPolicy::Rule => rule_selected.clone(),
+        RoutingPolicy::Llm => select_agents_by_llm(
             client,
             settings,
             message,
@@ -32,7 +56,7 @@ pub async fn select_agents(
         )
         .await
         .unwrap_or_else(|_| rule_selected.clone()),
-        _ => {
+        RoutingPolicy::Hybrid => {
             let llm_selected = select_agents_by_llm(
                 client,
                 settings,
@@ -218,20 +242,20 @@ async fn select_agents_by_llm(
     };
 
     let prompt = format!(
-        "请为一次小妍科研对话选择最合适的专项 Agent。\n\
+        "请为一次小妍科研对话选择最合适的专项能力步骤。\n\
 用户问题：{message}\n\
 上下文类型：{context_type}\n\
-可选 Agent：{candidates}\n\
+可选能力步骤：{candidates}\n\
 最多选择：{max_steps}\n\
 规则模式建议：{rule_hint}\n\n\
 选择原则：\n\
-1. 不要机械地追求最少 Agent，而是要覆盖完成任务所需的关键分工。\n\
+1. 不要机械地追求最少步骤，而是要覆盖完成任务所需的关键分工。\n\
 2. 对单点问题可以精简；对研究规划、路线推进、选题调研这类复合任务，通常应覆盖 4 个左右 worker。\n\
 3. 如果问题需要证据、论文来源或已有上下文支持，通常应包含 retrieval。\n\
 4. context_type 为 interest 时，planner 通常应该参与；若涉及论文线索、路线推进或领域现状，通常还应包含 literature_scout 与 survey。\n\
 5. 只有在 context_type 为 paper 或用户明确要求精读单篇论文时，才选择 paper_analyst。\n\
 6. 只有在 context_type 为 paper 且涉及实现、训练、实验配置或复现时，才选择 reproduction。\n\
-7. 如果规则模式建议已经覆盖关键分工，除非明显多余，不要删掉这些关键 Agent。\n\n\
+7. 如果规则模式建议已经覆盖关键分工，除非明显多余，不要删掉这些关键步骤。\n\n\
 请只返回 JSON，对象格式必须为 {{\"agents\": [\"agent_name\"]}}。",
         candidates = candidates.join(", "),
     );

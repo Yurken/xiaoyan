@@ -29,6 +29,14 @@
 5. 让小妍从固定多 Agent 节点逐步升级为工具驱动的唯一助手内核：用户始终只面对小妍，背后由 runtime、context builder、tool registry 和统一事件流支撑。
 6. 提升桌面端发布质量，保证结构性修改后能通过相关 type-check 和 lint。
 
+## 当前实现进展
+
+- 2026-05-15：已创建 `codex/xiaoyan-agent-runtime-0.4` 实现分支。
+- 2026-05-15：已将 `chat.rs` 中的小妍多步骤运行入口拆为 `agent_runtime_service.rs`、`agent_routing_service.rs` 和 `agent_event_service.rs`，默认运行路径仍为 `XiaoyanNative`。
+- 2026-05-15：已新增小妍 `AgentContext` builder 和领域 `AgentTool` registry 骨架，将小妍身份、任务边界、研究上下文与可用能力集中注入运行时。
+- 2026-05-15：已把 `agent_graph` 的计划、步骤开始、步骤完成和文本增量收敛到统一 `AgentEvent`，同时保留现有 `chat:*` 事件映射以兼容前端。
+- 2026-05-15：已将内部 prompt 文案从“外部/子 Agent”收束为“小妍内部步骤 / 专项能力”，避免生成内容中出现第二助手身份。
+
 ## 非目标
 
 - 不做云端多用户协作平台，不引入账号体系或远程团队空间。
@@ -230,7 +238,7 @@
 - `services/research_context_service.rs`：研究主题聚合查询。
 - `services/submission_diagnosis_service.rs`：诊断报告生成与结果落库。
 - `services/agent_runtime_service.rs`：小妍 Agent runtime 抽象、默认 runtime 调度、取消和结果归档。
-- `services/agent_context_builder.rs`：集中构造小妍身份、主题、记忆、实体上下文和工具约束。
+- `services/agent_context_service.rs`：集中构造小妍身份、主题、记忆、实体上下文和工具约束。
 - `services/agent_tool_service.rs`：把论文、知识图谱、记忆、投稿和实验能力整理为小妍可调用的领域工具。
 - `commands/*`：只保留 Tauri 参数入口、校验和 service 调用。
 

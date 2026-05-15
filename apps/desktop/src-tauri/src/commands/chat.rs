@@ -387,7 +387,7 @@ async fn run_chat(
     let use_direct_chat = chat_mode == "direct";
 
     let full = if !use_direct_chat && multi_agent {
-        run_agent_runtime(
+        let runtime_result = run_agent_runtime(
             AgentRuntimeKind::from_settings(settings),
             AgentRuntimeRequest {
                 app,
@@ -403,7 +403,9 @@ async fn run_chat(
                 history: &history,
             },
         )
-        .await?
+        .await?;
+        let _runtime = runtime_result.runtime;
+        runtime_result.answer
     } else {
         run_simple(
             app,
