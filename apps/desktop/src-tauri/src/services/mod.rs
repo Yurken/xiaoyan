@@ -1,3 +1,6 @@
+pub mod agent_event_service;
+pub mod agent_routing_service;
+pub mod agent_runtime_service;
 pub mod chat_context_service;
 pub mod memory_privacy_service;
 pub mod memory_retrieval_service;
