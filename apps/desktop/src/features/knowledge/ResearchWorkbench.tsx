@@ -15,8 +15,9 @@ import Tools from "../../pages/Tools";
 import Experiment from "../../pages/Experiment";
 import Submission from "../../pages/Submission";
 import { LearningPathView } from "./InterestsPanel";
+import ResearchOverviewPanel from "./ResearchOverviewPanel";
 
-export type InterestTab = "planner" | "papers" | "xiaoyan" | "notes" | "tools" | "experiment" | "submission";
+export type InterestTab = "overview" | "planner" | "papers" | "xiaoyan" | "notes" | "tools" | "experiment" | "submission";
 
 interface ResearchWorkbenchProps {
   interest: ResearchInterest;
@@ -38,7 +39,7 @@ function canRunPaperTask(status: string) {
   return !["uploaded", "parsing", "analyzing"].includes(status);
 }
 
-export default function ResearchWorkbench({ interest, activeTab = "papers", onStats }: ResearchWorkbenchProps) {
+export default function ResearchWorkbench({ interest, activeTab = "overview", onStats }: ResearchWorkbenchProps) {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [notes, setNotes] = useState<KnowledgeNote[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -299,6 +300,15 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span className="break-all">{error}</span>
         </div>
+      )}
+
+      {activeTab === "overview" && (
+        <ResearchOverviewPanel
+          interest={interest}
+          papers={papers}
+          notes={notes}
+          sessions={sessions}
+        />
       )}
 
       {/* ── 规划路线 ── */}

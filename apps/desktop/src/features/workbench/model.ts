@@ -139,7 +139,7 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
         stageTone = "blue";
         summary = `已有 ${papers.length} 篇论文、${notes.length} 条笔记和 ${sessions.length} 次对话沉淀。`;
         nextStep = "继续收敛问题、补证据，并安排下一步实验或写作。";
-        action = { label: "继续推进", to: "/xiaoyan" };
+        action = { label: "打开总览", to: `/workbench/${interest.id}/overview` };
       }
 
       if (checkpointSummary.nextStep) {

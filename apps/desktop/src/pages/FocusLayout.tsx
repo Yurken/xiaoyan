@@ -369,6 +369,7 @@ function normalizeFreeTab(value?: string): FreeTab {
 }
 
 const BASE_INTEREST_TABS: Array<{ key: InterestTab; label: string; icon: typeof Sparkles }> = [
+  { key: "overview", label: "总览", icon: Microscope },
   { key: "papers",  label: "论文", icon: FileText },
   { key: "xiaoyan", label: "小妍", icon: MessageSquare },
   { key: "notes",   label: "笔记", icon: Library },
@@ -380,7 +381,7 @@ const BASE_INTEREST_TABS: Array<{ key: InterestTab; label: string; icon: typeof 
 const PLANNER_TAB: { key: InterestTab; label: string; icon: typeof Sparkles } =
   { key: "planner", label: "规划", icon: Sparkles };
 
-const INTEREST_TAB_KEYS: readonly InterestTab[] = ["planner", "papers", "xiaoyan", "notes", "tools", "experiment", "submission"];
+const INTEREST_TAB_KEYS: readonly InterestTab[] = ["overview", "planner", "papers", "xiaoyan", "notes", "tools", "experiment", "submission"];
 
 function isInterestTab(value?: string): value is InterestTab {
   return INTEREST_TAB_KEYS.includes(value as InterestTab);
@@ -390,7 +391,7 @@ function normalizeInterestTab(value: string | undefined, planned: boolean): Inte
   if (isInterestTab(value) && (value !== "planner" || planned)) {
     return value;
   }
-  return planned ? "planner" : "papers";
+  return "overview";
 }
 
 function TabButton({
@@ -477,7 +478,7 @@ function FocusWorkbench() {
         const found = list.find((item) => item.id === interestId);
         if (found) {
           setInterest(found);
-          setInterestTab(found.status === "planned" ? "planner" : "papers");
+          setInterestTab("overview");
           return;
         }
         setInterestError("未找到该研究主题，可能已被删除。");
