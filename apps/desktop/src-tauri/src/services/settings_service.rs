@@ -60,6 +60,7 @@ const BACKUP_TABLES: &[&str] = &[
     "chat_messages",
     "agent_runs",
     "paper_chunks",
+    "paper_parse_runs",
     "paper_analyses",
     "reproduction_guides",
     "paper_figures",

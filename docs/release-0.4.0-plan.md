@@ -37,6 +37,7 @@
 - 2026-05-15：已把 `agent_graph` 的计划、步骤开始、步骤完成和文本增量收敛到统一 `AgentEvent`，同时保留现有 `chat:*` 事件映射以兼容前端。
 - 2026-05-15：已将内部 prompt 文案从“外部/子 Agent”收束为“小妍内部步骤 / 专项能力”，避免生成内容中出现第二助手身份。
 - 2026-05-15：已新增 `memory_session_summaries` 与 `memory_links`，小妍完成或失败一次会话后会写入轻量 checkpoint，并在长期记忆上下文中召回最近 checkpoint。
+- 2026-05-15：已新增 `paper_parse_runs` 与 `paper_parser_service.rs`，现有 PDF 解析路径被包成默认 adapter，并记录解析状态、耗时、正文长度、预览长度、回退路径和错误。
 
 ## 非目标
 

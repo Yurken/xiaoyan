@@ -7,13 +7,12 @@ use crate::commands::paper_analysis_prompts::{
 };
 use crate::commands::paper_analysis_text::{build_analysis_slices, build_reproduction_context};
 use crate::commands::paper_figures::ensure_figures_extracted as ensure_paper_figures_extracted;
-use crate::commands::paper_text::{
-    extract_pdf_preview_text, extract_pdf_text_with_filtered_stderr, preview_from_text,
-};
+use crate::commands::paper_text::extract_pdf_text_with_filtered_stderr;
 use crate::journal_partitions::match_journal;
 use crate::links::paper_reference_url;
 use crate::llm::{resolve_max_tokens, resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::rag::{chunk_text, serialize_embedding};
+use crate::services::paper_parser_service::parse_pdf_document;
 use crate::state::AppState;
 use serde::Deserialize;
 use serde_json::json;
@@ -657,38 +656,9 @@ pub async fn papers_upload(
         );
         eprintln!("[paper-import][{}] status=parsing emitted", pid);
 
-        // ① 尽早启动全文提取（慢，CPU 密集，先开始但不等待）
-        let preview_path = path_for_parse.clone();
-        let full_text_started_at = Instant::now();
-        eprintln!("[paper-import][{}] full_text extraction start", pid);
-        let full_text_handle = tokio::task::spawn_blocking(move || {
-            extract_pdf_text_with_filtered_stderr(&path_for_parse)
-        });
-
-        // ② 提取前3页预览文本（相对快），与①并发进行
-        let preview_started_at = Instant::now();
-        let mut preview_text =
-            tokio::task::spawn_blocking(move || extract_pdf_preview_text(&preview_path, 3, 12_000))
-                .await
-                .ok()
-                .flatten()
-                .unwrap_or_default();
-        eprintln!(
-            "[paper-import][{}] preview extracted: chars={} elapsed_ms={}",
-            pid,
-            preview_text.chars().count(),
-            preview_started_at.elapsed().as_millis()
-        );
-        if preview_text.is_empty() {
-            eprintln!(
-                "[paper-import][{}] preview unavailable: lopdf preview extraction returned empty",
-                pid
-            );
-        }
-
-        let text = match full_text_handle.await {
-            Ok(Ok(value)) => value,
-            Ok(Err(error)) => {
+        let parse_result = match parse_pdf_document(&db, &pid, path_for_parse.clone()).await {
+            Ok(value) => value,
+            Err(error) => {
                 let now = chrono::Utc::now().to_rfc3339();
                 let _ =
                     sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
@@ -696,44 +666,24 @@ pub async fn papers_upload(
                         .bind(&pid)
                         .execute(&db)
                         .await;
-                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 解析失败：{error}") }));
-                eprintln!(
-                    "[paper-import][{}] full_text extraction failed: {}",
-                    pid, error
+                let _ = app.emit(
+                    "paper:status",
+                    json!({ "paper_id": pid, "status": "failed", "error": error }),
                 );
-                return;
-            }
-            Err(join_error) => {
-                let now = chrono::Utc::now().to_rfc3339();
-                let _ =
-                    sqlx::query("UPDATE papers SET status = 'failed', updated_at = ? WHERE id = ?")
-                        .bind(&now)
-                        .bind(&pid)
-                        .execute(&db)
-                        .await;
-                let _ = app.emit("paper:status", json!({ "paper_id": pid, "status": "failed", "error": format!("PDF 后台解析任务失败：{join_error}") }));
-                eprintln!(
-                    "[paper-import][{}] full_text extraction join failed: {}",
-                    pid, join_error
-                );
+                eprintln!("[paper-import][{}] parse adapter failed", pid);
                 return;
             }
         };
+        let parser_name = parse_result.parser_name;
+        let text_length = parse_result.text_length;
+        let preview_length = parse_result.preview_length;
+        let duration_ms = parse_result.duration_ms;
+        let text = parse_result.text;
+        let preview_text = parse_result.preview_text;
         eprintln!(
-            "[paper-import][{}] full_text extracted: chars={} elapsed_ms={}",
-            pid,
-            text.chars().count(),
-            full_text_started_at.elapsed().as_millis()
+            "[paper-import][{}] parse adapter done: parser={} chars={} preview_chars={} elapsed_ms={}",
+            pid, parser_name, text_length, preview_length, duration_ms
         );
-
-        if preview_text.is_empty() {
-            preview_text = preview_from_text(&text, 12_000).unwrap_or_default();
-            eprintln!(
-                "[paper-import][{}] preview fallback from full_text: chars={}",
-                pid,
-                preview_text.chars().count()
-            );
-        }
 
         // ④ 基于有效预览文本做本地快速识别并更新初始字段
         let venue_and_kw_started_at = Instant::now();

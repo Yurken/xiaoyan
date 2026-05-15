@@ -180,6 +180,29 @@ CREATE INDEX IF NOT EXISTS idx_paper_chunks_paper_id_chunk_index ON paper_chunks
 CREATE INDEX IF NOT EXISTS idx_paper_figures_paper_id_fig_index ON paper_figures(paper_id, fig_index);
 "#;
 
+pub const PAPER_PARSE_RUNS_DDL: &str = "
+CREATE TABLE IF NOT EXISTS paper_parse_runs (
+    id             TEXT PRIMARY KEY,
+    paper_id       TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+    parser_name    TEXT NOT NULL,
+    status         TEXT NOT NULL DEFAULT 'running',
+    started_at     TEXT NOT NULL,
+    finished_at    TEXT,
+    duration_ms    INTEGER,
+    text_length    INTEGER NOT NULL DEFAULT 0,
+    preview_length INTEGER NOT NULL DEFAULT 0,
+    section_count  INTEGER NOT NULL DEFAULT 0,
+    figure_count   INTEGER NOT NULL DEFAULT 0,
+    fallback_path  TEXT,
+    error          TEXT,
+    metadata_json  TEXT NOT NULL DEFAULT '{}',
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_paper_parse_runs_paper_created ON paper_parse_runs(paper_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_paper_parse_runs_status ON paper_parse_runs(status);
+";
+
 // ── Migration: user_memories ──────────────────────────────────────
 pub const USER_MEMORIES_DDL: &str = "
 CREATE TABLE IF NOT EXISTS user_memories (
@@ -284,6 +307,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_papers_importance_color_column(&pool).await?;
     ensure_papers_notes_column(&pool).await?;
     ensure_paper_figures_table(&pool).await?;
+    ensure_paper_parse_runs_table(&pool).await?;
     ensure_performance_indexes(&pool).await?;
     ensure_settings_history_table(&pool).await?;
     ensure_skills_table(&pool).await?;
@@ -365,6 +389,11 @@ async fn ensure_table_column(
         .await?;
     }
 
+    Ok(())
+}
+
+async fn ensure_paper_parse_runs_table(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(PAPER_PARSE_RUNS_DDL).execute(pool).await?;
     Ok(())
 }
 
