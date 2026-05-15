@@ -40,6 +40,7 @@
 - 2026-05-15：已新增 `paper_parse_runs` 与 `paper_parser_service.rs`，现有 PDF 解析路径被包成默认 adapter，并记录解析状态、耗时、正文长度、预览长度、回退路径和错误。
 - 2026-05-15：已将前端用户可见的协同文案从 Agent / 能力域模型收束为“小妍步骤 / 小妍能力”，保留内部协议字段不变。
 - 2026-05-15：已新增 `research_context_service.rs` 聚合研究主题、路线阶段、关联论文、笔记、知识图谱主张和最近 checkpoint，并接入小妍对话上下文。
+- 2026-05-15：已新增 `submission_diagnosis_reports` 与 `submission_diagnosis_service.rs`，现有 AI 模拟审稿完成后会保存投稿前诊断报告、风险等级和原始评审证据。
 
 ## 非目标
 

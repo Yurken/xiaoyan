@@ -203,6 +203,22 @@ CREATE INDEX IF NOT EXISTS idx_paper_parse_runs_paper_created ON paper_parse_run
 CREATE INDEX IF NOT EXISTS idx_paper_parse_runs_status ON paper_parse_runs(status);
 ";
 
+pub const SUBMISSION_DIAGNOSIS_DDL: &str = "
+CREATE TABLE IF NOT EXISTS submission_diagnosis_reports (
+    id            TEXT PRIMARY KEY,
+    submission_id TEXT NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+    source        TEXT NOT NULL DEFAULT 'ai_review',
+    status        TEXT NOT NULL DEFAULT 'done',
+    risk_level    TEXT NOT NULL DEFAULT 'medium',
+    summary       TEXT NOT NULL DEFAULT '',
+    report_json   TEXT NOT NULL DEFAULT '{}',
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_submission_diagnosis_submission_created
+    ON submission_diagnosis_reports(submission_id, created_at DESC);
+";
+
 // ── Migration: user_memories ──────────────────────────────────────
 pub const USER_MEMORIES_DDL: &str = "
 CREATE TABLE IF NOT EXISTS user_memories (
@@ -315,6 +331,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_memory_pipeline_tables(&pool).await?;
     ensure_memory_checkpoint_tables(&pool).await?;
     ensure_submission_tables(&pool).await?;
+    ensure_submission_diagnosis_tables(&pool).await?;
     ensure_experiment_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
@@ -692,6 +709,13 @@ pub async fn ensure_submission_tables(pool: &SqlitePool) -> Result<()> {
         .execute(pool)
         .await;
 
+    Ok(())
+}
+
+pub async fn ensure_submission_diagnosis_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(SUBMISSION_DIAGNOSIS_DDL)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 

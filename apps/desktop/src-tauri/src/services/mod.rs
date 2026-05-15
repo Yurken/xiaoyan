@@ -11,4 +11,5 @@ pub mod paper_parser_service;
 pub mod research_context_service;
 pub mod settings_service;
 pub mod source_service;
+pub mod submission_diagnosis_service;
 pub mod submission_service;
