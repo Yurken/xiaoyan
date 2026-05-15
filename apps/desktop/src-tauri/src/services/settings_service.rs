@@ -69,6 +69,7 @@ const BACKUP_TABLES: &[&str] = &[
     "review_comments",
     "submission_checklist",
     "submission_diagnosis_reports",
+    "submission_revision_tasks",
     "experiment_attachments",
     "knowledge_graph_evidence_links",
     "knowledge_paper_citations",

@@ -18,6 +18,7 @@ import { SUBMISSION_TAB_KEYS, type SubmissionTab } from "../features/submission/
 import { useSubmissionBoard } from "../features/submission/useSubmissionBoard";
 import { useSubmissionChecklist } from "../features/submission/useSubmissionChecklist";
 import { useSubmissionDiagnosisReports } from "../features/submission/useSubmissionDiagnosisReports";
+import { useSubmissionRevisionTasks } from "../features/submission/useSubmissionRevisionTasks";
 import { useRejectionRecovery } from "../features/submission/useRejectionRecovery";
 import { useSubmissionVersions } from "../features/submission/useSubmissionVersions";
 import { useSubmissionVenues } from "../features/submission/useSubmissionVenues";
@@ -131,6 +132,22 @@ export default function Submission() {
   } = useSubmissionDiagnosisReports(checklistSubId, {
     onError: showSubmissionError,
     onImported: handleDiagnosisImported,
+  });
+  const handleRevisionTasksImported = useCallback((created: number) => {
+    setFeedback(created > 0 ? `已转入 ${created} 个修改任务` : "修改任务已是最新");
+  }, []);
+  const {
+    tasks: revisionTasks,
+    versions: revisionVersions,
+    experiments: revisionExperiments,
+    loading: revisionLoading,
+    importingReportId: importingRevisionTaskReportId,
+    updatingTaskId: updatingRevisionTaskId,
+    importReportToTasks,
+    updateTask: updateRevisionTask,
+  } = useSubmissionRevisionTasks(checklistSubId, {
+    onError: showSubmissionError,
+    onImported: handleRevisionTasksImported,
   });
 
   // Review archive state
@@ -706,6 +723,12 @@ export default function Submission() {
             diagnosisReports={diagnosisReports}
             diagnosisLoading={diagnosisLoading}
             importingDiagnosisReportId={importingDiagnosisReportId}
+            revisionTasks={revisionTasks}
+            revisionVersions={revisionVersions}
+            revisionExperiments={revisionExperiments}
+            revisionLoading={revisionLoading}
+            importingRevisionTaskReportId={importingRevisionTaskReportId}
+            updatingRevisionTaskId={updatingRevisionTaskId}
             checkedCount={checkedCount}
             progress={progress}
             onSelectSubmission={setChecklistSubId}
@@ -713,6 +736,8 @@ export default function Submission() {
             onSelectCategory={setChecklistCat}
             onToggleCheck={toggleCheck}
             onImportDiagnosisReport={importReportToChecklist}
+            onImportDiagnosisTasks={importReportToTasks}
+            onUpdateRevisionTask={updateRevisionTask}
           />
         )}
 

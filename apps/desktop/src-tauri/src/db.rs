@@ -219,6 +219,29 @@ CREATE INDEX IF NOT EXISTS idx_submission_diagnosis_submission_created
     ON submission_diagnosis_reports(submission_id, created_at DESC);
 ";
 
+pub const SUBMISSION_REVISION_TASKS_DDL: &str = "
+CREATE TABLE IF NOT EXISTS submission_revision_tasks (
+    id                  TEXT PRIMARY KEY,
+    submission_id       TEXT NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+    diagnosis_report_id TEXT REFERENCES submission_diagnosis_reports(id) ON DELETE SET NULL,
+    checklist_item_id   TEXT REFERENCES submission_checklist(id) ON DELETE SET NULL,
+    paper_version_id    TEXT REFERENCES paper_versions(id) ON DELETE SET NULL,
+    experiment_id       TEXT REFERENCES experiment_records(id) ON DELETE SET NULL,
+    title               TEXT NOT NULL DEFAULT '',
+    detail              TEXT NOT NULL DEFAULT '',
+    status              TEXT NOT NULL DEFAULT 'todo',
+    priority            TEXT NOT NULL DEFAULT 'medium',
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_submission_revision_tasks_submission_status
+    ON submission_revision_tasks(submission_id, status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_submission_revision_tasks_report
+    ON submission_revision_tasks(diagnosis_report_id);
+CREATE INDEX IF NOT EXISTS idx_submission_revision_tasks_experiment
+    ON submission_revision_tasks(experiment_id);
+";
+
 // ── Migration: user_memories ──────────────────────────────────────
 pub const USER_MEMORIES_DDL: &str = "
 CREATE TABLE IF NOT EXISTS user_memories (
@@ -333,6 +356,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_submission_tables(&pool).await?;
     ensure_submission_diagnosis_tables(&pool).await?;
     ensure_experiment_tables(&pool).await?;
+    ensure_submission_revision_task_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
 
@@ -714,6 +738,13 @@ pub async fn ensure_submission_tables(pool: &SqlitePool) -> Result<()> {
 
 pub async fn ensure_submission_diagnosis_tables(pool: &SqlitePool) -> Result<()> {
     sqlx::raw_sql(SUBMISSION_DIAGNOSIS_DDL)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn ensure_submission_revision_task_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(SUBMISSION_REVISION_TASKS_DDL)
         .execute(pool)
         .await?;
     Ok(())

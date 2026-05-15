@@ -605,6 +605,17 @@ export const submissionApi = {
     invoke<{ reports: unknown[] }>("submission_list_diagnosis_reports", { submissionId }),
   importDiagnosisReportToChecklist: (reportId: string) =>
     invoke<{ created: number }>("submission_import_diagnosis_report_to_checklist", { reportId }),
+  listRevisionTasks: (submissionId: string) =>
+    invoke<{ tasks: unknown[] }>("submission_list_revision_tasks", { submissionId }),
+  importDiagnosisReportToTasks: (reportId: string) =>
+    invoke<{ created: number }>("submission_import_diagnosis_report_to_tasks", { reportId }),
+  updateRevisionTask: (id: string, params: Partial<{ status: string; paperVersionId: string; experimentId: string }>) =>
+    invoke<void>("submission_update_revision_task", {
+      id,
+      status: params.status ?? null,
+      paperVersionId: params.paperVersionId ?? null,
+      experimentId: params.experimentId ?? null,
+    }),
 
   stats: () => invoke<{ active: number; pendingReviews: number; upcomingDdls: { name: string; deadline: string }[] }>("submission_stats"),
 

@@ -10,7 +10,9 @@ interface DiagnosisReportPanelProps {
   reports: SubmissionDiagnosisReport[];
   loading: boolean;
   importingReportId: string | null;
+  importingTaskReportId: string | null;
   onImportReport: (reportId: string) => void | Promise<void>;
+  onImportTasks: (reportId: string) => void | Promise<void>;
 }
 
 function formatReportDate(date: Date): string {
@@ -26,7 +28,9 @@ export default function DiagnosisReportPanel({
   reports,
   loading,
   importingReportId,
+  importingTaskReportId,
   onImportReport,
+  onImportTasks,
 }: DiagnosisReportPanelProps) {
   const latest = reports[0];
 
@@ -61,6 +65,7 @@ export default function DiagnosisReportPanel({
             const riskStyle = DIAGNOSIS_RISK_CFG[report.riskLevel];
             const issues = getDiagnosisReportIssues(report, 3);
             const importing = importingReportId === report.id;
+            const importingTasks = importingTaskReportId === report.id;
 
             return (
               <div
@@ -81,16 +86,28 @@ export default function DiagnosisReportPanel({
                     </div>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink-secondary">{report.summary}</p>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={importing}
-                    onClick={() => void onImportReport(report.id)}
-                  >
-                    {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ClipboardList className="h-3.5 w-3.5" />}
-                    转清单
-                  </Button>
+                  <div className="flex flex-shrink-0 gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={importing}
+                      onClick={() => void onImportReport(report.id)}
+                    >
+                      {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ClipboardList className="h-3.5 w-3.5" />}
+                      转清单
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={importingTasks}
+                      onClick={() => void onImportTasks(report.id)}
+                    >
+                      {importingTasks ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ClipboardList className="h-3.5 w-3.5" />}
+                      转任务
+                    </Button>
+                  </div>
                 </div>
                 {issues.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-1.5">

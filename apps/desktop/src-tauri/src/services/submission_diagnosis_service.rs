@@ -130,7 +130,7 @@ fn build_summary(risk: &DiagnosisRiskLevel, reviews: &[Value]) -> String {
     parts.join("\n")
 }
 
-fn collect_issue_labels(report_json: &Value) -> Vec<String> {
+pub(crate) fn collect_issue_labels(report_json: &Value) -> Vec<String> {
     let Some(reviews) = report_json
         .get("parsed_reviews")
         .and_then(|value| value.as_array())

@@ -162,6 +162,8 @@ export interface SaveVersionFormState {
 
 export type MockStrictness = "lenient" | "balanced" | "strict";
 export type DiagnosisRiskLevel = "low" | "medium" | "high";
+export type RevisionTaskStatus = "todo" | "in_progress" | "done";
+export type RevisionTaskPriority = "low" | "medium" | "high";
 
 export interface MockReviewInput {
   abstract: string;
@@ -186,6 +188,30 @@ export interface SubmissionDiagnosisReport {
   report: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface SubmissionRevisionTask {
+  id: string;
+  submissionId: string;
+  diagnosisReportId?: string;
+  checklistItemId?: string;
+  paperVersionId?: string;
+  experimentId?: string;
+  title: string;
+  detail: string;
+  status: RevisionTaskStatus;
+  priority: RevisionTaskPriority;
+  paperVersionTag?: string;
+  paperVersionLabel?: string;
+  experimentTitle?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SubmissionExperimentOption {
+  id: string;
+  title: string;
+  linkedSubmissionId?: string;
 }
 
 export interface ReviewFormState {
@@ -278,6 +304,18 @@ export const DIAGNOSIS_RISK_CFG: Record<DiagnosisRiskLevel, { label: string; col
   low: { label: "低风险", color: "#34C759", bg: "rgba(52,199,89,0.12)" },
   medium: { label: "中等风险", color: "#FF9500", bg: "rgba(255,149,0,0.12)" },
   high: { label: "高风险", color: "#FF3B30", bg: "rgba(255,59,48,0.12)" },
+};
+
+export const REVISION_TASK_STATUS_CFG: Record<RevisionTaskStatus, { label: string; color: string; bg: string }> = {
+  todo: { label: "待处理", color: "#FF9500", bg: "rgba(255,149,0,0.12)" },
+  in_progress: { label: "处理中", color: "#007AFF", bg: "rgba(0,122,255,0.12)" },
+  done: { label: "已完成", color: "#34C759", bg: "rgba(52,199,89,0.12)" },
+};
+
+export const REVISION_TASK_PRIORITY_CFG: Record<RevisionTaskPriority, { label: string; color: string; bg: string }> = {
+  low: { label: "低", color: "#34C759", bg: "rgba(52,199,89,0.10)" },
+  medium: { label: "中", color: "#FF9500", bg: "rgba(255,149,0,0.10)" },
+  high: { label: "高", color: "#FF3B30", bg: "rgba(255,59,48,0.10)" },
 };
 
 export const REVIEW_TAGS = ["实验", "写作", "方法", "贡献", "相关工作", "理论", "复杂度", "消融实验"];
@@ -450,6 +488,14 @@ function diagnosisRiskLevelField(value: unknown): DiagnosisRiskLevel {
   return value === "low" || value === "high" ? value : "medium";
 }
 
+function revisionTaskStatusField(value: unknown): RevisionTaskStatus {
+  return value === "in_progress" || value === "done" ? value : "todo";
+}
+
+function revisionTaskPriorityField(value: unknown): RevisionTaskPriority {
+  return value === "low" || value === "high" ? value : "medium";
+}
+
 function stringArrayField(row: UnknownRow, key: string): string[] {
   const value = row[key];
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
@@ -601,4 +647,34 @@ export function getDiagnosisReportIssues(report: SubmissionDiagnosisReport, limi
   }
 
   return issues;
+}
+
+export function rowToRevisionTask(value: unknown): SubmissionRevisionTask {
+  const row = asRow(value);
+  return {
+    id: stringField(row, "id"),
+    submissionId: stringField(row, "submissionId"),
+    diagnosisReportId: optionalStringField(row, "diagnosisReportId"),
+    checklistItemId: optionalStringField(row, "checklistItemId"),
+    paperVersionId: optionalStringField(row, "paperVersionId"),
+    experimentId: optionalStringField(row, "experimentId"),
+    title: stringField(row, "title"),
+    detail: stringField(row, "detail"),
+    status: revisionTaskStatusField(row.status),
+    priority: revisionTaskPriorityField(row.priority),
+    paperVersionTag: optionalStringField(row, "paperVersionTag"),
+    paperVersionLabel: optionalStringField(row, "paperVersionLabel"),
+    experimentTitle: optionalStringField(row, "experimentTitle"),
+    createdAt: dateField(row, "createdAt") ?? new Date(),
+    updatedAt: dateField(row, "updatedAt") ?? new Date(),
+  };
+}
+
+export function rowToSubmissionExperimentOption(value: unknown): SubmissionExperimentOption {
+  const row = asRow(value);
+  return {
+    id: stringField(row, "id"),
+    title: stringField(row, "title"),
+    linkedSubmissionId: optionalStringField(row, "linkedSubmissionId"),
+  };
 }

@@ -4,6 +4,9 @@ use crate::services::submission_diagnosis_service::{
     import_diagnosis_report_to_checklist, list_submission_diagnosis_reports,
     save_ai_review_diagnosis_report, ReviewerDiagnosisInput,
 };
+use crate::services::submission_revision_service::{
+    import_diagnosis_report_to_revision_tasks, list_revision_tasks, update_revision_task,
+};
 use crate::services::submission_service::{
     self, CreateSubmissionVenueParams, UpdateSubmissionVenueParams,
 };
@@ -767,6 +770,40 @@ pub async fn submission_import_diagnosis_report_to_checklist(
         .await
         .map_err(|e| e.to_string())?;
     Ok(json!({ "created": created }))
+}
+
+#[tauri::command]
+pub async fn submission_list_revision_tasks(
+    state: State<'_, AppState>,
+    submission_id: String,
+) -> Result<serde_json::Value, String> {
+    list_revision_tasks(&state.db, &submission_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn submission_import_diagnosis_report_to_tasks(
+    state: State<'_, AppState>,
+    report_id: String,
+) -> Result<serde_json::Value, String> {
+    let created = import_diagnosis_report_to_revision_tasks(&state.db, &report_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(json!({ "created": created }))
+}
+
+#[tauri::command]
+pub async fn submission_update_revision_task(
+    state: State<'_, AppState>,
+    id: String,
+    status: Option<String>,
+    paper_version_id: Option<String>,
+    experiment_id: Option<String>,
+) -> Result<(), String> {
+    update_revision_task(&state.db, &id, status, paper_version_id, experiment_id)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 // ══════════════════════════════════════════════════════════════════════════
