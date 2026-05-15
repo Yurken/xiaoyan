@@ -1,7 +1,8 @@
 import { CheckCircle2, Circle, Users } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
+import DiagnosisReportPanel from "./DiagnosisReportPanel";
 import SubmissionPaperSidebar from "./SubmissionPaperSidebar";
-import { STATUS_CFG, type ChecklistItem, type Submission } from "./shared";
+import { STATUS_CFG, type ChecklistItem, type Submission, type SubmissionDiagnosisReport } from "./shared";
 
 interface ChecklistWorkspaceProps {
   submissions: Submission[];
@@ -11,12 +12,16 @@ interface ChecklistWorkspaceProps {
   categories: string[];
   visibleCategories: string[];
   filteredChecklist: ChecklistItem[];
+  diagnosisReports: SubmissionDiagnosisReport[];
+  diagnosisLoading: boolean;
+  importingDiagnosisReportId: string | null;
   checkedCount: number;
   progress: number;
   onSelectSubmission: (submissionId: string) => void;
   onReset: () => void;
   onSelectCategory: (category: string) => void;
   onToggleCheck: (id: string) => void;
+  onImportDiagnosisReport: (reportId: string) => void | Promise<void>;
 }
 
 export default function ChecklistWorkspace({
@@ -27,12 +32,16 @@ export default function ChecklistWorkspace({
   categories,
   visibleCategories,
   filteredChecklist,
+  diagnosisReports,
+  diagnosisLoading,
+  importingDiagnosisReportId,
   checkedCount,
   progress,
   onSelectSubmission,
   onReset,
   onSelectCategory,
   onToggleCheck,
+  onImportDiagnosisReport,
 }: ChecklistWorkspaceProps) {
   const currentSubmission = submissions.find((submission) => submission.id === checklistSubId);
 
@@ -109,6 +118,13 @@ export default function ChecklistWorkspace({
             重置
           </Button>
         </Card>
+
+        <DiagnosisReportPanel
+          reports={diagnosisReports}
+          loading={diagnosisLoading}
+          importingReportId={importingDiagnosisReportId}
+          onImportReport={onImportDiagnosisReport}
+        />
 
         <div
           className="inline-flex flex-wrap items-center gap-1 rounded-2xl p-1"

@@ -1,6 +1,7 @@
 use crate::append_diagnostic_log;
 use crate::llm::{resolve_model, resolve_temperature_chain, LlmClient, LlmMessage};
 use crate::services::submission_diagnosis_service::{
+    import_diagnosis_report_to_checklist, list_submission_diagnosis_reports,
     save_ai_review_diagnosis_report, ReviewerDiagnosisInput,
 };
 use crate::services::submission_service::{
@@ -745,6 +746,27 @@ pub async fn submission_toggle_checklist(
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn submission_list_diagnosis_reports(
+    state: State<'_, AppState>,
+    submission_id: String,
+) -> Result<serde_json::Value, String> {
+    list_submission_diagnosis_reports(&state.db, &submission_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn submission_import_diagnosis_report_to_checklist(
+    state: State<'_, AppState>,
+    report_id: String,
+) -> Result<serde_json::Value, String> {
+    let created = import_diagnosis_report_to_checklist(&state.db, &report_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(json!({ "created": created }))
 }
 
 // ══════════════════════════════════════════════════════════════════════════

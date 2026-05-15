@@ -41,6 +41,7 @@
 - 2026-05-15：已将前端用户可见的协同文案从 Agent / 能力域模型收束为“小妍步骤 / 小妍能力”，保留内部协议字段不变。
 - 2026-05-15：已新增 `research_context_service.rs` 聚合研究主题、路线阶段、关联论文、笔记、知识图谱主张和最近 checkpoint，并接入小妍对话上下文。
 - 2026-05-15：已新增 `submission_diagnosis_reports` 与 `submission_diagnosis_service.rs`，现有 AI 模拟审稿完成后会保存投稿前诊断报告、风险等级和原始评审证据。
+- 2026-05-15：已新增投稿诊断报告列表与“转清单”链路，清单页可查看最近诊断报告并将风险问题导入 `submission_checklist` 的“诊断”分类。
 
 ## 非目标
 

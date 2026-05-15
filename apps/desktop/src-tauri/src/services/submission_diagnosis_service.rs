@@ -1,6 +1,7 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -129,6 +130,60 @@ fn build_summary(risk: &DiagnosisRiskLevel, reviews: &[Value]) -> String {
     parts.join("\n")
 }
 
+fn collect_issue_labels(report_json: &Value) -> Vec<String> {
+    let Some(reviews) = report_json
+        .get("parsed_reviews")
+        .and_then(|value| value.as_array())
+    else {
+        return Vec::new();
+    };
+
+    let mut seen = HashSet::new();
+    let mut labels = Vec::new();
+
+    for review in reviews {
+        for weakness in collect_text_values(review, "weaknesses") {
+            let label = format!("补强诊断问题：{}", preview_text(&weakness, 120));
+            if seen.insert(label.clone()) {
+                labels.push(label);
+            }
+        }
+
+        for question in collect_text_values(review, "questions") {
+            let label = format!("回应诊断问题：{}", preview_text(&question, 120));
+            if seen.insert(label.clone()) {
+                labels.push(label);
+            }
+        }
+
+        for suggestion in collect_text_values(review, "suggestions") {
+            let label = format!("采纳诊断建议：{}", preview_text(&suggestion, 120));
+            if seen.insert(label.clone()) {
+                labels.push(label);
+            }
+        }
+
+        if labels.len() >= 12 {
+            break;
+        }
+    }
+
+    labels.truncate(12);
+    labels
+}
+
+fn collect_text_values(value: &Value, field: &str) -> Vec<String> {
+    value
+        .get(field)
+        .and_then(|items| items.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.as_str())
+        .map(compact_text)
+        .filter(|item| !item.is_empty())
+        .collect()
+}
+
 pub async fn save_ai_review_diagnosis_report(
     db: &SqlitePool,
     submission_id: &str,
@@ -170,9 +225,111 @@ pub async fn save_ai_review_diagnosis_report(
     Ok(report_id)
 }
 
+pub async fn list_submission_diagnosis_reports(
+    db: &SqlitePool,
+    submission_id: &str,
+) -> Result<Value> {
+    let rows = sqlx::query(
+        "SELECT id, submission_id, source, status, risk_level, summary, report_json, created_at, updated_at
+         FROM submission_diagnosis_reports
+         WHERE submission_id = ?
+         ORDER BY created_at DESC",
+    )
+    .bind(submission_id)
+    .fetch_all(db)
+    .await?;
+
+    let reports = rows
+        .iter()
+        .map(|row| {
+            let report_json_raw = row.get::<String, _>("report_json");
+            let report_json =
+                serde_json::from_str::<Value>(&report_json_raw).unwrap_or_else(|_| json!({}));
+
+            json!({
+                "id": row.get::<String, _>("id"),
+                "submissionId": row.get::<String, _>("submission_id"),
+                "source": row.get::<String, _>("source"),
+                "status": row.get::<String, _>("status"),
+                "riskLevel": row.get::<String, _>("risk_level"),
+                "summary": row.get::<String, _>("summary"),
+                "report": report_json,
+                "createdAt": row.get::<String, _>("created_at"),
+                "updatedAt": row.get::<String, _>("updated_at"),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Ok(json!({ "reports": reports }))
+}
+
+pub async fn import_diagnosis_report_to_checklist(
+    db: &SqlitePool,
+    report_id: &str,
+) -> Result<usize> {
+    let row = sqlx::query(
+        "SELECT submission_id, report_json
+         FROM submission_diagnosis_reports
+         WHERE id = ?",
+    )
+    .bind(report_id)
+    .fetch_optional(db)
+    .await?
+    .ok_or_else(|| anyhow!("Diagnosis report not found"))?;
+
+    let submission_id = row.get::<String, _>("submission_id");
+    let report_json_raw = row.get::<String, _>("report_json");
+    let report_json = serde_json::from_str::<Value>(&report_json_raw).unwrap_or_else(|_| json!({}));
+    let labels = collect_issue_labels(&report_json);
+    if labels.is_empty() {
+        return Ok(0);
+    }
+
+    let existing_rows =
+        sqlx::query("SELECT label FROM submission_checklist WHERE submission_id = ?")
+            .bind(&submission_id)
+            .fetch_all(db)
+            .await?;
+    let mut existing_labels = existing_rows
+        .iter()
+        .map(|row| row.get::<String, _>("label"))
+        .collect::<HashSet<_>>();
+
+    let sort_row =
+        sqlx::query("SELECT COALESCE(MAX(sort_order), -1) as max_sort FROM submission_checklist WHERE submission_id = ?")
+            .bind(&submission_id)
+            .fetch_one(db)
+            .await?;
+    let mut next_sort = sort_row.get::<i64, _>("max_sort") + 1;
+    let mut created = 0usize;
+
+    for label in labels {
+        if !existing_labels.insert(label.clone()) {
+            continue;
+        }
+
+        sqlx::query(
+            "INSERT INTO submission_checklist
+             (id, submission_id, label, checked, category, sort_order)
+             VALUES (?, ?, ?, 0, '诊断', ?)",
+        )
+        .bind(Uuid::new_v4().to_string())
+        .bind(&submission_id)
+        .bind(&label)
+        .bind(next_sort)
+        .execute(db)
+        .await?;
+
+        created += 1;
+        next_sort += 1;
+    }
+
+    Ok(created)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{classify_risk, collect_json_list, DiagnosisRiskLevel};
+    use super::{classify_risk, collect_issue_labels, collect_json_list, DiagnosisRiskLevel};
     use serde_json::json;
 
     #[test]
@@ -187,6 +344,25 @@ mod tests {
         assert_eq!(
             collect_json_list(&reviews, "weaknesses", 1),
             vec!["实验不足"]
+        );
+    }
+
+    #[test]
+    fn issue_labels_dedupe_and_prefix_review_fields() {
+        let report = json!({
+            "parsed_reviews": [
+                { "weaknesses": ["实验不足", "实验不足"], "questions": ["泛化性如何？"] },
+                { "suggestions": ["补一个消融实验"] }
+            ]
+        });
+
+        assert_eq!(
+            collect_issue_labels(&report),
+            vec![
+                "补强诊断问题：实验不足",
+                "回应诊断问题：泛化性如何？",
+                "采纳诊断建议：补一个消融实验",
+            ]
         );
     }
 }

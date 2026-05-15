@@ -597,6 +597,10 @@ export const submissionApi = {
 
   getChecklist: (submissionId: string) => invoke<{ checklist: unknown[] }>("submission_get_checklist", { submissionId }),
   toggleChecklist: (itemId: string) => invoke<void>("submission_toggle_checklist", { itemId }),
+  listDiagnosisReports: (submissionId: string) =>
+    invoke<{ reports: unknown[] }>("submission_list_diagnosis_reports", { submissionId }),
+  importDiagnosisReportToChecklist: (reportId: string) =>
+    invoke<{ created: number }>("submission_import_diagnosis_report_to_checklist", { reportId }),
 
   stats: () => invoke<{ active: number; pendingReviews: number; upcomingDdls: { name: string; deadline: string }[] }>("submission_stats"),
 

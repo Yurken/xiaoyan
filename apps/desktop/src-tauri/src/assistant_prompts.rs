@@ -71,12 +71,13 @@ pub fn ai_review_prompt(
 ) -> String {
     format!(
         "你是第 {index}/{total} 位审稿人（{reviewer}），审稿风格：{strictness_desc}。\n\
-请对以下论文全文（或摘要）进行学术审稿，输出严格的JSON格式（不要有任何 markdown 代码块）：\n\
+请对以下论文全文（或摘要）进行投稿前诊断式学术审稿，重点覆盖录用风险、创新性、方法可靠性、实验充分性、相关工作覆盖、写作清晰度和目标刊会适配度。输出严格的JSON格式（不要有任何 markdown 代码块）：\n\
 {{\n\
   \"summary\": \"一段话总结论文主要贡献\",\n\
   \"strengths\": [\"优点1\", \"优点2\"],\n\
   \"weaknesses\": [\"缺点1\", \"缺点2\"],\n\
   \"questions\": [\"问题1\", \"问题2\"],\n\
+  \"suggestions\": [\"投稿前最需要执行的修改或补强任务\"],\n\
   \"verdict\": \"accept|weak_accept|weak_reject|reject\",\n\
   \"score\": 整数1-10\n\
 }}\n\n\
