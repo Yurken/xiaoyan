@@ -73,6 +73,8 @@ const BACKUP_TABLES: &[&str] = &[
     "agent_artifacts",
     "memory_events",
     "memory_observations",
+    "memory_session_summaries",
+    "memory_links",
     "user_memories",
 ];
 

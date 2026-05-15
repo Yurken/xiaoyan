@@ -1,3 +1,4 @@
+use crate::services::memory_checkpoint_service::checkpoint_to_memory_line;
 use serde::Serialize;
 use sqlx::{Row, SqlitePool};
 use std::collections::HashSet;
@@ -300,6 +301,8 @@ async fn build_memory_context_internal(db: &SqlitePool, query: Option<&str>) -> 
         })
         .collect::<Vec<_>>();
 
+    let checkpoint_lines = load_recent_checkpoint_lines(db).await;
+
     let recent_rows = sqlx::query(
         "SELECT summary, created_at FROM user_memories
          WHERE type = 'auto'
@@ -353,6 +356,7 @@ async fn build_memory_context_internal(db: &SqlitePool, query: Option<&str>) -> 
 
     if manual_lines.is_empty()
         && observation_lines.is_empty()
+        && checkpoint_lines.is_empty()
         && recent_lines.is_empty()
         && hist_lines.is_empty()
     {
@@ -371,6 +375,12 @@ async fn build_memory_context_internal(db: &SqlitePool, query: Option<&str>) -> 
         };
         parts.push(format!("{section_title}\n{}", observation_lines.join("\n")));
     }
+    if !checkpoint_lines.is_empty() {
+        parts.push(format!(
+            "[会话 Checkpoint]\n{}",
+            checkpoint_lines.join("\n")
+        ));
+    }
     if !recent_lines.is_empty() {
         parts.push(format!(
             "[近期操作（最近3小时）]\n{}",
@@ -387,6 +397,30 @@ async fn build_memory_context_internal(db: &SqlitePool, query: Option<&str>) -> 
     } else {
         result
     }
+}
+
+async fn load_recent_checkpoint_lines(db: &SqlitePool) -> Vec<String> {
+    let rows = sqlx::query(
+        "SELECT goal, summary, next_steps, updated_at
+         FROM memory_session_summaries
+         WHERE updated_at >= datetime('now', '-14 days')
+         ORDER BY updated_at DESC
+         LIMIT 6",
+    )
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+
+    rows.iter()
+        .map(|row| {
+            checkpoint_to_memory_line(
+                &row.get::<String, _>("updated_at"),
+                &row.get::<String, _>("goal"),
+                &row.get::<String, _>("summary"),
+                &row.get::<String, _>("next_steps"),
+            )
+        })
+        .collect()
 }
 
 pub async fn build_memory_context(db: &SqlitePool) -> String {

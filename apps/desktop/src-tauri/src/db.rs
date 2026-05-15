@@ -225,6 +225,39 @@ CREATE INDEX IF NOT EXISTS idx_memory_observations_source_created ON memory_obse
 CREATE INDEX IF NOT EXISTS idx_memory_observations_session_created ON memory_observations(session_id, created_at DESC);
 ";
 
+pub const MEMORY_CHECKPOINT_DDL: &str = "
+CREATE TABLE IF NOT EXISTS memory_session_summaries (
+    id              TEXT PRIMARY KEY,
+    session_id      TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    request_id      TEXT,
+    context_type    TEXT NOT NULL DEFAULT 'general',
+    context_id      TEXT,
+    goal            TEXT NOT NULL DEFAULT '',
+    summary         TEXT NOT NULL DEFAULT '',
+    completed_items TEXT NOT NULL DEFAULT '[]',
+    open_questions  TEXT NOT NULL DEFAULT '[]',
+    next_steps      TEXT NOT NULL DEFAULT '[]',
+    status          TEXT NOT NULL DEFAULT 'completed',
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_memory_session_summaries_session_updated ON memory_session_summaries(session_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_memory_session_summaries_context_updated ON memory_session_summaries(context_type, context_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS memory_links (
+    id             TEXT PRIMARY KEY,
+    checkpoint_id  TEXT REFERENCES memory_session_summaries(id) ON DELETE CASCADE,
+    observation_id TEXT REFERENCES memory_observations(id) ON DELETE CASCADE,
+    entity_type    TEXT NOT NULL,
+    entity_id      TEXT NOT NULL,
+    relation       TEXT NOT NULL DEFAULT 'context',
+    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_memory_links_entity ON memory_links(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_memory_links_checkpoint ON memory_links(checkpoint_id);
+CREATE INDEX IF NOT EXISTS idx_memory_links_observation ON memory_links(observation_id);
+";
+
 pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     std::fs::create_dir_all(app_data_dir)?;
     let db_path = app_data_dir.join("research_copilot.db");
@@ -256,6 +289,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_skills_table(&pool).await?;
     ensure_user_memories_table(&pool).await?;
     ensure_memory_pipeline_tables(&pool).await?;
+    ensure_memory_checkpoint_tables(&pool).await?;
     ensure_submission_tables(&pool).await?;
     ensure_experiment_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
@@ -296,7 +330,13 @@ async fn ensure_paper_figures_table(pool: &SqlitePool) -> Result<()> {
     )
     .execute(pool)
     .await?;
-    ensure_table_column(pool, "paper_figures", "kind", "TEXT NOT NULL DEFAULT 'figure'").await?;
+    ensure_table_column(
+        pool,
+        "paper_figures",
+        "kind",
+        "TEXT NOT NULL DEFAULT 'figure'",
+    )
+    .await?;
     ensure_table_column(pool, "paper_figures", "page_number", "INTEGER").await?;
     ensure_table_column(pool, "paper_figures", "bbox", "TEXT").await?;
     ensure_table_column(pool, "paper_figures", "source", "TEXT").await?;
@@ -318,9 +358,11 @@ async fn ensure_table_column(
     });
 
     if !has_column {
-        sqlx::query(&format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"))
-            .execute(pool)
-            .await?;
+        sqlx::query(&format!(
+            "ALTER TABLE {table} ADD COLUMN {column} {definition}"
+        ))
+        .execute(pool)
+        .await?;
     }
 
     Ok(())
@@ -524,6 +566,11 @@ pub async fn ensure_memory_pipeline_tables(pool: &SqlitePool) -> Result<()> {
     Ok(())
 }
 
+pub async fn ensure_memory_checkpoint_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(MEMORY_CHECKPOINT_DDL).execute(pool).await?;
+    Ok(())
+}
+
 pub async fn ensure_submission_tables(pool: &SqlitePool) -> Result<()> {
     sqlx::raw_sql(
         "CREATE TABLE IF NOT EXISTS venues (
@@ -612,7 +659,9 @@ pub async fn ensure_submission_tables(pool: &SqlitePool) -> Result<()> {
     }
 
     // Migration: add tag column to chat_sessions
-    let _ = sqlx::raw_sql("ALTER TABLE chat_sessions ADD COLUMN tag TEXT NOT NULL DEFAULT '0'").execute(pool).await;
+    let _ = sqlx::raw_sql("ALTER TABLE chat_sessions ADD COLUMN tag TEXT NOT NULL DEFAULT '0'")
+        .execute(pool)
+        .await;
 
     Ok(())
 }

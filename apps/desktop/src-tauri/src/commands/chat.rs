@@ -8,6 +8,10 @@ use crate::services::agent_runtime_service::{
     run_agent_runtime, AgentRuntimeKind, AgentRuntimeRequest,
 };
 use crate::services::chat_context_service::{build_chat_context_summary, collect_chat_sources};
+use crate::services::memory_checkpoint_service::{
+    record_chat_checkpoint, record_chat_failure_checkpoint, ChatCheckpointInput,
+    ChatFailureCheckpointInput,
+};
 use crate::state::AppState;
 use crate::web_search::web_search;
 use serde_json::json;
@@ -315,6 +319,7 @@ pub async fn chat_stream(
         .await;
 
         if let Err(e) = result {
+            let error_message = e.to_string();
             if long_term_memory_enabled {
                 let _ = crate::commands::memory::record_chat_failure_event(
                     &db,
@@ -322,13 +327,25 @@ pub async fn chat_stream(
                     &ctx_type_clone,
                     context_id_clone.as_deref(),
                     &message_clone,
-                    &e.to_string(),
+                    &error_message,
+                )
+                .await;
+                let _ = record_chat_failure_checkpoint(
+                    &db,
+                    ChatFailureCheckpointInput {
+                        session_id: &sid_clone,
+                        request_id: &rid,
+                        context_type: &ctx_type_clone,
+                        context_id: context_id_clone.as_deref(),
+                        user_message: &message_clone,
+                        error_message: &error_message,
+                    },
                 )
                 .await;
             }
             let _ = app.emit(
                 "chat:error",
-                json!({ "request_id": rid, "error": e.to_string() }),
+                json!({ "request_id": rid, "error": error_message }),
             );
         }
         let _ = app.emit("chat:done", json!({ "request_id": rid }));
@@ -441,6 +458,19 @@ async fn run_chat(
             message,
             &full,
             sources.len(),
+        )
+        .await;
+        let _ = record_chat_checkpoint(
+            db,
+            ChatCheckpointInput {
+                session_id,
+                request_id,
+                context_type,
+                context_id: context_id.as_deref(),
+                user_message: message,
+                assistant_message: &full,
+                source_count: sources.len(),
+            },
         )
         .await;
     }
