@@ -230,8 +230,8 @@ export const knowledgeApi = {
     }),
   suggestTopics: (field: string, goalType: string, background: string): Promise<string[]> =>
     invoke("knowledge_suggest_topics", { field, goalType: goalType, background }),
-  generatePlan: (id: string): Promise<void> =>
-    invoke("knowledge_generate_plan", { id }),
+  generatePlan: (id: string, startStep?: number): Promise<void> =>
+    invoke("knowledge_generate_plan", { id, startStep: startStep ?? null }),
   listNotes: (search?: string): Promise<KnowledgeNote[]> =>
     invoke("knowledge_list_notes", { search: search ?? null }),
   createNote: (data: {

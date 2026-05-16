@@ -1,4 +1,4 @@
-import type { Paper, ResearchInterest } from "@research-copilot/types";
+import type { LearningPath, Paper, ResearchInterest } from "@research-copilot/types";
 
 export type KnowledgeClaimStatus = "hypothesis" | "supported" | "contested" | "open";
 export type KnowledgeGraphSourceKind = "paper" | "experiment" | "note";
@@ -123,6 +123,25 @@ export interface CitationSubgraph {
     context?: string | null;
   }>;
 }
+
+export interface InterestAgentState {
+  id: string;
+  name: string;
+  role: string;
+  status: "running" | "done" | "failed";
+  summary?: string;
+  error?: string;
+}
+
+export interface InterestPlanRunSnapshot {
+  status?: string;
+  learningPath?: LearningPath;
+  agents: InterestAgentState[];
+  error?: string;
+  updatedAt: number;
+}
+
+export type InterestPlanRunSnapshots = Record<string, InterestPlanRunSnapshot>;
 
 export interface KnowledgeGraphSummary {
   interestCount: number;

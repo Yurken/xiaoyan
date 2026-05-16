@@ -2,6 +2,9 @@ use crate::assistant_prompts::specialist_system;
 use crate::ccf::match_venue;
 use crate::commands::arxiv::{search_recent_paper_hints, search_semantic_scholar_hints};
 use crate::commands::knowledge_notes::note_row_to_json;
+use crate::commands::knowledge_plan_status::{
+    mark_interest_plan_planned, mark_interest_plan_running, restore_interest_plan_status,
+};
 use crate::commands::memory::{is_long_term_memory_enabled, record_knowledge_note_created_event};
 use crate::links::paper_search_url;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
@@ -269,7 +272,7 @@ fn interest_hint_system() -> String {
     )
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct PlannerPaperHint {
     title: String,
     authors: Option<String>,
@@ -279,13 +282,20 @@ struct PlannerPaperHint {
     url: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct PartialPlanContext {
+    analysis: Option<serde_json::Value>,
+    paper_hints: Option<Vec<PlannerPaperHint>>,
+}
+
 #[tauri::command]
 pub async fn knowledge_generate_plan(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     id: String,
+    start_step: Option<usize>,
 ) -> Result<(), String> {
-    let row = sqlx::query("SELECT topic, keywords, profile FROM research_interests WHERE id = ?")
+    let row = sqlx::query("SELECT topic, keywords, profile, partial_plan FROM research_interests WHERE id = ?")
         .bind(&id)
         .fetch_optional(&state.db)
         .await
@@ -297,10 +307,23 @@ pub async fn knowledge_generate_plan(
         .get::<Option<String>, _>("keywords")
         .unwrap_or_else(|| "[]".into());
     let profile_str: Option<String> = row.get::<Option<String>, _>("profile");
+    let partial_plan_str: Option<String> = row.get::<Option<String>, _>("partial_plan");
+
     let keywords: Vec<String> = serde_json::from_str(&kw_str).unwrap_or_default();
     let profile = profile_str
         .and_then(|value| serde_json::from_str::<ResearchInterestProfilePayload>(&value).ok())
         .unwrap_or_default();
+    let mut partial_context: PartialPlanContext = partial_plan_str
+        .and_then(|value| serde_json::from_str(&value).ok())
+        .unwrap_or_default();
+
+    let resume_step = start_step.unwrap_or(0);
+
+    mark_interest_plan_running(&state.db, &id).await?;
+    let _ = app.emit(
+        "interest:status",
+        json!({ "id": &id, "status": "planning" }),
+    );
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
     let rid = id.clone();
@@ -309,247 +332,297 @@ pub async fn knowledge_generate_plan(
         let client = match LlmClient::from_settings(&settings) {
             Ok(c) => c,
             Err(e) => {
+                let status = restore_interest_plan_status(&db, &rid)
+                    .await
+                    .unwrap_or_else(|_| "active".to_string());
+                let _ = app.emit("interest:status", json!({ "id": &rid, "status": status }));
                 let _ = app.emit(
                     "interest:error",
-                    json!({ "id": rid, "error": e.to_string() }),
+                    json!({ "id": &rid, "error": e.to_string() }),
                 );
                 return;
             }
         };
 
-        let analyst_id = Uuid::new_v4().to_string();
-        let _ = app.emit(
-            "interest:agent_start",
-            json!({
-                "id": rid,
-                "agent": {
-                    "id": analyst_id,
-                    "name": "谋策模型",
-                    "role": "拆解研究主题与能力目标",
-                    "status": "running"
-                }
-            }),
-        );
-
-        let analyst_prompt = PLANNER_ANALYST_PROMPT
-            .replace("{topic}", &topic)
-            .replace("{keywords}", &keywords.join("、"))
-            + &profile_to_analysis_context(&profile);
-        let analyst_msgs = vec![
-            LlmMessage::system(planner_analyst_system()),
-            LlmMessage::user(&analyst_prompt),
-        ];
-        let analyst_model = resolve_model(&settings, &["multi_agent_worker_model"]);
-        let analyst_temperature =
-            resolve_temperature(&settings, "multi_agent_worker_temperature", 0.3);
-        let analysis_json = match client
-            .chat(&analyst_msgs, analyst_model.as_deref(), analyst_temperature)
-            .await
-        {
-            Ok(resp) => {
-                let clean = crate::commands::papers::extract_json_pub(&resp);
-                let parsed = serde_json::from_str::<serde_json::Value>(&clean).unwrap_or(json!({}));
-                let _ = app.emit("interest:agent_complete", json!({
+        // --- Step 1: Analysis ---
+        let analyst_id = format!("{}-analyst", rid);
+        let analysis_json = if resume_step == 0 || partial_context.analysis.is_none() {
+            let _ = app.emit(
+                "interest:agent_start",
+                json!({
                     "id": rid,
                     "agent": {
-                        "id": analyst_id,
-                        "name": "谋策模型",
-                        "role": "拆解研究主题与能力目标",
-                        "status": "done",
-                        "summary": parsed.get("scope").and_then(|v| v.as_str()).unwrap_or("已完成主题拆解")
+                        "id": &analyst_id,
+                        "name": "洞见模型",
+                        "role": "拆解研究方向与掌握目标",
+                        "status": "running"
                     }
-                }));
-                parsed
-            }
-            Err(e) => {
-                let _ = app.emit(
-                    "interest:agent_error",
-                    json!({
+                }),
+            );
+
+            let analyst_prompt = PLANNER_ANALYST_PROMPT
+                .replace("{topic}", &topic)
+                .replace("{keywords}", &keywords.join("、"))
+                + &profile_to_analysis_context(&profile);
+            let analyst_msgs = vec![
+                LlmMessage::system(planner_analyst_system()),
+                LlmMessage::user(&analyst_prompt),
+            ];
+            let analyst_model = resolve_model(&settings, &["multi_agent_paper_analyst_model", "paper_analysis_model"]);
+            let analyst_temperature =
+                resolve_temperature(&settings, "multi_agent_paper_analyst_temperature", 0.3);
+            let result = match client
+                .chat(&analyst_msgs, analyst_model.as_deref(), analyst_temperature)
+                .await
+            {
+                Ok(resp) => {
+                    let clean = crate::commands::papers::extract_json_pub(&resp);
+                    let parsed = serde_json::from_str::<serde_json::Value>(&clean).unwrap_or(json!({}));
+                    let _ = app.emit("interest:agent_complete", json!({
                         "id": rid,
                         "agent": {
-                            "id": analyst_id,
-                            "name": "谋策模型",
-                            "role": "拆解研究主题与能力目标",
-                            "status": "failed",
-                            "error": e.to_string()
+                            "id": &analyst_id,
+                            "name": "洞见模型",
+                            "role": "拆解研究方向与掌握目标",
+                            "status": "done",
+                            "summary": parsed.get("scope").and_then(|v| v.as_str()).unwrap_or("已完成主题拆解")
                         }
-                    }),
-                );
-                json!({})
-            }
+                    }));
+                    parsed
+                }
+                Err(e) => {
+                    let _ = app.emit(
+                        "interest:agent_error",
+                        json!({
+                            "id": rid,
+                            "agent": {
+                                "id": &analyst_id,
+                                "name": "洞见模型",
+                                "role": "拆解研究方向与掌握目标",
+                                "status": "failed",
+                                "error": e.to_string()
+                            }
+                        }),
+                    );
+
+                    json!({})
+                }
+            };
+            partial_context.analysis = Some(result.clone());
+            let _ = sqlx::query("UPDATE research_interests SET partial_plan = ? WHERE id = ?")
+                .bind(serde_json::to_string(&partial_context).unwrap_or_default())
+                .bind(&rid)
+                .execute(&db)
+                .await;
+            result
+        } else {
+            let _ = app.emit("interest:agent_complete", json!({
+                "id": rid,
+                "agent": {
+                    "id": &analyst_id,
+                    "name": "洞见模型",
+                    "role": "拆解研究方向与掌握目标",
+                    "status": "done",
+                    "summary": partial_context.analysis.as_ref().and_then(|v| v.get("scope")).and_then(|v| v.as_str()).unwrap_or("已复用前次分析结果")
+                }
+            }));
+            partial_context.analysis.clone().unwrap_or(json!({}))
         };
 
-        let scout_id = Uuid::new_v4().to_string();
-        let _ = app.emit(
-            "interest:agent_start",
-            json!({
-                "id": rid,
-                "agent": {
-                    "id": scout_id,
-                    "name": "探知模型",
-                    "role": "从本地论文库筛选参考论文",
-                    "status": "running"
+        let scout_id = format!("{}-scout", rid);
+        // --- Step 2: Scout ---
+        let paper_hints = if resume_step <= 1 || partial_context.paper_hints.is_none() {
+            let _ = app.emit(
+                "interest:agent_start",
+                json!({
+                    "id": rid,
+                    "agent": {
+                        "id": &scout_id,
+                        "name": "探知模型",
+                        "role": "筛选本地与联网参考论文",
+                        "status": "running"
+                    }
+                }),
+            );
+
+            let mut hints: Vec<PlannerPaperHint> = Vec::new();
+            let mut seen_titles = HashSet::new();
+            let associated_rows = sqlx::query(
+                "SELECT title, authors, year, venue, doi, file_path FROM papers WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 10",
+            )
+            .bind(&rid)
+            .fetch_all(&db)
+            .await
+            .unwrap_or_default();
+
+            for row in associated_rows {
+                let title: String = row.get("title");
+                let normalized_title = title.trim().to_lowercase();
+                if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
+                    continue;
                 }
-            }),
-        );
-
-        let mut paper_hints: Vec<PlannerPaperHint> = Vec::new();
-        let mut seen_titles = HashSet::new();
-        let associated_rows = sqlx::query(
-            "SELECT title, authors, year, venue, doi, file_path FROM papers WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 10",
-        )
-        .bind(&rid)
-        .fetch_all(&db)
-        .await
-        .unwrap_or_default();
-
-        for row in associated_rows {
-            let title: String = row.get("title");
-            let normalized_title = title.trim().to_lowercase();
-            if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
-                continue;
+                let authors: Option<String> = row.get("authors");
+                let year: Option<i64> = row.get("year");
+                let venue: Option<String> = row.get("venue");
+                let doi: Option<String> = row.get("doi");
+                let file_path: Option<String> = row.get("file_path");
+                let hint_title = title.clone();
+                hints.push(PlannerPaperHint {
+                    title,
+                    authors,
+                    year,
+                    venue,
+                    reason: "来自本地论文库（已关联当前研究方向）".to_string(),
+                    url: file_path.or_else(|| doi.and_then(|_| paper_search_url(Some(&hint_title)))),
+                });
             }
-            let authors: Option<String> = row.get("authors");
-            let year: Option<i64> = row.get("year");
-            let venue: Option<String> = row.get("venue");
-            let doi: Option<String> = row.get("doi");
-            let file_path: Option<String> = row.get("file_path");
-            let hint_title = title.clone();
-            paper_hints.push(PlannerPaperHint {
-                title,
-                authors,
-                year,
-                venue,
-                reason: "来自本地论文库（已关联当前研究方向）".to_string(),
-                url: file_path.or_else(|| doi.and_then(|_| paper_search_url(Some(&hint_title)))),
-            });
-        }
 
-        let direct_paper_count = paper_hints.len();
-        if paper_hints.len() < MIN_CLASSIC_PAPER_COUNT {
-            let mut terms = vec![topic.clone()];
-            terms.extend(keywords.clone());
-            for term in terms.into_iter().take(6) {
-                let like = format!("%{}%", term);
-                let rows = sqlx::query(
-                    "SELECT title, authors, year, venue, doi, file_path FROM papers WHERE (title LIKE ? OR abstract LIKE ?) AND (research_interest_id IS NULL OR research_interest_id != ?) LIMIT 4",
-                )
-                .bind(&like)
-                .bind(&like)
-                .bind(&rid)
-                .fetch_all(&db)
-                .await
-                .unwrap_or_default();
-                for row in rows {
-                    let title: String = row.get("title");
-                    let normalized_title = title.trim().to_lowercase();
-                    if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
-                        continue;
-                    }
-                    let authors: Option<String> = row.get("authors");
-                    let year: Option<i64> = row.get("year");
-                    let venue: Option<String> = row.get("venue");
-                    let doi: Option<String> = row.get("doi");
-                    let file_path: Option<String> = row.get("file_path");
-                    let hint_title = title.clone();
-                    paper_hints.push(PlannerPaperHint {
-                        title,
-                        authors,
-                        year,
-                        venue,
-                        reason: "来自本地论文库（关键词相关）".to_string(),
-                        url: file_path
-                            .or_else(|| doi.and_then(|_| paper_search_url(Some(&hint_title)))),
-                    });
-                    if paper_hints.len() >= MIN_CLASSIC_PAPER_COUNT {
-                        break;
-                    }
-                }
-                if paper_hints.len() >= MIN_CLASSIC_PAPER_COUNT {
-                    break;
-                }
-            }
-        }
-
-        let mut online_paper_count = 0usize;
-        if paper_hints.len() < MIN_CLASSIC_PAPER_COUNT {
-            let needed = MIN_CLASSIC_PAPER_COUNT.saturating_sub(paper_hints.len());
-            let engine = settings
-                .get("paper_search_engine")
-                .map(|value| value.as_str())
-                .unwrap_or("arxiv");
-            let recent_papers_result = if engine == "semantic_scholar" {
-                search_semantic_scholar_hints(
-                    &settings,
-                    &topic,
-                    &keywords,
-                    365,
-                    needed.saturating_add(4),
-                )
-                .await
-            } else {
-                search_recent_paper_hints(
-                    &settings,
-                    &topic,
-                    &keywords,
-                    365,
-                    needed.saturating_add(4),
-                )
-                .await
-            };
-            if let Ok(recent_papers) = recent_papers_result {
-                for paper in recent_papers {
-                    let normalized_title = paper.title.trim().to_lowercase();
-                    if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
-                        continue;
-                    }
-                    online_paper_count += 1;
-                    let source_label = if engine == "semantic_scholar" {
-                        "Semantic Scholar"
-                    } else {
-                        "arXiv"
-                    };
-                    paper_hints.push(PlannerPaperHint {
-                        title: paper.title,
-                        authors: Some(paper.authors),
-                        year: paper.year,
-                        venue: Some(paper.venue),
-                        reason: format!("来自 {source_label} 检索：{}", paper.reason),
-                        url: Some(paper.url),
-                    });
-                    if paper_hints.len() >= MIN_CLASSIC_PAPER_COUNT {
-                        break;
-                    }
-                }
-            }
-        }
-        let _ = app.emit("interest:agent_complete", json!({
-            "id": rid,
-            "agent": {
-                "id": scout_id,
-                "name": "探知模型",
-                "role": "从本地论文库筛选参考论文",
-                "status": "done",
-                "summary": if direct_paper_count > 0 {
-                    format!(
-                        "已找到 {} 篇候选参考论文，其中 {} 篇来自当前主题文件夹，{} 篇来自联网检索",
-                        paper_hints.len(),
-                        direct_paper_count,
-                        online_paper_count
+            let direct_paper_count = hints.len();
+            if hints.len() < MIN_CLASSIC_PAPER_COUNT {
+                let mut terms = vec![topic.clone()];
+                terms.extend(keywords.clone());
+                for term in terms.into_iter().take(6) {
+                    let like = format!("%{}%", term);
+                    let rows = sqlx::query(
+                        "SELECT title, authors, year, venue, doi, file_path FROM papers WHERE (title LIKE ? OR abstract LIKE ?) AND (research_interest_id IS NULL OR research_interest_id != ?) LIMIT 4",
                     )
-                } else {
-                    format!("已找到 {} 篇候选参考论文（联网检索补充 {} 篇）", paper_hints.len(), online_paper_count)
+                    .bind(&like)
+                    .bind(&like)
+                    .bind(&rid)
+                    .fetch_all(&db)
+                    .await
+                    .unwrap_or_default();
+                    for row in rows {
+                        let title: String = row.get("title");
+                        let normalized_title = title.trim().to_lowercase();
+                        if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
+                            continue;
+                        }
+                        let authors: Option<String> = row.get("authors");
+                        let year: Option<i64> = row.get("year");
+                        let venue: Option<String> = row.get("venue");
+                        let doi: Option<String> = row.get("doi");
+                        let file_path: Option<String> = row.get("file_path");
+                        let hint_title = title.clone();
+                        hints.push(PlannerPaperHint {
+                            title,
+                            authors,
+                            year,
+                            venue,
+                            reason: "来自本地论文库（关键词相关）".to_string(),
+                            url: file_path
+                                .or_else(|| doi.and_then(|_| paper_search_url(Some(&hint_title)))),
+                        });
+                        if hints.len() >= MIN_CLASSIC_PAPER_COUNT {
+                            break;
+                        }
+                    }
+                    if hints.len() >= MIN_CLASSIC_PAPER_COUNT {
+                        break;
+                    }
                 }
             }
-        }));
 
-        let designer_id = Uuid::new_v4().to_string();
+            let mut online_paper_count = 0usize;
+            if hints.len() < MIN_CLASSIC_PAPER_COUNT {
+                let needed = MIN_CLASSIC_PAPER_COUNT.saturating_sub(hints.len());
+                let engine = settings
+                    .get("paper_search_engine")
+                    .map(|value| value.as_str())
+                    .unwrap_or("arxiv");
+                let recent_papers_result = if engine == "semantic_scholar" {
+                    search_semantic_scholar_hints(
+                        &settings,
+                        &topic,
+                        &keywords,
+                        365,
+                        needed.saturating_add(4),
+                    )
+                    .await
+                } else {
+                    search_recent_paper_hints(
+                        &settings,
+                        &topic,
+                        &keywords,
+                        365,
+                        needed.saturating_add(4),
+                    )
+                    .await
+                };
+                if let Ok(recent_papers) = recent_papers_result {
+                    for paper in recent_papers {
+                        let normalized_title = paper.title.trim().to_lowercase();
+                        if normalized_title.is_empty() || !seen_titles.insert(normalized_title) {
+                            continue;
+                        }
+                        online_paper_count += 1;
+                        let source_label = if engine == "semantic_scholar" {
+                            "Semantic Scholar"
+                        } else {
+                            "arXiv"
+                        };
+                        hints.push(PlannerPaperHint {
+                            title: paper.title,
+                            authors: Some(paper.authors),
+                            year: paper.year,
+                            venue: Some(paper.venue),
+                            reason: format!("来自 {source_label} 检索：{}", paper.reason),
+                            url: Some(paper.url),
+                        });
+                        if hints.len() >= MIN_CLASSIC_PAPER_COUNT {
+                            break;
+                        }
+                    }
+                }
+            }
+            let _ = app.emit("interest:agent_complete", json!({
+                "id": rid,
+                "agent": {
+                    "id": &scout_id,
+                    "name": "探知模型",
+                    "role": "筛选本地与联网参考论文",
+                    "status": "done",
+                    "summary": if direct_paper_count > 0 {
+                        format!(
+                            "已找到 {} 篇候选参考论文，其中 {} 篇来自当前主题文件夹，{} 篇来自联网检索",
+                            hints.len(),
+                            direct_paper_count,
+                            online_paper_count
+                        )
+                    } else {
+                        format!("已找到 {} 篇候选参考论文（联网检索补充 {} 篇）", hints.len(), online_paper_count)
+                    }
+                }
+            }));
+            partial_context.paper_hints = Some(hints.clone());
+            let _ = sqlx::query("UPDATE research_interests SET partial_plan = ? WHERE id = ?")
+                .bind(serde_json::to_string(&partial_context).unwrap_or_default())
+                .bind(&rid)
+                .execute(&db)
+                .await;
+            hints
+        } else {
+            let hints = partial_context.paper_hints.clone().unwrap_or_default();
+            let _ = app.emit("interest:agent_complete", json!({
+                "id": rid,
+                "agent": {
+                    "id": &scout_id,
+                    "name": "探知模型",
+                    "role": "筛选本地与联网参考论文",
+                    "status": "done",
+                    "summary": format!("已复用前次筛选的 {} 篇参考论文", hints.len())
+                }
+            }));
+            hints
+        };
+
+        let designer_id = format!("{}-designer", rid);
         let _ = app.emit(
             "interest:agent_start",
             json!({
                 "id": rid,
                 "agent": {
-                    "id": designer_id,
+                    "id": &designer_id,
                     "name": "谋策模型",
                     "role": "生成结构化学习路线",
                     "status": "running"
@@ -609,8 +682,34 @@ pub async fn knowledge_generate_plan(
                     &paper_hints,
                 );
                 let path_str = serde_json::to_string(&v).unwrap_or_default();
-                let _ = sqlx::query("UPDATE research_interests SET learning_path = ?, status = 'planned' WHERE id = ?")
-                    .bind(&path_str).bind(&rid).execute(&db).await;
+                if let Err(e) = mark_interest_plan_planned(&db, &rid, &path_str).await {
+                    let error = e.to_string();
+                    let status = restore_interest_plan_status(&db, &rid)
+                        .await
+                        .unwrap_or_else(|_| "active".to_string());
+                    let _ = app.emit("interest:status", json!({ "id": &rid, "status": status }));
+                let _ = app.emit(
+                    "interest:agent_error",
+                    json!({
+                        "id": rid,
+                        "agent": {
+                            "id": &designer_id,
+                            "name": "谋策模型",
+                            "role": "生成结构化学习路线",
+                            "status": "failed",
+                            "error": e.to_string()
+                        }
+                    }),
+                );
+
+                    let _ = app.emit("interest:error", json!({ "id": &rid, "error": &error }));
+                    return;
+                }
+                // Clear partial plan on success
+                let _ = sqlx::query("UPDATE research_interests SET partial_plan = NULL WHERE id = ?")
+                    .bind(&rid)
+                    .execute(&db)
+                    .await;
                 let stage_count = v
                     .get("learning_stages")
                     .and_then(|x| x.as_array())
@@ -621,7 +720,7 @@ pub async fn knowledge_generate_plan(
                     json!({
                         "id": rid,
                         "agent": {
-                            "id": designer_id,
+                            "id": &designer_id,
                             "name": "谋策模型",
                             "role": "生成结构化学习路线",
                             "status": "done",
@@ -632,12 +731,21 @@ pub async fn knowledge_generate_plan(
                 let _ = app.emit("interest:plan", json!({ "id": rid, "learning_path": v }));
             }
             Err(e) => {
+                let error = e.to_string();
+                crate::append_diagnostic_log(&format!(
+                    "[planner][{}] 谋策模型调用失败: {}",
+                    rid, error
+                ));
+                let status = restore_interest_plan_status(&db, &rid)
+                    .await
+                    .unwrap_or_else(|_| "active".to_string());
+                let _ = app.emit("interest:status", json!({ "id": &rid, "status": status }));
                 let _ = app.emit(
                     "interest:agent_error",
                     json!({
                         "id": rid,
                         "agent": {
-                            "id": designer_id,
+                            "id": &designer_id,
                             "name": "谋策模型",
                             "role": "生成结构化学习路线",
                             "status": "failed",
@@ -645,9 +753,10 @@ pub async fn knowledge_generate_plan(
                         }
                     }),
                 );
+
                 let _ = app.emit(
                     "interest:error",
-                    json!({ "id": rid, "error": e.to_string() }),
+                    json!({ "id": rid, "error": &error }),
                 );
             }
         }

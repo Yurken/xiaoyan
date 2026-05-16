@@ -244,6 +244,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     sqlx::raw_sql(SCHEMA).execute(&pool).await?;
     ensure_research_interest_profile_column(&pool).await?;
     ensure_research_interest_folder_name_column(&pool).await?;
+    ensure_research_interest_partial_plan_column(&pool).await?;
     ensure_papers_research_interest_column(&pool).await?;
     ensure_paper_analyses_experiment_results_column(&pool).await?;
     ensure_reproduction_guides_code_repository_column(&pool).await?;
@@ -258,8 +259,24 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_submission_tables(&pool).await?;
     ensure_experiment_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
+    reset_stale_research_interest_plans(&pool).await?;
 
     Ok(pool)
+}
+
+async fn reset_stale_research_interest_plans(pool: &SqlitePool) -> Result<()> {
+    sqlx::query(
+        "UPDATE research_interests
+         SET status = CASE
+             WHEN learning_path IS NOT NULL AND trim(learning_path) != '' THEN 'planned'
+             ELSE 'active'
+         END
+         WHERE status = 'planning'",
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }
 
 async fn ensure_paper_figures_table(pool: &SqlitePool) -> Result<()> {
@@ -425,6 +442,10 @@ async fn ensure_research_interest_profile_column(pool: &SqlitePool) -> Result<()
     }
 
     Ok(())
+}
+
+async fn ensure_research_interest_partial_plan_column(pool: &SqlitePool) -> Result<()> {
+    ensure_table_column(pool, "research_interests", "partial_plan", "TEXT").await
 }
 
 async fn ensure_papers_research_interest_column(pool: &SqlitePool) -> Result<()> {

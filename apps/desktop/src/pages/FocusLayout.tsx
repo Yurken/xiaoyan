@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -23,6 +23,10 @@ import { listen } from "@tauri-apps/api/event";
 import PlannerComposer from "../features/knowledge/PlannerComposer";
 import hitLogo from "../assets/app-logo.svg";
 import ResearchWorkbench, { type InterestTab } from "../features/knowledge/ResearchWorkbench";
+import {
+  applyInterestPlanSnapshots,
+  useInterestPlanSnapshots,
+} from "../features/knowledge/useInterestPlanRuns";
 import MacWindowDragStrip from "../components/MacWindowDragStrip";
 import {
   IS_MACOS_DESKTOP,
@@ -146,11 +150,16 @@ function FreeTopicCard({ onEnter }: { onEnter: () => void }) {
 function FocusHome() {
   const navigate = useNavigate();
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
+  const planSnapshots = useInterestPlanSnapshots();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [wizardTopic, setWizardTopic] = useState("");
+  const visibleInterests = useMemo(
+    () => applyInterestPlanSnapshots(interests, planSnapshots),
+    [interests, planSnapshots]
+  );
 
   const load = () => {
     setLoading(true);
@@ -321,11 +330,11 @@ function FocusHome() {
             <div className="flex items-center justify-between px-1 pt-1">
               <p className="text-sm font-semibold text-ink-primary">研究主题</p>
               <p className="text-xs text-ink-tertiary">
-                {interests.length > 0 ? `共 ${interests.length} 个` : ""}
+                {visibleInterests.length > 0 ? `共 ${visibleInterests.length} 个` : ""}
               </p>
             </div>
 
-            {interests.length === 0 ? (
+            {visibleInterests.length === 0 ? (
               <div
                 className="rounded-[28px] p-10 text-center"
                 style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
@@ -338,7 +347,7 @@ function FocusHome() {
               </div>
             ) : (
               <div className="space-y-3">
-                {interests.map((interest) => (
+                {visibleInterests.map((interest) => (
                   <InterestCard
                     key={interest.id}
                     interest={interest}
@@ -453,14 +462,19 @@ function FocusWorkbench() {
   const { interestId, tab } = useParams<{ interestId: string; tab?: string }>();
   const navigate = useNavigate();
   const [interest, setInterest] = useState<ResearchInterest | null>(null);
+  const planSnapshots = useInterestPlanSnapshots();
   const [loadingInterest, setLoadingInterest] = useState(false);
   const [interestError, setInterestError] = useState("");
   const [interestTab, setInterestTab] = useState<InterestTab>("papers");
   const [stats, setStats] = useState({ papers: 0, sessions: 0, notes: 0 });
   const isFree = interestId === "free";
   const freeTab = normalizeFreeTab(tab);
+  const visibleInterest = useMemo(
+    () => interest ? applyInterestPlanSnapshots([interest], planSnapshots)[0] : null,
+    [interest, planSnapshots]
+  );
 
-  const interestTabs = interest?.status === "planned"
+  const interestTabs = visibleInterest?.status === "planned"
     ? [PLANNER_TAB, ...BASE_INTEREST_TABS]
     : BASE_INTEREST_TABS;
 
@@ -496,19 +510,19 @@ function FocusWorkbench() {
   }, [interestId, isFree]);
 
   useEffect(() => {
-    if (isFree || !interest || !interestId) return;
-    const nextTab = normalizeInterestTab(tab, interest.status === "planned");
+    if (isFree || !visibleInterest || !interestId) return;
+    const nextTab = normalizeInterestTab(tab, visibleInterest.status === "planned");
     if (nextTab !== interestTab) {
       setInterestTab(nextTab);
     }
     if (tab !== nextTab) {
       navigate(`/workbench/${interestId}/${nextTab}`, { replace: true });
     }
-  }, [interest, interestId, interestTab, isFree, navigate, tab]);
+  }, [visibleInterest, interestId, interestTab, isFree, navigate, tab]);
 
   const title = isFree
     ? "自由主题"
-    : interest?.folder_name?.trim() || interest?.topic || "研究主题";
+    : visibleInterest?.folder_name?.trim() || visibleInterest?.topic || "研究主题";
 
   const FreePage = (() => {
     switch (freeTab) {
@@ -552,7 +566,7 @@ function FocusWorkbench() {
         <p className="text-sm font-semibold text-ink-primary truncate flex-shrink min-w-0 max-w-[200px]">{title}</p>
 
         {/* 统计（仅具体主题） */}
-        {!isFree && interest && (
+        {!isFree && visibleInterest && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <StatChip label="论文" value={stats.papers} />
             <StatChip label="会话" value={stats.sessions} />
@@ -626,9 +640,9 @@ function FocusWorkbench() {
               <Button className="mt-4" onClick={() => navigate("/")}>返回主题列表</Button>
             </div>
           </div>
-        ) : interest ? (
+        ) : visibleInterest ? (
           <ResearchWorkbench
-            interest={interest}
+            interest={visibleInterest}
             activeTab={interestTab}
             onStats={(p, s, n) => setStats({ papers: p, sessions: s, notes: n })}
           />

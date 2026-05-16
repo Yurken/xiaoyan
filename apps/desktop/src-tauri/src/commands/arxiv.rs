@@ -1,5 +1,5 @@
 use crate::assistant_prompts::specialist_system;
-use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
+use crate::llm::{resolve_model, resolve_temperature_chain, LlmClient, LlmMessage};
 use crate::state::AppState;
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Duration, Utc};
@@ -248,10 +248,20 @@ async fn translate_search_terms(
     topic: &str,
     keywords: &[String],
 ) -> Result<(String, Vec<String>), String> {
-    let prompt = format!(
-        "将以下学术搜索关键词翻译成英文，用于在国际学术数据库检索论文。\n仅返回合法 JSON：{{\"topic\":\"...\",\"keywords\":[\"...\",\"...\"]}}\n\n主题：{}\n关键词：{}",
-        topic,
+    let keyword_text = if keywords.is_empty() {
+        "未填写。请根据研究主题补充 3-6 个英文检索关键词或短语。".to_string()
+    } else {
         keywords.join("、")
+    };
+    let prompt = format!(
+        "将以下学术搜索条件转换成英文，用于在国际学术数据库检索论文。\n\
+         要求：\n\
+         - topic 用一个简洁英文研究主题表达。\n\
+         - keywords 输出 3-6 个英文关键词或短语；如果用户没有填写关键词，请根据主题推断。\n\
+         - 不要输出中文。\n\
+         仅返回合法 JSON：{{\"topic\":\"...\",\"keywords\":[\"...\",\"...\"]}}\n\n主题：{}\n关键词：{}",
+        topic,
+        keyword_text
     );
     let msgs = vec![
         LlmMessage::system("你是学术翻译助手，只输出 JSON。"),
@@ -261,7 +271,8 @@ async fn translate_search_terms(
         .chat(&msgs, None, 0.1)
         .await
         .map_err(|e| e.to_string())?;
-    let parsed: serde_json::Value = serde_json::from_str(&resp)
+    let clean = crate::commands::papers::extract_json_pub(&resp);
+    let parsed: serde_json::Value = serde_json::from_str(&clean)
         .map_err(|e| format!("解析翻译结果失败：{e}"))?;
     let en_topic = parsed
         .get("topic")
@@ -281,6 +292,33 @@ async fn translate_search_terms(
     Ok((en_topic, en_keywords))
 }
 
+fn build_recent_hint_request(search_topic: &str, search_keywords: &[String]) -> ArxivSearchRequest {
+    let topic = clean_whitespace(search_topic);
+    let terms = normalize_term_list(search_keywords.to_vec());
+    let (all_terms, title_terms, abstract_terms) = if terms.is_empty() && !topic.is_empty() {
+        (vec![topic.clone()], Vec::new(), Vec::new())
+    } else {
+        (
+            terms.iter().take(8).cloned().collect(),
+            terms.iter().take(6).cloned().collect(),
+            terms.iter().take(8).cloned().collect(),
+        )
+    };
+
+    ArxivSearchRequest {
+        topic,
+        all_terms,
+        title_terms,
+        abstract_terms,
+        authors: Vec::new(),
+        categories: Vec::new(),
+        comments_terms: Vec::new(),
+        journal_ref_terms: Vec::new(),
+        exclude_terms: Vec::new(),
+    }
+    .normalize()
+}
+
 pub async fn search_recent_paper_hints(
     settings: &HashMap<String, String>,
     topic: &str,
@@ -288,7 +326,7 @@ pub async fn search_recent_paper_hints(
     days: i64,
     limit: usize,
 ) -> anyhow::Result<Vec<RecentPaperHint>> {
-    let client = LlmClient::from_settings(settings).ok();
+    let client = LlmClient::scout_client_from_settings(settings).ok();
 
     let (search_topic, search_keywords) =
         if contains_chinese(topic) || keywords.iter().any(|k| contains_chinese(k)) {
@@ -306,18 +344,7 @@ pub async fn search_recent_paper_hints(
             (topic.to_string(), keywords.to_vec())
         };
 
-    let request = ArxivSearchRequest {
-        topic: search_topic.trim().to_string(),
-        all_terms: search_keywords.iter().take(8).cloned().collect(),
-        title_terms: search_keywords.iter().take(6).cloned().collect(),
-        abstract_terms: search_keywords.iter().take(8).cloned().collect(),
-        authors: Vec::new(),
-        categories: Vec::new(),
-        comments_terms: Vec::new(),
-        journal_ref_terms: Vec::new(),
-        exclude_terms: Vec::new(),
-    }
-    .normalize();
+    let request = build_recent_hint_request(&search_topic, &search_keywords);
 
     if !request.has_search_terms() {
         return Ok(Vec::new());
@@ -417,10 +444,26 @@ pub async fn search_semantic_scholar_hints(
     limit: usize,
 ) -> anyhow::Result<Vec<RecentPaperHint>> {
     let client = reqwest::Client::new();
-    let query = if topic.trim().is_empty() {
-        keywords.join(" ")
+    let llm_client = LlmClient::scout_client_from_settings(settings).ok();
+    let (search_topic, search_keywords) =
+        if contains_chinese(topic) || keywords.iter().any(|k| contains_chinese(k)) {
+            if let Some(ref c) = llm_client {
+                translate_search_terms(c, topic, keywords)
+                    .await
+                    .unwrap_or_else(|e| {
+                        eprintln!("翻译 Semantic Scholar 搜索词失败，使用原文：{e}");
+                        (topic.to_string(), keywords.to_vec())
+                    })
+            } else {
+                (topic.to_string(), keywords.to_vec())
+            }
+        } else {
+            (topic.to_string(), keywords.to_vec())
+        };
+    let query = if search_topic.trim().is_empty() {
+        search_keywords.join(" ")
     } else {
-        format!("{} {}", topic, keywords.join(" "))
+        format!("{} {}", search_topic, search_keywords.join(" "))
     };
     if query.trim().is_empty() {
         return Ok(Vec::new());
@@ -629,13 +672,20 @@ async fn rerank_with_llm(
     limit: usize,
     candidates: &[ArxivPaper],
 ) -> anyhow::Result<Option<(String, String, Vec<ArxivRecommendation>)>> {
-    let client = match LlmClient::from_settings(settings) {
+    let client = match LlmClient::scout_client_from_settings(settings) {
         Ok(client) => client,
         Err(_) => return Ok(None),
     };
 
-    let model = resolve_model(settings, &["survey_planner_model", "copilot_simple_model"]);
-    let temperature = resolve_temperature(settings, "survey_planner_temperature", 0.2);
+    let model = resolve_model(settings, &[
+        "multi_agent_literature_scout_model",
+        "survey_planner_model",
+        "copilot_simple_model",
+    ]);
+    let temperature = resolve_temperature_chain(settings, &[
+        "multi_agent_literature_scout_temperature",
+        "survey_planner_temperature",
+    ], 0.2);
     let candidate_json = candidates
         .iter()
         .map(|paper| {
@@ -1398,8 +1448,9 @@ fn truncate_chars(value: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_search_query_with_now, candidate_pool_size, normalize_arxiv_id, parse_arxiv_feed,
-        parse_multi_value_input, ArxivSearchRequest, RankingMode,
+        build_recent_hint_request, build_search_query_with_now, candidate_pool_size,
+        normalize_arxiv_id, parse_arxiv_feed, parse_multi_value_input, ArxivSearchRequest,
+        RankingMode,
     };
     use chrono::{DateTime, Utc};
 
@@ -1432,6 +1483,16 @@ mod tests {
             query,
             "(all:\"agent memory\" OR all:\"tool use\") AND ti:\"planning\" AND au:\"Alice Smith\" AND (cat:cs.LG OR cat:stat.ML) AND submittedDate:[202603081200 TO 202603221200] ANDNOT all:\"robotics\""
         );
+    }
+
+    #[test]
+    fn recent_hint_request_uses_topic_when_keywords_are_empty() {
+        let request = build_recent_hint_request("large language model alignment", &[]);
+
+        assert!(request.has_search_terms());
+        assert_eq!(request.all_terms, vec!["large language model alignment"]);
+        assert!(request.title_terms.is_empty());
+        assert!(request.abstract_terms.is_empty());
     }
 
     #[test]

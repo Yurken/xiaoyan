@@ -13,7 +13,7 @@ use self::shared::{
 };
 use self::transport::{
     append_sse_chunk, drain_sse_payloads, ensure_http_success, format_http_error,
-    format_openai_http_error as format_openai_http_error_impl,
+    format_openai_http_error as format_openai_http_error_impl, parse_json_response,
 };
 
 #[derive(Clone, Debug)]
@@ -315,6 +315,52 @@ impl LlmClient {
         }
     }
 
+    /// Build a client specifically for literature scout tasks.
+    /// Reads `multi_agent_literature_scout_base_url/api_key/model`.
+    /// Falls back to the main LLM provider if scout-specific settings are not configured.
+    pub fn scout_client_from_settings(s: &HashMap<String, String>) -> Result<Self> {
+        let base_url = s
+            .get("multi_agent_literature_scout_base_url")
+            .map(|v| v.trim().to_string())
+            .unwrap_or_default();
+        let api_key = s
+            .get("multi_agent_literature_scout_api_key")
+            .map(|v| v.trim().to_string())
+            .unwrap_or_default();
+        let model = s
+            .get("multi_agent_literature_scout_model")
+            .map(|v| v.trim().to_string())
+            .unwrap_or_default();
+
+        if base_url.is_empty() || api_key.is_empty() {
+            return Self::from_settings(s);
+        }
+
+        let normalized_base_url = normalize_base_url(&base_url);
+        if is_anthropic_compatible_base_url(&normalized_base_url) {
+            Ok(LlmClient::Anthropic {
+                base_url: normalized_base_url,
+                api_key,
+                chat_model: if model.is_empty() {
+                    "claude-3-5-haiku-20241022".into()
+                } else {
+                    model
+                },
+            })
+        } else {
+            Ok(LlmClient::OpenAI {
+                base_url: normalized_base_url,
+                api_key,
+                chat_model: if model.is_empty() {
+                    "deepseek-chat".into()
+                } else {
+                    model
+                },
+                embed_model: String::new(),
+            })
+        }
+    }
+
     /// Vision chat — send one image + text prompt to a multimodal model.
     /// `image_b64` is the base64-encoded image bytes; `media_type` is e.g. "image/png".
     /// Fails silently (callers should handle errors) if the model doesn't support vision.
@@ -360,7 +406,7 @@ impl LlmClient {
                     format_openai_http_error_impl(status, body, base_url, "Vision API error")
                 })
                 .await?;
-                let json: serde_json::Value = resp.json().await?;
+                let json = parse_json_response(resp, "Vision API error").await?;
                 Ok(json["choices"][0]["message"]["content"]
                     .as_str()
                     .unwrap_or("")
@@ -395,7 +441,7 @@ impl LlmClient {
                     format_http_error(status, body, "Anthropic vision error")
                 })
                 .await?;
-                let json: serde_json::Value = resp.json().await?;
+                let json = parse_json_response(resp, "Anthropic vision error").await?;
                 extract_anthropic_response_text_impl(&json, "Anthropic vision error")
             }
         }
@@ -749,7 +795,7 @@ async fn openai_chat(
         format_openai_http_error_impl(status, body, base_url, "LLM API error")
     })
     .await?;
-    let json: serde_json::Value = resp.json().await?;
+    let json = parse_json_response(resp, "LLM API error").await?;
     Ok(json["choices"][0]["message"]["content"]
         .as_str()
         .unwrap_or("")
@@ -860,7 +906,7 @@ async fn embed_openai(
         format_openai_http_error_impl(status, body, base_url, "Embedding error")
     })
     .await?;
-    let json: serde_json::Value = resp.json().await?;
+    let json = parse_json_response(resp, "Embedding error").await?;
     let data = json["data"]
         .as_array()
         .ok_or_else(|| anyhow!("no data in embed response"))?;
@@ -918,7 +964,7 @@ async fn anthropic_chat(
         format_http_error(status, body, "Anthropic error")
     })
     .await?;
-    let json: serde_json::Value = resp.json().await?;
+    let json = parse_json_response(resp, "Anthropic error").await?;
     extract_anthropic_response_text_impl(&json, "Anthropic error")
 }
 

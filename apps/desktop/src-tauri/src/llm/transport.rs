@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use reqwest::{Response, StatusCode};
+use serde_json::Value;
 
 use super::shared::compact_preview;
 
@@ -44,7 +45,40 @@ where
     }
 
     let text = resp.text().await?;
+    crate::append_diagnostic_log(&format!(
+        "[llm][http_error] status={} body_preview={}",
+        status.as_u16(),
+        compact_preview(&text, 800)
+    ));
     Err(anyhow!(format_error(status, &text)))
+}
+
+pub(super) async fn parse_json_response(resp: Response, label: &str) -> Result<Value> {
+    let bytes = resp.bytes().await.map_err(|error| {
+        crate::append_diagnostic_log(&format!(
+            "[llm][{}] 读取响应体失败: {}",
+            label, error
+        ));
+        anyhow!("{}：读取响应失败（{}）", label, error)
+    })?;
+    let text = String::from_utf8_lossy(&bytes);
+    serde_json::from_str::<Value>(&text).map_err(|error| {
+        let preview = compact_preview(text.trim(), 800);
+        crate::append_diagnostic_log(&format!(
+            "[llm][{}] JSON解析失败: {} 响应预览: {}",
+            label, error, preview
+        ));
+        if preview.is_empty() {
+            anyhow!("{}：响应为空，无法解析为 JSON（{}）", label, error)
+        } else {
+            anyhow!(
+                "{}：响应不是合法 JSON（{}）。响应预览：{}",
+                label,
+                error,
+                compact_preview(text.trim(), 320)
+            )
+        }
+    })
 }
 
 pub(super) fn append_sse_chunk(buf: &mut String, bytes: &[u8]) {

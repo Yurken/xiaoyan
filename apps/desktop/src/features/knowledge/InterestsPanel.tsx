@@ -1,24 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ChevronDown, ChevronUp, GitBranch, Loader2, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Badge, Button, Card, Input } from "@research-copilot/ui";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { replaceAgentWording, toCapabilityModelName, type LearningPath, type ResearchInterest } from "@research-copilot/types";
-import { listen } from "@tauri-apps/api/event";
 import InterestProfilePanel, { type InterestProfileHighlight } from "./InterestProfilePanel";
 import PlannerComposer from "./PlannerComposer";
 import ResearchWorkbench from "./ResearchWorkbench";
 import TopicDiscoveryWizard from "./TopicDiscoveryWizard";
-
-interface InterestAgentState {
-  id: string;
-  name: string;
-  role: string;
-  status: "running" | "done" | "failed";
-  summary?: string;
-  error?: string;
-}
+import {
+  applyInterestPlanSnapshots,
+  failInterestPlanRun,
+  removeInterestPlanSnapshot,
+  resumeInterestPlanRun,
+  startInterestPlanRun,
+  useInterestPlanSnapshots,
+} from "./useInterestPlanRuns";
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "planned") return <Badge variant="success">已规划</Badge>;
@@ -216,7 +214,7 @@ function interestFolderName(interest: ResearchInterest) {
 
 export default function InterestsPanel() {
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
-  const [agentsByInterest, setAgentsByInterest] = useState<Record<string, InterestAgentState[]>>({});
+  const planSnapshots = useInterestPlanSnapshots();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -229,6 +227,10 @@ export default function InterestsPanel() {
   const [savingFolderId, setSavingFolderId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingInterestId, setDeletingInterestId] = useState<string | null>(null);
+  const visibleInterests = useMemo(
+    () => applyInterestPlanSnapshots(interests, planSnapshots),
+    [interests, planSnapshots]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -252,72 +254,21 @@ export default function InterestsPanel() {
     };
   }, []);
 
-  useEffect(() => {
-    const unlistenPlan = listen<{ id: string; learning_path: LearningPath }>("interest:plan", (event) => {
-      setInterests((prev) =>
-        prev.map((item) =>
-          item.id === event.payload.id
-            ? { ...item, status: "planned", learning_path: event.payload.learning_path }
-            : item
-        )
-      );
-    });
-
-    const unlistenError = listen<{ id: string; error: string }>("interest:error", (event) => {
-      setInterests((prev) =>
-        prev.map((item) =>
-          item.id === event.payload.id ? { ...item, status: "active" } : item
-        )
-      );
-    });
-
-    const upsertAgent = (interestId: string, nextAgent: InterestAgentState) => {
-      setAgentsByInterest((prev) => {
-        const current = prev[interestId] || [];
-        const index = current.findIndex((item) => item.id === nextAgent.id);
-        if (index === -1) {
-          return { ...prev, [interestId]: [...current, nextAgent] };
-        }
-
-        return {
-          ...prev,
-          [interestId]: current.map((item) => (item.id === nextAgent.id ? { ...item, ...nextAgent } : item)),
-        };
-      });
-    };
-
-    const unlistenStart = listen<{ id: string; agent: InterestAgentState }>("interest:agent_start", (event) => {
-      upsertAgent(event.payload.id, event.payload.agent);
-    });
-
-    const unlistenComplete = listen<{ id: string; agent: InterestAgentState }>("interest:agent_complete", (event) => {
-      upsertAgent(event.payload.id, { ...event.payload.agent, status: "done" });
-    });
-
-    const unlistenAgentError = listen<{ id: string; agent: InterestAgentState }>("interest:agent_error", (event) => {
-      upsertAgent(event.payload.id, { ...event.payload.agent, status: "failed" });
-    });
-
-    return () => {
-      void unlistenPlan.then((cleanup) => cleanup());
-      void unlistenError.then((cleanup) => cleanup());
-      void unlistenStart.then((cleanup) => cleanup());
-      void unlistenComplete.then((cleanup) => cleanup());
-      void unlistenAgentError.then((cleanup) => cleanup());
-    };
-  }, []);
-
-  const handleGeneratePlan = async (id: string) => {
-    setInterests((prev) => prev.map((item) => (item.id === id ? { ...item, status: "planning" } : item)));
-    setAgentsByInterest((prev) => ({ ...prev, [id]: [] }));
+  const handleGeneratePlan = async (interest: ResearchInterest, startStep?: number) => {
+    if (typeof startStep === "number") {
+      resumeInterestPlanRun(interest.id, startStep);
+    } else {
+      startInterestPlanRun(interest.id, interest.learning_path);
+    }
 
     try {
-      await apiClient.knowledge.generatePlan(id);
+      await apiClient.knowledge.generatePlan(interest.id, startStep);
       setError("");
       setNotice("");
     } catch (nextError) {
-      setInterests((prev) => prev.map((item) => (item.id === id ? { ...item, status: "active" } : item)));
-      setError(formatErrorMessage(nextError));
+      const message = formatErrorMessage(nextError);
+      failInterestPlanRun(interest.id, message);
+      setError(message);
     }
   };
 
@@ -353,11 +304,7 @@ export default function InterestsPanel() {
       setDeletingInterestId(id);
       await apiClient.knowledge.deleteInterestOnly(id);
       setInterests((prev) => prev.filter((item) => item.id !== id));
-      setAgentsByInterest((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
+      removeInterestPlanSnapshot(id);
       setExpanded((prev) => (prev === id ? null : prev));
       setEditingFolderId((prev) => (prev === id ? null : prev));
       setFolderDraft("");
@@ -380,7 +327,7 @@ export default function InterestsPanel() {
     );
   }
 
-  if (error && interests.length === 0) {
+  if (error && visibleInterests.length === 0) {
     return (
       <Card className="flex flex-col items-center gap-3 py-16 text-center">
         <AlertCircle className="h-8 w-8 text-apple-red" />
@@ -468,7 +415,7 @@ export default function InterestsPanel() {
           </div>
         )}
 
-        {error && interests.length > 0 && (
+        {error && visibleInterests.length > 0 && (
           <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span className="break-all">{error}</span>
@@ -476,7 +423,7 @@ export default function InterestsPanel() {
         )}
       </Card>
 
-      {interests.length === 0 ? (
+      {visibleInterests.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
           <div
             className="flex h-14 w-14 items-center justify-center rounded-3xl"
@@ -491,39 +438,28 @@ export default function InterestsPanel() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {interests.map((interest) => {
+          {visibleInterests.map((interest) => {
             const profileHighlights = summarizeProfile(interest);
-            const agents = agentsByInterest[interest.id] || [];
+            const planSnapshot = planSnapshots[interest.id];
+            const agents = planSnapshot?.agents || [];
+            const planError = planSnapshot?.error;
             const hasRunningAgent = agents.some((agent) => agent.status === "running");
             const folderName = interestFolderName(interest);
             const folderEdited = folderName !== interest.topic;
 
             return (
-              <Card key={interest.id} padding="sm" className="space-y-0">
+              <Card key={interest.id} padding="sm">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-ink-primary">{folderName}</p>
                       <StatusBadge status={interest.status} />
                     </div>
-                    <p className="mt-1 text-xs text-ink-tertiary">
-                      研究主题：{interest.topic}
-                      {folderEdited ? " · 文件夹名已自定义" : ""}
-                    </p>
-                    {interest.keywords && interest.keywords.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {interest.keywords.map((keyword) => (
-                          <span key={`${interest.id}-${keyword}`} className="rc-accent-chip rounded-full px-2 py-1 text-[11px]">
-                            {keyword}
-                          </span>
-                        ))}
-                      </div>
+                    {folderEdited && (
+                      <p className="mt-1 text-xs text-ink-tertiary">
+                        研究主题：{interest.topic}
+                      </p>
                     )}
-
-                    <InterestProfilePanel
-                      highlights={profileHighlights}
-                      constraints={interest.profile?.constraints}
-                    />
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -532,7 +468,7 @@ export default function InterestsPanel() {
                       文件夹名
                     </Button>
                     {interest.status !== "planning" ? (
-                      <Button size="sm" variant="secondary" onClick={() => void handleGeneratePlan(interest.id)}>
+                      <Button size="sm" variant="secondary" onClick={() => void handleGeneratePlan(interest)}>
                         <Sparkles className="h-3.5 w-3.5" />
                         {interest.status === "planned" ? "重新规划" : "生成路线"}
                       </Button>
@@ -581,35 +517,49 @@ export default function InterestsPanel() {
                   </div>
                 </div>
 
-                {editingFolderId === interest.id && (
-                  <div className="mt-4 border-t border-nm-dark/10 pt-4">
-                    <div className="grid gap-3 rounded-2xl border border-nm-dark/10 bg-white/35 p-3 lg:grid-cols-[minmax(0,1fr),auto,auto]">
-                      <Input
-                        label="主题文件夹名称"
-                        value={folderDraft}
-                        onChange={(event) => setFolderDraft(event.target.value)}
-                        placeholder="请输入文件夹名称"
-                      />
-                      <Button size="sm" onClick={() => void handleSaveFolder(interest.id)} loading={savingFolderId === interest.id}>
-                        保存
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          setEditingFolderId(null);
-                          setFolderDraft("");
-                        }}
-                      >
-                        取消
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <div className="mt-8 space-y-6">
+                  <InterestProfilePanel
+                    highlights={profileHighlights}
+                    constraints={interest.profile?.constraints}
+                    keywords={interest.keywords}
+                  />
 
-                {agents.length > 0 && (
-                  <div className="mt-4 border-t border-nm-dark/10 pt-4">
-                    <div className="agent-flow-shell">
+                  {editingFolderId === interest.id && (
+                    <div className="rounded-2xl border border-nm-dark/10 bg-white/35 p-3">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr),auto,auto]">
+                        <Input
+                          label="主题文件夹名称"
+                          value={folderDraft}
+                          onChange={(event) => setFolderDraft(event.target.value)}
+                          placeholder="请输入文件夹名称"
+                        />
+                        <Button size="sm" onClick={() => void handleSaveFolder(interest.id)} loading={savingFolderId === interest.id}>
+                          保存
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setEditingFolderId(null);
+                            setFolderDraft("");
+                          }}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {planError && (
+                    <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+                      <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                      <span className="break-all">{planError}</span>
+                    </div>
+                  )}
+
+                  {agents.length > 0 && (
+                    <div className="border-t border-nm-dark/10 pt-6">
+                      <div className="agent-flow-shell">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <div className="flex items-center gap-1.5">
@@ -647,9 +597,19 @@ export default function InterestsPanel() {
                                 <p className="mt-3 truncate text-sm font-semibold text-ink-primary">{toCapabilityModelName(agent.name)}</p>
                                 <p className="mt-1 truncate text-[11px] text-ink-tertiary">{replaceAgentWording(agent.role)}</p>
                               </div>
-                              <Badge variant={agent.status === "done" ? "success" : agent.status === "failed" ? "danger" : "info"}>
-                                {agent.status === "done" ? "已完成" : agent.status === "failed" ? "失败" : "处理中"}
-                              </Badge>
+                              <div className="flex flex-col items-end gap-2">
+                                <Badge variant={agent.status === "done" ? "success" : agent.status === "failed" ? "danger" : "info"}>
+                                  {agent.status === "done" ? "已完成" : agent.status === "failed" ? "失败" : "处理中"}
+                                </Badge>
+                                {agent.status === "failed" && (
+                                  <button
+                                    onClick={() => void handleGeneratePlan(interest, index)}
+                                    className="text-[10px] text-apple-blue hover:underline font-medium"
+                                  >
+                                    重试该步骤
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             <p className={`mt-3 text-[11px] leading-5 ${agent.error ? "text-apple-red" : "text-ink-secondary"}`}>
@@ -670,14 +630,15 @@ export default function InterestsPanel() {
                 )}
 
                 {expanded === interest.id && interest.learning_path && (
-                  <div className="mt-4 border-t border-nm-dark/10 pt-4">
+                  <div className="border-t border-nm-dark/10 pt-6">
                     <div className="space-y-5">
                       <LearningPathView path={interest.learning_path} />
                       <ResearchWorkbench interest={interest} />
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
+            </Card>
             );
           })}
         </div>

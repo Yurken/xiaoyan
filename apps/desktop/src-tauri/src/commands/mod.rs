@@ -10,6 +10,7 @@ pub mod journal;
 pub mod knowledge;
 pub mod knowledge_graph;
 pub mod knowledge_notes;
+pub mod knowledge_plan_status;
 pub mod memory;
 pub mod memory_privacy;
 pub mod misc;

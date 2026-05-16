@@ -40,6 +40,7 @@ import { IS_MACOS_DESKTOP } from "./lib/windowChrome";
 import MacWindowDragStrip from "./components/MacWindowDragStrip";
 import UpdateNotification from "./components/UpdateNotification";
 import XiaoYanPet from "./components/XiaoYanPet";
+import { useInterestPlanEventBridge } from "./features/knowledge/useInterestPlanRuns";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "首页" },
@@ -61,6 +62,7 @@ function LandscapeFocusRouteRedirect() {
 
 export default function App() {
   const autoUpdate = useAutoUpdate();
+  useInterestPlanEventBridge();
   const navigate = useNavigate();
   const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());
   const [locked, setLocked] = useState(false);
