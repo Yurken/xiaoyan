@@ -187,7 +187,7 @@
 
 - 已完成：研究主题总览与继续入口、论文重解析与解析质量展示、会话 checkpoint 写入 / 召回 / 工作台可视化、投稿诊断报告保存 / 转清单 / 转修改任务、小妍唯一助手 runtime 边界与事件流收束。
 - 已验证：`cargo test`、`pnpm --filter @research-copilot/desktop type-check`、`pnpm --filter @research-copilot/desktop lint`、`pnpm --filter @research-copilot/desktop build`、`pnpm type-check`、`pnpm lint`。
-- 发布前仍需：`CHANGELOG.md`、`node scripts/sync-version.mjs --tag v0.4.0`、macOS 安装包和自动更新链路验证。
+- 发布前仍需：`node scripts/sync-version.mjs --tag v0.4.0`、macOS 安装包和自动更新链路验证。
 - 后续增强：实验 / 投稿与研究主题的显式字段关联、MinerU 样本评估、审稿意见结构化解析和更完整的 Hermes adapter 草案。
 
 ### P1：尽量进入 0.4.0
@@ -293,6 +293,6 @@
 - [ ] 小妍 Agent runtime 默认路径、取消逻辑、事件流和旧会话兼容性完成验证。
 - [x] `pnpm --filter @research-copilot/desktop type-check` 通过。
 - [x] 跨工作区修改时 `pnpm type-check` 和 `pnpm lint` 通过。
-- [ ] `CHANGELOG.md` 已补充 0.4.0 条目。
+- [x] `CHANGELOG.md` 已补充 0.4.0 条目。
 - [ ] 版本号通过 `node scripts/sync-version.mjs --tag v0.4.0` 同步。
 - [ ] macOS 安装包和自动更新链路完成验证。
