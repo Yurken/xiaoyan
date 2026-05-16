@@ -294,22 +294,18 @@ async fn translate_search_terms(
 
 fn build_recent_hint_request(search_topic: &str, search_keywords: &[String]) -> ArxivSearchRequest {
     let topic = clean_whitespace(search_topic);
-    let terms = normalize_term_list(search_keywords.to_vec());
-    let (all_terms, title_terms, abstract_terms) = if terms.is_empty() && !topic.is_empty() {
-        (vec![topic.clone()], Vec::new(), Vec::new())
-    } else {
-        (
-            terms.iter().take(8).cloned().collect(),
-            terms.iter().take(6).cloned().collect(),
-            terms.iter().take(8).cloned().collect(),
-        )
-    };
+    let mut all_terms = Vec::new();
+    if !topic.is_empty() {
+        all_terms.push(topic.clone());
+    }
+    all_terms.extend(normalize_term_list(search_keywords.to_vec()));
+    all_terms = normalize_term_list(all_terms);
 
     ArxivSearchRequest {
         topic,
-        all_terms,
-        title_terms,
-        abstract_terms,
+        all_terms: all_terms.into_iter().take(8).collect(),
+        title_terms: Vec::new(),
+        abstract_terms: Vec::new(),
         authors: Vec::new(),
         categories: Vec::new(),
         comments_terms: Vec::new(),
@@ -350,17 +346,28 @@ pub async fn search_recent_paper_hints(
         return Ok(Vec::new());
     }
 
-    let day_window = days.clamp(1, 365);
+    let day_window = days.clamp(1, 3650);
     let result_limit = limit.clamp(1, 20);
     let mode = RankingMode::Relevance;
     let query = describe_request(&request);
-    let search_expression = build_search_query(&request, day_window);
-    let candidates = fetch_arxiv_candidates(
+    let mut search_expression = build_search_query(&request, day_window);
+    let mut candidates = fetch_arxiv_candidates(
         &search_expression,
         day_window,
         candidate_pool_size(result_limit),
     )
     .await?;
+
+    if candidates.is_empty() && day_window < 1095 {
+        let expanded_day_window = 1095;
+        search_expression = build_search_query(&request, expanded_day_window);
+        candidates = fetch_arxiv_candidates(
+            &search_expression,
+            expanded_day_window,
+            candidate_pool_size(result_limit),
+        )
+        .await?;
+    }
 
     if candidates.is_empty() {
         return Ok(Vec::new());
@@ -1491,6 +1498,25 @@ mod tests {
 
         assert!(request.has_search_terms());
         assert_eq!(request.all_terms, vec!["large language model alignment"]);
+        assert!(request.title_terms.is_empty());
+        assert!(request.abstract_terms.is_empty());
+    }
+
+    #[test]
+    fn recent_hint_request_keeps_keywords_as_broad_candidate_terms() {
+        let request = build_recent_hint_request(
+            "large language model alignment",
+            &["rlhf".into(), "preference optimization".into()],
+        );
+
+        assert_eq!(
+            request.all_terms,
+            vec![
+                "large language model alignment",
+                "rlhf",
+                "preference optimization"
+            ]
+        );
         assert!(request.title_terms.is_empty());
         assert!(request.abstract_terms.is_empty());
     }

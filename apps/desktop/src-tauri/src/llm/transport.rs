@@ -1,8 +1,15 @@
 use anyhow::{anyhow, Result};
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT_ENCODING};
 use reqwest::{Response, StatusCode};
 use serde_json::Value;
 
 use super::shared::compact_preview;
+
+pub(super) fn identity_encoding_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("identity"));
+    headers
+}
 
 pub(super) fn format_http_error(status: StatusCode, body: &str, label: &str) -> String {
     let preview = compact_preview(body.trim(), 240);

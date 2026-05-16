@@ -13,7 +13,8 @@ use self::shared::{
 };
 use self::transport::{
     append_sse_chunk, drain_sse_payloads, ensure_http_success, format_http_error,
-    format_openai_http_error as format_openai_http_error_impl, parse_json_response,
+    format_openai_http_error as format_openai_http_error_impl, identity_encoding_headers,
+    parse_json_response,
 };
 
 #[derive(Clone, Debug)]
@@ -47,6 +48,7 @@ pub enum StreamOutcome {
 fn http_client() -> reqwest::Client {
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
+        .default_headers(identity_encoding_headers())
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
 }
@@ -54,6 +56,7 @@ fn http_client() -> reqwest::Client {
 fn stream_http_client() -> reqwest::Client {
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(300))
+        .default_headers(identity_encoding_headers())
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
 }
