@@ -54,7 +54,7 @@ jobs:
 
   desktop-rust-test:
     name: Desktop Rust Test
-    runs-on: macos-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4.2.2
 

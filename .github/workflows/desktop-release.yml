@@ -75,7 +75,7 @@ jobs:
       matrix:
         include:
           - label: macOS Apple Silicon
-            platform: macos-latest
+            platform: self-hosted
             args: "--target aarch64-apple-darwin"
             rust_target: aarch64-apple-darwin
             build_target_dir: aarch64-apple-darwin/release
@@ -87,7 +87,7 @@ jobs:
             build_target_dir: x86_64-apple-darwin/release
             updater_target: darwin-x86_64
           - label: Windows x64
-            platform: windows-latest
+            platform: self-hosted
             args: ""
             rust_target: ""
             build_target_dir: release
