@@ -1,0 +1,177 @@
+/**
+ * Unified Design Tokens for Xiaoyan (小妍)
+ * Consolidated from apps/desktop and apps/web.
+ * 
+ * Hierarchy:
+ * - Default (:root): Dark Mode (Primary for Desktop)
+ * - [data-theme="light"]: Light Mode (Refined for contrast)
+ * - [data-style="modern-minimal"]: Flat/Edge-based style
+ */
+
+:root {
+  color-scheme: dark;
+  --rc-accent: #007aff;
+  --rc-bg: #090B10;
+  --rc-bg-rgb: 9 11 16;
+  --rc-surface: #11151C;
+  --rc-surface-rgb: 17 21 28;
+  --rc-elevated: #1D2430;
+  --rc-elevated-rgb: 29 36 48;
+  --rc-border: #242D3A;
+  --rc-border-rgb: 36 45 58;
+  --rc-border-strong-rgb: 60 74 92;
+  --rc-text: #F5F7FA;
+  --rc-text-rgb: 245 247 250;
+  --rc-text-soft: #C7D0DC;
+  --rc-text-soft-rgb: 199 208 220;
+  --rc-text-muted: #8D99AA;
+  --rc-text-muted-rgb: 141 153 170;
+  
+  /* Neumorphic Shadows (Dark) */
+  --rc-inset-shadow: inset 1px 1px 3px rgba(5, 7, 11, 0.8), inset -1px -1px 3px #1A2230;
+  --rc-raised-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.2), 6px 6px 16px #05070B, -4px -4px 12px #171E28;
+  --rc-flat-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03), inset 1px 1px 1px rgba(255, 255, 255, 0.1), 3px 3px 8px #05070B, -3px -3px 6px #161C25;
+  
+  /* Cards */
+  --rc-card-bg: linear-gradient(145deg, #161c28, #0D1117);
+  --rc-card-inset-bg: #0b0f15;
+  --rc-card-shadow: 6px 6px 14px #05070B, -6px -6px 14px #171E28;
+  --rc-card-flat-shadow: 5px 5px 12px #05070B, -5px -5px 12px #161C25;
+  --rc-card-outline: transparent;
+  
+  /* Components */
+  --rc-chip-bg: #161c28;
+  --rc-chip-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), inset 1px 1px 2px rgba(255, 255, 255, 0.1);
+  --rc-chip-inset-bg: #0b0f15;
+  --rc-chip-inset-shadow: inset 2px 2px 5px #05070b, inset -1px -1px 3px #161c28;
+  
+  --rc-button-primary-bg: linear-gradient(145deg, #1A8AFF, #0062CC);
+  --rc-button-primary-shadow: 5px 5px 12px rgba(0, 98, 204, 0.45), -3px -3px 8px rgba(58, 155, 255, 0.30);
+  
+  --rc-control-bg: #11151C;
+  --rc-control-border: rgba(255, 255, 255, 0.05);
+  --rc-control-shadow: var(--rc-chip-inset-shadow);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --rc-bg: #F0F4F8;
+  --rc-bg-rgb: 240 244 248;
+  --rc-surface: #E8ECF0;
+  --rc-surface-rgb: 232 236 240;
+  --rc-elevated: #F4F6F9;
+  --rc-elevated-rgb: 244 246 249;
+  
+  /* Improved contrast for Light Mode */
+  --rc-border: rgba(180, 190, 200, 0.65); /* Darkened from 200... to 180... */
+  --rc-border-rgb: 180 190 200;
+  --rc-border-strong-rgb: 150 160 170;
+  
+  --rc-text: #1A2233;
+  --rc-text-rgb: 26 34 51;
+  --rc-text-soft: #3C4655;
+  --rc-text-soft-rgb: 60 70 85;
+  --rc-text-muted: #6B7480;
+  --rc-text-muted-rgb: 107 116 128;
+
+  /* Neumorphic Shadows (Light) - Strengthened for better boundaries */
+  --rc-inset-shadow: inset 1px 1px 4px rgba(180, 190, 200, 0.9), inset -1px -1px 4px #FFFFFF;
+  --rc-raised-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), inset 2px 2px 4px #FFFFFF, 8px 8px 18px rgba(180, 190, 200, 0.75), -8px -8px 18px #FFFFFF;
+  --rc-flat-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6), inset 1px 1px 3px #FFFFFF, 5px 5px 12px rgba(180, 190, 200, 0.65), -5px -5px 12px #FFFFFF;
+
+  /* Cards */
+  --rc-card-bg: linear-gradient(145deg, #F8FAFC, #E6EAF0);
+  --rc-card-inset-bg: #E2E6EC;
+  --rc-card-shadow: 8px 8px 18px #BCC3CC, -8px -8px 18px #FFFFFF;
+  --rc-card-flat-shadow: 6px 6px 14px #BCC3CC, -6px -6px 14px #FFFFFF;
+  --rc-card-outline: rgba(255, 255, 255, 0.5);
+
+  /* Components */
+  --rc-chip-bg: #F0F4F8;
+  --rc-chip-shadow: 2px 2px 6px rgba(180, 190, 200, 0.6), inset 1px 1px 3px #FFFFFF;
+  --rc-chip-inset-bg: #E2E6EC;
+  --rc-chip-inset-shadow: inset 2px 2px 6px rgba(180, 190, 200, 0.85), inset -2px -2px 6px #FFFFFF;
+
+  --rc-control-bg: #E8ECF0;
+  --rc-control-border: rgba(180, 190, 200, 0.65);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --rc-bg: #F0F4F8;
+    --rc-bg-rgb: 240 244 248;
+    --rc-surface: #E8ECF0;
+    --rc-surface-rgb: 232 236 240;
+    --rc-elevated: #F4F6F9;
+    --rc-elevated-rgb: 244 246 249;
+    --rc-border: rgba(180, 190, 200, 0.65);
+    --rc-border-rgb: 180 190 200;
+    --rc-border-strong-rgb: 150 160 170;
+    --rc-text: #1A2233;
+    --rc-text-rgb: 26 34 51;
+    --rc-text-soft: #3C4655;
+    --rc-text-soft-rgb: 60 70 85;
+    --rc-text-muted: #6B7480;
+    --rc-text-muted-rgb: 107 116 128;
+    --rc-inset-shadow: inset 1px 1px 4px rgba(180, 190, 200, 0.9), inset -1px -1px 4px #FFFFFF;
+    --rc-raised-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), inset 2px 2px 4px #FFFFFF, 8px 8px 18px rgba(180, 190, 200, 0.75), -8px -8px 18px #FFFFFF;
+    --rc-flat-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6), inset 1px 1px 3px #FFFFFF, 5px 5px 12px rgba(180, 190, 200, 0.65), -5px -5px 12px #FFFFFF;
+    --rc-card-bg: linear-gradient(145deg, #F8FAFC, #E6EAF0);
+    --rc-card-inset-bg: #E2E6EC;
+    --rc-card-shadow: 8px 8px 18px #BCC3CC, -8px -8px 18px #FFFFFF;
+    --rc-card-flat-shadow: 6px 6px 14px #BCC3CC, -6px -6px 14px #FFFFFF;
+    --rc-card-outline: rgba(255, 255, 255, 0.5);
+    --rc-chip-bg: #F0F4F8;
+    --rc-chip-shadow: 2px 2px 6px rgba(180, 190, 200, 0.6), inset 1px 1px 3px #FFFFFF;
+    --rc-chip-inset-bg: #E2E6EC;
+    --rc-chip-inset-shadow: inset 2px 2px 6px rgba(180, 190, 200, 0.85), inset -2px -2px 6px #FFFFFF;
+    --rc-control-bg: #E8ECF0;
+    --rc-control-border: rgba(180, 190, 200, 0.65);
+  }
+}
+
+[data-style="modern-minimal"] {
+  /* Flat style回退逻辑，主要在应用层配合Tailwind实现 */
+  --rc-raised-shadow: 0 4px 12px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --rc-flat-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --rc-card-shadow: none;
+  --rc-card-flat-shadow: none;
+  --rc-card-outline: rgba(255, 255, 255, 0.08);
+}
+
+/* Component Styles */
+.rc-panel-soft {
+  background: var(--rc-panel-bg-soft, rgba(var(--rc-surface-rgb) / 0.8));
+  border: 1px solid var(--rc-border);
+  box-shadow: var(--rc-flat-shadow);
+}
+
+.rc-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  border: 1px solid var(--rc-control-border);
+  background: var(--rc-chip-bg);
+  box-shadow: var(--rc-chip-shadow);
+  color: var(--rc-text-soft);
+  transition: all 160ms ease;
+}
+
+.rc-icon-button:hover:not(:disabled) {
+  box-shadow: var(--rc-raised-shadow);
+  transform: translateY(-1px);
+  color: var(--rc-text);
+}
+
+.rc-icon-button:active:not(:disabled),
+.rc-icon-button[data-pressed="true"] {
+  box-shadow: var(--rc-inset-shadow);
+  transform: translateY(0);
+}
+
+.rc-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

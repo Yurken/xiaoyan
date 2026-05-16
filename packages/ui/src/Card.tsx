@@ -17,23 +17,25 @@ export function Card({
   return (
     <div
       className={clsx(
-        "rounded-3xl transition-[transform,box-shadow,border-color] duration-200",
-        padding === "sm"   && "p-4",
-        padding === "md"   && "p-5",
-        padding === "lg"   && "p-7",
+        "rounded-3xl transition-all duration-200 border",
+        padding === "sm" && "p-4",
+        padding === "md" && "p-5",
+        padding === "lg" && "p-7",
+        
+        // Backgrounds
+        variant === "inset" ? "bg-rc-card-inset-bg" : "bg-[image:var(--rc-card-bg)]",
+        
+        // Borders
+        variant === "inset" ? "border-rc-border/10" : "border-[color:var(--rc-card-outline)]",
+        
+        // Shadows
+        variant === "raised" && "shadow-rc-card",
+        variant === "flat" && "shadow-rc-card-flat",
+        variant === "inset" && "shadow-rc-inset",
+        
         className
       )}
-      style={{
-        background: variant === "inset" ? "var(--rc-card-inset-bg)" : "var(--rc-card-bg)",
-        border: `1px solid ${variant === "inset" ? "var(--rc-card-inset-outline)" : "var(--rc-card-outline)"}`,
-        boxShadow:
-          variant === "raised"
-            ? "var(--rc-card-shadow)"
-            : variant === "flat"
-              ? "var(--rc-card-flat-shadow)"
-              : "var(--rc-card-inset-shadow)",
-        ...style,
-      }}
+      style={style}
       {...props}
     >
       {children}

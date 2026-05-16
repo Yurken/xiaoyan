@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { PRODUCT_NAME } from "@research-copilot/types";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 
