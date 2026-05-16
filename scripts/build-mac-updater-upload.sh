@@ -17,13 +17,41 @@ fi
 
 VERSION="${VERSION_INPUT#v}"
 VERSION_TAG="v${VERSION}"
+DEFAULT_KEY_PATH="$HOME/.tauri/research-copilot-updater.key"
+DEFAULT_KEY_PASSWORD_PATH="${DEFAULT_KEY_PATH}.password"
 
-if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" && -f "$HOME/.tauri/research-copilot-updater.key" ]]; then
+if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" && -f "$DEFAULT_KEY_PATH" ]]; then
   export TAURI_SIGNING_PRIVATE_KEY
-  TAURI_SIGNING_PRIVATE_KEY="$(cat "$HOME/.tauri/research-copilot-updater.key")"
+  TAURI_SIGNING_PRIVATE_KEY="$(cat "$DEFAULT_KEY_PATH")"
+fi
+
+if [[ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" && -f "$DEFAULT_KEY_PASSWORD_PATH" ]]; then
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(tr -d '\r\n' < "$DEFAULT_KEY_PASSWORD_PATH")"
 fi
 
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+
+if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+  cat >&2 <<EOF
+Missing updater signing key.
+
+Use the existing release key for updates that must be accepted by already installed clients:
+  export TAURI_SIGNING_PRIVATE_KEY="\$(cat <path-to-existing-key>)"
+  export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+
+Or place the existing key at:
+  $DEFAULT_KEY_PATH
+
+If the key has a password, set TAURI_SIGNING_PRIVATE_KEY_PASSWORD or put the password in:
+  $DEFAULT_KEY_PASSWORD_PATH
+
+Only generate a new key if you intend to start a new updater trust chain:
+  pnpm tauri signer generate -w "$DEFAULT_KEY_PATH"
+
+After generating a new key, copy its public key into apps/desktop/src-tauri/tauri.conf.json -> plugins.updater.pubkey before building.
+EOF
+  exit 1
+fi
 
 ARCH="$(uname -m)"
 TARGET="${TAURI_BUILD_TARGET:-}"

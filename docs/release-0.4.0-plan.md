@@ -50,6 +50,7 @@
 - 2026-05-15：P0 收口验证已通过 `cargo test`、desktop `type-check` / `lint` / `build`，以及仓库级 `pnpm type-check` / `pnpm lint`。
 - 2026-05-16：已补充 0.4.0 更新日志，并通过 `node scripts/sync-version.mjs --tag v0.4.0` 同步桌面端、Web、Mobile 和共享包版本号。
 - 2026-05-16：已修复桌面端 release 构建中的 Tauri API 兼容问题，并通过本机 `pnpm --dir apps/desktop exec tauri build --bundles dmg --ci --verbose --config '{"bundle":{"createUpdaterArtifacts":false}}'` 生成 `小妍_0.4.0_aarch64.dmg`。
+- 2026-05-16：已补齐 macOS updater 发布脚本的签名私钥预检，缺少既有 release key 时会提前停止并给出配置说明。
 
 ## 非目标
 
