@@ -175,7 +175,6 @@ CREATE TABLE IF NOT EXISTS skills (
 
 CREATE INDEX IF NOT EXISTS idx_papers_created_at ON papers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_papers_status ON papers(status);
-CREATE INDEX IF NOT EXISTS idx_papers_research_interest_created_at ON papers(research_interest_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_paper_chunks_paper_id_chunk_index ON paper_chunks(paper_id, chunk_index);
 CREATE INDEX IF NOT EXISTS idx_paper_figures_paper_id_fig_index ON paper_figures(paper_id, fig_index);
 "#;
@@ -375,6 +374,33 @@ async fn reset_stale_research_interest_plans(pool: &SqlitePool) -> Result<()> {
     .execute(pool)
     .await?;
 
+    Ok(())
+}
+
+async fn ensure_schema(pool: &SqlitePool) -> Result<()> {
+    // Run schema – SQLite handles multiple statements via raw_sql
+    sqlx::raw_sql(SCHEMA).execute(pool).await?;
+    ensure_research_interest_profile_column(pool).await?;
+    ensure_research_interest_folder_name_column(pool).await?;
+    ensure_research_interest_partial_plan_column(pool).await?;
+    ensure_papers_research_interest_column(pool).await?;
+    ensure_paper_analyses_experiment_results_column(pool).await?;
+    ensure_reproduction_guides_code_repository_column(pool).await?;
+    ensure_papers_importance_color_column(pool).await?;
+    ensure_papers_notes_column(pool).await?;
+    ensure_paper_figures_table(pool).await?;
+    ensure_paper_parse_runs_table(pool).await?;
+    ensure_performance_indexes(pool).await?;
+    ensure_settings_history_table(pool).await?;
+    ensure_skills_table(pool).await?;
+    ensure_user_memories_table(pool).await?;
+    ensure_memory_pipeline_tables(pool).await?;
+    ensure_memory_checkpoint_tables(pool).await?;
+    ensure_submission_tables(pool).await?;
+    ensure_submission_diagnosis_tables(pool).await?;
+    ensure_experiment_tables(pool).await?;
+    ensure_submission_revision_task_tables(pool).await?;
+    ensure_knowledge_graph_tables(pool).await?;
     Ok(())
 }
 
@@ -818,4 +844,164 @@ pub async fn ensure_knowledge_graph_tables(pool: &SqlitePool) -> Result<()> {
     .execute(pool)
     .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::Row;
+    use std::str::FromStr;
+
+    async fn memory_pool() -> Result<SqlitePool> {
+        let options = SqliteConnectOptions::from_str("sqlite::memory:")?
+            .create_if_missing(true)
+            .foreign_keys(true);
+
+        Ok(SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await?)
+    }
+
+    async fn table_exists(pool: &SqlitePool, table: &str) -> Result<bool> {
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?")
+                .bind(table)
+                .fetch_one(pool)
+                .await?;
+        Ok(row.0 > 0)
+    }
+
+    async fn column_exists(pool: &SqlitePool, table: &str, column: &str) -> Result<bool> {
+        let rows = sqlx::query(&format!("PRAGMA table_info({table})"))
+            .fetch_all(pool)
+            .await?;
+        Ok(rows.iter().any(|row| {
+            let name: String = row.get("name");
+            name == column
+        }))
+    }
+
+    #[tokio::test]
+    async fn schema_upgrade_smoke_adds_040_tables_and_columns() -> Result<()> {
+        let pool = memory_pool().await?;
+
+        sqlx::raw_sql(
+            "CREATE TABLE research_interests (
+                id            TEXT PRIMARY KEY,
+                topic         TEXT NOT NULL,
+                keywords      TEXT NOT NULL DEFAULT '[]',
+                learning_path TEXT,
+                status        TEXT NOT NULL DEFAULT 'active',
+                created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE papers (
+                id         TEXT PRIMARY KEY,
+                title      TEXT NOT NULL,
+                authors    TEXT,
+                abstract   TEXT,
+                year       INTEGER,
+                venue      TEXT,
+                doi        TEXT,
+                file_path  TEXT,
+                full_text  TEXT,
+                tags       TEXT NOT NULL DEFAULT '[]',
+                status     TEXT NOT NULL DEFAULT 'uploaded',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE paper_analyses (
+                id                TEXT PRIMARY KEY,
+                paper_id          TEXT NOT NULL UNIQUE REFERENCES papers(id) ON DELETE CASCADE,
+                research_question TEXT,
+                core_method       TEXT,
+                experiment_design TEXT,
+                innovations       TEXT,
+                limitations       TEXT,
+                key_conclusions   TEXT,
+                raw_analysis      TEXT,
+                created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE reproduction_guides (
+                id                  TEXT PRIMARY KEY,
+                paper_id            TEXT NOT NULL UNIQUE REFERENCES papers(id) ON DELETE CASCADE,
+                environment_setup   TEXT,
+                dependencies        TEXT,
+                dataset_preparation TEXT,
+                training_process    TEXT,
+                inference_process   TEXT,
+                evaluation_metrics  TEXT,
+                risks_and_notes     TEXT,
+                raw_guide           TEXT,
+                created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE paper_figures (
+                id         TEXT PRIMARY KEY,
+                paper_id   TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+                fig_index  INTEGER NOT NULL,
+                caption    TEXT,
+                file_path  TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE chat_sessions (
+                id           TEXT PRIMARY KEY,
+                title        TEXT NOT NULL DEFAULT 'New Conversation',
+                context_type TEXT NOT NULL DEFAULT 'general',
+                context_id   TEXT,
+                created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );",
+        )
+        .execute(&pool)
+        .await?;
+
+        sqlx::query(
+            "INSERT INTO research_interests (id, topic) VALUES ('interest-1', 'Graph RAG')",
+        )
+        .execute(&pool)
+        .await?;
+
+        ensure_schema(&pool).await?;
+
+        for (table, column) in [
+            ("research_interests", "profile"),
+            ("research_interests", "folder_name"),
+            ("papers", "research_interest_id"),
+            ("papers", "importance_color"),
+            ("papers", "notes"),
+            ("paper_analyses", "experiment_results"),
+            ("reproduction_guides", "code_repository"),
+            ("paper_figures", "kind"),
+            ("paper_figures", "page_number"),
+            ("paper_figures", "bbox"),
+            ("paper_figures", "source"),
+            ("chat_sessions", "tag"),
+        ] {
+            assert!(
+                column_exists(&pool, table, column).await?,
+                "{table}.{column}"
+            );
+        }
+
+        for table in [
+            "paper_parse_runs",
+            "memory_session_summaries",
+            "memory_links",
+            "submission_diagnosis_reports",
+            "submission_revision_tasks",
+            "experiment_records",
+            "knowledge_graph_claims",
+        ] {
+            assert!(table_exists(&pool, table).await?, "{table}");
+        }
+
+        let folder_name: String = sqlx::query_scalar(
+            "SELECT folder_name FROM research_interests WHERE id = 'interest-1'",
+        )
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(folder_name, "Graph RAG");
+
+        Ok(())
+    }
 }

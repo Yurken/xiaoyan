@@ -51,6 +51,7 @@
 - 2026-05-16：已补充 0.4.0 更新日志，并通过 `node scripts/sync-version.mjs --tag v0.4.0` 同步桌面端、Web、Mobile 和共享包版本号。
 - 2026-05-16：已修复桌面端 release 构建中的 Tauri API 兼容问题，并通过本机 `pnpm --dir apps/desktop exec tauri build --bundles dmg --ci --verbose --config '{"bundle":{"createUpdaterArtifacts":false}}'` 生成 `小妍_0.4.0_aarch64.dmg`。
 - 2026-05-16：已补齐 macOS updater 发布脚本的签名私钥预检，缺少既有 release key 时会提前停止并给出配置说明。
+- 2026-05-16：已新增旧库升级 smoke test，覆盖 0.3.x 风格 schema 补列、0.4.0 新表创建和研究主题文件夹名回填；同时修复旧库缺少 `papers.research_interest_id` 时索引创建过早导致启动失败的问题。
 
 ## 非目标
 
@@ -290,6 +291,7 @@
 
 - [x] 0.4.0 的 P0 项均已完成或有明确降级说明。
 - [x] 新增数据表带迁移和兼容策略。
+- [x] 旧用户数据库 schema 升级 smoke test 通过。
 - [ ] 旧用户数据库升级后核心页面可正常打开。
 - [ ] 论文导入、论文详情、小妍对话、知识主题、实验记录、投稿管理主链路可用。
 - [x] 小妍仍是唯一助手身份；普通用户路径下无 Hermes 可见模式、可见助手名或记忆来源。
