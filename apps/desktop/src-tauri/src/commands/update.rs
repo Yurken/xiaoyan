@@ -1,8 +1,10 @@
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use reqwest::Url;
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use serde_json::json;
+use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 fn updater_endpoint() -> Option<String> {
@@ -97,8 +99,38 @@ pub async fn update_install(
             .ok_or_else(|| "没有待安装的新版本，请先执行“检查更新”。".to_string())?
     };
 
+    let downloaded = Arc::new(AtomicU64::new(0));
+    let mut content_length: Option<u64> = None;
+
+    let progress_app = app.clone();
+    let finish_app = app.clone();
+    let progress_dl = Arc::clone(&downloaded);
+    let finish_dl = Arc::clone(&downloaded);
+
+    let _ = app.emit(
+        "update:download-progress",
+        json!({ "status": "started", "downloaded": 0u64, "total": null }),
+    );
+
     update
-        .download_and_install(|_, _| {}, || {})
+        .download_and_install(
+            |chunk_len, total_len| {
+                let dl = progress_dl.fetch_add(chunk_len as u64, Ordering::Relaxed) + chunk_len as u64;
+                if content_length.is_none() && total_len.is_some() {
+                    content_length = total_len;
+                }
+                let _ = progress_app.emit(
+                    "update:download-progress",
+                    json!({ "status": "progress", "downloaded": dl, "total": content_length }),
+                );
+            },
+            || {
+                let _ = finish_app.emit(
+                    "update:download-progress",
+                    json!({ "status": "finished", "downloaded": finish_dl.load(Ordering::Relaxed), "total": finish_dl.load(Ordering::Relaxed) }),
+                );
+            },
+        )
         .await
         .map_err(|error| error.to_string())?;
     app.restart();

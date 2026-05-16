@@ -2,6 +2,7 @@ import { Download, Info, Loader2, RefreshCw } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppUpdateInfo } from "@research-copilot/types";
 import type { UpdateState } from "./useSettingsController";
+import type { DownloadProgress } from "../../lib/useAutoUpdate";
 
 interface AboutSectionProps {
   appVersion: string;
@@ -10,8 +11,26 @@ interface AboutSectionProps {
   updateInfo: AppUpdateInfo | null;
   updateMsg: string;
   updatePublishedAt: string;
+  downloadProgress: DownloadProgress | null;
   onCheckUpdate: () => void | Promise<void>;
   onInstallUpdate: () => void | Promise<void>;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function installButtonLabel(state: UpdateState, progress: DownloadProgress | null) {
+  if (state !== "installing") return "下载并安装";
+  if (!progress) return "准备中…";
+  if (progress.status === "finished") return "安装中…";
+  if (progress.total && progress.total > 0) {
+    const pct = Math.round((progress.downloaded / progress.total) * 100);
+    return `下载中… ${pct}%`;
+  }
+  return `下载中… ${formatBytes(progress.downloaded)}`;
 }
 
 function SectionIcon({
@@ -42,9 +61,15 @@ export default function AboutSection({
   updateInfo,
   updateMsg,
   updatePublishedAt,
+  downloadProgress,
   onCheckUpdate,
   onInstallUpdate,
 }: AboutSectionProps) {
+  const showProgress = updateState === "installing" && downloadProgress !== null;
+  const pct = downloadProgress?.total && downloadProgress.total > 0
+    ? Math.min(100, Math.round((downloadProgress.downloaded / downloadProgress.total) * 100))
+    : null;
+
   return (
     <div className="space-y-4">
       <Card padding="md" className="space-y-4">
@@ -100,10 +125,37 @@ export default function AboutSection({
               }}
             >
               {updateState === "installing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              {updateState === "installing" ? "安装中…" : "下载并安装"}
+              {installButtonLabel(updateState, downloadProgress)}
             </button>
           </div>
         </div>
+
+        {/* Progress bar */}
+        {showProgress && (
+          <div className="space-y-1.5">
+            <div className="h-1.5 rounded-full" style={{ background: "rgba(0,122,255,0.12)" }}>
+              <div
+                className="h-1.5 rounded-full transition-all duration-300 ease-out"
+                style={{
+                  width: pct !== null ? `${pct}%` : "30%",
+                  background: "linear-gradient(90deg, #1A8AFF, #0062CC)",
+                  ...(pct === null ? { animation: "about-progress-indeterminate 1.5s ease-in-out infinite" } : {}),
+                }}
+              />
+            </div>
+            <p className="text-xs text-ink-tertiary text-right">
+              {pct !== null ? `${pct}%` : formatBytes(downloadProgress!.downloaded)}
+              {downloadProgress?.total ? ` / ${formatBytes(downloadProgress.total)}` : ""}
+            </p>
+            <style>{`
+              @keyframes about-progress-indeterminate {
+                0% { transform: translateX(-100%); width: 30%; }
+                50% { transform: translateX(50%); width: 40%; }
+                100% { transform: translateX(250%); width: 30%; }
+              }
+            `}</style>
+          </div>
+        )}
 
         {updateMsg ? (
           <div

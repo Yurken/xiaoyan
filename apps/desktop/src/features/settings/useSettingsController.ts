@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { listen } from "@tauri-apps/api/event";
 import type { AppSettings, AppUpdateInfo } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { emitCompanionPreferenceChange, normalizeCompanionId } from "../companion/shared";
+import type { DownloadProgress } from "../../lib/useAutoUpdate";
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 export type TestState = "idle" | "testing" | "ok" | "error";
@@ -19,6 +21,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [updateMsg, setUpdateMsg] = useState("");
   const [appVersion, setAppVersion] = useState("");
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
 
   const replaceForm = useCallback((next: Partial<AppSettings>) => {
     setForm({ ...defaultSettings, ...next });
@@ -88,6 +91,18 @@ export function useSettingsController(defaultSettings: AppSettings) {
     };
   }, [replaceForm]);
 
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listen<DownloadProgress>("update:download-progress", (event) => {
+      setDownloadProgress(event.payload);
+    }).then((cleanup) => {
+      unlisten = cleanup;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
   const handleSaveSettings = async () => {
     setSaveState("saving");
     try {
@@ -119,6 +134,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
   const handleCheckUpdate = async () => {
     setUpdateState("checking");
     setUpdateMsg("");
+    setDownloadProgress(null);
     try {
       const info = await apiClient.updates.check();
       setUpdateInfo(info);
@@ -142,6 +158,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
 
   const handleInstallUpdate = async () => {
     setUpdateState("installing");
+    setDownloadProgress(null);
     setUpdateMsg("正在下载并安装更新，完成后应用会自动重启。");
     try {
       await apiClient.updates.install();
@@ -168,6 +185,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
     updateState,
     updateInfo,
     updateMsg,
+    downloadProgress,
     appVersion,
     markSaved,
     handleSaveSettings,

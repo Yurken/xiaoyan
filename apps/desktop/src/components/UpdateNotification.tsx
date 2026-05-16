@@ -1,5 +1,5 @@
 import { Download, Loader2, RefreshCw, X } from "lucide-react";
-import type { AutoUpdateState } from "../lib/useAutoUpdate";
+import type { AutoUpdateState, DownloadProgress } from "../lib/useAutoUpdate";
 
 function formatDate(value?: string) {
   if (!value) return "";
@@ -8,8 +8,52 @@ function formatDate(value?: string) {
   return date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
-export default function UpdateNotification({ updateInfo, installing, install, dismiss }: AutoUpdateState) {
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function progressLabel(progress: DownloadProgress | null, installing: boolean) {
+  if (!progress) return installing ? "准备中…" : null;
+  if (progress.status === "finished") return "安装中…";
+  if (progress.total && progress.total > 0) {
+    const pct = Math.round((progress.downloaded / progress.total) * 100);
+    return `下载中… ${pct}%`;
+  }
+  return `下载中… ${formatBytes(progress.downloaded)}`;
+}
+
+function ProgressBar({ progress }: { progress: DownloadProgress | null }) {
+  if (!progress) return null;
+  const pct = progress.total && progress.total > 0
+    ? Math.min(100, Math.round((progress.downloaded / progress.total) * 100))
+    : null;
+  return (
+    <div className="space-y-1.5">
+      <div className="h-1.5 rounded-full" style={{ background: "rgba(0,122,255,0.12)" }}>
+        <div
+          className="h-1.5 rounded-full transition-all duration-300 ease-out"
+          style={{
+            width: pct !== null ? `${pct}%` : "30%",
+            background: "linear-gradient(90deg, #1A8AFF, #0062CC)",
+            ...(pct === null ? { animation: "update-progress-indeterminate 1.5s ease-in-out infinite" } : {}),
+          }}
+        />
+      </div>
+      <p className="text-[11px] text-ink-tertiary text-right">
+        {pct !== null ? `${pct}%` : formatBytes(progress.downloaded)}
+        {progress.total ? ` / ${formatBytes(progress.total)}` : ""}
+      </p>
+    </div>
+  );
+}
+
+export default function UpdateNotification({ updateInfo, installing, downloadProgress, install, dismiss }: AutoUpdateState) {
   if (!updateInfo?.available) return null;
+
+  const label = progressLabel(downloadProgress, installing);
+  const showProgress = installing && downloadProgress !== null;
 
   return (
     <div
@@ -19,6 +63,14 @@ export default function UpdateNotification({ updateInfo, installing, install, di
         boxShadow: "10px 10px 24px rgba(183,190,199,0.75), -10px -10px 24px rgba(255,255,255,0.9)",
       }}
     >
+      <style>{`
+        @keyframes update-progress-indeterminate {
+          0% { transform: translateX(-100%); width: 30%; }
+          50% { transform: translateX(50%); width: 40%; }
+          100% { transform: translateX(250%); width: 30%; }
+        }
+      `}</style>
+
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -42,7 +94,8 @@ export default function UpdateNotification({ updateInfo, installing, install, di
         <button
           type="button"
           onClick={dismiss}
-          className="w-7 h-7 flex-shrink-0 rounded-xl flex items-center justify-center text-ink-tertiary hover:text-ink-secondary transition-colors"
+          disabled={installing}
+          className="w-7 h-7 flex-shrink-0 rounded-xl flex items-center justify-center text-ink-tertiary hover:text-ink-secondary transition-colors disabled:opacity-40"
           style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
         >
           <X className="w-3.5 h-3.5" />
@@ -66,9 +119,12 @@ export default function UpdateNotification({ updateInfo, installing, install, di
       </div>
 
       {/* Changelog */}
-      {updateInfo.body && (
+      {updateInfo.body && !showProgress && (
         <p className="text-xs leading-5 text-ink-secondary line-clamp-3">{updateInfo.body}</p>
       )}
+
+      {/* Progress bar */}
+      {showProgress && <ProgressBar progress={downloadProgress} />}
 
       {/* Actions */}
       <div className="flex items-center gap-2">
@@ -83,12 +139,13 @@ export default function UpdateNotification({ updateInfo, installing, install, di
           }}
         >
           {installing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          {installing ? "安装中…" : "下载并安装"}
+          {label ?? "下载并安装"}
         </button>
         <button
           type="button"
           onClick={dismiss}
-          className="px-4 py-2.5 rounded-2xl text-sm font-medium text-ink-secondary transition-all duration-150 active:scale-95"
+          disabled={installing}
+          className="px-4 py-2.5 rounded-2xl text-sm font-medium text-ink-secondary transition-all duration-150 active:scale-95 disabled:opacity-40"
           style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
         >
           稍后

@@ -148,6 +148,7 @@ export default function Settings() {
     updateState,
     updateInfo,
     updateMsg,
+    downloadProgress,
     appVersion,
     markSaved,
     handleSaveSettings,
@@ -613,6 +614,7 @@ export default function Settings() {
               updateInfo={updateInfo}
               updateMsg={updateMsg}
               updatePublishedAt={updatePublishedAt}
+              downloadProgress={downloadProgress}
               onCheckUpdate={handleCheckUpdate}
               onInstallUpdate={handleInstallUpdate}
             />
