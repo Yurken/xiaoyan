@@ -49,6 +49,7 @@
 - 2026-05-15：已新增研究主题“总览”页，聚合路线、论文、笔记、小妍会话、checkpoint、知识主张、实验和关联投稿。
 - 2026-05-15：P0 收口验证已通过 `cargo test`、desktop `type-check` / `lint` / `build`，以及仓库级 `pnpm type-check` / `pnpm lint`。
 - 2026-05-16：已补充 0.4.0 更新日志，并通过 `node scripts/sync-version.mjs --tag v0.4.0` 同步桌面端、Web、Mobile 和共享包版本号。
+- 2026-05-16：已修复桌面端 release 构建中的 Tauri API 兼容问题，并通过本机 `pnpm --dir apps/desktop exec tauri build --bundles dmg --ci --verbose --config '{"bundle":{"createUpdaterArtifacts":false}}'` 生成 `小妍_0.4.0_aarch64.dmg`。
 
 ## 非目标
 
@@ -188,7 +189,7 @@
 
 - 已完成：研究主题总览与继续入口、论文重解析与解析质量展示、会话 checkpoint 写入 / 召回 / 工作台可视化、投稿诊断报告保存 / 转清单 / 转修改任务、小妍唯一助手 runtime 边界与事件流收束。
 - 已验证：`cargo test`、`pnpm --filter @research-copilot/desktop type-check`、`pnpm --filter @research-copilot/desktop lint`、`pnpm --filter @research-copilot/desktop build`、`pnpm type-check`、`pnpm lint`。
-- 发布前仍需：macOS 安装包和自动更新链路验证。
+- 发布前仍需：自动更新签名产物和上传链路验证；本机缺少 `TAURI_SIGNING_PRIVATE_KEY` / `~/.tauri/research-copilot-updater.key`，因此当前只完成无 updater artifacts 的 DMG 构建烟测。
 - 后续增强：实验 / 投稿与研究主题的显式字段关联、MinerU 样本评估、审稿意见结构化解析和更完整的 Hermes adapter 草案。
 
 ### P1：尽量进入 0.4.0
@@ -296,4 +297,5 @@
 - [x] 跨工作区修改时 `pnpm type-check` 和 `pnpm lint` 通过。
 - [x] `CHANGELOG.md` 已补充 0.4.0 条目。
 - [x] 版本号通过 `node scripts/sync-version.mjs --tag v0.4.0` 同步。
+- [x] macOS 本机 DMG 构建烟测通过，产物为 `小妍_0.4.0_aarch64.dmg`。
 - [ ] macOS 安装包和自动更新链路完成验证。
