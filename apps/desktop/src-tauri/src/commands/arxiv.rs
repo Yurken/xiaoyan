@@ -7,10 +7,16 @@ use roxmltree::Document;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
+use std::time::{Duration as StdDuration, Instant};
 use tauri::State;
 
 const ARXIV_API_URL: &str = "https://export.arxiv.org/api/query";
-const ARXIV_USER_AGENT: &str = "xiaoyan-desktop/0.3.3";
+const ARXIV_USER_AGENT: &str = "xiaoyan-desktop/0.3.3 (mailto:xiaoyan@example.com)";
+const ARXIV_MIN_INTERVAL_SECS: f64 = 3.5;
+const ARXIV_MAX_RETRIES: u32 = 3;
+
+static LAST_ARXIV_REQUEST: Mutex<Option<Instant>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -548,6 +554,8 @@ async fn fetch_arxiv_candidates(
     days: i64,
     max_results: usize,
 ) -> anyhow::Result<Vec<ArxivPaper>> {
+    rate_limit_arxiv().await;
+
     let client = reqwest::Client::new();
     let params = [
         ("search_query", search_query.to_string()),
@@ -557,23 +565,70 @@ async fn fetch_arxiv_candidates(
         ("sortOrder", "descending".to_string()),
     ];
 
-    let response = client
-        .get(ARXIV_API_URL)
-        .header("User-Agent", ARXIV_USER_AGENT)
-        .query(&params)
-        .send()
-        .await
-        .context("请求 arXiv 失败")?;
+    let mut last_err: Option<anyhow::Error> = None;
+    for attempt in 0..=ARXIV_MAX_RETRIES {
+        if attempt > 0 {
+            let backoff = StdDuration::from_secs(2u64.saturating_pow(attempt));
+            tokio::time::sleep(backoff).await;
+        }
 
-    if !response.status().is_success() {
+        let response = match client
+            .get(ARXIV_API_URL)
+            .header("User-Agent", ARXIV_USER_AGENT)
+            .query(&params)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                last_err = Some(anyhow!("请求 arXiv 失败: {e}"));
+                continue;
+            }
+        };
+
         let status = response.status();
+        if status.is_success() {
+            let xml = match response.text().await {
+                Ok(x) => x,
+                Err(e) => {
+                    last_err = Some(anyhow!("读取 arXiv 响应失败: {e}"));
+                    continue;
+                }
+            };
+            let papers = parse_arxiv_feed(&xml)?;
+            return Ok(filter_recent_papers(papers, days));
+        }
+
+        if status.as_u16() == 429 || status.as_u16() == 503 {
+            last_err = Some(anyhow!("arXiv 返回 {status}（服务繁忙，将重试）"));
+            continue;
+        }
+
         let body = response.text().await.unwrap_or_default();
         return Err(anyhow!("arXiv 返回错误 {status}: {body}"));
     }
 
-    let xml = response.text().await.context("读取 arXiv 响应失败")?;
-    let papers = parse_arxiv_feed(&xml)?;
-    Ok(filter_recent_papers(papers, days))
+    Err(last_err.unwrap_or_else(|| anyhow!("arXiv 请求失败，已重试 {ARXIV_MAX_RETRIES} 次")))
+}
+
+async fn rate_limit_arxiv() {
+    let wait = {
+        let mut last = LAST_ARXIV_REQUEST.lock().unwrap();
+        if let Some(prev) = *last {
+            let elapsed = prev.elapsed().as_secs_f64();
+            if elapsed < ARXIV_MIN_INTERVAL_SECS {
+                Some(ARXIV_MIN_INTERVAL_SECS - elapsed)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+    if let Some(wait) = wait {
+        tokio::time::sleep(StdDuration::from_secs_f64(wait)).await;
+    }
+    LAST_ARXIV_REQUEST.lock().unwrap().replace(Instant::now());
 }
 
 fn parse_arxiv_feed(xml: &str) -> anyhow::Result<Vec<ArxivPaper>> {

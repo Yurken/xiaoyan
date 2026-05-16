@@ -1,15 +1,9 @@
 use anyhow::{anyhow, Result};
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT_ENCODING};
 use reqwest::{Response, StatusCode};
 use serde_json::Value;
+use std::error::Error;
 
 use super::shared::compact_preview;
-
-pub(super) fn identity_encoding_headers() -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("identity"));
-    headers
-}
 
 pub(super) fn format_http_error(status: StatusCode, body: &str, label: &str) -> String {
     let preview = compact_preview(body.trim(), 240);
@@ -61,19 +55,50 @@ where
 }
 
 pub(super) async fn parse_json_response(resp: Response, label: &str) -> Result<Value> {
+    let status = resp.status();
+    let content_length = resp.content_length();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
     let bytes = resp.bytes().await.map_err(|error| {
-        crate::append_diagnostic_log(&format!(
-            "[llm][{}] 读取响应体失败: {}",
-            label, error
-        ));
-        anyhow!("{}：读取响应失败（{}）", label, error)
+        let error_msg = error.to_string();
+        let lower = error_msg.to_ascii_lowercase();
+        let mut chain = String::new();
+        let mut is_timeout = lower.contains("timeout") || lower.contains("timed out");
+        let mut src: Option<&dyn Error> = error.source();
+        while let Some(s) = src {
+            let s_msg = s.to_string();
+            let s_lower = s_msg.to_ascii_lowercase();
+            if !is_timeout && (s_lower.contains("timeout") || s_lower.contains("timed out")) {
+                is_timeout = true;
+            }
+            chain.push_str(" -> ");
+            chain.push_str(&s_msg);
+            src = s.source();
+        }
+        if is_timeout {
+            crate::append_diagnostic_log(&format!(
+                "[llm][{}] 响应超时: status={} content_type={} content_length={:?} timeout=600s",
+                label, status.as_u16(), content_type, content_length
+            ));
+            anyhow!("{}：响应超时（600s），模型生成耗时过长，建议缩短提示词或切换更快的模型", label)
+        } else {
+            crate::append_diagnostic_log(&format!(
+                "[llm][{}] 读取响应体失败: status={} content_type={} content_length={:?} error={}{}",
+                label, status.as_u16(), content_type, content_length, error, chain
+            ));
+            anyhow!("{}：读取响应失败（{}{}）", label, error, chain)
+        }
     })?;
     let text = String::from_utf8_lossy(&bytes);
     serde_json::from_str::<Value>(&text).map_err(|error| {
-        let preview = compact_preview(text.trim(), 800);
+        let preview = compact_preview(text.trim(), 1200);
         crate::append_diagnostic_log(&format!(
-            "[llm][{}] JSON解析失败: {} 响应预览: {}",
-            label, error, preview
+            "[llm][{}] JSON解析失败: status={} content_type={} error={} 响应预览: {}",
+            label, status.as_u16(), content_type, error, preview
         ));
         if preview.is_empty() {
             anyhow!("{}：响应为空，无法解析为 JSON（{}）", label, error)

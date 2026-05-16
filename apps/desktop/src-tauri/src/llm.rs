@@ -13,8 +13,7 @@ use self::shared::{
 };
 use self::transport::{
     append_sse_chunk, drain_sse_payloads, ensure_http_success, format_http_error,
-    format_openai_http_error as format_openai_http_error_impl, identity_encoding_headers,
-    parse_json_response,
+    format_openai_http_error as format_openai_http_error_impl, parse_json_response,
 };
 
 #[derive(Clone, Debug)]
@@ -47,16 +46,14 @@ pub enum StreamOutcome {
 
 fn http_client() -> reqwest::Client {
     reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
-        .default_headers(identity_encoding_headers())
+        .timeout(std::time::Duration::from_secs(600))
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
 }
 
 fn stream_http_client() -> reqwest::Client {
     reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(300))
-        .default_headers(identity_encoding_headers())
+        .timeout(std::time::Duration::from_secs(600))
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
 }
@@ -783,6 +780,16 @@ async fn openai_chat(
         "temperature": temperature,
         "max_tokens": max_tokens,
     });
+    let body_str = serde_json::to_string(&body).unwrap_or_default();
+    crate::append_diagnostic_log(&format!(
+        "[llm][request] url={}/chat/completions model={} temperature={} max_tokens={} messages_count={} body={}",
+        base_url.trim_end_matches('/'),
+        model,
+        temperature,
+        max_tokens,
+        messages.len(),
+        body_str
+    ));
     let resp = client
         .post(format!(
             "{}/chat/completions",
@@ -955,6 +962,16 @@ async fn anthropic_chat(
     if let Some(s) = system {
         body["system"] = json!(s);
     }
+    let body_str = serde_json::to_string(&body).unwrap_or_default();
+    crate::append_diagnostic_log(&format!(
+        "[llm][request] url={} model={} temperature={} max_tokens={} messages_count={} body={}",
+        build_anthropic_messages_url(base_url),
+        model,
+        temperature,
+        max_tokens,
+        messages.len(),
+        body_str
+    ));
     let resp = client
         .post(build_anthropic_messages_url(base_url))
         .header("x-api-key", api_key)

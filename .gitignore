@@ -211,10 +211,12 @@ __marimo__/
 
 # Project specific
 .claude/worktrees/
+.codex/
 backend/.env
 backend/uploads/
 backend/.venv/
 apps/desktop/src-tauri/gen/schemas/windows-schema.json
+apps/desktop/src-tauri/*.db
 
 # Frontend / monorepo
 node_modules/

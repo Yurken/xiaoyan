@@ -571,7 +571,7 @@ export default function InterestsPanel() {
                           </p>
                         </div>
                         <span className="text-[11px] text-ink-tertiary">
-                          {hasRunningAgent ? "协作进行中" : "阶段结果已同步"}
+                          {hasRunningAgent ? "小妍规划中" : "阶段结果已同步"}
                         </span>
                       </div>
 
