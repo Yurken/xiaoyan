@@ -29,6 +29,33 @@ function trimTrailingSlash(value) {
   return value.replace(/\/+$/, "");
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function fileMatchesVersion(fileName, version) {
+  const artifactVersion = version.replace(/^v/, "");
+  const versionPattern = new RegExp(
+    `(^|[^0-9A-Za-z])v?${escapeRegExp(artifactVersion)}($|[^0-9A-Za-z.+-])`,
+  );
+  return versionPattern.test(fileName);
+}
+
+function formatCandidateList(names) {
+  if (names.length === 0) {
+    return "";
+  }
+
+  const visibleNames = names
+    .slice()
+    .sort((left, right) => left.localeCompare(right))
+    .slice(0, 8)
+    .map((name) => `\n- ${name}`)
+    .join("");
+  const hiddenCount = names.length - 8;
+  return `${visibleNames}${hiddenCount > 0 ? `\n- ...and ${hiddenCount} more` : ""}`;
+}
+
 function getOs(platformKey) {
   return platformKey.split("-", 1)[0] || "";
 }
@@ -101,9 +128,14 @@ async function buildManifest(inputDir, baseUrl, version, notes, pubDate) {
 
   for (const platform of platformDirs) {
     const names = await readdir(platform.dirPath);
-    const bundleName = pickBundleName(names, platform.platformKey);
+    const namesForVersion = names.filter((name) => fileMatchesVersion(name, version));
+    const bundleName = pickBundleName(namesForVersion, platform.platformKey);
     if (!bundleName) {
-      throw new Error(`No updater bundle found in ${platform.dirPath}`);
+      const candidateList = formatCandidateList(names.filter((name) => !name.endsWith(".sig")));
+      throw new Error(
+        `No updater bundle matching ${version} found in ${platform.dirPath}.` +
+          (candidateList ? ` Bundle files found:${candidateList}` : ""),
+      );
     }
 
     const signatureName = `${bundleName}.sig`;

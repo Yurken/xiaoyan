@@ -45,6 +45,50 @@ function trimTrailingSlash(value) {
   return value.replace(/\/+$/, "");
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getArtifactVersion(version) {
+  return version.replace(/^v/, "");
+}
+
+function fileMatchesVersion(fileName, version) {
+  const artifactVersion = getArtifactVersion(version);
+  const versionPattern = new RegExp(
+    `(^|[^0-9A-Za-z])v?${escapeRegExp(artifactVersion)}($|[^0-9A-Za-z.+-])`,
+  );
+  return versionPattern.test(fileName);
+}
+
+function getFilesMatchingSuffixes(files, suffixes) {
+  return files.filter((file) => suffixes.some((suffix) => file.name.endsWith(suffix)));
+}
+
+function getSignedFilesMatchingSuffixes(files, suffixes) {
+  const signedFullPaths = new Set(
+    files
+      .filter((file) => file.name.endsWith(".sig"))
+      .map((file) => file.fullPath.slice(0, -".sig".length)),
+  );
+  return getFilesMatchingSuffixes(files, suffixes).filter((file) =>
+    signedFullPaths.has(file.fullPath),
+  );
+}
+
+function formatCandidateList(files) {
+  if (files.length === 0) {
+    return "";
+  }
+
+  const names = files
+    .map((file) => file.relativePath)
+    .sort((left, right) => left.localeCompare(right));
+  const visibleNames = names.slice(0, 8).map((name) => `\n- ${name}`).join("");
+  const hiddenCount = names.length - 8;
+  return `${visibleNames}${hiddenCount > 0 ? `\n- ...and ${hiddenCount} more` : ""}`;
+}
+
 function pickFileBySuffix(files, suffixes) {
   for (const suffix of suffixes) {
     const match = files
@@ -113,12 +157,16 @@ async function main() {
   }
 
   const files = await collectFiles(inputDir);
-  const bundleFile = pickSignedFileBySuffix(files, preferences);
+  const filesForVersion = files.filter((file) => fileMatchesVersion(file.name, version));
+  const bundleFile = pickSignedFileBySuffix(filesForVersion, preferences);
 
   if (!bundleFile) {
+    const signedCandidates = getSignedFilesMatchingSuffixes(files, preferences);
+    const candidateList = formatCandidateList(signedCandidates);
     throw new Error(
-      `No signed updater bundle found for ${platformKey} in ${inputDir}. ` +
-        "Check that the Tauri build completed and TAURI_SIGNING_PRIVATE_KEY is set.",
+      `No signed updater bundle matching ${version} found for ${platformKey} in ${inputDir}. ` +
+        "Check that the Tauri build completed for this version and TAURI_SIGNING_PRIVATE_KEY is set." +
+        (candidateList ? ` Signed updater bundles found:${candidateList}` : ""),
     );
   }
 
@@ -135,11 +183,15 @@ async function main() {
   }
 
   const installerPreferences = PLATFORM_INSTALLER_PREFERENCES[platformKey] || [];
-  const pickedInstallerFile = pickFileBySuffix(files, installerPreferences);
+  const pickedInstallerFile = pickFileBySuffix(filesForVersion, installerPreferences);
   const installerFile =
     pickedInstallerFile?.fullPath === bundleFile.fullPath ? null : pickedInstallerFile;
   if (installerPreferences.length > 0 && !pickedInstallerFile) {
-    throw new Error(`Missing installer file for ${platformKey} in ${inputDir}`);
+    const candidateList = formatCandidateList(getFilesMatchingSuffixes(files, installerPreferences));
+    throw new Error(
+      `Missing installer file matching ${version} for ${platformKey} in ${inputDir}.` +
+        (candidateList ? ` Installer files found:${candidateList}` : ""),
+    );
   }
 
   await rm(outputDir, { recursive: true, force: true });
