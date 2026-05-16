@@ -1,9 +1,0 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  body {
-    @apply bg-nm-bg text-gray-900 font-sans tracking-wide;
-  }
-}
