@@ -116,6 +116,13 @@ export default function WritingEditorPanel({
     setContextMenu((current) => ({ ...current, open: false }));
   }, [activeSource]);
 
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el && el.value !== value) {
+      el.value = value;
+    }
+  }, [value]);
+
   const handleChange = useCallback((next: string) => {
     if (activeSource === "main") onMainTexChange(next);
     else onBibtexChange(next);
@@ -301,9 +308,9 @@ export default function WritingEditorPanel({
               (editorRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
             }
           }}
-          value={value}
+          defaultValue={value}
           spellCheck={false}
-          onChange={(event) => handleChange(event.target.value)}
+          onInput={(event) => handleChange(event.currentTarget.value)}
           onScroll={(event) => {
             if (lineNumbersRef.current) {
               lineNumbersRef.current.scrollTop = event.currentTarget.scrollTop;

@@ -121,6 +121,7 @@ export function useWritingWorkspace() {
     const cursorStart = start + before.length;
     const cursorEnd = options.selectInserted ? cursorStart + selected.length : cursorStart + selected.length;
 
+    editor.value = nextValue;
     setMainTex(nextValue);
     window.requestAnimationFrame(() => {
       editor.focus();
