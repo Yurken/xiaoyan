@@ -1,8 +1,119 @@
-@import "@research-copilot/ui/styles/tokens.css";
+@import "katex/dist/katex.min.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --rc-accent: #007aff;
+  --rc-bg: #f4f1ea;
+  --rc-bg-rgb: 244 241 234;
+  --rc-surface: #f7f4ee;
+  --rc-surface-rgb: 247 244 238;
+  --rc-elevated: #fcfaf6;
+  --rc-elevated-rgb: 252 250 246;
+  --rc-border: rgba(214, 206, 193, 0.94);
+  --rc-border-rgb: 214 206 193;
+  --rc-border-strong-rgb: 182 173 158;
+  --rc-text: #17191d;
+  --rc-text-rgb: 23 25 29;
+  --rc-text-soft: #4a4f59;
+  --rc-text-soft-rgb: 74 79 89;
+  --rc-text-muted: #7b8390;
+  --rc-text-muted-rgb: 123 131 144;
+  --rc-sidebar-bg: rgba(239, 234, 226, 0.88);
+  --rc-page-wash:
+    radial-gradient(circle at 0% 0%, rgba(0, 122, 255, 0.05), transparent 30%),
+    radial-gradient(circle at 100% 0%, rgba(112, 99, 72, 0.05), transparent 28%);
+  --rc-card-bg: rgba(252, 250, 246, 0.88);
+  --rc-card-inset-bg: rgba(247, 243, 235, 0.86);
+  --rc-chip-bg: rgba(247, 243, 235, 0.94);
+  --rc-chip-shadow: none;
+  --rc-chip-inset-bg: rgba(247, 243, 235, 0.82);
+  --rc-chip-inset-shadow: none;
+  --rc-header-bg: rgba(244, 241, 234, 0.82);
+  --rc-card-outline: rgba(171, 159, 136, 0.14);
+  --rc-card-inset-outline: rgba(171, 159, 136, 0.12);
+  --rc-card-shadow: 0 18px 36px rgba(110, 96, 72, 0.08);
+  --rc-card-flat-shadow: 0 10px 22px rgba(110, 96, 72, 0.05);
+  --rc-card-inset-shadow: none;
+  --rc-control-bg: rgba(247, 243, 235, 0.82);
+  --rc-control-border: rgba(171, 159, 136, 0.18);
+  --rc-control-shadow: none;
+  --rc-control-focus-shadow:
+    0 0 0 1px rgba(0, 122, 255, 0.34),
+    0 0 0 4px rgba(0, 122, 255, 0.1);
+  --rc-button-primary-bg: #0a84ff;
+  --rc-button-primary-bg-hover: #2992ff;
+  --rc-button-primary-border: rgba(0, 122, 255, 0.18);
+  --rc-button-primary-shadow: 0 12px 24px rgba(0, 122, 255, 0.14);
+  --rc-button-primary-shadow-hover: 0 16px 28px rgba(0, 122, 255, 0.18);
+  --rc-button-secondary-bg: rgba(255, 255, 255, 0.78);
+  --rc-button-secondary-bg-hover: rgba(255, 255, 255, 0.95);
+  --rc-button-secondary-border: rgba(171, 159, 136, 0.16);
+  --rc-button-secondary-shadow: none;
+  --rc-button-secondary-shadow-hover: 0 12px 24px rgba(110, 96, 72, 0.06);
+  --rc-button-ghost-bg-hover: rgba(23, 25, 29, 0.04);
+  --rc-button-ghost-shadow-hover: none;
+  --rc-badge-outline: rgba(171, 159, 136, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --rc-bg: #0d1014;
+    --rc-bg-rgb: 13 16 20;
+    --rc-surface: #13171d;
+    --rc-surface-rgb: 19 23 29;
+    --rc-elevated: #171b21;
+    --rc-elevated-rgb: 23 27 33;
+    --rc-border: rgba(42, 47, 57, 0.92);
+    --rc-border-rgb: 42 47 57;
+    --rc-border-strong-rgb: 67 74 87;
+    --rc-text: #f5f3ee;
+    --rc-text-rgb: 245 243 238;
+    --rc-text-soft: #bcc3cf;
+    --rc-text-soft-rgb: 188 195 207;
+    --rc-text-muted: #7e8796;
+    --rc-text-muted-rgb: 126 135 150;
+    --rc-sidebar-bg: rgba(10, 12, 16, 0.92);
+    --rc-page-wash:
+      radial-gradient(circle at 10% 0%, rgba(0, 122, 255, 0.07), transparent 32%),
+      radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.02), transparent 24%);
+    --rc-card-bg: rgba(23, 27, 33, 0.86);
+    --rc-card-inset-bg: rgba(19, 23, 29, 0.84);
+    --rc-chip-bg: rgba(19, 23, 29, 0.9);
+    --rc-chip-shadow: none;
+    --rc-chip-inset-bg: rgba(19, 23, 29, 0.82);
+    --rc-chip-inset-shadow: none;
+    --rc-header-bg: rgba(13, 16, 20, 0.78);
+    --rc-card-outline: rgba(255, 255, 255, 0.06);
+    --rc-card-inset-outline: rgba(255, 255, 255, 0.05);
+    --rc-card-shadow: 0 18px 44px rgba(0, 0, 0, 0.26);
+    --rc-card-flat-shadow: 0 10px 26px rgba(0, 0, 0, 0.16);
+    --rc-card-inset-shadow: none;
+    --rc-control-bg: rgba(19, 23, 29, 0.78);
+    --rc-control-border: rgba(255, 255, 255, 0.06);
+    --rc-control-shadow: none;
+    --rc-control-focus-shadow:
+      0 0 0 1px rgba(0, 122, 255, 0.38),
+      0 0 0 4px rgba(0, 122, 255, 0.12);
+    --rc-button-primary-bg: #0a84ff;
+    --rc-button-primary-bg-hover: #2992ff;
+    --rc-button-primary-border: rgba(255, 255, 255, 0.08);
+    --rc-button-primary-shadow: 0 10px 24px rgba(0, 122, 255, 0.2);
+    --rc-button-primary-shadow-hover: 0 14px 30px rgba(0, 122, 255, 0.26);
+    --rc-button-secondary-bg: rgba(255, 255, 255, 0.02);
+    --rc-button-secondary-bg-hover: rgba(255, 255, 255, 0.05);
+    --rc-button-secondary-border: rgba(255, 255, 255, 0.06);
+    --rc-button-secondary-shadow: none;
+    --rc-button-secondary-shadow-hover: 0 10px 22px rgba(0, 0, 0, 0.14);
+    --rc-button-ghost-bg-hover: rgba(255, 255, 255, 0.04);
+    --rc-button-ghost-shadow-hover: none;
+    --rc-badge-outline: rgba(255, 255, 255, 0.06);
+  }
+}
 
 @layer base {
   html {
@@ -26,7 +137,7 @@
     content: "";
     position: fixed;
     inset: 0;
-    background: var(--rc-page-wash, none);
+    background: var(--rc-page-wash);
     pointer-events: none;
     z-index: 0;
   }
@@ -45,7 +156,6 @@
     color: var(--rc-text-soft);
   }
 
-  /* Legacy Utility Overrides */
   .bg-white,
   .bg-gray-50,
   .bg-gray-100,
