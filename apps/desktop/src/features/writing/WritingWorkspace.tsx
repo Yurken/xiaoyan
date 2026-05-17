@@ -18,7 +18,6 @@ import WritingSnippetToolbar from "./WritingSnippetToolbar";
 import {
   isLatexCompilerMissing,
   type WritingCompileStatus,
-  type WritingCompileSummary,
   type WritingExportTarget,
   type WritingViewMode,
 } from "./shared";
@@ -83,7 +82,6 @@ export default function WritingWorkspace() {
               <div className="flex items-center gap-1 rounded-xl bg-apple-blue/5 p-1">
                 <CompileButton
                   compileStatus={workspace.compileStatus}
-                  compileResult={workspace.compileResult}
                   exportingTarget={workspace.exportingTarget}
                   onCompile={() => void workspace.compilePdf()}
                 />
@@ -214,12 +212,10 @@ export default function WritingWorkspace() {
 
 function CompileButton({
   compileStatus,
-  compileResult,
   exportingTarget,
   onCompile,
 }: {
   compileStatus: WritingCompileStatus;
-  compileResult: WritingCompileSummary | null;
   exportingTarget: WritingExportTarget | null;
   onCompile: () => void;
 }) {
@@ -235,13 +231,11 @@ function CompileButton({
     prevStatusRef.current = compileStatus;
   }, [compileStatus]);
 
-  const pdfName = compileResult?.pdfPath?.split("/").pop();
-
   return (
     <Button
       type="button"
       size="sm"
-      variant={flash ? "primary" : "primary"}
+      variant="primary"
       onClick={onCompile}
       loading={compileStatus === "compiling"}
       disabled={exportingTarget !== null}
@@ -254,7 +248,7 @@ function CompileButton({
       {flash ? (
         <span className="inline-flex items-center gap-1">
           <CheckCircle2 className="h-3.5 w-3.5" />
-          编译完成 · {pdfName}
+          编译完成
         </span>
       ) : (
         "编译 PDF"
