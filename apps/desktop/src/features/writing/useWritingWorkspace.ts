@@ -1,7 +1,6 @@
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_PROJECT_NAME,
-  type LatexSnippet,
   type WritingCreateDraftOptions,
   type WritingTemplateId,
   type WritingViewMode,
@@ -10,7 +9,7 @@ import { analyzeLatex, buildLatexPreviewBlocks, extractLatexOutline, getLatexSta
 import { useWritingCompiler } from "./useWritingCompiler";
 import { useWritingDraftLibrary } from "./useWritingDraftLibrary";
 import { useWritingFileActions } from "./useWritingFileActions";
-import { WRITING_SNIPPETS, WRITING_TEMPLATES, getDefaultWritingTemplate, getWritingTemplate } from "./templates";
+import { WRITING_TEMPLATES, getDefaultWritingTemplate, getWritingTemplate } from "./templates";
 
 interface InsertOptions {
   selectInserted?: boolean;
@@ -129,10 +128,6 @@ export function useWritingWorkspace() {
     });
   }, [mainTex, setMainTex]);
 
-  const insertSnippet = useCallback((snippet: LatexSnippet) => {
-    insertText(snippet.before, snippet.after);
-  }, [insertText]);
-
   const jumpToLine = useCallback((line: number) => {
     setActiveSource("main");
     const performJump = () => {
@@ -225,7 +220,6 @@ export function useWritingWorkspace() {
     diagnostics,
     previewBlocks,
     templates: WRITING_TEMPLATES,
-    snippets: WRITING_SNIPPETS,
     editorRef: editorRef as RefObject<HTMLTextAreaElement>,
     setProjectName,
     setResearchInterestId,
@@ -238,7 +232,6 @@ export function useWritingWorkspace() {
     createDraft,
     deleteDraft,
     insertText,
-    insertSnippet,
     jumpToLine,
     applyTemplate,
     resetWorkspace,

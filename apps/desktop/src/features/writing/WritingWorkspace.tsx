@@ -18,7 +18,6 @@ import WritingLatexInstallNotice from "./WritingLatexInstallNotice";
 import WritingNewDraftModal from "./WritingNewDraftModal";
 import WritingPreviewPanel from "./WritingPreviewPanel";
 import WritingSidebar from "./WritingSidebar";
-import WritingSnippetToolbar from "./WritingSnippetToolbar";
 import {
   isLatexCompilerMissing,
   type WritingCompileStatus,
@@ -134,15 +133,6 @@ export default function WritingWorkspace() {
             </div>
           </div>
         </div>
-
-        {showEditor && (
-          <div className="mt-3">
-            <WritingSnippetToolbar
-              snippets={workspace.snippets}
-              onInsertSnippet={workspace.insertSnippet}
-            />
-          </div>
-        )}
 
         {(workspace.message || workspace.error) && (
           <div
