@@ -2,7 +2,6 @@ import { clsx } from "clsx";
 import {
   Archive,
   CheckCircle2,
-  Clipboard,
   Eye,
   ExternalLink,
   FileCheck2,
@@ -78,9 +77,6 @@ export default function WritingWorkspace() {
               <Button type="button" size="sm" variant="ghost" onClick={() => void workspace.importTexFile()} title="导入 .tex">
                 <Upload className="h-3.5 w-3.5" />
                 <span className="hidden lg:inline">导入</span>
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => void workspace.copyMainTex()} title="复制源码">
-                <Clipboard className="h-3.5 w-3.5" />
               </Button>
 
               <Button

@@ -8,8 +8,8 @@ import type { LatexPreviewBlock } from "./shared";
 type PreviewMode = "structure" | "text";
 
 const PREVIEW_MODE_OPTIONS = [
-  { value: "structure", label: "结构", icon: <ListTree className="h-3.5 w-3.5" /> },
   { value: "text", label: "文本", icon: <FileText className="h-3.5 w-3.5" /> },
+  { value: "structure", label: "结构", icon: <ListTree className="h-3.5 w-3.5" /> },
 ] as const;
 
 interface WritingPreviewPanelProps {
@@ -23,7 +23,7 @@ export default function WritingPreviewPanel({
   source,
   compact,
 }: WritingPreviewPanelProps) {
-  const [previewMode, setPreviewMode] = useState<PreviewMode>("structure");
+  const [previewMode, setPreviewMode] = useState<PreviewMode>("text");
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto pl-1">

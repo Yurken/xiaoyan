@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react";
 import { clsx } from "clsx";
-import { Code2, FileText } from "lucide-react";
+import { Clipboard, Code2, FileText } from "lucide-react";
 import type { RefObject } from "react";
 
 interface WritingEditorPanelProps {
@@ -63,13 +63,21 @@ export default function WritingEditorPanel({
           references.bib
         </button>
         <div className="ml-auto flex items-center gap-3 px-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-ink-tertiary/60">
-            {activeSource === "main" ? "LaTeX SOURCE" : "BIBTEX"}
-          </span>
-          <div className="h-3 w-px bg-white/10" />
           <span className="font-mono text-[11px] text-ink-tertiary">
             {value.split("\n").length} lines
           </span>
+          <div className="h-3 w-px bg-white/10" />
+          <button
+            type="button"
+            onClick={() => {
+              const text = activeSource === "main" ? mainTex : bibtex;
+              void navigator.clipboard.writeText(text);
+            }}
+            title="复制源码"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-secondary"
+          >
+            <Clipboard className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 

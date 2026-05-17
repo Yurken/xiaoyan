@@ -11,7 +11,7 @@ import {
   RefreshCw,
   StickyNote,
 } from "lucide-react";
-import { Button, Input, Select, Textarea } from "@research-copilot/ui";
+import { Button, ConfirmDialog, Input, Select, Textarea } from "@research-copilot/ui";
 import type {
   LatexDiagnostic,
   LatexOutlineEntry,
@@ -121,6 +121,9 @@ export default function WritingSidebar({
   onNotesChange,
   onReset,
 }: WritingSidebarProps) {
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [templateToApply, setTemplateToApply] = useState<WritingTemplateId | null>(null);
+
   return (
     <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
       <SidebarSection
@@ -132,7 +135,7 @@ export default function WritingSidebar({
             size="sm"
             variant="ghost"
             className="h-7 w-7 rounded-lg p-0"
-            onClick={onReset}
+            onClick={() => setResetConfirmOpen(true)}
             title="重置工作台"
           >
             <RefreshCw className="h-3.5 w-3.5 text-ink-tertiary" />
@@ -152,7 +155,7 @@ export default function WritingSidebar({
             <Select
               label="LaTeX 模板"
               value={templateId}
-              onChange={(value) => onTemplateChange(value as WritingTemplateId)}
+              onChange={(value) => setTemplateToApply(value as WritingTemplateId)}
               options={templates.map((t) => ({ value: t.id, label: t.title }))}
             />
             <p className="px-1 text-[10px] leading-relaxed text-ink-tertiary">
@@ -161,6 +164,31 @@ export default function WritingSidebar({
           </div>
         </div>
       </SidebarSection>
+
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        title="确认重置工作台？"
+        description="重置操作将清空当前的源码、引用和便签内容，并恢复为默认模板。此操作无法撤销。"
+        confirmLabel="确认重置"
+        tone="danger"
+        onConfirm={() => {
+          onReset();
+          setResetConfirmOpen(false);
+        }}
+        onClose={() => setResetConfirmOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={templateToApply !== null}
+        title="更换 LaTeX 模板？"
+        description={`确认要更换为「${templates.find(t => t.id === templateToApply)?.title}」模板吗？这将覆盖您当前在 main.tex 和 references.bib 中的所有修改。`}
+        confirmLabel="确认更换"
+        onConfirm={() => {
+          if (templateToApply) onTemplateChange(templateToApply);
+          setTemplateToApply(null);
+        }}
+        onClose={() => setTemplateToApply(null)}
+      />
 
       <SidebarSection
         title="论文大纲"
