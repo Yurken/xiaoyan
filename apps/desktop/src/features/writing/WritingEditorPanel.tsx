@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
 import { ArrowDown, ArrowUp, Clipboard, Code2, FileText, Replace, Search, X } from "lucide-react";
-import type { RefObject } from "react";
+import type { MouseEvent, RefObject } from "react";
+import WritingEditorContextMenu from "./WritingEditorContextMenu";
 
 interface WritingEditorPanelProps {
   editorRef: RefObject<HTMLTextAreaElement>;
@@ -38,6 +39,7 @@ export default function WritingEditorPanel({
   const [replaceTerm, setReplaceTerm] = useState("");
   const [showReplace, setShowReplace] = useState(false);
   const [matchIndex, setMatchIndex] = useState(0);
+  const [contextMenu, setContextMenu] = useState({ open: false, x: 0, y: 0 });
 
   const matches = useMemo(() => {
     if (!searchTerm) return [];
@@ -110,10 +112,25 @@ export default function WritingEditorPanel({
     setMatchIndex(0);
   }, [searchTerm]);
 
+  useEffect(() => {
+    setContextMenu((current) => ({ ...current, open: false }));
+  }, [activeSource]);
+
   const handleChange = useCallback((next: string) => {
     if (activeSource === "main") onMainTexChange(next);
     else onBibtexChange(next);
   }, [activeSource, onMainTexChange, onBibtexChange]);
+
+  const handleContextMenu = useCallback((event: MouseEvent<HTMLTextAreaElement>) => {
+    if (activeSource !== "main") return;
+    event.preventDefault();
+    event.currentTarget.focus();
+    setContextMenu({ open: true, x: event.clientX, y: event.clientY });
+  }, [activeSource]);
+
+  const handleContextInsert = useCallback((before: string, after = "") => {
+    onInsertText(before, after);
+  }, [onInsertText]);
 
   return (
     <section
@@ -297,10 +314,18 @@ export default function WritingEditorPanel({
             event.preventDefault();
             onInsertText("  ");
           }}
+          onContextMenu={handleContextMenu}
           className="rc-selectable min-h-full flex-1 resize-none overflow-auto border-0 bg-transparent px-4 py-4 font-mono text-[13.5px] leading-6 text-ink-primary outline-none"
           style={{ tabSize: 2, caretColor: "var(--rc-accent)" }}
         />
       </div>
+      <WritingEditorContextMenu
+        open={contextMenu.open}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        onClose={() => setContextMenu((current) => ({ ...current, open: false }))}
+        onInsert={handleContextInsert}
+      />
     </section>
   );
 }
