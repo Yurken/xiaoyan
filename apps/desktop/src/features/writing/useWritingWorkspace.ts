@@ -205,6 +205,7 @@ export function useWritingWorkspace() {
     exportingTarget,
     compileStatus: compiler.compileStatus,
     compileResult: compiler.compileResult,
+    latexInstallerStatus: compiler.latexInstallerStatus,
     message,
     error,
     lastSavedAt,
@@ -231,6 +232,8 @@ export function useWritingWorkspace() {
     copyMainTex,
     exportProject,
     compilePdf: compiler.compilePdf,
+    openLatexInstaller: compiler.openLatexInstaller,
+    openLatexDownloadPage: compiler.openLatexDownloadPage,
     openCompiledPdf: compiler.openCompiledPdf,
     saveCompiledPdf: compiler.saveCompiledPdf,
   };

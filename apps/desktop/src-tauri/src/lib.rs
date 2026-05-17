@@ -108,7 +108,10 @@ use commands::{
     },
     update::{update_check, update_install, PendingUpdate},
     workbench::{workbench_generate_overview_text, workbench_get_overview_text_cache},
-    writing::{writing_compile_pdf, writing_copy_pdf},
+    writing::{
+        writing_compile_pdf, writing_copy_pdf, writing_open_compiled_pdf,
+        writing_open_mactex_download_page, writing_open_mactex_installer,
+    },
 };
 use state::{default_settings, AppState};
 
@@ -415,6 +418,9 @@ pub fn run() {
             // Writing
             writing_compile_pdf,
             writing_copy_pdf,
+            writing_open_compiled_pdf,
+            writing_open_mactex_installer,
+            writing_open_mactex_download_page,
         ])
         .run(tauri::generate_context!());
 

@@ -16,7 +16,6 @@ import {
 import Home from "./pages/Home";
 import Planner from "./pages/Planner";
 import Survey from "./pages/Survey";
-import PaperWrite from "./pages/PaperWrite";
 import Papers from "./pages/Papers";
 import Copilot from "./pages/Copilot";
 import Knowledge from "./pages/Knowledge";
@@ -50,7 +49,6 @@ const navItems = [
   { to: "/planner", icon: Map, label: "规划" },
   { to: "/xiaoyan", icon: MessageSquare, label: "对话" },
   { to: "/survey", icon: BookOpen, label: "综述" },
-  { to: "/write", icon: PenLine, label: "撰稿" },
   { to: "/papers", icon: FileText, label: "论文" },
   { to: "/writing", icon: PenLine, label: "写作" },
   { to: "/knowledge", icon: Library, label: "知识" },
@@ -217,7 +215,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/planner" element={<Planner />} />
           <Route path="/survey" element={<Survey />} />
-          <Route path="/write" element={<PaperWrite />} />
+          <Route path="/write" element={<Navigate to="/writing" replace />} />
           <Route path="/papers" element={<Papers />} />
           <Route path="/writing" element={<Writing />} />
           <Route path="/submission" element={<Submission />} />

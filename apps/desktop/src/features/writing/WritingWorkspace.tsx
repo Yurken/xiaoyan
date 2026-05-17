@@ -10,15 +10,20 @@ import {
   FileInput,
   FileText,
   LayoutPanelLeft,
-  Loader2,
   Save,
   Upload,
 } from "lucide-react";
 import { Button } from "@research-copilot/ui";
 import WritingEditorPanel from "./WritingEditorPanel";
+import WritingLatexInstallNotice from "./WritingLatexInstallNotice";
 import WritingPreviewPanel from "./WritingPreviewPanel";
 import WritingSidebar from "./WritingSidebar";
-import { EXPORT_TARGET_LABELS, type WritingExportTarget, type WritingViewMode } from "./shared";
+import {
+  EXPORT_TARGET_LABELS,
+  isLatexCompilerMissing,
+  type WritingExportTarget,
+  type WritingViewMode,
+} from "./shared";
 import { useWritingWorkspace } from "./useWritingWorkspace";
 
 const VIEW_OPTIONS: Array<{ value: WritingViewMode; label: string; icon: typeof LayoutPanelLeft }> = [
@@ -36,6 +41,7 @@ export default function WritingWorkspace() {
   const workspace = useWritingWorkspace();
   const showEditor = workspace.viewMode !== "preview";
   const showPreview = workspace.viewMode !== "editor";
+  const showLatexInstallNotice = isLatexCompilerMissing(workspace.compileResult);
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
@@ -76,11 +82,9 @@ export default function WritingWorkspace() {
               loading={workspace.compileStatus === "compiling"}
               disabled={workspace.exportingTarget !== null}
             >
-              {workspace.compileStatus === "compiling" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
+              {workspace.compileStatus !== "compiling" ? (
                 <FileCheck2 className="h-3.5 w-3.5" />
-              )}
+              ) : null}
               编译 PDF
             </Button>
             {workspace.compileResult?.pdfPath ? (
@@ -104,11 +108,9 @@ export default function WritingWorkspace() {
                 loading={workspace.exportingTarget === option.target}
                 disabled={workspace.exportingTarget !== null}
               >
-                {workspace.exportingTarget === option.target ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
+                {workspace.exportingTarget !== option.target ? (
                   <Archive className="h-3.5 w-3.5" />
-                )}
+                ) : null}
                 {option.label}
               </Button>
             ))}
@@ -167,6 +169,14 @@ export default function WritingWorkspace() {
             {workspace.error || workspace.message}
           </div>
         )}
+
+        {showLatexInstallNotice ? (
+          <WritingLatexInstallNotice
+            openingInstaller={workspace.latexInstallerStatus === "opening"}
+            onDownloadInstaller={() => void workspace.openLatexInstaller()}
+            onOpenDownloadPage={() => void workspace.openLatexDownloadPage()}
+          />
+        ) : null}
 
         {workspace.compileResult ? (
           <details

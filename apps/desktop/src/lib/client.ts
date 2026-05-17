@@ -723,6 +723,12 @@ export const writingApi = {
     invoke<WritingCompileResult>("writing_compile_pdf", { request: project }),
   copyPdf: (pdfPath: string, destinationPath: string) =>
     invoke<void>("writing_copy_pdf", { pdfPath, destinationPath }),
+  openCompiledPdf: (pdfPath: string) =>
+    invoke<void>("writing_open_compiled_pdf", { pdfPath }),
+  openMactexInstaller: () =>
+    invoke<void>("writing_open_mactex_installer"),
+  openMactexDownloadPage: () =>
+    invoke<void>("writing_open_mactex_download_page"),
 };
 
 // ── Export API ────────────────────────────────────────────────────

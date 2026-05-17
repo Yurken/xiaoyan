@@ -6,7 +6,11 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
+use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
+
+const MACTEX_INSTALLER_URL: &str = "https://mirror.ctan.org/systems/mac/mactex/MacTeX.pkg";
+const MACTEX_DOWNLOAD_PAGE_URL: &str = "https://tug.org/mactex/mactex-download.html";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,6 +59,28 @@ pub async fn writing_copy_pdf(pdf_path: String, destination_path: String) -> Res
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+pub async fn writing_open_compiled_pdf(app: tauri::AppHandle, pdf_path: String) -> Result<(), String> {
+    let path = canonical_compiled_pdf_path(&app, Path::new(&pdf_path))?;
+    app.opener()
+        .open_path(path.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn writing_open_mactex_installer(app: tauri::AppHandle) -> Result<(), String> {
+    app.opener()
+        .open_url(MACTEX_INSTALLER_URL, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn writing_open_mactex_download_page(app: tauri::AppHandle) -> Result<(), String> {
+    app.opener()
+        .open_url(MACTEX_DOWNLOAD_PAGE_URL, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 fn compile_project(
     app: &tauri::AppHandle,
     request: WritingCompileRequest,
@@ -76,7 +102,7 @@ fn compile_project(
         ("xelatex".to_string(), run_xelatex_pipeline(&work_dir, &xelatex, &mut log)?)
     } else {
         log.push_str(
-            "未找到 LaTeX 编译器。\n\n请安装 MacTeX / TeX Live，并确保 latexmk 或 xelatex 可用。\nmacOS 常见路径：/Library/TeX/texbin\n",
+            "未找到 LaTeX 编译器。\n\n请安装 MacTeX / TeX Live，并确保 latexmk 或 xelatex 可用。\nmacOS 常见路径：/Library/TeX/texbin\n\n可在小妍中一键下载 MacTeX 安装器。\n",
         );
         ("not-found".to_string(), false)
     };
@@ -105,6 +131,37 @@ fn create_work_dir(app: &tauri::AppHandle, project_name: &str) -> Result<PathBuf
     let work_dir = root.join(format!("{safe_name}-{}", Uuid::new_v4()));
     fs::create_dir_all(&work_dir).map_err(|e| format!("无法创建项目目录：{e}"))?;
     Ok(work_dir)
+}
+
+fn canonical_compiled_pdf_path(app: &tauri::AppHandle, path: &Path) -> Result<PathBuf, String> {
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("writing_compiles");
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|e| format!("无法校验写作编译目录：{e}"))?;
+    let canonical_path = path
+        .canonicalize()
+        .map_err(|e| format!("PDF 文件不可访问：{e}"))?;
+
+    if !canonical_path.is_file() {
+        return Err("PDF 文件不存在。".to_string());
+    }
+    let is_pdf = canonical_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false);
+    if !is_pdf {
+        return Err("仅支持打开 PDF 文件。".to_string());
+    }
+    if !canonical_path.starts_with(&canonical_root) {
+        return Err("PDF 不在小妍写作编译目录内。".to_string());
+    }
+
+    Ok(canonical_path)
 }
 
 fn write_project_files(work_dir: &Path, request: &WritingCompileRequest) -> Result<(), String> {

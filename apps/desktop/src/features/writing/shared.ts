@@ -75,8 +75,16 @@ export interface WritingCompileSummary {
 
 export const WRITING_STORAGE_KEY = "rc:writing:workspace:v1";
 export const DEFAULT_PROJECT_NAME = "xiaoyan-paper";
+export const MACOS_TEXBIN_PATH = "/Library/TeX/texbin";
+export const MACTEX_INSTALLER_URL = "https://mirror.ctan.org/systems/mac/mactex/MacTeX.pkg";
+export const MACTEX_DOWNLOAD_PAGE_URL = "https://tug.org/mactex/mactex-download.html";
 
 export const EXPORT_TARGET_LABELS: Record<WritingExportTarget, string> = {
   texstudio: "TeXstudio",
   overleaf: "Overleaf",
 };
+
+export function isLatexCompilerMissing(result: WritingCompileSummary | null): boolean {
+  if (!result) return false;
+  return result.engine === "not-found" || result.log.includes("未找到 LaTeX 编译器");
+}

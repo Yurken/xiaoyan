@@ -1,7 +1,11 @@
 import { useCallback, useState } from "react";
 import { formatErrorMessage, writingApi } from "../../lib/client";
 import { sanitizeLatexProjectName } from "./latexProject";
-import type { WritingCompileStatus, WritingCompileSummary } from "./shared";
+import {
+  isLatexCompilerMissing,
+  type WritingCompileStatus,
+  type WritingCompileSummary,
+} from "./shared";
 
 interface UseWritingCompilerOptions {
   projectName: string;
@@ -24,6 +28,7 @@ export function useWritingCompiler({
 }: UseWritingCompilerOptions) {
   const [compileStatus, setCompileStatus] = useState<WritingCompileStatus>("idle");
   const [compileResult, setCompileResult] = useState<WritingCompileSummary | null>(null);
+  const [latexInstallerStatus, setLatexInstallerStatus] = useState<"idle" | "opening">("idle");
 
   const compilePdf = useCallback(async () => {
     setCompileStatus("compiling");
@@ -35,6 +40,9 @@ export function useWritingCompiler({
       if (result.success && result.pdfPath) {
         setCompileStatus("ready");
         onMessage(`PDF 编译完成：${result.pdfPath.split("/").pop() ?? "main.pdf"}`);
+      } else if (isLatexCompilerMissing(result)) {
+        setCompileStatus("failed");
+        onError("未找到 LaTeX 编译器。请安装 MacTeX / TeX Live，或使用下方按钮下载 MacTeX 安装器。");
       } else {
         setCompileStatus("failed");
         onError("PDF 编译失败，请展开编译日志查看具体错误。");
@@ -45,11 +53,31 @@ export function useWritingCompiler({
     }
   }, [bibtex, clearStatus, mainTex, notes, onError, onMessage, projectName]);
 
+  const openLatexInstaller = useCallback(async () => {
+    setLatexInstallerStatus("opening");
+    clearStatus();
+    try {
+      await writingApi.openMactexInstaller();
+      onMessage("已打开 MacTeX 官方安装器下载。下载完成后运行 MacTeX.pkg，安装完成再重新编译。");
+    } catch (err) {
+      onError(formatErrorMessage(err));
+    } finally {
+      setLatexInstallerStatus("idle");
+    }
+  }, [clearStatus, onError, onMessage]);
+
+  const openLatexDownloadPage = useCallback(async () => {
+    try {
+      await writingApi.openMactexDownloadPage();
+    } catch (err) {
+      onError(formatErrorMessage(err));
+    }
+  }, [onError]);
+
   const openCompiledPdf = useCallback(async () => {
     if (!compileResult?.pdfPath) return;
     try {
-      const { open: openPath } = await import("@tauri-apps/plugin-shell");
-      await openPath(compileResult.pdfPath);
+      await writingApi.openCompiledPdf(compileResult.pdfPath);
     } catch (err) {
       onError(formatErrorMessage(err));
     }
@@ -74,7 +102,10 @@ export function useWritingCompiler({
   return {
     compileStatus,
     compileResult,
+    latexInstallerStatus,
     compilePdf,
+    openLatexInstaller,
+    openLatexDownloadPage,
     openCompiledPdf,
     saveCompiledPdf,
   };
