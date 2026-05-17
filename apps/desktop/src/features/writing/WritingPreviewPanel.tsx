@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { BookOpen, FileCheck2, ListTree, Loader2 } from "lucide-react";
+import { BookOpen, FileCheck2, ListTree, Loader2, Minus, Plus, RotateCcw } from "lucide-react";
 import { CapsuleTabs } from "@research-copilot/ui";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -248,9 +248,44 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
           </div>
         </div>
       )}
-      {zoomLevel !== 1 && (
-        <div className="pointer-events-none absolute bottom-4 right-4 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-md">
-          {Math.round(zoomLevel * 100)}%
+      {pdfDoc && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-lg bg-black/60 px-2 py-1.5 backdrop-blur-md">
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded text-white/70 hover:bg-white/10 hover:text-white transition"
+            onClick={() => setZoomLevel((prev) => clampZoom(prev - ZOOM_STEP))}
+            disabled={zoomLevel <= ZOOM_MIN}
+            title="缩小"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            className="flex h-6 min-w-[44px] items-center justify-center rounded text-[11px] font-medium text-white hover:bg-white/10 transition"
+            onClick={() => setZoomLevel(1)}
+            title="重置缩放"
+          >
+            {Math.round(zoomLevel * 100)}%
+          </button>
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded text-white/70 hover:bg-white/10 hover:text-white transition"
+            onClick={() => setZoomLevel((prev) => clampZoom(prev + ZOOM_STEP))}
+            disabled={zoomLevel >= ZOOM_MAX}
+            title="放大"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          {zoomLevel !== 1 && (
+            <button
+              type="button"
+              className="flex h-6 w-6 items-center justify-center rounded text-white/50 hover:bg-white/10 hover:text-white/80 transition"
+              onClick={() => setZoomLevel(1)}
+              title="恢复 100%"
+            >
+              <RotateCcw className="h-3 w-3" />
+            </button>
+          )}
         </div>
       )}
     </div>
