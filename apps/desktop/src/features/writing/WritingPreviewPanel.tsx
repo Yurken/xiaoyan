@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { BookOpen, FileCheck2, ListTree, Loader2, Minus, Plus, RotateCcw } from "lucide-react";
+import { BookOpen, Download, FileCheck2, ListTree, Loader2, Minus, Plus, RotateCcw } from "lucide-react";
 import { CapsuleTabs } from "@research-copilot/ui";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -82,6 +82,8 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({ startX: 0, startY: 0, scrollX: 0, scrollY: 0 });
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const renderTaskRef = useRef(new Map<number, pdfjsLib.RenderTask>());
@@ -187,6 +189,51 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [clampZoom]);
 
+  const handleSave = useCallback(async () => {
+    if (!compileResult?.pdfPath) return;
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { writeFile, readFile } = await import("@tauri-apps/plugin-fs");
+      const path = await save({
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+        defaultPath: "paper.pdf",
+      });
+      if (!path) return;
+      const bytes = await readFile(compileResult.pdfPath);
+      await writeFile(path, bytes);
+    } catch {
+      // ignore
+    }
+  }, [compileResult?.pdfPath]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      scrollX: scrollRef.current?.scrollLeft ?? 0,
+      scrollY: scrollRef.current?.scrollTop ?? 0,
+    };
+    setIsDragging(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollLeft = dragRef.current.scrollX + (dragRef.current.startX - e.clientX);
+      el.scrollTop = dragRef.current.scrollY + (dragRef.current.startY - e.clientY);
+    };
+    const handleMouseUp = () => setIsDragging(false);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
@@ -231,7 +278,9 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
       ) : (
         <div
           ref={scrollRef}
-          className="h-full w-full overflow-auto"
+          className="h-full w-full overflow-auto select-none"
+          style={{ cursor: isDragging ? "grabbing" : "grab" }}
+          onMouseDown={handleMouseDown}
           onWheel={handleWheel}
         >
           <div className="mx-auto flex flex-col items-center gap-1 py-2">
@@ -286,6 +335,15 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
               <RotateCcw className="h-3 w-3" />
             </button>
           )}
+          <span className="mx-0.5 h-4 w-px bg-white/15" />
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded text-white/70 hover:bg-white/10 hover:text-white transition"
+            onClick={handleSave}
+            title="下载 PDF"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
     </div>
