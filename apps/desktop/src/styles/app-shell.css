@@ -127,6 +127,44 @@
     letter-spacing: 0;
   }
 
+  .app-nav-item--sub {
+    padding: 5px 2px;
+    position: relative;
+  }
+
+  .app-nav-item--sub::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    border-radius: 999px;
+    background: var(--rc-border);
+    opacity: 0.6;
+    transition: background-color 0.18s ease, opacity 0.18s ease;
+  }
+
+  .app-nav-item--sub:hover::before {
+    background: var(--rc-accent);
+    opacity: 0.35;
+  }
+
+  .app-nav-item--sub.is-active::before {
+    background: var(--rc-accent);
+    opacity: 0.5;
+  }
+
+  .app-nav-item--sub .app-nav-item__icon {
+    width: 13px;
+    height: 13px;
+  }
+
+  .app-nav-item--sub .app-nav-item__label {
+    font-size: 8px;
+    font-weight: 500;
+  }
+
   .app-sidebar__pet {
     position: relative;
     z-index: 1;

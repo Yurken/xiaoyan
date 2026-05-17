@@ -8,6 +8,7 @@ import {
   Library,
   Map,
   MessageSquare,
+  PenLine,
   Send,
   Settings as SettingsIcon,
   Wrench,
@@ -15,6 +16,7 @@ import {
 import Home from "./pages/Home";
 import Planner from "./pages/Planner";
 import Survey from "./pages/Survey";
+import PaperWrite from "./pages/PaperWrite";
 import Papers from "./pages/Papers";
 import Copilot from "./pages/Copilot";
 import Knowledge from "./pages/Knowledge";
@@ -47,13 +49,14 @@ const navItems = [
   { to: "/planner", icon: Map, label: "规划" },
   { to: "/xiaoyan", icon: MessageSquare, label: "对话" },
   { to: "/survey", icon: BookOpen, label: "综述" },
+  { to: "/write", icon: PenLine, label: "撰稿" },
   { to: "/papers", icon: FileText, label: "论文" },
   { to: "/knowledge", icon: Library, label: "知识" },
   { to: "/experiment", icon: FlaskConical, label: "实验" },
   { to: "/submission", icon: Send, label: "投稿" },
   { to: "/tools", icon: Wrench, label: "工具" },
   { to: "/settings", icon: SettingsIcon, label: "设置" },
-];
+] as const;
 
 function LandscapeFocusRouteRedirect() {
   const location = useLocation();
@@ -212,6 +215,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/planner" element={<Planner />} />
           <Route path="/survey" element={<Survey />} />
+          <Route path="/write" element={<PaperWrite />} />
           <Route path="/papers" element={<Papers />} />
           <Route path="/submission" element={<Submission />} />
           <Route path="/experiment" element={<Experiment />} />

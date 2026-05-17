@@ -1,5 +1,6 @@
 "use client";
 
+import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -9,15 +10,24 @@ import {
   FileText,
   Library,
   Microscope,
+  PenLine,
   SlidersHorizontal,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { MAIN_ASSISTANT_NAME, PRODUCT_NAME } from "@research-copilot/types";
 
-const navItems = [
+interface NavItem {
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  sub?: boolean;
+}
+
+const navItems: NavItem[] = [
   { href: "/", icon: LayoutDashboard, label: "工作台" },
   { href: "/planner", icon: Map, label: "方向规划" },
   { href: "/survey", icon: BookOpen, label: "文献调研" },
+  { href: "/write", icon: PenLine, label: "撰写" },
   { href: "/papers", icon: FileText, label: "论文库" },
   { href: "/knowledge", icon: Library, label: "知识库" },
   { href: "/settings", icon: SlidersHorizontal, label: "设置中心" },
@@ -84,7 +94,9 @@ export default function Sidebar() {
             <Link
               key={href}
               href={href}
-              className={clsx("flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm font-medium transition-all duration-150")}
+              className={clsx(
+                "flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm font-medium transition-all duration-150",
+              )}
               style={
                 active
                   ? {

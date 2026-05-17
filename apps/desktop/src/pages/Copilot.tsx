@@ -101,6 +101,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     hideFolders ? "collapsed" : "open",
     ["open", "collapsed"] as const,
   );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const { chatMode, setChatMode } = useCopilotChatMode();
   const bottomRef = useRef<HTMLDivElement>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
@@ -246,6 +247,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       setPlan([]);
       setRequestId(runData[0]?.request_id);
       setActiveAssistantId(null);
+      setSidebarCollapsed(true);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
     }
@@ -284,6 +286,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     setRequestId(undefined);
     setLoadError("");
     setActiveAssistantId(null);
+    setSidebarCollapsed(true);
   };
 
   const handleSessionInterestChange = async (nextInterestId: string) => {
@@ -405,6 +408,10 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       : rawText;
     const submittedText = buildCopilotMessageContent(text, attachments);
     const assistantId = `${Date.now()}_a`;
+
+    if (chatMode === "task") {
+      setSidebarCollapsed(false);
+    }
 
     // 埋点：记录提问内容（取前60字）
     void apiClient.memory.add({
@@ -1064,7 +1071,12 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
             <CopilotComposer
               chatMode={chatMode}
-              onChatModeChange={setChatMode}
+              onChatModeChange={(mode) => {
+                setChatMode(mode);
+                if (mode === "task" && messages.length > 0) {
+                  setSidebarCollapsed(false);
+                }
+              }}
               input={input}
               onInputChange={setInput}
               onSubmit={handleSend}
@@ -1096,6 +1108,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           }}
           onSaveMemory={handleSaveMemory}
           onArtifactLinkClick={openLink}
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
         />
       </div>
 
