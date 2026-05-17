@@ -154,14 +154,24 @@ export default function WritingWorkspace() {
       >
         {workspace.viewMode !== "preview" && (
           <WritingSidebar
+            drafts={workspace.drafts}
+            activeDraftId={workspace.activeDraftId}
             projectName={workspace.projectName}
+            researchInterestId={workspace.researchInterestId}
+            interests={workspace.interests}
+            loadingInterests={workspace.loadingInterests}
+            interestError={workspace.interestError}
             templates={workspace.templates}
             templateId={workspace.templateId}
             outline={workspace.outline}
             diagnostics={workspace.diagnostics}
             stats={workspace.stats}
             notes={workspace.notes}
+            onDraftChange={workspace.setActiveDraftId}
+            onCreateDraft={workspace.createDraft}
+            onDeleteDraft={workspace.deleteDraft}
             onProjectNameChange={workspace.setProjectName}
+            onResearchInterestChange={workspace.setResearchInterestId}
             onTemplateChange={workspace.applyTemplate}
             onJumpToLine={workspace.jumpToLine}
             onNotesChange={workspace.setNotes}

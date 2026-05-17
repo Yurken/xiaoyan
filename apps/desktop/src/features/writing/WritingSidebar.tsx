@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { clsx } from "clsx";
 import {
   AlertCircle,
@@ -6,30 +6,44 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  FileArchive,
   FileText,
+  FolderOpen,
   ListTree,
-  RefreshCw,
   StickyNote,
 } from "lucide-react";
-import { Button, ConfirmDialog, Input, Select, Textarea } from "@research-copilot/ui";
+import { Button, Textarea } from "@research-copilot/ui";
+import WritingDraftManagerModal from "./WritingDraftManagerModal";
+import WritingSidebarSection from "./WritingSidebarSection";
 import type {
   LatexDiagnostic,
   LatexOutlineEntry,
   LatexStats,
   LatexTemplate,
+  WritingDraft,
+  WritingResearchInterestSummary,
   WritingTemplateId,
 } from "./shared";
+import { writingDraftTitle, writingResearchInterestTitle } from "./shared";
 
 interface WritingSidebarProps {
+  drafts: WritingDraft[];
+  activeDraftId: string;
   projectName: string;
+  researchInterestId: string;
+  interests: WritingResearchInterestSummary[];
+  loadingInterests: boolean;
+  interestError: string;
   templates: LatexTemplate[];
   templateId: WritingTemplateId;
   outline: LatexOutlineEntry[];
   diagnostics: LatexDiagnostic[];
   stats: LatexStats;
   notes: string;
+  onDraftChange: (id: string) => void;
+  onCreateDraft: (researchInterestId?: string) => void;
+  onDeleteDraft: (id: string) => void;
   onProjectNameChange: (value: string) => void;
+  onResearchInterestChange: (value: string) => void;
   onTemplateChange: (templateId: WritingTemplateId) => void;
   onJumpToLine: (line: number) => void;
   onNotesChange: (value: string) => void;
@@ -45,154 +59,94 @@ const severityStyle: Record<
   info: { icon: CheckCircle2, text: "#34A853", bg: "rgba(52,199,89,0.12)" },
 };
 
-interface SidebarSectionProps {
-  title: string;
-  icon: ReactNode;
-  badge?: ReactNode;
-  action?: ReactNode;
-  children: ReactNode;
-  defaultOpen?: boolean;
-  className?: string;
-}
-
-function SidebarSection({
-  title,
-  icon,
-  badge,
-  action,
-  children,
-  defaultOpen = true,
-  className,
-}: SidebarSectionProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  return (
-    <section
-      className={clsx(
-        "rounded-xl border shadow-sm transition-all",
-        className,
-      )}
-      style={{ background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }}
-    >
-      <div
-        className={clsx(
-          "flex cursor-pointer items-center justify-between px-4 py-2.5 transition-colors hover:bg-white/5",
-          isOpen ? "border-b" : "rounded-xl",
-        )}
-        style={{ borderColor: "var(--rc-border)" }}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-apple-blue/10 text-apple-blue">
-            {icon}
-          </div>
-          <p className="text-sm font-bold tracking-tight text-ink-primary">{title}</p>
-          {badge}
-        </div>
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          {action}
-          <div
-            className={clsx(
-              "flex h-6 w-6 items-center justify-center rounded-md text-ink-tertiary transition-transform duration-200",
-              isOpen ? "rotate-0" : "-rotate-90",
-            )}
-            onClick={() => setIsOpen(!isOpen)}
-          >
-            <ChevronDown className="h-4 w-4" />
-          </div>
-        </div>
-      </div>
-
-      {isOpen && <div className="relative">{children}</div>}
-    </section>
-  );
-}
-
 export default function WritingSidebar({
+  drafts,
+  activeDraftId,
   projectName,
+  researchInterestId,
+  interests,
+  loadingInterests,
+  interestError,
   templates,
   templateId,
   outline,
   diagnostics,
   stats,
   notes,
+  onDraftChange,
+  onCreateDraft,
+  onDeleteDraft,
   onProjectNameChange,
+  onResearchInterestChange,
   onTemplateChange,
   onJumpToLine,
   onNotesChange,
   onReset,
 }: WritingSidebarProps) {
-  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  const [templateToApply, setTemplateToApply] = useState<WritingTemplateId | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [draftManagerOpen, setDraftManagerOpen] = useState(false);
+  const activeDraft = useMemo(
+    () => drafts.find((draft) => draft.id === activeDraftId) ?? drafts[0],
+    [activeDraftId, drafts],
+  );
+  const activeInterest = useMemo(
+    () => interests.find((interest) => interest.id === researchInterestId),
+    [interests, researchInterestId],
+  );
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
-      <SidebarSection
-        title="项目配置"
-        icon={<FileArchive className="h-4 w-4" />}
-        action={
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-7 w-7 rounded-lg p-0"
-            onClick={() => setResetConfirmOpen(true)}
-            title="重置工作台"
-          >
-            <RefreshCw className="h-3.5 w-3.5 text-ink-tertiary" />
-          </Button>
+      <WritingSidebarSection
+        title="文稿管理"
+        icon={<FolderOpen className="h-4 w-4" />}
+        badge={
+          <span className="rounded-full bg-apple-blue/10 px-2 py-0.5 text-[10px] font-bold text-apple-blue">
+            {drafts.length} 篇
+          </span>
         }
       >
-        <div className="space-y-4 p-3.5">
-          <Input
-            label="项目名称"
-            value={projectName}
-            onChange={(event) => onProjectNameChange(event.target.value)}
-            placeholder="my-paper"
-            className="h-9 text-sm"
-          />
-
-          <div className="space-y-1.5">
-            <Select
-              label="LaTeX 模板"
-              value={templateId}
-              onChange={(value) => setTemplateToApply(value as WritingTemplateId)}
-              options={templates.map((t) => ({ value: t.id, label: t.title }))}
-            />
-            <p className="px-1 text-[10px] leading-relaxed text-ink-tertiary">
-              {templates.find((template) => template.id === templateId)?.description}
+        <div className="space-y-3 p-3.5">
+          <button
+            type="button"
+            onClick={() => setDraftManagerOpen(true)}
+            className="w-full rounded-xl border p-3 text-left transition-all hover:border-apple-blue/35 hover:bg-apple-blue/5"
+            style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
+          >
+            <p className="truncate text-sm font-semibold text-ink-primary">
+              {activeDraft ? writingDraftTitle(activeDraft) : projectName}
             </p>
-          </div>
+            <p className="mt-1 truncate text-xs text-ink-tertiary">
+              {writingResearchInterestTitle(activeInterest)}
+            </p>
+          </button>
+          <Button type="button" size="sm" className="w-full" onClick={() => setDraftManagerOpen(true)}>
+            打开文稿管理
+          </Button>
         </div>
-      </SidebarSection>
+      </WritingSidebarSection>
 
-      <ConfirmDialog
-        open={resetConfirmOpen}
-        title="确认重置工作台？"
-        description="重置操作将清空当前的源码、引用和便签内容，并恢复为默认模板。此操作无法撤销。"
-        confirmLabel="确认重置"
-        tone="danger"
-        onConfirm={() => {
-          onReset();
-          setResetConfirmOpen(false);
-        }}
-        onClose={() => setResetConfirmOpen(false)}
+      <WritingDraftManagerModal
+        open={draftManagerOpen}
+        drafts={drafts}
+        activeDraftId={activeDraftId}
+        projectName={projectName}
+        researchInterestId={researchInterestId}
+        interests={interests}
+        loadingInterests={loadingInterests}
+        interestError={interestError}
+        templates={templates}
+        templateId={templateId}
+        onClose={() => setDraftManagerOpen(false)}
+        onDraftChange={onDraftChange}
+        onCreateDraft={onCreateDraft}
+        onDeleteDraft={onDeleteDraft}
+        onProjectNameChange={onProjectNameChange}
+        onResearchInterestChange={onResearchInterestChange}
+        onTemplateChange={onTemplateChange}
+        onReset={onReset}
       />
 
-      <ConfirmDialog
-        open={templateToApply !== null}
-        title="更换 LaTeX 模板？"
-        description={`确认要更换为「${templates.find(t => t.id === templateToApply)?.title}」模板吗？这将覆盖您当前在 main.tex 和 references.bib 中的所有修改。`}
-        confirmLabel="确认更换"
-        onConfirm={() => {
-          if (templateToApply) onTemplateChange(templateToApply);
-          setTemplateToApply(null);
-        }}
-        onClose={() => setTemplateToApply(null)}
-      />
-
-      <SidebarSection
+      <WritingSidebarSection
         title="论文大纲"
         icon={<ListTree className="h-4 w-4" />}
         badge={
@@ -227,9 +181,9 @@ export default function WritingSidebar({
             />
           )}
         </div>
-      </SidebarSection>
+      </WritingSidebarSection>
 
-      <SidebarSection
+      <WritingSidebarSection
         title="稿件状态"
         icon={<BarChart3 className="h-4 w-4" />}
       >
@@ -241,9 +195,9 @@ export default function WritingSidebar({
           <StatTile label="行数" value={stats.lines} />
           <StatTile label="字符" value={stats.characters} />
         </div>
-      </SidebarSection>
+      </WritingSidebarSection>
 
-      <SidebarSection
+      <WritingSidebarSection
         title="结构检查"
         icon={<FileText className="h-4 w-4" />}
         badge={
@@ -291,9 +245,9 @@ export default function WritingSidebar({
             </div>
           )}
         </div>
-      </SidebarSection>
+      </WritingSidebarSection>
 
-      <SidebarSection
+      <WritingSidebarSection
         title="写作便签"
         icon={<StickyNote className="h-4 w-4" />}
       >
@@ -306,7 +260,7 @@ export default function WritingSidebar({
             style={{ background: "var(--rc-card-inset-bg)" }}
           />
         </div>
-      </SidebarSection>
+      </WritingSidebarSection>
     </aside>
   );
 }

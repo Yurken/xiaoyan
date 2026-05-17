@@ -9,9 +9,13 @@ import {
 
 const WRITING_COMPILE_RESULT_KEY = "rc:writing:compile:v1";
 
-function loadCompileResult(): WritingCompileSummary | null {
+function compileResultStorageKey(draftId: string) {
+  return `${WRITING_COMPILE_RESULT_KEY}:${draftId}`;
+}
+
+function loadCompileResult(storageKey: string): WritingCompileSummary | null {
   try {
-    const raw = localStorage.getItem(WRITING_COMPILE_RESULT_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return null;
     return JSON.parse(raw) as WritingCompileSummary;
   } catch {
@@ -20,6 +24,7 @@ function loadCompileResult(): WritingCompileSummary | null {
 }
 
 interface UseWritingCompilerOptions {
+  draftId: string;
   projectName: string;
   mainTex: string;
   bibtex: string;
@@ -30,6 +35,7 @@ interface UseWritingCompilerOptions {
 }
 
 export function useWritingCompiler({
+  draftId,
   projectName,
   mainTex,
   bibtex,
@@ -38,25 +44,25 @@ export function useWritingCompiler({
   onError,
   clearStatus,
 }: UseWritingCompilerOptions) {
+  const storageKey = compileResultStorageKey(draftId);
   const [compileStatus, setCompileStatus] = useState<WritingCompileStatus>("idle");
-  const [compileResult, setCompileResult] = useState<WritingCompileSummary | null>(loadCompileResult);
+  const [compileResult, setCompileResult] = useState<WritingCompileSummary | null>(() => loadCompileResult(storageKey));
   const [latexInstallerStatus, setLatexInstallerStatus] = useState<"idle" | "opening">("idle");
 
   useEffect(() => {
-    if (compileResult) {
-      localStorage.setItem(WRITING_COMPILE_RESULT_KEY, JSON.stringify(compileResult));
-    } else {
-      localStorage.removeItem(WRITING_COMPILE_RESULT_KEY);
-    }
-  }, [compileResult]);
+    setCompileStatus("idle");
+    setCompileResult(loadCompileResult(storageKey));
+  }, [storageKey]);
 
   const compilePdf = useCallback(async () => {
     setCompileStatus("compiling");
     setCompileResult(null);
+    localStorage.removeItem(storageKey);
     clearStatus();
     try {
       const result = await writingApi.compilePdf({ projectName, mainTex, bibtex, notes });
       setCompileResult(result);
+      localStorage.setItem(storageKey, JSON.stringify(result));
       if (result.success && result.pdfPath) {
         setCompileStatus("ready");
       } else if (isLatexCompilerMissing(result)) {
@@ -70,7 +76,7 @@ export function useWritingCompiler({
       setCompileStatus("failed");
       onError(formatErrorMessage(err));
     }
-  }, [bibtex, clearStatus, mainTex, notes, onError, projectName]);
+  }, [bibtex, clearStatus, mainTex, notes, onError, projectName, storageKey]);
 
   const openLatexInstaller = useCallback(async () => {
     setLatexInstallerStatus("opening");

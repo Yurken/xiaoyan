@@ -4,6 +4,24 @@ export type WritingTemplateId = "journal" | "conference" | "thesis-note";
 export type LatexDiagnosticSeverity = "error" | "warning" | "info";
 export type WritingCompileStatus = "idle" | "compiling" | "ready" | "failed";
 
+export interface WritingResearchInterestSummary {
+  id: string;
+  topic: string;
+  folder_name?: string;
+}
+
+export interface WritingDraft {
+  id: string;
+  projectName: string;
+  researchInterestId?: string;
+  templateId: WritingTemplateId;
+  mainTex: string;
+  bibtex: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface LatexTemplate {
   id: WritingTemplateId;
   title: string;
@@ -74,6 +92,8 @@ export interface WritingCompileSummary {
 }
 
 export const WRITING_STORAGE_KEY = "rc:writing:workspace:v1";
+export const WRITING_LIBRARY_STORAGE_KEY = "rc:writing:library:v1";
+export const WRITING_ACTIVE_DRAFT_KEY = "rc:writing:active-draft:v1";
 export const DEFAULT_PROJECT_NAME = "xiaoyan-paper";
 export const MACOS_TEXBIN_PATH = "/Library/TeX/texbin";
 export const MACTEX_INSTALLER_URL = "https://mirror.ctan.org/systems/mac/mactex/MacTeX.pkg";
@@ -83,6 +103,16 @@ export const EXPORT_TARGET_LABELS: Record<WritingExportTarget, string> = {
   texstudio: "TeXstudio",
   overleaf: "Overleaf",
 };
+
+export function writingDraftTitle(draft: Pick<WritingDraft, "projectName">): string {
+  return draft.projectName.trim() || DEFAULT_PROJECT_NAME;
+}
+
+export function writingResearchInterestTitle(
+  interest?: Pick<WritingResearchInterestSummary, "topic" | "folder_name"> | null,
+): string {
+  return interest?.folder_name?.trim() || interest?.topic || "未绑定研究主题";
+}
 
 export function isLatexCompilerMissing(result: WritingCompileSummary | null): boolean {
   if (!result) return false;
