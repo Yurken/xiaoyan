@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
 import {
   Archive,
@@ -16,6 +17,8 @@ import WritingSidebar from "./WritingSidebar";
 import WritingSnippetToolbar from "./WritingSnippetToolbar";
 import {
   isLatexCompilerMissing,
+  type WritingCompileStatus,
+  type WritingCompileSummary,
   type WritingExportTarget,
   type WritingViewMode,
 } from "./shared";
@@ -78,20 +81,12 @@ export default function WritingWorkspace() {
               </Button>
 
               <div className="flex items-center gap-1 rounded-xl bg-apple-blue/5 p-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="primary"
-                  onClick={() => void workspace.compilePdf()}
-                  loading={workspace.compileStatus === "compiling"}
-                  disabled={workspace.exportingTarget !== null}
-                  className="shadow-sm"
-                >
-                  {workspace.compileStatus !== "compiling" ? (
-                    <FileCheck2 className="h-3.5 w-3.5" />
-                  ) : null}
-                  编译 PDF
-                </Button>
+                <CompileButton
+                  compileStatus={workspace.compileStatus}
+                  compileResult={workspace.compileResult}
+                  exportingTarget={workspace.exportingTarget}
+                  onCompile={() => void workspace.compilePdf()}
+                />
               </div>
 
               <div className="ml-1 flex items-center gap-1.5">
@@ -214,5 +209,56 @@ export default function WritingWorkspace() {
         </footer>
       )}
     </div>
+  );
+}
+
+function CompileButton({
+  compileStatus,
+  compileResult,
+  exportingTarget,
+  onCompile,
+}: {
+  compileStatus: WritingCompileStatus;
+  compileResult: WritingCompileSummary | null;
+  exportingTarget: WritingExportTarget | null;
+  onCompile: () => void;
+}) {
+  const [flash, setFlash] = useState(false);
+  const prevStatusRef = useRef(compileStatus);
+
+  useEffect(() => {
+    if (prevStatusRef.current !== "ready" && compileStatus === "ready") {
+      setFlash(true);
+      const timer = setTimeout(() => setFlash(false), 3000);
+      return () => clearTimeout(timer);
+    }
+    prevStatusRef.current = compileStatus;
+  }, [compileStatus]);
+
+  const pdfName = compileResult?.pdfPath?.split("/").pop();
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={flash ? "primary" : "primary"}
+      onClick={onCompile}
+      loading={compileStatus === "compiling"}
+      disabled={exportingTarget !== null}
+      className="shadow-sm transition-colors duration-500"
+      style={flash ? { background: "#34C759", color: "#fff" } : undefined}
+    >
+      {compileStatus !== "compiling" && !flash && (
+        <FileCheck2 className="h-3.5 w-3.5" />
+      )}
+      {flash ? (
+        <span className="inline-flex items-center gap-1">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          编译完成 · {pdfName}
+        </span>
+      ) : (
+        "编译 PDF"
+      )}
+    </Button>
   );
 }

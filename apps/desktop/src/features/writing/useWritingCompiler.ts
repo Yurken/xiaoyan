@@ -59,7 +59,6 @@ export function useWritingCompiler({
       setCompileResult(result);
       if (result.success && result.pdfPath) {
         setCompileStatus("ready");
-        onMessage(`PDF 编译完成：${result.pdfPath.split("/").pop() ?? "main.pdf"}`);
       } else if (isLatexCompilerMissing(result)) {
         setCompileStatus("failed");
         onError("未找到 LaTeX 编译器。请安装 MacTeX / TeX Live，或使用下方按钮下载 MacTeX 安装器。");
@@ -71,7 +70,7 @@ export function useWritingCompiler({
       setCompileStatus("failed");
       onError(formatErrorMessage(err));
     }
-  }, [bibtex, clearStatus, mainTex, notes, onError, onMessage, projectName]);
+  }, [bibtex, clearStatus, mainTex, notes, onError, projectName]);
 
   const openLatexInstaller = useCallback(async () => {
     setLatexInstallerStatus("opening");
