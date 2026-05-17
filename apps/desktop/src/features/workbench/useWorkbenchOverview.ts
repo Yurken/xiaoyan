@@ -58,7 +58,6 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
   useEffect(() => {
     let cancelled = false;
 
-<<<<<<< HEAD
     const loadOverview = () => {
       Promise.all([
         apiClient.papers.list(0, 100),

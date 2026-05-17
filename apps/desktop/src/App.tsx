@@ -24,6 +24,7 @@ import Settings from "./pages/Settings";
 import Tools from "./pages/Tools";
 import Submission from "./pages/Submission";
 import Experiment from "./pages/Experiment";
+import Writing from "./pages/Writing";
 import FocusApp from "./pages/FocusLayout";
 import LockScreen from "./features/appLock/LockScreen";
 import { APP_LOCK_STATUS_CHANGE_EVENT, type AppLockStatusChangeDetail } from "./features/appLock/shared";
@@ -51,6 +52,7 @@ const navItems = [
   { to: "/survey", icon: BookOpen, label: "综述" },
   { to: "/write", icon: PenLine, label: "撰稿" },
   { to: "/papers", icon: FileText, label: "论文" },
+  { to: "/writing", icon: PenLine, label: "写作" },
   { to: "/knowledge", icon: Library, label: "知识" },
   { to: "/experiment", icon: FlaskConical, label: "实验" },
   { to: "/submission", icon: Send, label: "投稿" },
@@ -217,6 +219,7 @@ export default function App() {
           <Route path="/survey" element={<Survey />} />
           <Route path="/write" element={<PaperWrite />} />
           <Route path="/papers" element={<Papers />} />
+          <Route path="/writing" element={<Writing />} />
           <Route path="/submission" element={<Submission />} />
           <Route path="/experiment" element={<Experiment />} />
           <Route path="/tools" element={<Tools />} />

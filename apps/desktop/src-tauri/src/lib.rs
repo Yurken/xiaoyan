@@ -108,6 +108,7 @@ use commands::{
     },
     update::{update_check, update_install, PendingUpdate},
     workbench::{workbench_generate_overview_text, workbench_get_overview_text_cache},
+    writing::{writing_compile_pdf, writing_copy_pdf},
 };
 use state::{default_settings, AppState};
 
@@ -411,6 +412,9 @@ pub fn run() {
             // Workbench
             workbench_get_overview_text_cache,
             workbench_generate_overview_text,
+            // Writing
+            writing_compile_pdf,
+            writing_copy_pdf,
         ])
         .run(tauri::generate_context!());
 

@@ -28,3 +28,4 @@ pub mod source;
 pub mod submission;
 pub mod update;
 pub mod workbench;
+pub mod writing;

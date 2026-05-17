@@ -708,6 +708,23 @@ export const workbenchApi = {
     }>("workbench_generate_overview_text", { sourceJson }),
 };
 
+// ── Writing API ───────────────────────────────────────────────────
+
+export interface WritingCompileResult {
+  success: boolean;
+  pdfPath: string | null;
+  workDir: string;
+  engine: string;
+  log: string;
+}
+
+export const writingApi = {
+  compilePdf: (project: { projectName: string; mainTex: string; bibtex: string; notes: string }) =>
+    invoke<WritingCompileResult>("writing_compile_pdf", { request: project }),
+  copyPdf: (pdfPath: string, destinationPath: string) =>
+    invoke<void>("writing_copy_pdf", { pdfPath, destinationPath }),
+};
+
 // ── Export API ────────────────────────────────────────────────────
 
 export const exportApi = {
@@ -738,4 +755,5 @@ export const apiClient = {
   experiment: experimentApi,
   export: exportApi,
   workbench: workbenchApi,
+  writing: writingApi,
 };

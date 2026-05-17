@@ -40,6 +40,7 @@ import Tools from "./Tools";
 import Settings from "./Settings";
 import Experiment from "./Experiment";
 import Submission from "./Submission";
+import Writing from "./Writing";
 
 // ─── Focus Home ──────────────────────────────────────────────────────────────
 
@@ -694,6 +695,7 @@ export default function FocusApp() {
           <Route path="/planner" element={<Planner />} />
           <Route path="/survey" element={<FocusLegacyRouteRedirect tab="survey" />} />
           <Route path="/papers" element={<FocusLegacyRouteRedirect tab="papers" />} />
+          <Route path="/writing" element={<Writing />} />
           <Route path="/knowledge" element={<FocusLegacyRouteRedirect tab="knowledge" />} />
           <Route path="/xiaoyan" element={<FocusLegacyRouteRedirect tab="xiaoyan" />} />
           <Route path="/copilot" element={<FocusLegacyRouteRedirect tab="copilot" />} />
