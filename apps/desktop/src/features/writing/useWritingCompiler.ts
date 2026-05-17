@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { formatErrorMessage, writingApi } from "../../lib/client";
 import { sanitizeLatexProjectName } from "./latexProject";
 import {
@@ -6,6 +6,18 @@ import {
   type WritingCompileStatus,
   type WritingCompileSummary,
 } from "./shared";
+
+const WRITING_COMPILE_RESULT_KEY = "rc:writing:compile:v1";
+
+function loadCompileResult(): WritingCompileSummary | null {
+  try {
+    const raw = localStorage.getItem(WRITING_COMPILE_RESULT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as WritingCompileSummary;
+  } catch {
+    return null;
+  }
+}
 
 interface UseWritingCompilerOptions {
   projectName: string;
@@ -27,8 +39,16 @@ export function useWritingCompiler({
   clearStatus,
 }: UseWritingCompilerOptions) {
   const [compileStatus, setCompileStatus] = useState<WritingCompileStatus>("idle");
-  const [compileResult, setCompileResult] = useState<WritingCompileSummary | null>(null);
+  const [compileResult, setCompileResult] = useState<WritingCompileSummary | null>(loadCompileResult);
   const [latexInstallerStatus, setLatexInstallerStatus] = useState<"idle" | "opening">("idle");
+
+  useEffect(() => {
+    if (compileResult) {
+      localStorage.setItem(WRITING_COMPILE_RESULT_KEY, JSON.stringify(compileResult));
+    } else {
+      localStorage.removeItem(WRITING_COMPILE_RESULT_KEY);
+    }
+  }, [compileResult]);
 
   const compilePdf = useCallback(async () => {
     setCompileStatus("compiling");

@@ -92,7 +92,6 @@ export default function WritingWorkspace() {
                   ) : null}
                   编译 PDF
                 </Button>
-
               </div>
 
               <div className="ml-1 flex items-center gap-1.5">
@@ -116,12 +115,14 @@ export default function WritingWorkspace() {
           </div>
         </div>
 
-        <div className="mt-3">
-          <WritingSnippetToolbar
-            snippets={workspace.snippets}
-            onInsertSnippet={workspace.insertSnippet}
-          />
-        </div>
+        {showEditor && (
+          <div className="mt-3">
+            <WritingSnippetToolbar
+              snippets={workspace.snippets}
+              onInsertSnippet={workspace.insertSnippet}
+            />
+          </div>
+        )}
 
         {(workspace.message || workspace.error) && (
           <div
