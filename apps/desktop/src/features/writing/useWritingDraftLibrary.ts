@@ -6,6 +6,7 @@ import {
   WRITING_LIBRARY_STORAGE_KEY,
   WRITING_STORAGE_KEY,
   type LatexTemplate,
+  type WritingCreateDraftOptions,
   type WritingDraft,
   type WritingResearchInterestSummary,
   type WritingTemplateId,
@@ -95,22 +96,24 @@ export function useWritingDraftLibrary() {
     )));
   }, [activeDraftId]);
 
-  const createDraft = useCallback((researchInterestId?: string) => {
-    const targetInterestId = researchInterestId || activeDraft?.researchInterestId;
+  const createDraft = useCallback((options: WritingCreateDraftOptions = {}) => {
+    const targetInterestId = options.researchInterestId || undefined;
+    const targetTemplate = options.templateId ? getWritingTemplate(options.templateId) : getDefaultWritingTemplate();
     const targetInterest = interests.find((interest) => interest.id === targetInterestId);
     const siblingCount = drafts.filter((draft) => (draft.researchInterestId ?? "") === (targetInterestId ?? "")).length;
     const projectName = targetInterest
       ? `${writingResearchInterestTitle(targetInterest)} · 文稿 ${siblingCount + 1}`
       : `未归档文稿 ${siblingCount + 1}`;
-    const draft = createDraftFromTemplate(getDefaultWritingTemplate(), {
+    const draft = createDraftFromTemplate(targetTemplate, {
       projectName,
       researchInterestId: targetInterestId,
+      templateId: targetTemplate.id,
     });
 
     setDrafts((currentDrafts) => [draft, ...currentDrafts]);
     setActiveDraftId(draft.id);
     return draft;
-  }, [activeDraft?.researchInterestId, drafts, interests]);
+  }, [drafts, interests]);
 
   const deleteDraft = useCallback((id: string) => {
     if (drafts.length <= 1) return false;

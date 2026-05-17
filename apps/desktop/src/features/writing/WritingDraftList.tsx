@@ -17,7 +17,7 @@ interface WritingDraftListProps {
   className?: string;
   listClassName?: string;
   onSelectDraft: (id: string) => void;
-  onCreateDraft: (researchInterestId?: string) => void;
+  onCreateDraft: () => void;
   onDeleteDraft: (id: string) => void;
 }
 
@@ -59,7 +59,7 @@ export default function WritingDraftList({
         type="button"
         size="sm"
         className="mb-3 w-full"
-        onClick={() => onCreateDraft(activeResearchInterestId || undefined)}
+        onClick={onCreateDraft}
       >
         <Plus className="h-3.5 w-3.5" />
         新增文稿

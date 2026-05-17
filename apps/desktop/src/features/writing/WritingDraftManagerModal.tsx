@@ -23,7 +23,7 @@ interface WritingDraftManagerModalProps {
   templateId: WritingTemplateId;
   onClose: () => void;
   onDraftChange: (id: string) => void;
-  onCreateDraft: (researchInterestId?: string) => void;
+  onCreateDraft: () => void;
   onDeleteDraft: (id: string) => void;
   onProjectNameChange: (value: string) => void;
   onResearchInterestChange: (value: string) => void;

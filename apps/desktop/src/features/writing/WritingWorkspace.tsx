@@ -6,12 +6,16 @@ import {
   Eye,
   FileCheck2,
   FileText,
+  FolderOpen,
   LayoutPanelLeft,
+  Plus,
   Upload,
 } from "lucide-react";
 import { Button, CapsuleTabs } from "@research-copilot/ui";
+import WritingDraftManagerModal from "./WritingDraftManagerModal";
 import WritingEditorPanel from "./WritingEditorPanel";
 import WritingLatexInstallNotice from "./WritingLatexInstallNotice";
+import WritingNewDraftModal from "./WritingNewDraftModal";
 import WritingPreviewPanel from "./WritingPreviewPanel";
 import WritingSidebar from "./WritingSidebar";
 import WritingSnippetToolbar from "./WritingSnippetToolbar";
@@ -39,6 +43,8 @@ export default function WritingWorkspace() {
   const showEditor = workspace.viewMode !== "preview";
   const showPreview = workspace.viewMode !== "editor";
   const showLatexInstallNotice = isLatexCompilerMissing(workspace.compileResult);
+  const [draftManagerOpen, setDraftManagerOpen] = useState(false);
+  const [newDraftModalOpen, setNewDraftModalOpen] = useState(false);
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
@@ -63,8 +69,29 @@ export default function WritingWorkspace() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="mr-2">
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setNewDraftModalOpen(true)}
+              title="新增文稿"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              新增文稿
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setDraftManagerOpen(true)}
+              title="打开文稿管理"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              文稿管理
+            </Button>
+
+            <div>
               <CapsuleTabs
                 value={workspace.viewMode}
                 onChange={(v) => workspace.setViewMode(v as WritingViewMode)}
@@ -154,28 +181,12 @@ export default function WritingWorkspace() {
       >
         {workspace.viewMode !== "preview" && (
           <WritingSidebar
-            drafts={workspace.drafts}
-            activeDraftId={workspace.activeDraftId}
-            projectName={workspace.projectName}
-            researchInterestId={workspace.researchInterestId}
-            interests={workspace.interests}
-            loadingInterests={workspace.loadingInterests}
-            interestError={workspace.interestError}
-            templates={workspace.templates}
-            templateId={workspace.templateId}
             outline={workspace.outline}
             diagnostics={workspace.diagnostics}
             stats={workspace.stats}
             notes={workspace.notes}
-            onDraftChange={workspace.setActiveDraftId}
-            onCreateDraft={workspace.createDraft}
-            onDeleteDraft={workspace.deleteDraft}
-            onProjectNameChange={workspace.setProjectName}
-            onResearchInterestChange={workspace.setResearchInterestId}
-            onTemplateChange={workspace.applyTemplate}
             onJumpToLine={workspace.jumpToLine}
             onNotesChange={workspace.setNotes}
-            onReset={workspace.resetWorkspace}
           />
         )}
 
@@ -216,6 +227,39 @@ export default function WritingWorkspace() {
           </details>
         </footer>
       )}
+
+      <WritingDraftManagerModal
+        open={draftManagerOpen}
+        drafts={workspace.drafts}
+        activeDraftId={workspace.activeDraftId}
+        projectName={workspace.projectName}
+        researchInterestId={workspace.researchInterestId}
+        interests={workspace.interests}
+        loadingInterests={workspace.loadingInterests}
+        interestError={workspace.interestError}
+        templates={workspace.templates}
+        templateId={workspace.templateId}
+        onClose={() => setDraftManagerOpen(false)}
+        onDraftChange={workspace.setActiveDraftId}
+        onCreateDraft={() => setNewDraftModalOpen(true)}
+        onDeleteDraft={workspace.deleteDraft}
+        onProjectNameChange={workspace.setProjectName}
+        onResearchInterestChange={workspace.setResearchInterestId}
+        onTemplateChange={workspace.applyTemplate}
+        onReset={workspace.resetWorkspace}
+      />
+
+      <WritingNewDraftModal
+        open={newDraftModalOpen}
+        templates={workspace.templates}
+        interests={workspace.interests}
+        loadingInterests={workspace.loadingInterests}
+        interestError={workspace.interestError}
+        defaultResearchInterestId={workspace.researchInterestId}
+        defaultTemplateId={workspace.templateId}
+        onClose={() => setNewDraftModalOpen(false)}
+        onCreateDraft={workspace.createDraft}
+      />
     </div>
   );
 }

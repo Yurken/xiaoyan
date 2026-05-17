@@ -2,6 +2,7 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   DEFAULT_PROJECT_NAME,
   type LatexSnippet,
+  type WritingCreateDraftOptions,
   type WritingTemplateId,
   type WritingViewMode,
 } from "./shared";
@@ -180,8 +181,8 @@ export function useWritingWorkspace() {
     setError("");
   }, [updateActiveDraft]);
 
-  const createDraft = useCallback((researchInterestId?: string) => {
-    const draft = createLibraryDraft(researchInterestId);
+  const createDraft = useCallback((options: WritingCreateDraftOptions = {}) => {
+    const draft = createLibraryDraft(options);
     setMessage(`已新建文稿「${draft.projectName}」`);
     setError("");
   }, [createLibraryDraft]);

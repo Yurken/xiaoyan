@@ -22,6 +22,11 @@ export interface WritingDraft {
   updatedAt: string;
 }
 
+export interface WritingCreateDraftOptions {
+  researchInterestId?: string;
+  templateId?: WritingTemplateId;
+}
+
 export interface LatexTemplate {
   id: WritingTemplateId;
   title: string;

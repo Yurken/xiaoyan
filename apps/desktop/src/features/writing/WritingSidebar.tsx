@@ -7,47 +7,24 @@ import {
   ChevronDown,
   ChevronRight,
   FileText,
-  FolderOpen,
   ListTree,
   StickyNote,
 } from "lucide-react";
-import { Button, Textarea } from "@research-copilot/ui";
-import WritingDraftManagerModal from "./WritingDraftManagerModal";
+import { Textarea } from "@research-copilot/ui";
 import WritingSidebarSection from "./WritingSidebarSection";
 import type {
   LatexDiagnostic,
   LatexOutlineEntry,
   LatexStats,
-  LatexTemplate,
-  WritingDraft,
-  WritingResearchInterestSummary,
-  WritingTemplateId,
 } from "./shared";
-import { writingDraftTitle, writingResearchInterestTitle } from "./shared";
 
 interface WritingSidebarProps {
-  drafts: WritingDraft[];
-  activeDraftId: string;
-  projectName: string;
-  researchInterestId: string;
-  interests: WritingResearchInterestSummary[];
-  loadingInterests: boolean;
-  interestError: string;
-  templates: LatexTemplate[];
-  templateId: WritingTemplateId;
   outline: LatexOutlineEntry[];
   diagnostics: LatexDiagnostic[];
   stats: LatexStats;
   notes: string;
-  onDraftChange: (id: string) => void;
-  onCreateDraft: (researchInterestId?: string) => void;
-  onDeleteDraft: (id: string) => void;
-  onProjectNameChange: (value: string) => void;
-  onResearchInterestChange: (value: string) => void;
-  onTemplateChange: (templateId: WritingTemplateId) => void;
   onJumpToLine: (line: number) => void;
   onNotesChange: (value: string) => void;
-  onReset: () => void;
 }
 
 const severityStyle: Record<
@@ -60,92 +37,17 @@ const severityStyle: Record<
 };
 
 export default function WritingSidebar({
-  drafts,
-  activeDraftId,
-  projectName,
-  researchInterestId,
-  interests,
-  loadingInterests,
-  interestError,
-  templates,
-  templateId,
   outline,
   diagnostics,
   stats,
   notes,
-  onDraftChange,
-  onCreateDraft,
-  onDeleteDraft,
-  onProjectNameChange,
-  onResearchInterestChange,
-  onTemplateChange,
   onJumpToLine,
   onNotesChange,
-  onReset,
 }: WritingSidebarProps) {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
-  const [draftManagerOpen, setDraftManagerOpen] = useState(false);
-  const activeDraft = useMemo(
-    () => drafts.find((draft) => draft.id === activeDraftId) ?? drafts[0],
-    [activeDraftId, drafts],
-  );
-  const activeInterest = useMemo(
-    () => interests.find((interest) => interest.id === researchInterestId),
-    [interests, researchInterestId],
-  );
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
-      <WritingSidebarSection
-        title="文稿管理"
-        icon={<FolderOpen className="h-4 w-4" />}
-        badge={
-          <span className="rounded-full bg-apple-blue/10 px-2 py-0.5 text-[10px] font-bold text-apple-blue">
-            {drafts.length} 篇
-          </span>
-        }
-      >
-        <div className="space-y-3 p-3.5">
-          <button
-            type="button"
-            onClick={() => setDraftManagerOpen(true)}
-            className="w-full rounded-xl border p-3 text-left transition-all hover:border-apple-blue/35 hover:bg-apple-blue/5"
-            style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
-          >
-            <p className="truncate text-sm font-semibold text-ink-primary">
-              {activeDraft ? writingDraftTitle(activeDraft) : projectName}
-            </p>
-            <p className="mt-1 truncate text-xs text-ink-tertiary">
-              {writingResearchInterestTitle(activeInterest)}
-            </p>
-          </button>
-          <Button type="button" size="sm" className="w-full" onClick={() => setDraftManagerOpen(true)}>
-            打开文稿管理
-          </Button>
-        </div>
-      </WritingSidebarSection>
-
-      <WritingDraftManagerModal
-        open={draftManagerOpen}
-        drafts={drafts}
-        activeDraftId={activeDraftId}
-        projectName={projectName}
-        researchInterestId={researchInterestId}
-        interests={interests}
-        loadingInterests={loadingInterests}
-        interestError={interestError}
-        templates={templates}
-        templateId={templateId}
-        onClose={() => setDraftManagerOpen(false)}
-        onDraftChange={onDraftChange}
-        onCreateDraft={onCreateDraft}
-        onDeleteDraft={onDeleteDraft}
-        onProjectNameChange={onProjectNameChange}
-        onResearchInterestChange={onResearchInterestChange}
-        onTemplateChange={onTemplateChange}
-        onReset={onReset}
-      />
-
       <WritingSidebarSection
         title="论文大纲"
         icon={<ListTree className="h-4 w-4" />}
