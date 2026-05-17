@@ -1,6 +1,6 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { Clipboard, Code2, FileText } from "lucide-react";
+import { ArrowDown, ArrowUp, Clipboard, Code2, FileText, Replace, Search, X } from "lucide-react";
 import type { RefObject } from "react";
 
 interface WritingEditorPanelProps {
@@ -25,11 +25,95 @@ export default function WritingEditorPanel({
   onInsertText,
 }: WritingEditorPanelProps) {
   const lineNumbersRef = useRef<HTMLPreElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const value = activeSource === "main" ? mainTex : bibtex;
   const lineNumbers = useMemo(() => {
     const count = Math.max(1, value.split("\n").length);
     return Array.from({ length: count }, (_, index) => index + 1).join("\n");
   }, [value]);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [replaceTerm, setReplaceTerm] = useState("");
+  const [showReplace, setShowReplace] = useState(false);
+  const [matchIndex, setMatchIndex] = useState(0);
+
+  const matches = useMemo(() => {
+    if (!searchTerm) return [];
+    const results: number[] = [];
+    const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(value)) !== null) {
+      results.push(m.index);
+    }
+    return results;
+  }, [value, searchTerm]);
+
+  const currentMatch = matches.length > 0 ? matches[(matchIndex % matches.length)] : -1;
+
+  const selectMatch = useCallback((index: number) => {
+    const el = textareaRef.current;
+    if (!el || matches.length === 0) return;
+    const pos = matches[index % matches.length];
+    const end = pos + searchTerm.length;
+    el.focus();
+    el.setSelectionRange(pos, end);
+    const lineIndex = value.slice(0, pos).split("\n").length - 1;
+    const lineHeight = 24;
+    el.scrollTop = Math.max(0, (lineIndex - 3) * lineHeight);
+    setMatchIndex(index);
+  }, [matches, searchTerm, value]);
+
+  const navigateNext = useCallback(() => selectMatch(matchIndex + 1), [selectMatch, matchIndex]);
+  const navigatePrev = useCallback(() => selectMatch(matchIndex - 1 + matches.length), [selectMatch, matchIndex, matches.length]);
+
+  const handleReplace = useCallback(() => {
+    if (matches.length === 0) return;
+    const idx = matchIndex % matches.length;
+    const pos = matches[idx];
+    const newValue = value.slice(0, pos) + replaceTerm + value.slice(pos + searchTerm.length);
+    if (activeSource === "main") onMainTexChange(newValue);
+    else onBibtexChange(newValue);
+    setMatchIndex(idx);
+  }, [matches, matchIndex, searchTerm, replaceTerm, value, activeSource, onMainTexChange, onBibtexChange]);
+
+  const handleReplaceAll = useCallback(() => {
+    if (matches.length === 0) return;
+    const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    const newValue = value.replaceAll(regex, replaceTerm);
+    if (activeSource === "main") onMainTexChange(newValue);
+    else onBibtexChange(newValue);
+  }, [matches, searchTerm, replaceTerm, value, activeSource, onMainTexChange, onBibtexChange]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+      if (e.key === "Escape" && searchOpen) {
+        e.preventDefault();
+        setSearchOpen(false);
+        setSearchTerm("");
+        setReplaceTerm("");
+        setShowReplace(false);
+        textareaRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    setMatchIndex(0);
+  }, [searchTerm]);
+
+  const handleChange = useCallback((next: string) => {
+    if (activeSource === "main") onMainTexChange(next);
+    else onBibtexChange(next);
+  }, [activeSource, onMainTexChange, onBibtexChange]);
 
   return (
     <section
@@ -81,6 +165,105 @@ export default function WritingEditorPanel({
         </div>
       </div>
 
+      {searchOpen && (
+        <div
+          className="flex items-center gap-2 border-b px-3 py-1.5"
+          style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
+        >
+          <div className="flex items-center gap-1.5 rounded-lg border px-2 py-1" style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-bg)" }}>
+            <Search className="h-3.5 w-3.5 text-ink-tertiary" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); navigateNext(); }
+              }}
+              placeholder="查找…"
+              className="w-40 border-0 bg-transparent text-xs text-ink-primary outline-none placeholder:text-ink-tertiary/50"
+            />
+            {searchTerm && (
+              <span className="text-[10px] text-ink-tertiary tabular-nums">
+                {matches.length > 0 ? `${matchIndex % matches.length + 1}/${matches.length}` : "0"}
+              </span>
+            )}
+            <button
+              type="button"
+              className="flex h-5 w-5 items-center justify-center rounded text-ink-tertiary/50 hover:text-ink-tertiary"
+              onClick={navigatePrev}
+              disabled={matches.length === 0}
+              title="上一个"
+            >
+              <ArrowUp className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              className="flex h-5 w-5 items-center justify-center rounded text-ink-tertiary/50 hover:text-ink-tertiary"
+              onClick={navigateNext}
+              disabled={matches.length === 0}
+              title="下一个"
+            >
+              <ArrowDown className="h-3 w-3" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowReplace((v) => !v)}
+            className={clsx(
+              "flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition",
+              showReplace ? "bg-apple-blue/10 text-apple-blue" : "text-ink-tertiary hover:text-ink-secondary"
+            )}
+            title="替换"
+          >
+            <Replace className="h-3 w-3" />
+            替换
+          </button>
+
+          {showReplace && (
+            <>
+              <input
+                type="text"
+                value={replaceTerm}
+                onChange={(e) => setReplaceTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); handleReplace(); }
+                }}
+                placeholder="替换为…"
+                className="w-36 rounded-lg border bg-transparent px-2 py-1 text-xs text-ink-primary outline-none"
+                style={{ borderColor: "var(--rc-border)" }}
+              />
+              <button
+                type="button"
+                onClick={handleReplace}
+                disabled={matches.length === 0}
+                className="rounded-lg px-2 py-1 text-[11px] font-medium text-ink-secondary hover:bg-white/5 disabled:opacity-30"
+              >
+                替换
+              </button>
+              <button
+                type="button"
+                onClick={handleReplaceAll}
+                disabled={matches.length === 0}
+                className="rounded-lg px-2 py-1 text-[11px] font-medium text-ink-secondary hover:bg-white/5 disabled:opacity-30"
+              >
+                全部替换
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            className="ml-auto flex h-5 w-5 items-center justify-center rounded text-ink-tertiary/40 hover:text-ink-tertiary"
+            onClick={() => { setSearchOpen(false); setSearchTerm(""); setReplaceTerm(""); setShowReplace(false); }}
+            title="关闭"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div
           className="flex w-12 shrink-0 flex-col border-r pt-4 text-right font-mono text-[11px] leading-6 text-ink-tertiary/40 select-none"
@@ -95,13 +278,15 @@ export default function WritingEditorPanel({
           </pre>
         </div>
         <textarea
-          ref={activeSource === "main" ? editorRef : undefined}
+          ref={(el) => {
+            textareaRef.current = el;
+            if (activeSource === "main" && editorRef && "current" in editorRef) {
+              (editorRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+            }
+          }}
           value={value}
           spellCheck={false}
-          onChange={(event) => {
-            if (activeSource === "main") onMainTexChange(event.target.value);
-            else onBibtexChange(event.target.value);
-          }}
+          onChange={(event) => handleChange(event.target.value)}
           onScroll={(event) => {
             if (lineNumbersRef.current) {
               lineNumbersRef.current.scrollTop = event.currentTarget.scrollTop;

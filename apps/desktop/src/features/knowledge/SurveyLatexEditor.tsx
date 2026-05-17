@@ -296,7 +296,7 @@ export default function SurveyLatexEditor() {
           <div className="flex items-center justify-between border-b border-nm-dark/5 bg-rc-bg/5 px-4 py-2.5">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-apple-blue" />
-              <span className="text-xs font-bold uppercase tracking-widest text-ink-tertiary">实时预览</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-ink-tertiary">文稿预览</span>
             </div>
             <div className="flex h-2 w-2 rounded-full bg-apple-green/40" />
           </div>

@@ -45,7 +45,7 @@ export default function WritingPreviewPanel({
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-apple-blue/10 text-apple-blue">
               <BookOpen className="h-4 w-4" />
             </div>
-            <p className="text-sm font-bold tracking-tight text-ink-primary">实时预览</p>
+            <p className="text-sm font-bold tracking-tight text-ink-primary">文稿预览</p>
           </div>
           <CapsuleTabs
             value={previewMode}

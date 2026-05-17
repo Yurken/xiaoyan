@@ -1,10 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { clsx } from "clsx";
 import {
   AlertCircle,
   BarChart3,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   FileArchive,
   FileText,
   ListTree,
@@ -123,6 +124,7 @@ export default function WritingSidebar({
 }: WritingSidebarProps) {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [templateToApply, setTemplateToApply] = useState<WritingTemplateId | null>(null);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
@@ -210,29 +212,19 @@ export default function WritingSidebar({
               </p>
             </div>
           ) : (
-            <div className="space-y-0.5">
-              {outline.map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  onClick={() => onJumpToLine(entry.line)}
-                  className="group flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left transition-all hover:bg-apple-blue/5"
-                  style={{ paddingLeft: `${12 + entry.level * 12}px` }}
-                >
-                  <span className="w-7 shrink-0 font-mono text-[9px] text-ink-tertiary transition-colors group-hover:text-apple-blue">
-                    L{entry.line}
-                  </span>
-                  <span
-                    className={clsx(
-                      "min-w-0 flex-1 truncate text-xs transition-colors group-hover:text-ink-primary",
-                      entry.level === 0 ? "font-bold text-ink-secondary" : "font-medium text-ink-tertiary",
-                    )}
-                  >
-                    {entry.title}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <OutlineTree
+              outline={outline}
+              collapsedIds={collapsedIds}
+              onToggle={(id) => {
+                setCollapsedIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  return next;
+                });
+              }}
+              onJumpToLine={onJumpToLine}
+            />
           )}
         </div>
       </SidebarSection>
@@ -327,6 +319,76 @@ function StatTile({ label, value }: { label: string; value: number }) {
     >
       <p className="text-sm font-black tracking-tight text-ink-primary">{value.toLocaleString()}</p>
       <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-ink-tertiary/60">{label}</p>
+    </div>
+  );
+}
+
+interface OutlineTreeProps {
+  outline: LatexOutlineEntry[];
+  collapsedIds: Set<string>;
+  onToggle: (id: string) => void;
+  onJumpToLine: (line: number) => void;
+}
+
+function OutlineTree({ outline, collapsedIds, onToggle, onJumpToLine }: OutlineTreeProps) {
+  const hasChildrenSet = useMemo(() => {
+    const set = new Set<string>();
+    for (let i = 0; i < outline.length; i += 1) {
+      const next = outline[i + 1];
+      if (next && next.level > outline[i].level) {
+        set.add(outline[i].id);
+      }
+    }
+    return set;
+  }, [outline]);
+
+  const visibleEntries: LatexOutlineEntry[] = [];
+  let skipLevel = Infinity;
+
+  for (const entry of outline) {
+    if (entry.level > skipLevel) continue;
+    skipLevel = Infinity;
+    visibleEntries.push(entry);
+    if (collapsedIds.has(entry.id)) {
+      skipLevel = entry.level;
+    }
+  }
+
+  return (
+    <div className="space-y-0.5">
+      {visibleEntries.map((entry) => (
+        <div
+          key={entry.id}
+          className="group flex w-full items-center rounded-lg px-2 py-1 text-left transition-all hover:bg-apple-blue/5"
+          style={{ paddingLeft: `${8 + entry.level * 12}px` }}
+        >
+          {hasChildrenSet.has(entry.id) ? (
+            <button
+              type="button"
+              onClick={() => onToggle(entry.id)}
+              className="mr-1 flex h-4 w-4 shrink-0 items-center justify-center rounded text-ink-tertiary/60 transition-colors hover:text-ink-secondary"
+            >
+              {collapsedIds.has(entry.id) ? (
+                <ChevronRight className="h-3 w-3" />
+              ) : (
+                <ChevronDown className="h-3 w-3" />
+              )}
+            </button>
+          ) : (
+            <span className="mr-1 inline-block h-4 w-4 shrink-0" />
+          )}
+          <button
+            type="button"
+            onClick={() => onJumpToLine(entry.line)}
+            className={clsx(
+              "min-w-0 flex-1 truncate text-left text-xs transition-colors group-hover:text-ink-primary",
+              entry.level === 0 ? "font-bold text-ink-secondary" : "font-medium text-ink-tertiary",
+            )}
+          >
+            {entry.title}
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

@@ -105,14 +105,28 @@ export function useWritingWorkspace() {
 
   const jumpToLine = useCallback((line: number) => {
     setActiveSource("main");
-    const editor = editorRef.current;
-    if (!editor) return;
-    const index = getLineStartIndex(mainTex, line);
-    editor.focus();
-    editor.setSelectionRange(index, index);
-    const lineHeight = 24;
-    editor.scrollTop = Math.max(0, (line - 3) * lineHeight);
-  }, [mainTex]);
+    const performJump = () => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const index = getLineStartIndex(mainTex, line);
+      const end = Math.min(index + 1, mainTex.length);
+      editor.focus();
+      editor.setSelectionRange(index, end);
+      setTimeout(() => {
+        const currentEditor = editorRef.current;
+        if (!currentEditor) return;
+        currentEditor.setSelectionRange(index, index);
+        const lineHeight = 24;
+        currentEditor.scrollTop = Math.max(0, (line - 3) * lineHeight);
+      }, 100);
+    };
+
+    if (activeSource === "main") {
+      performJump();
+    } else {
+      window.setTimeout(performJump, 50);
+    }
+  }, [mainTex, activeSource]);
 
   const applyTemplate = useCallback((nextTemplateId: WritingTemplateId) => {
     const template = getWritingTemplate(nextTemplateId);

@@ -273,7 +273,7 @@ export default function SurveyLatexEditor() {
         <Card className="flex min-h-[360px] flex-col overflow-hidden p-0">
           <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-2">
             <Sparkles className="h-3.5 w-3.5 text-gray-400" />
-            <span className="text-xs font-medium text-gray-500">实时预览</span>
+            <span className="text-xs font-medium text-gray-500">文稿预览</span>
           </div>
           <div className="flex-1 overflow-hidden">
             <LatexPreview source={source} />

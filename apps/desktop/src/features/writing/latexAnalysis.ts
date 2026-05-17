@@ -90,12 +90,12 @@ export function analyzeLatex(source: string, bibtex: string): LatexDiagnostic[] 
   diagnostics.push(...analyzeLabelsAndRefs(withoutComments));
   diagnostics.push(...analyzeCitations(withoutComments, bibtex));
 
-  if (!/\\bibliography\{[^}]+\}/.test(withoutComments)) {
+  if (!/\\bibliography\{[^}]+\}/.test(withoutComments) && !/\\printbibliography/.test(withoutComments)) {
     diagnostics.push({
       id: "missing-bibliography",
       severity: "info",
       title: "尚未连接 BibTeX",
-      detail: "如果需要参考文献，请保留 \\bibliography{references}，导出的 zip 会包含 references.bib。",
+      detail: "如果需要参考文献，请添加 \\bibliography{references} 或 \\printbibliography（biblatex）。",
     });
   }
 
