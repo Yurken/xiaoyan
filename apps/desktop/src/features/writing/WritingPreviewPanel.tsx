@@ -132,7 +132,7 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
   useEffect(() => {
     if (!pdfDoc || numPages === 0) return;
 
-    const cancelled = false;
+    let cancelled = false;
     const currentTasks = renderTaskRef.current;
 
     async function renderPages() {
@@ -140,15 +140,17 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
         if (cancelled) break;
         const page = await pdfDoc.getPage(i);
         if (cancelled) break;
-        const viewport = page.getViewport({ scale: zoomLevel });
+        const viewport = page.getViewport({ scale: 1.5 });
         const canvas = canvasRefs.current.get(i);
         if (!canvas) continue;
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        const pixelRatio = window.devicePixelRatio || 1;
+        canvas.width = viewport.width * pixelRatio;
+        canvas.height = viewport.height * pixelRatio;
         canvas.style.width = `${viewport.width}px`;
         canvas.style.height = `${viewport.height}px`;
         const ctx = canvas.getContext("2d");
         if (!ctx) continue;
+        ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
         const existing = currentTasks.get(i);
         if (existing) { try { existing.cancel(); } catch { /* ignore */ } }
         const task = page.render({ canvasContext: ctx, viewport });
@@ -164,12 +166,25 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
     renderPages();
 
     return () => {
+      cancelled = true;
       currentTasks.forEach((task) => { try { task.cancel(); } catch { /* ignore */ } });
       currentTasks.clear();
     };
-  }, [pdfDoc, numPages, zoomLevel]);
+  }, [pdfDoc, numPages]);
 
   const clampZoom = useCallback((value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value)), []);
+
+  const prevZoomRef = useRef(zoomLevel);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || prevZoomRef.current === zoomLevel) {
+      prevZoomRef.current = zoomLevel;
+      return;
+    }
+    const ratio = zoomLevel / prevZoomRef.current;
+    el.scrollTop = Math.round(el.scrollTop * ratio);
+    prevZoomRef.current = zoomLevel;
+  }, [zoomLevel]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -234,11 +249,17 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
     };
   }, [isDragging]);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
-    setZoomLevel((prev) => clampZoom(prev - Math.sign(e.deltaY) * ZOOM_STEP));
-  }, [clampZoom]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoomLevel((prev) => clampZoom(prev - Math.sign(e.deltaY) * ZOOM_STEP));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [pdfDoc, clampZoom]);
 
   if (!compileResult?.pdfPath || !compileResult.success) {
     return (
@@ -281,9 +302,8 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
           className="h-full w-full overflow-auto select-none"
           style={{ cursor: isDragging ? "grabbing" : "grab" }}
           onMouseDown={handleMouseDown}
-          onWheel={handleWheel}
         >
-          <div className="mx-auto flex flex-col items-center gap-1 py-2">
+          <div className="mx-auto flex flex-col items-center gap-1 py-2" style={{ zoom: zoomLevel }}>
             {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
               <canvas
                 key={pageNum}
