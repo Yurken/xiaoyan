@@ -3,11 +3,9 @@ import {
   Archive,
   CheckCircle2,
   Eye,
-  ExternalLink,
   FileCheck2,
   FileText,
   LayoutPanelLeft,
-  Save,
   Upload,
 } from "lucide-react";
 import { Button, CapsuleTabs } from "@research-copilot/ui";
@@ -73,37 +71,29 @@ export default function WritingWorkspace() {
               />
             </div>
 
-            <div className="flex items-center gap-1.5 border-l pl-3" style={{ borderColor: "var(--rc-border)" }}>
-              <Button type="button" size="sm" variant="ghost" onClick={() => void workspace.importTexFile()} title="导入 .tex">
+            <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: "var(--rc-border)" }}>
+              <Button type="button" size="sm" variant="secondary" onClick={() => void workspace.importTexFile()} title="导入 .tex">
                 <Upload className="h-3.5 w-3.5" />
                 <span className="hidden lg:inline">导入</span>
               </Button>
 
-              <Button
-                type="button"
-                size="sm"
-                variant="primary"
-                onClick={() => void workspace.compilePdf()}
-                loading={workspace.compileStatus === "compiling"}
-                disabled={workspace.exportingTarget !== null}
-                className="ml-1"
-              >
-                {workspace.compileStatus !== "compiling" ? (
-                  <FileCheck2 className="h-3.5 w-3.5" />
-                ) : null}
-                编译 PDF
-              </Button>
+              <div className="flex items-center gap-1 rounded-xl bg-apple-blue/5 p-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  onClick={() => void workspace.compilePdf()}
+                  loading={workspace.compileStatus === "compiling"}
+                  disabled={workspace.exportingTarget !== null}
+                  className="shadow-sm"
+                >
+                  {workspace.compileStatus !== "compiling" ? (
+                    <FileCheck2 className="h-3.5 w-3.5" />
+                  ) : null}
+                  编译 PDF
+                </Button>
 
-              {workspace.compileResult?.pdfPath ? (
-                <div className="flex items-center gap-1 rounded-lg border p-0.5" style={{ borderColor: "var(--rc-border)" }}>
-                  <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => void workspace.openCompiledPdf()} title="预览 PDF">
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => void workspace.saveCompiledPdf()} title="下载 PDF">
-                    <Save className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ) : null}
+              </div>
 
               <div className="ml-1 flex items-center gap-1.5">
                 {EXPORT_OPTIONS.map((option) => (
@@ -117,7 +107,7 @@ export default function WritingWorkspace() {
                     disabled={workspace.exportingTarget !== null}
                     className="px-2.5"
                   >
-                    <Archive className="h-3.5 w-3.5" />
+                    <Archive className="h-3.5 w-3.5 text-ink-tertiary" />
                     <span className="hidden xl:inline">{option.label.replace("导出 ", "")}</span>
                   </Button>
                 ))}
@@ -126,10 +116,12 @@ export default function WritingWorkspace() {
           </div>
         </div>
 
-        <WritingSnippetToolbar
-          snippets={workspace.snippets}
-          onInsertSnippet={workspace.insertSnippet}
-        />
+        <div className="mt-3">
+          <WritingSnippetToolbar
+            snippets={workspace.snippets}
+            onInsertSnippet={workspace.insertSnippet}
+          />
+        </div>
 
         {(workspace.message || workspace.error) && (
           <div
@@ -200,6 +192,7 @@ export default function WritingWorkspace() {
           <WritingPreviewPanel
             blocks={workspace.previewBlocks}
             source={workspace.mainTex}
+            compileResult={workspace.compileResult}
             compact={workspace.viewMode === "split"}
           />
         ) : null}
