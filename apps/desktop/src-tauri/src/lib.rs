@@ -109,7 +109,7 @@ use commands::{
     update::{update_check, update_install, PendingUpdate},
     workbench::{workbench_generate_overview_text, workbench_get_overview_text_cache},
     writing::{
-        writing_compile_pdf, writing_copy_pdf, writing_open_compiled_pdf,
+        writing_compile_pdf, writing_copy_pdf, writing_import_image, writing_open_compiled_pdf,
         writing_open_mactex_download_page, writing_open_mactex_installer,
     },
 };
@@ -416,6 +416,7 @@ pub fn run() {
             workbench_get_overview_text_cache,
             workbench_generate_overview_text,
             // Writing
+            writing_import_image,
             writing_compile_pdf,
             writing_copy_pdf,
             writing_open_compiled_pdf,

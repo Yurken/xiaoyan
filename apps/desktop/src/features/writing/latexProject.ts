@@ -1,4 +1,10 @@
-import { DEFAULT_PROJECT_NAME, type LatexProjectFile, type WritingExportTarget, type WritingProjectSnapshot } from "./shared";
+import {
+  DEFAULT_PROJECT_NAME,
+  type LatexProjectFile,
+  type WritingExportTarget,
+  type WritingImageAsset,
+  type WritingProjectSnapshot,
+} from "./shared";
 
 export function sanitizeLatexProjectName(value: string): string {
   const sanitized = value
@@ -15,12 +21,13 @@ export function buildLatexProjectFiles(project: WritingProjectSnapshot, target: 
   const mainTex = ensureMagicComments(project.mainTex, target).trimEnd();
   const bibtex = project.bibtex.trimEnd();
   const notes = project.notes.trim();
+  const hasImages = project.imageAssets.length > 0;
 
   return [
     { path: "main.tex", content: `${mainTex}\n` },
     { path: "references.bib", content: bibtex ? `${bibtex}\n` : "% Add BibTeX entries here.\n" },
     { path: "latexmkrc", content: "$pdf_mode = 1;\n$pdflatex = 'xelatex -interaction=nonstopmode %O %S';\n" },
-    { path: "figures/.gitkeep", content: "" },
+    ...(hasImages ? [] : [{ path: "figures/.gitkeep", content: "" }]),
     {
       path: "notes/writing-notes.md",
       content: notes ? `${notes}\n` : "# Writing Notes\n\n- TODO: Add revision notes.\n",
@@ -30,6 +37,20 @@ export function buildLatexProjectFiles(project: WritingProjectSnapshot, target: 
       content: buildExportReadme(projectName, target),
     },
   ];
+}
+
+export function buildLatexImageFigureInsert(asset: WritingImageAsset): { before: string; after: string } {
+  const label = latexLabelFromImage(asset.fileName);
+  return {
+    before: `\\begin{figure}[htbp]
+  \\centering
+  \\includegraphics[width=0.86\\linewidth]{${asset.projectPath}}
+  \\caption{`,
+    after: `}
+  \\label{fig:${label}}
+\\end{figure}
+`,
+  };
 }
 
 function ensureMagicComments(source: string, target: WritingExportTarget): string {
@@ -65,4 +86,15 @@ ${targetLine}
 
 Use XeLaTeX. If your template does not need Chinese support, you can replace \`ctexart\` with the venue class file later.
 `;
+}
+
+function latexLabelFromImage(fileName: string): string {
+  const stem = fileName.replace(/\.[^.]+$/, "");
+  const label = stem
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+  return label || "image";
 }

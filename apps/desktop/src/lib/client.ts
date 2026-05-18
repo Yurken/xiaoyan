@@ -718,8 +718,24 @@ export interface WritingCompileResult {
   log: string;
 }
 
+export interface WritingImageAssetPayload {
+  id: string;
+  fileName: string;
+  projectPath: string;
+  storedPath: string;
+  createdAt: string;
+}
+
 export const writingApi = {
-  compilePdf: (project: { projectName: string; mainTex: string; bibtex: string; notes: string }) =>
+  importImage: (draftId: string, filePath: string) =>
+    invoke<WritingImageAssetPayload>("writing_import_image", { draftId, filePath }),
+  compilePdf: (project: {
+    projectName: string;
+    mainTex: string;
+    bibtex: string;
+    notes: string;
+    imageAssets: WritingImageAssetPayload[];
+  }) =>
     invoke<WritingCompileResult>("writing_compile_pdf", { request: project }),
   copyPdf: (pdfPath: string, destinationPath: string) =>
     invoke<void>("writing_copy_pdf", { pdfPath, destinationPath }),

@@ -2,10 +2,12 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   DEFAULT_PROJECT_NAME,
   type WritingCreateDraftOptions,
+  type WritingImageAsset,
   type WritingTemplateId,
   type WritingViewMode,
 } from "./shared";
 import { analyzeLatex, buildLatexPreviewBlocks, extractLatexOutline, getLatexStats } from "./latexAnalysis";
+import { buildLatexImageFigureInsert } from "./latexProject";
 import { useWritingCompiler } from "./useWritingCompiler";
 import { useWritingDraftLibrary } from "./useWritingDraftLibrary";
 import { useWritingFileActions } from "./useWritingFileActions";
@@ -35,6 +37,7 @@ export function useWritingWorkspace() {
   const mainTex = activeDraft.mainTex;
   const bibtex = activeDraft.bibtex;
   const notes = activeDraft.notes;
+  const imageAssets = activeDraft.imageAssets;
   const [viewMode, setViewMode] = useState<WritingViewMode>("split");
   const [activeSource, setActiveSource] = useState<"main" | "bib">("main");
   const [message, setMessage] = useState("");
@@ -67,6 +70,7 @@ export function useWritingWorkspace() {
     mainTex,
     bibtex,
     notes,
+    imageAssets,
     onMessage: showMessage,
     onError: showError,
     clearStatus,
@@ -88,17 +92,24 @@ export function useWritingWorkspace() {
     updateActiveDraft({ notes: value });
   }, [updateActiveDraft]);
 
+  const setImageAssets = useCallback((value: WritingImageAsset[]) => {
+    updateActiveDraft({ imageAssets: value });
+  }, [updateActiveDraft]);
+
   const setResearchInterestId = useCallback((value: string) => {
     updateActiveDraft({ researchInterestId: value || undefined });
   }, [updateActiveDraft]);
 
   const fileActions = useWritingFileActions({
+    draftId: activeDraft.id,
     projectName,
     mainTex,
     bibtex,
     notes,
+    imageAssets,
     setMainTex,
     setBibtex,
+    setImageAssets,
     setActiveSource,
     onMessage: showMessage,
     onError: showError,
@@ -107,26 +118,31 @@ export function useWritingWorkspace() {
 
   const insertText = useCallback((before: string, after = "", options: InsertOptions = {}) => {
     setActiveSource("main");
-    const editor = editorRef.current;
-    if (!editor) {
-      setMainTex(`${mainTex}${before}${after}`);
-      return;
-    }
-
-    const start = editor.selectionStart;
-    const end = editor.selectionEnd;
+    const editor = activeSource === "main" ? editorRef.current : null;
+    const start = editor?.selectionStart ?? mainTex.length;
+    const end = editor?.selectionEnd ?? mainTex.length;
     const selected = mainTex.slice(start, end);
     const nextValue = `${mainTex.slice(0, start)}${before}${selected}${after}${mainTex.slice(end)}`;
     const cursorStart = start + before.length;
     const cursorEnd = options.selectInserted ? cursorStart + selected.length : cursorStart + selected.length;
 
-    editor.value = nextValue;
+    if (editor) {
+      editor.value = nextValue;
+    }
     setMainTex(nextValue);
     window.requestAnimationFrame(() => {
-      editor.focus();
-      editor.setSelectionRange(cursorEnd, cursorEnd);
+      const currentEditor = editorRef.current;
+      currentEditor?.focus();
+      currentEditor?.setSelectionRange(cursorEnd, cursorEnd);
     });
-  }, [mainTex, setMainTex]);
+  }, [activeSource, mainTex, setMainTex]);
+
+  const insertImage = useCallback(async () => {
+    const asset = await fileActions.importImage();
+    if (!asset) return;
+    const snippet = buildLatexImageFigureInsert(asset);
+    insertText(snippet.before, snippet.after);
+  }, [fileActions, insertText]);
 
   const jumpToLine = useCallback((line: number) => {
     setActiveSource("main");
@@ -206,6 +222,7 @@ export function useWritingWorkspace() {
     mainTex,
     bibtex,
     notes,
+    imageAssets,
     viewMode,
     activeSource,
     exportingTarget: fileActions.exportingTarget,
@@ -232,6 +249,7 @@ export function useWritingWorkspace() {
     createDraft,
     deleteDraft,
     insertText,
+    insertImage,
     jumpToLine,
     applyTemplate,
     resetWorkspace,

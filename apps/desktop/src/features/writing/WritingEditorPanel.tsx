@@ -1,29 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { ArrowDown, ArrowUp, Clipboard, Code2, FileText, Replace, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Clipboard, Code2, FileText, ImagePlus, Replace, Search, X } from "lucide-react";
 import type { MouseEvent, RefObject } from "react";
+import type { WritingImageAsset } from "./shared";
 import WritingEditorContextMenu from "./WritingEditorContextMenu";
 
 interface WritingEditorPanelProps {
   editorRef: RefObject<HTMLTextAreaElement>;
   mainTex: string;
   bibtex: string;
+  imageAssets: WritingImageAsset[];
   activeSource: "main" | "bib";
   onActiveSourceChange: (source: "main" | "bib") => void;
   onMainTexChange: (value: string) => void;
   onBibtexChange: (value: string) => void;
   onInsertText: (before: string, after?: string) => void;
+  onInsertImage: () => void;
 }
 
 export default function WritingEditorPanel({
   editorRef,
   mainTex,
   bibtex,
+  imageAssets,
   activeSource,
   onActiveSourceChange,
   onMainTexChange,
   onBibtexChange,
   onInsertText,
+  onInsertImage,
 }: WritingEditorPanelProps) {
   const lineNumbersRef = useRef<HTMLPreElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -171,6 +176,16 @@ export default function WritingEditorPanel({
           references.bib
         </button>
         <div className="ml-auto flex items-center gap-3 px-2">
+          <button
+            type="button"
+            onClick={() => void onInsertImage()}
+            title="插入图片"
+            className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink-tertiary transition-colors hover:bg-white/5 hover:text-apple-blue"
+          >
+            <ImagePlus className="h-3.5 w-3.5" />
+            <span>{imageAssets.length > 0 ? `${imageAssets.length} 张图` : "插图"}</span>
+          </button>
+          <div className="h-3 w-px bg-white/10" />
           <span className="font-mono text-[11px] text-ink-tertiary">
             {value.split("\n").length} lines
           </span>
@@ -306,6 +321,8 @@ export default function WritingEditorPanel({
             textareaRef.current = el;
             if (activeSource === "main" && editorRef && "current" in editorRef) {
               (editorRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+            } else if (editorRef && "current" in editorRef) {
+              (editorRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = null;
             }
           }}
           defaultValue={value}
@@ -332,6 +349,7 @@ export default function WritingEditorPanel({
         y={contextMenu.y}
         onClose={() => setContextMenu((current) => ({ ...current, open: false }))}
         onInsert={handleContextInsert}
+        onInsertImage={onInsertImage}
       />
     </section>
   );

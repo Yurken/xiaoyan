@@ -5,6 +5,7 @@ import {
   isLatexCompilerMissing,
   type WritingCompileStatus,
   type WritingCompileSummary,
+  type WritingImageAsset,
 } from "./shared";
 
 const WRITING_COMPILE_RESULT_KEY = "rc:writing:compile:v1";
@@ -29,6 +30,7 @@ interface UseWritingCompilerOptions {
   mainTex: string;
   bibtex: string;
   notes: string;
+  imageAssets: WritingImageAsset[];
   onMessage: (message: string) => void;
   onError: (error: string) => void;
   clearStatus: () => void;
@@ -40,6 +42,7 @@ export function useWritingCompiler({
   mainTex,
   bibtex,
   notes,
+  imageAssets,
   onMessage,
   onError,
   clearStatus,
@@ -60,7 +63,7 @@ export function useWritingCompiler({
     localStorage.removeItem(storageKey);
     clearStatus();
     try {
-      const result = await writingApi.compilePdf({ projectName, mainTex, bibtex, notes });
+      const result = await writingApi.compilePdf({ projectName, mainTex, bibtex, notes, imageAssets });
       setCompileResult(result);
       localStorage.setItem(storageKey, JSON.stringify(result));
       if (result.success && result.pdfPath) {
@@ -76,7 +79,7 @@ export function useWritingCompiler({
       setCompileStatus("failed");
       onError(formatErrorMessage(err));
     }
-  }, [bibtex, clearStatus, mainTex, notes, onError, projectName, storageKey]);
+  }, [bibtex, clearStatus, imageAssets, mainTex, notes, onError, projectName, storageKey]);
 
   const openLatexInstaller = useCallback(async () => {
     setLatexInstallerStatus("opening");

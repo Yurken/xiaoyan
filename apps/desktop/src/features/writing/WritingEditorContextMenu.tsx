@@ -12,6 +12,7 @@ interface WritingEditorContextMenuProps {
   y: number;
   onClose: () => void;
   onInsert: (before: string, after?: string) => void;
+  onInsertImage: () => void;
 }
 
 export default function WritingEditorContextMenu({
@@ -20,6 +21,7 @@ export default function WritingEditorContextMenu({
   y,
   onClose,
   onInsert,
+  onInsertImage,
 }: WritingEditorContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const position = useMemo(() => {
@@ -116,6 +118,11 @@ export default function WritingEditorContextMenu({
                 role="menuitem"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
+                  if (isImageInsert(item.id)) {
+                    onInsertImage();
+                    onClose();
+                    return;
+                  }
                   onInsert(item.before, item.after);
                   onClose();
                 }}
@@ -146,6 +153,11 @@ export default function WritingEditorContextMenu({
                       role="menuitem"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => {
+                        if (isImageInsert(snippet.id)) {
+                          onInsertImage();
+                          onClose();
+                          return;
+                        }
                         onInsert(snippet.before, snippet.after);
                         onClose();
                       }}
@@ -168,4 +180,8 @@ export default function WritingEditorContextMenu({
       </div>
     </div>
   );
+}
+
+function isImageInsert(id: string): boolean {
+  return id === "image" || id === "figure" || id === "includegraphics";
 }

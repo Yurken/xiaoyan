@@ -18,6 +18,7 @@ export interface WritingDraft {
   mainTex: string;
   bibtex: string;
   notes: string;
+  imageAssets: WritingImageAsset[];
   createdAt: string;
   updatedAt: string;
 }
@@ -78,7 +79,15 @@ export interface LatexPreviewBlock {
 
 export interface LatexProjectFile {
   path: string;
-  content: string;
+  content: string | Uint8Array;
+}
+
+export interface WritingImageAsset {
+  id: string;
+  fileName: string;
+  projectPath: string;
+  storedPath: string;
+  createdAt: string;
 }
 
 export interface WritingProjectSnapshot {
@@ -86,6 +95,7 @@ export interface WritingProjectSnapshot {
   mainTex: string;
   bibtex: string;
   notes: string;
+  imageAssets: WritingImageAsset[];
 }
 
 export interface WritingCompileSummary {

@@ -4,6 +4,7 @@ use std::{
     process::{Command, Output},
 };
 
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
@@ -19,6 +20,8 @@ pub struct WritingCompileRequest {
     pub main_tex: String,
     pub bibtex: String,
     pub notes: String,
+    #[serde(default)]
+    pub image_assets: Vec<WritingImageAsset>,
 }
 
 #[derive(Debug, Serialize)]
@@ -29,6 +32,27 @@ pub struct WritingCompileResult {
     pub work_dir: String,
     pub engine: String,
     pub log: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WritingImageAsset {
+    pub id: String,
+    pub file_name: String,
+    pub project_path: String,
+    pub stored_path: String,
+    pub created_at: String,
+}
+
+#[tauri::command]
+pub async fn writing_import_image(
+    app: tauri::AppHandle,
+    draft_id: String,
+    file_path: tauri_plugin_fs::FilePath,
+) -> Result<WritingImageAsset, String> {
+    tauri::async_runtime::spawn_blocking(move || import_image_asset(&app, &draft_id, file_path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -60,7 +84,10 @@ pub async fn writing_copy_pdf(pdf_path: String, destination_path: String) -> Res
 }
 
 #[tauri::command]
-pub async fn writing_open_compiled_pdf(app: tauri::AppHandle, pdf_path: String) -> Result<(), String> {
+pub async fn writing_open_compiled_pdf(
+    app: tauri::AppHandle,
+    pdf_path: String,
+) -> Result<(), String> {
     let path = canonical_compiled_pdf_path(&app, Path::new(&pdf_path))?;
     app.opener()
         .open_path(path.to_string_lossy().to_string(), None::<&str>)
@@ -86,20 +113,28 @@ fn compile_project(
     request: WritingCompileRequest,
 ) -> Result<WritingCompileResult, String> {
     let work_dir = create_work_dir(app, &request.project_name)?;
-    write_project_files(&work_dir, &request)?;
+    write_project_files(app, &work_dir, &request)?;
 
     let mut log = String::new();
 
     let (engine, success) = if let Some(latexmk) = find_executable("latexmk") {
         let output = Command::new(&latexmk)
-            .args(["-xelatex", "-interaction=nonstopmode", "-halt-on-error", "main.tex"])
+            .args([
+                "-xelatex",
+                "-interaction=nonstopmode",
+                "-halt-on-error",
+                "main.tex",
+            ])
             .current_dir(&work_dir)
             .output()
             .map_err(|e| format!("运行 latexmk 失败：{e}"))?;
         append_output(&mut log, &latexmk, &output);
         ("latexmk".to_string(), output.status.success())
     } else if let Some(xelatex) = find_executable("xelatex") {
-        ("xelatex".to_string(), run_xelatex_pipeline(&work_dir, &xelatex, &mut log)?)
+        (
+            "xelatex".to_string(),
+            run_xelatex_pipeline(&work_dir, &xelatex, &mut log)?,
+        )
     } else {
         log.push_str(
             "未找到 LaTeX 编译器。\n\n请安装 MacTeX / TeX Live，并确保 latexmk 或 xelatex 可用。\nmacOS 常见路径：/Library/TeX/texbin\n\n可在小妍中一键下载 MacTeX 安装器。\n",
@@ -111,7 +146,9 @@ fn compile_project(
     let pdf_exists = pdf_path.exists();
     let compile_success = success && pdf_exists;
     if success && !pdf_exists {
-        log.push_str("\n编译命令已结束，但没有生成 main.pdf。请检查日志中的 class/package 错误。\n");
+        log.push_str(
+            "\n编译命令已结束，但没有生成 main.pdf。请检查日志中的 class/package 错误。\n",
+        );
     }
 
     Ok(WritingCompileResult {
@@ -120,6 +157,51 @@ fn compile_project(
         work_dir: work_dir.to_string_lossy().to_string(),
         engine,
         log: trim_log(log),
+    })
+}
+
+fn import_image_asset(
+    app: &tauri::AppHandle,
+    draft_id: &str,
+    file_path: tauri_plugin_fs::FilePath,
+) -> Result<WritingImageAsset, String> {
+    let source = file_path
+        .into_path()
+        .map_err(|e| e.to_string())?
+        .canonicalize()
+        .map_err(|e| format!("图片文件不可访问：{e}"))?;
+    if !source.is_file() {
+        return Err("请选择一个图片文件。".to_string());
+    }
+
+    let ext = source
+        .extension()
+        .and_then(|value| value.to_str())
+        .and_then(normalize_image_extension)
+        .ok_or_else(|| "仅支持 PNG、JPG/JPEG 或 PDF 图片。".to_string())?;
+    let stem = source
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("image");
+    let id = Uuid::new_v4().to_string();
+    let short_id = id.chars().take(8).collect::<String>();
+    let file_name = format!("{}-{short_id}.{ext}", sanitize_file_stem(stem));
+    let project_path = format!("figures/{file_name}");
+    let draft_dir = sanitize_project_name(draft_id);
+    let destination_dir = managed_writing_assets_root(app)?
+        .join(draft_dir)
+        .join("figures");
+    fs::create_dir_all(&destination_dir).map_err(|e| format!("无法创建图片目录：{e}"))?;
+    let destination = destination_dir.join(&file_name);
+
+    fs::copy(&source, &destination).map_err(|e| format!("复制图片失败：{e}"))?;
+
+    Ok(WritingImageAsset {
+        id,
+        file_name,
+        project_path,
+        stored_path: destination.to_string_lossy().to_string(),
+        created_at: Utc::now().to_rfc3339(),
     })
 }
 
@@ -164,9 +246,16 @@ fn canonical_compiled_pdf_path(app: &tauri::AppHandle, path: &Path) -> Result<Pa
     Ok(canonical_path)
 }
 
-fn write_project_files(work_dir: &Path, request: &WritingCompileRequest) -> Result<(), String> {
-    fs::write(work_dir.join("main.tex"), ensure_main_tex(&request.main_tex))
-        .map_err(|e| format!("写入 main.tex 失败：{e}"))?;
+fn write_project_files(
+    app: &tauri::AppHandle,
+    work_dir: &Path,
+    request: &WritingCompileRequest,
+) -> Result<(), String> {
+    fs::write(
+        work_dir.join("main.tex"),
+        ensure_main_tex(&request.main_tex),
+    )
+    .map_err(|e| format!("写入 main.tex 失败：{e}"))?;
     fs::write(
         work_dir.join("references.bib"),
         if request.bibtex.trim().is_empty() {
@@ -176,7 +265,9 @@ fn write_project_files(work_dir: &Path, request: &WritingCompileRequest) -> Resu
         },
     )
     .map_err(|e| format!("写入 references.bib 失败：{e}"))?;
-    fs::create_dir_all(work_dir.join("figures")).map_err(|e| format!("创建 figures 目录失败：{e}"))?;
+    fs::create_dir_all(work_dir.join("figures"))
+        .map_err(|e| format!("创建 figures 目录失败：{e}"))?;
+    copy_image_assets(app, work_dir, &request.image_assets)?;
     fs::create_dir_all(work_dir.join("notes")).map_err(|e| format!("创建 notes 目录失败：{e}"))?;
     fs::write(
         work_dir.join("notes").join("writing-notes.md"),
@@ -192,6 +283,49 @@ fn write_project_files(work_dir: &Path, request: &WritingCompileRequest) -> Resu
         "$pdf_mode = 1;\n$pdflatex = 'xelatex -interaction=nonstopmode %O %S';\n",
     )
     .map_err(|e| format!("写入 latexmkrc 失败：{e}"))?;
+    Ok(())
+}
+
+fn managed_writing_assets_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let root = data_dir.join("writing_assets");
+    fs::create_dir_all(&root).map_err(|e| format!("无法创建写作图片目录：{e}"))?;
+    Ok(root)
+}
+
+fn copy_image_assets(
+    app: &tauri::AppHandle,
+    work_dir: &Path,
+    image_assets: &[WritingImageAsset],
+) -> Result<(), String> {
+    if image_assets.is_empty() {
+        return Ok(());
+    }
+
+    let assets_root = managed_writing_assets_root(app)?
+        .canonicalize()
+        .map_err(|e| format!("无法校验写作图片目录：{e}"))?;
+
+    for asset in image_assets {
+        let source = PathBuf::from(&asset.stored_path)
+            .canonicalize()
+            .map_err(|e| format!("图片资产不可访问（{}）：{e}", asset.file_name))?;
+        if !source.starts_with(&assets_root) {
+            return Err(format!("图片资产路径不安全：{}", asset.file_name));
+        }
+        if !source.is_file() {
+            return Err(format!("图片资产不存在：{}", asset.file_name));
+        }
+
+        let relative_path = safe_project_image_path(&asset.project_path)?;
+        let destination = work_dir.join(relative_path);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("无法创建图片目录：{e}"))?;
+        }
+        fs::copy(&source, &destination)
+            .map_err(|e| format!("复制图片到编译目录失败（{}）：{e}", asset.file_name))?;
+    }
+
     Ok(())
 }
 
@@ -315,6 +449,50 @@ fn sanitize_project_name(value: &str) -> String {
     } else {
         sanitized
     }
+}
+
+fn sanitize_file_stem(value: &str) -> String {
+    let sanitized = sanitize_project_name(value);
+    if sanitized.is_empty() {
+        "image".to_string()
+    } else {
+        sanitized
+    }
+}
+
+fn normalize_image_extension(value: &str) -> Option<&'static str> {
+    match value.to_ascii_lowercase().as_str() {
+        "png" => Some("png"),
+        "jpg" | "jpeg" => Some("jpg"),
+        "pdf" => Some("pdf"),
+        _ => None,
+    }
+}
+
+fn safe_project_image_path(project_path: &str) -> Result<PathBuf, String> {
+    let file_name = project_path
+        .strip_prefix("figures/")
+        .ok_or_else(|| "图片路径必须位于 figures 目录。".to_string())?;
+    if file_name.is_empty()
+        || file_name.contains('/')
+        || file_name.contains('\\')
+        || file_name.contains("..")
+    {
+        return Err("图片文件名不合法。".to_string());
+    }
+
+    let ext = Path::new(file_name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .and_then(normalize_image_extension)
+        .ok_or_else(|| "图片格式不受支持。".to_string())?;
+    let stem = Path::new(file_name)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .map(sanitize_file_stem)
+        .ok_or_else(|| "图片文件名不合法。".to_string())?;
+
+    Ok(PathBuf::from("figures").join(format!("{stem}.{ext}")))
 }
 
 fn trim_log(log: String) -> String {

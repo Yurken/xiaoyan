@@ -8,6 +8,7 @@ import {
   type LatexTemplate,
   type WritingCreateDraftOptions,
   type WritingDraft,
+  type WritingImageAsset,
   type WritingResearchInterestSummary,
   type WritingTemplateId,
   writingResearchInterestTitle,
@@ -27,7 +28,7 @@ interface PersistedWritingLibrary {
 }
 
 type WritingDraftPatch = Partial<
-  Pick<WritingDraft, "projectName" | "researchInterestId" | "templateId" | "mainTex" | "bibtex" | "notes">
+  Pick<WritingDraft, "projectName" | "researchInterestId" | "templateId" | "mainTex" | "bibtex" | "notes" | "imageAssets">
 >;
 
 interface LoadedDraftLibrary {
@@ -209,6 +210,7 @@ function normalizePersistedDraft(value: unknown): WritingDraft | null {
     mainTex: typeof value.mainTex === "string" ? value.mainTex : template.mainTex,
     bibtex: typeof value.bibtex === "string" ? value.bibtex : template.bibtex,
     notes: typeof value.notes === "string" ? value.notes : "",
+    imageAssets: normalizePersistedImageAssets(value.imageAssets),
     createdAt,
     updatedAt,
   };
@@ -227,6 +229,7 @@ function createDraftFromTemplate(
     mainTex: overrides.mainTex ?? template.mainTex,
     bibtex: overrides.bibtex ?? template.bibtex,
     notes: overrides.notes ?? "",
+    imageAssets: overrides.imageAssets ?? [],
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,
   };
@@ -254,6 +257,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function normalizePersistedImageAssets(value: unknown): WritingImageAsset[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(normalizePersistedImageAsset)
+    .filter((asset): asset is WritingImageAsset => Boolean(asset));
+}
+
+function normalizePersistedImageAsset(value: unknown): WritingImageAsset | null {
+  if (!isRecord(value)) return null;
+  const id = stringValue(value.id);
+  const fileName = stringValue(value.fileName);
+  const projectPath = stringValue(value.projectPath);
+  const storedPath = stringValue(value.storedPath);
+  const createdAt = stringValue(value.createdAt) || new Date().toISOString();
+
+  if (!id || !fileName || !projectPath || !storedPath) return null;
+  return { id, fileName, projectPath, storedPath, createdAt };
 }
 
 function isMissingTauriRuntime(error: unknown): boolean {

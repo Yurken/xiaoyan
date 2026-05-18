@@ -17,7 +17,7 @@ export function buildZipArchive(files: LatexProjectFile[]): Uint8Array {
 
   for (const file of files) {
     const path = encoder.encode(file.path);
-    const data = encoder.encode(file.content);
+    const data = typeof file.content === "string" ? encoder.encode(file.content) : file.content;
     const crc = crc32(data);
     const localHeader = createLocalFileHeader(path, data, crc);
     preparedFiles.push({ path, data, crc, offset });

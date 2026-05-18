@@ -185,11 +185,13 @@ export default function WritingWorkspace() {
             editorRef={workspace.editorRef}
             mainTex={workspace.mainTex}
             bibtex={workspace.bibtex}
+            imageAssets={workspace.imageAssets}
             activeSource={workspace.activeSource}
             onActiveSourceChange={workspace.setActiveSource}
             onMainTexChange={workspace.setMainTex}
             onBibtexChange={workspace.setBibtex}
             onInsertText={workspace.insertText}
+            onInsertImage={workspace.insertImage}
           />
         ) : null}
 
