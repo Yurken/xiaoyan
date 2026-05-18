@@ -144,6 +144,32 @@ export function useWritingWorkspace() {
     insertText(snippet.before, snippet.after);
   }, [fileActions, insertText]);
 
+  const getSelectedText = useCallback(() => {
+    const editor = activeSource === "main" ? editorRef.current : null;
+    if (!editor || editor.selectionStart === editor.selectionEnd) return "";
+    return mainTex.slice(editor.selectionStart, editor.selectionEnd);
+  }, [activeSource, mainTex]);
+
+  const insertGeneratedText = useCallback((text: string) => {
+    if (!text.trim()) return;
+    setActiveSource("main");
+    const editor = activeSource === "main" ? editorRef.current : null;
+    const start = editor?.selectionStart ?? mainTex.length;
+    const end = editor?.selectionEnd ?? mainTex.length;
+    const nextValue = `${mainTex.slice(0, start)}${text}${mainTex.slice(end)}`;
+    const cursor = start + text.length;
+
+    if (editor) {
+      editor.value = nextValue;
+    }
+    setMainTex(nextValue);
+    window.requestAnimationFrame(() => {
+      const currentEditor = editorRef.current;
+      currentEditor?.focus();
+      currentEditor?.setSelectionRange(cursor, cursor);
+    });
+  }, [activeSource, mainTex, setMainTex]);
+
   const jumpToLine = useCallback((line: number) => {
     setActiveSource("main");
     const performJump = () => {
@@ -250,6 +276,8 @@ export function useWritingWorkspace() {
     deleteDraft,
     insertText,
     insertImage,
+    getSelectedText,
+    insertGeneratedText,
     jumpToLine,
     applyTemplate,
     resetWorkspace,

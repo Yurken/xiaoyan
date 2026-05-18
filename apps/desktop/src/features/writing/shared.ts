@@ -3,6 +3,7 @@ export type WritingViewMode = "split" | "editor" | "preview";
 export type WritingTemplateId = "journal" | "conference" | "thesis-note";
 export type LatexDiagnosticSeverity = "error" | "warning" | "info";
 export type WritingCompileStatus = "idle" | "compiling" | "ready" | "failed";
+export type WritingAssistantActionId = "freeform" | "polish" | "continue" | "abstract" | "review";
 
 export interface WritingResearchInterestSummary {
   id: string;
@@ -69,6 +70,20 @@ export interface LatexStats {
   labels: number;
 }
 
+export interface WritingAssistantAction {
+  id: WritingAssistantActionId;
+  title: string;
+  description: string;
+}
+
+export interface WritingAssistantMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+  actionId?: WritingAssistantActionId;
+}
+
 export interface LatexPreviewBlock {
   id: string;
   kind: "meta" | "abstract" | "section" | "body";
@@ -119,6 +134,14 @@ export const EXPORT_TARGET_LABELS: Record<WritingExportTarget, string> = {
   overleaf: "Overleaf",
 };
 
+export const WRITING_ASSISTANT_ACTIONS: WritingAssistantAction[] = [
+  { id: "freeform", title: "问小妍", description: "围绕当前文稿提问或改写。" },
+  { id: "polish", title: "润色", description: "改进选区或当前段落表达。" },
+  { id: "continue", title: "续写", description: "按上下文补一段正文。" },
+  { id: "abstract", title: "摘要", description: "生成或重写摘要。" },
+  { id: "review", title: "检查", description: "审稿式指出问题。" },
+];
+
 export function writingDraftTitle(draft: Pick<WritingDraft, "projectName">): string {
   return draft.projectName.trim() || DEFAULT_PROJECT_NAME;
 }
@@ -132,4 +155,99 @@ export function writingResearchInterestTitle(
 export function isLatexCompilerMissing(result: WritingCompileSummary | null): boolean {
   if (!result) return false;
   return result.engine === "not-found" || result.log.includes("未找到 LaTeX 编译器");
+}
+
+export function buildWritingAssistantPrompt(input: {
+  actionId: WritingAssistantActionId;
+  userInstruction: string;
+  projectName: string;
+  mainTex: string;
+  bibtex: string;
+  notes: string;
+  selectedText: string;
+  outline: LatexOutlineEntry[];
+  diagnostics: LatexDiagnostic[];
+  stats: LatexStats;
+}): string {
+  const action = WRITING_ASSISTANT_ACTIONS.find((item) => item.id === input.actionId) ?? WRITING_ASSISTANT_ACTIONS[0];
+  const instruction = input.userInstruction.trim() || defaultWritingAssistantInstruction(input.actionId);
+  const selected = input.selectedText.trim();
+  const outlineText = input.outline.length > 0
+    ? input.outline.map((item) => `${"  ".repeat(Math.max(0, item.level - 1))}- L${item.line} ${item.title}`).join("\n")
+    : "暂无大纲";
+  const diagnosticsText = input.diagnostics.length > 0
+    ? input.diagnostics.map((item) => `- ${item.severity}: ${item.title}${item.line ? ` (L${item.line})` : ""} - ${item.detail}`).join("\n")
+    : "暂无结构诊断提示";
+
+  return `你是小妍，正在桌面端“论文撰写”功能中辅助用户写 LaTeX 论文草稿。
+
+任务：${action.title}
+输出约束：
+${writingAssistantOutputRule(input.actionId)}
+- 默认使用简体中文，除非用户要求英文。
+- 不编造论文贡献、实验结果、引用或事实；信息不足时明确指出缺口。
+- 保留 LaTeX 命令和引用键，不要破坏已有结构。
+- 如果输出可直接写回正文，不要使用 Markdown 代码围栏。
+
+文稿状态：
+- 项目名：${input.projectName || DEFAULT_PROJECT_NAME}
+- 统计：${input.stats.words} 字/词，${input.stats.equations} 个公式，${input.stats.citations} 个引用，${input.stats.labels} 个标签
+
+大纲：
+${outlineText}
+
+结构检查：
+${diagnosticsText}
+
+写作便签：
+${truncateForAssistant(input.notes.trim() || "无", 1800)}
+
+当前选区：
+${selected ? truncateForAssistant(selected, 4000) : "无选区。若任务需要改写，请基于全文上下文给出可插入内容或指出需要用户先选择文本。"}
+
+main.tex：
+${truncateForAssistant(input.mainTex, 12000)}
+
+references.bib：
+${truncateForAssistant(input.bibtex || "无", 3000)}
+
+用户指令：
+${instruction}`;
+}
+
+function defaultWritingAssistantInstruction(actionId: WritingAssistantActionId): string {
+  switch (actionId) {
+    case "polish":
+      return "请润色当前选区；如果没有选区，请指出应先选择需要润色的段落。";
+    case "continue":
+      return "请基于当前文稿上下文续写一段可直接放入论文正文的 LaTeX 内容。";
+    case "abstract":
+      return "请根据当前文稿生成一版摘要，可直接放入 abstract 环境。";
+    case "review":
+      return "请从审稿人的角度检查当前草稿最需要修改的问题，并给出可执行修改建议。";
+    default:
+      return "请根据当前文稿回答我的写作问题。";
+  }
+}
+
+function writingAssistantOutputRule(actionId: WritingAssistantActionId): string {
+  switch (actionId) {
+    case "polish":
+      return "- 直接输出润色后的 LaTeX 文本；如有必要，可在末尾用极短说明列出关键修改。";
+    case "continue":
+      return "- 直接输出可插入 main.tex 的 LaTeX 段落，不要解释写作策略。";
+    case "abstract":
+      return "- 直接输出摘要正文或完整 abstract 环境，遵循用户指令。";
+    case "review":
+      return "- 输出分条诊断，按影响从高到低排列，并指出对应章节或行号线索。";
+    default:
+      return "- 先给可执行结论，再补充必要依据；需要写回正文时提供可粘贴 LaTeX。";
+  }
+}
+
+function truncateForAssistant(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  const head = value.slice(0, Math.floor(maxChars * 0.64));
+  const tail = value.slice(value.length - Math.floor(maxChars * 0.32));
+  return `${head}\n\n...[中间内容已省略]...\n\n${tail}`;
 }

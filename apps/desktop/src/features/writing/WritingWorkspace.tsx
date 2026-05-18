@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
 import {
   Archive,
+  Bot,
   CheckCircle2,
   Eye,
   FileCheck2,
@@ -12,6 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { Button, CapsuleTabs } from "@research-copilot/ui";
+import WritingAssistantPanel from "./WritingAssistantPanel";
 import WritingDraftManagerModal from "./WritingDraftManagerModal";
 import WritingEditorPanel from "./WritingEditorPanel";
 import WritingLatexInstallNotice from "./WritingLatexInstallNotice";
@@ -44,6 +46,7 @@ export default function WritingWorkspace() {
   const showLatexInstallNotice = isLatexCompilerMissing(workspace.compileResult);
   const [draftManagerOpen, setDraftManagerOpen] = useState(false);
   const [newDraftModalOpen, setNewDraftModalOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
@@ -69,6 +72,16 @@ export default function WritingWorkspace() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setAssistantOpen(true)}
+              title="打开小妍辅助写作"
+            >
+              <Bot className="h-3.5 w-3.5" />
+              小妍辅助
+            </Button>
             <Button
               type="button"
               size="sm"
@@ -251,6 +264,20 @@ export default function WritingWorkspace() {
         defaultTemplateId={workspace.templateId}
         onClose={() => setNewDraftModalOpen(false)}
         onCreateDraft={workspace.createDraft}
+      />
+
+      <WritingAssistantPanel
+        open={assistantOpen}
+        projectName={workspace.projectName}
+        mainTex={workspace.mainTex}
+        bibtex={workspace.bibtex}
+        notes={workspace.notes}
+        outline={workspace.outline}
+        diagnostics={workspace.diagnostics}
+        stats={workspace.stats}
+        getSelectedText={workspace.getSelectedText}
+        onApplyText={workspace.insertGeneratedText}
+        onClose={() => setAssistantOpen(false)}
       />
     </div>
   );
