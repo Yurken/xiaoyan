@@ -12,9 +12,11 @@ import { apiClient, formatErrorMessage } from "../../lib/client";
 import { openLink } from "../../lib/links";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 import Tools from "../../pages/Tools";
+import Experiment from "../../pages/Experiment";
+import Submission from "../../pages/Submission";
 import { LearningPathView } from "./InterestsPanel";
 
-export type InterestTab = "planner" | "papers" | "xiaoyan" | "notes" | "tools";
+export type InterestTab = "planner" | "papers" | "xiaoyan" | "notes" | "tools" | "experiment" | "submission";
 
 interface ResearchWorkbenchProps {
   interest: ResearchInterest;
@@ -331,13 +333,13 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
           </div>
 
           {papers.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-nm-dark/10 bg-white/25 px-4 py-10 text-center text-xs text-ink-tertiary">
+            <div className="rounded-2xl border border-dashed border-nm-dark/10 px-4 py-10 text-center text-xs text-ink-tertiary" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}>
               暂无关联论文。建议先导入一篇与你当前研究路线最相关的 PDF。
             </div>
           ) : (
             <div className="space-y-3">
               {papers.map((paper) => (
-                <div key={paper.id} className="rounded-2xl border border-nm-dark/10 bg-white/35 p-3">
+                <div key={paper.id} className="rounded-2xl border border-nm-dark/10 p-3" style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-card-flat-shadow)" }}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -439,7 +441,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
           </div>
 
           {(plan.length > 0 || displayedRuns.length > 0) && (
-            <div className="flex-shrink-0 rounded-2xl border border-nm-dark/10 bg-white/35 p-3">
+            <div className="flex-shrink-0 rounded-2xl border border-nm-dark/10 p-3" style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-card-flat-shadow)" }}>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-tertiary">当前状态图执行</p>
               <div className="mt-3">
                 <AgentStateGraphPanel
@@ -453,7 +455,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
             </div>
           )}
 
-          <div className="flex-1 min-h-0 rounded-2xl border border-nm-dark/10 bg-white/30 p-3 overflow-y-auto">
+          <div className="flex-1 min-h-0 rounded-2xl border border-nm-dark/10 p-3 overflow-y-auto" style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}>
             {refreshingSession ? (
               <div className="flex h-full items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-apple-blue" />
@@ -469,7 +471,7 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
               <div className="space-y-3">
                 {messages.map((message) => (
                   <div key={message.id} className={message.role === "user" ? "ml-auto max-w-[85%]" : "max-w-[90%]"}>
-                    <div className={`rounded-2xl px-4 py-3 text-sm ${message.role === "user" ? "bg-apple-blue text-white" : "bg-white/75 text-ink-primary"}`}>
+                    <div className={`rounded-2xl px-4 py-3 text-sm ${message.role === "user" ? "bg-apple-blue text-white" : "text-ink-primary"}`} style={message.role === "assistant" ? { background: "var(--rc-card-bg)", boxShadow: "var(--rc-chip-shadow)" } : undefined}>
                       {message.role === "assistant" ? (
                         <MarkdownRenderer content={message.content || "…"} className="text-sm leading-7" onLinkClick={openLink} />
                       ) : (
@@ -520,6 +522,20 @@ export default function ResearchWorkbench({ interest, activeTab = "papers", onSt
       {activeTab === "notes" && (
         <div className="flex-1 min-h-0 overflow-y-auto p-5">
           <NotesPanel hideFolders researchInterestId={interest.id} />
+        </div>
+      )}
+
+      {/* ── 实验 ── */}
+      {activeTab === "experiment" && (
+        <div className="flex-1 min-h-0 overflow-hidden pt-2">
+          <Experiment />
+        </div>
+      )}
+
+      {/* ── 投稿 ── */}
+      {activeTab === "submission" && (
+        <div className="flex-1 min-h-0 overflow-hidden pt-2">
+          <Submission />
         </div>
       )}
     </div>

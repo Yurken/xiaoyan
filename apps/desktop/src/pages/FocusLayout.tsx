@@ -10,18 +10,17 @@ import {
   MessageSquare,
   Microscope,
   Plus,
+  Send,
   Settings as SettingsIcon,
   Sparkles,
   Wrench,
   X,
 } from "lucide-react";
 import { Badge, Button } from "@research-copilot/ui";
-import { PRODUCT_NAME } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { ResearchInterest } from "@research-copilot/types";
 import { listen } from "@tauri-apps/api/event";
 import PlannerComposer from "../features/knowledge/PlannerComposer";
-import hitLogo from "../assets/app-logo.svg";
 import ResearchWorkbench, { type InterestTab } from "../features/knowledge/ResearchWorkbench";
 import {
   applyInterestPlanSnapshots,
@@ -30,7 +29,6 @@ import {
 import MacWindowDragStrip from "../components/MacWindowDragStrip";
 import {
   IS_MACOS_DESKTOP,
-  MACOS_TITLEBAR_LEFT_CLEARANCE,
   MACOS_WINDOW_DRAG_HEIGHT,
 } from "../lib/windowChrome";
 import Survey from "./Survey";
@@ -70,7 +68,7 @@ function InterestCard({
       className="rounded-[28px] p-5 flex items-center justify-between gap-4"
       style={{
         background: "var(--rc-surface)",
-        boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF",
+        boxShadow: "var(--rc-card-shadow)",
       }}
     >
       <div className="min-w-0 flex-1">
@@ -120,7 +118,7 @@ function FreeTopicCard({ onEnter }: { onEnter: () => void }) {
       className="rounded-[28px] p-5 flex items-center justify-between gap-4"
       style={{
         background: "var(--rc-surface)",
-        boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF",
+        boxShadow: "var(--rc-card-shadow)",
       }}
     >
       <div className="min-w-0 flex-1">
@@ -191,41 +189,17 @@ function FocusHome() {
       <div
         className="flex-shrink-0"
         style={{
-          background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          background: "var(--rc-header-bg)",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
+          borderBottom: "1px solid var(--rc-border)",
         }}
       >
         <MacWindowDragStrip style={{ height: `${MACOS_WINDOW_DRAG_HEIGHT}px` }} />
-        <div
-          className="flex items-center justify-between px-6 py-4"
-          style={{
-            paddingLeft: IS_MACOS_DESKTOP ? `${MACOS_TITLEBAR_LEFT_CLEARANCE}px` : undefined,
-          }}
-        >
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 flex items-center justify-center">
-            <img src={hitLogo} alt="HIT" className="w-9 h-9 object-contain" draggable={false} />
-          </div>
-          <p className="text-base font-bold text-ink-primary">{PRODUCT_NAME} 研究协同台</p>
-        </div>
-        <Link to="/settings">
-          <button
-            type="button"
-            className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-150"
-            style={{
-              background: "var(--rc-surface)",
-              boxShadow: "var(--rc-chip-shadow)",
-              color: "#8E8E93",
-            }}
-          >
-            <SettingsIcon className="w-4.5 h-4.5" />
-          </button>
-        </Link>
-        </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="mx-auto max-w-4xl p-6 space-y-5">
         {loading ? (
           <div className="flex items-center justify-center py-20 gap-2 text-ink-tertiary">
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -238,7 +212,7 @@ function FocusHome() {
             {/* ── 规划入口（研究主题上方） ── */}
             <div
               className="rounded-[28px] overflow-hidden"
-              style={{ background: "var(--rc-surface)", boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF" }}
+              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-card-shadow)" }}
             >
               {/* 收起态：标题 + 操作按钮 */}
               {!creating && !discovering && (
@@ -363,6 +337,7 @@ function FocusHome() {
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   );
@@ -370,7 +345,7 @@ function FocusHome() {
 
 // ─── Focus Workbench ─────────────────────────────────────────────────────────
 
-type FreeTab = "survey" | "papers" | "knowledge" | "xiaoyan" | "tools";
+type FreeTab = "survey" | "papers" | "knowledge" | "xiaoyan" | "tools" | "experiment" | "submission";
 
 type LegacyFreeTab = FreeTab | "copilot";
 
@@ -379,6 +354,8 @@ const FREE_TABS: Array<{ key: FreeTab; label: string; icon: typeof Sparkles }> =
   { key: "papers",    label: "论文",    icon: FileText },
   { key: "knowledge", label: "知识",    icon: Library },
   { key: "xiaoyan",   label: "小妍",    icon: MessageSquare },
+  { key: "experiment", label: "实验",   icon: Microscope },
+  { key: "submission", label: "投稿",   icon: Send },
   { key: "tools",     label: "工具",    icon: Wrench },
 ];
 
@@ -395,13 +372,15 @@ const BASE_INTEREST_TABS: Array<{ key: InterestTab; label: string; icon: typeof 
   { key: "papers",  label: "论文", icon: FileText },
   { key: "xiaoyan", label: "小妍", icon: MessageSquare },
   { key: "notes",   label: "笔记", icon: Library },
+  { key: "experiment", label: "实验", icon: Microscope },
+  { key: "submission", label: "投稿", icon: Send },
   { key: "tools",   label: "工具", icon: Wrench },
 ];
 
 const PLANNER_TAB: { key: InterestTab; label: string; icon: typeof Sparkles } =
   { key: "planner", label: "规划", icon: Sparkles };
 
-const INTEREST_TAB_KEYS: readonly InterestTab[] = ["planner", "papers", "xiaoyan", "notes", "tools"];
+const INTEREST_TAB_KEYS: readonly InterestTab[] = ["planner", "papers", "xiaoyan", "notes", "tools", "experiment", "submission"];
 
 function isInterestTab(value?: string): value is InterestTab {
   return INTEREST_TAB_KEYS.includes(value as InterestTab);
@@ -530,6 +509,8 @@ function FocusWorkbench() {
       case "papers":    return <Papers hideFolders />;
       case "knowledge": return <Knowledge hideFolders />;
       case "xiaoyan":   return <Copilot hideFolders />;
+      case "experiment": return <Experiment />;
+      case "submission": return <Submission />;
       case "tools":     return <Tools />;
     }
   })();
@@ -540,15 +521,15 @@ function FocusWorkbench() {
       <div
         className="flex-shrink-0"
         style={{
-          background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          background: "var(--rc-header-bg)",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
+          borderBottom: "1px solid var(--rc-border)",
         }}
       >
         <MacWindowDragStrip style={{ height: `${MACOS_WINDOW_DRAG_HEIGHT}px` }} />
         <div
           className="flex items-center gap-2 px-4 min-h-12"
           style={{
-            paddingLeft: IS_MACOS_DESKTOP ? `${MACOS_TITLEBAR_LEFT_CLEARANCE}px` : undefined,
             paddingBottom: IS_MACOS_DESKTOP ? "10px" : undefined,
           }}
         >
@@ -633,7 +614,7 @@ function FocusWorkbench() {
           <div className="flex h-full items-center justify-center p-6">
             <div
               className="w-full max-w-md rounded-[28px] p-6 text-center"
-              style={{ background: "var(--rc-surface)", boxShadow: "6px 6px 16px #CBD0D7, -6px -6px 16px #FFFFFF" }}
+              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-card-shadow)" }}
             >
               <p className="text-sm font-semibold text-ink-primary">无法打开主题工作台</p>
               <p className="mt-2 text-xs leading-6 text-apple-red break-all">{interestError}</p>
@@ -661,15 +642,15 @@ function FocusSettingsWrapper() {
       <div
         className="flex-shrink-0"
         style={{
-          background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          background: "var(--rc-header-bg)",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
+          borderBottom: "1px solid var(--rc-border)",
         }}
       >
         <MacWindowDragStrip style={{ height: `${MACOS_WINDOW_DRAG_HEIGHT}px` }} />
         <div
           className="flex items-center gap-3 px-4 min-h-12"
           style={{
-            paddingLeft: IS_MACOS_DESKTOP ? `${MACOS_TITLEBAR_LEFT_CLEARANCE}px` : undefined,
             paddingBottom: IS_MACOS_DESKTOP ? "10px" : undefined,
           }}
         >
@@ -685,7 +666,6 @@ function FocusSettingsWrapper() {
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <p className="text-sm font-semibold text-ink-primary">设置</p>
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -723,6 +703,18 @@ export default function FocusApp() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      <Link to="/settings" className="fixed bottom-5 left-5 z-50">
+        <button
+          type="button"
+          className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-150 text-[#8E8E93] hover:text-ink-primary"
+          style={{
+            background: "var(--rc-surface)",
+            boxShadow: "var(--rc-chip-shadow)",
+          }}
+        >
+          <SettingsIcon className="w-4.5 h-4.5" />
+        </button>
+      </Link>
     </div>
   );
 }

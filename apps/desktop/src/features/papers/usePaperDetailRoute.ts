@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Paper } from "@research-copilot/types";
 
@@ -15,8 +15,13 @@ export function usePaperDetailRoute({
 }: UsePaperDetailRouteOptions) {
   const [searchParams, setSearchParams] = useSearchParams();
   const routePaperId = searchParams.get("paper");
+  const userClosedRef = useRef(false);
 
   useEffect(() => {
+    if (userClosedRef.current) {
+      userClosedRef.current = false;
+      return;
+    }
     if (!routePaperId || detailPaperId === routePaperId) return;
     if (papers.some((paper) => paper.id === routePaperId)) {
       setDetailPaperId(routePaperId);
@@ -34,6 +39,7 @@ export function usePaperDetailRoute({
   );
 
   const closePaperDetail = useCallback(() => {
+    userClosedRef.current = true;
     setDetailPaperId(null);
     if (!routePaperId) return;
 

@@ -98,7 +98,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [editText, setEditText] = useState("");
   const [sessionListMode, setSessionListMode] = usePersistentStringState<"open" | "collapsed">(
     "rc:copilot:session-list-mode",
-    "open",
+    hideFolders ? "collapsed" : "open",
     ["open", "collapsed"] as const,
   );
   const { chatMode, setChatMode } = useCopilotChatMode();
@@ -723,8 +723,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         <div
           className={`${sessionListCollapsed ? "hidden" : "w-52"} flex-shrink-0 flex flex-col`}
           style={{
-            background: "linear-gradient(180deg, var(--rc-surface) 0%, var(--rc-surface) 100%)",
-            boxShadow: "4px 0 10px rgb(var(--rc-text-rgb) / 0.04)",
+            background: "var(--rc-sidebar-bg)",
+            borderRight: "1px solid var(--rc-border)",
           }}
         >
           <div className="p-3 pb-2">

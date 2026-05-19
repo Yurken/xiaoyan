@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { clsx } from "clsx";
 import { useClickOutside } from "../hooks/useClickOutside";
 import {
   AlertCircle,
@@ -916,8 +917,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           30% { transform: translateY(-5px); opacity: 1; }
         }
       `}</style>
-      <div className="rc-app-page space-y-5" style={{ background: "var(--rc-surface)" }}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between shrink-0">
+      <div className="rc-app-page space-y-5">
+        <div className={clsx("mx-auto w-full space-y-5", hideFolders && "max-w-5xl px-4 pb-10")}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between shrink-0">
           <div>
             <h1 className="text-2xl font-bold text-ink-primary">论文库</h1>
           <p className="mt-1 text-sm text-ink-tertiary">
@@ -1052,7 +1054,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           </div>
         </Card>
       ) : hideFolders ? (
-        <div className="space-y-3">
+        <div className="mx-auto max-w-5xl px-4 pb-10 space-y-3">
           {sortPapers(papers, getSortKey("all")).map((p) => renderPaperCard(p, "all"))}
         </div>
       ) : (
@@ -1131,6 +1133,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           )}
         </div>
       )}
+      </div>
       <PaperDetailModal
         paper={detailPaper}
         figures={detailPaper ? (paperFigures[detailPaper.id] ?? []) : []}

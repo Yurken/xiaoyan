@@ -7,4 +7,7 @@ export default defineConfig({
   server: { port: 1420, strictPort: true },
   build: { outDir: "dist", sourcemap: true },
   resolve: { alias: { "@": "/src" } },
+  optimizeDeps: {
+    include: ["lucide-react"],
+  },
 });

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { clsx } from "clsx";
 import { Select } from "@research-copilot/ui";
 import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspace";
 import { buildInterestSelectOptions, buildNoteClaimCountMap } from "../features/knowledge/shared";
@@ -62,8 +63,8 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
   );
 
   return (
-    <div className="rc-app-page h-full flex flex-col" style={{ background: "var(--rc-surface)" }}>
-      <div className="space-y-4">
+    <div className="rc-app-page h-full flex flex-col">
+      <div className={clsx("space-y-4", (view === "notes" && hideFolders) && "mx-auto w-full max-w-5xl px-4")}>
         <div className="shrink-0">
           <h1 className="text-2xl font-bold text-ink-primary">知识库</h1>
           <p className="mt-1 text-sm text-ink-tertiary">
@@ -116,7 +117,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
         </div>
       </div>
 
-      <div key={view} className="mt-6" style={{ animation: "rc-view-enter 0.28s ease-out" }}>
+      <div key={view} className={clsx("mt-6", (view === "notes" && hideFolders) && "mx-auto w-full max-w-5xl px-4")} style={{ animation: "rc-view-enter 0.28s ease-out" }}>
         {view === "graph" ? (
           <KnowledgeGraphWorkspace controller={graphController} />
         ) : (
