@@ -143,7 +143,7 @@ async function main() {
   const platformKey = requireArg("--platform");
   const version = normalizeVersion(requireArg("--version"));
   const baseUrl = trimTrailingSlash(
-    getArg("--base-url") || "http://111.231.56.208:18081/xiaoyan-updates",
+    getArg("--base-url") || process.env.UPDATE_BASE_URL,
   );
 
   const preferences = PLATFORM_BUNDLE_PREFERENCES[platformKey];

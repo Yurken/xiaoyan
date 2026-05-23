@@ -35,12 +35,18 @@ function getBasicAuthHeader(username, password) {
 async function main() {
   const inputDir = path.resolve(requireArg("--input-dir"));
   const version = normalizeVersion(requireArg("--version"));
-  const uploadUrl = getArg("--url").trim() || process.env.UPDATE_ADMIN_URL || "http://111.231.56.208:18081/upload";
-  const username = getArg("--username").trim() || process.env.UPDATE_ADMIN_USERNAME || "uploader";
+  const uploadUrl = getArg("--url").trim() || process.env.UPDATE_ADMIN_URL;
+  const username = getArg("--username").trim() || process.env.UPDATE_ADMIN_USERNAME;
   const password = getArg("--password").trim() || process.env.UPDATE_ADMIN_PASSWORD;
   const notes = getArg("--notes").trim() || process.env.UPDATE_NOTES || "";
   const pubDate = getArg("--pub-date").trim() || process.env.UPDATE_PUB_DATE || "";
 
+  if (!uploadUrl) {
+    throw new Error("Missing upload URL. Set UPDATE_ADMIN_URL or pass --url.");
+  }
+  if (!username) {
+    throw new Error("Missing admin username. Set UPDATE_ADMIN_USERNAME or pass --username.");
+  }
   if (!password) {
     throw new Error("Missing admin password. Set UPDATE_ADMIN_PASSWORD or pass --password.");
   }

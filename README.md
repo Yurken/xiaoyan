@@ -364,8 +364,8 @@ $env:UPDATE_ADMIN_PASSWORD = "你的后台密码"
 
 如需覆盖默认后台地址或用户名，可额外设置：
 
-- `UPDATE_ADMIN_URL`，默认 `http://111.231.56.208:18081/upload`
-- `UPDATE_ADMIN_USERNAME`，默认 `uploader`
+- `UPDATE_ADMIN_URL`：更新后台上传地址，例如 `https://updates.example.com/upload`
+- `UPDATE_ADMIN_USERNAME`：后台登录用户名
 
 #### 1) mac 打包并上传
 
@@ -430,11 +430,9 @@ pnpm tauri signer generate -w ~/.tauri/research-copilot-updater.key
 
 ### 桌面端升级检测
 
-桌面端升级使用 Tauri v2 官方 updater。当前默认更新源固定为：
+桌面端升级使用 Tauri v2 官方 updater。更新源地址通过 `tauri.conf.json` 中 `plugins.updater.endpoints` 配置，需替换为你的实际更新服务器地址。
 
-- `http://111.231.56.208:18081/xiaoyan-updates/latest.json`
-
-客户端不会直接访问私有 GitHub Release，而是从这台服务器读取公开的 `latest.json` 和安装包。
+客户端不会直接访问私有 GitHub Release，而是从更新服务器读取公开的 `latest.json` 和安装包。
 
 需要在 GitHub Actions 中配置这些 Secrets：
 
@@ -450,8 +448,7 @@ pnpm tauri signer generate -w ~/.tauri/research-copilot-updater.key
 
 注意：
 
-- 当前配置显式启用了 `dangerousInsecureTransportProtocol`，因此允许使用 HTTP 更新源。这是为了先跑通基于 IP 的自动更新，不是长期最优方案。
-- 真正长期可维护的做法仍然是给更新服务器配 HTTPS 域名，再去掉这个危险开关。
+- 生产环境应为更新服务器配置 HTTPS 域名，并关闭 `dangerousInsecureTransportProtocol`。
 - 本机已经生成一套 updater 签名密钥：`~/.tauri/research-copilot-updater.key` / `~/.tauri/research-copilot-updater.key.pub`。
 - 本机到服务器的部署 SSH key 在 `~/.ssh/research-copilot-update-server`，公钥已写入服务器 `root` 的 `authorized_keys`。
 - 如果你是手工发布，也可以直接用 `scripts/upload-updater-assets.sh <dir> <tag>` 通过 SSH 上传已经生成好的 updater 资产目录。
