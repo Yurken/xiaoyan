@@ -39,6 +39,7 @@ jobs:
       - uses: actions/checkout@v4.2.2
         with:
           ref: ${{ env.RELEASE_TAG }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -85,6 +86,7 @@ jobs:
       - uses: actions/checkout@v4.2.2
         with:
           ref: ${{ env.RELEASE_TAG }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Recreate draft release
         id: release
@@ -163,6 +165,7 @@ jobs:
       - uses: actions/checkout@v4.2.2
         with:
           ref: ${{ env.RELEASE_TAG }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -335,6 +338,7 @@ jobs:
       - uses: actions/checkout@v4.2.2
         with:
           ref: ${{ env.RELEASE_TAG }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
