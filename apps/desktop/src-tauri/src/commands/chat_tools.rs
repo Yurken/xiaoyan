@@ -1,6 +1,9 @@
+use crate::ccf;
+use crate::commands::arxiv::run_arxiv_search;
 use crate::commands::experiment::create_experiment_core;
 use crate::commands::knowledge_notes::create_note_core;
-use crate::commands::misc::run_survey_generation;
+use crate::commands::misc::{run_planner_generation, run_survey_generation};
+use crate::journal_partitions;
 use crate::llm::{ToolDefinition, ToolCall};
 use serde_json::json;
 use sqlx::Row;
@@ -155,7 +158,92 @@ fn search_experiments_tool() -> ToolDefinition {
     }
 }
 
-pub fn all_tool_definitions() -> Vec<ToolDefinition> {
+pub fn generate_plan_tool() -> ToolDefinition {
+    ToolDefinition {
+        name: "generate_plan".into(),
+        description: "为指定的研究方向生成系统化的学习路线规划。规划包含前置知识、阶段划分、经典论文推荐、研究方向和工具框架。当用户想探索某个研究主题、需要学习路线指引时使用。注意：规划生成需要调用AI模型，预计需要30-60秒，完成后结果会出现在规划页面。".into(),
+        parameters: json!({
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "研究方向主题，如'大语言模型推理优化'"
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "相关关键词列表，如['LLM推理', 'KV缓存', '投机采样']"
+                }
+            },
+            "required": ["topic"]
+        }),
+    }
+}
+
+fn search_arxiv_tool() -> ToolDefinition {
+    ToolDefinition {
+        name: "search_arxiv".into(),
+        description: "在arXiv上检索学术论文。支持按关键词、标题词、摘要词、作者、分类等多维过滤，可设置时间窗口和排序模式（相关性/质量）。当用户需要查找最新论文、了解研究前沿时使用。".into(),
+        parameters: json!({
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "检索主题或查询语句"
+                },
+                "days": {
+                    "type": "integer",
+                    "description": "时间窗口（天），默认14天，范围1-365"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "返回结果数量，默认5，范围1-20"
+                },
+                "ranking_mode": {
+                    "type": "string",
+                    "description": "排序模式：relevance（相关性优先）或 quality（论文质量优先），默认relevance"
+                }
+            },
+            "required": ["topic"]
+        }),
+    }
+}
+
+fn query_journal_tool() -> ToolDefinition {
+    ToolDefinition {
+        name: "query_journal".into(),
+        description: "查询期刊或会议的分区信息。返回WoS/JCR/中科院分区、影响因子、CCF等级等。当用户询问某个期刊/会议的等级或分区时使用。".into(),
+        parameters: json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "期刊或会议名称，如'Nature Communications'或'CVPR'"
+                }
+            },
+            "required": ["query"]
+        }),
+    }
+}
+
+fn lookup_ccf_tool() -> ToolDefinition {
+    ToolDefinition {
+        name: "lookup_ccf".into(),
+        description: "查询CCF（中国计算机学会）推荐的会议和期刊目录。根据关键词查找相关的CCF-A/B/C级会议和期刊。当用户询问计算机领域某个会议或期刊的CCF等级时使用。".into(),
+        parameters: json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "会议或期刊关键词，如'软件工程'、'人工智能'、'数据库'"
+                }
+            },
+            "required": ["query"]
+        }),
+    }
+}
+
+fn all_tool_definitions() -> Vec<ToolDefinition> {
     vec![
         search_knowledge_tool(),
         search_papers_tool(),
@@ -163,6 +251,10 @@ pub fn all_tool_definitions() -> Vec<ToolDefinition> {
         create_experiment_tool(),
         generate_survey_tool(),
         search_experiments_tool(),
+        generate_plan_tool(),
+        search_arxiv_tool(),
+        query_journal_tool(),
+        lookup_ccf_tool(),
     ]
 }
 
@@ -197,6 +289,10 @@ pub async fn dispatch_tool(
         "create_experiment" => dispatch_create_experiment(app, db, tool_call, request_id).await,
         "generate_survey" => dispatch_generate_survey(app, db, settings, tool_call, request_id).await,
         "search_experiments" => dispatch_search_experiments(db, tool_call).await,
+        "generate_plan" => dispatch_generate_plan(app, settings, tool_call, request_id).await,
+        "search_arxiv" => dispatch_search_arxiv(settings, tool_call).await,
+        "query_journal" => dispatch_query_journal(tool_call).await,
+        "lookup_ccf" => dispatch_lookup_ccf(tool_call).await,
         _ => Err(format!("未知工具: {}", tool_call.name)),
     }
 }
@@ -527,5 +623,217 @@ async fn dispatch_generate_survey(
     Ok(format!(
         "已开始生成文献综述「{}」，完成后会出现在综述页面。由于综述生成需要检索和分析多篇论文，预计需要1-2分钟，请稍后在综述页面查看完整结果。",
         query
+    ))
+}
+
+// ── generate_plan dispatcher ──────────────────────────────────
+
+async fn dispatch_generate_plan(
+    app: &tauri::AppHandle,
+    settings: &std::collections::HashMap<String, String>,
+    tool_call: &ToolCall,
+    request_id: &str,
+) -> Result<String, String> {
+    let topic = parse_str_arg(&tool_call.arguments, "topic");
+    let keywords: Vec<String> = serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
+        .ok()
+        .and_then(|v| {
+            v.get("keywords").and_then(|arr| {
+                arr.as_array().map(|a| {
+                    a.iter()
+                        .filter_map(|s| s.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+            })
+        })
+        .unwrap_or_default();
+
+    if topic.is_empty() {
+        return Err("研究方向主题不能为空。".into());
+    }
+
+    let plan_id = uuid::Uuid::new_v4().to_string();
+    let _ = app.emit(
+        "chat:tool_result",
+        json!({
+            "request_id": request_id,
+            "tool_name": tool_call.name,
+            "tool_id": tool_call.id,
+            "result": format!("已触发学习路线规划：{}", topic),
+            "result_id": plan_id
+        }),
+    );
+    let _ = app.emit(
+        "interest:plan_triggered",
+        json!({ "request_id": plan_id, "topic": topic }),
+    );
+
+    let app_spawn = app.clone();
+    let settings_spawn = settings.clone();
+    let topic_spawn = topic.clone();
+    let keywords_spawn = keywords;
+    tauri::async_runtime::spawn(async move {
+        let _ = run_planner_generation(
+            app_spawn,
+            settings_spawn,
+            topic_spawn,
+            keywords_spawn,
+        )
+        .await;
+    });
+
+    Ok(format!(
+        "已开始生成研究方向「{}」的学习路线规划，预计需要30-60秒。规划包含前置知识、阶段划分、经典论文推荐和开放问题。完成后请查看规划页面获取完整计划。",
+        topic
+    ))
+}
+
+// ── search_arxiv dispatcher ───────────────────────────────────
+
+async fn dispatch_search_arxiv(
+    settings: &std::collections::HashMap<String, String>,
+    tool_call: &ToolCall,
+) -> Result<String, String> {
+    let topic = parse_str_arg(&tool_call.arguments, "topic");
+    let days: Option<i64> = serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
+        .ok()
+        .and_then(|v| v.get("days").and_then(|n| n.as_i64()));
+    let limit: Option<i32> = serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
+        .ok()
+        .and_then(|v| v.get("limit").and_then(|n| n.as_i64()))
+        .map(|n| n as i32);
+    let ranking_mode: Option<String> = serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
+        .ok()
+        .and_then(|v| v.get("ranking_mode").and_then(|s| s.as_str().map(|s| s.to_string())));
+
+    if topic.is_empty() {
+        return Err("检索主题不能为空。".into());
+    }
+
+    let request = crate::commands::arxiv::build_recent_hint_request(&topic, &[]);
+
+    match run_arxiv_search(settings, request, days, limit, ranking_mode).await {
+        Ok(response) => {
+            let papers: Vec<String> = response
+                .get("papers")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .enumerate()
+                        .map(|(i, p)| {
+                            let title = p.get("title").and_then(|s| s.as_str()).unwrap_or("未知标题");
+                            let authors = p
+                                .get("authors")
+                                .and_then(|a| a.as_array())
+                                .map(|a| {
+                                    a.iter()
+                                        .filter_map(|n| n.as_str())
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                })
+                                .unwrap_or_else(|| "未知作者".into());
+                            format!("{}. {} - {}", i + 1, title, authors)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            if papers.is_empty() {
+                let summary = response
+                    .get("overall_summary")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("当前时间窗口内未找到匹配论文。");
+                Ok(format!("arXiv检索完成：{}", summary))
+            } else {
+                let summary = response
+                    .get("overall_summary")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("");
+                Ok(format!(
+                    "arXiv检索结果（{}，共{}条）：\n{}\n\n{}",
+                    response
+                        .get("ranking_note")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or(""),
+                    papers.len(),
+                    papers.join("\n"),
+                    summary
+                ))
+            }
+        }
+        Err(e) => Err(format!("arXiv检索失败: {}", e)),
+    }
+}
+
+// ── query_journal dispatcher ──────────────────────────────────
+
+async fn dispatch_query_journal(
+    tool_call: &ToolCall,
+) -> Result<String, String> {
+    let query = parse_str_arg(&tool_call.arguments, "query");
+
+    if query.is_empty() {
+        return Err("期刊查询词不能为空。".into());
+    }
+
+    let matches = journal_partitions::lookup(query.trim(), 8);
+    if matches.is_empty() {
+        return Ok(format!("未找到「{}」相关的期刊或会议信息。", query));
+    }
+
+    let results: Vec<String> = matches
+        .iter()
+        .map(|m| {
+            let cas = if m.cas_top {
+                format!("{}（Top）", m.cas_quartile)
+            } else {
+                m.cas_quartile.clone()
+            };
+            format!(
+                "{} — JCR: {}, 中科院: {}, IF: {}, 索引: {}",
+                m.title,
+                m.jcr_quartile,
+                cas,
+                m.jif,
+                m.indexes.join(", ")
+            )
+        })
+        .collect();
+
+    Ok(format!(
+        "期刊查询结果（「{}」）：\n{}",
+        query,
+        results.join("\n")
+    ))
+}
+
+// ── lookup_ccf dispatcher ─────────────────────────────────────
+
+async fn dispatch_lookup_ccf(
+    tool_call: &ToolCall,
+) -> Result<String, String> {
+    let query = parse_str_arg(&tool_call.arguments, "query");
+
+    if query.is_empty() {
+        return Err("CCF查询词不能为空。".into());
+    }
+
+    let matches = ccf::lookup(query.trim(), 10);
+    if matches.is_empty() {
+        return Ok(format!("未找到「{}」相关的CCF推荐会议或期刊。", query));
+    }
+
+    let results: Vec<String> = matches
+        .iter()
+        .map(|m| {
+            let rating = if m.rating.is_empty() { "其他" } else { &m.rating };
+            format!("{} [{}] {} — {} ({})", m.label, rating, m.full_name, m.area, m.kind)
+        })
+        .collect();
+
+    Ok(format!(
+        "CCF推荐目录查询结果（「{}」）：\n{}",
+        query,
+        results.join("\n")
     ))
 }

@@ -31,14 +31,12 @@ fn planner_system() -> String {
     )
 }
 
-#[tauri::command]
-pub async fn planner_generate(
+pub async fn run_planner_generation(
     app: tauri::AppHandle,
-    state: State<'_, AppState>,
+    settings: std::collections::HashMap<String, String>,
     topic: String,
     keywords: Vec<String>,
 ) -> Result<(), String> {
-    let settings = state.settings.read().await.clone();
     let planner_id = Uuid::new_v4().to_string();
     let _ = app.emit(
         "interest:agent_start",
@@ -99,6 +97,17 @@ pub async fn planner_generate(
         }
     });
     Ok(())
+}
+
+#[tauri::command]
+pub async fn planner_generate(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    topic: String,
+    keywords: Vec<String>,
+) -> Result<(), String> {
+    let settings = state.settings.read().await.clone();
+    run_planner_generation(app, settings, topic, keywords).await
 }
 
 // ── Survey ───────────────────────────────────────────────────────

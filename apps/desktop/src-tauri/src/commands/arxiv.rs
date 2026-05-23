@@ -37,15 +37,15 @@ struct ArxivPaper {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", default)]
 pub struct ArxivSearchRequest {
-    topic: String,
-    all_terms: Vec<String>,
-    title_terms: Vec<String>,
-    abstract_terms: Vec<String>,
-    authors: Vec<String>,
-    categories: Vec<String>,
-    comments_terms: Vec<String>,
-    journal_ref_terms: Vec<String>,
-    exclude_terms: Vec<String>,
+    pub topic: String,
+    pub all_terms: Vec<String>,
+    pub title_terms: Vec<String>,
+    pub abstract_terms: Vec<String>,
+    pub authors: Vec<String>,
+    pub categories: Vec<String>,
+    pub comments_terms: Vec<String>,
+    pub journal_ref_terms: Vec<String>,
+    pub exclude_terms: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -162,8 +162,8 @@ impl ArxivSearchRequest {
 }
 
 #[tauri::command]
-pub async fn arxiv_search(
-    state: State<'_, AppState>,
+pub async fn run_arxiv_search(
+    settings: &HashMap<String, String>,
     request: ArxivSearchRequest,
     days: Option<i64>,
     limit: Option<i32>,
@@ -177,7 +177,6 @@ pub async fn arxiv_search(
     let day_window = days.unwrap_or(14).clamp(1, 365);
     let result_limit = limit.unwrap_or(5).clamp(1, 20) as usize;
     let mode = RankingMode::from_value(ranking_mode.as_deref());
-    let settings = state.settings.read().await.clone();
     let query = describe_request(&request);
     let keywords = collect_keywords(&request);
     let search_expression = build_search_query(&request, day_window);
@@ -240,6 +239,18 @@ pub async fn arxiv_search(
     Ok(json!(response))
 }
 
+#[tauri::command]
+pub async fn arxiv_search(
+    state: State<'_, AppState>,
+    request: ArxivSearchRequest,
+    days: Option<i64>,
+    limit: Option<i32>,
+    ranking_mode: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let settings = state.settings.read().await.clone();
+    run_arxiv_search(&settings, request, days, limit, ranking_mode).await
+}
+
 fn contains_chinese(text: &str) -> bool {
     text.chars().any(|c| {
         let u = c as u32;
@@ -298,7 +309,7 @@ async fn translate_search_terms(
     Ok((en_topic, en_keywords))
 }
 
-fn build_recent_hint_request(search_topic: &str, search_keywords: &[String]) -> ArxivSearchRequest {
+pub fn build_recent_hint_request(search_topic: &str, search_keywords: &[String]) -> ArxivSearchRequest {
     let topic = clean_whitespace(search_topic);
     let mut all_terms = Vec::new();
     if !topic.is_empty() {

@@ -1,5 +1,14 @@
 import { useNavigate } from "react-router-dom";
-import { FileText, BookOpen, FlaskConical, ScrollText, Search } from "lucide-react";
+import {
+  FileText,
+  BookOpen,
+  FlaskConical,
+  ScrollText,
+  Search,
+  Map,
+  Globe,
+  Award,
+} from "lucide-react";
 import type { ChatToolResult } from "@research-copilot/types";
 
 const TOOL_LABELS: Record<string, string> = {
@@ -9,6 +18,10 @@ const TOOL_LABELS: Record<string, string> = {
   search_knowledge: "搜索知识库",
   search_papers: "搜索论文库",
   search_experiments: "搜索实验记录",
+  generate_plan: "生成研究规划",
+  search_arxiv: "arXiv 检索",
+  query_journal: "期刊分区查询",
+  lookup_ccf: "CCF 等级查询",
 };
 
 const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -18,6 +31,10 @@ const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   search_knowledge: Search,
   search_papers: FileText,
   search_experiments: Search,
+  generate_plan: Map,
+  search_arxiv: Globe,
+  query_journal: BookOpen,
+  lookup_ccf: Award,
 };
 
 function getToolNavLink(toolName: string): string | null {
@@ -30,6 +47,8 @@ function getToolNavLink(toolName: string): string | null {
       return "/survey";
     case "search_papers":
       return "/papers";
+    case "generate_plan":
+      return "/planner";
     default:
       return null;
   }
