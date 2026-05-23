@@ -1,94 +1,64 @@
 # 小妍
 
-面向科研学习与论文工作的桌面端 AI 研究助手。采用 Supervisor 驱动的多 Agent 编排，覆盖研究方向规划、文献调研、论文精读、复现建议、知识库沉淀和带引用的对话问答，并支持按用途自定义大模型分工。
+面向科研工作者的桌面端 AI 研究助手。基于 `AgentRuntime` 驱动的多 Agent 编排架构，以 Supervisor 模式统一调度专长 Agent，覆盖从选题规划、文献调研、论文精读、知识沉淀、实验记录到投稿管理的完整科研链路。所有数据本地存储，研究资产隐私可控。
 
-## 开发约束
+## 设计理念
 
-- 共享开发规范见 [docs/development-principles.md](docs/development-principles.md)
-- Agent 入口规范见 [AGENTS.md](AGENTS.md)、[CLAUDE.md](CLAUDE.md) 与 [CODEX.md](CODEX.md)
-- 桌面端系统介绍见 [docs/system-introduction-desktop.md](docs/system-introduction-desktop.md)
+- **一体化工作流** — 在同一应用中串联规划、检索、阅读、写作与投稿，消除工具切换带来的上下文断裂。
+- **结构化沉淀** — 论文、笔记、对话、实验结论统一入库并建立关联，成为可检索、可复用的长期研究资产。
+- **可观测 AI 协作** — 可视化 Agent 规划步骤、执行轨迹与中间产物，会话自动生成 checkpoint 记录关键决策与下一步建议，使 AI 决策可追溯、可复盘。
 
-## 功能概览
+## 核心功能
 
-- **多 Agent 协同**：Supervisor 负责任务拆解，调用检索、规划、文献侦察、综述、论文解析、复现等专长 Agent，最终整合回答。
-- **可观测小妍协同台**：实时展示计划步骤、Agent 执行轨迹与来源（Mission Control 面板）。
-- **协作式研究规划**：支持 Topic Analyst / Paper Scout / Learning Path Designer 协作流程可视化。
-- **协作式文献综述**：支持 Intent Planner / Literature Retriever / Survey Writer 协作流程可视化，输出结构化综述与候选论文。
-- **论文库**：上传 PDF，自动提取全文、分块向量化，支持语义检索与论文精读分析。导入时可开启 AI 自动重命名，按自定义模板（作者、标题、年份等）就地改名原文件。
-- **小妍解读（论文精读）**：点击解读后自动提取 PDF 图表（lopdf 位图 + 视觉模型扫描矢量图/表格），AI 分析时积极引用图表编号，结果以文字 + 图片并排呈现。
-- **视界·视觉模型**：独立配置视觉模型（`vision_model` / `vision_base_url` / `vision_api_key`），小妍解读自动调用，扫描 PDF 各页识别 lopdf 无法提取的矢量图与表格。
-- **记忆管理**：支持手动录入和 AI 自动提取用户操作记忆，小妍对话时自动注入相关上下文。支持记忆隐私分层，自动操作记录与长期记忆可独立设置密码保护。
-- **知识图谱与 Graph RAG**：论文引用关系自动构建图结构（`citation_graph.rs`），知识库检索时融合图邻域上下文（`graph_rag.rs`），提升多跳关联问题的回答质量。
-- **知识卡片**：创建笔记，自动生成 Embedding，支持语义搜索。
-- **研究规划**：输入研究方向，AI 生成系统化学习路线（前置知识、阶段、经典论文、开放问题）。
-- **文献综述**：基于知识库 RAG + LLM 流式生成结构化综述。
-- **PPT 生成与预览**：基于研究内容一键生成 PPT，内置幻灯片预览面板，可在工作区直接翻页浏览，支持导出为 `.pptx`。
-- **投稿管理**：统一追踪会议与期刊截止日期（DDL 日历）、投稿状态看板、提交前检查清单、论文版本控制（含 PDF 上传 / 下载）、审稿意见归档与作者回复跟踪；支持智能推荐刊会、投稿时间线、拒稿转投恢复。
-- **AI 模拟审稿**：在版本控制中对任意已上传 PDF（或版本快照文本）一键触发，使用 `pdfjs-dist` 本地提取全文，基于研究领域、方法关键词生成 2–4 位模拟审稿人意见（含分类标签与大修 / 小修 / 接收 / 拒稿结论），结果可直接导入审稿归档进行跟踪回复。
-- **实验记录工作区**：结构化实验记录管理，支持配置/结果/备注独立字段与附件上传，可与投稿关联建立证据链。
-- **桌面伴侣**：基于 Canvas Sprite 动画的桌面宠物「墩墩」，多状态动画联动 Agent 执行状态，支持动作扩展与偏好配置。
-- **应用锁**：支持闲置超时自动锁定应用，PBKDF2 + SHA-256 密码保护，防止他人窥屏。
-- **设置历史与配置切换**：支持保存多组配置快照，快速切换不同工作场景（如论文精读 / 本地 Ollama / Survey 写作）。
-- **一键导出**：知识笔记与论文分析支持一键导出为 Obsidian Markdown，含 Frontmatter 元数据。
-- **实用工具**：
-  - **arXiv 智能检索**：关键词 + 时间窗口 + LLM 重排，支持三步级联筛选（研究领域 × 类型 × 等级）自动填充检索范围
-  - **期刊分区查询**：WoS / JCR / 中科院，支持按 CCF-A/B/C、中科院1-4区、Top期刊、JCR Q1/Q2/Q3、SCIE、SSCI 等级动态过滤
-  - **CCF 等级查询**：679 个 CCF 会议与期刊
-  - 按分类整理的科研友链
-- **设置导入/导出**：支持加密（AES-256-GCM + PBKDF2）导出配置文件，方便多设备迁移。
-- **按用途选模**：可为方向提示、深度规划、综述写作、论文精读、复现指导、多 Agent 调度与整合、视觉识别分别指定模型。
-- **设置中心**：默认展示少量常用模型分工，高级设置中再展开逐项场景和单个 Agent 的覆盖参数。
-
-## 页面一览
-
-| 页面 | 说明 |
+| 模块 | 说明 |
 |---|---|
-| `/` | 工作台首页 |
-| `/planner` | 研究方向规划 |
-| `/survey` | 文献调研与结构化综述 |
-| `/papers` | 论文库与 PDF 分析 |
-| `/knowledge` | 知识卡片、语义检索与知识图谱 |
-| `/xiaoyan` | 小妍多 Agent 协同工作台 |
-| `/submission` | 投稿管理：DDL 日历、投稿看板、提交清单、版本控制（PDF 上传 + AI 模拟审稿）、审稿归档、时间线与转投恢复 |
-| `/experiment` | 实验记录工作区：结构化实验记录、附件上传、投稿关联 |
-| `/tools` | arXiv 检索、期刊分区查询、CCF 查询、科研友链 |
-| `/settings` | Provider、常用模型分工、多 Agent 与运行设置、配置快照与切换 |
+| 研究主题总览 | 聚合路线、论文、笔记、会话、checkpoint、知识主张、实验与投稿，一键续接当前研究 |
+| 研究规划 | 输入研究方向，AI 生成系统化学习路线（前置知识、阶段划分、经典论文、开放问题） |
+| 文献综述 | 基于知识库 RAG + 流式 LLM 生成结构化综述，附带候选论文 |
+| 论文库 | PDF 上传、全文提取、分块向量化、语义检索；支持 AI 自动重命名；解析质量链路记录解析器、耗时、回退路径 |
+| 论文精读 | 自动抽取 PDF 图表（lopdf 位图 + 视觉模型扫描矢量图/表格），图文并排呈现分析结果 |
+| 小妍协同 | `AgentRuntime` 统一调度专长 Agent（检索/规划/侦察/综述/解析/复现），整合回答并引用来源，会话自动生成 checkpoint 记录关键决策与下一步建议 |
+| 知识库 | 笔记创建、自动 Embedding、语义搜索；知识图谱 + Graph RAG 增强多跳关联问答 |
+| 投稿管理 | DDL 日历、状态看板、版本控制、AI 模拟审稿（生成诊断报告，可转 checklist / 修改任务并关联论文版本与实验记录）、审稿归档与回复跟踪 |
+| 实验记录 | 结构化实验管理，独立字段 + 附件上传，与投稿关联建立证据链 |
+| 工具集 | arXiv 三步级联检索、期刊分区查询（WoS/JCR/中科院，22804 条）、CCF 等级查询（679 条） |
 
-## 架构
+## 技术架构
 
-桌面端为完全自包含的 Tauri v2 应用，所有逻辑在 Rust 进程内运行：
+桌面端为自包含 Tauri v2 应用，核心逻辑在 Rust 进程内运行：
 
 ```
 前端 (React + Vite)
     ↕  Tauri invoke() / listen()
 Rust 后端 (Tauri Commands)
-    ├── llm.rs                LLM 客户端（OpenAI / Anthropic / 兼容接口，SSE 流式；含视觉模型 chat_with_image）
-    ├── rag.rs                文本分块 + 余弦相似度向量检索
-    ├── citation_graph.rs     论文引用关系图（节点 + 有向边）
-    ├── graph_rag.rs          Graph RAG：检索时融合图邻域上下文
-    ├── agent_graph.rs        小妍 Agent 状态图（显式状态机）
-    ├── agent_nodes.rs        各 Agent 节点实现
-    ├── ccf.rs                CCF 目录索引与查询（679 条）
-    ├── journal_partitions.rs 期刊分区索引与查询（WoS / JCR / 中科院，22804 条）
-    ├── db.rs                 SQLite 初始化与 Schema 迁移
-    ├── state.rs              AppState（线程安全 Arc<RwLock>）
-    ├── services/             服务层（settings / submission / memory / chat_context / source）
-    └── commands/             命令层（参数校验与调度，委托 service 层执行）
-        ├── settings          设置读写（事务）、加密导入/导出、配置快照
-        ├── papers            PDF 上传、解析、图表提取（lopdf + 视觉扫描）、分析、复现、AI 重命名
-        ├── knowledge         研究方向 + 知识笔记
-        ├── knowledge_graph   知识图谱构建与查询
-        ├── memory            记忆管理（手动 / 自动提取 / 上下文构建 / 隐私分层）
-        ├── chat              多 Agent 编排与流式对话
-        ├── arxiv             arXiv 检索与 LLM 重排
-        ├── journal           期刊分区查询 + 按等级/学科过滤（journal_rank_filter）
-        ├── submission        投稿管理、版本控制、审稿归档
-        ├── experiment        实验记录管理
-        └── misc              规划器、综述生成、搜索
+    ├── llm.rs              LLM 客户端（OpenAI / Anthropic / 兼容接口，SSE 流式，视觉模型）
+    ├── rag.rs              文本分块 + 余弦相似度向量检索
+    ├── citation_graph.rs   论文引用关系图
+    ├── graph_rag.rs        图增强检索（邻域上下文融合）
+    ├── agent_runtime.rs    AgentRuntime（工具注册、AgentContext、统一事件边界）
+    ├── agent_graph.rs      Agent 状态图（显式状态机）
+    ├── agent_nodes.rs      各 Agent 节点实现
+    ├── ccf.rs              CCF 目录索引
+    ├── journal_partitions.rs  期刊分区索引与动态过滤
+    ├── db.rs               SQLite Schema 迁移
+    ├── state.rs            AppState（Arc<RwLock>）
+    ├── services/           服务层（settings / submission / memory / chat_context / source / research_context）
+    └── commands/           命令层（参数校验 → service 委托）
+        ├── settings        设置读写、加密导入导出、配置快照
+        ├── papers          PDF 解析、图表提取、AI 分析、复现
+        ├── knowledge       研究方向与知识笔记
+        ├── knowledge_graph 知识图谱构建与查询
+        ├── memory          记忆录入/自动提取/上下文构建/隐私分层
+        ├── chat            多 Agent 编排与流式对话
+        ├── arxiv           arXiv 检索与 LLM 重排
+        ├── journal          期刊分区查询与过滤
+        ├── submission      投稿管理、版本控制、审稿归档
+        ├── experiment      实验记录
+        └── misc            规划器、综述生成、搜索
 SQLite（本地嵌入式，无需独立服务）
 ```
 
-## 数据存储
+### 数据存储
 
 所有数据保存在本地 SQLite 数据库：
 
@@ -98,33 +68,41 @@ SQLite（本地嵌入式，无需独立服务）
 | Windows | `%APPDATA%\com.researchcopilot.desktop\research_copilot.db` |
 | Linux | `~/.local/share/com.researchcopilot.desktop/research_copilot.db` |
 
-### 设置持久化
+数据库文件独立于应用本体，卸载/重装不会丢失数据。
 
-设置保存在 SQLite 的 `settings` 表（`key TEXT PRIMARY KEY, value TEXT`）：
+## 项目结构
 
-- **写入**：点击「保存所有设置」后，Tauri Command `settings_update` 在事务内对每个键执行 `INSERT ... ON CONFLICT DO UPDATE`（upsert），全部成功后同步更新内存缓存
-- **读取**：每次启动时从数据库加载全部键值并合并进内存缓存（默认值兜底）
-- **敏感字段**（API Key 等）：读取时返回 `***` 占位，保存时跳过 `***` 值（保留已存储内容）
-- **持久性**：数据库文件在卸载/重装 App 时保留于 Application Support 目录，不会随 App 本体删除
-- **导入/导出**：设置支持加密导出为 `.rcconf` 文件（AES-256-GCM + PBKDF2），便于备份和多设备迁移
+```
+.
+├── apps/
+│   ├── desktop/                # Tauri v2 桌面端（旗舰端）
+│   │   ├── src/                # React 前端
+│   │   │   └── features/       # 功能模块（companion / copilot / knowledge / papers / settings / submission / tools / workbench）
+│   │   └── src-tauri/
+│   │       └── src/
+│   │           ├── data/       # 本地数据（ccf_catalog.json / journal_partitions.json）
+│   │           └── lib.rs      # 入口
+│   ├── mobile/                 # Expo 移动端（轻量陪伴）
+│   └── web/                    # Next.js Web 端（展示/远程协作）
+└── packages/
+    ├── types/                  # 跨端共享类型
+    └── ui/                     # 共享 UI 组件
+```
 
-### 数据库表结构
+## 页面路由
 
-| 表 | 说明 |
+| 路由 | 模块 |
 |---|---|
-| `settings` | 应用设置键值对 |
-| `papers` | 论文元数据 + 全文 |
-| `paper_chunks` | 论文分块 + Embedding 向量（JSON 存储） |
-| `paper_figures` | 论文图表文件（lopdf 提取 + 视觉模型扫描） |
-| `paper_analyses` | 论文 AI 分析结果 |
-| `reproduction_guides` | 论文复现指南 |
-| `research_interests` | 研究方向 + 学习路线 |
-| `knowledge_notes` | 知识笔记 + Embedding |
-| `memories` | 用户记忆（手动 / 自动） |
-| `chat_sessions` | 对话会话 |
-| `chat_messages` | 对话消息 |
-| `agent_runs` | Agent 执行记录 |
-| `agent_artifacts` | Agent 产物 |
+| `/` | 工作台首页 |
+| `/planner` | 研究规划 |
+| `/survey` | 文献综述 |
+| `/papers` | 论文库与精读 |
+| `/knowledge` | 知识库与知识图谱 |
+| `/xiaoyan` | 多 Agent 协同工作台 |
+| `/submission` | 投稿管理 |
+| `/experiment` | 实验记录 |
+| `/tools` | 工具集（arXiv / 期刊分区 / CCF 查询） |
+| `/settings` | 设置中心 |
 
 ## 快速开始
 
@@ -134,389 +112,77 @@ SQLite（本地嵌入式，无需独立服务）
 - pnpm 9+
 - Rust 工具链（`rustup`）
 
-### 1. 安装依赖
+### 安装与运行
 
 ```bash
-pnpm install
+pnpm install          # 安装依赖
+pnpm dev:desktop      # 启动开发模式
+pnpm tauri build      # 生产构建
 ```
 
-### 2. 开发模式
+开发自检：
 
 ```bash
-pnpm dev:desktop
+pnpm --filter @research-copilot/desktop type-check   # 桌面端类型校验
+pnpm type-check                                       # 全仓库类型校验
+pnpm lint                                             # 全仓库 lint
 ```
 
-### 3. 生产构建
+## 模型配置
 
-```bash
-pnpm tauri build
-```
+首次启动后在设置页面配置 LLM Provider。推荐配置流程：
 
-输出：
-- `src-tauri/target/release/bundle/macos/小妍.app`
-- `src-tauri/target/release/bundle/dmg/小妍_*.dmg`
+1. **主模型** — 所有功能的最终兜底值，推荐 OpenAI 兼容接口（支持阿里云 DashScope、DeepSeek 等）
+2. **常用模型分工** — 快速模型 / 深度分析 / 写作整合 / 代码复现四组，覆盖多数场景
+3. **视界·视觉模型**（可选）— 论文精读图表扫描，支持 OpenAI Vision / Anthropic 格式
+4. **高级设置**（按需）— 逐场景、逐 Agent 粒度覆盖
 
-如需直接在桌面端包目录执行，也可以使用：
+继承链：`Agent 覆盖 → 常用分工 → 默认执行模型 → 主模型`
 
-```bash
-cd apps/desktop
-pnpm tauri dev
-pnpm tauri build
-```
+多 Agent 选路支持三种模式：`rule`（规则判断）、`llm`（模型实时选择）、`hybrid`（规则初选 + 模型修正，默认推荐）。
 
-### 4. 开发自检（建议每次修改后执行）
-
-```bash
-# 仅校验桌面端
-pnpm --filter @research-copilot/desktop type-check
-
-# 校验整个仓库
-pnpm type-check
-pnpm lint
-```
-
-## 常见问题排查
-
-### 1. 小妍页面报错：`Can't find variable: Send`
-
-**现象**
-- 打开小妍页面后白屏或控制台报错：`Can't find variable: Send`
-
-**原因**
-- 页面中使用了 `<Send />` 图标组件，但对应文件没有从 `lucide-react` 导入 `Send`。
-
-**解决**
-- 在报错页面顶部导入中补充 `Send`：
-
-```ts
-import { ..., Send, ... } from "lucide-react";
-```
-
-- 然后执行类型检查确认无遗漏：
-
-```bash
-pnpm --filter @research-copilot/desktop type-check
-```
-
-## 设置配置
-
-首次启动后在「设置」页面配置 LLM Provider。建议按下面顺序配置：
-
-### 1. 先配置主模型连接
-
-主模型是所有功能的最终兜底值。若某个场景或 Agent 没有单独指定模型，最终都会回退到这里。
-
-### OpenAI 兼容接口（推荐，可接阿里云 DashScope、DeepSeek 等）
-
-| 字段 | 示例 |
-|---|---|
-| API Base URL | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| API Key | `sk-...` |
-| 对话模型 | `qwen-plus` / `deepseek-chat` |
-| Embedding 模型 | `text-embedding-v3` / `BAAI/bge-m3` |
-
-### OpenAI 原生
-
-| 字段 | 示例 |
-|---|---|
-| API Key | `sk-...` |
-| 对话模型 | `gpt-4o-mini` |
-| Embedding 模型 | `text-embedding-3-small` |
-
-### Anthropic
-
-| 字段 | 示例 |
-|---|---|
-| API Key | `sk-ant-...` |
-| 对话模型 | `claude-3-5-haiku-20241022` |
-
-> Anthropic 不提供 Embedding API，选择 Anthropic 作为对话 Provider 时，Embedding 需额外配置独立向量接口，否则 RAG 功能不可用。
-
-### 2. 再配置常用模型分工
-
-设置页默认只展示 4 组常用模型。大多数情况下，配好这几组就够用：
-
-| 分组 | 推荐用途 | 配置建议 |
-|---|---|---|
-| 快速模型 | 方向提示、综述检索规划、多 Agent 调度、文献侦察、轻量对话 | 优先低延迟模型；若服务商支持联网或搜索，可优先放在这里 |
-| 深度分析模型 | 深度规划分析、规划结果生成、论文精读、复杂研究分析 | 优先旗舰模型或推理能力更强的模型 |
-| 写作整合模型 | 综述写作、多 Agent 综述、最终整合回答 | 优先长上下文、结构化和长输出质量稳定的模型 |
-| 代码复现模型 | 复现指导、训练配置、实现排查 | 优先代码和工程理解能力强的模型，温度建议更低 |
-
-推荐的最简配置方式：
-
-1. 只配置主模型
-2. 如需更好体验，再补一个快速模型
-3. 如果你经常做规划、综述和论文精读，再补深度分析模型或写作整合模型
-
-### 3. 视界·视觉模型（可选）
-
-在「视界」模块配置专用视觉模型（支持 OpenAI Vision 格式或 Anthropic）：
-
-| 字段 | 说明 |
-|---|---|
-| `vision_model` | 视觉模型名称，如 `gpt-4o`、`claude-3-5-sonnet-20241022` |
-| `vision_base_url` | 视觉模型 API Base URL（留空则复用主模型接口） |
-| `vision_api_key` | 视觉模型 API Key（留空则复用主模型密钥） |
-
-配置后，点击「小妍解读」时会自动调用视觉模型扫描 PDF 各页，识别 lopdf 无法提取的矢量图和表格，补充进论文图表库。
-
-### 4. 高级设置只在需要时展开
-
-高级设置中可以继续微调：
-
-- 逐项场景模型：例如单独给"方向提示"或"轻量小妍对话"指定模型
-- 多 Agent 细项：调度模型、默认执行模型、最终整合模型
-- 单个 Agent 覆盖：例如只让文献侦察走快模型，只让论文解析走旗舰模型
-
-当前继承关系如下：
-
-```text
-专项 Agent 覆盖值
-  -> 常用模型分工
-  -> 默认执行模型
-  -> 主模型
-```
-
-### 5. 多 Agent 选路建议
-
-设置页支持三种选路模式：
-
-| 模式 | 说明 | 建议 |
-|---|---|---|
-| `rule` | 纯规则判断，最稳定 | 对成本敏感或需要严格可复现时使用 |
-| `llm` | 由调度模型实时选择 Agent | 对开放式复杂任务更灵活 |
-| `hybrid` | 规则初选 + 调度模型修正 | 默认推荐，大多数情况更稳妥 |
-
-## arXiv 论文检索：三步级联筛选
-
-论文检索模块支持三步级联筛选，自动填充 arXiv 分类和期刊/会议范围：
-
-**步骤 1 · 研究领域**（计算机科学两级分类 + 其他领域平铺）
-
-| CS 一级分组 | 子领域 |
-|---|---|
-| 人工智能 | AI & 机器学习、计算机视觉、自然语言处理 |
-| 数据与信息 | 数据库 & 数据挖掘 |
-| 系统与工程 | 系统 & 体系结构、软件工程、网络 & 通信 |
-| 安全与理论 | 安全 & 密码学、理论计算机 |
-| 人机与多媒体 | 人机交互、跨学科 & 多媒体 |
-
-其他领域：生物信息、数学、物理、电气工程、机器人
-
-**步骤 2 · 类型**：全部 / 会议 / 期刊
-
-**步骤 3 · 等级**（静态 + 动态）：
-
-| 等级 | 来源 | 说明 |
-|---|---|---|
-| CCF-A / B / C | 静态内嵌 | CCF 目录，679 条 |
-| 中科院1区 / 2区 | 静态内嵌 | 按领域精选 |
-| 中科院3区 / 4区 | 动态查询 | 从本地 22804 条期刊库过滤 |
-| Top期刊 | 动态查询 | `cas_top = true`，共 1789 条 |
-| JCR Q1 / Q2 / Q3 | 动态查询 | `jcr_quartile` 字段 |
-| SCIE / SSCI | 动态查询 | `indexes` 字段 |
-
-选择领域 + 等级后自动填充 arXiv 分类（`categories`）和期刊/会议名称（`journal_ref_terms`），动态等级通过 `journal_rank_filter` 命令查询本地数据库，加载过程显示进度提示。
-
-## 版本号管理
-
-修改版本号时，在仓库根目录执行：
+## 版本管理
 
 ```bash
 node scripts/sync-version.mjs --version 1.2.3
-# 或带 v 前缀
-node scripts/sync-version.mjs --tag v1.2.3
 ```
 
-脚本会同步更新以下文件，重复执行幂等：
-
-- `apps/desktop/package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`
-- `apps/desktop/src-tauri/src/commands/arxiv.rs`（User-Agent 常量）
-- `apps/mobile/package.json` / `app.json`
-- `apps/web/package.json`
-- `packages/*/package.json` 及根 `package.json`
+同步更新 `apps/`、`packages/` 及根 `package.json` 中的版本号，重复执行幂等。
 
 ## 发布
 
-推送 `v*` tag 后触发 GitHub Release 流水线：
+推送 `v*` tag 触发 GitHub Actions 流水线：创建 Release → 矩阵构建（macOS / Windows）→ 上传产物 → 发布。
 
-1. **create-release**：创建草稿 Release
-2. **build**（矩阵并行）：`macos-latest` / `windows-latest` 分别编译并上传产物
-3. **publish-github-assets**：将安装包（`.dmg` / `.msi` / `.exe`）上传到 GitHub Release
-4. **publish-release**：所有构建完成后正式发布
-
-### 手工打包并直接上传更新后台
-
-如果你不走 CI，而是想在本地一键打包并直接上传到腾讯云更新后台，可按下面执行。
-
-先准备后台登录密码：
+手工打包上传：
 
 ```bash
-export UPDATE_ADMIN_PASSWORD='你的后台密码'
+export UPDATE_ADMIN_PASSWORD='<password>'
+pnpm build:updater:mac -- v0.3.2    # macOS
+pnpm build:updater:win -- v0.3.2    # Windows (PowerShell)
 ```
 
-Windows PowerShell：
-
-```powershell
-$env:UPDATE_ADMIN_PASSWORD = "你的后台密码"
-```
-
-如需覆盖默认后台地址或用户名，可额外设置：
-
-- `UPDATE_ADMIN_URL`，默认 `http://111.231.56.208:18081/upload`
-- `UPDATE_ADMIN_USERNAME`，默认 `uploader`
-
-#### 1) mac 打包并上传
-
-在仓库根目录执行：
-
-```bash
-pnpm install
-pnpm build:updater:mac -- v0.3.2
-```
-
-脚本会自动：
-
-- 同步仓库版本到 `v0.3.2`
-- 按当前 mac 架构构建桌面端 updater 包
-- 从 `bundle/` 中提取当前平台真正需要上传的 updater 文件
-- 自动登录更新后台并上传到对应版本目录
-- 同时保留本地 `upload/v0.3.2/` 作为上传留档
-
-如需强制指定目标架构，可临时传环境变量：
-
-```bash
-TAURI_BUILD_TARGET=x86_64-apple-darwin pnpm build:updater:mac -- v0.3.2
-```
-
-#### 2) Windows x64 打包并上传
-
-在 Windows 机器仓库根目录执行（PowerShell）：
-
-```powershell
-pnpm install
-pnpm build:updater:win -- v0.3.2
-```
-
-脚本会自动：
-
-- 同步仓库版本到 `v0.3.2`
-- 构建 Windows updater 包
-- 从 `bundle/` 中提取当前平台真正需要上传的 updater 文件
-- 自动登录更新后台并上传到对应版本目录
-- 同时保留本地 `upload/v0.3.2/` 作为上传留档
-
-如果希望图标更填满，请先把 `apps/desktop/src-tauri/icons/app-icon.png` 换成主体占比更大的 1024x1024 源图（建议主体覆盖约 88%~92% 画布），再执行上面的 `tauri icon` 命令。
-
-若本机还没有 updater 私钥，可先生成（mac/Linux）：
-
-```bash
-pnpm tauri signer generate -w ~/.tauri/research-copilot-updater.key
-```
-
-#### 3) 多平台发布方式
-
-- mac 机器运行一次 `pnpm build:updater:mac -- v0.3.2`
-- Windows 机器再运行一次 `pnpm build:updater:win -- v0.3.2`
-
-如果同一版本需要同时支持 mac 和 Windows，就分别在两台机器上执行各自脚本，并上传到同一个版本号。
-
-> **macOS 首次打开**：发布的 `.dmg` 使用 ad-hoc 签名，未经 Apple 公证。执行以下命令后重新打开：
-> ```bash
-> xattr -cr /Applications/小妍.app
-> ```
-> 或在「系统设置 → 隐私与安全性」中选择「仍要打开」。
-
-### 桌面端升级检测
-
-桌面端升级使用 Tauri v2 官方 updater。当前默认更新源固定为：
-
-- `http://111.231.56.208:18081/xiaoyan-updates/latest.json`
-
-客户端不会直接访问私有 GitHub Release，而是从这台服务器读取公开的 `latest.json` 和安装包。
-
-需要在 GitHub Actions 中配置这些 Secrets：
-
-- `TAURI_SIGNING_PRIVATE_KEY`
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：当前这把 key 没有密码，留空或不设置即可
-- `UPDATE_SERVER_SSH_PRIVATE_KEY`
-
-建议的服务器目录结构：
-
-- `/var/www/html/xiaoyan-updates/latest.json`
-- `/var/www/html/xiaoyan-updates/v1.2.3/*`
-- `/var/www/html/xiaoyan-updates/v1.2.4/*`
-
-注意：
-
-- 当前配置显式启用了 `dangerousInsecureTransportProtocol`，因此允许使用 HTTP 更新源。这是为了先跑通基于 IP 的自动更新，不是长期最优方案。
-- 真正长期可维护的做法仍然是给更新服务器配 HTTPS 域名，再去掉这个危险开关。
-- 本机已经生成一套 updater 签名密钥：`~/.tauri/research-copilot-updater.key` / `~/.tauri/research-copilot-updater.key.pub`。
-- 本机到服务器的部署 SSH key 在 `~/.ssh/research-copilot-update-server`，公钥已写入服务器 `root` 的 `authorized_keys`。
-- 如果你是手工发布，也可以直接用 `scripts/upload-updater-assets.sh <dir> <tag>` 通过 SSH 上传已经生成好的 updater 资产目录。
-
-## 项目结构
-
-```
-.
-├── apps/
-│   ├── desktop/               # Tauri v2 桌面端（主要）
-│   │   ├── src/               # React 前端
-│   │   │   └── features/      # 功能模块（companion / appLock / copilot / knowledge / papers / settings / submission / tools / workbench）
-│   │   └── src-tauri/
-│   │       └── src/
-│   │           ├── llm.rs     # LLM 客户端（含视觉模型）
-│   │           ├── rag.rs     # 向量检索
-│   │           ├── citation_graph.rs  # 论文引用关系图
-│   │           ├── graph_rag.rs      # Graph RAG
-│   │           ├── agent_graph.rs    # Agent 状态图
-│   │           ├── agent_nodes.rs    # Agent 节点实现
-│   │           ├── ccf.rs     # CCF 目录（679 条）
-│   │           ├── journal_partitions.rs  # 期刊分区（22804 条，含动态过滤）
-│   │           ├── db.rs      # SQLite 初始化
-│   │           ├── state.rs   # 应用状态
-│   │           ├── services/  # 服务层（settings / submission / memory / chat_context / source）
-│   │           ├── commands/  # Tauri Commands（settings/papers/knowledge/memory/chat/arxiv/journal/submission/experiment/misc）
-│   │           ├── data/      # 本地数据（ccf_catalog.json / journal_partitions.json）
-│   │           └── lib.rs     # 入口
-│   ├── mobile/                # Expo 移动端（Android APK）
-│   └── web/                   # Next.js Web 端
-└── packages/
-    ├── types/                 # 共享类型
-    └── ui/                    # 共享 UI 组件
-```
+macOS 首次打开提示"已损坏"时执行 `xattr -cr /Applications/小妍.app` 后重新打开。
 
 ## 常见问题
 
-**Q: 可以接国内模型吗？**
+**支持国内模型吗？** 支持。在设置中选择「兼容接口」，填入阿里云 DashScope、DeepSeek 等兼容 OpenAI 协议的 Base URL 和 API Key 即可。
 
-可以。在设置页选择「兼容接口」，填入对应的 Base URL 和 API Key 即可。支持阿里云 DashScope（通义千问）、DeepSeek、零一万物等所有兼容 OpenAI 协议的服务。
+**必须配置多组模型吗？** 不必。仅配置主模型即可使用全部功能；如需更好体验，再补充常用分工中的快速模型或深度分析模型。
 
-**Q: 现在要配置很多模型吗？**
+**API Key 显示 `***` 正常吗？** 正常。`***` 表示密钥已安全存储，界面不展示明文。更换时直接输入新值保存。
 
-不需要。默认只建议你配置主模型和 4 组常用模型分工。只有在你明确知道某个场景或某个 Agent 需要不同模型时，才需要展开高级设置继续细调。
+**重装应用后设置会丢失吗？** 不会。设置文件存储在系统 Application Support 目录，与 App 本体隔离。多设备迁移可使用加密导出（`.rcconf` 文件，AES-256-GCM + PBKDF2）。
 
-**Q: API Key 设置后重启看到 `***` 是正常的吗？**
+**PDF 会复制到数据库吗？** 不会。PDF 保留在原位置，数据库仅存储提取的文本、向量和文件路径引用。
 
-正常。`***` 表示密钥已安全存储（不在界面明文展示），实际调用时会使用真实密钥。若要更换密钥，直接输入新值保存即可。
+**论文精读的图表识别需要什么配置？** lopdf 位图提取无需额外配置；视觉模型扫描（矢量图/表格）需在「视界」模块配置支持图像输入的视觉模型。
 
-**Q: 重装应用后设置会丢失吗？**
+## 开发规范
 
-不会。设置存储在系统 Application Support 目录（见上方路径），与 App 本体分开存放，重装不影响数据。如需迁移到新设备，可在设置页导出加密配置文件（`.rcconf`），在新设备导入还原。
-
-**Q: PDF 上传到哪里？**
-
-PDF 文件保留在原始位置，不会被复制。数据库只存储提取出的文本内容、分块向量和文件路径引用。开启自动重命名后，文件会在原目录就地改名。
-
-**Q: 小妍解读的图表识别需要什么条件？**
-
-lopdf 图表提取无需额外配置。视觉模型扫描（识别矢量图和表格）需要在设置「视界」模块配置支持图像输入的视觉模型（如 `gpt-4o`）。未配置时仅使用 lopdf 提取位图图像。
-
-**Q: macOS 提示"已损坏"无法打开怎么办？**
-
-执行 `xattr -cr /Applications/小妍.app` 后重新打开。
+- [开发原则](docs/development-principles.md)
+- [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) / [CODEX.md](CODEX.md) — Agent 入口规范
+- [桌面端系统介绍](docs/system-introduction-desktop.md)
 
 ## 致谢
 
-小妍的桌面伴侣形象「墩墩」的动画设计灵感来自 [clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)。那只趴在桌角的 clawd 让人看了就想养一只，墩墩正是沿着这条路走下来的。
+桌面伴侣「墩墩」的动画设计灵感来自 [clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)。
