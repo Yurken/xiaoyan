@@ -352,11 +352,19 @@ export interface ChatSession {
   messages?: ChatMessage[];
 }
 
+export interface ChatToolResult {
+  tool_name: string;
+  tool_id: string;
+  result: string;
+  result_id?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   sources?: Array<{ content: string; source: string; url?: string }>;
+  tool_results?: ChatToolResult[];
   created_at: string;
 }
 
@@ -419,6 +427,7 @@ export type ChatStreamChunk =
   | { type: "delta"; value: string }
   | { type: "sources"; value: NonNullable<ChatMessage["sources"]> }
   | { type: "searching"; query: string }
+  | { type: "tool_result"; tool_name: string; tool_id: string; result: string; result_id?: string }
   | { type: "error"; value: string }
   | { type: "done" };
 

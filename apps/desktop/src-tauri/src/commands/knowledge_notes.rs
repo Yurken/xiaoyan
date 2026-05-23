@@ -114,18 +114,19 @@ pub async fn knowledge_list_notes(
 }
 
 #[tauri::command]
-pub async fn knowledge_create_note(
-    state: State<'_, AppState>,
+pub async fn create_note_core(
+    db: &sqlx::SqlitePool,
+    settings: &std::collections::HashMap<String, String>,
     title: String,
     content: String,
     tags: Option<Vec<String>>,
     research_interest_id: Option<String>,
+    source_type: &str,
 ) -> Result<serde_json::Value, String> {
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let next_tags = tags.unwrap_or_default();
     let tags_json = serde_json::to_string(&next_tags).unwrap_or_else(|_| "[]".into());
-    let settings = state.settings.read().await.clone();
 
     sqlx::query(
         "INSERT INTO knowledge_notes (id, title, content, tags, research_interest_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -137,26 +138,26 @@ pub async fn knowledge_create_note(
     .bind(&research_interest_id)
     .bind(&now)
     .bind(&now)
-    .execute(&state.db)
+    .execute(db)
     .await
     .map_err(|e| e.to_string())?;
 
     spawn_note_embedding_refresh(
-        state.db.clone(),
+        db.clone(),
         settings.clone(),
         id.clone(),
         title.clone(),
         content.clone(),
     );
 
-    if is_long_term_memory_enabled(&settings) {
+    if is_long_term_memory_enabled(settings) {
         let _ = record_knowledge_note_created_event(
-            &state.db,
+            db,
             &id,
             &title,
             &content,
             research_interest_id.as_deref(),
-            "manual",
+            source_type,
         )
         .await;
     }
@@ -165,13 +166,25 @@ pub async fn knowledge_create_note(
         "id": id,
         "title": title,
         "content": content,
-        "source_type": "manual",
+        "source_type": source_type,
         "source_id": serde_json::Value::Null,
         "tags": next_tags,
         "research_interest_id": research_interest_id,
         "created_at": now,
         "updated_at": now
     }))
+}
+
+#[tauri::command]
+pub async fn knowledge_create_note(
+    state: State<'_, AppState>,
+    title: String,
+    content: String,
+    tags: Option<Vec<String>>,
+    research_interest_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let settings = state.settings.read().await.clone();
+    create_note_core(&state.db, &settings, title, content, tags, research_interest_id, "manual").await
 }
 
 #[tauri::command]

@@ -5,6 +5,7 @@ import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspa
 import { buildInterestSelectOptions, buildNoteClaimCountMap } from "../features/knowledge/shared";
 import { useKnowledgeGraphWorkspace } from "../features/knowledge/useKnowledgeGraphWorkspace";
 import NotesPanel from "../features/knowledge/NotesPanel";
+import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 
 type KnowledgeView = "graph" | "notes";
@@ -17,6 +18,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
     KNOWLEDGE_VIEWS,
   );
   const graphController = useKnowledgeGraphWorkspace();
+  useDomainEventRefresh("knowledge:note_created", () => { graphController.refresh(); });
   const interestOptions = useMemo(
     () => buildInterestSelectOptions(graphController.snapshot?.interests ?? []),
     [graphController.snapshot?.interests],

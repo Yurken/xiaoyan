@@ -104,6 +104,17 @@ export async function* streamChat(
           resolve = null;
         }
       }),
+      listen<{ request_id: string; tool_name: string; tool_id: string; result: string; result_id?: string }>("chat:tool_result", (event) => {
+        if (event.payload.request_id === requestId) {
+          enqueue({
+            type: "tool_result",
+            tool_name: event.payload.tool_name,
+            tool_id: event.payload.tool_id,
+            result: event.payload.result,
+            result_id: event.payload.result_id,
+          });
+        }
+      }),
       listen<{ request_id: string; error: string }>("chat:error", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "error", value: event.payload.error });

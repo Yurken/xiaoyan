@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlaskConical,
   ImagePlus,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button, Card, ConfirmDialog, Input, Select, Textarea } from "@research-copilot/ui";
 import { experimentApi, submissionApi, formatErrorMessage, type ExperimentAttachment } from "../lib/client";
+import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 
 interface ExperimentRecord {
   id: string;
@@ -240,18 +241,27 @@ export default function Experiment() {
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const selected = experiments.find((e) => e.id === selectedId) ?? null;
 
-  useEffect(() => {
-    Promise.all([
-      experimentApi.list(),
-      submissionApi.list(),
-    ]).then(([expResult, subResult]) => {
+  const loadExperiments = useCallback(async () => {
+    try {
+      const [expResult, subResult] = await Promise.all([
+        experimentApi.list(),
+        submissionApi.list(),
+      ]);
       const expRaw = (expResult as { experiments: unknown[] }).experiments ?? [];
       setExperiments(expRaw.map(rowToExperiment));
       const subRaw = ((subResult as { submissions?: unknown[] }).submissions ?? []) as Record<string, unknown>[];
       setSubmissions(subRaw.map((s) => ({ id: String(s.id ?? ""), title: String(s.title ?? "") })));
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    } catch {
+      // keep existing data on refresh failure
+    }
   }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    loadExperiments().finally(() => setLoading(false));
+  }, [loadExperiments]);
+
+  useDomainEventRefresh("experiment:created", () => { loadExperiments(); });
 
   useEffect(() => {
     if (!selected) {

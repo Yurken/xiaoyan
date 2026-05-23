@@ -223,9 +223,10 @@ fn survey_writer_system() -> String {
 }
 
 #[tauri::command]
-pub async fn survey_generate(
+pub async fn run_survey_generation(
     app: tauri::AppHandle,
-    state: State<'_, AppState>,
+    db: sqlx::SqlitePool,
+    settings: std::collections::HashMap<String, String>,
     query: String,
     max_papers: Option<i32>,
     time_from: Option<i32>,
@@ -237,8 +238,6 @@ pub async fn survey_generate(
     paper_ids: Option<Vec<String>>,
     request_id: Option<String>,
 ) -> Result<(), String> {
-    let settings = state.settings.read().await.clone();
-    let db = state.db.clone();
     let request_id = request_id
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
@@ -790,6 +789,30 @@ pub async fn survey_generate(
         }
     });
     Ok(())
+}
+
+#[tauri::command]
+pub async fn survey_generate(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    query: String,
+    max_papers: Option<i32>,
+    time_from: Option<i32>,
+    time_to: Option<i32>,
+    lit_types: Option<Vec<String>>,
+    databases: Option<Vec<String>>,
+    citation_format: Option<String>,
+    language: Option<String>,
+    paper_ids: Option<Vec<String>>,
+    request_id: Option<String>,
+) -> Result<(), String> {
+    let settings = state.settings.read().await.clone();
+    let db = state.db.clone();
+    run_survey_generation(
+        app, db, settings, query, max_papers, time_from, time_to,
+        lit_types, databases, citation_format, language, paper_ids, request_id,
+    )
+    .await
 }
 
 #[tauri::command]

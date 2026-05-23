@@ -1,9 +1,7 @@
 use crate::assistant_prompts::main_chat_system;
+use crate::commands::chat_tools::{build_chat_tools, dispatch_tool};
 use crate::commands::memory::is_long_term_memory_enabled;
-use crate::llm::{
-    resolve_model, resolve_temperature, web_search_tool_definition, LlmClient, LlmMessage,
-    StreamOutcome,
-};
+use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage, StreamOutcome};
 use crate::services::agent_runtime_service::{
     run_agent_runtime, AgentRuntimeKind, AgentRuntimeRequest,
 };
@@ -428,6 +426,7 @@ async fn run_chat(
             app,
             &client,
             settings,
+            db,
             request_id,
             message,
             &context_summary,
@@ -488,6 +487,7 @@ async fn run_simple(
     app: &tauri::AppHandle,
     client: &LlmClient,
     settings: &HashMap<String, String>,
+    db: &sqlx::SqlitePool,
     request_id: &str,
     message: &str,
     context_summary: &str,
@@ -502,20 +502,12 @@ async fn run_simple(
     let rid = request_id.to_string();
     let app_ref = app.clone();
 
-    let web_search_enabled = settings
-        .get("web_search_enabled")
-        .map(|v| v == "true")
-        .unwrap_or(false);
     let max_tool_rounds: usize = settings
-        .get("web_search_max_rounds")
+        .get("chat_tool_max_rounds")
         .and_then(|v| v.parse().ok())
-        .unwrap_or(3);
+        .unwrap_or(5);
 
-    let tools = if web_search_enabled {
-        vec![web_search_tool_definition()]
-    } else {
-        vec![]
-    };
+    let tools = build_chat_tools(settings);
 
     let mut tool_rounds = 0usize;
 
@@ -580,12 +572,31 @@ async fn run_simple(
                                 msgs.push(LlmMessage::tool(&tc.id, format!("搜索失败：{}", e)));
                             }
                         }
+                    } else {
+                        match dispatch_tool(&app_ref, &db, settings, tc, &rid).await {
+                            Ok(result) => {
+                                msgs.push(LlmMessage::tool(&tc.id, &result));
+                            }
+                            Err(e) => {
+                                let _ = app_ref.emit(
+                                    "chat:tool_result",
+                                    json!({
+                                        "request_id": rid,
+                                        "tool_name": tc.name,
+                                        "tool_id": tc.id,
+                                        "result": format!("执行失败: {}", e),
+                                        "result_id": ""
+                                    }),
+                                );
+                                msgs.push(LlmMessage::tool(&tc.id, format!("工具执行失败：{}", e)));
+                            }
+                        }
                     }
                 }
 
                 if tool_rounds >= max_tool_rounds {
                     msgs.push(LlmMessage::user(
-                        "已达到搜索次数上限，请基于已有信息给出当前最佳回答，无需再调用搜索工具。",
+                        "已达到工具调用次数上限，请基于已有信息给出当前最佳回答，无需再调用工具。",
                     ));
                 }
             }

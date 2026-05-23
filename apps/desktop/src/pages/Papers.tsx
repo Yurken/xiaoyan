@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { clsx } from "clsx";
 import { useClickOutside } from "../hooks/useClickOutside";
 import {
@@ -97,6 +97,17 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     importance_color: "",
     notes: "",
   });
+
+  const loadPapers = useCallback(async () => {
+    setLoadError("");
+    try {
+      const data = await apiClient.papers.list();
+      setPapers(data);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      setPapers([]);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

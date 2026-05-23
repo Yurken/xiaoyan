@@ -25,6 +25,7 @@ import ExternalLink from "../components/ExternalLink";
 import CopilotComposer from "../features/copilot/CopilotComposer";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
 import ThinkingProcessPanel from "../features/copilot/ThinkingProcessPanel";
+import { ToolActionCard } from "../features/copilot/ToolActionCard";
 import appLogo from "../assets/xiaoyanv.svg";
 import {
   buildCopilotMessageContent,
@@ -481,6 +482,26 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         if (chunk.type === "searching") {
           setSearchingQuery(chunk.query);
         }
+        if (chunk.type === "tool_result") {
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === assistantId
+                ? {
+                    ...message,
+                    tool_results: [
+                      ...(message.tool_results || []),
+                      {
+                        tool_name: chunk.tool_name,
+                        tool_id: chunk.tool_id,
+                        result: chunk.result,
+                        result_id: chunk.result_id,
+                      },
+                    ],
+                  }
+                : message
+            )
+          );
+        }
         if (chunk.type === "delta") {
           if (searchingQuery) setSearchingQuery(null);
           setMessages((prev) =>
@@ -916,6 +937,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                             onLinkClick={openLink}
                           />
                         </div>
+                        {message.tool_results && message.tool_results.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {message.tool_results.map((tr) => (
+                              <ToolActionCard key={tr.tool_id} tool={tr} />
+                            ))}
+                          </div>
+                        )}
                         {parsed.answer && (
                           <div className="flex items-center gap-0.5 mt-1">
                             <button

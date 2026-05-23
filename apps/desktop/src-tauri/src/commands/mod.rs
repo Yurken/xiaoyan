@@ -2,6 +2,7 @@ pub mod app_lock;
 pub mod arxiv;
 pub mod ccf;
 pub mod chat;
+pub mod chat_tools;
 pub mod citation_graph;
 pub mod data_backup;
 pub mod experiment;

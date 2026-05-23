@@ -77,8 +77,8 @@ pub async fn experiment_get(
 }
 
 #[tauri::command]
-pub async fn experiment_create(
-    state: State<'_, AppState>,
+pub async fn create_experiment_core(
+    db: &sqlx::SqlitePool,
     title: String,
     config: Option<serde_json::Value>,
     result: Option<String>,
@@ -101,11 +101,23 @@ pub async fn experiment_create(
     .bind(linked_submission_id.as_deref())
     .bind(&ts)
     .bind(&ts)
-    .execute(&state.db)
+    .execute(db)
     .await
     .map_err(|e| e.to_string())?;
 
-    Ok(json!({ "id": id }))
+    Ok(json!({ "id": id, "title": title }))
+}
+
+#[tauri::command]
+pub async fn experiment_create(
+    state: State<'_, AppState>,
+    title: String,
+    config: Option<serde_json::Value>,
+    result: Option<String>,
+    notes: Option<String>,
+    linked_submission_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    create_experiment_core(&state.db, title, config, result, notes, linked_submission_id).await
 }
 
 #[tauri::command]
