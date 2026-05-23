@@ -5,25 +5,92 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and publish, e.g. v0.4.1"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: desktop-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
 jobs:
+  preflight:
+    name: Release Preflight
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync versions from tag
+        run: node scripts/sync-version.mjs --tag "$RELEASE_TAG"
+
+      - name: Type check workspace
+        run: pnpm type-check
+
+      - name: Lint workspace
+        run: pnpm lint
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./apps/desktop/src-tauri -> target"
+
+      - name: Run desktop Rust tests
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+
   # ── Stage 1: Create draft release ─────────────────────────────
   create-release:
     name: Create GitHub Release
+    needs: preflight
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       release_id: ${{ steps.release.outputs.release_id }}
     steps:
       - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Recreate draft release
         id: release
         uses: actions/github-script@v7.0.1
         env:
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -35,7 +102,6 @@ jobs:
 
             ### 下载说明
             - **macOS Apple Silicon** -> .dmg (aarch64)
-            - **macOS Intel** -> .dmg (x86_64)
             - **Windows** -> .msi 或 .exe
 
             > 首次安装 macOS 版本如提示"无法验证"，请前往系统设置 -> 隐私与安全性 -> 仍要打开。`;
@@ -43,6 +109,9 @@ jobs:
 
             try {
               const existing = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              if (!existing.data.draft) {
+                throw new Error(`Release ${tag} is already published. Delete it manually before rerunning this workflow.`);
+              }
               await github.rest.repos.deleteRelease({
                 owner,
                 repo,
@@ -88,17 +157,22 @@ jobs:
             updater_target: windows-x86_64
 
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -111,11 +185,10 @@ jobs:
           workspaces: "./apps/desktop/src-tauri -> target"
 
       - name: Install frontend dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Sync versions from tag
-        if: startsWith(github.ref, 'refs/tags/')
-        run: node scripts/sync-version.mjs --tag "${{ github.ref_name }}"
+        run: node scripts/sync-version.mjs --tag "$RELEASE_TAG"
 
       - name: Build application
         uses: tauri-apps/tauri-action@v0
@@ -172,7 +245,7 @@ jobs:
           AWS_DEFAULT_REGION: auto
         run: |
           aws s3 cp .release-artifacts/release-${{ matrix.updater_target }}/ \
-            s3://${{ secrets.R2_BUCKET_NAME }}/releases/${{ github.ref_name }}/${{ matrix.updater_target }}/ \
+            s3://${{ secrets.R2_BUCKET_NAME }}/releases/${{ env.RELEASE_TAG }}/${{ matrix.updater_target }}/ \
             --recursive \
             --endpoint-url $AWS_ENDPOINT_URL
 
@@ -209,7 +282,7 @@ jobs:
           AWS_DEFAULT_REGION: auto
         run: |
           aws s3 cp .updater-artifacts/updater-${{ matrix.updater_target }}/ \
-            s3://${{ secrets.R2_BUCKET_NAME }}/updaters/${{ github.ref_name }}/${{ matrix.updater_target }}/ \
+            s3://${{ secrets.R2_BUCKET_NAME }}/updaters/${{ env.RELEASE_TAG }}/${{ matrix.updater_target }}/ \
             --recursive \
             --endpoint-url $AWS_ENDPOINT_URL
 
@@ -218,7 +291,7 @@ jobs:
     name: Upload GitHub Release Assets
     needs: [create-release, build]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    timeout-minutes: 20
     steps:
       - name: Install AWS CLI
         run: pip install awscli
@@ -232,10 +305,10 @@ jobs:
         run: |
           mkdir -p .release-assets
           for target in darwin-aarch64 windows-x86_64; do
-            aws s3 cp s3://${{ secrets.R2_BUCKET_NAME }}/releases/${{ github.ref_name }}/${target}/ \
+            aws s3 cp s3://${{ secrets.R2_BUCKET_NAME }}/releases/${{ env.RELEASE_TAG }}/${target}/ \
               .release-assets/ \
               --recursive \
-              --endpoint-url $AWS_ENDPOINT_URL || true
+              --endpoint-url $AWS_ENDPOINT_URL
           done
           ls -l .release-assets
 
@@ -248,21 +321,55 @@ jobs:
             echo "No release assets found"
             exit 1
           fi
-          gh release upload "${{ github.ref_name }}" \
+          gh release upload "${{ env.RELEASE_TAG }}" \
             .release-assets/* \
             --repo "${{ github.repository }}" \
             --clobber
 
-      - name: Upload installers to update server
+  upload-updater-assets:
+    name: Upload Updater Assets
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install AWS CLI
+        run: pip install awscli
+
+      - name: Download updater bundles from R2
         env:
-          UPDATE_ADMIN_URL: http://111.231.56.208:18081/upload
-          UPDATE_ADMIN_USERNAME: uploader
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          mkdir -p .updater-assets
+          for target in darwin-aarch64 windows-x86_64; do
+            aws s3 cp s3://${{ secrets.R2_BUCKET_NAME }}/updaters/${{ env.RELEASE_TAG }}/${target}/ \
+              .updater-assets/ \
+              --recursive \
+              --endpoint-url $AWS_ENDPOINT_URL
+          done
+          ls -l .updater-assets
+
+      - name: Upload updater bundles to update server
+        env:
+          UPDATE_ADMIN_URL: ${{ secrets.UPDATE_ADMIN_URL }}
+          UPDATE_ADMIN_USERNAME: ${{ secrets.UPDATE_ADMIN_USERNAME }}
           UPDATE_ADMIN_PASSWORD: ${{ secrets.UPDATE_ADMIN_PASSWORD }}
         run: |
           set -euo pipefail
           node scripts/upload-updater-via-admin.mjs \
-            --input-dir .release-assets \
-            --version "${{ github.ref_name }}" \
+            --input-dir .updater-assets \
+            --version "${{ env.RELEASE_TAG }}" \
             --url "$UPDATE_ADMIN_URL" \
             --username "$UPDATE_ADMIN_USERNAME" \
             --password "$UPDATE_ADMIN_PASSWORD"
@@ -270,13 +377,14 @@ jobs:
   # ── Stage 4: Publish release after all builds succeed ─────────
   publish-release:
     name: Publish Release
-    needs: [create-release, build, publish-github-assets]
+    needs: [create-release, build, publish-github-assets, upload-updater-assets]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Publish release (remove draft)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release edit "${{ github.ref_name }}" \
+          gh release edit "${{ env.RELEASE_TAG }}" \
             --repo "${{ github.repository }}" \
             --draft=false
