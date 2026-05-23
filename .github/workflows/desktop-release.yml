@@ -35,6 +35,7 @@ jobs:
 
             ### 下载说明
             - **macOS Apple Silicon** -> .dmg (aarch64)
+            - **macOS Intel** -> .dmg (x86_64)
             - **Windows** -> .msi 或 .exe
 
             > 首次安装 macOS 版本如提示"无法验证"，请前往系统设置 -> 隐私与安全性 -> 仍要打开。`;
@@ -74,20 +75,19 @@ jobs:
       matrix:
         include:
           - label: macOS Apple Silicon
-            platform: [self-hosted, macOS, ARM64]
+            platform: macos-latest
             args: "--target aarch64-apple-darwin"
             rust_target: aarch64-apple-darwin
             build_target_dir: aarch64-apple-darwin/release
             updater_target: darwin-aarch64
-          # Intel build temporarily disabled.
-          # - label: macOS Intel
-          #   platform: macos-latest
-          #   args: "--target x86_64-apple-darwin"
-          #   rust_target: x86_64-apple-darwin
-          #   build_target_dir: x86_64-apple-darwin/release
-          #   updater_target: darwin-x86_64
+          - label: macOS Intel
+            platform: macos-latest
+            args: "--target x86_64-apple-darwin"
+            rust_target: x86_64-apple-darwin
+            build_target_dir: x86_64-apple-darwin/release
+            updater_target: darwin-x86_64
           - label: Windows x64
-            platform: [self-hosted, X64, Windows]
+            platform: windows-latest
             args: ""
             rust_target: ""
             build_target_dir: release
