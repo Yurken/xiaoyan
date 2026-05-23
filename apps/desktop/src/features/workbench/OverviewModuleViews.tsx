@@ -34,17 +34,7 @@ function surfaceStyle(variant: "inset" | "soft" | "outset" = "inset") {
   };
 }
 
-function ActionLink({ to, label }: { to: string; label: string }) {
-  return (
-    <Link
-      to={to}
-      className="inline-flex items-center gap-1 text-xs font-medium text-apple-blue transition-opacity hover:opacity-75"
-    >
-      {label}
-      <ArrowRight className="h-3.5 w-3.5" />
-    </Link>
-  );
-}
+
 
 function ToneTag({ label, tone }: { label: string; tone: WorkbenchAgendaItem["tone"] }) {
   const style = toneStyle(tone);
@@ -63,28 +53,33 @@ export function AgendaTimeline({ items }: { items: WorkbenchAgendaItem[] }) {
   return (
     <ol className="grid gap-2">
       {items.map((item, index) => (
-        <li key={item.id} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-3 py-1">
-          <div className="relative flex justify-center">
-            {index < items.length - 1 ? (
-              <span className="absolute left-1/2 top-7 h-[calc(100%+0.75rem)] w-px -translate-x-1/2 bg-nm-dark/60" />
-            ) : null}
-            <span
-              className="relative z-10 flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold text-ink-primary"
-              style={surfaceStyle("soft")}
-            >
-              {index + 1}
-            </span>
-          </div>
-
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <ToneTag label={item.label} tone={item.tone} />
-              <p className="truncate text-sm font-semibold text-ink-primary">{item.title}</p>
+        <li key={item.id} className="group relative">
+          <Link to={item.action.to} className="grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-3 py-1.5 pr-8">
+            <div className="relative flex justify-center">
+              {index < items.length - 1 ? (
+                <span className="absolute left-1/2 top-7 h-[calc(100%+0.75rem)] w-px -translate-x-1/2 bg-nm-dark/60" />
+              ) : null}
+              <span
+                className="relative z-10 flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold text-ink-primary"
+                style={surfaceStyle("soft")}
+              >
+                {index + 1}
+              </span>
             </div>
-            <p className="mt-1 text-xs leading-5 text-ink-secondary">{item.description}</p>
-          </div>
 
-          <ActionLink to={item.action.to} label={item.action.label} />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <ToneTag label={item.label} tone={item.tone} />
+                <p className="truncate text-sm font-semibold text-ink-primary">{item.title}</p>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-ink-secondary">{item.description}</p>
+            </div>
+          </Link>
+          <div className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 opacity-0 transition-all duration-300 group-hover:-translate-x-1 group-hover:opacity-100">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-apple-blue/10 text-apple-blue">
+              <ArrowRight className="h-3.5 w-3.5" />
+            </div>
+          </div>
         </li>
       ))}
     </ol>
@@ -95,7 +90,7 @@ export function InterestBoard({ items }: { items: WorkbenchInterestItem[] }) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {items.map((item) => (
-        <article key={item.id} className="flex min-h-[176px] flex-col rounded-[22px] p-4" style={surfaceStyle("soft")}>
+        <Link key={item.id} to={item.action.to} className="group relative flex min-h-[176px] flex-col rounded-[22px] p-4 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-apple-blue" style={surfaceStyle("soft")}>
@@ -106,7 +101,7 @@ export function InterestBoard({ items }: { items: WorkbenchInterestItem[] }) {
             <Badge variant={toneToBadgeVariant(item.stageTone)}>{item.stage}</Badge>
           </div>
 
-          <p className="mt-3 line-clamp-3 flex-1 text-xs leading-5 text-ink-secondary">{item.summary}</p>
+          <p className="mt-3 line-clamp-3 flex-1 text-xs leading-5 text-ink-secondary pr-6">{item.summary}</p>
 
           <div className="mt-3 grid gap-2">
             <div className="flex flex-wrap gap-1.5">
@@ -116,12 +111,16 @@ export function InterestBoard({ items }: { items: WorkbenchInterestItem[] }) {
                 </span>
               ))}
             </div>
-            <div className="flex items-start justify-between gap-3 rounded-2xl px-3 py-2" style={surfaceStyle("soft")}>
+            <div className="rounded-2xl px-3 py-2" style={surfaceStyle("soft")}>
               <p className="line-clamp-2 text-xs leading-5 text-ink-secondary">{item.nextStep}</p>
-              <ActionLink to={item.action.to} label={item.action.label} />
             </div>
           </div>
-        </article>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 transition-all duration-300 group-hover:-translate-x-1 group-hover:opacity-100">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-apple-blue/10 text-apple-blue">
+              <ArrowRight className="h-4 w-4" />
+            </div>
+          </div>
+        </Link>
       ))}
     </div>
   );
@@ -131,7 +130,7 @@ export function HandoffQueue({ items }: { items: WorkbenchHandoffItem[] }) {
   return (
     <div className="grid gap-3">
       {items.map((item) => (
-        <article key={item.id} className="grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-start gap-3 rounded-[20px] p-3.5 transition-transform hover:-translate-y-0.5" style={surfaceStyle("outset")}>
+        <Link key={item.id} to={item.action.to} className="group relative grid grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-3 rounded-[20px] p-3.5 pr-10 transition-transform hover:-translate-y-0.5" style={surfaceStyle("outset")}>
           <span className="flex h-9 w-9 items-center justify-center rounded-[14px] text-apple-blue" style={surfaceStyle("soft")}>
             <MessageSquareText className="h-4 w-4" />
           </span>
@@ -142,8 +141,12 @@ export function HandoffQueue({ items }: { items: WorkbenchHandoffItem[] }) {
             </div>
             <p className="mt-1 text-xs leading-5 text-ink-secondary">{item.description}</p>
           </div>
-          <ActionLink to={item.action.to} label={item.action.label} />
-        </article>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 transition-all duration-300 group-hover:-translate-x-1 group-hover:opacity-100">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-apple-blue/10 text-apple-blue">
+              <ArrowRight className="h-3.5 w-3.5" />
+            </div>
+          </div>
+        </Link>
       ))}
     </div>
   );
@@ -153,8 +156,8 @@ export function RiskAlertList({ items }: { items: WorkbenchRiskItem[] }) {
   return (
     <div className="grid gap-3">
       {items.map((item) => (
-        <article key={item.id} className="rounded-[20px] border-l-4 border-apple-red px-4 py-3.5" style={surfaceStyle("soft")}>
-          <div className="flex items-start gap-3">
+        <Link key={item.id} to={item.action.to} className="group relative rounded-[20px] border-l-4 border-apple-red px-4 py-3.5 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
+          <div className="flex items-start gap-3 pr-8">
             <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-apple-red" style={surfaceStyle("soft")}>
               <AlertTriangle className="h-4 w-4" />
             </span>
@@ -164,12 +167,14 @@ export function RiskAlertList({ items }: { items: WorkbenchRiskItem[] }) {
                 <p className="text-sm font-semibold text-ink-primary">{item.title}</p>
               </div>
               <p className="mt-1 text-xs leading-5 text-ink-secondary">{item.description}</p>
-              <div className="mt-2">
-                <ActionLink to={item.action.to} label={item.action.label} />
-              </div>
             </div>
           </div>
-        </article>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 transition-all duration-300 group-hover:-translate-x-1 group-hover:opacity-100">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-apple-red/10 text-apple-red">
+              <ArrowRight className="h-3.5 w-3.5" />
+            </div>
+          </div>
+        </Link>
       ))}
     </div>
   );
@@ -182,7 +187,7 @@ export function AssetShelf({ items }: { items: WorkbenchAssetItem[] }) {
         const Icon = index % 3 === 0 ? FileText : index % 3 === 1 ? BookOpenCheck : Layers3;
 
         return (
-          <article key={item.id} className="flex min-h-[148px] flex-col rounded-[22px] p-4" style={surfaceStyle("soft")}>
+          <Link key={item.id} to={item.action.to} className="group relative flex min-h-[148px] flex-col rounded-[22px] p-4 pr-10 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
             <div className="flex items-start justify-between gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-2xl text-apple-blue" style={surfaceStyle("soft")}>
                 <Icon className="h-4 w-4" />
@@ -193,10 +198,12 @@ export function AssetShelf({ items }: { items: WorkbenchAssetItem[] }) {
             </div>
             <p className="mt-3 text-sm font-semibold text-ink-primary">{item.title}</p>
             <p className="mt-1 line-clamp-3 flex-1 text-xs leading-5 text-ink-secondary">{item.description}</p>
-            <div className="mt-2.5">
-              <ActionLink to={item.action.to} label={item.action.label} />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 transition-all duration-300 group-hover:-translate-x-1 group-hover:opacity-100">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-apple-blue/10 text-apple-blue">
+                <ArrowRight className="h-4 w-4" />
+              </div>
             </div>
-          </article>
+          </Link>
         );
       })}
     </div>
