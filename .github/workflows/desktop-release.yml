@@ -253,6 +253,20 @@ jobs:
             --repo "${{ github.repository }}" \
             --clobber
 
+      - name: Upload installers to update server
+        env:
+          UPDATE_ADMIN_URL: http://111.231.56.208:18081/upload
+          UPDATE_ADMIN_USERNAME: uploader
+          UPDATE_ADMIN_PASSWORD: ${{ secrets.UPDATE_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          node scripts/upload-updater-via-admin.mjs \
+            --input-dir .release-assets \
+            --version "${{ github.ref_name }}" \
+            --url "$UPDATE_ADMIN_URL" \
+            --username "$UPDATE_ADMIN_USERNAME" \
+            --password "$UPDATE_ADMIN_PASSWORD"
+
   # ── Stage 4: Publish release after all builds succeed ─────────
   publish-release:
     name: Publish Release
