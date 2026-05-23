@@ -80,12 +80,6 @@ jobs:
             rust_target: aarch64-apple-darwin
             build_target_dir: aarch64-apple-darwin/release
             updater_target: darwin-aarch64
-          - label: macOS Intel
-            platform: macos-latest
-            args: "--target x86_64-apple-darwin"
-            rust_target: x86_64-apple-darwin
-            build_target_dir: x86_64-apple-darwin/release
-            updater_target: darwin-x86_64
           - label: Windows x64
             platform: windows-latest
             args: ""
@@ -123,15 +117,12 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: node scripts/sync-version.mjs --tag "${{ github.ref_name }}"
 
-      - name: Build & upload artifacts
+      - name: Build application
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Ad-hoc sign macOS builds when no Apple Developer cert is configured.
-          # "-" means ad-hoc; prevents "app is damaged" rejection on macOS 13+.
-          # Override with APPLE_CERTIFICATE secret for proper notarized signing.
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY || '-' }}
         with:
           projectPath: apps/desktop
@@ -149,12 +140,41 @@ jobs:
             --output-dir "$output_dir"
           ls -l "$output_dir"
 
-      - name: Upload release installers
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.updater_target }}
-          path: .release-artifacts/release-${{ matrix.updater_target }}
-          if-no-files-found: error
+      - name: Install AWS CLI
+        shell: bash
+        run: |
+          if command -v aws &> /dev/null; then
+            echo "AWS CLI already installed"
+            aws --version
+            exit 0
+          fi
+          case "$RUNNER_OS" in
+            macOS)
+              curl -fsSL "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
+              sudo installer -pkg AWSCLIV2.pkg -target /
+              ;;
+            Windows)
+              curl -fsSL "https://awscli.amazonaws.com/AWSCLIV2.msi" -o "AWSCLIV2.msi"
+              msiexec.exe /i AWSCLIV2.msi /qn
+              ;;
+            Linux)
+              pip install awscli
+              ;;
+          esac
+          aws --version
+
+      - name: Upload release installers to R2
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          aws s3 cp .release-artifacts/release-${{ matrix.updater_target }}/ \
+            s3://${{ secrets.R2_BUCKET_NAME }}/releases/${{ github.ref_name }}/${{ matrix.updater_target }}/ \
+            --recursive \
+            --endpoint-url $AWS_ENDPOINT_URL
 
       - name: Collect updater bundles
         shell: bash
@@ -180,43 +200,60 @@ jobs:
           test -n "$(find "$output_dir" -type f | head -n 1)"
           ls -l "$output_dir"
 
-      - name: Upload updater bundles
-        uses: actions/upload-artifact@v4
-        with:
-          name: updater-${{ matrix.updater_target }}
-          path: .updater-artifacts/updater-${{ matrix.updater_target }}
-          if-no-files-found: error
+      - name: Upload updater bundles to R2
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          aws s3 cp .updater-artifacts/updater-${{ matrix.updater_target }}/ \
+            s3://${{ secrets.R2_BUCKET_NAME }}/updaters/${{ github.ref_name }}/${{ matrix.updater_target }}/ \
+            --recursive \
+            --endpoint-url $AWS_ENDPOINT_URL
 
+  # ── Stage 3: Download from R2 and upload to GitHub Release ─────
   publish-github-assets:
     name: Upload GitHub Release Assets
     needs: [create-release, build]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: Download release installers
-        uses: actions/download-artifact@v4
-        with:
-          pattern: release-*
-          path: .release-assets
-          merge-multiple: true
+      - name: Install AWS CLI
+        run: pip install awscli
+
+      - name: Download release installers from R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          mkdir -p .release-assets
+          for target in darwin-aarch64 windows-x86_64; do
+            aws s3 cp s3://${{ secrets.R2_BUCKET_NAME }}/releases/${{ github.ref_name }}/${target}/ \
+              .release-assets/ \
+              --recursive \
+              --endpoint-url $AWS_ENDPOINT_URL || true
+          done
+          ls -l .release-assets
 
       - name: Upload installers to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          ls -l .release-assets
+          if [ -z "$(ls -A .release-assets 2>/dev/null)" ]; then
+            echo "No release assets found"
+            exit 1
+          fi
           gh release upload "${{ github.ref_name }}" \
             .release-assets/* \
             --repo "${{ github.repository }}" \
             --clobber
 
-  # Server publishing is intentionally disabled for now.
-  # Current release policy: only publish installers to GitHub Release.
-  # To restore website/server distribution later, reintroduce the
-  # `publish-server-installers` and `publish-updater` jobs here.
-
-  # ── Stage 3: Publish release after all builds succeed ─────────
+  # ── Stage 4: Publish release after all builds succeed ─────────
   publish-release:
     name: Publish Release
     needs: [create-release, build, publish-github-assets]
