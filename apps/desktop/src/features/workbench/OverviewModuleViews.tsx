@@ -19,7 +19,14 @@ import {
   type WorkbenchRiskItem,
 } from "./shared";
 
-function surfaceStyle(variant: "inset" | "soft" = "inset") {
+function surfaceStyle(variant: "inset" | "soft" | "outset" = "inset") {
+  if (variant === "outset") {
+    return {
+      background: "var(--rc-bg)",
+      border: "1px solid var(--rc-border)",
+      boxShadow: "4px 4px 10px var(--rc-shadow-dark, rgba(0,0,0,0.04)), -4px -4px 10px var(--rc-shadow-light, rgba(255,255,255,0.7))",
+    };
+  }
   return {
     background: variant === "inset" ? "var(--rc-card-inset-bg)" : "rgb(var(--rc-bg-rgb) / 0.14)",
     border: "1px solid var(--rc-card-inset-outline)",
@@ -54,9 +61,9 @@ function ToneTag({ label, tone }: { label: string; tone: WorkbenchAgendaItem["to
 
 export function AgendaTimeline({ items }: { items: WorkbenchAgendaItem[] }) {
   return (
-    <ol className="grid gap-1 rounded-[22px] p-2.5" style={surfaceStyle()}>
+    <ol className="grid gap-2">
       {items.map((item, index) => (
-        <li key={item.id} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-3 rounded-2xl px-2 py-2.5">
+        <li key={item.id} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-3 py-1">
           <div className="relative flex justify-center">
             {index < items.length - 1 ? (
               <span className="absolute left-1/2 top-7 h-[calc(100%+0.75rem)] w-px -translate-x-1/2 bg-nm-dark/60" />
@@ -88,7 +95,7 @@ export function InterestBoard({ items }: { items: WorkbenchInterestItem[] }) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {items.map((item) => (
-        <article key={item.id} className="flex min-h-[176px] flex-col rounded-[22px] p-3.5" style={surfaceStyle()}>
+        <article key={item.id} className="flex min-h-[176px] flex-col rounded-[22px] p-4" style={surfaceStyle("soft")}>
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-apple-blue" style={surfaceStyle("soft")}>
@@ -122,10 +129,10 @@ export function InterestBoard({ items }: { items: WorkbenchInterestItem[] }) {
 
 export function HandoffQueue({ items }: { items: WorkbenchHandoffItem[] }) {
   return (
-    <div className="grid gap-2 rounded-[22px] p-2.5" style={surfaceStyle()}>
+    <div className="grid gap-3">
       {items.map((item) => (
-        <article key={item.id} className="grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-start gap-3 rounded-2xl px-2 py-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-2xl text-apple-blue" style={surfaceStyle("soft")}>
+        <article key={item.id} className="grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-start gap-3 rounded-[20px] p-3.5 transition-transform hover:-translate-y-0.5" style={surfaceStyle("outset")}>
+          <span className="flex h-9 w-9 items-center justify-center rounded-[14px] text-apple-blue" style={surfaceStyle("soft")}>
             <MessageSquareText className="h-4 w-4" />
           </span>
           <div className="min-w-0">
@@ -144,9 +151,9 @@ export function HandoffQueue({ items }: { items: WorkbenchHandoffItem[] }) {
 
 export function RiskAlertList({ items }: { items: WorkbenchRiskItem[] }) {
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-3">
       {items.map((item) => (
-        <article key={item.id} className="rounded-[22px] border-l-4 border-apple-red px-3.5 py-3" style={surfaceStyle()}>
+        <article key={item.id} className="rounded-[20px] border-l-4 border-apple-red px-4 py-3.5" style={surfaceStyle("soft")}>
           <div className="flex items-start gap-3">
             <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-apple-red" style={surfaceStyle("soft")}>
               <AlertTriangle className="h-4 w-4" />
@@ -175,7 +182,7 @@ export function AssetShelf({ items }: { items: WorkbenchAssetItem[] }) {
         const Icon = index % 3 === 0 ? FileText : index % 3 === 1 ? BookOpenCheck : Layers3;
 
         return (
-          <article key={item.id} className="flex min-h-[148px] flex-col rounded-[22px] p-3.5" style={surfaceStyle()}>
+          <article key={item.id} className="flex min-h-[148px] flex-col rounded-[22px] p-4" style={surfaceStyle("soft")}>
             <div className="flex items-start justify-between gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-2xl text-apple-blue" style={surfaceStyle("soft")}>
                 <Icon className="h-4 w-4" />

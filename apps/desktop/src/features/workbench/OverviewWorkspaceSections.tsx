@@ -98,7 +98,7 @@ export function OverviewSection({
   switch (section.type) {
     case "agenda":
       return (
-        <section className="space-y-3">
+        <Card padding="md" className="flex flex-col gap-4">
           <SectionHeading
             title="今日推进"
             description="把今天最值得继续的事摆出来，让研究直接接上。"
@@ -108,12 +108,12 @@ export function OverviewSection({
           ) : (
             <AgendaTimeline items={model.agenda} />
           )}
-        </section>
+        </Card>
       );
 
     case "interests":
       return (
-        <section className="space-y-3">
+        <Card padding="md" className="flex flex-col gap-4">
           <SectionHeading
             title="在研主题"
             description="按优先级排序，先处理最值得推进的主题。"
@@ -124,12 +124,12 @@ export function OverviewSection({
           ) : (
             <InterestBoard items={model.interests} />
           )}
-        </section>
+        </Card>
       );
 
     case "handoffs":
       return (
-        <section className="space-y-3">
+        <Card padding="md" className="flex flex-col gap-4">
           <SectionHeading
             title="小妍交接"
             description="小妍刚整理好的结果，等你决定确认、追问或继续修改。"
@@ -140,32 +140,32 @@ export function OverviewSection({
           ) : (
             <HandoffQueue items={model.handoffs} />
           )}
-        </section>
+        </Card>
       );
 
     case "risks":
       if (model.risks.length === 0) return null;
 
       return (
-        <section className="space-y-3">
+        <Card padding="md" className="flex flex-col gap-4">
           <SectionHeading
             title="阻塞与截止"
             description="容易拖慢研究推进的紧急事项。"
             action={{ label: "去投稿", to: "/submission" }}
           />
           <RiskAlertList items={model.risks} />
-        </section>
+        </Card>
       );
 
     case "assets":
       return (
-        <section className="space-y-3">
+        <Card padding="md" className="flex flex-col gap-4">
           <SectionHeading
             title="近期沉淀"
             description="当前目标相关的论文、笔记和知识线索。"
           />
           <AssetShelf items={model.assets} />
-        </section>
+        </Card>
       );
 
     default:
