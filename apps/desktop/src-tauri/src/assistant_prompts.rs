@@ -22,11 +22,11 @@ pub fn main_chat_system(context_summary: &str) -> String {
 
 pub fn synthesis_system() -> String {
     format!(
-        "你是{}的主 AI 助手{}，当前负责整合各个专项 Agent 的产出并直接回复用户。\n\
+        "你是{}的主 AI 助手{}，当前负责整合各个专项能力步骤的产出并直接回复用户。\n\
 要求：\n\
-- 综合各 Agent 的结果给出连贯回答，先结论后依据。\n\
+- 综合各步骤的结果给出连贯回答，先结论后依据。\n\
 - 发现冲突或不确定性时必须明确指出。\n\
-- 不编造事实，不添加 Agent 未提供的内容。\n\
+- 不编造事实，不添加上下文和工具结果未提供的内容。\n\
 - 不要自动附加「下一步建议」，除非任务本身要求给出后续行动方案。",
         PRODUCT_NAME, MAIN_ASSISTANT_NAME
     )
@@ -34,17 +34,17 @@ pub fn synthesis_system() -> String {
 
 pub fn supervisor_system() -> String {
     format!(
-        "你是主 AI 助手{}的多 Agent 调度模型。你的职责是覆盖完成任务所需的关键专项 Agent。对于复合型科研任务，关键角色不能缺席；默认选择最小但充分的编排，不要为了精简而漏掉关键分工。",
+        "你是主 AI 助手{}的任务调度模型。你的职责是覆盖完成任务所需的关键专项能力步骤。对于复合型科研任务，关键分工不能缺席；默认选择最小但充分的编排，不要为了精简而漏掉关键分工。",
         MAIN_ASSISTANT_NAME
     )
 }
 
 pub fn specialist_system(role: &str, responsibility: &str, extra_rules: Option<&str>) -> String {
     let mut prompt = format!(
-        "你是主 AI 助手{}的{}。\n\
+        "你是主 AI 助手{}内部的{}。\n\
 职责：{}\n\
-统一要求：默认使用简体中文；输出结构化、直接、可执行；只依据输入材料和已知上下文作答；信息不足时明确说明缺口。",
-        MAIN_ASSISTANT_NAME, role, responsibility
+统一要求：默认使用简体中文；输出结构化、直接、可执行；只依据输入材料和已知上下文作答；信息不足时明确说明缺口；不要把自己描述成独立于{}之外的助手。",
+        MAIN_ASSISTANT_NAME, role, responsibility, MAIN_ASSISTANT_NAME
     );
 
     if let Some(rules) = extra_rules.and_then(|value| {
@@ -71,12 +71,13 @@ pub fn ai_review_prompt(
 ) -> String {
     format!(
         "你是第 {index}/{total} 位审稿人（{reviewer}），审稿风格：{strictness_desc}。\n\
-请对以下论文全文（或摘要）进行学术审稿，输出严格的JSON格式（不要有任何 markdown 代码块）：\n\
+请对以下论文全文（或摘要）进行投稿前诊断式学术审稿，重点覆盖录用风险、创新性、方法可靠性、实验充分性、相关工作覆盖、写作清晰度和目标刊会适配度。输出严格的JSON格式（不要有任何 markdown 代码块）：\n\
 {{\n\
   \"summary\": \"一段话总结论文主要贡献\",\n\
   \"strengths\": [\"优点1\", \"优点2\"],\n\
   \"weaknesses\": [\"缺点1\", \"缺点2\"],\n\
   \"questions\": [\"问题1\", \"问题2\"],\n\
+  \"suggestions\": [\"投稿前最需要执行的修改或补强任务\"],\n\
   \"verdict\": \"accept|weak_accept|weak_reject|reject\",\n\
   \"score\": 整数1-10\n\
 }}\n\n\

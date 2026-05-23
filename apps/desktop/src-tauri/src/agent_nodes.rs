@@ -36,7 +36,7 @@ pub async fn execute_agent_node(
             let prompt = format!("请基于以下论文内容回答用户问题，结论应客观、准确、可追溯。\n\n用户问题：{}\n\n论文内容：\n{}", message, preview);
             let msgs = vec![
                 LlmMessage::system(specialist_system(
-                    "论文分析子 Agent",
+                    "论文分析步骤",
                     "基于论文内容输出准确、结构化的分析结果。",
                     Some("不得编造论文中未出现的信息。"),
                 )),
@@ -62,7 +62,7 @@ pub async fn execute_agent_node(
             };
             let msgs = vec![
                 LlmMessage::system(specialist_system(
-                    "研究规划子 Agent",
+                    "研究规划步骤",
                     "围绕用户问题输出分阶段、可执行的学习与研究推进建议。",
                     None,
                 )),
@@ -87,7 +87,7 @@ pub async fn execute_agent_node(
             };
             let msgs = vec![
                 LlmMessage::system(specialist_system(
-                    "文献调研子 Agent",
+                    "文献调研步骤",
                     "推荐与当前问题最相关、最值得优先阅读的论文。",
                     Some("输出应尽量给出标题、作者、年份、核心贡献与推荐理由。"),
                 )),
@@ -112,7 +112,7 @@ pub async fn execute_agent_node(
             };
             let msgs = vec![
                 LlmMessage::system(specialist_system(
-                    "综述写作子 Agent",
+                    "综述写作步骤",
                     "输出结构化、客观、可用于研究推进的相关工作总结。",
                     Some("不得把未经证实的判断写成事实。"),
                 )),
@@ -135,7 +135,7 @@ pub async fn execute_agent_node(
             );
             let msgs = vec![
                 LlmMessage::system(specialist_system(
-                    "论文复现子 Agent",
+                    "论文复现步骤",
                     "输出可执行、风险明确的复现建议。",
                     Some("不得编造论文中未提供的实验细节。"),
                 )),
@@ -172,7 +172,7 @@ async fn retrieval_context(
         );
         let messages = vec![
             LlmMessage::system(specialist_system(
-                "检索子 Agent",
+                "检索步骤",
                 "补充当前问题最需要的检索方向。",
                 Some("尽量输出简洁证据线索。"),
             )),
@@ -219,7 +219,7 @@ async fn retrieval_context(
         );
         let messages = vec![
             LlmMessage::system(specialist_system(
-                "检索子 Agent",
+                "检索步骤",
                 "补充当前问题最需要的检索方向。",
                 Some("尽量输出简洁证据线索。"),
             )),

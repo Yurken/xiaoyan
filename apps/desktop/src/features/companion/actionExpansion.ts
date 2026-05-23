@@ -59,7 +59,7 @@ export const SPRITE_COMPANION_ACTION_ATLAS_PACKS = [
     rows: [
       { actionKey: "ultrathink", row: 0, frames: 6, promptIntent: "深度综合，安静、专注、比 thinking 更沉稳。" },
       { actionKey: "juggling", row: 1, frames: 8, promptIntent: "并行处理多个步骤，通过姿态节奏表达，不加浮动道具。" },
-      { actionKey: "conducting", row: 2, frames: 8, promptIntent: "协调多个能力域模型，像打拍子一样同步任务节奏。" },
+      { actionKey: "conducting", row: 2, frames: 8, promptIntent: "协调多个小妍步骤，像打拍子一样同步任务节奏。" },
       { actionKey: "notification", row: 3, frames: 4, promptIntent: "有新动态，轻快提醒但无浮动铃铛或文字。" },
       { actionKey: "react_double", row: 4, frames: 5, promptIntent: "双击后的开心回应。" },
       { actionKey: "alerting", row: 5, frames: 8, promptIntent: "需要注意时的严肃提醒，比 error 更轻。" },
@@ -121,7 +121,7 @@ export const SPRITE_COMPANION_ACTION_EXPANSIONS = [
     currentAnimationKey: "review",
     targetAnimationKey: "planning",
     priority: "high",
-    intent: "抬头思考路线，和阅读态区分，适合 chat:plan 和 planner agent。",
+    intent: "抬头思考路线，和阅读态区分，适合 chat:plan 和规划步骤。",
   },
   {
     actionKey: "searching",
@@ -157,7 +157,7 @@ export const SPRITE_COMPANION_ACTION_EXPANSIONS = [
     currentAnimationKey: "review",
     targetAnimationKey: "conducting",
     priority: "medium",
-    intent: "协调多个能力域模型，适合三项以上并行工作。",
+    intent: "协调多个小妍步骤，适合三项以上并行工作。",
   },
   {
     actionKey: "ultrathink",

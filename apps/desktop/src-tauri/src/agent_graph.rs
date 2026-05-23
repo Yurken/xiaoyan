@@ -4,10 +4,11 @@ use crate::commands::memory::{
     is_long_term_memory_enabled, record_agent_run_completion_event, record_agent_run_failure_event,
 };
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
+use crate::services::agent_event_service::{
+    emit_agent_event, AgentEvent, AgentRunEvent, AgentRunEventInput, AgentRunStatus,
+};
 use anyhow::Result;
-use serde_json::json;
 use std::collections::{HashMap, HashSet};
-use tauri::Emitter;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -179,18 +180,13 @@ pub async fn run_agentic_graph(
     message: &str,
     context_type: &str,
     context_id: &Option<String>,
-    context_summary: &str,
+    initial_context_parts: Vec<String>,
     history: &[LlmMessage],
     selected_agents: Vec<String>,
 ) -> Result<String> {
     let active = active_nodes(&selected_agents);
     let long_term_memory_enabled = is_long_term_memory_enabled(settings);
-    let initial_context = if context_summary.trim().is_empty() {
-        Vec::new()
-    } else {
-        vec![format!("[当前研究工作台]\n{}", context_summary)]
-    };
-    let mut state = AgentGraphState::new(selected_agents, initial_context);
+    let mut state = AgentGraphState::new(selected_agents, initial_context_parts);
     state.mark(AgentNode::Start, NodeStatus::Done);
 
     loop {
@@ -231,23 +227,23 @@ pub async fn run_agentic_graph(
                 .bind(&started_at)
                 .execute(db)
                 .await?;
-                let _ = app.emit(
-                    "chat:agent_start",
-                    json!({
-                        "request_id": request_id,
-                        "value": {
-                            "id": run_id,
-                            "session_id": session_id,
-                            "request_id": request_id,
-                            "agent_name": "synthesis",
-                            "step_name": agent_title("synthesis"),
-                            "status": "running",
-                            "order_index": order_index,
-                            "created_at": started_at,
-                            "updated_at": started_at,
-                            "artifacts": [],
-                        }
-                    }),
+                let _ = emit_agent_event(
+                    app,
+                    AgentEvent::RunStarted {
+                        request_id: request_id.to_string(),
+                        run: agent_run_event(AgentRunEventInput {
+                            id: &run_id,
+                            session_id,
+                            request_id,
+                            agent_name: "synthesis",
+                            status: AgentRunStatus::Running,
+                            order_index,
+                            summary: None,
+                            error: None,
+                            created_at: &started_at,
+                            updated_at: &started_at,
+                        }),
+                    },
                 );
 
                 let synthesis_temp =
@@ -275,8 +271,13 @@ pub async fn run_agentic_graph(
                         synthesis_model.as_deref(),
                         synthesis_temp,
                         move |delta| {
-                            let _ = app_clone
-                                .emit("chat:delta", json!({ "request_id": rid, "delta": delta }));
+                            let _ = emit_agent_event(
+                                &app_clone,
+                                AgentEvent::TextDelta {
+                                    request_id: rid.clone(),
+                                    delta,
+                                },
+                            );
                         },
                     )
                     .await;
@@ -291,24 +292,23 @@ pub async fn run_agentic_graph(
                             .bind(&run_id)
                             .execute(db)
                             .await?;
-                        let _ = app.emit(
-                            "chat:agent_complete",
-                            json!({
-                                "request_id": request_id,
-                                "value": {
-                                    "id": run_id,
-                                    "session_id": session_id,
-                                    "request_id": request_id,
-                                    "agent_name": "synthesis",
-                                    "step_name": agent_title("synthesis"),
-                                    "status": "done",
-                                    "summary": output,
-                                    "order_index": order_index,
-                                    "created_at": started_at,
-                                    "updated_at": finished_at,
-                                    "artifacts": [],
-                                }
-                            }),
+                        let _ = emit_agent_event(
+                            app,
+                            AgentEvent::RunFinished {
+                                request_id: request_id.to_string(),
+                                run: agent_run_event(AgentRunEventInput {
+                                    id: &run_id,
+                                    session_id,
+                                    request_id,
+                                    agent_name: "synthesis",
+                                    status: AgentRunStatus::Done,
+                                    order_index,
+                                    summary: Some(output.clone()),
+                                    error: None,
+                                    created_at: &started_at,
+                                    updated_at: &finished_at,
+                                }),
+                            },
                         );
                         return Ok(output);
                     }
@@ -322,24 +322,23 @@ pub async fn run_agentic_graph(
                             .bind(&run_id)
                             .execute(db)
                             .await?;
-                        let _ = app.emit(
-                            "chat:agent_complete",
-                            json!({
-                                "request_id": request_id,
-                                "value": {
-                                    "id": run_id,
-                                    "session_id": session_id,
-                                    "request_id": request_id,
-                                    "agent_name": "synthesis",
-                                    "step_name": agent_title("synthesis"),
-                                    "status": "failed",
-                                    "error": err_str,
-                                    "order_index": order_index,
-                                    "created_at": started_at,
-                                    "updated_at": finished_at,
-                                    "artifacts": [],
-                                }
-                            }),
+                        let _ = emit_agent_event(
+                            app,
+                            AgentEvent::RunFinished {
+                                request_id: request_id.to_string(),
+                                run: agent_run_event(AgentRunEventInput {
+                                    id: &run_id,
+                                    session_id,
+                                    request_id,
+                                    agent_name: "synthesis",
+                                    status: AgentRunStatus::Failed,
+                                    order_index,
+                                    summary: None,
+                                    error: Some(err_str),
+                                    created_at: &started_at,
+                                    updated_at: &finished_at,
+                                }),
+                            },
                         );
                         return Err(error);
                     }
@@ -371,21 +370,23 @@ pub async fn run_agentic_graph(
                     .execute(db)
                     .await?;
 
-                    let payload = json!({
-                        "id": run_id,
-                        "session_id": session_id,
-                        "request_id": request_id,
-                        "agent_name": agent_name,
-                        "step_name": agent_title(agent_name),
-                        "status": "running",
-                        "order_index": order_index,
-                        "created_at": started_at,
-                        "updated_at": started_at,
-                        "artifacts": [],
-                    });
-                    let _ = app.emit(
-                        "chat:agent_start",
-                        json!({ "request_id": request_id, "value": payload }),
+                    let _ = emit_agent_event(
+                        app,
+                        AgentEvent::RunStarted {
+                            request_id: request_id.to_string(),
+                            run: agent_run_event(AgentRunEventInput {
+                                id: &run_id,
+                                session_id,
+                                request_id,
+                                agent_name,
+                                status: AgentRunStatus::Running,
+                                order_index,
+                                summary: None,
+                                error: None,
+                                created_at: &started_at,
+                                updated_at: &started_at,
+                            }),
+                        },
                     );
 
                     let output = execute_agent_node(
@@ -430,24 +431,23 @@ pub async fn run_agentic_graph(
                                 )
                                 .await;
                             }
-                            let _ = app.emit(
-                                "chat:agent_complete",
-                                json!({
-                                    "request_id": request_id,
-                                    "value": {
-                                        "id": run_id,
-                                        "session_id": session_id,
-                                        "request_id": request_id,
-                                        "agent_name": agent_name,
-                                        "step_name": agent_title(agent_name),
-                                        "status": "done",
-                                        "summary": result,
-                                        "order_index": order_index,
-                                        "created_at": started_at,
-                                        "updated_at": finished_at,
-                                        "artifacts": [],
-                                    }
-                                }),
+                            let _ = emit_agent_event(
+                                app,
+                                AgentEvent::RunFinished {
+                                    request_id: request_id.to_string(),
+                                    run: agent_run_event(AgentRunEventInput {
+                                        id: &run_id,
+                                        session_id,
+                                        request_id,
+                                        agent_name,
+                                        status: AgentRunStatus::Done,
+                                        order_index,
+                                        summary: Some(result),
+                                        error: None,
+                                        created_at: &started_at,
+                                        updated_at: &finished_at,
+                                    }),
+                                },
                             );
                         }
                         Err(error) => {
@@ -471,20 +471,23 @@ pub async fn run_agentic_graph(
                                 )
                                 .await;
                             }
-                            let _ = app.emit(
-                                "chat:agent_complete",
-                                json!({
-                                    "request_id": request_id,
-                                    "value": {
-                                        "id": run_id,
-                                        "agent_name": agent_name,
-                                        "step_name": agent_title(agent_name),
-                                        "status": "failed",
-                                        "error": err_str,
-                                        "created_at": started_at,
-                                        "updated_at": finished_at,
-                                    }
-                                }),
+                            let _ = emit_agent_event(
+                                app,
+                                AgentEvent::RunFinished {
+                                    request_id: request_id.to_string(),
+                                    run: agent_run_event(AgentRunEventInput {
+                                        id: &run_id,
+                                        session_id,
+                                        request_id,
+                                        agent_name,
+                                        status: AgentRunStatus::Failed,
+                                        order_index,
+                                        summary: None,
+                                        error: Some(err_str),
+                                        created_at: &started_at,
+                                        updated_at: &finished_at,
+                                    }),
+                                },
                             );
                         }
                     }
@@ -499,6 +502,10 @@ pub async fn run_agentic_graph(
         .cloned()
         .unwrap_or_else(|| "未生成可用回答。".to_string());
     Ok(fallback)
+}
+
+fn agent_run_event(input: AgentRunEventInput<'_>) -> AgentRunEvent {
+    AgentRunEvent::from_input(input)
 }
 
 #[cfg(test)]

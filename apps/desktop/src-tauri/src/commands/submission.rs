@@ -1,14 +1,21 @@
+use crate::append_diagnostic_log;
 use crate::llm::{resolve_model, resolve_temperature_chain, LlmClient, LlmMessage};
+use crate::services::submission_diagnosis_service::{
+    import_diagnosis_report_to_checklist, list_submission_diagnosis_reports,
+    save_ai_review_diagnosis_report, ReviewerDiagnosisInput,
+};
+use crate::services::submission_revision_service::{
+    import_diagnosis_report_to_revision_tasks, list_revision_tasks, update_revision_task,
+};
 use crate::services::submission_service::{
     self, CreateSubmissionVenueParams, UpdateSubmissionVenueParams,
 };
 use crate::state::AppState;
+use chrono::Datelike;
 use serde_json::json;
 use sqlx::Row;
 use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
-use chrono::Datelike;
-use crate::append_diagnostic_log;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -744,6 +751,61 @@ pub async fn submission_toggle_checklist(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn submission_list_diagnosis_reports(
+    state: State<'_, AppState>,
+    submission_id: String,
+) -> Result<serde_json::Value, String> {
+    list_submission_diagnosis_reports(&state.db, &submission_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn submission_import_diagnosis_report_to_checklist(
+    state: State<'_, AppState>,
+    report_id: String,
+) -> Result<serde_json::Value, String> {
+    let created = import_diagnosis_report_to_checklist(&state.db, &report_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(json!({ "created": created }))
+}
+
+#[tauri::command]
+pub async fn submission_list_revision_tasks(
+    state: State<'_, AppState>,
+    submission_id: String,
+) -> Result<serde_json::Value, String> {
+    list_revision_tasks(&state.db, &submission_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn submission_import_diagnosis_report_to_tasks(
+    state: State<'_, AppState>,
+    report_id: String,
+) -> Result<serde_json::Value, String> {
+    let created = import_diagnosis_report_to_revision_tasks(&state.db, &report_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(json!({ "created": created }))
+}
+
+#[tauri::command]
+pub async fn submission_update_revision_task(
+    state: State<'_, AppState>,
+    id: String,
+    status: Option<String>,
+    paper_version_id: Option<String>,
+    experiment_id: Option<String>,
+) -> Result<(), String> {
+    update_revision_task(&state.db, &id, status, paper_version_id, experiment_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 //  Stats (for Home dashboard)
 // ══════════════════════════════════════════════════════════════════════════
@@ -814,8 +876,11 @@ pub async fn submission_ai_review(
         "strict" => "极其严格，要求完美，对任何缺陷都提出批评",
         _ => "均衡，公正评估优缺点",
     };
+    let db = state.db.clone();
 
     tauri::async_runtime::spawn(async move {
+        let mut diagnosis_reviews = Vec::new();
+
         for i in 0..count {
             let reviewer = format!("Reviewer {}", i + 1);
             let prompt = crate::assistant_prompts::ai_review_prompt(
@@ -832,6 +897,10 @@ pub async fn submission_ai_review(
 
             match client.chat(&messages, model.as_deref(), temperature).await {
                 Ok(result) => {
+                    diagnosis_reviews.push(ReviewerDiagnosisInput {
+                        reviewer: reviewer.clone(),
+                        raw: result.clone(),
+                    });
                     let _ = app.emit(
                         "submission:ai_review:reviewer",
                         json!({
@@ -851,6 +920,8 @@ pub async fn submission_ai_review(
                 }
             }
         }
+        let _ =
+            save_ai_review_diagnosis_report(&db, &submission_id, &text, &diagnosis_reviews).await;
         let _ = app.emit(
             "submission:ai_review:done",
             json!({ "submissionId": submission_id }),
@@ -1062,10 +1133,7 @@ struct CcfVenueJson {
     confs: Option<Vec<CcfConfEntry>>,
 }
 
-async fn sync_venues_from_entries(
-    db: &sqlx::SqlitePool,
-    entries: &[CcfVenueJson],
-) -> (u32, u32) {
+async fn sync_venues_from_entries(db: &sqlx::SqlitePool, entries: &[CcfVenueJson]) -> (u32, u32) {
     let current_year = chrono::Utc::now().year();
     let mut fetched = 0u32;
     let mut updated = 0u32;
@@ -1075,33 +1143,61 @@ async fn sync_venues_from_entries(
         fetched += 1;
 
         // Pick the latest future-year conference entry
-        let latest_conf = confs.iter().fold(None, |best: Option<&CcfConfEntry>, entry| {
-            let entry_year = entry.year.unwrap_or(0);
-            if entry_year < current_year { return best; }
-            match best {
-                Some(b) if b.year.unwrap_or(0) >= entry_year => Some(b),
-                _ => Some(entry),
-            }
-        });
+        let latest_conf = confs
+            .iter()
+            .fold(None, |best: Option<&CcfConfEntry>, entry| {
+                let entry_year = entry.year.unwrap_or(0);
+                if entry_year < current_year {
+                    return best;
+                }
+                match best {
+                    Some(b) if b.year.unwrap_or(0) >= entry_year => Some(b),
+                    _ => Some(entry),
+                }
+            });
 
         let Some(conf) = latest_conf else { continue };
 
         // Prefer the primary deadline (first entry in timeline without abstract_ prefix)
-        let deadline = conf.timeline.as_ref().and_then(|t| {
-            t.iter().find_map(|tl| {
-                if tl.deadline.is_some() && tl._abstract_deadline.is_none() && tl.comment.is_none() {
-                    tl.deadline.as_deref()
-                } else {
-                    None
-                }
+        let deadline = conf
+            .timeline
+            .as_ref()
+            .and_then(|t| {
+                t.iter()
+                    .find_map(|tl| {
+                        if tl.deadline.is_some()
+                            && tl._abstract_deadline.is_none()
+                            && tl.comment.is_none()
+                        {
+                            tl.deadline.as_deref()
+                        } else {
+                            None
+                        }
+                    })
+                    .or_else(|| t.first().and_then(|tl| tl.deadline.as_deref()))
             })
-            .or_else(|| t.first().and_then(|tl| tl.deadline.as_deref()))
-        }).map(|d| d.trim().to_string());
+            .map(|d| d.trim().to_string());
 
-        let timezone = conf.timezone.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
-        let conference_date = conf.date.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
-        let conference_location = conf.place.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
-        let website = conf.link.as_deref().map(|s| s.trim().to_string()).unwrap_or_default();
+        let timezone = conf
+            .timezone
+            .as_deref()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let conference_date = conf
+            .date
+            .as_deref()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let conference_location = conf
+            .place
+            .as_deref()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let website = conf
+            .link
+            .as_deref()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
 
         let matched = sqlx::query(
             "UPDATE venues SET deadline = ?, deadline_timezone = ?, conference_date = ?, conference_location = ?, website = CASE WHEN ? != '' THEN ? ELSE website END WHERE LOWER(name) = LOWER(?)",
@@ -1157,7 +1253,9 @@ pub async fn submission_sync_ccfddl(
     let mut updated = 0u32;
 
     for category in &["AI", "SE", "DB", "CT", "CG", "HI", "MX", "NW", "SC", "DS"] {
-        let list_url = format!("https://api.github.com/repos/ccfddl/ccf-deadlines/contents/conference/{category}");
+        let list_url = format!(
+            "https://api.github.com/repos/ccfddl/ccf-deadlines/contents/conference/{category}"
+        );
         let entries: Vec<serde_json::Value> = match client
             .get(&list_url)
             .header("User-Agent", "xiaoyan-desktop")
@@ -1169,9 +1267,13 @@ pub async fn submission_sync_ccfddl(
         };
 
         for entry in entries {
-            let Some(download_url) = entry["download_url"].as_str() else { continue };
+            let Some(download_url) = entry["download_url"].as_str() else {
+                continue;
+            };
             let name = entry["name"].as_str().unwrap_or("");
-            if !name.ends_with(".yml") { continue; }
+            if !name.ends_with(".yml") {
+                continue;
+            }
 
             let yaml_text = match client
                 .get(download_url)
@@ -1185,11 +1287,16 @@ pub async fn submission_sync_ccfddl(
 
             let yaml_venues: Vec<serde_json::Value> =
                 serde_yaml::from_str(&yaml_text).unwrap_or_default();
-            let Some(first) = yaml_venues.into_iter().next() else { continue };
+            let Some(first) = yaml_venues.into_iter().next() else {
+                continue;
+            };
 
             let venue = CcfVenueJson {
                 title: first["title"].as_str().unwrap_or("").to_string(),
-                ccf: first.get("rank").and_then(|r| r["ccf"].as_str()).map(|s| s.to_string()),
+                ccf: first
+                    .get("rank")
+                    .and_then(|r| r["ccf"].as_str())
+                    .map(|s| s.to_string()),
                 confs: serde_json::from_value::<Vec<CcfConfEntry>>(first["confs"].clone()).ok(),
             };
 
@@ -1209,7 +1316,9 @@ pub async fn auto_sync_ccfddl_on_startup(state: &AppState, app_handle: &tauri::A
             .fetch_one(&state.db)
             .await;
     if let Ok(n) = count {
-        if n > 0 { return; } // Already have deadlines, skip
+        if n > 0 {
+            return;
+        } // Already have deadlines, skip
     }
 
     let resource_path = match app_handle.path().resource_dir() {

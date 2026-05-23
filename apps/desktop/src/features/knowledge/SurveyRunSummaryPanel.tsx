@@ -19,10 +19,10 @@ export default function SurveyRunSummaryPanel({
       <Card padding="sm" className="space-y-3">
         <div className="flex items-center gap-2">
           <GitBranch className="h-4 w-4 text-apple-blue" />
-          <p className="text-sm font-semibold text-ink-primary">多能力域模型协作流程</p>
+          <p className="text-sm font-semibold text-ink-primary">小妍步骤协作流程</p>
         </div>
         {agents.length === 0 ? (
-          <p className="text-sm leading-6 text-ink-tertiary">等待能力域模型开始执行任务。</p>
+          <p className="text-sm leading-6 text-ink-tertiary">等待小妍步骤开始执行任务。</p>
         ) : (
           <div className="space-y-2">
             {agents.map((agent) => (

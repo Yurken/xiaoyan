@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Brain, CheckCircle2, ChevronDown, Clock3, Loader2, Search, XCircle } from "lucide-react";
-import type { AgentPlanStep, AgentRun } from "@research-copilot/types";
+import { toCapabilityModelName, type AgentPlanStep, type AgentRun } from "@research-copilot/types";
 
 interface ThinkingProcessPanelProps {
   thought: string;
@@ -163,11 +163,11 @@ export default function ThinkingProcessPanel({
             </div>
           )}
 
-          {/* Agent runs without plan */}
+          {/* Runs without plan */}
           {hasRuns && !hasPlan && (
             <div>
               <div className="mb-1.5 text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">
-                Agent 运行
+                小妍步骤
               </div>
               <div className="space-y-1.5">
                 {runs.map((run) => {
@@ -179,7 +179,7 @@ export default function ThinkingProcessPanel({
                       style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-ink-primary">{run.agent_name}</span>
+                        <span className="text-xs font-semibold text-ink-primary">{toCapabilityModelName(run.agent_name)}</span>
                         <span
                           className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
                           style={{ color: tone.color, background: tone.background }}

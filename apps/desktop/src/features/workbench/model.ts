@@ -1,4 +1,10 @@
 import type { ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
+import {
+  buildCheckpointAgendaItem,
+  buildCheckpointHandoffItem,
+  summarizeInterestCheckpoints,
+} from "./checkpointOverview";
+import { buildLayout } from "./layout";
 import { paperAction, paperActionLabel, paperTitlePreview } from "./shared";
 import type {
   SubmissionOverviewStats,
@@ -9,7 +15,6 @@ import type {
   WorkbenchOverviewModel,
   WorkbenchOverviewSource,
   WorkbenchRiskItem,
-  WorkbenchSectionLayout,
   WorkbenchTone,
 } from "./shared";
 
@@ -79,6 +84,7 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
       const papers = source.papers.filter((paper) => paper.research_interest_id === interest.id);
       const notes = source.notes.filter((note) => note.research_interest_id === interest.id);
       const sessions = source.sessions.filter((session) => session.context_type === "interest" && session.context_id === interest.id);
+      const checkpointSummary = summarizeInterestCheckpoints(source.checkpoints, interest.id);
       const analyzedCount = papers.filter((paper) => Boolean(paper.analysis)).length;
       const latestPaper = latestPaperByUpdate(papers);
       const recentAt = latestTimestamp([
@@ -86,6 +92,7 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
         ...papers.map((paper) => paper.updated_at || paper.created_at),
         ...notes.map((note) => note.updated_at || note.created_at),
         ...sessions.map((session) => session.updated_at || session.created_at),
+        checkpointSummary.latestUpdatedAt,
       ]);
 
       let stage = "等待规划";
@@ -132,7 +139,17 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
         stageTone = "blue";
         summary = `已有 ${papers.length} 篇论文、${notes.length} 条笔记和 ${sessions.length} 次对话沉淀。`;
         nextStep = "继续收敛问题、补证据，并安排下一步实验或写作。";
-        action = { label: "继续推进", to: "/xiaoyan" };
+        action = { label: "打开总览", to: `/workbench/${interest.id}/overview` };
+      }
+
+      if (checkpointSummary.nextStep) {
+        nextStep = checkpointSummary.nextStep;
+        if (interest.status === "planned" && sessions.length > 0) {
+          stage = checkpointSummary.hasOpenQuestions ? "问题待确认" : "接续追问";
+          stageTone = checkpointSummary.hasFailed ? "rust" : checkpointSummary.hasOpenQuestions ? "amber" : "blue";
+          summary = checkpointSummary.summary || summary;
+          action = { label: "接着问", to: "/xiaoyan" };
+        }
       }
 
       let score = interest.status === "planned" ? 6 : interest.status === "planning" ? 3 : 1;
@@ -159,6 +176,7 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
           `${papers.length} 篇论文`,
           `${notes.length} 条笔记`,
           `${sessions.length} 次对话`,
+          ...(checkpointSummary.count > 0 ? [`${checkpointSummary.count} 个续接点`] : []),
         ],
       };
     })
@@ -190,6 +208,11 @@ function buildAgenda(source: WorkbenchOverviewSource, snapshots: InterestSnapsho
       tone: "amber",
       action: { label: "看截止", to: "/submission" },
     });
+  }
+
+  const checkpointAgenda = buildCheckpointAgendaItem(source.checkpoints);
+  if (checkpointAgenda) {
+    items.push(checkpointAgenda);
   }
 
   const topInterest = snapshots[0];
@@ -242,6 +265,11 @@ function buildHandoffs(source: WorkbenchOverviewSource): WorkbenchHandoffItem[] 
     .sort((left, right) => toTimestamp(right.updated_at || right.created_at) - toTimestamp(left.updated_at || left.created_at))[0];
 
   const items: WorkbenchHandoffItem[] = [];
+
+  const checkpointHandoff = buildCheckpointHandoffItem(source.checkpoints);
+  if (checkpointHandoff) {
+    items.push(checkpointHandoff);
+  }
 
   if (latestAnalyzedPaper) {
     items.push({
@@ -430,109 +458,15 @@ function buildAssets(source: WorkbenchOverviewSource, snapshots: InterestSnapsho
   return items.slice(0, 3);
 }
 
-function buildLayout(
-  source: WorkbenchOverviewSource,
-  snapshots: InterestSnapshot[],
-): WorkbenchSectionLayout[] {
-  const hasUrgentRisks =
-    source.submission.pendingReviews > 0 ||
-    source.submission.upcomingDdls.length > 0;
-  const hasHandoffs =
-    source.papers.some((p) => Boolean(p.analysis)) ||
-    source.notes.length > 0 ||
-    source.sessions.length > 0;
-  const hasInterests = snapshots.length > 0;
-  const hasAgenda = hasUrgentRisks || hasInterests;
-  const hasAssets =
-    hasInterests || source.notes.length > 0 || source.papers.length > 0;
-
-  const sections: WorkbenchSectionLayout[] = [];
-
-  if (hasAgenda) {
-    sections.push({
-      type: "agenda",
-      priority: hasUrgentRisks ? 0 : 10,
-      prominence: hasUrgentRisks ? "promoted" : "normal",
-    });
-  }
-
-  if (hasUrgentRisks) {
-    sections.push({
-      type: "risks",
-      priority: 5,
-      prominence: "promoted",
-    });
-  } else if (
-    source.papers.some(
-      (p) => p.status === "failed" || p.status === "error" || p.status === "parsing" || p.status === "analyzing",
-    )
-  ) {
-    sections.push({ type: "risks", priority: 50, prominence: "normal" });
-  }
-
-  if (hasHandoffs) {
-    sections.push({
-      type: "handoffs",
-      priority: hasUrgentRisks ? 15 : 20,
-      prominence: "normal",
-    });
-  }
-
-  if (hasInterests) {
-    sections.push({
-      type: "interests",
-      priority: 30,
-      prominence: "normal",
-    });
-  }
-
-  if (hasAssets) {
-    sections.push({
-      type: "assets",
-      priority: 40,
-      prominence: "normal",
-    });
-  }
-
-  sections.sort((a, b) => a.priority - b.priority);
-  return sections;
-}
-
-export function buildSourceSummary(source: WorkbenchOverviewSource): Record<string, unknown> {
-  const analyzedCount = source.papers.filter((p) => Boolean(p.analysis)).length;
-  const processingCount = source.papers.filter(
-    (p) => p.status === "parsing" || p.status === "analyzing",
-  ).length;
-  const failedCount = source.papers.filter(
-    (p) => p.status === "failed" || p.status === "error",
-  ).length;
-
-  return {
-    interests: source.interests.map((i) => ({
-      name: i.folder_name || i.topic,
-      status: i.status,
-    })),
-    papers_total: source.papers.length,
-    papers_analyzed: analyzedCount,
-    papers_processing: processingCount,
-    papers_failed: failedCount,
-    notes_total: source.notes.length,
-    sessions_total: source.sessions.length,
-    submission: {
-      pending_reviews: source.submission.pendingReviews,
-      active_count: source.submission.active,
-      upcoming_ddls: source.submission.upcomingDdls.map((d) => ({
-        name: d.name,
-        deadline: d.deadline,
-      })),
-    },
-  };
-}
-
 export function buildWorkbenchOverviewModel(source: WorkbenchOverviewSource): WorkbenchOverviewModel {
   const snapshots = buildInterestSnapshots(source);
   const analyzedCount = source.papers.filter((paper) => Boolean(paper.analysis)).length;
   const primaryAction = snapshots[0]?.action ?? { label: "开始研究规划", to: "/planner" };
+  const latestCheckpoint = source.checkpoints[0];
+  const checkpointSummary =
+    latestCheckpoint?.nextSteps[0] ||
+    latestCheckpoint?.openQuestions[0] ||
+    "最近一次对话已经记录 checkpoint，可以从交接入口继续追问。";
 
   return {
     heroTitle:
@@ -551,7 +485,14 @@ export function buildWorkbenchOverviewModel(source: WorkbenchOverviewSource): Wo
       },
       { label: "已解读论文", value: String(analyzedCount), note: `${source.papers.length} 篇论文已入库` },
       { label: "知识卡片", value: String(source.notes.length), note: "可继续补证据和结构" },
-      { label: "最近对话", value: String(source.sessions.length), note: "可以直接接着追问" },
+      {
+        label: "最近对话",
+        value: String(source.sessions.length),
+        note:
+          source.checkpoints.length > 0
+            ? `${source.checkpoints.length} 个小妍续接点`
+            : "可以直接接着追问",
+      },
     ],
     summaryItems: [
       {
@@ -568,11 +509,17 @@ export function buildWorkbenchOverviewModel(source: WorkbenchOverviewSource): Wo
         description: snapshots[0]?.nextStep ?? "先把研究问题、关键词和预期产出整理清楚。",
       },
       {
-        title: source.notes.length > 0 ? "已有可继续接手的知识沉淀" : "还需要把研究结论沉淀下来",
+        title: source.checkpoints.length > 0
+          ? "小妍已经留下续接线索"
+          : source.notes.length > 0
+            ? "已有可继续接手的知识沉淀"
+            : "还需要把研究结论沉淀下来",
         description:
-          source.notes.length > 0
-            ? "已经有知识卡片可继续补证据、改结构，不用每次都从对话历史里回找。"
-            : "等论文解读后，建议尽快把关键结论沉淀成知识卡片，后续追问会更稳。",
+          source.checkpoints.length > 0
+            ? checkpointSummary
+            : source.notes.length > 0
+              ? "已经有知识卡片可继续补证据、改结构，不用每次都从对话历史里回找。"
+              : "等论文解读后，建议尽快把关键结论沉淀成知识卡片，后续追问会更稳。",
       },
     ],
     agenda: buildAgenda(source, snapshots),
@@ -589,7 +536,7 @@ export function buildWorkbenchOverviewModel(source: WorkbenchOverviewSource): Wo
     handoffs: buildHandoffs(source),
     risks: buildRisks(source),
     assets: buildAssets(source, snapshots),
-    layout: buildLayout(source, snapshots),
+    layout: buildLayout(source, snapshots.length > 0),
     aiGenerated: false,
   };
 }

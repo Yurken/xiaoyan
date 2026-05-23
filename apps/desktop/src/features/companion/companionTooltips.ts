@@ -22,7 +22,7 @@ export const xiaoyanTooltips: Partial<Record<CompanionActionKey, string>> = {
   wizard: "小妍在推进复现实现。",
   ultrathink: "小妍进入深度综合状态。",
   juggling: "小妍正在并行处理多个步骤。",
-  conducting: "小妍在协调多个能力域模型。",
+  conducting: "小妍在协调多个步骤。",
   attention: "小妍完成了一步。",
   error: "小妍遇到异常，正在等你一起复盘。",
   notification: "小妍有新的研究动态。",

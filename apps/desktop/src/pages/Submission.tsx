@@ -17,6 +17,8 @@ import SubmissionPageHeader from "../features/submission/SubmissionPageHeader";
 import { SUBMISSION_TAB_KEYS, type SubmissionTab } from "../features/submission/SubmissionTabs";
 import { useSubmissionBoard } from "../features/submission/useSubmissionBoard";
 import { useSubmissionChecklist } from "../features/submission/useSubmissionChecklist";
+import { useSubmissionDiagnosisReports } from "../features/submission/useSubmissionDiagnosisReports";
+import { useSubmissionRevisionTasks } from "../features/submission/useSubmissionRevisionTasks";
 import { useRejectionRecovery } from "../features/submission/useRejectionRecovery";
 import { useSubmissionVersions } from "../features/submission/useSubmissionVersions";
 import { useSubmissionVenues } from "../features/submission/useSubmissionVenues";
@@ -112,7 +114,41 @@ export default function Submission() {
     setChecklistSubId,
     toggleCheck,
     resetChecklist,
+    reloadChecklist,
   } = useSubmissionChecklist(submissions, showSubmissionError);
+  const handleDiagnosisImported = useCallback(
+    async (created: number) => {
+      await reloadChecklist();
+      setFeedback(created > 0 ? `已转入 ${created} 条诊断清单` : "诊断清单已是最新");
+    },
+    [reloadChecklist],
+  );
+  const {
+    reports: diagnosisReports,
+    loading: diagnosisLoading,
+    importingReportId: importingDiagnosisReportId,
+    refreshReports: refreshDiagnosisReports,
+    importReportToChecklist,
+  } = useSubmissionDiagnosisReports(checklistSubId, {
+    onError: showSubmissionError,
+    onImported: handleDiagnosisImported,
+  });
+  const handleRevisionTasksImported = useCallback((created: number) => {
+    setFeedback(created > 0 ? `已转入 ${created} 个修改任务` : "修改任务已是最新");
+  }, []);
+  const {
+    tasks: revisionTasks,
+    versions: revisionVersions,
+    experiments: revisionExperiments,
+    loading: revisionLoading,
+    importingReportId: importingRevisionTaskReportId,
+    updatingTaskId: updatingRevisionTaskId,
+    importReportToTasks,
+    updateTask: updateRevisionTask,
+  } = useSubmissionRevisionTasks(checklistSubId, {
+    onError: showSubmissionError,
+    onImported: handleRevisionTasksImported,
+  });
 
   // Review archive state
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
@@ -217,6 +253,9 @@ export default function Submission() {
         return;
       }
       setMockReviewLoading(false);
+      if (payload.submissionId === checklistSubId) {
+        void refreshDiagnosisReports();
+      }
     }).then(u => { unlistenDone = u; });
 
     listen<{ submissionId: string; error: string }>("submission:ai_review:error", ({ payload }) => {
@@ -232,7 +271,7 @@ export default function Submission() {
       unlistenDone?.();
       unlistenError?.();
     };
-  }, [showSubmissionError]);
+  }, [checklistSubId, refreshDiagnosisReports, showSubmissionError]);
 
   // Cover letter event listeners
   useEffect(() => {
@@ -681,12 +720,24 @@ export default function Submission() {
             categories={categories}
             visibleCategories={visibleCategories}
             filteredChecklist={filteredChecklist}
+            diagnosisReports={diagnosisReports}
+            diagnosisLoading={diagnosisLoading}
+            importingDiagnosisReportId={importingDiagnosisReportId}
+            revisionTasks={revisionTasks}
+            revisionVersions={revisionVersions}
+            revisionExperiments={revisionExperiments}
+            revisionLoading={revisionLoading}
+            importingRevisionTaskReportId={importingRevisionTaskReportId}
+            updatingRevisionTaskId={updatingRevisionTaskId}
             checkedCount={checkedCount}
             progress={progress}
             onSelectSubmission={setChecklistSubId}
             onReset={resetChecklist}
             onSelectCategory={setChecklistCat}
             onToggleCheck={toggleCheck}
+            onImportDiagnosisReport={importReportToChecklist}
+            onImportDiagnosisTasks={importReportToTasks}
+            onUpdateRevisionTask={updateRevisionTask}
           />
         )}
 

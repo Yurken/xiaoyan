@@ -6,11 +6,44 @@ export interface SubmissionOverviewStats {
   upcomingDdls: { name: string; deadline: string }[];
 }
 
+export interface WorkbenchCheckpointItem {
+  id: string;
+  sessionId: string;
+  requestId: string | null;
+  contextType: string;
+  contextId: string | null;
+  goal: string;
+  summary: string;
+  completedItems: string[];
+  openQuestions: string[];
+  nextSteps: string[];
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkbenchCheckpointRow {
+  id: string;
+  session_id: string;
+  request_id: string | null;
+  context_type: string;
+  context_id: string | null;
+  goal: string;
+  summary: string;
+  completed_items: string[];
+  open_questions: string[];
+  next_steps: string[];
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WorkbenchOverviewSource {
   papers: Paper[];
   interests: ResearchInterest[];
   notes: KnowledgeNote[];
   sessions: ChatSession[];
+  checkpoints: WorkbenchCheckpointItem[];
   submission: SubmissionOverviewStats;
 }
 
@@ -45,6 +78,28 @@ export function paperAction(label: string, paper: Paper): WorkbenchLinkAction {
 
 export function paperActionLabel(verb: string, paper: Paper): string {
   return `${verb}《${paperTitlePreview(paper)}》`;
+}
+
+function listFromUnknown(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+export function rowToWorkbenchCheckpoint(row: WorkbenchCheckpointRow): WorkbenchCheckpointItem {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    requestId: row.request_id ?? null,
+    contextType: row.context_type || "general",
+    contextId: row.context_id ?? null,
+    goal: row.goal ?? "",
+    summary: row.summary ?? "",
+    completedItems: listFromUnknown(row.completed_items),
+    openQuestions: listFromUnknown(row.open_questions),
+    nextSteps: listFromUnknown(row.next_steps),
+    status: row.status || "completed",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 export interface WorkbenchAgendaItem {

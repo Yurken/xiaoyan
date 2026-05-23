@@ -1,7 +1,18 @@
 import { CheckCircle2, Circle, Users } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
+import DiagnosisReportPanel from "./DiagnosisReportPanel";
+import RevisionTaskPanel from "./RevisionTaskPanel";
 import SubmissionPaperSidebar from "./SubmissionPaperSidebar";
-import { STATUS_CFG, type ChecklistItem, type Submission } from "./shared";
+import {
+  STATUS_CFG,
+  type ChecklistItem,
+  type PaperVersion,
+  type RevisionTaskStatus,
+  type Submission,
+  type SubmissionDiagnosisReport,
+  type SubmissionExperimentOption,
+  type SubmissionRevisionTask,
+} from "./shared";
 
 interface ChecklistWorkspaceProps {
   submissions: Submission[];
@@ -11,12 +22,27 @@ interface ChecklistWorkspaceProps {
   categories: string[];
   visibleCategories: string[];
   filteredChecklist: ChecklistItem[];
+  diagnosisReports: SubmissionDiagnosisReport[];
+  diagnosisLoading: boolean;
+  importingDiagnosisReportId: string | null;
+  revisionTasks: SubmissionRevisionTask[];
+  revisionVersions: PaperVersion[];
+  revisionExperiments: SubmissionExperimentOption[];
+  revisionLoading: boolean;
+  importingRevisionTaskReportId: string | null;
+  updatingRevisionTaskId: string | null;
   checkedCount: number;
   progress: number;
   onSelectSubmission: (submissionId: string) => void;
   onReset: () => void;
   onSelectCategory: (category: string) => void;
   onToggleCheck: (id: string) => void;
+  onImportDiagnosisReport: (reportId: string) => void | Promise<void>;
+  onImportDiagnosisTasks: (reportId: string) => void | Promise<void>;
+  onUpdateRevisionTask: (
+    taskId: string,
+    patch: Partial<{ status: RevisionTaskStatus; paperVersionId: string; experimentId: string }>,
+  ) => void | Promise<void>;
 }
 
 export default function ChecklistWorkspace({
@@ -27,12 +53,24 @@ export default function ChecklistWorkspace({
   categories,
   visibleCategories,
   filteredChecklist,
+  diagnosisReports,
+  diagnosisLoading,
+  importingDiagnosisReportId,
+  revisionTasks,
+  revisionVersions,
+  revisionExperiments,
+  revisionLoading,
+  importingRevisionTaskReportId,
+  updatingRevisionTaskId,
   checkedCount,
   progress,
   onSelectSubmission,
   onReset,
   onSelectCategory,
   onToggleCheck,
+  onImportDiagnosisReport,
+  onImportDiagnosisTasks,
+  onUpdateRevisionTask,
 }: ChecklistWorkspaceProps) {
   const currentSubmission = submissions.find((submission) => submission.id === checklistSubId);
 
@@ -109,6 +147,24 @@ export default function ChecklistWorkspace({
             重置
           </Button>
         </Card>
+
+        <DiagnosisReportPanel
+          reports={diagnosisReports}
+          loading={diagnosisLoading}
+          importingReportId={importingDiagnosisReportId}
+          importingTaskReportId={importingRevisionTaskReportId}
+          onImportReport={onImportDiagnosisReport}
+          onImportTasks={onImportDiagnosisTasks}
+        />
+
+        <RevisionTaskPanel
+          tasks={revisionTasks}
+          versions={revisionVersions}
+          experiments={revisionExperiments}
+          loading={revisionLoading}
+          updatingTaskId={updatingRevisionTaskId}
+          onUpdateTask={onUpdateRevisionTask}
+        />
 
         <div
           className="inline-flex flex-wrap items-center gap-1 rounded-2xl p-1"

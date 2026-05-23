@@ -8,6 +8,7 @@ import {
   Library,
   Map,
   MessageSquare,
+  PenLine,
   Send,
   Settings as SettingsIcon,
   Wrench,
@@ -22,6 +23,7 @@ import Settings from "./pages/Settings";
 import Tools from "./pages/Tools";
 import Submission from "./pages/Submission";
 import Experiment from "./pages/Experiment";
+import Writing from "./pages/Writing";
 import FocusApp from "./pages/FocusLayout";
 import LockScreen from "./features/appLock/LockScreen";
 import { APP_LOCK_STATUS_CHANGE_EVENT, type AppLockStatusChangeDetail } from "./features/appLock/shared";
@@ -48,12 +50,13 @@ const navItems = [
   { to: "/xiaoyan", icon: MessageSquare, label: "对话" },
   { to: "/survey", icon: BookOpen, label: "综述" },
   { to: "/papers", icon: FileText, label: "论文" },
+  { to: "/writing", icon: PenLine, label: "写作" },
   { to: "/knowledge", icon: Library, label: "知识" },
   { to: "/experiment", icon: FlaskConical, label: "实验" },
   { to: "/submission", icon: Send, label: "投稿" },
   { to: "/tools", icon: Wrench, label: "工具" },
   { to: "/settings", icon: SettingsIcon, label: "设置" },
-];
+] as const;
 
 function LandscapeFocusRouteRedirect() {
   const location = useLocation();
@@ -212,7 +215,9 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/planner" element={<Planner />} />
           <Route path="/survey" element={<Survey />} />
+          <Route path="/write" element={<Navigate to="/writing" replace />} />
           <Route path="/papers" element={<Papers />} />
+          <Route path="/writing" element={<Writing />} />
           <Route path="/submission" element={<Submission />} />
           <Route path="/experiment" element={<Experiment />} />
           <Route path="/tools" element={<Tools />} />

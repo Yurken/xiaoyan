@@ -88,7 +88,7 @@ export default function RolesSection({
         <div className="flex items-center gap-3">
           <SectionIcon icon={Bot} color="#34C759" />
           <div>
-            <h2 className="text-base font-semibold text-ink-primary">多能力域协作</h2>
+          <h2 className="text-base font-semibold text-ink-primary">小妍步骤协作</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">
               控制复杂问题的协作方式与路由策略。
             </p>
@@ -96,7 +96,7 @@ export default function RolesSection({
         </div>
 
         <ToggleRow
-          title="启用多能力域模型编排"
+          title="启用小妍步骤编排"
           description="关闭后仅使用默认模型直接回复，不拆分复杂任务。"
           checked={form.multi_agent_enabled === "true"}
           onToggle={() =>
@@ -130,9 +130,9 @@ export default function RolesSection({
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Route className="w-4 h-4 text-[#1A8AFF]" />
-            <p className="text-sm font-semibold text-ink-primary">能力域模型开关</p>
+            <p className="text-sm font-semibold text-ink-primary">小妍步骤开关</p>
           </div>
-          <p className="text-xs text-ink-tertiary">选择允许调度的能力域模型，关闭后不会被纳入考量。</p>
+          <p className="text-xs text-ink-tertiary">选择允许小妍调度的能力步骤，关闭后不会被纳入考量。</p>
 
           <div className="flex gap-2 flex-wrap pb-2">
             {AGENT_OPTIONS.map(([value, label]) => (
@@ -157,11 +157,11 @@ export default function RolesSection({
 
         <div className="grid gap-3 md:grid-cols-2">
           <SettingInput
-            label="单次最多调用的能力域模型步数上限"
+            label="单次最多调用的小妍步骤上限"
             value={form.multi_agent_max_steps}
             onChange={set("multi_agent_max_steps")}
             placeholder="6"
-            hint="超过该步数将强制中断多能力域模型流程。"
+            hint="超过该步数将强制中断小妍步骤流程。"
           />
           <SettingInput
             label="文献检索模型抓取条数上限"

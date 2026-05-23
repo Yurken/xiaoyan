@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { submissionApi } from "../../lib/client";
 import {
   DEFAULT_CHECKLIST,
@@ -11,6 +11,23 @@ export function useSubmissionChecklist(submissions: Submission[], onError?: (err
   const [checklistSubId, setChecklistSubId] = useState("");
   const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
   const [checklistCat, setChecklistCat] = useState<string>("all");
+  const reloadChecklist = useCallback(() => {
+    if (!checklistSubId) {
+      setChecklist(DEFAULT_CHECKLIST);
+      return Promise.resolve();
+    }
+
+    return submissionApi
+      .getChecklist(checklistSubId)
+      .then((response) => {
+        const items = response.checklist.map(rowToChecklistItem);
+        setChecklist(items.length > 0 ? items : DEFAULT_CHECKLIST);
+      })
+      .catch((error) => {
+        onError?.(error);
+        setChecklist(DEFAULT_CHECKLIST);
+      });
+  }, [checklistSubId, onError]);
 
   useEffect(() => {
     if (checklistSubId || submissions.length === 0) {
@@ -21,33 +38,8 @@ export function useSubmissionChecklist(submissions: Submission[], onError?: (err
   }, [checklistSubId, submissions]);
 
   useEffect(() => {
-    if (!checklistSubId) {
-      setChecklist(DEFAULT_CHECKLIST);
-      return;
-    }
-
-    let cancelled = false;
-    submissionApi
-      .getChecklist(checklistSubId)
-      .then((response) => {
-        if (cancelled) {
-          return;
-        }
-
-        const items = response.checklist.map(rowToChecklistItem);
-        setChecklist(items.length > 0 ? items : DEFAULT_CHECKLIST);
-      })
-      .catch((error) => {
-        onError?.(error);
-        if (!cancelled) {
-          setChecklist(DEFAULT_CHECKLIST);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [checklistSubId, onError]);
+    void reloadChecklist();
+  }, [reloadChecklist]);
 
   useEffect(() => {
     setChecklistCat("all");
@@ -124,5 +116,6 @@ export function useSubmissionChecklist(submissions: Submission[], onError?: (err
     setChecklistSubId,
     toggleCheck,
     resetChecklist,
+    reloadChecklist,
   };
 }

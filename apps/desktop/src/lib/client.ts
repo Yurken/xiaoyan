@@ -133,6 +133,8 @@ export const papersApi = {
     invoke("papers_list", { offset, limit, researchInterestId: research_interest_id ?? null }),
   get: (id: string): Promise<Paper> =>
     invoke("papers_get", { id }),
+  listParseRuns: (paper_id: string): Promise<{ runs: unknown[] }> =>
+    invoke("papers_list_parse_runs", { paperId: paper_id }),
   upload: (filePath: string, research_interest_id?: string): Promise<{ paper_id: string; title: string }> =>
     invoke("papers_upload", { filePath, researchInterestId: research_interest_id ?? null }),
   update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string; research_interest_id?: string; importance_color?: string; notes?: string }): Promise<Paper> =>
@@ -153,6 +155,8 @@ export const papersApi = {
     invoke("papers_open_pdf", { id }),
   analyze: (id: string): Promise<void> =>
     invoke("papers_analyze", { id }),
+  reparse: (id: string): Promise<void> =>
+    invoke("papers_reparse", { id }),
   reproduce: (id: string): Promise<void> =>
     invoke("papers_reproduce", { id }),
   listFigures: (paper_id: string): Promise<Array<{ id: string; paper_id: string; fig_index: number; kind?: string; caption: string | null; data_url: string }>> =>
@@ -425,6 +429,26 @@ export interface MemoryObservation {
   score?: number;
 }
 
+export interface MemoryCheckpoint {
+  id: string;
+  session_id: string;
+  request_id: string | null;
+  context_type: string;
+  context_id: string | null;
+  goal: string;
+  summary: string;
+  completed_items: string[];
+  open_questions: string[];
+  next_steps: string[];
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryCheckpointListResponse {
+  checkpoints: MemoryCheckpoint[];
+}
+
 export interface MemoryPrivacyStatus {
   enabled: boolean;
 }
@@ -470,6 +494,8 @@ export const memoryApi = {
       query,
       limit,
     }),
+  listCheckpoints: (limit = 8): Promise<MemoryCheckpointListResponse> =>
+    invoke("memory_list_checkpoints", { limit }),
   privacyStatus: (): Promise<MemoryPrivacyStatus> =>
     invoke("memory_privacy_status"),
   setPrivacyPassword: (password: string): Promise<MemoryPrivacyStatus> =>
@@ -597,6 +623,21 @@ export const submissionApi = {
 
   getChecklist: (submissionId: string) => invoke<{ checklist: unknown[] }>("submission_get_checklist", { submissionId }),
   toggleChecklist: (itemId: string) => invoke<void>("submission_toggle_checklist", { itemId }),
+  listDiagnosisReports: (submissionId: string) =>
+    invoke<{ reports: unknown[] }>("submission_list_diagnosis_reports", { submissionId }),
+  importDiagnosisReportToChecklist: (reportId: string) =>
+    invoke<{ created: number }>("submission_import_diagnosis_report_to_checklist", { reportId }),
+  listRevisionTasks: (submissionId: string) =>
+    invoke<{ tasks: unknown[] }>("submission_list_revision_tasks", { submissionId }),
+  importDiagnosisReportToTasks: (reportId: string) =>
+    invoke<{ created: number }>("submission_import_diagnosis_report_to_tasks", { reportId }),
+  updateRevisionTask: (id: string, params: Partial<{ status: string; paperVersionId: string; experimentId: string }>) =>
+    invoke<void>("submission_update_revision_task", {
+      id,
+      status: params.status ?? null,
+      paperVersionId: params.paperVersionId ?? null,
+      experimentId: params.experimentId ?? null,
+    }),
 
   stats: () => invoke<{ active: number; pendingReviews: number; upcomingDdls: { name: string; deadline: string }[] }>("submission_stats"),
 
@@ -667,6 +708,45 @@ export const workbenchApi = {
     }>("workbench_generate_overview_text", { sourceJson }),
 };
 
+// ── Writing API ───────────────────────────────────────────────────
+
+export interface WritingCompileResult {
+  success: boolean;
+  pdfPath: string | null;
+  workDir: string;
+  engine: string;
+  log: string;
+}
+
+export interface WritingImageAssetPayload {
+  id: string;
+  fileName: string;
+  projectPath: string;
+  storedPath: string;
+  createdAt: string;
+}
+
+export const writingApi = {
+  importImage: (draftId: string, filePath: string) =>
+    invoke<WritingImageAssetPayload>("writing_import_image", { draftId, filePath }),
+  compilePdf: (project: {
+    projectName: string;
+    mainTex: string;
+    bibtex: string;
+    notes: string;
+    imageAssets: WritingImageAssetPayload[];
+  }) =>
+    invoke<WritingCompileResult>("writing_compile_pdf", { request: project }),
+  copyPdf: (pdfPath: string, destinationPath: string) =>
+    invoke<void>("writing_copy_pdf", { pdfPath, destinationPath }),
+  openCompiledPdf: (pdfPath: string) =>
+    invoke<void>("writing_open_compiled_pdf", { pdfPath }),
+  openMactexInstaller: () =>
+    invoke<void>("writing_open_mactex_installer"),
+  openMactexDownloadPage: () =>
+    invoke<void>("writing_open_mactex_download_page"),
+};
+
 // ── Export API ────────────────────────────────────────────────────
 
 export const exportApi = {
@@ -697,4 +777,5 @@ export const apiClient = {
   experiment: experimentApi,
   export: exportApi,
   workbench: workbenchApi,
+  writing: writingApi,
 };

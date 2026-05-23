@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Eye, FileText, X } from "lucide-react";
 import { Badge, MarkdownRenderer } from "@research-copilot/ui";
 import type { Paper } from "@research-copilot/types";
+import PaperParseQualityPanel from "./PaperParseQualityPanel";
 import { findMethodReferencedFigures, type PaperFigure } from "./shared";
+import { usePaperParseRuns } from "./usePaperParseRuns";
 
 const ANALYSIS_SECTIONS: Array<{
   key: keyof NonNullable<Paper["analysis"]>;
@@ -64,6 +66,7 @@ export default function PaperDetailModal({
   const onCloseRef = useRef(onClose);
   const closeTimerRef = useRef<number | null>(null);
   const paperId = paper?.id;
+  const { parseRuns, parseRunsLoading, reparseLoading, reparseError, reparsePaper } = usePaperParseRuns(paperId);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -297,6 +300,14 @@ export default function PaperDetailModal({
                 <p className="text-[11px] font-semibold tracking-[0.18em] text-ink-tertiary uppercase">复现/验证指南</p>
               </div>
               <div className="mt-3 min-h-0 space-y-3 overflow-y-auto pr-1.5">
+                <PaperParseQualityPanel
+                  runs={parseRuns}
+                  loading={parseRunsLoading}
+                  reparsing={reparseLoading}
+                  reparseError={reparseError}
+                  onReparse={reparsePaper}
+                />
+
                 {reproductionSections.length > 0 ? (
                   reproductionSections.map((section) => (
                     <section

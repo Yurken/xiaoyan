@@ -30,8 +30,7 @@ use commands::{
     app_lock::{
         app_lock_clear_password, app_lock_get_hint, app_lock_get_recovery_info,
         app_lock_reset_password, app_lock_set_password, app_lock_set_security,
-        app_lock_set_timeout, app_lock_status, app_lock_verify_password,
-        app_lock_verify_recovery,
+        app_lock_set_timeout, app_lock_status, app_lock_verify_password, app_lock_verify_recovery,
     },
     arxiv::arxiv_search,
     ccf::{ccf_list, ccf_lookup},
@@ -70,6 +69,7 @@ use commands::{
         memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list,
         memory_list_observations, memory_search_observations,
     },
+    memory_checkpoints::memory_list_checkpoints,
     memory_privacy::{
         memory_list_auto_records, memory_list_manual_records, memory_list_private_observations,
         memory_privacy_clear_password, memory_privacy_set_password, memory_privacy_status,
@@ -82,7 +82,8 @@ use commands::{
     paper_search::paper_search,
     papers::{
         papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list,
-        papers_open_pdf, papers_reproduce, papers_update, papers_upload,
+        papers_list_parse_runs, papers_open_pdf, papers_reparse, papers_reproduce, papers_update,
+        papers_upload,
     },
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
@@ -95,16 +96,22 @@ use commands::{
         submission_ai_review, submission_create, submission_create_comment,
         submission_create_venue, submission_create_version, submission_delete,
         submission_delete_comment, submission_delete_venue, submission_delete_version,
-        submission_generate_cover_letter, submission_get_checklist, submission_list,
-        submission_list_comments, submission_list_rounds, submission_list_venues,
-        submission_sync_ccfddl, submission_sync_ccfddl_local,
-        submission_list_versions, submission_polish_abstract, submission_stats,
+        submission_generate_cover_letter, submission_get_checklist,
+        submission_import_diagnosis_report_to_checklist,
+        submission_import_diagnosis_report_to_tasks, submission_list, submission_list_comments,
+        submission_list_diagnosis_reports, submission_list_revision_tasks, submission_list_rounds,
+        submission_list_venues, submission_list_versions, submission_polish_abstract,
+        submission_stats, submission_sync_ccfddl, submission_sync_ccfddl_local,
         submission_toggle_checklist, submission_toggle_venue_star, submission_update,
-        submission_update_comment, submission_update_venue, submission_update_version,
-        submission_upsert_round,
+        submission_update_comment, submission_update_revision_task, submission_update_venue,
+        submission_update_version, submission_upsert_round,
     },
     update::{update_check, update_install, PendingUpdate},
     workbench::{workbench_generate_overview_text, workbench_get_overview_text_cache},
+    writing::{
+        writing_compile_pdf, writing_copy_pdf, writing_import_image, writing_open_compiled_pdf,
+        writing_open_mactex_download_page, writing_open_mactex_installer,
+    },
 };
 use state::{default_settings, AppState};
 
@@ -259,11 +266,13 @@ pub fn run() {
             // Papers
             papers_list,
             papers_get,
+            papers_list_parse_runs,
             papers_upload,
             papers_update,
             papers_delete,
             papers_open_pdf,
             papers_extract_pdf_text,
+            papers_reparse,
             papers_analyze,
             papers_reproduce,
             papers_list_figures,
@@ -322,6 +331,7 @@ pub fn run() {
             memory_add,
             memory_list,
             memory_list_observations,
+            memory_list_checkpoints,
             memory_search_observations,
             memory_list_manual_records,
             memory_list_auto_records,
@@ -355,6 +365,11 @@ pub fn run() {
             submission_delete_comment,
             submission_get_checklist,
             submission_toggle_checklist,
+            submission_list_diagnosis_reports,
+            submission_import_diagnosis_report_to_checklist,
+            submission_list_revision_tasks,
+            submission_import_diagnosis_report_to_tasks,
+            submission_update_revision_task,
             submission_stats,
             submission_ai_review,
             submission_polish_abstract,
@@ -400,6 +415,13 @@ pub fn run() {
             // Workbench
             workbench_get_overview_text_cache,
             workbench_generate_overview_text,
+            // Writing
+            writing_import_image,
+            writing_compile_pdf,
+            writing_copy_pdf,
+            writing_open_compiled_pdf,
+            writing_open_mactex_installer,
+            writing_open_mactex_download_page,
         ])
         .run(tauri::generate_context!());
 

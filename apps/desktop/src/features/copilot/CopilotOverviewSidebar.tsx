@@ -16,6 +16,8 @@ interface CopilotOverviewSidebarProps {
   onMemoryInputChange: (value: string) => void;
   onSaveMemory: () => void | Promise<void>;
   onArtifactLinkClick: (href: string) => void | Promise<void>;
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
 }
 
 const CARD_STYLE = {
@@ -35,9 +37,10 @@ export default function CopilotOverviewSidebar({
   onMemoryInputChange,
   onSaveMemory,
   onArtifactLinkClick,
+  collapsed,
+  onCollapsedChange,
 }: CopilotOverviewSidebarProps) {
   const [expanded, setExpanded] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     if (!expanded) {
@@ -63,7 +66,7 @@ export default function CopilotOverviewSidebar({
       <button
         type="button"
         aria-label="展开任务纵览"
-        onClick={() => setCollapsed(false)}
+        onClick={() => onCollapsedChange(false)}
         className="absolute top-3 right-3 z-10 h-9 w-9 flex items-center justify-center rounded-2xl transition-all duration-150 hover:scale-[1.02] active:scale-95"
         style={{
           background: "var(--rc-card-inset-bg)",
@@ -126,7 +129,7 @@ export default function CopilotOverviewSidebar({
               <button
                 type="button"
                 aria-label="折叠任务纵览"
-                onClick={() => setCollapsed(true)}
+                onClick={() => onCollapsedChange(true)}
                 className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl transition-all duration-150 hover:scale-[1.02] active:scale-95"
                 style={{
                   background: "var(--rc-chip-bg)",

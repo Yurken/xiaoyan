@@ -87,9 +87,9 @@ export default function TaskSetupSection({
       icon: Route,
     },
     {
-      title: "最后决定是否启用多能力域协作",
+      title: "最后决定是否启用小妍步骤协作",
       description: multiAgentReady
-        ? "多能力域协作已启用。复杂任务会走调度和分工流程。"
+        ? "小妍步骤协作已启用。复杂任务会走调度和分工流程。"
         : "如果你只想先稳定使用单模型对话，可以暂时关闭，等基础配置跑顺再打开。",
       ready: multiAgentReady,
       action: "去调整协作模式",

@@ -8,6 +8,27 @@ export type PaperFigure = {
   data_url: string;
 };
 
+export type PaperParseRunStatus = "running" | "done" | "failed";
+
+export type PaperParseRun = {
+  id: string;
+  paperId: string;
+  parserName: string;
+  status: PaperParseRunStatus;
+  startedAt: Date;
+  finishedAt?: Date;
+  durationMs?: number;
+  textLength: number;
+  previewLength: number;
+  sectionCount: number;
+  figureCount: number;
+  fallbackPath?: string;
+  error?: string;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 type FigureReferenceKind = "figure" | "table";
 
 type FigureReference = {
@@ -15,6 +36,68 @@ type FigureReference = {
   index: number;
   offset: number;
 };
+
+type UnknownRow = Record<string, unknown>;
+
+function asRow(value: unknown): UnknownRow {
+  return value !== null && typeof value === "object" ? value as UnknownRow : {};
+}
+
+function stringField(row: UnknownRow, key: string, fallback = ""): string {
+  const value = row[key];
+  return typeof value === "string" ? value : fallback;
+}
+
+function optionalStringField(row: UnknownRow, key: string): string | undefined {
+  const value = row[key];
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function numberField(row: UnknownRow, key: string, fallback = 0): number {
+  const value = row[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function optionalNumberField(row: UnknownRow, key: string): number | undefined {
+  const value = row[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function dateField(row: UnknownRow, key: string): Date | undefined {
+  const value = row[key];
+  if (typeof value !== "string" && typeof value !== "number" && !(value instanceof Date)) {
+    return undefined;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function parseRunStatusField(value: unknown): PaperParseRunStatus {
+  return value === "running" || value === "failed" ? value : "done";
+}
+
+export function rowToPaperParseRun(value: unknown): PaperParseRun {
+  const row = asRow(value);
+  return {
+    id: stringField(row, "id"),
+    paperId: stringField(row, "paperId"),
+    parserName: stringField(row, "parserName"),
+    status: parseRunStatusField(row.status),
+    startedAt: dateField(row, "startedAt") ?? new Date(),
+    finishedAt: dateField(row, "finishedAt"),
+    durationMs: optionalNumberField(row, "durationMs"),
+    textLength: numberField(row, "textLength"),
+    previewLength: numberField(row, "previewLength"),
+    sectionCount: numberField(row, "sectionCount"),
+    figureCount: numberField(row, "figureCount"),
+    fallbackPath: optionalStringField(row, "fallbackPath"),
+    error: optionalStringField(row, "error"),
+    metadata: asRow(row.metadata),
+    createdAt: dateField(row, "createdAt") ?? new Date(),
+    updatedAt: dateField(row, "updatedAt") ?? new Date(),
+  };
+}
 
 export function findReferencedFigures(text: string, figures: PaperFigure[]): PaperFigure[] {
   if (!figures.length || !text) return [];
