@@ -134,16 +134,29 @@ fn configure_diagnostic_log_path(app_data_dir: &std::path::Path) {
     }
 }
 
+/// Maximum diagnostic log size in bytes before rotation (5 MB).
+const MAX_DIAGNOSTIC_LOG_SIZE: u64 = 5 * 1024 * 1024;
+
 pub fn append_diagnostic_log(message: &str) {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or_default();
 
+    let log_path = diagnostic_log_path();
+
+    // Rotate if the log exceeds size limit
+    if let Ok(meta) = fs::metadata(&log_path) {
+        if meta.len() > MAX_DIAGNOSTIC_LOG_SIZE {
+            let rotated = log_path.with_extension("log.old");
+            let _ = fs::rename(&log_path, &rotated);
+        }
+    }
+
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(diagnostic_log_path())
+        .open(&log_path)
     {
         let _ = writeln!(file, "[{timestamp}] {message}");
     }

@@ -698,9 +698,10 @@ pub async fn test_settings(state: &AppState, data: &serde_json::Value) -> Result
     }
 
     let client = LlmClient::from_settings(&merged).map_err(|e| e.to_string())?;
-    let messages = vec![LlmMessage::user("Reply with the single word: ok")];
+    // Minimal connectivity check: single-token chat to confirm the API is reachable.
+    let messages = vec![LlmMessage::user("hi")];
     let reply = client
-        .chat(&messages, None, 0.0)
+        .chat_with_max_tokens(&messages, None, 0.0, 1)
         .await
         .map_err(|e| e.to_string())?;
     Ok(reply.trim().to_string())

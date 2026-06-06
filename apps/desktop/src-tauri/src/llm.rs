@@ -651,7 +651,7 @@ pub fn resolve_max_tokens(
 
 // ── OpenAI helpers ──────────────────────────────────────────────
 
-const USER_AGENT: &str = "claude-code/1.0";
+const USER_AGENT: &str = "xiaoyan-desktop/0.4.0";
 
 #[allow(dead_code)]
 fn compact_preview(text: &str, max_chars: usize) -> String {
@@ -780,15 +780,13 @@ async fn openai_chat(
         "temperature": temperature,
         "max_tokens": max_tokens,
     });
-    let body_str = serde_json::to_string(&body).unwrap_or_default();
     crate::append_diagnostic_log(&format!(
-        "[llm][request] url={}/chat/completions model={} temperature={} max_tokens={} messages_count={} body={}",
+        "[llm][request] url={}/chat/completions model={} temperature={} max_tokens={} messages_count={}",
         base_url.trim_end_matches('/'),
         model,
         temperature,
         max_tokens,
         messages.len(),
-        body_str
     ));
     let resp = client
         .post(format!(
@@ -962,15 +960,13 @@ async fn anthropic_chat(
     if let Some(s) = system {
         body["system"] = json!(s);
     }
-    let body_str = serde_json::to_string(&body).unwrap_or_default();
     crate::append_diagnostic_log(&format!(
-        "[llm][request] url={} model={} temperature={} max_tokens={} messages_count={} body={}",
+        "[llm][request] url={} model={} temperature={} max_tokens={} messages_count={}",
         build_anthropic_messages_url(base_url),
         model,
         temperature,
         max_tokens,
         messages.len(),
-        body_str
     ));
     let resp = client
         .post(build_anthropic_messages_url(base_url))
