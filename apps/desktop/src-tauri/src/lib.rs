@@ -32,8 +32,12 @@ use commands::{
         app_lock_reset_password, app_lock_set_password, app_lock_set_security,
         app_lock_set_timeout, app_lock_status, app_lock_verify_password, app_lock_verify_recovery,
     },
+    active_researcher::{
+        active_researcher_findings, active_researcher_mark_read, active_researcher_scan,
+    },
     arxiv::arxiv_search,
     ccf::{ccf_list, ccf_lookup},
+    paper_cross_analysis::papers_cross_analysis,
     chat::{
         chat_cancel, chat_delete_session, chat_get_session, chat_list_agent_runs,
         chat_list_sessions, chat_stream, chat_update_session_context,
@@ -438,6 +442,12 @@ pub fn run() {
             writing_open_compiled_pdf,
             writing_open_mactex_installer,
             writing_open_mactex_download_page,
+            // Active Researcher
+            active_researcher_scan,
+            active_researcher_findings,
+            active_researcher_mark_read,
+            // Cross-paper Analysis
+            papers_cross_analysis,
             // Research Context
             research_context_get_recent_themes,
             research_context_get_theme_context,

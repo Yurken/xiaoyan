@@ -2,6 +2,7 @@ import { Sparkles } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
 import { Link } from "react-router-dom";
 import MorphingText from "../../components/MorphingText";
+import ActiveResearcherSection from "./ActiveResearcherSection";
 import {
   MetricItem,
   OverviewSection,
@@ -89,6 +90,7 @@ export default function OverviewWorkspace({ model }: OverviewWorkspaceProps) {
           </div>
         ) : null}
 
+        <ActiveResearcherSection />
         <QuickActionStrip />
       </div>
     </div>

@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Bot, Check, CheckCircle2, Loader2, Sparkles, Upload, X } from "lucide-react";
+import { Bot, Check, CheckCircle2, ClipboardList, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
 import {
   VERDICT_CFG,
@@ -24,6 +24,8 @@ interface MockReviewModalProps {
   onReset: () => void;
   onImport: () => void | Promise<void>;
   onGenerate: () => void;
+  onDiagnose?: () => void | Promise<void>;
+  diagnosisLoading?: boolean;
 }
 
 export default function MockReviewModal({
@@ -39,6 +41,8 @@ export default function MockReviewModal({
   onReset,
   onImport,
   onGenerate,
+  onDiagnose,
+  diagnosisLoading,
 }: MockReviewModalProps) {
   if (!open) {
     return null;
@@ -277,6 +281,20 @@ export default function MockReviewModal({
                 <Check className="w-4 h-4" />
                 导入审稿归档
               </button>
+              {onDiagnose ? (
+                <button
+                  onClick={() => void onDiagnose()}
+                  disabled={diagnosisLoading}
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-medium disabled:opacity-40"
+                  style={{ background: "#FF9500", color: "#fff", boxShadow: "2px 4px 10px rgba(255,149,0,0.3)" }}
+                >
+                  {diagnosisLoading ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" />诊断中…</>
+                  ) : (
+                    <><ClipboardList className="w-4 h-4" />一键诊断并生成清单</>
+                  )}
+                </button>
+              ) : null}
             </>
           ) : (
             <>

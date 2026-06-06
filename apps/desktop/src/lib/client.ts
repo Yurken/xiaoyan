@@ -786,6 +786,42 @@ export const exportApi = {
 
 // ── Unified client (mirrors api-sdk shape) ────────────────────────
 
+
+// ── Cross-paper Analysis ──────────────────────────────────────
+
+export const crossAnalysisApi = {
+  analyze: (paper_ids: string[]): Promise<{ papers: unknown[]; analysis: string }> =>
+    invoke("papers_cross_analysis", { paperIds: paper_ids }),
+};
+
+// ── Active Researcher ──────────────────────────────────────────
+
+export interface ActiveResearcherFinding {
+  id: string;
+  interest_id: string;
+  interest_topic: string;
+  arxiv_id: string;
+  title: string;
+  authors: string;
+  published_at: string;
+  abs_url: string;
+  pdf_url: string;
+  relevance_score: number;
+  relevance_reason: string;
+  abstract_snippet: string;
+  scanned_at: string;
+  is_read: boolean;
+}
+
+export const activeResearcherApi = {
+  scan: (days?: number, maxPerInterest?: number): Promise<{ findings: ActiveResearcherFinding[]; unread_count: number; scanned_interests: number }> =>
+    invoke("active_researcher_scan", { days: days ?? null, maxPerInterest: maxPerInterest ?? null }),
+  findings: (limit?: number): Promise<{ findings: ActiveResearcherFinding[]; unread_count: number }> =>
+    invoke("active_researcher_findings", { limit: limit ?? null }),
+  markRead: (id?: string): Promise<void> =>
+    invoke("active_researcher_mark_read", { id: id ?? null }),
+};
+
 export const apiClient = {
   memory: memoryApi,
   arxiv: arxivApi,
@@ -811,4 +847,6 @@ export const apiClient = {
   writing: writingApi,
   researchContext: researchContextApi,
   evidence: evidenceApi,
+  crossAnalysis: crossAnalysisApi,
+  activeResearcher: activeResearcherApi,
 };
