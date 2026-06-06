@@ -1,5 +1,23 @@
 # 更新日志
 
+## [0.4.2] - 2026-06-06
+
+### 新增
+- 证据链前端接入：论文详情弹窗、研究主题指挥中心、投稿诊断面板新增「证据」按钮，通过 EvidenceDrawer 抽屉展示论文原文、图表、精读结论、版本快照、审稿意见等溯源证据。
+- 后端 service 真实化：evidence_service 从 papers/paper_figures/paper_analyses/paper_versions/review_comments 等表查询真实证据链；submission_diagnosis_service 的 save/list/import 接入 SQLite；research_context_service 从 research_interests 表聚合主题数据。
+
+### 优化
+- 超大页面拆分：Copilot.tsx 1185→320 行（提取 useCopilotSessions、useCopilotChat、CopilotSessionSidebar、CopilotChatArea）；Papers.tsx 1158→169 行（提取 usePapersList、PapersListPanel）；Submission.tsx 863→328 行（提取 useSubmissionReview）；Experiment.tsx 557→390 行（提取 ExperimentAttachmentPanel）。
+- 全模块提示词优化：main_chat_system 增加工具调用引导与反幻觉约束，supervisor 从 2 句展开为详细路由规则，synthesis 增加冲突处理与 worker 失败说明，ai_review 要求每条评价指向具体内容，cover_letter 增加学术投稿规范。
+- agent_nodes 六个 worker 节点输出要求增强：planner 分阶段标注优先级和时间，literature_scout 要求完整论文元数据，survey 增加对比分析和趋势判断。
+- knowledge.rs 研究规划 prompt 从一句话展开为 7 条详细要求，课题建议返回格式改为 {name, reason} 对象。
+- workbench 概览文案从固定 3 条改为 2-3 条；writing LaTeX 助手增加不修改模板声明的约束，review 模式按致命/重大/建议分级。
+- 修复 0.4.0 合并引入的 service 文件重复结构体与 mod.rs 重复声明等编译问题。
+
+### 验证
+- 已通过 `cargo check`（零 error）、桌面端 `tsc --noEmit` / `pnpm lint`。
+- 所有页面 <400 行目标达成（Copilot 320 / Papers 169 / Submission 328 / Experiment 390）。
+
 ## [0.4.0] - 2026-05-16
 
 ### 新增
