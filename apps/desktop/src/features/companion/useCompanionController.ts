@@ -30,6 +30,8 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
   const [shownAction, setShownAction] = useState<CompanionActionKey>("idle");
   const [opacity, setOpacity] = useState(1);
   const [pos, setPos] = useState({ right: 16, bottom: 16 });
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   const currentShown = useRef<CompanionActionKey>("idle");
   const isReacting = useRef(false);
@@ -240,6 +242,19 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
         if (activeWork.current.size === 0) triggerFeedback("alerting", 5000, () => startIdleTimer());
       }));
 
+      // 小妍主动扫描论文通知
+      unlisten.push(await listen<{ count: number; unread: number }>(
+        "active-researcher:scan-complete",
+        ({ payload }) => {
+          if (payload.unread > 0) {
+            setNotificationCount(payload.unread);
+            cancelIdleTimer();
+            wakeIfSleeping();
+            showAction("notification");
+          }
+        },
+      ));
+
       unlisten.push(await listen<{ paper_id: string; status: string }>("paper:status", ({ payload }) => {
         const workId = `paper_${payload.paper_id}`;
         if (payload.status === "parsing" || payload.status === "metadata") {
@@ -281,6 +296,11 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
   }, [cancelIdleTimer, finishWork, showAction, startIdleTimer, startWork, triggerFeedback, wakeIfSleeping]);
 
   const handleClick = useCallback((clientX: number, containerWidth: number) => {
+    // 小妍有论文通知 — 点击打开通知面板
+    if (notificationCount > 0) {
+      setNotificationOpen((prev) => !prev);
+      return;
+    }
     if (wakeIfSleeping()) return;
     const isWorking = activeWork.current.size > 0 || isStreaming.current;
     if (isWorking) {
@@ -313,7 +333,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
         playReaction(firstDir === "left" ? "react_left" : "react_right", 2500);
       }
     }, CLICK_WINDOW);
-  }, [playReaction, wakeIfSleeping]);
+  }, [notificationCount, playReaction, wakeIfSleeping]);
 
   const onPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;

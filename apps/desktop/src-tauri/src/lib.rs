@@ -236,6 +236,17 @@ pub fn run() {
                     });
                 }
 
+                // Auto-scan for new papers — fires after a short delay
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    let app_handle = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        // Delay to avoid blocking startup
+                        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                        commands::active_researcher::auto_researcher_scan_on_startup(&state, &app_handle).await;
+                    });
+                }
+
                 // Backfill keywords for existing papers that have full_text but empty tags
                 tauri::async_runtime::spawn(async move {
                     use sqlx::Row;
