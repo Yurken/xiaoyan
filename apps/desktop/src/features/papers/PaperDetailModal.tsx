@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Eye, FileText, X } from "lucide-react";
+import { Check, Copy, Eye, FileText, Link, X } from "lucide-react";
 import { Badge, MarkdownRenderer } from "@research-copilot/ui";
 import type { Paper } from "@research-copilot/types";
 import PaperParseQualityPanel from "./PaperParseQualityPanel";
+import EvidenceDrawer from "../research-context/EvidenceDrawer";
 import { findMethodReferencedFigures, type PaperFigure } from "./shared";
 import { usePaperParseRuns } from "./usePaperParseRuns";
 
@@ -194,15 +195,27 @@ export default function PaperDetailModal({
               ) : null}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl transition-colors hover:text-ink-primary"
-            style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" as string }}
-            aria-label="关闭详情弹窗"
-          >
-            <X className="h-4.5 w-4.5" />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setEvidenceOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-2xl transition-colors hover:text-ink-primary"
+              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" as string }}
+              aria-label="查看证据链"
+              title="查看证据链"
+            >
+              <Link className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={requestClose}
+              className="flex h-9 w-9 items-center justify-center rounded-2xl transition-colors hover:text-ink-primary"
+              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" as string }}
+              aria-label="关闭详情弹窗"
+            >
+              <X className="h-4.5 w-4.5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 sm:py-5">
@@ -368,5 +381,11 @@ export default function PaperDetailModal({
         </div>
       </div>
     </div>
+      <EvidenceDrawer
+        targetId={paper.id}
+        targetType="paper_analysis"
+        isOpen={evidenceOpen}
+        onClose={() => setEvidenceOpen(false)}
+      />
   );
 }
