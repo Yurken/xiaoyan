@@ -112,6 +112,9 @@ use commands::{
         writing_compile_pdf, writing_copy_pdf, writing_import_image, writing_open_compiled_pdf,
         writing_open_mactex_download_page, writing_open_mactex_installer,
     },
+    research_context::{research_context_get_recent_themes, research_context_get_theme_context},
+    evidence::evidence_get_links,
+    submission_diagnosis::{submission_diagnosis_get_tasks, submission_diagnosis_create_task},
 };
 use state::{default_settings, AppState};
 
@@ -422,6 +425,12 @@ pub fn run() {
             writing_open_compiled_pdf,
             writing_open_mactex_installer,
             writing_open_mactex_download_page,
+            // Research Context
+            research_context_get_recent_themes,
+            research_context_get_theme_context,
+            evidence_get_links,
+            submission_diagnosis_get_tasks,
+            submission_diagnosis_create_task,
         ])
         .run(tauri::generate_context!());
 

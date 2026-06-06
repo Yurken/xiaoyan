@@ -30,3 +30,6 @@ pub mod submission;
 pub mod update;
 pub mod workbench;
 pub mod writing;
+pub mod research_context;
+pub mod evidence;
+pub mod submission_diagnosis;

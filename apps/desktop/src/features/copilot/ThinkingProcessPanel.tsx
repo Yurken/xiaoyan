@@ -113,7 +113,7 @@ export default function ThinkingProcessPanel({
           {hasReasoning && (
             <div>
               <div className="mb-1.5 text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">
-                推理过程
+                思考过程
               </div>
               <div
                 className="rounded-xl px-3 py-2.5 text-xs leading-5 whitespace-pre-wrap text-ink-secondary"
@@ -128,7 +128,7 @@ export default function ThinkingProcessPanel({
           {hasPlan && (
             <div>
               <div className="mb-1.5 text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">
-                执行步骤
+                当前步骤
               </div>
               <div className="space-y-1.5">
                 {plan.map((step, index) => {
@@ -167,7 +167,7 @@ export default function ThinkingProcessPanel({
           {hasRuns && !hasPlan && (
             <div>
               <div className="mb-1.5 text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">
-                小妍步骤
+                工具与产物
               </div>
               <div className="space-y-1.5">
                 {runs.map((run) => {

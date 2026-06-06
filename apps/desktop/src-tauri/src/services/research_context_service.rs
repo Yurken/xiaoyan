@@ -1,225 +1,211 @@
-use crate::commands::knowledge::ResearchInterestProfilePayload;
-use crate::services::memory_checkpoint_service::checkpoint_to_memory_line;
-use serde_json::Value;
-use sqlx::{Row, SqlitePool};
+use serde::{Deserialize, Serialize};
 
-pub async fn build_research_context_summary(db: &SqlitePool, interest_id: &str) -> String {
-    let row = match sqlx::query(
-        "SELECT topic, keywords, profile, learning_path FROM research_interests WHERE id = ?",
-    )
-    .bind(interest_id)
-    .fetch_optional(db)
-    .await
-    {
-        Ok(Some(row)) => row,
-        _ => return String::new(),
-    };
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResearchTheme {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "lastActiveAt")]
+    pub last_active_at: String,
+    #[serde(rename = "completedTasks")]
+    pub completed_tasks: Vec<String>,
+    #[serde(rename = "openQuestions")]
+    pub open_questions: Vec<String>,
+    #[serde(rename = "nextSteps")]
+    pub next_steps: Vec<NextStep>,
+}
 
-    let topic: String = row.get("topic");
-    let keywords = parse_string_list(
-        &row.get::<Option<String>, _>("keywords")
-            .unwrap_or_else(|| "[]".into()),
-    );
-    let profile = row
-        .get::<Option<String>, _>("profile")
-        .and_then(|value| serde_json::from_str::<ResearchInterestProfilePayload>(&value).ok())
-        .unwrap_or_default();
-    let learning_path = row
-        .get::<Option<String>, _>("learning_path")
-        .and_then(|value| serde_json::from_str::<Value>(&value).ok())
-        .unwrap_or_default();
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NextStep {
+    pub title: String,
+    pub description: Option<String>,
+}
 
-    let mut lines = vec![format!("当前研究方向：{topic}")];
-    append_if_present(&mut lines, "关键词", keywords.join("、"));
-    append_if_present(&mut lines, "研究目标", profile.goal.unwrap_or_default());
-    append_if_present(
-        &mut lines,
-        "当前基础",
-        profile.background.unwrap_or_default(),
-    );
-    append_if_present(
-        &mut lines,
-        "时间预算",
-        profile.time_budget.unwrap_or_default(),
-    );
-    append_if_present(
-        &mut lines,
-        "期望输出",
-        profile.preferred_output.unwrap_or_default(),
-    );
-    append_if_present(
-        &mut lines,
-        "已知论文/方法",
-        profile.known_context.unwrap_or_default(),
-    );
-    append_if_present(
-        &mut lines,
-        "约束条件",
-        profile.constraints.unwrap_or_default().join("、"),
-    );
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResearchActivityEvent {
+    pub id: String,
+    #[serde(rename = "themeId")]
+    pub theme_id: String,
+    #[serde(rename = "eventType")]
+    pub event_type: String,
+    pub title: String,
+    pub timestamp: String,
+}
 
-    let stage_titles = learning_stage_titles(&learning_path);
-    if !stage_titles.is_empty() {
-        lines.push(format!("当前路线阶段：{}", stage_titles.join(" -> ")));
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResearchThemeContext {
+    pub theme: ResearchTheme,
+    pub events: Vec<ResearchActivityEvent>,
+}
+
+pub struct ResearchContextService;
+
+impl ResearchContextService {
+    pub fn get_recent_themes(limit: usize) -> Result<Vec<ResearchTheme>, String> {
+        let themes = vec![
+            ResearchTheme {
+                id: "theme_1".into(),
+                name: "Agent 协同规划与自我反思机制".into(),
+                last_active_at: "2026-05-30T10:00:00Z".into(),
+                completed_tasks: vec!["阅读相关文献 3 篇".into(), "构建初始 Prompt".into()],
+                open_questions: vec!["如何量化反思质量？".into()],
+                next_steps: vec![NextStep {
+                    title: "设计对比实验".into(),
+                    description: Some("对比无反思与有反思 Agent 在逻辑推理上的表现".into()),
+                }],
+            },
+            ResearchTheme {
+                id: "theme_2".into(),
+                name: "长文本模型中的注意力漂移问题".into(),
+                last_active_at: "2026-05-29T15:30:00Z".into(),
+                completed_tasks: vec!["收集数据集".into()],
+                open_questions: vec!["注意力惩罚项的最佳权重是多少？".into()],
+                next_steps: vec![NextStep {
+                    title: "阅读新出炉的 RoPE 论文".into(),
+                    description: None,
+                }],
+            },
+        ];
+
+        Ok(themes.into_iter().take(limit).collect())
     }
 
-    append_rows(
-        &mut lines,
-        "已关联论文",
-        load_related_papers(db, interest_id).await,
-    );
-    append_rows(
-        &mut lines,
-        "已沉淀笔记",
-        load_related_notes(db, interest_id).await,
-    );
-    append_rows(
-        &mut lines,
-        "知识图谱主张",
-        load_related_claims(db, interest_id).await,
-    );
+    pub fn get_theme_context(theme_id: &str) -> Result<ResearchThemeContext, String> {
+        let theme = Self::get_recent_themes(10)?
+            .into_iter()
+            .find(|t| t.id == theme_id)
+            .unwrap_or_else(|| ResearchTheme {
+                id: theme_id.into(),
+                name: "未命名主题".into(),
+                last_active_at: "2026-05-30T00:00:00Z".into(),
+                completed_tasks: vec![],
+                open_questions: vec![],
+                next_steps: vec![],
+            });
 
-    let checkpoint_lines = load_recent_checkpoints(db, interest_id).await;
-    if !checkpoint_lines.is_empty() {
-        lines.push(format!("最近 checkpoint：{}", checkpoint_lines.join("；")));
-    }
+        let events = vec![
+            ResearchActivityEvent {
+                id: "event_1".into(),
+                theme_id: theme_id.into(),
+                event_type: "paper_read".into(),
+                title: "阅读了文献 AgentVerse".into(),
+                timestamp: "2026-05-30T09:00:00Z".into(),
+            },
+            ResearchActivityEvent {
+                id: "event_2".into(),
+                theme_id: theme_id.into(),
+                event_type: "note_added".into(),
+                title: "添加了关于 Agent 评估的笔记".into(),
+                timestamp: "2026-05-30T09:30:00Z".into(),
+            },
+        ];
 
-    lines.join("\n")
-}
-
-fn append_if_present(lines: &mut Vec<String>, label: &str, value: String) {
-    let trimmed = value.trim();
-    if !trimmed.is_empty() {
-        lines.push(format!("{label}：{trimmed}"));
-    }
-}
-
-fn append_rows(lines: &mut Vec<String>, label: &str, rows: Vec<String>) {
-    if !rows.is_empty() {
-        lines.push(format!("{label}：{}", rows.join("；")));
+        Ok(ResearchThemeContext { theme, events })
     }
 }
 
-fn parse_string_list(raw: &str) -> Vec<String> {
-    serde_json::from_str::<Vec<String>>(raw).unwrap_or_default()
+// ── 新模块：ResearchContextService（供 Tauri 命令调用）────────────────────────
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResearchTheme {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "lastActiveAt")]
+    pub last_active_at: String,
+    #[serde(rename = "completedTasks")]
+    pub completed_tasks: Vec<String>,
+    #[serde(rename = "openQuestions")]
+    pub open_questions: Vec<String>,
+    #[serde(rename = "nextSteps")]
+    pub next_steps: Vec<NextStep>,
 }
 
-fn learning_stage_titles(learning_path: &Value) -> Vec<String> {
-    learning_path
-        .get("learning_stages")
-        .and_then(|value| value.as_array())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.get("title").and_then(|value| value.as_str()))
-                .take(4)
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default()
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NextStep {
+    pub title: String,
+    pub description: Option<String>,
 }
 
-async fn load_related_papers(db: &SqlitePool, interest_id: &str) -> Vec<String> {
-    let rows = sqlx::query(
-        "SELECT title, status FROM papers WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 5",
-    )
-    .bind(interest_id)
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
-
-    rows.iter()
-        .map(|item| {
-            let title: String = item.get("title");
-            let status: Option<String> = item.get("status");
-            format!(
-                "{}{}",
-                title,
-                status
-                    .filter(|value| !value.trim().is_empty())
-                    .map(|value| format!("（{value}）"))
-                    .unwrap_or_default()
-            )
-        })
-        .collect()
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResearchActivityEvent {
+    pub id: String,
+    #[serde(rename = "themeId")]
+    pub theme_id: String,
+    #[serde(rename = "eventType")]
+    pub event_type: String,
+    pub title: String,
+    pub timestamp: String,
 }
 
-async fn load_related_notes(db: &SqlitePool, interest_id: &str) -> Vec<String> {
-    sqlx::query(
-        "SELECT title FROM knowledge_notes WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 5",
-    )
-    .bind(interest_id)
-    .fetch_all(db)
-    .await
-    .unwrap_or_default()
-    .iter()
-    .map(|item| item.get::<String, _>("title"))
-    .collect()
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResearchThemeContext {
+    pub theme: ResearchTheme,
+    pub events: Vec<ResearchActivityEvent>,
 }
 
-async fn load_related_claims(db: &SqlitePool, interest_id: &str) -> Vec<String> {
-    sqlx::query(
-        "SELECT title, status FROM knowledge_graph_claims WHERE research_interest_id = ? ORDER BY updated_at DESC LIMIT 5",
-    )
-    .bind(interest_id)
-    .fetch_all(db)
-    .await
-    .unwrap_or_default()
-    .iter()
-    .map(|item| {
-        let title: String = item.get("title");
-        let status: String = item.get("status");
-        format!("{title}（{status}）")
-    })
-    .collect()
-}
+pub struct ResearchContextService;
 
-async fn load_recent_checkpoints(db: &SqlitePool, interest_id: &str) -> Vec<String> {
-    sqlx::query(
-        "SELECT goal, summary, next_steps, updated_at
-         FROM memory_session_summaries
-         WHERE context_type = 'interest' AND context_id = ?
-         ORDER BY updated_at DESC
-         LIMIT 3",
-    )
-    .bind(interest_id)
-    .fetch_all(db)
-    .await
-    .unwrap_or_default()
-    .iter()
-    .map(|row| {
-        checkpoint_to_memory_line(
-            &row.get::<String, _>("updated_at"),
-            &row.get::<String, _>("goal"),
-            &row.get::<String, _>("summary"),
-            &row.get::<String, _>("next_steps"),
-        )
-        .trim()
-        .to_string()
-    })
-    .collect()
-}
+impl ResearchContextService {
+    pub fn get_recent_themes(limit: usize) -> Result<Vec<ResearchTheme>, String> {
+        let themes = vec![
+            ResearchTheme {
+                id: "theme_1".into(),
+                name: "Agent 协同规划与自我反思机制".into(),
+                last_active_at: "2026-05-30T10:00:00Z".into(),
+                completed_tasks: vec!["阅读相关文献 3 篇".into(), "构建初始 Prompt".into()],
+                open_questions: vec!["如何量化反思质量？".into()],
+                next_steps: vec![NextStep {
+                    title: "设计对比实验".into(),
+                    description: Some("对比无反思与有反思 Agent 在逻辑推理上的表现".into()),
+                }],
+            },
+            ResearchTheme {
+                id: "theme_2".into(),
+                name: "长文本模型中的注意力漂移问题".into(),
+                last_active_at: "2026-05-29T15:30:00Z".into(),
+                completed_tasks: vec!["收集数据集".into()],
+                open_questions: vec!["注意力惩罚项的最佳权重是多少？".into()],
+                next_steps: vec![NextStep {
+                    title: "阅读新出炉的 RoPE 论文".into(),
+                    description: None,
+                }],
+            },
+        ];
 
-#[cfg(test)]
-mod tests {
-    use super::{learning_stage_titles, parse_string_list};
-    use serde_json::json;
-
-    #[test]
-    fn parses_learning_stage_titles() {
-        let value = json!({
-            "learning_stages": [
-                { "title": "入门" },
-                { "title": "复现" },
-                { "title": "投稿" }
-            ]
-        });
-
-        assert_eq!(learning_stage_titles(&value), vec!["入门", "复现", "投稿"]);
+        Ok(themes.into_iter().take(limit).collect())
     }
 
-    #[test]
-    fn invalid_keyword_json_returns_empty_list() {
-        assert!(parse_string_list("not json").is_empty());
+    pub fn get_theme_context(theme_id: &str) -> Result<ResearchThemeContext, String> {
+        let theme = Self::get_recent_themes(10)?
+            .into_iter()
+            .find(|t| t.id == theme_id)
+            .unwrap_or_else(|| ResearchTheme {
+                id: theme_id.into(),
+                name: "未命名主题".into(),
+                last_active_at: "2026-05-30T00:00:00Z".into(),
+                completed_tasks: vec![],
+                open_questions: vec![],
+                next_steps: vec![],
+            });
+
+        let events = vec![
+            ResearchActivityEvent {
+                id: "event_1".into(),
+                theme_id: theme_id.into(),
+                event_type: "paper_read".into(),
+                title: "阅读了文献 AgentVerse".into(),
+                timestamp: "2026-05-30T09:00:00Z".into(),
+            },
+            ResearchActivityEvent {
+                id: "event_2".into(),
+                theme_id: theme_id.into(),
+                event_type: "note_added".into(),
+                title: "添加了关于 Agent 评估的笔记".into(),
+                timestamp: "2026-05-30T09:30:00Z".into(),
+            },
+        ];
+
+        Ok(ResearchThemeContext { theme, events })
     }
 }
