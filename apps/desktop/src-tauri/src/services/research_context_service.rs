@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResearchTheme {
@@ -40,76 +41,191 @@ pub struct ResearchThemeContext {
 pub struct ResearchContextService;
 
 impl ResearchContextService {
-    pub fn get_recent_themes(limit: usize) -> Result<Vec<ResearchTheme>, String> {
-        let themes = vec![
-            ResearchTheme {
-                id: "theme_1".into(),
-                name: "Agent 协同规划与自我反思机制".into(),
-                last_active_at: "2026-05-30T10:00:00Z".into(),
-                completed_tasks: vec!["阅读相关文献 3 篇".into(), "构建初始 Prompt".into()],
-                open_questions: vec!["如何量化反思质量？".into()],
-                next_steps: vec![NextStep {
-                    title: "设计对比实验".into(),
-                    description: Some("对比无反思与有反思 Agent 在逻辑推理上的表现".into()),
-                }],
-            },
-            ResearchTheme {
-                id: "theme_2".into(),
-                name: "长文本模型中的注意力漂移问题".into(),
-                last_active_at: "2026-05-29T15:30:00Z".into(),
-                completed_tasks: vec!["收集数据集".into()],
-                open_questions: vec!["注意力惩罚项的最佳权重是多少？".into()],
-                next_steps: vec![NextStep {
-                    title: "阅读新出炉的 RoPE 论文".into(),
-                    description: None,
-                }],
-            },
-        ];
+    pub async fn get_recent_themes(
+        db: &sqlx::SqlitePool,
+        limit: usize,
+    ) -> Result<Vec<ResearchTheme>, String> {
+        let rows = sqlx::query(
+            "SELECT ri.id, ri.topic, ri.folder_name,
+                    COALESCE(ri.updated_at, ri.created_at) as last_active,
+                    (SELECT COUNT(*) FROM papers p WHERE p.research_interest_id = ri.id) as paper_count,
+                    (SELECT COUNT(*) FROM knowledge_notes n WHERE n.research_interest_id = ri.id) as note_count
+             FROM research_interests ri
+             ORDER BY last_active DESC
+             LIMIT ?"
+        )
+        .bind(limit as i64)
+        .fetch_all(db)
+        .await
+        .map_err(|e| e.to_string())?;
 
-        Ok(themes.into_iter().take(limit).collect())
-    }
+        let mut themes = Vec::new();
+        for row in rows {
+            let id: String = row.get("id");
+            let topic: String = row.get("topic");
+            let folder_name: Option<String> = row.get("folder_name");
+            let last_active: String = row.get("last_active");
+            let paper_count: i64 = row.get("paper_count");
+            let note_count: i64 = row.get("note_count");
 
-    pub fn get_theme_context(theme_id: &str) -> Result<ResearchThemeContext, String> {
-        let theme = Self::get_recent_themes(10)?
+            let completed_tasks = vec![
+                if paper_count > 0 { format!("已导入 {} 篇论文", paper_count) } else { String::new() },
+                if note_count > 0 { format!("已记录 {} 条笔记", note_count) } else { String::new() },
+            ]
             .into_iter()
-            .find(|t| t.id == theme_id)
-            .unwrap_or_else(|| ResearchTheme {
-                id: theme_id.into(),
-                name: "未命名主题".into(),
-                last_active_at: "2026-05-30T00:00:00Z".into(),
-                completed_tasks: vec![],
+            .filter(|s| !s.is_empty())
+            .collect();
+
+            let name = folder_name.unwrap_or(topic);
+            themes.push(ResearchTheme {
+                id,
+                name,
+                last_active_at: last_active,
+                completed_tasks,
                 open_questions: vec![],
                 next_steps: vec![],
             });
+        }
 
-        let events = vec![
-            ResearchActivityEvent {
-                id: "event_1".into(),
-                theme_id: theme_id.into(),
-                event_type: "paper_read".into(),
-                title: "阅读了文献 AgentVerse".into(),
-                timestamp: "2026-05-30T09:00:00Z".into(),
+        Ok(themes)
+    }
+
+    pub async fn get_theme_context(
+        db: &sqlx::SqlitePool,
+        theme_id: &str,
+    ) -> Result<ResearchThemeContext, String> {
+        let row = sqlx::query(
+            "SELECT id, topic, folder_name,
+                    COALESCE(updated_at, created_at) as last_active
+             FROM research_interests WHERE id = ?"
+        )
+        .bind(theme_id)
+        .fetch_optional(db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let theme = match row {
+            Some(r) => {
+                let id: String = r.get("id");
+                let topic: String = r.get("topic");
+                let folder_name: Option<String> = r.get("folder_name");
+                let last_active: String = r.get("last_active");
+
+                let paper_count: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM papers WHERE research_interest_id = ?"
+                )
+                .bind(&id)
+                .fetch_one(db)
+                .await
+                .unwrap_or(0);
+
+                let note_count: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM knowledge_notes WHERE research_interest_id = ?"
+                )
+                .bind(&id)
+                .fetch_one(db)
+                .await
+                .unwrap_or(0);
+
+                let completed_tasks = [
+                    if paper_count > 0 { Some(format!("已导入 {} 篇论文", paper_count)) } else { None },
+                    if note_count > 0 { Some(format!("已记录 {} 条笔记", note_count)) } else { None },
+                ]
+                .into_iter()
+                .flatten()
+                .collect();
+
+                ResearchTheme {
+                    id,
+                    name: folder_name.unwrap_or(topic),
+                    last_active_at: last_active,
+                    completed_tasks,
+                    open_questions: vec![],
+                    next_steps: vec![],
+                }
+            }
+            None => ResearchTheme {
+                id: theme_id.to_string(),
+                name: "未知主题".to_string(),
+                last_active_at: String::new(),
+                completed_tasks: vec![],
+                open_questions: vec![],
+                next_steps: vec![],
             },
-            ResearchActivityEvent {
-                id: "event_2".into(),
-                theme_id: theme_id.into(),
-                event_type: "note_added".into(),
-                title: "添加了关于 Agent 评估的笔记".into(),
-                timestamp: "2026-05-30T09:30:00Z".into(),
-            },
-        ];
+        };
+
+        // Recent activity events for this theme
+        let events = Self::recent_theme_events(db, theme_id).await?;
 
         Ok(ResearchThemeContext { theme, events })
     }
+
+    async fn recent_theme_events(
+        db: &sqlx::SqlitePool,
+        theme_id: &str,
+    ) -> Result<Vec<ResearchActivityEvent>, String> {
+        let mut events = Vec::new();
+
+        // Recent papers imported for this theme
+        let paper_rows = sqlx::query(
+            "SELECT id, title, created_at FROM papers
+             WHERE research_interest_id = ?
+             ORDER BY created_at DESC LIMIT 5"
+        )
+        .bind(theme_id)
+        .fetch_all(db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        for row in paper_rows {
+            let id: String = row.get("id");
+            let title: String = row.get("title");
+            let created_at: String = row.get("created_at");
+            events.push(ResearchActivityEvent {
+                id,
+                theme_id: theme_id.to_string(),
+                event_type: "paper_read".into(),
+                title,
+                timestamp: created_at,
+            });
+        }
+
+        // Recent notes for this theme
+        let note_rows = sqlx::query(
+            "SELECT id, title, created_at FROM knowledge_notes
+             WHERE research_interest_id = ?
+             ORDER BY created_at DESC LIMIT 5"
+        )
+        .bind(theme_id)
+        .fetch_all(db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        for row in note_rows {
+            let id: String = row.get("id");
+            let title: String = row.get("title");
+            let created_at: String = row.get("created_at");
+            events.push(ResearchActivityEvent {
+                id,
+                theme_id: theme_id.to_string(),
+                event_type: "note_added".into(),
+                title,
+                timestamp: created_at,
+            });
+        }
+
+        events.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        Ok(events)
+    }
 }
 
-
 pub async fn build_research_context_summary(
-    _db: &sqlx::SqlitePool,
+    db: &sqlx::SqlitePool,
     interest_id: &str,
 ) -> String {
-    let ctx = ResearchContextService::get_theme_context(interest_id).unwrap_or_else(|_| {
-        ResearchThemeContext {
+    let ctx = ResearchContextService::get_theme_context(db, interest_id)
+        .await
+        .unwrap_or_else(|_| ResearchThemeContext {
             theme: ResearchTheme {
                 id: interest_id.to_string(),
                 name: "未知主题".to_string(),
@@ -119,8 +235,8 @@ pub async fn build_research_context_summary(
                 next_steps: vec![],
             },
             events: vec![],
-        }
-    });
+        });
+
     format!(
         "研究主题：{}\n已完成：{}\n待解决：{}",
         ctx.theme.name,
