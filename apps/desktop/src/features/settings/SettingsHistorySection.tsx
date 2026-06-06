@@ -4,6 +4,7 @@ import { History, Loader2, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-rea
 import type { SettingsHistoryEntry } from "@research-copilot/types";
 import DataConfigTransferCard from "./DataConfigTransferCard";
 import { SectionIcon } from "./shared";
+import WebdavSyncSection from "./WebdavSyncSection";
 
 interface SettingsHistorySectionProps {
   entries: SettingsHistoryEntry[];
@@ -154,6 +155,8 @@ export default function SettingsHistorySection({
         settingsBusy={settingsTransferBusy}
         dataBusy={dataTransferBusy}
       />
+
+      <WebdavSyncSection />
 
       <Card padding="md" className="space-y-4">
         <div className="flex items-center gap-3">

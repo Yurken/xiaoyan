@@ -177,7 +177,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
   }, [
     input, attachments, sending, skills, selectedSkillId, chatMode,
     currentSession, selectedInterestId, clearAttachments, cancelActiveStream,
-    searchingQuery, onNewSession, onSessionCreated,
+    searchingQuery, onSessionCreated,
   ]);
 
   return {

@@ -598,7 +598,7 @@ struct ImportRenameMetadata {
     year: Option<i64>,
     venue: Option<String>,
     doi: Option<String>,
-    keywords: Option<String>,
+    _keywords: Option<String>,
 }
 
 const IMPORT_RECOGNIZE_PROMPT: &str = r#"请根据用户提供的 PDF 文件名和正文前段识别论文元数据，仅返回合法 JSON：
@@ -1799,6 +1799,7 @@ async fn extract_import_metadata(
     serde_json::from_str::<ImportRenameMetadata>(&clean).ok()
 }
 
+#[allow(dead_code)]
 fn render_import_file_stem(
     rule: &str,
     metadata: &ImportRenameMetadata,
@@ -1843,6 +1844,7 @@ fn clean_optional_text(value: Option<String>) -> Option<String> {
         .filter(|item| !item.is_empty())
 }
 
+#[allow(dead_code)]
 fn extract_first_author(authors: &str) -> String {
     authors
         .split(',')
@@ -1853,6 +1855,7 @@ fn extract_first_author(authors: &str) -> String {
         .to_string()
 }
 
+#[allow(dead_code)]
 fn strip_placeholder_braces(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     let mut brace_depth = 0usize;
@@ -1906,6 +1909,7 @@ fn sanitize_file_stem(input: &str) -> String {
 
 /// Scan the first ~4000 chars of extracted PDF text for a "Keywords:" section.
 /// Returns up to 10 cleaned keyword strings, or an empty vec if not found.
+#[allow(dead_code)]
 pub(crate) fn extract_keywords_from_text(full_text: &str) -> Vec<String> {
     let search_area = safe_text_preview(full_text, 4000);
     let lower = search_area.to_ascii_lowercase();

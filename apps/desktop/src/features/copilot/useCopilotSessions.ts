@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   clearPersistentValue,
   readPersistentValue,
@@ -22,7 +22,7 @@ export function useCopilotSessions() {
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
-  const restoredSessionRef = { current: false };
+  const restoredSessionRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +93,7 @@ export function useCopilotSessions() {
       setLoadError(formatErrorMessage(error));
       return null;
     }
-  }, [currentSession]);
+  }, []);
 
   const handleSessionInterestChange = async (nextInterestId: string) => {
     const previousInterestId = selectedInterestId;

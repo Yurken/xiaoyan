@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { submissionApi } from "./shared";
+import { submissionApi } from "../../lib/client";
 import { formatErrorMessage } from "../../lib/client";
 import type { ReviewComment, ReviewRound, ReviewVerdict } from "./shared";
 

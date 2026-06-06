@@ -90,6 +90,18 @@ export const settingsApi = {
     import: (data: string, password: string): Promise<void> =>
       invoke("data_backup_import", { data, password }),
   },
+  webdav: {
+    testConnection: (url: string, username: string, password: string): Promise<void> =>
+      invoke("webdav_test_connection", { url, username, password }),
+    listBackups: (url: string, username: string, password: string): Promise<Array<{name: string; path: string; size: number; lastModified: string}>> =>
+      invoke("webdav_list_backups", { url, username, password }),
+    uploadBackup: (url: string, username: string, password: string): Promise<string> =>
+      invoke("webdav_upload_backup", { url, username, password }),
+    downloadBackup: (url: string, username: string, password: string, filename: string): Promise<void> =>
+      invoke("webdav_download_backup", { url, username, password, filename }),
+    deleteBackup: (url: string, username: string, password: string, filename: string): Promise<void> =>
+      invoke("webdav_delete_backup", { url, username, password, filename }),
+  },
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
   appLock: {

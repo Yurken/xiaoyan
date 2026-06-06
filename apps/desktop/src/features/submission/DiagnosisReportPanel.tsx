@@ -38,6 +38,7 @@ export default function DiagnosisReportPanel({
   const latest = reports[0];
 
   return (
+    <>
     <Card padding="md" variant="flat" className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -149,5 +150,6 @@ export default function DiagnosisReportPanel({
         isOpen={evidenceOpen}
         onClose={() => setEvidenceOpen(false)}
       />
+    </>
   );
 }

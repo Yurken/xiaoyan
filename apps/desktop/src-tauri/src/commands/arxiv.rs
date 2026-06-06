@@ -450,7 +450,7 @@ struct SemanticScholarPaper {
     #[serde(default)]
     authors: Vec<SemanticScholarAuthor>,
     #[serde(default)]
-    publication_date: Option<String>,
+    _publication_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -624,7 +624,7 @@ async fn fetch_arxiv_candidates(
 
 async fn rate_limit_arxiv() {
     let wait = {
-        let mut last = LAST_ARXIV_REQUEST.lock().unwrap();
+        let last = LAST_ARXIV_REQUEST.lock().unwrap();
         if let Some(prev) = *last {
             let elapsed = prev.elapsed().as_secs_f64();
             if elapsed < ARXIV_MIN_INTERVAL_SECS {

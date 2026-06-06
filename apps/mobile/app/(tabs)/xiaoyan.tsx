@@ -14,7 +14,8 @@ import {
   MAIN_ASSISTANT_WELCOME_TITLE,
 } from "@research-copilot/types";
 import { apiClient } from "../../lib/client";
-import type { ChatMessage } from "@research-copilot/types";
+import { useChatSessions } from "../../features/chat/useChatSessions";
+import type { ChatMessage, ChatSession } from "@research-copilot/types";
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
@@ -44,12 +45,49 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
+function SessionItem({
+  session,
+  isActive,
+  onPress,
+}: {
+  session: ChatSession;
+  isActive: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.sessionItem, isActive && styles.sessionItemActive]}
+      activeOpacity={0.65}
+      onPress={onPress}
+    >
+      <View style={styles.sessionIcon}>
+        <Ionicons
+          name="chatbubble-ellipses"
+          size={14}
+          color={isActive ? "#007AFF" : "#5F6B7A"}
+        />
+      </View>
+      <View style={styles.sessionInfo}>
+        <Text style={[styles.sessionTitle, isActive && styles.sessionTitleActive]} numberOfLines={1}>
+          {session.title || "新对话"}
+        </Text>
+        <Text style={styles.sessionDate}>
+          {new Date(session.updated_at || session.created_at).toLocaleDateString("zh-CN")}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export default function XiaoYanScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
+  const [loadingSession, setLoadingSession] = useState(false);
+  const [showSessions, setShowSessions] = useState(false);
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const { sessions, reload: reloadSessions } = useChatSessions();
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -98,6 +136,7 @@ export default function XiaoYanScreen() {
           );
         }
       }
+      reloadSessions();
     } catch (e) {
       setMessages((prev) =>
         prev.map((m) =>
@@ -114,6 +153,29 @@ export default function XiaoYanScreen() {
   const handleNewChat = () => {
     setMessages([]);
     setSessionId(undefined);
+    setShowSessions(false);
+  };
+
+  const handleLoadSession = async (id: string) => {
+    if (id === sessionId) {
+      setShowSessions(false);
+      return;
+    }
+    setLoadingSession(true);
+    setShowSessions(false);
+    try {
+      const data = await apiClient.chat.getSession(id);
+      setMessages(data.messages ?? []);
+      setSessionId(id);
+    } catch {
+      // Silently fail; session might not be loadable
+    } finally {
+      setLoadingSession(false);
+    }
+  };
+
+  const toggleSessions = () => {
+    setShowSessions((v) => !v);
   };
 
   return (
@@ -124,9 +186,19 @@ export default function XiaoYanScreen() {
           <Text style={styles.title}>{MAIN_ASSISTANT_NAME}</Text>
           <Text style={styles.subtitle}>{MAIN_ASSISTANT_ROLE}</Text>
         </View>
-        <TouchableOpacity style={styles.newBtn} onPress={handleNewChat}>
-          <Ionicons name="add" size={22} color="#007AFF" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {sessions.length > 0 && (
+            <TouchableOpacity
+              style={[styles.headerBtn, showSessions && styles.headerBtnActive]}
+              onPress={toggleSessions}
+            >
+              <Ionicons name="time-outline" size={20} color={showSessions ? "#007AFF" : "#5F6B7A"} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.headerBtn} onPress={handleNewChat}>
+            <Ionicons name="add" size={22} color="#007AFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -135,15 +207,51 @@ export default function XiaoYanScreen() {
         keyboardVerticalOffset={0}
       >
         {/* Messages */}
-        {messages.length === 0 ? (
+        {loadingSession ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color="#007AFF" />
+          </View>
+        ) : messages.length === 0 && !showSessions ? (
           <View style={styles.welcome}>
             <View style={styles.welcomeIcon}>
               <Ionicons name="sparkles" size={36} color="#007AFF" />
             </View>
             <Text style={styles.welcomeTitle}>{MAIN_ASSISTANT_WELCOME_TITLE}</Text>
             <Text style={styles.welcomeText}>{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</Text>
+
+            {sessions.length > 0 && (
+              <TouchableOpacity
+                style={styles.historyBtn}
+                onPress={toggleSessions}
+              >
+                <Ionicons name="time-outline" size={16} color="#007AFF" />
+                <Text style={styles.historyBtnText}>
+                  查看历史对话 ({sessions.length})
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : showSessions ? (
+          /* Session List */
+          <View style={styles.sessionList}>
+            <Text style={styles.sessionListTitle}>历史对话</Text>
+            <FlatList<ChatSession>
+              data={sessions}
+              keyExtractor={(s) => s.id}
+              renderItem={({ item }) => (
+                <SessionItem
+                  session={item}
+                  isActive={item.id === sessionId}
+                  onPress={() => handleLoadSession(item.id)}
+                />
+              )}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>暂无历史对话</Text>
+              }
+            />
           </View>
         ) : (
+          /* Messages */
           <View style={styles.messageList}>
             <FlatList<ChatMessage>
               ref={listRef}
@@ -159,35 +267,37 @@ export default function XiaoYanScreen() {
         )}
 
         {/* Input Bar */}
-        <View style={styles.inputBar}>
-          <TextInput
-            style={styles.textInput}
-            value={input}
-            onChangeText={setInput}
-            placeholder={MAIN_ASSISTANT_INPUT_PLACEHOLDER}
-            placeholderTextColor="#8E8E93"
-            multiline
-            maxLength={2000}
-            returnKeyType="send"
-            onSubmitEditing={handleSend}
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, (!input.trim() || sending) && styles.sendBtnDisabled]}
-            onPress={handleSend}
-            disabled={!input.trim() || sending}
-          >
-            {sending
-              ? <ActivityIndicator size="small" color="#FFFFFF" />
-              : <Ionicons name="arrow-up" size={20} color="#FFFFFF" />}
-          </TouchableOpacity>
-        </View>
+        {!showSessions && (
+          <View style={styles.inputBar}>
+            <TextInput
+              style={styles.textInput}
+              value={input}
+              onChangeText={setInput}
+              placeholder={MAIN_ASSISTANT_INPUT_PLACEHOLDER}
+              placeholderTextColor="#5F6B7A"
+              multiline
+              maxLength={2000}
+              returnKeyType="send"
+              onSubmitEditing={handleSend}
+            />
+            <TouchableOpacity
+              style={[styles.sendBtn, (!input.trim() || sending) && styles.sendBtnDisabled]}
+              onPress={handleSend}
+              disabled={!input.trim() || sending}
+            >
+              {sending
+                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                : <Ionicons name="arrow-up" size={20} color="#FFFFFF" />}
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen:   { flex: 1, backgroundColor: "#E8ECF0" },
+  screen:   { flex: 1, backgroundColor: "#090B10" },
   header:   {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -196,21 +306,21 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
   },
-  title:    { fontSize: 28, fontWeight: "700", color: "#1C1C1E" },
-  subtitle: { fontSize: 14, color: "#8E8E93", marginTop: 2 },
-  newBtn: {
+  title:    { fontSize: 28, fontWeight: "700", color: "#F5F7FA" },
+  subtitle: { fontSize: 14, color: "#5F6B7A", marginTop: 2 },
+  headerActions: { flexDirection: "row", gap: 8 },
+  headerBtn: {
     width: 40,
     height: 40,
     borderRadius: 14,
-    backgroundColor: "#E8ECF0",
+    backgroundColor: "#141A23",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#1C1C1E",
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.8)",
+    borderColor: "rgba(60,74,92,0.7)",
+  },
+  headerBtnActive: {
+    borderColor: "rgba(0,122,255,0.4)",
   },
 
   welcome: {
@@ -224,7 +334,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 24,
-    backgroundColor: "#E8ECF0",
+    backgroundColor: "#141A23",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#007AFF",
@@ -234,8 +344,61 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.8)",
   },
-  welcomeTitle: { fontSize: 20, fontWeight: "700", color: "#1C1C1E" },
-  welcomeText:  { fontSize: 14, color: "#8E8E93", textAlign: "center", paddingHorizontal: 40 },
+  welcomeTitle: { fontSize: 20, fontWeight: "700", color: "#F5F7FA" },
+  welcomeText:  { fontSize: 14, color: "#5F6B7A", textAlign: "center", paddingHorizontal: 40 },
+
+  historyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,122,255,0.1)",
+  },
+  historyBtnText: { fontSize: 14, color: "#007AFF", fontWeight: "500" },
+
+  sessionList: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  sessionListTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#5F6B7A",
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+
+  sessionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    marginBottom: 6,
+    backgroundColor: "#141A23",
+    borderWidth: 1,
+    borderColor: "rgba(60,74,92,0.35)",
+  },
+  sessionItemActive: {
+    borderColor: "rgba(0,122,255,0.4)",
+  },
+  sessionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,122,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sessionInfo: { flex: 1 },
+  sessionTitle: { fontSize: 14, fontWeight: "500", color: "#9AA7B8" },
+  sessionTitleActive: { color: "#007AFF" },
+  sessionDate: { fontSize: 12, color: "#5F6B7A", marginTop: 2 },
 
   messageList: { paddingHorizontal: 16, paddingVertical: 12 },
   messageItem: { marginBottom: 16 },
@@ -245,11 +408,11 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 12,
-    backgroundColor: "#E8ECF0",
+    backgroundColor: "#141A23",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(200,205,211,0.5)",
+    borderColor: "rgba(60,74,92,0.5)",
     flexShrink: 0,
   },
   avatarUser: {
@@ -258,8 +421,8 @@ const styles = StyleSheet.create({
   },
   bubble:          { maxWidth: "75%", borderRadius: 18, padding: 12 },
   bubbleAssistant: {
-    backgroundColor: "#F2F6FA",
-    shadowColor: "#1C1C1E",
+    backgroundColor: "#1E2A3A",
+    shadowColor: "#F5F7FA",
     shadowOffset: { width: 3, height: 3 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
@@ -273,7 +436,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 6,
   },
-  bubbleText:     { fontSize: 15, lineHeight: 22, color: "#1C1C1E" },
+  bubbleText:     { fontSize: 15, lineHeight: 22, color: "#F5F7FA" },
   bubbleTextUser: { color: "#FFFFFF" },
 
   inputBar: {
@@ -285,15 +448,15 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    backgroundColor: "#E8ECF0",
+    backgroundColor: "#0F141C",
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 15,
-    color: "#1C1C1E",
+    color: "#F5F7FA",
     maxHeight: 120,
     borderWidth: 1,
-    borderColor: "rgba(200,205,211,0.5)",
+    borderColor: "rgba(60,74,92,0.5)",
   },
   sendBtn: {
     width: 44,
@@ -308,4 +471,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   sendBtnDisabled: { opacity: 0.4 },
+
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  emptyText: { fontSize: 14, color: "#5F6B7A", textAlign: "center", paddingTop: 24 },
 });

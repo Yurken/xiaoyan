@@ -41,13 +41,13 @@ export default function KnowledgeScreen() {
 
       {/* Search */}
       <View style={styles.searchWrap}>
-        <Ionicons name="search" size={16} color="#8E8E93" style={styles.searchIcon} />
+        <Ionicons name="search" size={16} color="#5F6B7A" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
           placeholder="请输入关键词搜索笔记"
-          placeholderTextColor="#8E8E93"
+          placeholderTextColor="#5F6B7A"
           returnKeyType="search"
         />
       </View>
@@ -60,7 +60,7 @@ export default function KnowledgeScreen() {
       ) : notes.length === 0 ? (
         <View style={styles.center}>
           <View style={styles.emptyIcon}>
-            <Ionicons name="book-outline" size={40} color="#8E8E93" />
+            <Ionicons name="book-outline" size={40} color="#5F6B7A" />
           </View>
           <Text style={styles.emptyTitle}>
             {search ? "未找到相关笔记" : "暂无笔记"}
@@ -97,39 +97,39 @@ export default function KnowledgeScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen:      { flex: 1, backgroundColor: "#E8ECF0" },
+  screen:      { flex: 1, backgroundColor: "#0F141C" },
   header:      { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  title:       { fontSize: 28, fontWeight: "700", color: "#1C1C1E" },
-  subtitle:    { fontSize: 14, color: "#8E8E93", marginTop: 2 },
+  title:       { fontSize: 28, fontWeight: "700", color: "#F5F7FA" },
+  subtitle:    { fontSize: 14, color: "#5F6B7A", marginTop: 2 },
 
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 20,
     marginBottom: 16,
-    backgroundColor: "#E8ECF0",
+    backgroundColor: "#0F141C",
     borderRadius: 20,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: "rgba(200,205,211,0.5)",
+    borderColor: "rgba(60,74,92,0.5)",
     height: 44,
   },
   searchIcon:  { marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 15, color: "#1C1C1E" },
+  searchInput: { flex: 1, fontSize: 15, color: "#F5F7FA" },
 
   grid:   { paddingHorizontal: 20, paddingBottom: 20 },
   noteItem: { flex: 1, marginBottom: 12 },
   noteCard: { flex: 1, padding: 14, gap: 6 },
-  noteTitle:   { fontSize: 14, fontWeight: "600", color: "#1C1C1E", lineHeight: 20 },
-  noteContent: { fontSize: 13, color: "#3C3C43", lineHeight: 18 },
-  noteDate:    { fontSize: 11, color: "#8E8E93", marginTop: "auto" },
+  noteTitle:   { fontSize: 14, fontWeight: "600", color: "#F5F7FA", lineHeight: 20 },
+  noteContent: { fontSize: 13, color: "#9AA7B8", lineHeight: 18 },
+  noteDate:    { fontSize: 11, color: "#5F6B7A", marginTop: "auto" },
 
   center:    { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   emptyIcon: {
-    width: 72, height: 72, borderRadius: 24, backgroundColor: "#E8ECF0",
+    width: 72, height: 72, borderRadius: 24, backgroundColor: "#090B10",
     alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(200,205,211,0.5)",
+    borderWidth: 1, borderColor: "rgba(60,74,92,0.5)",
   },
-  emptyTitle: { fontSize: 17, fontWeight: "600", color: "#3C3C43" },
-  emptyText:  { fontSize: 14, color: "#8E8E93", textAlign: "center", paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 17, fontWeight: "600", color: "#9AA7B8" },
+  emptyText:  { fontSize: 14, color: "#5F6B7A", textAlign: "center", paddingHorizontal: 40 },
 });

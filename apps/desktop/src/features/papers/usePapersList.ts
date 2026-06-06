@@ -5,6 +5,8 @@ import type { Paper, ResearchInterest } from "@research-copilot/types";
 
 type SortKey = "created_at" | "title" | "importance";
 
+const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
+
 export function usePapersList() {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
@@ -145,9 +147,8 @@ export function usePapersList() {
     }
   };
 
-  const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
 
-  const sortPapers = (ps: Paper[], key: SortKey): Paper[] => {
+  const sortPapers = useCallback((ps: Paper[], key: SortKey): Paper[] => {
     if (key === "title") return [...ps].sort((a, b) => a.title.localeCompare(b.title, "zh"));
     if (key === "importance") return [...ps].sort((a, b) => {
       const ai = a.importance_color ? COLOR_PRIORITY.indexOf(a.importance_color) : COLOR_PRIORITY.length;
@@ -155,9 +156,9 @@ export function usePapersList() {
       return (ai === -1 ? COLOR_PRIORITY.length : ai) - (bi === -1 ? COLOR_PRIORITY.length : bi);
     });
     return [...ps].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  };
+  }, []);
 
-  const getSortKey = (groupId: string): SortKey => sortKeys[groupId] || "created_at";
+  const getSortKey = useCallback((groupId: string): SortKey => sortKeys[groupId] || "created_at", [sortKeys]);
   const setSortKey = (groupId: string, key: SortKey) => setSortKeys((prev) => ({ ...prev, [groupId]: key }));
 
   const setKeywordFilter = (groupId: string, kw: string) => setKeywordFilters((prev) => ({ ...prev, [groupId]: kw }));
@@ -174,7 +175,7 @@ export function usePapersList() {
       if (activeTf) filtered = filtered.filter((p) => p.title.toLowerCase().includes(activeTf));
       return { key: interest.id, title: interest.folder_name?.trim() || interest.topic, subtitle: interest.topic, papers: sortPapers(filtered, getSortKey(interest.id)) };
     });
-  }, [interests, papers, sortKeys, keywordFilters, titleFilters, getSortKey, sortPapers]);
+  }, [interests, papers, keywordFilters, titleFilters, getSortKey, sortPapers]);
 
   const ungroupedPapers = useMemo(() => {
     const base = papers.filter((p) => {

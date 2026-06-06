@@ -1127,6 +1127,7 @@ struct CcfTimeline {
 }
 
 #[derive(serde::Deserialize)]
+#[allow(dead_code)]
 struct CcfVenueJson {
     title: String,
     ccf: Option<String>,

@@ -47,6 +47,7 @@ use commands::{
         knowledge_graph_citation_subgraph,
     },
     data_backup::{data_backup_export, data_backup_import},
+    webdav_sync::{webdav_test_connection, webdav_list_backups, webdav_upload_backup, webdav_download_backup, webdav_delete_backup},
     experiment::{
         experiment_add_attachment, experiment_create, experiment_delete,
         experiment_delete_attachment, experiment_get, experiment_list, experiment_list_attachments,
@@ -443,6 +444,11 @@ pub fn run() {
             // Data backup
             data_backup_export,
             data_backup_import,
+            webdav_test_connection,
+            webdav_list_backups,
+            webdav_upload_backup,
+            webdav_download_backup,
+            webdav_delete_backup,
             // Workbench
             workbench_get_overview_text_cache,
             workbench_generate_overview_text,

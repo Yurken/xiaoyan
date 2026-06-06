@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "小妍",
+    "name": "\u5c0f\u598d",
     "slug": "research-copilot",
     "version": "0.4.0",
     "orientation": "portrait",
@@ -46,6 +46,7 @@
       "eas": {
         "projectId": "YOUR_EAS_PROJECT_ID"
       }
-    }
+    },
+    "jsEngine": "jsc"
   }
 }

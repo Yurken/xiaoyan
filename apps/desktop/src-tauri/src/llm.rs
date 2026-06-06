@@ -75,6 +75,7 @@ impl LlmMessage {
             tool_calls: None,
         }
     }
+    #[allow(dead_code)]
     pub fn assistant(content: impl Into<String>) -> Self {
         Self {
             role: "assistant".into(),

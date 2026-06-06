@@ -165,10 +165,23 @@
     font-weight: 500;
   }
 
+  .app-sidebar__account {
+    margin-top: auto;
+    padding-bottom: 4px;
+  }
+
+  .app-sidebar__account .app-nav-item {
+    padding: 0 12px 0 14px;
+  }
+
+  .app-sidebar__account .app-nav-item__icon {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
   .app-sidebar__pet {
     position: relative;
     z-index: 1;
-    margin-top: auto;
     padding-top: 4px;
     display: flex;
     justify-content: center;

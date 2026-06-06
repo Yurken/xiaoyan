@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+#[allow(non_snake_case)]
 struct DuckDuckGoResponse {
     #[serde(default)]
     AbstractText: String,
@@ -20,6 +21,7 @@ struct DuckDuckGoResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(non_snake_case)]
 struct DuckDuckGoTopic {
     #[serde(default)]
     Text: String,
@@ -28,6 +30,7 @@ struct DuckDuckGoTopic {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(non_snake_case)]
 struct DuckDuckGoResult {
     #[serde(default)]
     Text: String,

@@ -43,6 +43,8 @@ import { IS_MACOS_DESKTOP } from "./lib/windowChrome";
 import MacWindowDragStrip from "./components/MacWindowDragStrip";
 import UpdateNotification from "./components/UpdateNotification";
 import XiaoYanPet from "./components/XiaoYanPet";
+import LoginModal from "./features/auth/LoginModal";
+import { hasToken } from "./lib/apiBridge";
 import { useInterestPlanEventBridge } from "./features/knowledge/useInterestPlanRuns";
 
 const navItems = [
@@ -82,6 +84,8 @@ export default function App() {
       })
       .catch(() => {})
       .finally(() => setLockChecked(true));
+
+
   }, []);
 
   useInactivityLock(lockTimeout, locked, () => setLocked(true));
@@ -137,6 +141,9 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate]);
 
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(hasToken());
+
   // Lock screen — shown before any app content
   if (locked) {
     return (
@@ -166,8 +173,9 @@ export default function App() {
     );
   }
 
-  // Don't render app until lock status has been checked
   if (!lockChecked) return null;
+
+
 
   if (layoutMode === "focus") {
     return (
@@ -180,6 +188,7 @@ export default function App() {
   }
 
   return (
+    <>
     <div className={`app-shell ${IS_MACOS_DESKTOP ? "app-shell--macos-overlay" : ""}`.trim()}>
       <aside className="app-sidebar">
         <MacWindowDragStrip className="app-sidebar__window-drag-region" />
@@ -205,7 +214,25 @@ export default function App() {
           </NavLink>
         ))}
 
-        <div className="app-sidebar__pet">
+        <div className="app-sidebar__account">
+            <button
+              type="button"
+              onClick={() => setLoginOpen(true)}
+              className="app-nav-link"
+              aria-label="账号"
+              title={loggedIn ? "已登录 — 点击管理账号与同步" : "登录以启用 WebDAV 同步"}
+            >
+              <span className={`app-nav-item ${loggedIn ? "is-active" : ""}`.trim()}>
+                <span className="app-nav-item__marker" />
+                <span className="app-nav-item__icon" style={{ fontSize: 18 }}>
+                  {loggedIn ? "✓" : "⊙"}
+                </span>
+                <span className="app-nav-item__label">{loggedIn ? "已登录" : "登录"}</span>
+              </span>
+            </button>
+          </div>
+
+          <div className="app-sidebar__pet">
           <XiaoYanPet inline />
         </div>
       </aside>
@@ -233,5 +260,7 @@ export default function App() {
       </main>
       <UpdateNotification {...autoUpdate} />
     </div>
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLoginSuccess={() => navigate("/settings")} />
+    </>
   );
 }

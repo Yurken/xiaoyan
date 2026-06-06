@@ -34,6 +34,7 @@ export default function ResearchCommandCenter({ themeId }: ResearchCommandCenter
   }
 
   return (
+    <>
     <div className="flex h-full flex-col p-5">
       <Card padding="md" className="flex flex-col gap-5">
         <div>
@@ -103,5 +104,6 @@ export default function ResearchCommandCenter({ themeId }: ResearchCommandCenter
         isOpen={evidenceOpen}
         onClose={() => setEvidenceOpen(false)}
       />
+    </>
   );
 }
