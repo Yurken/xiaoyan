@@ -1,7 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Loader2 } from "lucide-react";
-import { Button } from "@research-copilot/ui";
 import { formatErrorMessage } from "../lib/client";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import { useSubmissionVenues } from "../features/submission/useSubmissionVenues";
@@ -13,11 +11,10 @@ import { useSubmissionDiagnosisReports } from "../features/submission/useSubmiss
 import { useSubmissionRevisionTasks } from "../features/submission/useSubmissionRevisionTasks";
 import { useSubmissionReview } from "../features/submission/useSubmissionReview";
 import SubmissionPageHeader from "../features/submission/SubmissionPageHeader";
-import SubmissionTabs from "../features/submission/SubmissionTabs";
+import SubmissionFeedbackBanner from "../features/submission/SubmissionFeedbackBanner";
 import SubmissionTimelineStrip from "../features/submission/SubmissionTimelineStrip";
 import VenueTrackerWorkspace from "../features/submission/VenueTrackerWorkspace";
 import AddVenueModal from "../features/submission/AddVenueModal";
-import VenueRecommendationsPanel from "../features/submission/VenueRecommendationsPanel";
 import KanbanWorkspace from "../features/submission/KanbanWorkspace";
 import AddSubmissionModal from "../features/submission/AddSubmissionModal";
 import SubmissionPaperSidebar from "../features/submission/SubmissionPaperSidebar";
@@ -29,10 +26,10 @@ import DiagnosisReportPanel from "../features/submission/DiagnosisReportPanel";
 import RevisionTaskPanel from "../features/submission/RevisionTaskPanel";
 import VersionWorkspace from "../features/submission/VersionWorkspace";
 import SaveVersionModal from "../features/submission/SaveVersionModal";
-import RejectionRecoveryPanel from "../features/submission/RejectionRecoveryPanel";
 import CoverLetterModal from "../features/submission/CoverLetterModal";
 import PolishPanel from "../features/submission/PolishPanel";
-import { SUBMISSION_TAB_KEYS, submissionApi } from "../features/submission/shared";
+import { SUBMISSION_TAB_KEYS } from "../features/submission/SubmissionTabs";
+import { submissionApi } from "../lib/client";
 import type {
   SubmissionTab, SaveVersionFormState, MockReviewerResult, ReviewVerdict,
 } from "../features/submission/shared";
@@ -155,35 +152,62 @@ export default function Submission() {
 
   return (
     <div className="rc-app-page space-y-4">
-      <SubmissionPageHeader feedback={feedback} onClearFeedback={() => setFeedback("")} />
+      <SubmissionPageHeader
+        activeTab={tab}
+        conferencesCount={venues.conferences.length}
+        journalsCount={venues.journals.length}
+        activeCount={board.submissions.filter(s => s.status !== "accepted" && s.status !== "rejected").length}
+        acceptedCount={board.submissions.filter(s => s.status === "accepted").length}
+        onTabChange={setTab}
+      />
 
-      <SubmissionTabs tab={tab} onTabChange={setTab} extra={
-        tab === "conferences" ? (
-          <div className="flex items-center gap-2">
-            <Button onClick={handleSyncDdl} loading={syncingDdl} size="sm" variant="secondary">
-              {syncingDdl ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              同步 DDL
-            </Button>
-            <Button onClick={() => venues.setShowAddModal(true)} size="sm">添加会议 / 期刊</Button>
-          </div>
-        ) : tab === "board" ? (
-          <Button onClick={() => board.setShowAddSubModal(true)} size="sm">创建投稿</Button>
-        ) : null
-      } />
+      <SubmissionFeedbackBanner feedback={feedback} onDismiss={() => setFeedback("")} />
 
       <div className="min-h-0 flex-1 space-y-4">
         {tab === "conferences" && (
           <VenueTrackerWorkspace
-            venues={venues.visibleVenues} filter={venues.venueFilter} onFilterChange={venues.setVenueFilter}
-            onToggleStar={venues.toggleVenueStar} submissions={board.submissions}
+            venueFilter={venues.venueFilter}
+            visibleVenues={venues.visibleVenues}
+            conferencesCount={venues.conferences.length}
+            journalsCount={venues.journals.length}
+            recommendations={venues.recommendations}
+            recommendationLoading={venues.recLoading}
+            recommendationInput={venues.recInput}
+            onVenueFilterChange={venues.setVenueFilter}
+            onOpenAddVenue={() => venues.setShowAddModal(true)}
+            onChangeRecommendationInput={venues.setRecInput}
+            onGenerateRecommendations={venues.generateRecommendations}
+            isVenueAdded={venues.isVenueAdded}
+            onAddVenue={venues.handleAddVenue}
+            onCreateSubmissionFromRecommendation={(recommendation) => {
+              board.setAddSubForm({
+                title: venues.recInput.title.trim(),
+                venue: recommendation.name,
+                venueType: recommendation.type,
+                deadline: "",
+              });
+              board.setShowAddSubModal(true);
+            }}
+            onToggleVenueStar={venues.toggleVenueStar}
+            onSyncDdl={handleSyncDdl}
+            syncingDdl={syncingDdl}
           />
         )}
-        {tab === "board" && (
+        {tab === "kanban" && (
           <KanbanWorkspace
-            submissions={board.submissions} onMove={board.moveSubmission} rejectionPlans={rejectionPlans}
-            onSelectVersion={(id) => { setVersionSubId(id); setTab("versions"); }}
-            onSelectReview={(id) => { review.setSubId(id); setTab("reviews"); }}
-            onSelectChecklist={(id) => { checklist.setChecklistSubId(id); setTab("checklist"); }}
+            submissions={board.submissions}
+            rejectionRecoveryPlans={rejectionPlans}
+            onOpenAddSubmission={() => board.setShowAddSubModal(true)}
+            onMoveSubmission={board.moveSubmission}
+            onPrepareTransfer={(plan, target) => {
+              board.setAddSubForm({
+                title: plan.submissionTitle,
+                venue: target.name,
+                venueType: target.type,
+                deadline: target.deadline ?? "",
+              });
+              board.setShowAddSubModal(true);
+            }}
           />
         )}
         {tab === "reviews" && <ReviewWorkspace
@@ -239,7 +263,7 @@ export default function Submission() {
           onUpdate={patchVersion}
           onPolish={(id, content) => { setPolishSourceId(id); setPolishText(content); setShowPolishPanel(true); }}
           onCoverLetter={(id) => { setVersionSubId(id); setShowCoverLetterModal(true); }}
-          rejectionPlans={rejectionPlans}
+          rejectionRecoveryPlans={rejectionPlans}
         />}
         {tab === "timeline" && <SubmissionTimelineStrip submissions={board.submissions} />}
       </div>
@@ -253,12 +277,6 @@ export default function Submission() {
         onTypeChange={venues.setAddModalTypeFilter}
         onAdd={venues.handleAddVenue} isAdded={venues.isVenueAdded}
         onClose={() => venues.setShowAddModal(false)}
-      />}
-      {tab === "conferences" && <VenueRecommendationsPanel
-        input={venues.recInput} onInputChange={venues.setRecInput}
-        recommendations={venues.recommendations} loading={venues.recLoading}
-        onGenerate={venues.generateRecommendations} isAdded={venues.isVenueAdded}
-        onAddVenue={venues.handleAddVenue}
       />}
       {board.showAddSubModal && <AddSubmissionModal
         form={board.addSubForm} onChange={board.setAddSubForm}
