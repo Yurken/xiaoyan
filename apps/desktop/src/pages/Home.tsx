@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button, Card } from "@research-copilot/ui";
 import OverviewWorkspace from "../features/workbench/OverviewWorkspace";
 import { useWorkbenchOverview } from "../features/workbench/useWorkbenchOverview";
+import ContinueResearchPanel from "../features/research-context/ContinueResearchPanel";
 
 export default function Home() {
   const { model, loading, error } = useWorkbenchOverview();
@@ -28,7 +29,14 @@ export default function Home() {
   }
 
   if (model) {
-    return <OverviewWorkspace model={model} />;
+    return (
+      <div className="flex h-full flex-col p-5">
+        <ContinueResearchPanel />
+        <div className="mt-6">
+          <OverviewWorkspace model={model} />
+        </div>
+      </div>
+    );
   }
 
   return (

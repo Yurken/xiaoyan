@@ -105,6 +105,9 @@ use commands::{
     },
     update::{update_check, update_install, PendingUpdate},
     workbench::{workbench_generate_overview_text, workbench_get_overview_text_cache},
+    research_context::{research_context_get_recent_themes, research_context_get_theme_context},
+    evidence::evidence_get_links,
+    submission_diagnosis::{submission_diagnosis_get_tasks, submission_diagnosis_create_task},
 };
 use state::{default_settings, AppState};
 
@@ -400,6 +403,12 @@ pub fn run() {
             // Workbench
             workbench_get_overview_text_cache,
             workbench_generate_overview_text,
+            // Research Context
+            research_context_get_recent_themes,
+            research_context_get_theme_context,
+            evidence_get_links,
+            submission_diagnosis_get_tasks,
+            submission_diagnosis_create_task,
         ])
         .run(tauri::generate_context!());
 

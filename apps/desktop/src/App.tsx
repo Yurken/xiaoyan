@@ -22,6 +22,7 @@ import Settings from "./pages/Settings";
 import Tools from "./pages/Tools";
 import Submission from "./pages/Submission";
 import Experiment from "./pages/Experiment";
+import ResearchTheme from "./pages/ResearchTheme";
 import FocusApp from "./pages/FocusLayout";
 import LockScreen from "./features/appLock/LockScreen";
 import { APP_LOCK_STATUS_CHANGE_EVENT, type AppLockStatusChangeDetail } from "./features/appLock/shared";
@@ -219,6 +220,7 @@ export default function App() {
           <Route path="/xiaoyan" element={<Copilot />} />
           <Route path="/copilot" element={<Navigate to="/xiaoyan" replace />} />
           <Route path="/knowledge" element={<Knowledge />} />
+          <Route path="/research-theme/:id" element={<ResearchTheme />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/workbench/*" element={<LandscapeFocusRouteRedirect />} />
           <Route path="*" element={<Navigate to="/" replace />} />

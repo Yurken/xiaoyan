@@ -35,6 +35,11 @@ import type {
   KnowledgeEvidenceRelationKind,
   KnowledgeGraphSnapshot,
 } from "../features/knowledge/shared";
+import type {
+  ResearchTheme,
+  ResearchActivityEvent,
+  EvidenceLink,
+} from "../features/research-context/shared";
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -667,6 +672,31 @@ export const workbenchApi = {
     }>("workbench_generate_overview_text", { sourceJson }),
 };
 
+// ── Research Context API ───────────────────────────────────────────
+
+export const researchContextApi = {
+  getRecentThemes: (limit = 3): Promise<ResearchTheme[]> =>
+    invoke("research_context_get_recent_themes", { limit }),
+  getThemeContext: (themeId: string): Promise<{ theme: ResearchTheme; events: ResearchActivityEvent[] }> =>
+    invoke("research_context_get_theme_context", { themeId }),
+};
+
+// ── Evidence API ──────────────────────────────────────────────────
+
+export const evidenceApi = {
+  getEvidenceLinks: (targetId: string, targetType: string): Promise<EvidenceLink[]> =>
+    invoke("evidence_get_links", { targetId, targetType }),
+};
+
+// ── Submission Diagnosis API ──────────────────────────────────────
+
+export const submissionDiagnosisApi = {
+  getDiagnosisTasks: (submissionId: string) =>
+    invoke<{ id: string; risk: string; suggestion: string; isTaskCreated: boolean }[]>("submission_diagnosis_get_tasks", { submissionId }),
+  createTaskFromDiagnosis: (diagnosisId: string) =>
+    invoke<{ taskId: string }>("submission_diagnosis_create_task", { diagnosisId }),
+};
+
 // ── Export API ────────────────────────────────────────────────────
 
 export const exportApi = {
@@ -694,7 +724,10 @@ export const apiClient = {
   survey: surveyApi,
   skills: skillsApi,
   submission: submissionApi,
+  submissionDiagnosis: submissionDiagnosisApi,
   experiment: experimentApi,
   export: exportApi,
   workbench: workbenchApi,
+  researchContext: researchContextApi,
+  evidence: evidenceApi,
 };

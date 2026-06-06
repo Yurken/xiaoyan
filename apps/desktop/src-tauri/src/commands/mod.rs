@@ -27,3 +27,6 @@ pub mod source;
 pub mod submission;
 pub mod update;
 pub mod workbench;
+pub mod research_context;
+pub mod evidence;
+pub mod submission_diagnosis;
