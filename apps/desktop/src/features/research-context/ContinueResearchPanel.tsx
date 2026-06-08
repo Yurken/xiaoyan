@@ -24,7 +24,7 @@ export default function ContinueResearchPanel() {
         <BrainCircuit className="w-4 h-4 text-apple-blue" />
         <h2 className="text-sm font-semibold text-ink-primary">继续研究</h2>
       </div>
-      
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {themes.map((theme) => (
           <Card key={theme.id} className="flex flex-col p-4 transition-colors hover:bg-black/[0.02]">
@@ -33,17 +33,22 @@ export default function ContinueResearchPanel() {
                 {theme.name}
               </h3>
             </div>
-            
+
             <div className="flex-1 space-y-3">
               {theme.nextSteps.length > 0 && (
                 <div>
                   <p className="text-[11px] font-medium text-ink-tertiary uppercase tracking-wide mb-1">推荐下一步</p>
-                  <p className="text-xs text-ink-secondary line-clamp-2">
+                  <p className="text-xs font-medium text-ink-secondary line-clamp-2">
                     {theme.nextSteps[0].title}
                   </p>
+                  {theme.nextSteps[0].description && (
+                    <p className="mt-1 text-[11px] text-ink-tertiary line-clamp-2">
+                      {theme.nextSteps[0].description}
+                    </p>
+                  )}
                 </div>
               )}
-              
+
               {theme.openQuestions.length > 0 && (
                 <div>
                   <p className="text-[11px] font-medium text-ink-tertiary uppercase tracking-wide mb-1">开放问题</p>

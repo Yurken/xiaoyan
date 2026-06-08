@@ -780,15 +780,6 @@ export const evidenceApi = {
     invoke("evidence_get_links", { targetId, targetType }),
 };
 
-// ── Submission Diagnosis API ──────────────────────────────────────
-
-export const submissionDiagnosisApi = {
-  getDiagnosisTasks: (submissionId: string) =>
-    invoke<{ id: string; risk: string; suggestion: string; isTaskCreated: boolean }[]>("submission_diagnosis_get_tasks", { submissionId }),
-  createTaskFromDiagnosis: (diagnosisId: string) =>
-    invoke<{ taskId: string }>("submission_diagnosis_create_task", { diagnosisId }),
-};
-
 // ── Export API ────────────────────────────────────────────────────
 
 export const exportApi = {
@@ -852,7 +843,6 @@ export const apiClient = {
   survey: surveyApi,
   skills: skillsApi,
   submission: submissionApi,
-  submissionDiagnosis: submissionDiagnosisApi,
   experiment: experimentApi,
   export: exportApi,
   workbench: workbenchApi,

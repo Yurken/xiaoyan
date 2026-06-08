@@ -119,7 +119,6 @@ use commands::{
     },
     research_context::{research_context_get_recent_themes, research_context_get_theme_context},
     evidence::evidence_get_links,
-    submission_diagnosis::{submission_diagnosis_get_tasks, submission_diagnosis_create_task},
 };
 use state::{default_settings, AppState};
 
@@ -469,8 +468,6 @@ pub fn run() {
             research_context_get_recent_themes,
             research_context_get_theme_context,
             evidence_get_links,
-            submission_diagnosis_get_tasks,
-            submission_diagnosis_create_task,
         ])
         .run(tauri::generate_context!());
 
