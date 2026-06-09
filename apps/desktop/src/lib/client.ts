@@ -182,6 +182,35 @@ export const papersApi = {
     invoke("papers_extract_pdf_text", { filePath, maxChars: max_chars }),
 };
 
+export const paperNotesApi = {
+  list: (paperId: string): Promise<unknown[]> =>
+    invoke("paper_notes_list", { paperId }),
+  create: (data: {
+    paper_id: string;
+    page: number;
+    content: string;
+    highlight_text?: string;
+    highlight_color?: string;
+    highlight_positions?: unknown[];
+  }): Promise<unknown> =>
+    invoke("paper_notes_create", {
+      paperId: data.paper_id,
+      page: data.page,
+      content: data.content,
+      highlightText: data.highlight_text ?? null,
+      highlightColor: data.highlight_color ?? null,
+      highlightPositions: data.highlight_positions ?? null,
+    }),
+  update: (id: string, data: { content?: string; highlight_color?: string }): Promise<unknown> =>
+    invoke("paper_notes_update", {
+      id,
+      content: data.content ?? null,
+      highlightColor: data.highlight_color ?? null,
+    }),
+  delete: (id: string): Promise<void> =>
+    invoke("paper_notes_delete", { id }),
+};
+
 export const ccfApi = {
   list: (): Promise<CcfListResponse> =>
     invoke("ccf_list"),

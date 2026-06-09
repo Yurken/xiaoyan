@@ -27,17 +27,16 @@ mod web_search;
 use tauri::Manager;
 
 use commands::{
+    active_researcher::{
+        active_researcher_findings, active_researcher_mark_read, active_researcher_scan,
+    },
     app_lock::{
         app_lock_clear_password, app_lock_get_hint, app_lock_get_recovery_info,
         app_lock_reset_password, app_lock_set_password, app_lock_set_security,
         app_lock_set_timeout, app_lock_status, app_lock_verify_password, app_lock_verify_recovery,
     },
-    active_researcher::{
-        active_researcher_findings, active_researcher_mark_read, active_researcher_scan,
-    },
     arxiv::arxiv_search,
     ccf::{ccf_list, ccf_lookup},
-    paper_cross_analysis::papers_cross_analysis,
     chat::{
         chat_cancel, chat_delete_session, chat_get_session, chat_list_agent_runs,
         chat_list_sessions, chat_stream, chat_update_session_context,
@@ -47,7 +46,7 @@ use commands::{
         knowledge_graph_citation_subgraph,
     },
     data_backup::{data_backup_export, data_backup_import},
-    webdav_sync::{webdav_test_connection, webdav_list_backups, webdav_upload_backup, webdav_download_backup, webdav_delete_backup},
+    evidence::evidence_get_links,
     experiment::{
         experiment_add_attachment, experiment_create, experiment_delete,
         experiment_delete_attachment, experiment_get, experiment_list, experiment_list_attachments,
@@ -83,13 +82,16 @@ use commands::{
     misc::{
         markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text,
     },
+    paper_cross_analysis::papers_cross_analysis,
     paper_figures::papers_list_figures,
+    paper_notes::{paper_notes_create, paper_notes_delete, paper_notes_list, paper_notes_update},
     paper_search::paper_search,
     papers::{
         papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list,
         papers_list_parse_runs, papers_open_pdf, papers_reparse, papers_reproduce, papers_update,
         papers_upload,
     },
+    research_context::{research_context_get_recent_themes, research_context_get_theme_context},
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
         settings_history_list, settings_history_save, settings_import, settings_list_ollama_models,
@@ -112,13 +114,15 @@ use commands::{
         submission_update_version, submission_upsert_round,
     },
     update::{update_check, update_install, PendingUpdate},
+    webdav_sync::{
+        webdav_delete_backup, webdav_download_backup, webdav_list_backups, webdav_test_connection,
+        webdav_upload_backup,
+    },
     workbench::{workbench_generate_overview_text, workbench_get_overview_text_cache},
     writing::{
         writing_compile_pdf, writing_copy_pdf, writing_import_image, writing_open_compiled_pdf,
         writing_open_mactex_download_page, writing_open_mactex_installer,
     },
-    research_context::{research_context_get_recent_themes, research_context_get_theme_context},
-    evidence::evidence_get_links,
 };
 use state::{default_settings, AppState};
 
@@ -157,11 +161,7 @@ pub fn append_diagnostic_log(message: &str) {
         }
     }
 
-    if let Ok(mut file) = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)
-    {
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&log_path) {
         let _ = writeln!(file, "[{timestamp}] {message}");
     }
 }
@@ -307,6 +307,11 @@ pub fn run() {
             papers_analyze,
             papers_reproduce,
             papers_list_figures,
+            // Paper notes (PDF reader annotations)
+            paper_notes_list,
+            paper_notes_create,
+            paper_notes_update,
+            paper_notes_delete,
             // CCF
             ccf_list,
             ccf_lookup,

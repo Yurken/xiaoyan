@@ -10,38 +10,132 @@ interface UseNotesOptions {
   paperId: string;
 }
 
+// ── Tauri detection ──────────────────────────────────────────
+
+function isTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI__" in window;
+}
+
+async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke(cmd, args) as Promise<T>;
+}
+
+// ── Backend adapter ──────────────────────────────────────────
+
+interface NotesAdapter {
+  list: (paperId: string) => Promise<PaperNote[]>;
+  create: (data: {
+    paper_id: string;
+    page: number;
+    content: string;
+    highlight_text?: string;
+    highlight_color?: HighlightColor;
+    highlight_positions?: Array<{ x: number; y: number; w: number; h: number }>;
+  }) => Promise<PaperNote>;
+  update: (id: string, data: { content?: string; highlight_color?: HighlightColor }) => Promise<PaperNote>;
+  delete: (id: string) => Promise<void>;
+}
+
+/** Tauri backend adapter */
+const tauriAdapter: NotesAdapter = {
+  list: async (paperId) => {
+    const rows = await tauriInvoke<PaperNote[]>("paper_notes_list", { paperId });
+    return rows;
+  },
+  create: async (data) => {
+    const note = await tauriInvoke<PaperNote>("paper_notes_create", {
+      paperId: data.paper_id,
+      page: data.page,
+      content: data.content,
+      highlightText: data.highlight_text ?? null,
+      highlightColor: data.highlight_color ?? null,
+      highlightPositions: data.highlight_positions ?? null,
+    });
+    return note;
+  },
+  update: async (id, data) => {
+    const note = await tauriInvoke<PaperNote>("paper_notes_update", {
+      id,
+      content: data.content ?? null,
+      highlightColor: data.highlight_color ?? null,
+    });
+    return note;
+  },
+  delete: async (id) => {
+    await tauriInvoke<void>("paper_notes_delete", { id });
+  },
+};
+
+/** localStorage fallback adapter */
+function localStorageAdapter(paperId: string): NotesAdapter {
+  const key = notesStorageKey(paperId);
+
+  function load(): PaperNote[] {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function save(notes: PaperNote[]) {
+    try {
+      localStorage.setItem(key, JSON.stringify(notes));
+    } catch {
+      // quota exceeded
+    }
+  }
+
+  return {
+    list: async () => load(),
+    create: async (data) => {
+      const now = new Date().toISOString();
+      const note: PaperNote = {
+        id: crypto.randomUUID(),
+        paper_id: data.paper_id,
+        page: data.page,
+        content: data.content,
+        highlight_text: data.highlight_text,
+        highlight_color: data.highlight_color ?? "yellow",
+        highlight_positions: data.highlight_positions,
+        created_at: now,
+        updated_at: now,
+      };
+      const notes = [...load(), note];
+      save(notes);
+      return note;
+    },
+    update: async (id, data) => {
+      const notes = load().map((n) =>
+        n.id === id ? { ...n, ...data, updated_at: new Date().toISOString() } : n,
+      );
+      save(notes);
+      return notes.find((n) => n.id === id)!;
+    },
+    delete: async (id) => {
+      const notes = load().filter((n) => n.id !== id);
+      save(notes);
+    },
+  };
+}
+
+// ── Hook ─────────────────────────────────────────────────────
+
 export function useNotes({ paperId }: UseNotesOptions) {
   const [notes, setNotes] = useState<PaperNote[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>("page");
   const [searchQuery, setSearchQuery] = useState("");
-  const notesRef = useRef(notes);
-  notesRef.current = notes;
+  const adapterRef = useRef<NotesAdapter | null>(null);
 
-  // Load notes from localStorage on mount
+  // Initialize adapter
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(notesStorageKey(paperId));
-      if (raw) setNotes(JSON.parse(raw));
-    } catch {
-      // ignore parse errors
-    }
-  }, [paperId]);
+    adapterRef.current = isTauri() ? tauriAdapter : localStorageAdapter(paperId);
 
-  // Persist helper — uses ref to avoid stale closures
-  const persistNext = useCallback(
-    (updater: (prev: PaperNote[]) => PaperNote[]) => {
-      setNotes((prev) => {
-        const next = updater(prev);
-        try {
-          localStorage.setItem(notesStorageKey(paperId), JSON.stringify(next));
-        } catch {
-          // quota exceeded etc.
-        }
-        return next;
-      });
-    },
-    [paperId],
-  );
+    // Load initial data
+    adapterRef.current.list(paperId).then(setNotes).catch(console.error);
+  }, [paperId]);
 
   const addNote = useCallback(
     (data: {
@@ -51,8 +145,13 @@ export function useNotes({ paperId }: UseNotesOptions) {
       highlight_color?: HighlightColor;
       highlight_positions?: Array<{ x: number; y: number; w: number; h: number }>;
     }) => {
+      const adapter = adapterRef.current;
+      if (!adapter) return null;
+
+      const fullData = { ...data, paper_id: paperId };
+      // Optimistic local update
       const now = new Date().toISOString();
-      const note: PaperNote = {
+      const optimistic: PaperNote = {
         id: crypto.randomUUID(),
         paper_id: paperId,
         page: data.page,
@@ -63,28 +162,49 @@ export function useNotes({ paperId }: UseNotesOptions) {
         created_at: now,
         updated_at: now,
       };
-      persistNext((prev) => [...prev, note]);
-      return note;
+      setNotes((prev) => [...prev, optimistic]);
+
+      adapter.create(fullData).then((real) => {
+        setNotes((prev) => prev.map((n) => (n.id === optimistic.id ? real : n)));
+      }).catch(() => {
+        // keep optimistic note
+      });
+
+      return optimistic;
     },
-    [paperId, persistNext],
+    [paperId],
   );
 
   const updateNote = useCallback(
     (id: string, data: { content?: string; highlight_color?: HighlightColor }) => {
-      persistNext((prev) =>
+      const adapter = adapterRef.current;
+      if (!adapter) return;
+
+      // Optimistic local update
+      setNotes((prev) =>
         prev.map((n) =>
           n.id === id ? { ...n, ...data, updated_at: new Date().toISOString() } : n,
         ),
       );
+
+      adapter.update(id, data).then((real) => {
+        setNotes((prev) => prev.map((n) => (n.id === id ? real : n)));
+      }).catch(console.error);
     },
-    [persistNext],
+    [],
   );
 
   const deleteNote = useCallback(
     (id: string) => {
-      persistNext((prev) => prev.filter((n) => n.id !== id));
+      const adapter = adapterRef.current;
+      if (!adapter) return;
+
+      // Optimistic local update
+      setNotes((prev) => prev.filter((n) => n.id !== id));
+
+      adapter.delete(id).catch(console.error);
     },
-    [persistNext],
+    [],
   );
 
   // Filtered + sorted notes
@@ -117,8 +237,16 @@ export function useNotes({ paperId }: UseNotesOptions) {
   }, [filteredNotes]);
 
   const clearAll = useCallback(() => {
-    persistNext(() => []);
-  }, [persistNext]);
+    setNotes([]);
+    // For localStorage adapter, clear storage
+    if (!isTauri()) {
+      try {
+        localStorage.removeItem(notesStorageKey(paperId));
+      } catch {
+        // ignore
+      }
+    }
+  }, [paperId]);
 
   return {
     notes: filteredNotes,
