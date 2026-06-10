@@ -19,12 +19,9 @@ import PaperCitationPanel from "./PaperCitationPanel";
 import PaperTaskProgressPanel from "./PaperTaskProgressPanel";
 import { usePaperTaskProgress } from "./usePaperTaskProgress";
 import type { PaperFigure } from "./shared";
+import { interestFolderName } from "../../lib/interestUtils";
 
 type SortKey = "created_at" | "title" | "importance";
-
-function interestFolderName(interest: ResearchInterest) {
-  return interest.folder_name?.trim() || interest.topic;
-}
 
 interface PapersListPanelProps {
   papers: Paper[];

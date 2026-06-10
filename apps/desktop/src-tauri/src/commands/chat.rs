@@ -184,7 +184,10 @@ pub async fn chat_list_agent_runs(
             "SELECT id, run_id, artifact_type, title, content, created_at FROM agent_artifacts WHERE run_id = ? ORDER BY created_at ASC",
         )
         .bind(&run_id)
-        .fetch_all(&state.db).await.unwrap_or_default();
+        .fetch_all(&state.db).await.unwrap_or_else(|e| {
+            eprintln!("[warn] Failed to fetch agent artifacts for run {run_id}: {e}");
+            Vec::new()
+        });
 
         result.push(json!({
             "id": run_id,
@@ -232,7 +235,11 @@ pub async fn chat_stream(
 
     const MAX_CHAT_MESSAGE_LEN: usize = 100_000;
     if message.len() > MAX_CHAT_MESSAGE_LEN {
-        return Err(format!("消息过长（{}字符），请缩短后重试（上限{}字符）。", message.len(), MAX_CHAT_MESSAGE_LEN));
+        return Err(format!(
+            "消息过长（{}字符），请缩短后重试（上限{}字符）。",
+            message.len(),
+            MAX_CHAT_MESSAGE_LEN
+        ));
     }
 
     let now = chrono::Utc::now().to_rfc3339();

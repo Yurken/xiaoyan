@@ -5,6 +5,7 @@ import { IS_MACOS_DESKTOP, MACOS_WINDOW_DRAG_HEIGHT } from "../../lib/windowChro
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 import { useKnowledgeNotesWorkspace } from "./useKnowledgeNotesWorkspace";
+import { interestFolderName } from "../../lib/interestUtils";
 
 function MarkdownEditor({
   label,
@@ -93,10 +94,6 @@ function stripMarkdown(text: string): string {
     .replace(/^>\s+/gm, "")
     .replace(/\n+/g, " ")
     .trim();
-}
-
-function interestFolderName(interest: ResearchInterest) {
-  return interest.folder_name?.trim() || interest.topic;
 }
 
 function NoteDetailModal({

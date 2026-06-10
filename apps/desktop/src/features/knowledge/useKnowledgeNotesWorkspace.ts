@@ -36,7 +36,7 @@ export function useKnowledgeNotesWorkspace({
 
   const syncGraphSnapshot = useCallback(() => {
     if (!onNotesChanged) return;
-    void Promise.resolve(onNotesChanged()).catch(() => {});
+    void Promise.resolve(onNotesChanged()).catch((err) => { console.warn("syncGraphSnapshot failed:", err); });
   }, [onNotesChanged]);
 
   const setErrorFromUnknown = useCallback((nextError: unknown) => {
@@ -69,7 +69,7 @@ export function useKnowledgeNotesWorkspace({
           setInterests(data);
         }
       })
-      .catch(() => {});
+      .catch((err) => { console.warn("Failed to load interests:", err); });
 
     return () => {
       cancelled = true;

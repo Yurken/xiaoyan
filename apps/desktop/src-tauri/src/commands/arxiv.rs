@@ -289,8 +289,8 @@ async fn translate_search_terms(
         .await
         .map_err(|e| e.to_string())?;
     let clean = crate::commands::papers::extract_json_pub(&resp);
-    let parsed: serde_json::Value = serde_json::from_str(&clean)
-        .map_err(|e| format!("解析翻译结果失败：{e}"))?;
+    let parsed: serde_json::Value =
+        serde_json::from_str(&clean).map_err(|e| format!("解析翻译结果失败：{e}"))?;
     let en_topic = parsed
         .get("topic")
         .and_then(|v| v.as_str())
@@ -309,7 +309,10 @@ async fn translate_search_terms(
     Ok((en_topic, en_keywords))
 }
 
-pub fn build_recent_hint_request(search_topic: &str, search_keywords: &[String]) -> ArxivSearchRequest {
+pub fn build_recent_hint_request(
+    search_topic: &str,
+    search_keywords: &[String],
+) -> ArxivSearchRequest {
     let topic = clean_whitespace(search_topic);
     let mut all_terms = Vec::new();
     if !topic.is_empty() {
@@ -514,14 +517,13 @@ pub async fn search_semantic_scholar_hints(
         builder = builder.header("x-api-key", api_key);
     }
 
-    let resp = builder
-        .send()
-        .await
-        .context("Semantic Scholar 请求失败")?;
+    let resp = builder.send().await.context("Semantic Scholar 请求失败")?;
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        return Err(anyhow::anyhow!("Semantic Scholar 返回错误 {status}: {body}"));
+        return Err(anyhow::anyhow!(
+            "Semantic Scholar 返回错误 {status}: {body}"
+        ));
     }
 
     let payload: SemanticScholarSearchResponse = resp
@@ -624,7 +626,7 @@ async fn fetch_arxiv_candidates(
 
 async fn rate_limit_arxiv() {
     let wait = {
-        let last = LAST_ARXIV_REQUEST.lock().unwrap();
+        let last = LAST_ARXIV_REQUEST.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(prev) = *last {
             let elapsed = prev.elapsed().as_secs_f64();
             if elapsed < ARXIV_MIN_INTERVAL_SECS {
@@ -639,7 +641,7 @@ async fn rate_limit_arxiv() {
     if let Some(wait) = wait {
         tokio::time::sleep(StdDuration::from_secs_f64(wait)).await;
     }
-    LAST_ARXIV_REQUEST.lock().unwrap().replace(Instant::now());
+    LAST_ARXIV_REQUEST.lock().unwrap_or_else(|e| e.into_inner()).replace(Instant::now());
 }
 
 fn parse_arxiv_feed(xml: &str) -> anyhow::Result<Vec<ArxivPaper>> {
@@ -750,15 +752,22 @@ async fn rerank_with_llm(
         Err(_) => return Ok(None),
     };
 
-    let model = resolve_model(settings, &[
-        "multi_agent_literature_scout_model",
-        "survey_planner_model",
-        "copilot_simple_model",
-    ]);
-    let temperature = resolve_temperature_chain(settings, &[
-        "multi_agent_literature_scout_temperature",
-        "survey_planner_temperature",
-    ], 0.2);
+    let model = resolve_model(
+        settings,
+        &[
+            "multi_agent_literature_scout_model",
+            "survey_planner_model",
+            "copilot_simple_model",
+        ],
+    );
+    let temperature = resolve_temperature_chain(
+        settings,
+        &[
+            "multi_agent_literature_scout_temperature",
+            "survey_planner_temperature",
+        ],
+        0.2,
+    );
     let candidate_json = candidates
         .iter()
         .map(|paper| {

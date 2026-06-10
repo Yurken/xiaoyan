@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
@@ -13,19 +13,21 @@ import {
   Settings as SettingsIcon,
   Wrench,
 } from "lucide-react";
-import Home from "./pages/Home";
-import Planner from "./pages/Planner";
-import Survey from "./pages/Survey";
-import Papers from "./pages/Papers";
-import Copilot from "./pages/Copilot";
-import Knowledge from "./pages/Knowledge";
-import Settings from "./pages/Settings";
-import Tools from "./pages/Tools";
-import Submission from "./pages/Submission";
-import Experiment from "./pages/Experiment";
-import Writing from "./pages/Writing";
-import ResearchTheme from "./pages/ResearchTheme";
-import FocusApp from "./pages/FocusLayout";
+import RouteErrorBoundary from "./components/RouteErrorBoundary";
+
+const Home = lazy(() => import("./pages/Home"));
+const Planner = lazy(() => import("./pages/Planner"));
+const Survey = lazy(() => import("./pages/Survey"));
+const Papers = lazy(() => import("./pages/Papers"));
+const Copilot = lazy(() => import("./pages/Copilot"));
+const Knowledge = lazy(() => import("./pages/Knowledge"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Tools = lazy(() => import("./pages/Tools"));
+const Submission = lazy(() => import("./pages/Submission"));
+const Experiment = lazy(() => import("./pages/Experiment"));
+const Writing = lazy(() => import("./pages/Writing"));
+const ResearchTheme = lazy(() => import("./pages/ResearchTheme"));
+const FocusApp = lazy(() => import("./pages/FocusLayout"));
 import LockScreen from "./features/appLock/LockScreen";
 import { APP_LOCK_STATUS_CHANGE_EVENT, type AppLockStatusChangeDetail } from "./features/appLock/shared";
 import { useInactivityLock } from "./features/appLock/useInactivityLock";
@@ -82,7 +84,9 @@ export default function App() {
         setLockTimeout(status.timeoutMinutes);
         if (status.enabled) setLocked(true);
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.warn("Failed to load app lock status:", err);
+      })
       .finally(() => setLockChecked(true));
 
 
@@ -167,7 +171,12 @@ export default function App() {
           return await apiClient.settings.appLock.verifyRecovery(email, answer);
         }}
         onResetPassword={async (email, answer, newPassword) => {
-          await apiClient.settings.appLock.resetPassword(email, answer, newPassword);
+          try {
+            await apiClient.settings.appLock.resetPassword(email, answer, newPassword);
+          } catch (err) {
+            console.warn("Failed to reset password:", err);
+            throw err;
+          }
         }}
       />
     );
@@ -179,11 +188,11 @@ export default function App() {
 
   if (layoutMode === "focus") {
     return (
-      <>
+      <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-apple-blue border-t-transparent" /></div>}>
         <FocusApp />
         <UpdateNotification {...autoUpdate} />
         <XiaoYanPet />
-      </>
+      </Suspense>
     );
   }
 
@@ -239,24 +248,26 @@ export default function App() {
 
       <main className="app-main">
         <MacWindowDragStrip className="app-main__window-drag-region" />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/planner" element={<Planner />} />
-          <Route path="/survey" element={<Survey />} />
-          <Route path="/write" element={<Navigate to="/writing" replace />} />
-          <Route path="/papers" element={<Papers />} />
-          <Route path="/writing" element={<Writing />} />
-          <Route path="/submission" element={<Submission />} />
-          <Route path="/experiment" element={<Experiment />} />
-          <Route path="/tools" element={<Tools />} />
-          <Route path="/xiaoyan" element={<Copilot />} />
-          <Route path="/copilot" element={<Navigate to="/xiaoyan" replace />} />
-          <Route path="/knowledge" element={<Knowledge />} />
-          <Route path="/research-theme/:id" element={<ResearchTheme />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/workbench/*" element={<LandscapeFocusRouteRedirect />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-apple-blue border-t-transparent" /></div>}>
+          <Routes>
+            <Route path="/" element={<RouteErrorBoundary><Home /></RouteErrorBoundary>} />
+            <Route path="/planner" element={<RouteErrorBoundary><Planner /></RouteErrorBoundary>} />
+            <Route path="/survey" element={<RouteErrorBoundary><Survey /></RouteErrorBoundary>} />
+            <Route path="/write" element={<Navigate to="/writing" replace />} />
+            <Route path="/papers" element={<RouteErrorBoundary><Papers /></RouteErrorBoundary>} />
+            <Route path="/writing" element={<RouteErrorBoundary><Writing /></RouteErrorBoundary>} />
+            <Route path="/submission" element={<RouteErrorBoundary><Submission /></RouteErrorBoundary>} />
+            <Route path="/experiment" element={<RouteErrorBoundary><Experiment /></RouteErrorBoundary>} />
+            <Route path="/tools" element={<RouteErrorBoundary><Tools /></RouteErrorBoundary>} />
+            <Route path="/xiaoyan" element={<RouteErrorBoundary><Copilot /></RouteErrorBoundary>} />
+            <Route path="/copilot" element={<Navigate to="/xiaoyan" replace />} />
+            <Route path="/knowledge" element={<RouteErrorBoundary><Knowledge /></RouteErrorBoundary>} />
+            <Route path="/research-theme/:id" element={<RouteErrorBoundary><ResearchTheme /></RouteErrorBoundary>} />
+            <Route path="/settings" element={<RouteErrorBoundary><Settings /></RouteErrorBoundary>} />
+            <Route path="/workbench/*" element={<LandscapeFocusRouteRedirect />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </main>
       <UpdateNotification {...autoUpdate} />
     </div>

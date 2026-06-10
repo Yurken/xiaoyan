@@ -320,7 +320,7 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
       if (r.unread_count > 0) {
         controller.setNotificationCount(r.unread_count);
       }
-    }).catch(() => {});
+    }).catch((err) => { console.warn("Failed to load findings:", err); });
   }, []);
 
   if (!controller.visible) return null;

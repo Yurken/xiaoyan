@@ -12,10 +12,7 @@ import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
 import type { ChatSession, Skill } from "@research-copilot/types";
-
-function interestFolderName(interest: { folder_name?: string; topic: string }) {
-  return interest.folder_name?.trim() || interest.topic;
-}
+import { interestFolderName } from "../lib/interestUtils";
 
 export default function Copilot({ hideFolders = false }: { hideFolders?: boolean }) {
   const [sessionListMode, setSessionListMode] = usePersistentStringState<"open" | "collapsed">(
@@ -84,7 +81,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     try {
       const runData = await apiClient.chat.listAgentRuns(session.id);
       chat.setAgentRuns(runData);
-    } catch { /* agent runs optional */ }
+    } catch (err) { console.warn("Failed to load agent runs:", err); }
     chat.setSidebarCollapsed(true);
   }, [sessions, chat]);
 
@@ -92,7 +89,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   useEffect(() => {
     apiClient.skills.list().then((data) => {
       setSkills(data.filter((s) => s.is_enabled && s.name !== "ppt-generate"));
-    }).catch(() => {});
+    }).catch((err) => { console.warn("Failed to load skills:", err); });
   }, []);
 
   // Cleanup
@@ -109,7 +106,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       await navigator.clipboard.writeText(text);
       setCopiedId(messageId);
       setTimeout(() => setCopiedId(null), 2000);
-    } catch { /* ignore */ }
+    } catch (err) { console.warn("Clipboard write failed:", err); }
   };
 
   // Edit handlers

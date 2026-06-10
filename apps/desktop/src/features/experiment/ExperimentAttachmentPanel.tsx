@@ -29,7 +29,7 @@ export function ExperimentAttachmentPanel({ experimentId, onError }: { experimen
   const [labelDraft, setLabelDraft] = useState("");
 
   useEffect(() => {
-    experimentApi.attachments.list(experimentId).then((res) => setAttachments(res.attachments)).catch(() => {});
+    experimentApi.attachments.list(experimentId).then((res) => setAttachments(res.attachments)).catch((err) => { console.warn("Failed to load attachments:", err); });
   }, [experimentId]);
 
   async function handleUpload() {

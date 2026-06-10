@@ -4,6 +4,7 @@ import { Badge, Button, Card, Input } from "@research-copilot/ui";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
 import { apiClient, formatErrorMessage } from "../../lib/client";
+import { interestFolderName } from "../../lib/interestUtils";
 import { replaceAgentWording, toCapabilityModelName, type LearningPath, type ResearchInterest } from "@research-copilot/types";
 import InterestProfilePanel, { type InterestProfileHighlight } from "./InterestProfilePanel";
 import PlannerComposer from "./PlannerComposer";
@@ -206,10 +207,6 @@ function summarizeProfile(interest: ResearchInterest): InterestProfileHighlight[
   }
 
   return highlights;
-}
-
-function interestFolderName(interest: ResearchInterest) {
-  return interest.folder_name?.trim() || interest.topic;
 }
 
 export default function InterestsPanel() {

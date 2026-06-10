@@ -45,6 +45,8 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
   const [searchingQuery, setSearchingQuery] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const streamAbortRef = useRef<AbortController | null>(null);
+  const streamingContentRef = useRef("");
+  const rafRef = useRef(0);
 
   const resetChat = useCallback(() => {
     setMessages([]);
@@ -106,6 +108,11 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    streamingContentRef.current = "";
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
 
     try {
       let sessionId = currentSession?.id;
@@ -142,9 +149,17 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
         }
         if (chunk.type === "delta") {
           if (searchingQuery) setSearchingQuery(null);
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + chunk.value } : m))
-          );
+          streamingContentRef.current += chunk.value;
+
+          if (!rafRef.current) {
+            rafRef.current = requestAnimationFrame(() => {
+              const content = streamingContentRef.current;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantId ? { ...m, content } : m))
+              );
+              rafRef.current = 0;
+            });
+          }
         }
         if (chunk.type === "sources") {
           setMessages((prev) =>
@@ -160,6 +175,19 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
         }
       }
 
+      // Flush any remaining buffered streaming content
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
+      if (streamingContentRef.current) {
+        const finalContent = streamingContentRef.current;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: finalContent } : m))
+        );
+        streamingContentRef.current = "";
+      }
+
       if (sessionId && !currentSession && !abortController.signal.aborted) {
         onSessionCreated(sessionId);
       }
@@ -172,6 +200,11 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
       }
     } finally {
       setSending(false);
+      streamingContentRef.current = "";
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
       if (streamAbortRef.current === abortController) streamAbortRef.current = null;
     }
   }, [

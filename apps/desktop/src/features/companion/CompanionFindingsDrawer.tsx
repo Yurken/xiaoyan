@@ -20,7 +20,7 @@ export default function CompanionFindingsDrawer({ onClose }: CompanionFindingsDr
   }, []);
 
   const markAllRead = async () => {
-    await apiClient.activeResearcher.markRead().catch(() => {});
+    await apiClient.activeResearcher.markRead().catch((err) => { console.warn("Failed to mark findings read:", err); });
     onClose();
   };
 

@@ -37,7 +37,7 @@ function rowToExperiment(row: unknown): ExperimentRecord {
     config = typeof r.config === "string"
       ? JSON.parse(r.config)
       : (r.config as Record<string, unknown>) ?? {};
-  } catch {}
+  } catch (err) { console.warn("Failed to parse experiment config:", err); }
   return {
     id: String(r.id ?? ""),
     title: String(r.title ?? ""),

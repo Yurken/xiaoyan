@@ -11,7 +11,7 @@ export default defineConfig({
   build: { outDir: "dist", sourcemap: true },
   resolve: {
     alias: {
-      "@": "/src",
+      "@": path.resolve(__dirname, "src"),
       // Force single React/ReactDOM instance for the entire bundle
       react: path.join(desktopNodeModules, "react"),
       "react-dom": path.join(desktopNodeModules, "react-dom"),

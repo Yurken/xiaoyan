@@ -10,10 +10,7 @@ import {
 import { Select } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import type { ChatSession, ResearchInterest } from "@research-copilot/types";
-
-function interestFolderName(interest: ResearchInterest) {
-  return interest.folder_name?.trim() || interest.topic;
-}
+import { interestFolderName } from "../../lib/interestUtils";
 
 interface CopilotSessionSidebarProps {
   sessions: ChatSession[];

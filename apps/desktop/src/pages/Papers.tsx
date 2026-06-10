@@ -10,10 +10,7 @@ import { usePaperDetailRoute } from "../features/papers/usePaperDetailRoute";
 import { usePaperTaskProgress } from "../features/papers/usePaperTaskProgress";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { PaperFigure } from "../features/papers/shared";
-
-function interestFolderName(interest: { folder_name?: string; topic: string }) {
-  return interest.folder_name?.trim() || interest.topic;
-}
+import { interestFolderName } from "../lib/interestUtils";
 
 export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
   const papers = usePapersList();
@@ -39,7 +36,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         venue: settings.paper_import_recognize_venue !== "false",
         keywords: settings.paper_import_recognize_keywords !== "false",
       });
-    }).catch(() => {});
+    }).catch((err) => { console.warn("Failed to load settings:", err); });
   }, []);
 
   const handleToggleRecognize = async (key: keyof RecognizeFlags) => {

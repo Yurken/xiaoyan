@@ -35,7 +35,7 @@ export async function* streamChat(
   let unlisteners: Array<() => void> = [];
 
   const cancelBackend = () => {
-    invoke("chat_cancel", { requestId }).catch(() => {});
+    invoke("chat_cancel", { requestId }).catch((err) => { console.debug("Cancel request failed:", err); });
   };
 
   const onAbort = () => {
