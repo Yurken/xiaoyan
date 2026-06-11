@@ -15,7 +15,7 @@ import { ToolActionCard } from "./ToolActionCard";
 import appLogo from "../../assets/xiaoyanv.svg";
 import { parseCopilotMessageContent } from "./shared";
 import { openLink } from "../../lib/links";
-import type { AgentRun, ChatMessage } from "@research-copilot/types";
+import type { AgentPlanStep, AgentRun, ChatMessage, RoutingDecision } from "@research-copilot/types";
 
 const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
 
@@ -36,6 +36,8 @@ function splitThoughtFromContent(content: string) {
 interface CopilotChatAreaProps {
   messages: ChatMessage[];
   agentRuns: AgentRun[];
+  plan: AgentPlanStep[];
+  routingDecision: RoutingDecision | null;
   activeAssistantId: string | null;
   sending: boolean;
   searchingQuery: string | null;
@@ -55,7 +57,7 @@ interface CopilotChatAreaProps {
 
 export function CopilotChatArea(props: CopilotChatAreaProps) {
   const {
-    messages, agentRuns, activeAssistantId, sending, searchingQuery,
+    messages, agentRuns, plan, routingDecision, activeAssistantId, sending, searchingQuery,
     loadError, editingMessageId, editText, copiedId,
     onClearError, onCopy, onRetry, onStartEdit, onSaveEdit, onCancelEdit,
     onEditTextChange, onPickFromDrop,
@@ -144,8 +146,9 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
           {message.role === "assistant" && (() => {
             const parsed = splitThoughtFromContent(message.content || "");
             const isActiveAssistant = message.id === activeAssistantId;
-            const planForBubble = isActiveAssistant ? [] as any[] : [];
+            const planForBubble = isActiveAssistant ? plan : [];
             const runsForBubble = isActiveAssistant ? displayedRuns : [];
+            const routingForBubble = isActiveAssistant ? routingDecision : null;
 
             return (
               <>
@@ -153,6 +156,7 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                   thought={parsed.thought}
                   plan={planForBubble}
                   runs={runsForBubble}
+                  routingDecision={routingForBubble}
                   searchingQuery={isActiveAssistant ? searchingQuery : null}
                   isThinking={sending && isActiveAssistant}
                 />

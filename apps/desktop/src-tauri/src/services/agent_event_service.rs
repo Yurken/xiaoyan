@@ -45,6 +45,21 @@ pub struct AgentRunEvent {
     pub created_at: String,
     pub updated_at: String,
     pub artifacts: Vec<Value>,
+    /// 该 Worker 读取的上游 Agent 输出摘要
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_summary: Option<String>,
+    /// 该 Worker 产出的结构化摘要
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_summary: Option<String>,
+    /// 执行耗时（毫秒）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+    /// 该 Worker 依赖的上游 Agent 名称列表
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub upstream_agents: Vec<String>,
+    /// 结构化输出（JSON）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub structured_output: Option<Value>,
 }
 
 pub struct AgentRunEventInput<'a> {
@@ -58,6 +73,10 @@ pub struct AgentRunEventInput<'a> {
     pub error: Option<String>,
     pub created_at: &'a str,
     pub updated_at: &'a str,
+    /// 新增：执行耗时
+    pub duration_ms: Option<u64>,
+    /// 新增：上游依赖 Agent 列表
+    pub upstream_agents: Vec<String>,
 }
 
 impl AgentRunEvent {
@@ -78,6 +97,11 @@ impl AgentRunEvent {
             created_at: input.created_at.to_string(),
             updated_at: input.updated_at.to_string(),
             artifacts: Vec::new(),
+            input_summary: None,
+            output_summary: None,
+            duration_ms: input.duration_ms,
+            upstream_agents: input.upstream_agents,
+            structured_output: None,
         }
     }
 }
@@ -99,6 +123,14 @@ pub enum AgentEvent {
     TextDelta {
         request_id: String,
         delta: String,
+    },
+    /// 路由决策完成 — 告知前端选择了哪些 Agent、为什么、按什么波次执行
+    RoutingDecision {
+        request_id: String,
+        policy: String,
+        selected: Vec<String>,
+        reasoning: Option<String>,
+        execution_waves: Vec<Vec<String>>,
     },
 }
 
@@ -122,6 +154,22 @@ pub fn emit_agent_event(app: &tauri::AppHandle, event: AgentEvent) -> tauri::Res
             "chat:delta",
             json!({ "request_id": request_id, "delta": delta }),
         ),
+        AgentEvent::RoutingDecision {
+            request_id,
+            policy,
+            selected,
+            reasoning,
+            execution_waves,
+        } => app.emit(
+            "chat:routing_decision",
+            json!({
+                "request_id": request_id,
+                "policy": policy,
+                "selected": selected,
+                "reasoning": reasoning,
+                "execution_waves": execution_waves,
+            }),
+        ),
     }
 }
 
@@ -142,6 +190,25 @@ fn emit_unified_agent_event(app: &tauri::AppHandle, event: &AgentEvent) -> tauri
         AgentEvent::TextDelta { request_id, delta } => app.emit(
             "chat:agent_event",
             json!({ "request_id": request_id, "kind": "text_delta", "payload": { "delta": delta } }),
+        ),
+        AgentEvent::RoutingDecision {
+            request_id,
+            policy,
+            selected,
+            reasoning,
+            execution_waves,
+        } => app.emit(
+            "chat:agent_event",
+            json!({
+                "request_id": request_id,
+                "kind": "routing_decision",
+                "payload": {
+                    "policy": policy,
+                    "selected": selected,
+                    "reasoning": reasoning,
+                    "execution_waves": execution_waves,
+                }
+            }),
         ),
     }
 }

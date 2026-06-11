@@ -1,4 +1,8 @@
 use crate::agent_nodes::{agent_title, execute_agent_node};
+use crate::agent_workspace::{
+    compute_execution_waves, extract_summary, parse_agent_metadata, AgentOutput, SharedWorkspace,
+    worker_dependencies,
+};
 use crate::assistant_prompts::synthesis_system;
 use crate::commands::memory::{
     is_long_term_memory_enabled, record_agent_run_completion_event, record_agent_run_failure_event,
@@ -10,6 +14,7 @@ use crate::services::agent_event_service::{
 use anyhow::Result;
 use futures_util::future::join_all;
 use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -171,16 +176,7 @@ fn is_node_ready(node: AgentNode, active: &HashSet<AgentNode>, state: &AgentGrap
     })
 }
 
-/// 独立 worker 节点 — 全部只依赖 Retrieval（或 Start），可安全并行。
-const PARALLEL_WORKERS: &[AgentNode] = &[
-    AgentNode::Planner,
-    AgentNode::LiteratureScout,
-    AgentNode::Survey,
-    AgentNode::PaperAnalyst,
-    AgentNode::Reproduction,
-];
-
-/// 并行 worker 的返回结果（不共享可变状态，合并阶段串行写入 state）。
+/// 并行 worker 的返回结果（不共享可变状态，合并阶段串行写入 state/workspace）。
 struct WorkerOutput {
     node: AgentNode,
     agent_name: String,
@@ -188,6 +184,12 @@ struct WorkerOutput {
     order_index: i64,
     started_at: String,
     result: std::result::Result<String, String>,
+    /// 写入 workspace 的结构化输出（合并阶段使用）
+    workspace_output: Option<AgentOutput>,
+    /// 该 Worker 读取的上游依赖摘要（写入事件）
+    input_summary: Option<String>,
+    /// 执行耗时
+    duration_ms: u64,
 }
 
 pub async fn run_agentic_graph(
@@ -231,142 +233,189 @@ pub async fn run_agentic_graph(
         .await?;
     }
 
-    // ── Phase 2: 并行执行独立 worker 节点 ────────────────────────
-    let ready_workers: Vec<AgentNode> = PARALLEL_WORKERS
-        .iter()
-        .copied()
-        .filter(|node| is_node_ready(*node, &active, &state))
-        .collect();
+    // ── Phase 2: 波次执行独立 worker 节点 ────────────────────────
+    let deps_map = worker_dependencies();
+    let waves = compute_execution_waves(&selected_agents);
+    let mut workspace = SharedWorkspace {
+        outputs: HashMap::new(),
+        context_parts: state.context_parts.clone(),
+    };
 
-    if !ready_workers.is_empty() {
+    for wave in &waves {
+        // 检查步数预算
         let remaining = max_steps.saturating_sub(step_count);
-        let (to_run, to_skip) = if remaining >= ready_workers.len() {
-            (ready_workers.as_slice(), &[][..])
+        if remaining == 0 {
+            // 标记剩余未执行的节点
+            for agent_name in wave {
+                if let Some(node) = node_from_agent(agent_name) {
+                    state.mark(node, NodeStatus::Failed);
+                    state.failures.push(format!(
+                        "{agent_name}: skipped (max_steps {max_steps} reached)"
+                    ));
+                }
+            }
+            continue;
+        }
+
+        // 本波次要执行的节点（截断超出预算的部分）
+        let (to_run, to_skip) = if wave.len() <= remaining {
+            (wave.as_slice(), &[][..])
         } else {
-            ready_workers.split_at(remaining)
+            wave.split_at(remaining)
         };
 
-        // 标记被跳过的节点
-        for &node in to_skip {
-            state.mark(node, NodeStatus::Failed);
-            if let Some(name) = agent_from_node(node) {
-                state
-                    .failures
-                    .push(format!("{name}: skipped (max_steps {max_steps} reached)"));
+        for agent_name in to_skip {
+            if let Some(node) = node_from_agent(agent_name) {
+                state.mark(node, NodeStatus::Failed);
+                state.failures.push(format!(
+                    "{agent_name}: skipped (max_steps {max_steps} reached)"
+                ));
             }
         }
 
-        if !to_run.is_empty() {
-            step_count += to_run.len();
-            let context_snapshot = state.context_parts.clone();
+        if to_run.is_empty() {
+            continue;
+        }
+        step_count += to_run.len();
 
-            let futures: Vec<_> = to_run
-                .iter()
-                .copied()
-                .filter_map(|node| {
-                    let agent_name = agent_from_node(node)?.to_string();
-                    let order_index = selected_agents
-                        .iter()
-                        .position(|a| a == &agent_name)
-                        .unwrap_or_default() as i64;
+        // 构建本波次的并行任务
+        let futures: Vec<_> = to_run
+            .iter()
+            .filter_map(|agent_name| {
+                let node = node_from_agent(agent_name)?;
+                let order_index = selected_agents
+                    .iter()
+                    .position(|a| a == agent_name)
+                    .unwrap_or_default() as i64;
 
-                    Some(spawn_worker(
-                        app.clone(),
-                        db.clone(),
-                        settings.clone(),
-                        client.clone(),
-                        request_id.to_string(),
-                        session_id.to_string(),
-                        message.to_string(),
-                        context_type.to_string(),
-                        context_id.clone(),
-                        context_snapshot.clone(),
-                        history.to_vec(),
-                        long_term_memory_enabled,
-                        node,
-                        agent_name,
-                        order_index,
-                    ))
-                })
-                .collect();
+                // 该 Worker 的上游依赖
+                let upstream_deps: Vec<String> = deps_map
+                    .get(agent_name.as_str())
+                    .map(|deps| deps.iter().map(|d| d.to_string()).collect())
+                    .unwrap_or_default();
 
-            let outputs: Vec<WorkerOutput> = join_all(futures).await;
+                Some(spawn_worker(
+                    app.clone(),
+                    db.clone(),
+                    settings.clone(),
+                    client.clone(),
+                    request_id.to_string(),
+                    session_id.to_string(),
+                    message.to_string(),
+                    context_type.to_string(),
+                    context_id.clone(),
+                    workspace.clone(),
+                    upstream_deps,
+                    history.to_vec(),
+                    long_term_memory_enabled,
+                    node,
+                    agent_name.clone(),
+                    order_index,
+                ))
+            })
+            .collect();
 
-            // 串行合并结果（无锁竞争）
-            for output in outputs {
-                let finished_at = chrono::Utc::now().to_rfc3339();
-                match &output.result {
-                    Ok(result) => {
-                        if !result.trim().is_empty() {
-                            state
-                                .outputs
-                                .insert(output.agent_name.clone(), result.clone());
-                            state.context_parts.push(format!(
-                                "[{}]\n{}",
-                                agent_title(&output.agent_name),
-                                result
-                            ));
-                        }
-                        state.mark(output.node, NodeStatus::Done);
-                        let _ = sqlx::query(
-                            "UPDATE agent_runs SET status = 'done', summary = ?, updated_at = ? WHERE id = ?",
-                        )
-                        .bind(result)
-                        .bind(&finished_at)
-                        .bind(&output.run_id)
-                        .execute(db)
-                        .await;
-                        let _ = emit_agent_event(
-                            app,
-                            AgentEvent::RunFinished {
-                                request_id: request_id.to_string(),
-                                run: agent_run_event(AgentRunEventInput {
-                                    id: &output.run_id,
-                                    session_id,
-                                    request_id,
-                                    agent_name: &output.agent_name,
-                                    status: AgentRunStatus::Done,
-                                    order_index: output.order_index,
-                                    summary: Some(result.clone()),
-                                    error: None,
-                                    created_at: &output.started_at,
-                                    updated_at: &finished_at,
-                                }),
-                            },
-                        );
-                    }
-                    Err(err_str) => {
+        let outputs: Vec<WorkerOutput> = join_all(futures).await;
+
+        // 串行合并结果（无锁竞争）+ 更新 workspace
+        for output in outputs {
+            let finished_at = chrono::Utc::now().to_rfc3339();
+
+            // 如果有结构化输出，写入 workspace
+            if let Some(agent_output) = &output.workspace_output {
+                workspace.outputs.insert(output.agent_name.clone(), agent_output.clone());
+                workspace.context_parts.push(format!(
+                    "[{}]\n{}",
+                    agent_title(&output.agent_name),
+                    agent_output.full_content
+                ));
+                // 同步到 state
+                state.context_parts = workspace.context_parts.clone();
+            }
+
+            match &output.result {
+                Ok(result) => {
+                    if !result.trim().is_empty() && output.workspace_output.is_none() {
                         state
-                            .failures
-                            .push(format!("{}: {}", output.agent_name, err_str));
-                        state.mark(output.node, NodeStatus::Failed);
-                        let _ = sqlx::query(
-                            "UPDATE agent_runs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?",
-                        )
-                        .bind(err_str)
-                        .bind(&finished_at)
-                        .bind(&output.run_id)
-                        .execute(db)
-                        .await;
-                        let _ = emit_agent_event(
-                            app,
-                            AgentEvent::RunFinished {
-                                request_id: request_id.to_string(),
-                                run: agent_run_event(AgentRunEventInput {
-                                    id: &output.run_id,
-                                    session_id,
-                                    request_id,
-                                    agent_name: &output.agent_name,
-                                    status: AgentRunStatus::Failed,
-                                    order_index: output.order_index,
-                                    summary: None,
-                                    error: Some(err_str.clone()),
-                                    created_at: &output.started_at,
-                                    updated_at: &finished_at,
-                                }),
-                            },
-                        );
+                            .outputs
+                            .insert(output.agent_name.clone(), result.clone());
                     }
+                    state.mark(output.node, NodeStatus::Done);
+                    let _ = sqlx::query(
+                        "UPDATE agent_runs SET status = 'done', summary = ?, updated_at = ? WHERE id = ?",
+                    )
+                    .bind(result)
+                    .bind(&finished_at)
+                    .bind(&output.run_id)
+                    .execute(db)
+                    .await;
+
+                    let mut run_event = agent_run_event(AgentRunEventInput {
+                        id: &output.run_id,
+                        session_id,
+                        request_id,
+                        agent_name: &output.agent_name,
+                        status: AgentRunStatus::Done,
+                        order_index: output.order_index,
+                        summary: Some(result.clone()),
+                        error: None,
+                        created_at: &output.started_at,
+                        updated_at: &finished_at,
+                        duration_ms: Some(output.duration_ms),
+                        upstream_agents: output.input_summary.as_ref().map_or_else(Vec::new, |_| {
+                            deps_map.get(output.agent_name.as_str())
+                                .map(|d| d.iter().map(|s| s.to_string()).collect())
+                                .unwrap_or_default()
+                        }),
+                    });
+                    run_event.output_summary = output.workspace_output.as_ref().map(|o| o.summary.clone());
+                    run_event.structured_output = output.workspace_output.as_ref().map(|o| {
+                        serde_json::to_value(&o.metadata).unwrap_or_default()
+                    });
+
+                    let _ = emit_agent_event(
+                        app,
+                        AgentEvent::RunFinished {
+                            request_id: request_id.to_string(),
+                            run: run_event,
+                        },
+                    );
+                }
+                Err(err_str) => {
+                    state
+                        .failures
+                        .push(format!("{}: {}", output.agent_name, err_str));
+                    state.mark(output.node, NodeStatus::Failed);
+                    let _ = sqlx::query(
+                        "UPDATE agent_runs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?",
+                    )
+                    .bind(err_str)
+                    .bind(&finished_at)
+                    .bind(&output.run_id)
+                    .execute(db)
+                    .await;
+                    let _ = emit_agent_event(
+                        app,
+                        AgentEvent::RunFinished {
+                            request_id: request_id.to_string(),
+                            run: agent_run_event(AgentRunEventInput {
+                                id: &output.run_id,
+                                session_id,
+                                request_id,
+                                agent_name: &output.agent_name,
+                                status: AgentRunStatus::Failed,
+                                order_index: output.order_index,
+                                summary: None,
+                                error: Some(err_str.clone()),
+                                created_at: &output.started_at,
+                                updated_at: &finished_at,
+                                duration_ms: Some(output.duration_ms),
+                                upstream_agents: deps_map.get(output.agent_name.as_str())
+                                    .map(|d| d.iter().map(|s| s.to_string()).collect())
+                                    .unwrap_or_default(),
+                            }),
+                        },
+                    );
                 }
             }
         }
@@ -399,6 +448,7 @@ pub async fn run_agentic_graph(
 }
 
 /// 在 `tokio::spawn` 中执行单个 worker（完全独立，不共享可变状态）。
+/// Worker 从 SharedWorkspace 读取上游输出，执行后将结构化结果写回。
 #[allow(clippy::too_many_arguments)]
 fn spawn_worker(
     app: tauri::AppHandle,
@@ -410,7 +460,8 @@ fn spawn_worker(
     message: String,
     context_type: String,
     context_id: Option<String>,
-    context_parts: Vec<String>,
+    workspace: SharedWorkspace,
+    upstream_deps: Vec<String>,
     history: Vec<LlmMessage>,
     long_term_memory_enabled: bool,
     node: AgentNode,
@@ -418,8 +469,23 @@ fn spawn_worker(
     order_index: i64,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = WorkerOutput> + Send>> {
     Box::pin(async move {
+        let timer = Instant::now();
         let run_id = Uuid::new_v4().to_string();
         let started_at = chrono::Utc::now().to_rfc3339();
+
+        // 构建 Worker 上下文（基础 context + 上游 Worker 摘要）
+        let worker_context = workspace.build_worker_context(&upstream_deps, agent_title);
+        let input_summary = if upstream_deps.is_empty() {
+            None
+        } else {
+            Some(
+                upstream_deps
+                    .iter()
+                    .filter_map(|dep| workspace.outputs.get(dep).map(|o| format!("{}: {}", dep, &o.summary[..o.summary.len().min(200)])))
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            )
+        };
 
         if let Err(e) = sqlx::query(
             "INSERT INTO agent_runs (id, session_id, request_id, agent_name, step_name, status, order_index, created_at, updated_at)
@@ -436,7 +502,11 @@ fn spawn_worker(
         .execute(&db)
         .await
         {
-            return WorkerOutput { node, agent_name, run_id, order_index, started_at, result: Err(e.to_string()) };
+            return WorkerOutput {
+                node, agent_name, run_id, order_index, started_at,
+                result: Err(e.to_string()),
+                workspace_output: None, input_summary, duration_ms: timer.elapsed().as_millis() as u64,
+            };
         }
 
         let _ = emit_agent_event(&app, AgentEvent::RunStarted {
@@ -446,14 +516,17 @@ fn spawn_worker(
                 agent_name: &agent_name, status: AgentRunStatus::Running,
                 order_index, summary: None, error: None,
                 created_at: &started_at, updated_at: &started_at,
+                duration_ms: None, upstream_agents: upstream_deps.clone(),
             }),
         });
 
         let result = execute_agent_node(
             &client, &db, &settings, &agent_name, &message,
-            &context_type, &context_id, &context_parts, &history,
+            &context_type, &context_id, &worker_context, &history,
         )
         .await;
+
+        let duration_ms = timer.elapsed().as_millis() as u64;
 
         if long_term_memory_enabled {
             match &result {
@@ -470,7 +543,25 @@ fn spawn_worker(
             }
         }
 
-        WorkerOutput { node, agent_name, run_id, order_index, started_at, result: result.map_err(|e| e.to_string()) }
+        // 解析结构化输出，构建 AgentOutput 写入 workspace
+        let workspace_output = result.as_ref().ok().map(|content| {
+            AgentOutput {
+                agent_name: agent_name.clone(),
+                summary: extract_summary(content),
+                full_content: content.clone(),
+                metadata: parse_agent_metadata(&agent_name, content),
+                created_at: started_at.clone(),
+                duration_ms,
+            }
+        });
+
+        WorkerOutput {
+            node, agent_name, run_id, order_index, started_at,
+            result: result.map_err(|e| e.to_string()),
+            workspace_output,
+            input_summary,
+            duration_ms,
+        }
     })
 }
 
@@ -492,6 +583,7 @@ async fn execute_serial_worker(
     node: AgentNode,
 ) -> Result<()> {
     let Some(agent_name) = agent_from_node(node) else { return Ok(()) };
+    let timer = Instant::now();
 
     state.mark(node, NodeStatus::Running);
     let order_index = state.selected_agents.iter()
@@ -514,6 +606,7 @@ async fn execute_serial_worker(
             id: &run_id, session_id, request_id, agent_name,
             status: AgentRunStatus::Running, order_index,
             summary: None, error: None, created_at: &started_at, updated_at: &started_at,
+            duration_ms: None, upstream_agents: Vec::new(),
         }),
     });
 
@@ -522,6 +615,7 @@ async fn execute_serial_worker(
         context_type, context_id, &state.context_parts, history,
     ).await;
 
+    let duration_ms = timer.elapsed().as_millis() as u64;
     let finished_at = chrono::Utc::now().to_rfc3339();
     match output {
         Ok(result) => {
@@ -542,6 +636,7 @@ async fn execute_serial_worker(
                     id: &run_id, session_id, request_id, agent_name,
                     status: AgentRunStatus::Done, order_index,
                     summary: Some(result), error: None, created_at: &started_at, updated_at: &finished_at,
+                    duration_ms: Some(duration_ms), upstream_agents: Vec::new(),
                 }),
             });
         }
@@ -561,6 +656,7 @@ async fn execute_serial_worker(
                     id: &run_id, session_id, request_id, agent_name,
                     status: AgentRunStatus::Failed, order_index,
                     summary: None, error: Some(err_str), created_at: &started_at, updated_at: &finished_at,
+                    duration_ms: Some(duration_ms), upstream_agents: Vec::new(),
                 }),
             });
         }
@@ -602,6 +698,7 @@ async fn execute_synthesis_node(
             id: &run_id, session_id, request_id, agent_name: "synthesis",
             status: AgentRunStatus::Running, order_index,
             summary: None, error: None, created_at: &started_at, updated_at: &started_at,
+            duration_ms: None, upstream_agents: Vec::new(),
         }),
     });
 
@@ -643,6 +740,7 @@ async fn execute_synthesis_node(
                     status: AgentRunStatus::Done, order_index,
                     summary: Some(output.clone()), error: None,
                     created_at: &started_at, updated_at: &finished_at,
+                    duration_ms: None, upstream_agents: Vec::new(),
                 }),
             });
             Ok(output)
@@ -660,6 +758,7 @@ async fn execute_synthesis_node(
                     status: AgentRunStatus::Failed, order_index,
                     summary: None, error: Some(err_str),
                     created_at: &started_at, updated_at: &finished_at,
+                    duration_ms: None, upstream_agents: Vec::new(),
                 }),
             });
             Err(error)

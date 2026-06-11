@@ -158,7 +158,8 @@ pub async fn execute_agent_node(
 2. 按方法/技术维度分类，说明代表工作\n\
 3. 对比分析各类方法的优劣\n\
 4. 当前挑战和未来趋势",
-                    message, prior_context.join("\n\n")
+                    message,
+                    prior_context.join("\n\n")
                 )
             };
             let msgs = vec![

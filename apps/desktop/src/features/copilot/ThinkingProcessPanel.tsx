@@ -1,44 +1,37 @@
 import { useState } from "react";
-import { Brain, CheckCircle2, ChevronDown, Clock3, Loader2, Search, XCircle } from "lucide-react";
-import { toCapabilityModelName, type AgentPlanStep, type AgentRun } from "@research-copilot/types";
+import {
+  Brain,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  Loader2,
+  Search,
+  XCircle,
+} from "lucide-react";
+import {
+  toCapabilityModelName,
+  type AgentPlanStep,
+  type AgentRun,
+  type RoutingDecision,
+} from "@research-copilot/types";
+import { AgentRunDetailCard } from "./AgentRunDetailCard";
+import { ExecutionTimeline } from "./ExecutionTimeline";
+import { RoutingDecisionBanner } from "./RoutingDecisionBanner";
 
 interface ThinkingProcessPanelProps {
   thought: string;
   plan: AgentPlanStep[];
   runs: AgentRun[];
+  routingDecision?: RoutingDecision | null;
   searchingQuery: string | null;
   isThinking: boolean;
-}
-
-function runTone(status: AgentRun["status"]) {
-  if (status === "done") {
-    return {
-      color: "#34C759",
-      background: "rgba(52,199,89,0.12)",
-      icon: <CheckCircle2 className="w-3 h-3" />,
-      label: "已完成",
-    };
-  }
-  if (status === "failed") {
-    return {
-      color: "#FF3B30",
-      background: "rgba(255,59,48,0.12)",
-      icon: <XCircle className="w-3 h-3" />,
-      label: "失败",
-    };
-  }
-  return {
-    color: "#FF9500",
-    background: "rgba(255,149,0,0.12)",
-    icon: <Clock3 className="w-3 h-3" />,
-    label: status === "running" ? "处理中" : "待处理",
-  };
 }
 
 export default function ThinkingProcessPanel({
   thought,
   plan,
   runs,
+  routingDecision,
   searchingQuery,
   isThinking,
 }: ThinkingProcessPanelProps) {
@@ -48,13 +41,29 @@ export default function ThinkingProcessPanel({
   const hasPlan = plan.length > 0;
   const hasRuns = runs.length > 0;
   const isSearching = !!searchingQuery;
-  const hasContent = hasReasoning || hasPlan || hasRuns || isSearching;
+  const hasRoutingDecision = !!routingDecision;
+  const hasExecutionWaves =
+    routingDecision?.execution_waves &&
+    routingDecision.execution_waves.length > 0;
+  const hasContent =
+    hasReasoning || hasPlan || hasRuns || isSearching || hasRoutingDecision;
 
   if (!hasContent) return null;
 
   const doneCount = runs.filter((r) => r.status === "done").length;
+  const failedCount = runs.filter((r) => r.status === "failed").length;
   const totalCount = plan.length || runs.length;
-  const progressText = totalCount > 0 ? ` (${doneCount}/${totalCount})` : "";
+
+  // Build progress text
+  let progressText = "";
+  if (totalCount > 0) {
+    const parts: string[] = [`${doneCount}/${totalCount} 完成`];
+    if (failedCount > 0) parts.push(`${failedCount} 失败`);
+    progressText = ` (${parts.join("，")})`;
+  }
+
+  // Determine if we should use timeline view
+  const useTimelineView = hasExecutionWaves && hasRuns;
 
   return (
     <div
@@ -82,15 +91,31 @@ export default function ThinkingProcessPanel({
           </span>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {hasRoutingDecision && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
+              style={{
+                background: "rgba(175,82,222,0.08)",
+                color: "#AF52DE",
+              }}
+            >
+              {routingDecision!.selected.length} 个能力已调度
+            </span>
+          )}
           {isSearching && (
-            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]" style={{ background: "rgba(0,122,255,0.08)", color: "#007AFF" }}>
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
+              style={{ background: "rgba(0,122,255,0.08)", color: "#007AFF" }}
+            >
               <Search className="w-2.5 h-2.5" />
               搜索中
             </span>
           )}
           <ChevronDown
             className="w-3.5 h-3.5 text-ink-tertiary transition-transform duration-200"
-            style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
+            style={{
+              transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+            }}
           />
         </div>
       </button>
@@ -109,6 +134,25 @@ export default function ThinkingProcessPanel({
             </div>
           )}
 
+          {/* Routing Decision Banner */}
+          {hasRoutingDecision && (
+            <RoutingDecisionBanner decision={routingDecision!} />
+          )}
+
+          {/* Execution Timeline (when waves info is available) */}
+          {useTimelineView && (
+            <div>
+              <div className="mb-1.5 text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">
+                执行时间线
+              </div>
+              <ExecutionTimeline
+                runs={runs}
+                executionWaves={routingDecision!.execution_waves}
+                isThinking={isThinking}
+              />
+            </div>
+          )}
+
           {/* Reasoning content */}
           {hasReasoning && (
             <div>
@@ -117,15 +161,18 @@ export default function ThinkingProcessPanel({
               </div>
               <div
                 className="rounded-xl px-3 py-2.5 text-xs leading-5 whitespace-pre-wrap text-ink-secondary"
-                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
+                style={{
+                  background: "var(--rc-surface)",
+                  boxShadow: "var(--rc-inset-shadow)",
+                }}
               >
                 {thought}
               </div>
             </div>
           )}
 
-          {/* Plan steps */}
-          {hasPlan && (
+          {/* Plan steps with detailed cards */}
+          {hasPlan && !useTimelineView && (
             <div>
               <div className="mb-1.5 text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">
                 当前步骤
@@ -135,13 +182,27 @@ export default function ThinkingProcessPanel({
                   const run = [...runs]
                     .reverse()
                     .find((item) => item.agent_name === step.agent_name);
-                  const tone = runTone(run?.status || "pending");
 
+                  if (run) {
+                    // Show detailed card when we have run data
+                    return (
+                      <AgentRunDetailCard
+                        key={`${step.agent_name}-${index}`}
+                        run={run}
+                        index={index}
+                      />
+                    );
+                  }
+
+                  // Fallback: plan step without run data yet
                   return (
                     <div
                       key={`${step.agent_name}-${index}`}
                       className="rounded-xl px-3 py-2"
-                      style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
+                      style={{
+                        background: "var(--rc-surface)",
+                        boxShadow: "var(--rc-inset-shadow)",
+                      }}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-semibold text-ink-primary">
@@ -149,13 +210,18 @@ export default function ThinkingProcessPanel({
                         </span>
                         <span
                           className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
-                          style={{ color: tone.color, background: tone.background }}
+                          style={{
+                            color: "#8E8E93",
+                            background: "rgba(142,142,147,0.12)",
+                          }}
                         >
-                          {tone.icon}
-                          {tone.label}
+                          <Clock3 className="w-3 h-3" />
+                          待处理
                         </span>
                       </div>
-                      <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">{step.goal}</p>
+                      <p className="mt-1 text-[11px] leading-5 text-ink-tertiary">
+                        {step.goal}
+                      </p>
                     </div>
                   );
                 })}
@@ -163,34 +229,16 @@ export default function ThinkingProcessPanel({
             </div>
           )}
 
-          {/* Runs without plan */}
-          {hasRuns && !hasPlan && (
+          {/* Runs without plan and without timeline */}
+          {hasRuns && !hasPlan && !useTimelineView && (
             <div>
               <div className="mb-1.5 text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">
                 工具与产物
               </div>
               <div className="space-y-1.5">
-                {runs.map((run) => {
-                  const tone = runTone(run.status);
-                  return (
-                    <div
-                      key={run.id}
-                      className="rounded-xl px-3 py-2"
-                      style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-ink-primary">{toCapabilityModelName(run.agent_name)}</span>
-                        <span
-                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
-                          style={{ color: tone.color, background: tone.background }}
-                        >
-                          {tone.icon}
-                          {tone.label}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+                {runs.map((run, index) => (
+                  <AgentRunDetailCard key={run.id} run={run} index={index} />
+                ))}
               </div>
             </div>
           )}

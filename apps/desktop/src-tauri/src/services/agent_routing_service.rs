@@ -3,9 +3,11 @@ use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use serde::Deserialize;
 use std::collections::HashMap;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct RoutingDecision {
     agents: Vec<String>,
+    #[serde(default)]
+    reasoning: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +34,13 @@ impl RoutingPolicy {
     }
 }
 
+/// 路由选择结果 —— 包含选中的 Agent 列表和路由理由（如果有）
+pub struct RoutingResult {
+    pub agents: Vec<String>,
+    /// LLM 路由时的决策理由（Rule 模式为 None）
+    pub reasoning: Option<String>,
+}
+
 pub async fn select_agents(
     client: &LlmClient,
     settings: &HashMap<String, String>,
@@ -40,44 +49,42 @@ pub async fn select_agents(
     enabled: &[String],
     max_steps: usize,
     policy: RoutingPolicy,
-) -> Vec<String> {
+) -> RoutingResult {
     let rule_selected = select_agents_by_rule(message, context_type, enabled, max_steps);
 
-    let selected = match policy {
-        RoutingPolicy::Rule => rule_selected.clone(),
-        RoutingPolicy::Llm => select_agents_by_llm(
-            client,
-            settings,
-            message,
-            context_type,
-            enabled,
-            max_steps,
-            &[],
-        )
-        .await
-        .unwrap_or_else(|_| rule_selected.clone()),
-        RoutingPolicy::Hybrid => {
-            let llm_selected = select_agents_by_llm(
-                client,
-                settings,
-                message,
-                context_type,
-                enabled,
-                max_steps,
-                &rule_selected,
+    let (selected, reasoning) = match policy {
+        RoutingPolicy::Rule => (rule_selected.clone(), None),
+        RoutingPolicy::Llm => {
+            match select_agents_by_llm(
+                client, settings, message, context_type, enabled, max_steps, &[],
             )
             .await
-            .unwrap_or_default();
-
-            if llm_selected.is_empty() {
-                rule_selected.clone()
-            } else {
-                merge_selected_agents(rule_selected.clone(), llm_selected, enabled, max_steps)
+            {
+                Ok((agents, reasoning)) => (agents, reasoning),
+                Err(_) => (rule_selected.clone(), None),
+            }
+        }
+        RoutingPolicy::Hybrid => {
+            match select_agents_by_llm(
+                client, settings, message, context_type, enabled, max_steps, &rule_selected,
+            )
+            .await
+            {
+                Ok((llm_selected, reasoning)) if !llm_selected.is_empty() => {
+                    let merged = merge_selected_agents(
+                        rule_selected.clone(), llm_selected, enabled, max_steps,
+                    );
+                    (merged, reasoning)
+                }
+                _ => (rule_selected.clone(), None),
             }
         }
     };
 
-    append_synthesis(selected, enabled)
+    RoutingResult {
+        agents: append_synthesis(selected, enabled),
+        reasoning,
+    }
 }
 
 fn select_agents_by_rule(
@@ -222,7 +229,7 @@ async fn select_agents_by_llm(
     enabled: &[String],
     max_steps: usize,
     rule_suggestion: &[String],
-) -> anyhow::Result<Vec<String>> {
+) -> anyhow::Result<(Vec<String>, Option<String>)> {
     let candidates: Vec<String> = enabled
         .iter()
         .filter(|item| item.as_str() != "synthesis")
@@ -230,7 +237,7 @@ async fn select_agents_by_llm(
         .collect();
 
     if candidates.is_empty() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), None));
     }
 
     let model = resolve_model(settings, &["multi_agent_supervisor_model"]);
@@ -256,7 +263,7 @@ async fn select_agents_by_llm(
 5. 只有在 context_type 为 paper 或用户明确要求精读单篇论文时，才选择 paper_analyst。\n\
 6. 只有在 context_type 为 paper 且涉及实现、训练、实验配置或复现时，才选择 reproduction。\n\
 7. 如果规则模式建议已经覆盖关键分工，除非明显多余，不要删掉这些关键步骤。\n\n\
-请只返回 JSON，对象格式必须为 {{\"agents\": [\"agent_name\"]}}。",
+请只返回 JSON，对象格式必须为 {{\"agents\": [\"agent_name\"], \"reasoning\": \"选择理由的简要说明\"}}。",
         candidates = candidates.join(", "),
     );
 
@@ -267,11 +274,13 @@ async fn select_agents_by_llm(
     let response = client
         .chat(&messages, model.as_deref(), temperature)
         .await?;
-    let selected = parse_routing_decision(&response).unwrap_or_default();
-    Ok(normalize_selected_agents(selected, enabled, max_steps))
+    let decision = parse_routing_decision(&response).unwrap_or_default();
+    let reasoning = decision.reasoning;
+    let selected = decision.agents;
+    Ok((normalize_selected_agents(selected, enabled, max_steps), reasoning))
 }
 
-fn parse_routing_decision(raw: &str) -> Option<Vec<String>> {
+fn parse_routing_decision(raw: &str) -> Option<RoutingDecision> {
     serde_json::from_str::<RoutingDecision>(raw)
         .ok()
         .or_else(|| {
@@ -279,7 +288,6 @@ fn parse_routing_decision(raw: &str) -> Option<Vec<String>> {
             let end = raw.rfind('}')?;
             serde_json::from_str::<RoutingDecision>(&raw[start..=end]).ok()
         })
-        .map(|decision| decision.agents)
 }
 
 fn normalize_selected_agents(

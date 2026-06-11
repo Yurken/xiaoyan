@@ -213,6 +213,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             <CopilotChatArea
               messages={chat.messages}
               agentRuns={chat.agentRuns}
+              plan={chat.plan}
+              routingDecision={chat.routingDecision}
               activeAssistantId={chat.activeAssistantId}
               sending={chat.sending}
               searchingQuery={chat.searchingQuery}

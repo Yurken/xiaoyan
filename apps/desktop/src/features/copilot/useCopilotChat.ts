@@ -5,7 +5,7 @@ import {
   upsertAgentRun,
 } from "./shared";
 import { apiClient, formatErrorMessage } from "../../lib/client";
-import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, Skill } from "@research-copilot/types";
+import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, RoutingDecision, Skill } from "@research-copilot/types";
 
 const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
 
@@ -43,6 +43,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [searchingQuery, setSearchingQuery] = useState<string | null>(null);
+  const [routingDecision, setRoutingDecision] = useState<RoutingDecision | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const streamAbortRef = useRef<AbortController | null>(null);
   const streamingContentRef = useRef("");
@@ -57,6 +58,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     setInput("");
     setLoadError("");
     setSearchingQuery(null);
+    setRoutingDecision(null);
   }, []);
 
   const cancelActiveStream = useCallback(() => {
@@ -93,6 +95,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     setPlan([]);
     setAgentRuns([]);
     setRequestId(undefined);
+    setRoutingDecision(null);
     setActiveAssistantId(assistantId);
 
     const userMsg: ChatMessage = {
@@ -138,6 +141,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
           setAgentRuns((prev) => upsertAgentRun(prev, chunk.value));
         }
         if (chunk.type === "searching") setSearchingQuery(chunk.query);
+        if (chunk.type === "routing_decision") setRoutingDecision(chunk.value);
         if (chunk.type === "tool_result") {
           setMessages((prev) =>
             prev.map((m) =>
@@ -227,6 +231,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     loadError,
     setLoadError,
     searchingQuery,
+    routingDecision,
     sidebarCollapsed,
     setSidebarCollapsed,
     resetChat,

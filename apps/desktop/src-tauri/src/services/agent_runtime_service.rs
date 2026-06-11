@@ -1,4 +1,5 @@
 use crate::agent_graph::run_agentic_graph;
+use crate::agent_workspace::compute_execution_waves;
 use crate::llm::{LlmClient, LlmMessage};
 use crate::services::agent_context_service::{build_agent_context, AgentContextRequest};
 use crate::services::agent_event_service::{emit_agent_event, AgentEvent, AgentPlanStep};
@@ -51,7 +52,7 @@ async fn run_xiaoyan_native_runtime(
     let enabled = enabled_agents(request.settings);
     let max_steps = max_agent_steps(request.settings);
     let routing_policy = RoutingPolicy::from_settings(request.settings);
-    let selected = select_agents(
+    let routing_result = select_agents(
         request.client,
         request.settings,
         request.message,
@@ -61,6 +62,7 @@ async fn run_xiaoyan_native_runtime(
         routing_policy,
     )
     .await;
+    let selected = routing_result.agents;
     let agent_context = build_agent_context(AgentContextRequest {
         context_type: request.context_type,
         context_id: request.context_id,
@@ -78,6 +80,19 @@ async fn run_xiaoyan_native_runtime(
         AgentEvent::Plan {
             request_id: request.request_id.to_string(),
             plan,
+        },
+    );
+
+    // 计算执行波次并发送路由决策事件
+    let execution_waves = compute_execution_waves(&selected);
+    let _ = emit_agent_event(
+        request.app,
+        AgentEvent::RoutingDecision {
+            request_id: request.request_id.to_string(),
+            policy: format!("{routing_policy:?}").to_lowercase(),
+            selected: selected.clone(),
+            reasoning: routing_result.reasoning,
+            execution_waves,
         },
     );
 

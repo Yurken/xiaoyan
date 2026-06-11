@@ -9,6 +9,7 @@ use std::{
 
 mod agent_graph;
 mod agent_nodes;
+mod agent_workspace;
 mod assistant_prompts;
 mod ccf;
 mod citation_graph;
