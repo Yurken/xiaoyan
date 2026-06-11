@@ -138,6 +138,7 @@ export default function Settings() {
     replaceForm,
     set,
     setMany,
+    setManyFlat,
     getSharedValue,
     hasMixedValue,
     loading,
@@ -461,6 +462,7 @@ export default function Settings() {
             setForm={setForm}
             set={set}
             setMany={setMany}
+            setManyFlat={setManyFlat}
             getSharedValue={getSharedValue}
             hasMixedValue={hasMixedValue}
             applyPreset={applyPreset}

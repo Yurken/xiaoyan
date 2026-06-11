@@ -20,6 +20,7 @@ interface AssistantSettingsSectionProps {
   setForm: Dispatch<SetStateAction<AppSettings>>;
   set: (key: keyof AppSettings) => (value: string) => void;
   setMany: (keys: (keyof AppSettings)[]) => (value: string) => void;
+  setManyFlat: (updates: Partial<Record<keyof AppSettings, string>>) => void;
   getSharedValue: (keys: (keyof AppSettings)[]) => string;
   hasMixedValue: (keys: (keyof AppSettings)[]) => boolean;
   applyPreset: (presetId: ProviderPresetId) => void;
@@ -79,6 +80,7 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
           enabledAgents={props.enabledAgents}
           set={props.set}
           setMany={props.setMany}
+          setManyFlat={props.setManyFlat}
           getSharedValue={props.getSharedValue}
           hasMixedValue={props.hasMixedValue}
           toggleAgent={props.toggleAgent}
