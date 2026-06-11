@@ -94,6 +94,7 @@ async fn run_xiaoyan_native_runtime(
         agent_context.parts,
         request.history,
         selected,
+        max_steps,
     )
     .await?;
 

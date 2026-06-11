@@ -29,8 +29,7 @@ const Writing = lazy(() => import("./pages/Writing"));
 const ResearchTheme = lazy(() => import("./pages/ResearchTheme"));
 const FocusApp = lazy(() => import("./pages/FocusLayout"));
 import LockScreen from "./features/appLock/LockScreen";
-import { APP_LOCK_STATUS_CHANGE_EVENT, type AppLockStatusChangeDetail } from "./features/appLock/shared";
-import { useInactivityLock } from "./features/appLock/useInactivityLock";
+import { useAppLock } from "./features/appLock/useAppLock";
 import { apiClient } from "./lib/client";
 import {
   getLayoutMode,
@@ -38,8 +37,8 @@ import {
   LAYOUT_MODE_CHANGE_EVENT,
   type LayoutMode,
 } from "./lib/layoutMode";
-import { applyTheme, getTheme, watchSystemTheme } from "./lib/themeMode";
-import { applyThemeStyle, getThemeStyle } from "./lib/themeStyle";
+import { useThemeInit } from "./hooks/useThemeInit";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useAutoUpdate } from "./lib/useAutoUpdate";
 import { IS_MACOS_DESKTOP } from "./lib/windowChrome";
 import MacWindowDragStrip from "./components/MacWindowDragStrip";
@@ -71,55 +70,11 @@ function LandscapeFocusRouteRedirect() {
 export default function App() {
   const autoUpdate = useAutoUpdate();
   useInterestPlanEventBridge();
+  useThemeInit();
+  useKeyboardShortcuts();
   const navigate = useNavigate();
   const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());
-  const [locked, setLocked] = useState(false);
-  const [lockChecked, setLockChecked] = useState(false);
-  const [lockTimeout, setLockTimeout] = useState(0);
-
-  // Check lock status on mount
-  useEffect(() => {
-    apiClient.settings.appLock.status()
-      .then((status) => {
-        setLockTimeout(status.timeoutMinutes);
-        if (status.enabled) setLocked(true);
-      })
-      .catch((err) => {
-        console.warn("Failed to load app lock status:", err);
-      })
-      .finally(() => setLockChecked(true));
-
-
-  }, []);
-
-  useInactivityLock(lockTimeout, locked, () => setLocked(true));
-
-  useEffect(() => {
-    const handleStatusChange = (event: Event) => {
-      const detail = (event as CustomEvent<AppLockStatusChangeDetail>).detail;
-      setLockTimeout(detail.timeoutMinutes);
-      if (!detail.enabled) {
-        setLocked(false);
-      }
-    };
-
-    window.addEventListener(APP_LOCK_STATUS_CHANGE_EVENT, handleStatusChange);
-    return () => window.removeEventListener(APP_LOCK_STATUS_CHANGE_EVENT, handleStatusChange);
-  }, []);
-
-  useEffect(() => {
-    applyTheme(getTheme());
-    applyThemeStyle(getThemeStyle());
-    const unwatch = watchSystemTheme(() => { });
-    const root = document.getElementById("root");
-    if (!root) return () => unwatch();
-    root.classList.add("dissolve-in");
-    const timer = setTimeout(() => root.classList.remove("dissolve-in"), 600);
-    return () => {
-      clearTimeout(timer);
-      unwatch();
-    };
-  }, []);
+  const { locked, setLocked, lockChecked } = useAppLock();
 
   useEffect(() => {
     const syncLayoutMode = () => setCurrentLayoutMode(getLayoutMode());
@@ -132,18 +87,6 @@ export default function App() {
       window.removeEventListener(LAYOUT_MODE_CHANGE_EVENT, syncLayoutMode);
     };
   }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === ",") {
-        event.preventDefault();
-        navigate("/settings");
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [navigate]);
 
   const [loginOpen, setLoginOpen] = useState(false);
   const [loggedIn, setLoggedIn] = useState(hasToken());
