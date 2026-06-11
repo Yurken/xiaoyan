@@ -23,19 +23,14 @@
     gap: 2px;
     padding: var(--rc-shell-sidebar-top-gap) 8px 12px;
     border-right: 1px solid var(--rc-border);
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--rc-sidebar-bg) 92%, transparent) 0%,
-        var(--rc-sidebar-bg) 100%
-      );
+    background: var(--rc-sidebar-bg);
     backdrop-filter: blur(18px);
   }
 
   .app-shell--macos-overlay {
-    --rc-shell-sidebar-top-gap: 6px;
-    --rc-window-drag-height: 34px;
-    --rc-page-top-gap: 14px;
+    --rc-shell-sidebar-top-gap: 0px;
+    --rc-window-drag-height: 28px;
+    --rc-page-top-gap: 28px;
   }
 
   .app-sidebar__window-drag-region {
@@ -46,14 +41,9 @@
     display: block;
     flex-shrink: 0;
     height: 28px;
-    margin: 0 0 6px;
+    margin: 0 0 2px;
     user-select: none;
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--rc-sidebar-bg) 92%, transparent) 0%,
-        var(--rc-sidebar-bg) 100%
-      );
+    background: var(--rc-sidebar-bg);
   }
 
   .app-nav-link {
@@ -199,6 +189,7 @@
 
   .app-shell--macos-overlay .app-main {
     background: var(--rc-surface);
+    padding-top: 0;
   }
 
   .app-main__window-drag-region {
@@ -210,11 +201,20 @@
     top: 0;
     left: 0;
     right: 0;
-    z-index: 60;
+    z-index: 50;
     display: block;
-    height: var(--rc-window-drag-height);
+    height: 28px;
     user-select: none;
-    background: var(--rc-surface);
+    background: transparent;
+  }
+
+  .app-shell--macos-overlay .app-header,
+  .app-shell--macos-overlay .rc-settings-header,
+  .app-shell--macos-overlay .rc-copilot-session-sidebar-header,
+  .app-shell--macos-overlay .rc-copilot-chat-area,
+  .app-shell--macos-overlay .rc-copilot-overview-sidebar,
+  .app-shell--macos-overlay .rc-home-container {
+    padding-top: 32px !important;
   }
 
   .app-main::before {
@@ -297,16 +297,14 @@
 
   @media (max-width: 1024px) {
     .app-shell {
-      --rc-shell-sidebar-top-gap: 6px;
-      --rc-window-drag-height: 0px;
+      --rc-shell-sidebar-top-gap: 4px;
       --rc-page-inline-gap: 20px;
-      --rc-page-top-gap: 14px;
       --rc-page-bottom-gap: 20px;
     }
 
     .app-shell--macos-overlay {
-      --rc-window-drag-height: 28px;
-      --rc-page-top-gap: 14px;
+      --rc-window-drag-height: 24px;
+      --rc-page-top-gap: 24px;
     }
 
     .app-sidebar {
@@ -315,12 +313,8 @@
     }
 
     .app-shell--macos-overlay .app-sidebar__window-drag-region {
-      height: 24px;
-      margin-bottom: 6px;
-    }
-
-    .app-shell--macos-overlay .app-main__window-drag-region {
-      height: var(--rc-window-drag-height);
+      height: 22px;
+      margin-bottom: 2px;
     }
   }
 }

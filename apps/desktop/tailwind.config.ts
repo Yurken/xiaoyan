@@ -50,8 +50,9 @@ export default {
         "apple-blue-pressed": "inset 3px 3px 6px rgba(0,62,128,0.5), inset -2px -2px 5px rgba(58,155,255,0.3)",
       },
       backgroundImage: {
-        "nm-card":    "linear-gradient(145deg, #171D27, #0E131A)",
-        "nm-surface": "linear-gradient(145deg, #1A2230, #0A0E14)",
+        "nm-card":    "var(--rc-nm-card-bg, linear-gradient(145deg, #171D27, #0E131A))",
+        "nm-surface": "var(--rc-nm-surface-bg, linear-gradient(145deg, #1A2230, #0A0E14))",
+        "nm-elevated": "var(--rc-nm-elevated-bg, linear-gradient(145deg, #202A3C, #131A26))",
         "apple-blue": "linear-gradient(145deg, #1A8AFF, #0062CC)",
         "apple-orange": "linear-gradient(145deg, #FFAA20, #FF7700)",
       },

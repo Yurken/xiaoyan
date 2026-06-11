@@ -30,7 +30,7 @@ export default function Home() {
 
   if (model) {
     return (
-      <div className="flex h-full flex-col p-5">
+      <div className="flex h-full flex-col p-5 rc-home-container">
         <ContinueResearchPanel />
         <div className="mt-6">
           <OverviewWorkspace model={model} />

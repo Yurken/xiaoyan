@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { applyTheme, getTheme, watchSystemTheme } from "../../lib/themeMode";
-import { applyThemeStyle, getThemeStyle } from "../../lib/themeStyle";
+import { applyTheme, getTheme, watchSystemTheme } from "../lib/themeMode";
+import { applyThemeStyle, getThemeStyle } from "../lib/themeStyle";
 
 /**
  * 初始化主题：应用暗色/亮色模式、主题样式，监听系统主题变更。

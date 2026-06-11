@@ -72,7 +72,7 @@ export default function LoginModal({ open, onClose, onLoginSuccess }: LoginModal
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-6"
-        style={{ background: "rgba(5,7,11,0.82)", backdropFilter: "blur(8px)" }}
+        style={{ background: "var(--rc-modal-backdrop, rgba(5,7,11,0.82))", backdropFilter: "blur(8px)" }}
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
         {/* Modal */}
@@ -80,12 +80,17 @@ export default function LoginModal({ open, onClose, onLoginSuccess }: LoginModal
           style={{
             background: "var(--rc-card-bg)",
             borderRadius: 28,
-            boxShadow: "var(--rc-card-shadow), 0 0 0 1px rgba(255,255,255,0.06)",
+            boxShadow: "var(--rc-card-shadow)",
+            border: "1px solid var(--rc-card-outline, transparent)",
           }}
         >
           {/* Close */}
           <button onClick={onClose}
-            className="absolute right-4 top-4 rounded-xl p-2 text-ink-tertiary hover:text-ink-secondary hover:bg-white/5 transition-colors">
+            className="absolute right-4 top-4 rounded-xl p-2 text-ink-tertiary hover:text-ink-secondary transition-colors"
+            style={{ background: "transparent" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--rc-chip-inset-bg)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
             <X className="h-4 w-4" />
           </button>
 

@@ -175,8 +175,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           renamingId={sessions.renamingId}
           renameTitle={sessions.renameTitle}
           menuSessionId={sessions.menuSessionId}
-          confirmingDeleteGroupId={sessions.confirmDeleteGroupId}
-          deletingGroupId={sessions.deletingGroupId}
           onNewChat={handleNewChat}
           onSelectInterest={sessions.setSelectedInterestId}
           onToggleCollapse={() => setSessionListMode("collapsed")}
@@ -189,8 +187,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           onPinSession={sessions.handlePinSession}
           onStartRename={sessions.startRename}
           onDeleteSession={sessions.handleDeleteSession}
-          onDeleteInterestGroup={sessions.handleDeleteInterestGroup}
-          onConfirmDeleteGroup={sessions.setConfirmDeleteGroupId}
           onRenameTitleChange={sessions.setRenameTitle}
           onCommitRename={sessions.commitRename}
           onCancelRename={sessions.cancelRename}

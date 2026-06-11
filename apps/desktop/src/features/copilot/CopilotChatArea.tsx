@@ -99,7 +99,7 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
 
   return (
     <div
-      className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+      className="flex-1 overflow-y-auto p-4 space-y-4 relative rc-copilot-chat-area"
       onDragEnter={handleChatDragEnter}
       onDragLeave={handleChatDragLeave}
       onDragOver={handleChatDragOver}

@@ -85,7 +85,7 @@ export default function CopilotOverviewSidebar({
       className={
         expanded
           ? "absolute inset-0 z-20 overflow-hidden"
-          : "w-[300px] flex-shrink-0 overflow-y-auto p-3.5"
+          : "w-[300px] flex-shrink-0 overflow-y-auto p-3.5 rc-copilot-overview-sidebar"
       }
       style={
         expanded

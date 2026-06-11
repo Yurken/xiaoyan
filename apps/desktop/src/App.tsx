@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
+  CircleCheck,
+  CircleUser,
   FileText,
   FlaskConical,
   LayoutDashboard,
@@ -176,9 +178,10 @@ export default function App() {
             >
               <span className={`app-nav-item ${loggedIn ? "is-active" : ""}`.trim()}>
                 <span className="app-nav-item__marker" />
-                <span className="app-nav-item__icon" style={{ fontSize: 18 }}>
-                  {loggedIn ? "✓" : "⊙"}
-                </span>
+                {loggedIn
+                  ? <CircleCheck className="app-nav-item__icon" />
+                  : <CircleUser className="app-nav-item__icon" />
+                }
                 <span className="app-nav-item__label">{loggedIn ? "已登录" : "登录"}</span>
               </span>
             </button>

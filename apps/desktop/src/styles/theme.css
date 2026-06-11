@@ -91,6 +91,10 @@
     inset 4px 4px 8px rgba(5, 7, 11, 0.9),
     inset -3px -3px 7px rgba(26, 34, 48, 0.88),
     0 1px 0 rgba(255, 255, 255, 0.04);
+  --rc-modal-backdrop: rgba(5, 7, 11, 0.82);
+  --rc-nm-card-bg: linear-gradient(145deg, #161c28, #0D1117);
+  --rc-nm-surface-bg: linear-gradient(145deg, #1A2230, #0A0E14);
+  --rc-nm-elevated-bg: linear-gradient(145deg, #202A3C, #131A26);
 }
 
 html[data-theme="light"] {
@@ -182,6 +186,10 @@ html[data-theme="light"] {
   --rc-nav-item-active-bg: rgba(255, 255, 255, 0.7);
   --rc-nav-item-active-border: rgba(200, 205, 211, 0.18);
   --rc-nav-item-active-shadow: var(--rc-chip-inset-shadow);
+  --rc-modal-backdrop: rgba(200, 205, 211, 0.55);
+  --rc-nm-card-bg: linear-gradient(145deg, #F8FAFC, #E6EAF0);
+  --rc-nm-surface-bg: linear-gradient(145deg, #E2E6EC, #CBD3DC);
+  --rc-nm-elevated-bg: linear-gradient(145deg, #F5F7FA, #E6EAF0);
 }
 
 html[data-style="modern-minimal"] {
@@ -271,6 +279,10 @@ html[data-style="modern-minimal"] {
   --rc-nav-item-active-bg: #1f252e;
   --rc-nav-item-active-border: transparent;
   --rc-nav-item-active-shadow: none;
+  --rc-modal-backdrop: rgba(0, 0, 0, 0.78);
+  --rc-nm-card-bg: #13171d;
+  --rc-nm-surface-bg: #0d1014;
+  --rc-nm-elevated-bg: #171b21;
 }
 
 html[data-style="modern-minimal"][data-theme="light"] {
@@ -360,6 +372,10 @@ html[data-style="modern-minimal"][data-theme="light"] {
   --rc-nav-item-active-bg: #f3f4f6;
   --rc-nav-item-active-border: transparent;
   --rc-nav-item-active-shadow: none;
+  --rc-modal-backdrop: rgba(245, 245, 245, 0.65);
+  --rc-nm-card-bg: #ffffff;
+  --rc-nm-surface-bg: #f3f4f6;
+  --rc-nm-elevated-bg: #ffffff;
 }
 
 @layer base {

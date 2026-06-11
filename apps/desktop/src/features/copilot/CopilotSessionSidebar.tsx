@@ -1,14 +1,11 @@
 import { useMemo } from "react";
 import {
   ChevronLeft,
-  ChevronRight,
   MessageSquare,
   MoreHorizontal,
   Plus,
-  Trash2,
 } from "lucide-react";
 import { Select } from "@research-copilot/ui";
-import CollapsibleGroup from "../../components/CollapsibleGroup";
 import type { ChatSession, ResearchInterest } from "@research-copilot/types";
 import { interestFolderName } from "../../lib/interestUtils";
 
@@ -24,8 +21,6 @@ interface CopilotSessionSidebarProps {
   renamingId: string | null;
   renameTitle: string;
   menuSessionId: string | null;
-  confirmingDeleteGroupId: string | null;
-  deletingGroupId: string | null;
   onNewChat: () => void;
   onSelectInterest: (id: string) => void;
   onToggleCollapse: () => void;
@@ -35,8 +30,6 @@ interface CopilotSessionSidebarProps {
   onPinSession: (id: string) => void;
   onStartRename: (session: ChatSession) => void;
   onDeleteSession: (id: string) => void;
-  onDeleteInterestGroup: (id: string, deleteAll: boolean) => void;
-  onConfirmDeleteGroup: (id: string | null) => void;
   onRenameTitleChange: (title: string) => void;
   onCommitRename: () => void;
   onCancelRename: () => void;
@@ -47,10 +40,9 @@ export function CopilotSessionSidebar(props: CopilotSessionSidebarProps) {
     sessions, interests, currentSession, selectedInterestId,
     sessionListCollapsed, sessionGroups, ungroupedSessions,
     hideFolders, renamingId, renameTitle, menuSessionId,
-    confirmingDeleteGroupId, deletingGroupId,
     onNewChat, onSelectInterest, onToggleCollapse, onLoadSession,
     onContextMenu, onMenuToggle, onPinSession, onStartRename,
-    onDeleteSession, onDeleteInterestGroup, onConfirmDeleteGroup,
+    onDeleteSession,
     onRenameTitleChange, onCommitRename, onCancelRename,
   } = props;
 
@@ -130,7 +122,7 @@ export function CopilotSessionSidebar(props: CopilotSessionSidebarProps) {
       className="w-52 flex-shrink-0 flex flex-col"
       style={{ background: "var(--rc-sidebar-bg)", borderRight: "1px solid var(--rc-border)" }}
     >
-      <div className="p-3 pb-2">
+      <div className="p-3 pb-2 rc-copilot-session-sidebar-header">
         <div className="flex items-center gap-2">
           <button
             onClick={onNewChat}
@@ -197,54 +189,7 @@ export function CopilotSessionSidebar(props: CopilotSessionSidebarProps) {
         )}
       </div>
 
-      {!hideFolders && (
-        <div className="border-t border-nm-dark/10 px-3 py-3 space-y-1.5 max-h-52 overflow-y-auto">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-tertiary px-1">
-            研究主题分组
-          </div>
-          {sessionGroups.map((group) => (
-            <CollapsibleGroup
-              key={group.key}
-              title={group.title}
-              subtitle={group.subtitle}
-              pinned={true}
-              defaultOpen={group.sessions.length > 0}
-              badge={group.sessions.length}
-              onDelete={
-                confirmingDeleteGroupId === group.key
-                  ? undefined
-                  : () => onConfirmDeleteGroup(group.key)
-              }
-            >
-              {confirmingDeleteGroupId === group.key ? (
-                <div className="space-y-1.5">
-                  <p className="text-xs text-ink-tertiary">删除此主题？</p>
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={() => onDeleteInterestGroup(group.key, true)}
-                      disabled={deletingGroupId === group.key}
-                      className="flex-1 rounded-lg px-2 py-1 text-xs font-medium text-apple-red hover:bg-apple-red/8 disabled:opacity-40"
-                    >
-                      删除全部
-                    </button>
-                    <button
-                      onClick={() => onDeleteInterestGroup(group.key, false)}
-                      disabled={deletingGroupId === group.key}
-                      className="flex-1 rounded-lg px-2 py-1 text-xs font-medium text-ink-secondary hover:bg-nm-dark/8 disabled:opacity-40"
-                    >
-                      只删主题
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {group.sessions.map(renderSessionItem)}
-                </div>
-              )}
-            </CollapsibleGroup>
-          ))}
-        </div>
-      )}
+
     </div>
   );
 }
