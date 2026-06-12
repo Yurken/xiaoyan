@@ -117,7 +117,15 @@ pub async fn experiment_create(
     notes: Option<String>,
     linked_submission_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    create_experiment_core(&state.db, title, config, result, notes, linked_submission_id).await
+    create_experiment_core(
+        &state.db,
+        title,
+        config,
+        result,
+        notes,
+        linked_submission_id,
+    )
+    .await
 }
 
 #[tauri::command]

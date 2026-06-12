@@ -115,10 +115,7 @@ pub async fn verify_password(state: &AppState, password: &str) -> Result<bool, S
     Ok(constant_time_eq(&actual, &expected))
 }
 
-pub async fn ensure_detail_access(
-    state: &AppState,
-    password: Option<&str>,
-) -> Result<(), String> {
+pub async fn ensure_detail_access(state: &AppState, password: Option<&str>) -> Result<(), String> {
     if !status(state).await.enabled {
         return Ok(());
     }

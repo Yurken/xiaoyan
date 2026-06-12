@@ -10,15 +10,24 @@ interface UseNotesOptions {
   paperId: string;
 }
 
-// ── Tauri detection ──────────────────────────────────────────
+type TauriInvoke = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
 
-function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI__" in window;
+declare global {
+  interface Window {
+    __TAURI__?: unknown;
+    __TAURI_INTERNALS__?: {
+      invoke?: TauriInvoke;
+    };
+  }
 }
 
-async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke(cmd, args) as Promise<T>;
+function getTauriInvoke(): TauriInvoke | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const invoke = window.__TAURI_INTERNALS__?.invoke;
+  return typeof invoke === "function" ? invoke : null;
 }
 
 // ── Backend adapter ──────────────────────────────────────────
@@ -37,35 +46,36 @@ interface NotesAdapter {
   delete: (id: string) => Promise<void>;
 }
 
-/** Tauri backend adapter */
-const tauriAdapter: NotesAdapter = {
-  list: async (paperId) => {
-    const rows = await tauriInvoke<PaperNote[]>("paper_notes_list", { paperId });
-    return rows;
-  },
-  create: async (data) => {
-    const note = await tauriInvoke<PaperNote>("paper_notes_create", {
-      paperId: data.paper_id,
-      page: data.page,
-      content: data.content,
-      highlightText: data.highlight_text ?? null,
-      highlightColor: data.highlight_color ?? null,
-      highlightPositions: data.highlight_positions ?? null,
-    });
-    return note;
-  },
-  update: async (id, data) => {
-    const note = await tauriInvoke<PaperNote>("paper_notes_update", {
-      id,
-      content: data.content ?? null,
-      highlightColor: data.highlight_color ?? null,
-    });
-    return note;
-  },
-  delete: async (id) => {
-    await tauriInvoke<void>("paper_notes_delete", { id });
-  },
-};
+function createTauriAdapter(invoke: TauriInvoke): NotesAdapter {
+  return {
+    list: async (paperId) => {
+      const rows = await invoke<PaperNote[]>("paper_notes_list", { paperId });
+      return rows;
+    },
+    create: async (data) => {
+      const note = await invoke<PaperNote>("paper_notes_create", {
+        paperId: data.paper_id,
+        page: data.page,
+        content: data.content,
+        highlightText: data.highlight_text ?? null,
+        highlightColor: data.highlight_color ?? null,
+        highlightPositions: data.highlight_positions ?? null,
+      });
+      return note;
+    },
+    update: async (id, data) => {
+      const note = await invoke<PaperNote>("paper_notes_update", {
+        id,
+        content: data.content ?? null,
+        highlightColor: data.highlight_color ?? null,
+      });
+      return note;
+    },
+    delete: async (id) => {
+      await invoke<void>("paper_notes_delete", { id });
+    },
+  };
+}
 
 /** localStorage fallback adapter */
 function localStorageAdapter(paperId: string): NotesAdapter {
@@ -131,7 +141,8 @@ export function useNotes({ paperId }: UseNotesOptions) {
 
   // Initialize adapter
   useEffect(() => {
-    adapterRef.current = isTauri() ? tauriAdapter : localStorageAdapter(paperId);
+    const tauriInvoke = getTauriInvoke();
+    adapterRef.current = tauriInvoke ? createTauriAdapter(tauriInvoke) : localStorageAdapter(paperId);
 
     // Load initial data
     adapterRef.current.list(paperId).then(setNotes).catch(console.error);
@@ -239,7 +250,7 @@ export function useNotes({ paperId }: UseNotesOptions) {
   const clearAll = useCallback(() => {
     setNotes([]);
     // For localStorage adapter, clear storage
-    if (!isTauri()) {
+    if (!getTauriInvoke()) {
       try {
         localStorage.removeItem(notesStorageKey(paperId));
       } catch {

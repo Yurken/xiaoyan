@@ -111,7 +111,7 @@ export default function RolesSection({
                 }
               >
                 <div className="flex items-center gap-1.5">
-                  <span className="text-sm">{preset.icon}</span>
+                  {/* <span className="text-sm">{preset.icon}</span> */}
                   <span className="text-xs font-semibold">{preset.label}</span>
                   {isActive && <Check className="w-3 h-3 ml-auto" />}
                 </div>

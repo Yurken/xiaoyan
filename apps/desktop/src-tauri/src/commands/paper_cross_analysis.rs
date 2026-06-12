@@ -38,7 +38,7 @@ pub async fn papers_cross_analysis(
     let mut paper_meta = Vec::new();
     for (i, paper_id) in paper_ids.iter().enumerate() {
         let row = sqlx::query(
-            "SELECT title, authors, year, venue, abstract, full_text FROM papers WHERE id = ?"
+            "SELECT title, authors, year, venue, abstract, full_text FROM papers WHERE id = ?",
         )
         .bind(paper_id)
         .fetch_optional(&state.db)
@@ -81,11 +81,18 @@ pub async fn papers_cross_analysis(
     }
 
     let paper_block = paper_texts.join("\n\n---\n\n");
-    let sys_prompt = format!("{} {}", specialist_system("审稿人", "交叉对比分析多篇论文", None), CROSS_ANALYSIS_PROMPT);
+    let sys_prompt = format!(
+        "{} {}",
+        specialist_system("审稿人", "交叉对比分析多篇论文", None),
+        CROSS_ANALYSIS_PROMPT
+    );
 
     let messages = vec![
         LlmMessage::system(&sys_prompt),
-        LlmMessage::user(format!("请对以下 {} 篇论文进行交叉对比分析：\n\n{paper_block}", paper_ids.len())),
+        LlmMessage::user(format!(
+            "请对以下 {} 篇论文进行交叉对比分析：\n\n{paper_block}",
+            paper_ids.len()
+        )),
     ];
 
     let response = client

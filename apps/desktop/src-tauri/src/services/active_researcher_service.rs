@@ -1,4 +1,4 @@
-use crate::commands::arxiv::{run_arxiv_search, build_recent_hint_request};
+use crate::commands::arxiv::{build_recent_hint_request, run_arxiv_search};
 use crate::llm::{resolve_model, resolve_temperature_chain, LlmClient, LlmMessage};
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
@@ -47,7 +47,7 @@ pub async fn ensure_table(pool: &SqlitePool) -> Result<(), String> {
             abstract_snippet TEXT NOT NULL DEFAULT '',
             scanned_at TEXT NOT NULL,
             is_read INTEGER NOT NULL DEFAULT 0
-        )"
+        )",
     )
     .execute(pool)
     .await
@@ -101,7 +101,15 @@ pub async fn scan_interests(
 
         // Search arXiv for this interest
         let request = build_recent_hint_request(&topic, &keywords);
-        let search_result = match run_arxiv_search(settings, request, Some(days), Some(max_per_interest as i32), Some("relevance".to_string())).await {
+        let search_result = match run_arxiv_search(
+            settings,
+            request,
+            Some(days),
+            Some(max_per_interest as i32),
+            Some("relevance".to_string()),
+        )
+        .await
+        {
             Ok(r) => r,
             Err(_) => continue,
         };
@@ -119,18 +127,38 @@ pub async fn scan_interests(
         let mut paper_list = String::new();
         let mut paper_map: HashMap<String, serde_json::Value> = HashMap::new();
         for paper in papers {
-            let arxiv_id = paper.get("arxiv_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let title = paper.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let abstract_text = paper.get("abstract_text").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let arxiv_id = paper
+                .get("arxiv_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let title = paper
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let abstract_text = paper
+                .get("abstract_text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let snippet: String = abstract_text.chars().take(300).collect();
 
-            paper_list.push_str(&format!("arxiv_id: {}\n标题: {}\n摘要: {}\n\n", arxiv_id, title, snippet));
+            paper_list.push_str(&format!(
+                "arxiv_id: {}\n标题: {}\n摘要: {}\n\n",
+                arxiv_id, title, snippet
+            ));
             paper_map.insert(arxiv_id.clone(), paper.clone());
         }
 
         let messages = vec![
-            LlmMessage::system(&format!("{RESEARCHER_RANKING_PROMPT}\n\n当前研究兴趣：{topic}\n关键词：{}", keywords.join(", "))),
-            LlmMessage::user(format!("请评估以下论文与「{topic}」的相关性：\n\n{paper_list}")),
+            LlmMessage::system(&format!(
+                "{RESEARCHER_RANKING_PROMPT}\n\n当前研究兴趣：{topic}\n关键词：{}",
+                keywords.join(", ")
+            )),
+            LlmMessage::user(format!(
+                "请评估以下论文与「{topic}」的相关性：\n\n{paper_list}"
+            )),
         ];
 
         let response = match client.chat(&messages, model.as_deref(), temperature).await {
@@ -143,7 +171,11 @@ pub async fn scan_interests(
             let trimmed = response.trim();
             // Handle possible markdown code block wrapping
             let json_str = if trimmed.starts_with("```") {
-                trimmed.trim_start_matches("```json").trim_start_matches("```").trim_end_matches("```").trim()
+                trimmed
+                    .trim_start_matches("```json")
+                    .trim_start_matches("```")
+                    .trim_end_matches("```")
+                    .trim()
             } else {
                 trimmed
             };
@@ -151,9 +183,18 @@ pub async fn scan_interests(
         };
 
         for ranking in &rankings {
-            let arxiv_id = ranking.get("arxiv_id").and_then(|v| v.as_str()).unwrap_or("");
-            let score = ranking.get("relevance_score").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-            let is_highly = ranking.get("is_highly_relevant").and_then(|v| v.as_bool()).unwrap_or(false);
+            let arxiv_id = ranking
+                .get("arxiv_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let score = ranking
+                .get("relevance_score")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0) as i32;
+            let is_highly = ranking
+                .get("is_highly_relevant")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
 
             if !is_highly && score < 60 {
                 continue; // Skip low-relevance papers
@@ -207,22 +248,25 @@ pub async fn get_recent_findings(
     .await
     .map_err(|e| e.to_string())?;
 
-    Ok(rows.iter().map(|r| ActiveResearcherFinding {
-        id: r.get("id"),
-        interest_id: r.get("interest_id"),
-        interest_topic: r.get("interest_topic"),
-        arxiv_id: r.get("arxiv_id"),
-        title: r.get("title"),
-        authors: r.get("authors"),
-        published_at: r.get("published_at"),
-        abs_url: r.get("abs_url"),
-        pdf_url: r.get("pdf_url"),
-        relevance_score: r.get("relevance_score"),
-        relevance_reason: r.get("relevance_reason"),
-        abstract_snippet: r.get("abstract_snippet"),
-        scanned_at: r.get("scanned_at"),
-        is_read: r.get::<i32, _>("is_read") != 0,
-    }).collect())
+    Ok(rows
+        .iter()
+        .map(|r| ActiveResearcherFinding {
+            id: r.get("id"),
+            interest_id: r.get("interest_id"),
+            interest_topic: r.get("interest_topic"),
+            arxiv_id: r.get("arxiv_id"),
+            title: r.get("title"),
+            authors: r.get("authors"),
+            published_at: r.get("published_at"),
+            abs_url: r.get("abs_url"),
+            pdf_url: r.get("pdf_url"),
+            relevance_score: r.get("relevance_score"),
+            relevance_reason: r.get("relevance_reason"),
+            abstract_snippet: r.get("abstract_snippet"),
+            scanned_at: r.get("scanned_at"),
+            is_read: r.get::<i32, _>("is_read") != 0,
+        })
+        .collect())
 }
 
 pub async fn mark_finding_read(pool: &SqlitePool, id: &str) -> Result<(), String> {
@@ -243,9 +287,10 @@ pub async fn mark_all_read(pool: &SqlitePool) -> Result<(), String> {
 }
 
 pub async fn count_unread(pool: &SqlitePool) -> Result<i64, String> {
-    let row = sqlx::query("SELECT COUNT(*) as cnt FROM active_researcher_findings WHERE is_read = 0")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let row =
+        sqlx::query("SELECT COUNT(*) as cnt FROM active_researcher_findings WHERE is_read = 0")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
     Ok(row.get::<i64, _>("cnt"))
 }

@@ -1,4 +1,4 @@
-import { Download, Info, Loader2, RefreshCw } from "lucide-react";
+import { Download, Loader2, RefreshCw } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppUpdateInfo } from "@research-copilot/types";
 import type { UpdateState } from "./useSettingsController";
@@ -179,28 +179,6 @@ export default function AboutSection({
             <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-ink-secondary">{updateInfo.body}</p>
           </div>
         ) : null}
-      </Card>
-
-      <Card padding="md" className="space-y-3">
-        <div className="flex items-center gap-3">
-          <SectionIcon icon={Info} color="#5AC8FA" />
-          <div>
-            <h2 className="text-base font-semibold text-ink-primary">说明</h2>
-            <p className="text-xs text-ink-tertiary mt-0.5">几条最容易混淆的配置规则</p>
-          </div>
-        </div>
-        <div className="grid gap-2 md:grid-cols-2">
-          {[
-            "主模型连接是最后的兜底值。没有单独指定的场景，最终都会回退到这里。",
-            "按场景选模用于独立功能，比如规划提示、综述写作、论文精读和复现指导。",
-            "小妍步骤的专项覆盖只影响小妍任务拆解流程，不影响独立功能页的模型选择。",
-            "如果你刚开始配置，建议先填主对话模型、方向提示模型和最终整合模型，其他项之后再细化。",
-          ].map((item) => (
-            <div key={item} className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-              <p className="text-xs leading-5 text-ink-secondary">{item}</p>
-            </div>
-          ))}
-        </div>
       </Card>
     </div>
   );

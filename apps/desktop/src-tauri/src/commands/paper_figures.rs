@@ -366,9 +366,7 @@ async fn insert_figure_record(
     now: &str,
 ) -> bool {
     let id = format!("{}-{}-{}", paper_id, kind.as_str(), index);
-    let bbox_json = bbox.map(|item| {
-        json!([item.x, item.y, item.width, item.height]).to_string()
-    });
+    let bbox_json = bbox.map(|item| json!([item.x, item.y, item.width, item.height]).to_string());
     sqlx::query(
         "INSERT INTO paper_figures (id, paper_id, fig_index, kind, caption, file_path, page_number, bbox, source, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -619,7 +617,10 @@ fn crop_page_region(page_path: &Path, output_path: &Path, bbox: &NormalizedBBox)
 
     let width = width.min(image_width.saturating_sub(x));
     let height = height.min(image_height.saturating_sub(y));
-    image.crop_imm(x, y, width, height).save(output_path).is_ok()
+    image
+        .crop_imm(x, y, width, height)
+        .save(output_path)
+        .is_ok()
 }
 
 fn extract_figure_captions(full_text: &str) -> CaptionMap {
@@ -1068,34 +1069,36 @@ pub async fn papers_list_figures(
     const READ_CONCURRENCY: usize = 8;
 
     let figures: Vec<serde_json::Value> = futures_util::stream::iter(row_meta)
-        .map(|(id, paper_id, fig_index, kind, caption, file_path)| async move {
-            match tokio::fs::read(&file_path).await {
-                Ok(data) => {
-                    let b64 = general_purpose::STANDARD.encode(&data);
-                    let ext = Path::new(&file_path)
-                        .extension()
-                        .and_then(|value| value.to_str())
-                        .unwrap_or("jpg");
-                    let mime = if ext.eq_ignore_ascii_case("png") {
-                        "image/png"
-                    } else {
-                        "image/jpeg"
-                    };
-                    Some(json!({
-                        "id": id,
-                        "paper_id": paper_id,
-                        "fig_index": fig_index,
-                        "kind": kind,
-                        "caption": caption,
-                        "data_url": format!("data:{mime};base64,{b64}"),
-                    }))
+        .map(
+            |(id, paper_id, fig_index, kind, caption, file_path)| async move {
+                match tokio::fs::read(&file_path).await {
+                    Ok(data) => {
+                        let b64 = general_purpose::STANDARD.encode(&data);
+                        let ext = Path::new(&file_path)
+                            .extension()
+                            .and_then(|value| value.to_str())
+                            .unwrap_or("jpg");
+                        let mime = if ext.eq_ignore_ascii_case("png") {
+                            "image/png"
+                        } else {
+                            "image/jpeg"
+                        };
+                        Some(json!({
+                            "id": id,
+                            "paper_id": paper_id,
+                            "fig_index": fig_index,
+                            "kind": kind,
+                            "caption": caption,
+                            "data_url": format!("data:{mime};base64,{b64}"),
+                        }))
+                    }
+                    Err(error) => {
+                        eprintln!("[list_figures] failed to read figure file {file_path}: {error}");
+                        None
+                    }
                 }
-                Err(error) => {
-                    eprintln!("[list_figures] failed to read figure file {file_path}: {error}");
-                    None
-                }
-            }
-        })
+            },
+        )
         .buffer_unordered(READ_CONCURRENCY)
         .filter_map(|item| async move { item })
         .collect()
@@ -1182,7 +1185,10 @@ fn extract_json(input: &str) -> String {
         trimmed.to_string()
     };
     let start = unfenced.find('{').unwrap_or(0);
-    let end = unfenced.rfind('}').map(|index| index + 1).unwrap_or(unfenced.len());
+    let end = unfenced
+        .rfind('}')
+        .map(|index| index + 1)
+        .unwrap_or(unfenced.len());
     unfenced[start..end].to_string()
 }
 

@@ -88,7 +88,11 @@ pub async fn test_connection(config: &WebdavConfig) -> Result<(), String> {
     } else if status == reqwest::StatusCode::NOT_FOUND {
         Err("WebDAV 路径不存在，请检查服务器地址".into())
     } else {
-        Err(format!("服务器返回错误: {} {}", status.as_u16(), status.canonical_reason().unwrap_or("")))
+        Err(format!(
+            "服务器返回错误: {} {}",
+            status.as_u16(),
+            status.canonical_reason().unwrap_or("")
+        ))
     }
 }
 
@@ -121,12 +125,19 @@ pub async fn list_backups(config: &WebdavConfig) -> Result<Vec<WebdavFile>, Stri
         return Err(format!("服务器返回错误: {}", resp.status()));
     }
 
-    let text = resp.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("读取响应失败: {}", e))?;
     parse_propfind_response(&text)
 }
 
 /// Upload encrypted backup to WebDAV
-pub async fn upload_backup(config: &WebdavConfig, filename: &str, data: &[u8]) -> Result<(), String> {
+pub async fn upload_backup(
+    config: &WebdavConfig,
+    filename: &str,
+    data: &[u8],
+) -> Result<(), String> {
     let client = build_client(config)?;
     let base = normalize_url(&config.url);
     let url = format!("{}/{}", base, filename);

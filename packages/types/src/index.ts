@@ -676,3 +676,27 @@ export interface Job {
   created_at: string;
   finished_at?: string;
 }
+
+// ── OpenCode ──────────────────────────────────────────────────
+
+export interface OpenCodeMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export interface OpenCodeSession {
+  id: string;
+  title: string;
+  working_dir: string | null;
+  messages: OpenCodeMessage[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OpenCodeDetectResult {
+  installed: boolean;
+  binaryPath: string | null;
+  version: string | null;
+}

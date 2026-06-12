@@ -184,7 +184,16 @@ pub async fn knowledge_create_note(
     research_interest_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let settings = state.settings.read().await.clone();
-    create_note_core(&state.db, &settings, title, content, tags, research_interest_id, "manual").await
+    create_note_core(
+        &state.db,
+        &settings,
+        title,
+        content,
+        tags,
+        research_interest_id,
+        "manual",
+    )
+    .await
 }
 
 #[tauri::command]

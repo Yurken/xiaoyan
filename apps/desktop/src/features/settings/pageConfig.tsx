@@ -79,8 +79,8 @@ export const SETTINGS_SECTIONS: Array<{
   },
   {
     key: "about",
-    label: "升级与说明",
-    description: "版本与说明",
+    label: "升级与日志",
+    description: "版本与更新日志",
     icon: Info,
     color: "#5AC8FA",
   },

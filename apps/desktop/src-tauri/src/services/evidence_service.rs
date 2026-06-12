@@ -36,7 +36,7 @@ impl EvidenceService {
 
         // Paper itself is primary evidence
         let paper = sqlx::query(
-            "SELECT id, title, authors, venue, year, abstract_text FROM papers WHERE id = ?"
+            "SELECT id, title, authors, venue, year, abstract_text FROM papers WHERE id = ?",
         )
         .bind(paper_id)
         .fetch_optional(db)
@@ -63,13 +63,17 @@ impl EvidenceService {
                 link_type: "paper".into(),
                 title,
                 source_id: paper_id.to_string(),
-                summary: if summary.is_empty() { "论文原文".into() } else { summary },
+                summary: if summary.is_empty() {
+                    "论文原文".into()
+                } else {
+                    summary
+                },
             });
         }
 
         // Paper figures as evidence
         let figures = sqlx::query(
-            "SELECT id, reference_label, caption FROM paper_figures WHERE paper_id = ? LIMIT 10"
+            "SELECT id, reference_label, caption FROM paper_figures WHERE paper_id = ? LIMIT 10",
         )
         .bind(paper_id)
         .fetch_all(db)
@@ -130,7 +134,7 @@ impl EvidenceService {
 
         // Related paper versions
         let versions = sqlx::query(
-            "SELECT id, version_tag, notes FROM paper_versions WHERE submission_id = ? LIMIT 5"
+            "SELECT id, version_tag, notes FROM paper_versions WHERE submission_id = ? LIMIT 5",
         )
         .bind(submission_id)
         .fetch_all(db)
@@ -152,7 +156,7 @@ impl EvidenceService {
 
         // Related review comments
         let reviews = sqlx::query(
-            "SELECT id, reviewer, content FROM review_comments WHERE submission_id = ? LIMIT 10"
+            "SELECT id, reviewer, content FROM review_comments WHERE submission_id = ? LIMIT 10",
         )
         .bind(submission_id)
         .fetch_all(db)
