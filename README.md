@@ -182,7 +182,3 @@ macOS 首次打开提示"已损坏"时执行 `xattr -cr /Applications/小妍.app
 - [开发原则](docs/development-principles.md)
 - [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) / [CODEX.md](CODEX.md) — Agent 入口规范
 - [桌面端系统介绍](docs/system-introduction-desktop.md)
-
-## 致谢
-
-桌面伴侣「墩墩」的动画设计灵感来自 [clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)。
