@@ -184,7 +184,10 @@ pub async fn chat_list_agent_runs(
             "SELECT id, run_id, artifact_type, title, content, created_at FROM agent_artifacts WHERE run_id = ? ORDER BY created_at ASC",
         )
         .bind(&run_id)
-        .fetch_all(&state.db).await.unwrap_or_default();
+        .fetch_all(&state.db).await.unwrap_or_else(|e| {
+            eprintln!("[warn] Failed to fetch agent artifacts for run {run_id}: {e}");
+            Vec::new()
+        });
 
         result.push(json!({
             "id": run_id,
@@ -229,6 +232,16 @@ pub async fn chat_stream(
     let request_id = request_id
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    const MAX_CHAT_MESSAGE_LEN: usize = 100_000;
+    if message.len() > MAX_CHAT_MESSAGE_LEN {
+        return Err(format!(
+            "消息过长（{}字符），请缩短后重试（上限{}字符）。",
+            message.len(),
+            MAX_CHAT_MESSAGE_LEN
+        ));
+    }
+
     let now = chrono::Utc::now().to_rfc3339();
     let normalized_context_id = context_id.and_then(|value| {
         let trimmed = value.trim().to_string();
@@ -258,12 +271,19 @@ pub async fn chat_stream(
         id
     } else {
         let id = Uuid::new_v4().to_string();
-        let title: String = message.chars().take(40).collect::<String>()
-            + if message.chars().count() > 40 {
-                "…"
+        let title: String = {
+            let trimmed = message.trim();
+            if trimmed.is_empty() {
+                "新对话".to_string()
             } else {
-                ""
-            };
+                let base: String = trimmed.chars().take(40).collect();
+                if trimmed.chars().count() > 40 {
+                    format!("{}…", base)
+                } else {
+                    base
+                }
+            }
+        };
         sqlx::query(
             "INSERT INTO chat_sessions (id, title, context_type, context_id, tag, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         )

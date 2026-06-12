@@ -50,7 +50,7 @@ export default function WritingWorkspace() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
-      <header className="shrink-0 border-b px-6 py-4" style={{ borderColor: "var(--rc-border)", background: "var(--rc-header-bg)" }}>
+      <header className="shrink-0 border-b px-6 py-4 app-header" style={{ borderColor: "var(--rc-border)", background: "var(--rc-header-bg)" }}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-apple-blue/10 text-apple-blue">

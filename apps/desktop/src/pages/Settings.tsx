@@ -138,6 +138,7 @@ export default function Settings() {
     replaceForm,
     set,
     setMany,
+    setManyFlat,
     getSharedValue,
     hasMixedValue,
     loading,
@@ -300,7 +301,7 @@ export default function Settings() {
     <>
     <div className="h-full flex flex-col" style={{ background: "var(--rc-surface)" }}>
       <div
-        className="flex-shrink-0 flex items-center justify-between px-6 pt-5 pb-4 border-b"
+        className="flex-shrink-0 flex items-center justify-between px-6 pt-5 pb-4 border-b rc-settings-header"
         style={{ borderColor: "var(--rc-border)" }}
       >
         <div>
@@ -461,6 +462,7 @@ export default function Settings() {
             setForm={setForm}
             set={set}
             setMany={setMany}
+            setManyFlat={setManyFlat}
             getSharedValue={getSharedValue}
             hasMixedValue={hasMixedValue}
             applyPreset={applyPreset}

@@ -102,6 +102,19 @@ CREATE TABLE IF NOT EXISTS knowledge_notes (
     updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS paper_notes (
+    id                  TEXT PRIMARY KEY,
+    paper_id            TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+    page                INTEGER NOT NULL DEFAULT 1,
+    content             TEXT NOT NULL DEFAULT '',
+    highlight_text      TEXT,
+    highlight_color     TEXT NOT NULL DEFAULT 'yellow',
+    highlight_positions TEXT,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_paper_notes_paper_id ON paper_notes(paper_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS chat_sessions (
     id           TEXT PRIMARY KEY,
     title        TEXT NOT NULL DEFAULT 'New Conversation',
@@ -317,6 +330,25 @@ CREATE TABLE IF NOT EXISTS memory_links (
 CREATE INDEX IF NOT EXISTS idx_memory_links_entity ON memory_links(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_memory_links_checkpoint ON memory_links(checkpoint_id);
 CREATE INDEX IF NOT EXISTS idx_memory_links_observation ON memory_links(observation_id);
+
+CREATE TABLE IF NOT EXISTS active_researcher_findings (
+    id              TEXT PRIMARY KEY,
+    interest_id     TEXT NOT NULL,
+    interest_topic  TEXT NOT NULL,
+    arxiv_id        TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    authors         TEXT NOT NULL DEFAULT '',
+    published_at    TEXT NOT NULL DEFAULT '',
+    abs_url         TEXT NOT NULL DEFAULT '',
+    pdf_url         TEXT NOT NULL DEFAULT '',
+    relevance_score INTEGER NOT NULL DEFAULT 0,
+    relevance_reason TEXT NOT NULL DEFAULT '',
+    abstract_snippet TEXT NOT NULL DEFAULT '',
+    scanned_at      TEXT NOT NULL,
+    is_read         INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_findings_interest ON active_researcher_findings(interest_id, scanned_at DESC);
+CREATE INDEX IF NOT EXISTS idx_findings_scanned ON active_researcher_findings(scanned_at DESC);
 ";
 
 pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
@@ -357,6 +389,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_experiment_tables(&pool).await?;
     ensure_submission_revision_task_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
+    ensure_paper_notes_table(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
 
     Ok(pool)
@@ -377,6 +410,7 @@ async fn reset_stale_research_interest_plans(pool: &SqlitePool) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn ensure_schema(pool: &SqlitePool) -> Result<()> {
     // Run schema – SQLite handles multiple statements via raw_sql
     sqlx::raw_sql(SCHEMA).execute(pool).await?;
@@ -840,6 +874,26 @@ pub async fn ensure_knowledge_graph_tables(pool: &SqlitePool) -> Result<()> {
             ON knowledge_paper_citations(citing_paper_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_knowledge_paper_citations_cited
             ON knowledge_paper_citations(cited_paper_id, created_at DESC);",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn ensure_paper_notes_table(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS paper_notes (
+            id                  TEXT PRIMARY KEY,
+            paper_id            TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+            page                INTEGER NOT NULL DEFAULT 1,
+            content             TEXT NOT NULL DEFAULT '',
+            highlight_text      TEXT,
+            highlight_color     TEXT NOT NULL DEFAULT 'yellow',
+            highlight_positions TEXT,
+            created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_paper_notes_paper_id ON paper_notes(paper_id, created_at DESC);",
     )
     .execute(pool)
     .await?;

@@ -101,7 +101,7 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
                 };
               });
             })
-            .catch(() => {});
+            .catch((err) => { console.warn("Failed to apply AI suggestion:", err); });
         })
         .catch((error) => {
           if (cancelled) return;

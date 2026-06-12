@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Platform, StyleSheet } from "react-native";
+import { Platform } from "react-native";
 import { MAIN_ASSISTANT_NAME } from "@research-copilot/types";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
@@ -24,14 +24,14 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: "#007AFF",
-        tabBarInactiveTintColor: "#8E8E93",
+        tabBarInactiveTintColor: "#5F6B7A",
         tabBarStyle: {
-          backgroundColor: "#F0F4F8",
+          backgroundColor: "#141A23",
           borderTopWidth: 0,
           elevation: 0,
-          shadowColor: "#1C1C1E",
+          shadowColor: "#000",
           shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.06,
+          shadowOpacity: 0.3,
           shadowRadius: 8,
           height: Platform.OS === "ios" ? 88 : 64,
           paddingBottom: Platform.OS === "ios" ? 28 : 8,

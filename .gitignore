@@ -227,6 +227,9 @@ upload/
 **/*.tsbuildinfo
 .turbo/
 
+# Expo (mobile)
+**/.expo/
+
 # macOS
 .DS_Store
 
@@ -237,6 +240,7 @@ upload/
 system-review*.md
 promo-video-planning.md
 *.dmg
+*.apk
 
 # master分支暂不更新
-apps/mac/*
+apps/mac/

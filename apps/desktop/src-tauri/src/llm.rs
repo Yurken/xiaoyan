@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use futures_util::StreamExt;
 use serde_json::json;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 mod shared;
 mod transport;
@@ -44,18 +45,14 @@ pub enum StreamOutcome {
     ToolCalls(Vec<ToolCall>),
 }
 
-fn http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(600))
-        .build()
-        .unwrap_or_else(|_| reqwest::Client::new())
-}
-
-fn stream_http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(600))
-        .build()
-        .unwrap_or_else(|_| reqwest::Client::new())
+fn http_client() -> &'static reqwest::Client {
+    static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    HTTP_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(600))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    })
 }
 
 impl LlmMessage {
@@ -75,6 +72,7 @@ impl LlmMessage {
             tool_calls: None,
         }
     }
+    #[allow(dead_code)]
     pub fn assistant(content: impl Into<String>) -> Self {
         Self {
             role: "assistant".into(),
@@ -636,11 +634,7 @@ pub fn resolve_temperature_chain(
         .unwrap_or(default)
 }
 
-pub fn resolve_max_tokens(
-    settings: &HashMap<String, String>,
-    keys: &[&str],
-    default: u32,
-) -> u32 {
+pub fn resolve_max_tokens(settings: &HashMap<String, String>, keys: &[&str], default: u32) -> u32 {
     keys.iter()
         .filter_map(|key| settings.get(*key))
         .map(|value| value.trim())
@@ -651,119 +645,7 @@ pub fn resolve_max_tokens(
 
 // ── OpenAI helpers ──────────────────────────────────────────────
 
-const USER_AGENT: &str = "claude-code/1.0";
-
-#[allow(dead_code)]
-fn compact_preview(text: &str, max_chars: usize) -> String {
-    text.chars()
-        .take(max_chars)
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-#[allow(dead_code)]
-fn collect_text_blocks(blocks: &[serde_json::Value]) -> String {
-    blocks
-        .iter()
-        .filter_map(|block| block.get("text").and_then(|value| value.as_str()))
-        .map(str::trim)
-        .filter(|text| !text.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n\n")
-}
-
-#[allow(dead_code)]
-fn extract_anthropic_response_text(
-    json: &serde_json::Value,
-    label: &str,
-) -> Result<String> {
-    if let Some(content) = json.get("content").and_then(|value| value.as_str()) {
-        let content = content.trim();
-        if !content.is_empty() {
-            return Ok(content.to_string());
-        }
-    }
-
-    if let Some(blocks) = json.get("content").and_then(|value| value.as_array()) {
-        let text = collect_text_blocks(blocks);
-        if !text.is_empty() {
-            return Ok(text);
-        }
-    }
-
-    if let Some(content) = json["choices"][0]["message"]["content"].as_str() {
-        let content = content.trim();
-        if !content.is_empty() {
-            return Ok(content.to_string());
-        }
-    }
-
-    if let Some(blocks) = json["choices"][0]["message"]["content"].as_array() {
-        let text = collect_text_blocks(blocks);
-        if !text.is_empty() {
-            return Ok(text);
-        }
-    }
-
-    let stop_reason = json
-        .get("stop_reason")
-        .and_then(|value| value.as_str())
-        .unwrap_or("unknown");
-    let block_types = json
-        .get("content")
-        .and_then(|value| value.as_array())
-        .map(|blocks| {
-            blocks
-                .iter()
-                .filter_map(|block| block.get("type").and_then(|value| value.as_str()))
-                .collect::<Vec<_>>()
-                .join(", ")
-        })
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "none".to_string());
-    let preview = compact_preview(&json.to_string(), 320);
-
-    Err(anyhow!(
-        "{}: 响应中未找到可读取的文本内容。stop_reason={}, content_types={}, body={}",
-        label,
-        stop_reason,
-        block_types,
-        preview
-    ))
-}
-
-#[allow(dead_code)]
-fn format_openai_http_error(
-    status: reqwest::StatusCode,
-    body: &str,
-    base_url: &str,
-    label: &str,
-) -> String {
-    let preview = compact_preview(body.trim(), 240);
-    let lower = preview.to_ascii_lowercase();
-    let is_html = lower.contains("<html") || lower.contains("<!doctype html");
-
-    if is_html {
-        return format!(
-            "{}: HTTP {}，服务返回了 HTML 页面。请检查 base_url 是否为 OpenAI 兼容 API 根地址（通常应以 /v1 结尾），而不是网站首页或文档页。当前 base_url: {}",
-            label,
-            status.as_u16(),
-            base_url.trim_end_matches('/'),
-        );
-    }
-
-    format!("{}: HTTP {} {}", label, status.as_u16(), preview)
-}
-
-#[allow(dead_code)]
-fn build_message_array(messages: &[LlmMessage]) -> serde_json::Value {
-    json!(messages
-        .iter()
-        .map(|m| json!({ "role": m.role, "content": m.content }))
-        .collect::<Vec<_>>())
-}
+const USER_AGENT: &str = "xiaoyan-desktop/0.4.0";
 
 async fn openai_chat(
     base_url: &str,
@@ -780,15 +662,13 @@ async fn openai_chat(
         "temperature": temperature,
         "max_tokens": max_tokens,
     });
-    let body_str = serde_json::to_string(&body).unwrap_or_default();
     crate::append_diagnostic_log(&format!(
-        "[llm][request] url={}/chat/completions model={} temperature={} max_tokens={} messages_count={} body={}",
+        "[llm][request] url={}/chat/completions model={} temperature={} max_tokens={} messages_count={}",
         base_url.trim_end_matches('/'),
         model,
         temperature,
         max_tokens,
         messages.len(),
-        body_str
     ));
     let resp = client
         .post(format!(
@@ -821,7 +701,7 @@ async fn stream_openai(
     max_tokens: u32,
     on_delta: &(impl Fn(String) + Send + Sync),
 ) -> Result<String> {
-    let client = stream_http_client();
+    let client = http_client();
     let body = json!({
         "model": model,
         "messages": build_message_array_impl(messages),
@@ -864,7 +744,10 @@ async fn stream_openai(
             }
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
                 let delta = &v["choices"][0]["delta"];
-                if let Some(r) = delta["reasoning_content"].as_str().or_else(|| delta["reasoning"].as_str()) {
+                if let Some(r) = delta["reasoning_content"]
+                    .as_str()
+                    .or_else(|| delta["reasoning"].as_str())
+                {
                     if !r.is_empty() {
                         if !in_think {
                             in_think = true;
@@ -902,7 +785,7 @@ async fn embed_openai(
     model: &str,
     texts: &[String],
 ) -> Result<Vec<Vec<f32>>> {
-    let client = stream_http_client();
+    let client = http_client();
     let body = json!({ "model": model, "input": texts });
     let resp = client
         .post(format!("{}/embeddings", base_url.trim_end_matches('/')))
@@ -962,15 +845,13 @@ async fn anthropic_chat(
     if let Some(s) = system {
         body["system"] = json!(s);
     }
-    let body_str = serde_json::to_string(&body).unwrap_or_default();
     crate::append_diagnostic_log(&format!(
-        "[llm][request] url={} model={} temperature={} max_tokens={} messages_count={} body={}",
+        "[llm][request] url={} model={} temperature={} max_tokens={} messages_count={}",
         build_anthropic_messages_url(base_url),
         model,
         temperature,
         max_tokens,
         messages.len(),
-        body_str
     ));
     let resp = client
         .post(build_anthropic_messages_url(base_url))
@@ -997,7 +878,7 @@ async fn stream_anthropic(
     max_tokens: u32,
     on_delta: &(impl Fn(String) + Send + Sync),
 ) -> Result<String> {
-    let client = stream_http_client();
+    let client = http_client();
     let system = messages
         .iter()
         .find(|m| m.role == "system")
@@ -1087,7 +968,7 @@ async fn stream_openai_with_tools(
     max_tokens: u32,
     on_delta: &(impl Fn(String) + Send + Sync),
 ) -> Result<StreamOutcome> {
-    let client = stream_http_client();
+    let client = http_client();
     let mut body = json!({
         "model": model,
         "messages": build_message_array_impl(messages),
@@ -1141,7 +1022,10 @@ async fn stream_openai_with_tools(
             }
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
                 let delta = &v["choices"][0]["delta"];
-                if let Some(r) = delta["reasoning_content"].as_str().or_else(|| delta["reasoning"].as_str()) {
+                if let Some(r) = delta["reasoning_content"]
+                    .as_str()
+                    .or_else(|| delta["reasoning"].as_str())
+                {
                     if !r.is_empty() {
                         if !in_think {
                             in_think = true;
@@ -1167,7 +1051,8 @@ async fn stream_openai_with_tools(
                     for tc_delta in tc_array {
                         let index = tc_delta["index"].as_u64().unwrap_or(0) as usize;
                         while tool_calls_acc.len() <= index {
-                            tool_calls_acc.push(json!({"id":"","function":{"name":"","arguments":""}}));
+                            tool_calls_acc
+                                .push(json!({"id":"","function":{"name":"","arguments":""}}));
                         }
                         if let Some(id) = tc_delta["id"].as_str() {
                             tool_calls_acc[index]["id"] = json!(id);
@@ -1226,7 +1111,7 @@ async fn stream_anthropic_with_tools(
     max_tokens: u32,
     on_delta: &(impl Fn(String) + Send + Sync),
 ) -> Result<StreamOutcome> {
-    let client = stream_http_client();
+    let client = http_client();
     let system = messages
         .iter()
         .find(|m| m.role == "system")
@@ -1273,10 +1158,11 @@ async fn stream_anthropic_with_tools(
                 match v["type"].as_str() {
                     Some("content_block_start") => {
                         if v["content_block"]["type"].as_str() == Some("tool_use") {
-                            let id = v["content_block"]["id"]
-                                .as_str().unwrap_or("").to_string();
+                            let id = v["content_block"]["id"].as_str().unwrap_or("").to_string();
                             let name = v["content_block"]["name"]
-                                .as_str().unwrap_or("").to_string();
+                                .as_str()
+                                .unwrap_or("")
+                                .to_string();
                             tool_calls_acc.push(ToolCall {
                                 id,
                                 name,

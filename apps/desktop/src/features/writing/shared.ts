@@ -135,11 +135,11 @@ export const EXPORT_TARGET_LABELS: Record<WritingExportTarget, string> = {
 };
 
 export const WRITING_ASSISTANT_ACTIONS: WritingAssistantAction[] = [
-  { id: "freeform", title: "问小妍", description: "围绕当前文稿提问或改写。" },
-  { id: "polish", title: "润色", description: "改进选区或当前段落表达。" },
-  { id: "continue", title: "续写", description: "按上下文补一段正文。" },
-  { id: "abstract", title: "摘要", description: "生成或重写摘要。" },
-  { id: "review", title: "检查", description: "审稿式指出问题。" },
+  { id: "freeform", title: "问小妍", description: "围绕当前文稿自由提问或改写。" },
+  { id: "polish", title: "润色", description: "改进选区的学术表达和流畅度。" },
+  { id: "continue", title: "续写", description: "按当前上下文续写一段正文。" },
+  { id: "abstract", title: "摘要", description: "根据全文生成或重写摘要。" },
+  { id: "review", title: "检查", description: "从审稿视角指出结构和内容问题。" },
 ];
 
 export function writingDraftTitle(draft: Pick<WritingDraft, "projectName">): string {
@@ -218,30 +218,30 @@ ${instruction}`;
 function defaultWritingAssistantInstruction(actionId: WritingAssistantActionId): string {
   switch (actionId) {
     case "polish":
-      return "请润色当前选区；如果没有选区，请指出应先选择需要润色的段落。";
+      return "请润色当前选区，提升学术表达的准确性和流畅度。如果没有选区，先指出应选择的段落范围。";
     case "continue":
-      return "请基于当前文稿上下文续写一段可直接放入论文正文的 LaTeX 内容。";
+      return "请基于当前文稿上下文续写一段可直接放入论文正文的 LaTeX 内容，保持与前文风格一致。";
     case "abstract":
-      return "请根据当前文稿生成一版摘要，可直接放入 abstract 环境。";
+      return "请根据当前文稿全文生成一版摘要，覆盖问题、方法、主要结果和意义，可直接放入 \\begin{abstract} 环境。";
     case "review":
-      return "请从审稿人的角度检查当前草稿最需要修改的问题，并给出可执行修改建议。";
+      return "请从同行审稿人的角度审读当前草稿，按严重程度列出最需要修改的问题，并给出可执行修改建议。覆盖结构完整性、论证逻辑、实验描述、相关工作覆盖和写作质量。";
     default:
-      return "请根据当前文稿回答我的写作问题。";
+      return "请根据当前文稿内容回答我的写作相关问题。";
   }
 }
 
 function writingAssistantOutputRule(actionId: WritingAssistantActionId): string {
   switch (actionId) {
     case "polish":
-      return "- 直接输出润色后的 LaTeX 文本；如有必要，可在末尾用极短说明列出关键修改。";
+      return "- 直接输出润色后的 LaTeX 文本（保留原有 \\cite、\\ref 等引用）。如有必要，在末尾用一条注释（% 开头）列出主要修改。";
     case "continue":
-      return "- 直接输出可插入 main.tex 的 LaTeX 段落，不要解释写作策略。";
+      return "- 直接输出可插入 main.tex 的 LaTeX 段落，以 \\section 或段落开头，不要解释写作策略，不要加 \\begin{{document}}。";
     case "abstract":
-      return "- 直接输出摘要正文或完整 abstract 环境，遵循用户指令。";
+      return "- 输出完整 \\begin{{abstract}}...\\end{{abstract}} 块或纯摘要正文。如有必要，在末尾用一条注释说明与原文摘要的主要差异。";
     case "review":
-      return "- 输出分条诊断，按影响从高到低排列，并指出对应章节或行号线索。";
+      return "- 分条列出问题，按严重程度排列（致命 > 重大 > 建议）。每条指出：问题描述、影响、建议修改方式、涉及的章节或行号范围。";
     default:
-      return "- 先给可执行结论，再补充必要依据；需要写回正文时提供可粘贴 LaTeX。";
+      return "- 先给可执行结论，再补充依据。涉及写回正文时提供可直接粘贴的 LaTeX 片段，不夹带策略解释。";
   }
 }
 

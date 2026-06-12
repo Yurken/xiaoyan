@@ -399,6 +399,16 @@ export interface AgentRun {
   created_at: string;
   updated_at: string;
   artifacts?: AgentArtifact[];
+  /** 该 Worker 读取的上游 Agent 输出摘要 */
+  input_summary?: string | null;
+  /** 该 Worker 产出的结构化摘要 */
+  output_summary?: string | null;
+  /** 执行耗时（毫秒） */
+  duration_ms?: number | null;
+  /** 该 Worker 依赖的上游 Agent 名称列表 */
+  upstream_agents?: string[];
+  /** 结构化输出（JSON） */
+  structured_output?: Record<string, unknown> | null;
 }
 
 export interface AgentPlanStep {
@@ -417,6 +427,13 @@ export interface ChatSendResponse {
   agent_runs: AgentRun[];
 }
 
+export interface RoutingDecision {
+  policy: string;
+  selected: string[];
+  reasoning?: string | null;
+  execution_waves: string[][];
+}
+
 export type ChatStreamChunk =
   | { type: "session_id"; value: string }
   | { type: "request_id"; value: string }
@@ -428,6 +445,7 @@ export type ChatStreamChunk =
   | { type: "sources"; value: NonNullable<ChatMessage["sources"]> }
   | { type: "searching"; query: string }
   | { type: "tool_result"; tool_name: string; tool_id: string; result: string; result_id?: string }
+  | { type: "routing_decision"; value: RoutingDecision }
   | { type: "error"; value: string }
   | { type: "done" };
 

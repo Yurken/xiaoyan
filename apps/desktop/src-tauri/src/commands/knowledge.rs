@@ -213,11 +213,22 @@ pub async fn knowledge_delete_interest_only(
     Ok(json!({ "deleted_interest_id": id }))
 }
 
-const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{keywords}）设计系统化学习路线，仅返回合法 JSON：
-{{"overview":"...","prerequisites":[{{"name":"...","description":"...","resources":["..."]}}],"learning_stages":[{{"stage":1,"title":"...","duration":"...","goals":["..."],"topics":["..."],"resources":["..."]}}],"classic_papers":[{{"title":"...","authors":"...","year":2020,"venue":"会议/期刊名称","reason":"..."}}],"research_directions":[{{"direction":"...","description":"...","open_problems":["..."]}}],"tools_and_frameworks":["..."],"communities":["..."]}}"#;
-const MIN_CLASSIC_PAPER_COUNT: usize = 10;
+const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{keywords}）设计系统化研究学习路线。
+
+要求：
+1. overview 写一段话概述该方向的背景、价值和当前发展阶段（1-2 段，不要只复述 topic）
+2. prerequisites 列出 3-5 项前置知识，每项给出名称、简要说明和 1-2 个学习资源
+3. learning_stages 分 3-5 个阶段，每个阶段给出：标题、预计耗时、学习目标、核心主题、推荐资源
+4. classic_papers 列出至少 8 篇经典/必读论文，每篇给出：准确标题、第一作者、年份、发表地、一句话推荐理由。不要编造不存在的论文
+5. research_directions 给出 3-5 个可行研究方向，每个方向说明研究价值和 2-3 个开放问题
+6. tools_and_frameworks 列出该领域常用工具和框架
+7. communities 列出值得关注的学术社区、会议、期刊或研究者
+
+仅返回严格合法 JSON，按以下格式（不要包含 markdown 代码块或解释）：
+{{"overview":"...","prerequisites":[{{"name":"...","description":"...","resources":["..."]}}],"learning_stages":[{{"stage":1,"title":"...","duration":"...","goals":["..."],"topics":["..."],"resources":["..."]}}],"classic_papers":[{{"title":"...","authors":"...","year":2020,"venue":"会议/期刊名","reason":"...引用论文的具体贡献，不要写'经典论文'等笼统理由"}}],"research_directions":[{{"direction":"...","description":"...","open_problems":["..."]}}],"tools_and_frameworks":["..."],"communities":["..."]}}"#;
+const MIN_CLASSIC_PAPER_COUNT: usize = 8;
 const PLANNER_ANALYST_PROMPT: &str = r#"请分析研究方向「{topic}」（关键词：{keywords}），仅返回合法 JSON：
-{"scope":"一句话定义范围","focus_topics":["核心主题"],"skill_targets":["需要掌握的能力"],"risk_points":["新手常见误区"]}"#;
+{"scope":"一句话定义该方向的核心研究范围","focus_topics":["3-5 个核心主题"],"skill_targets":["进入该方向需要掌握的 3-5 项关键能力"],"risk_points":["新手容易踩的 3-5 个坑"],"recent_trends":["近两年值得关注的发展方向"]}"#;
 const INTEREST_HINT_PROMPT: &str = r#"请根据下面这个"正在填写中的研究规划表单"，给出实时补全建议。
 
 目标：
@@ -295,12 +306,14 @@ pub async fn knowledge_generate_plan(
     id: String,
     start_step: Option<usize>,
 ) -> Result<(), String> {
-    let row = sqlx::query("SELECT topic, keywords, profile, partial_plan FROM research_interests WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&state.db)
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or("未找到对应研究方向。")?;
+    let row = sqlx::query(
+        "SELECT topic, keywords, profile, partial_plan FROM research_interests WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("未找到对应研究方向。")?;
 
     let topic: String = row.get("topic");
     let kw_str: String = row
@@ -368,7 +381,10 @@ pub async fn knowledge_generate_plan(
                 LlmMessage::system(planner_analyst_system()),
                 LlmMessage::user(&analyst_prompt),
             ];
-            let analyst_model = resolve_model(&settings, &["multi_agent_paper_analyst_model", "paper_analysis_model"]);
+            let analyst_model = resolve_model(
+                &settings,
+                &["multi_agent_paper_analyst_model", "paper_analysis_model"],
+            );
             let analyst_temperature =
                 resolve_temperature(&settings, "multi_agent_paper_analyst_temperature", 0.3);
             let result = match client
@@ -377,7 +393,8 @@ pub async fn knowledge_generate_plan(
             {
                 Ok(resp) => {
                     let clean = crate::commands::papers::extract_json_pub(&resp);
-                    let parsed = serde_json::from_str::<serde_json::Value>(&clean).unwrap_or(json!({}));
+                    let parsed =
+                        serde_json::from_str::<serde_json::Value>(&clean).unwrap_or(json!({}));
                     let _ = app.emit("interest:agent_complete", json!({
                         "id": rid,
                         "agent": {
@@ -473,7 +490,8 @@ pub async fn knowledge_generate_plan(
                     year,
                     venue,
                     reason: "来自本地论文库（已关联当前研究方向）".to_string(),
-                    url: file_path.or_else(|| doi.and_then(|_| paper_search_url(Some(&hint_title)))),
+                    url: file_path
+                        .or_else(|| doi.and_then(|_| paper_search_url(Some(&hint_title)))),
                 });
             }
 
@@ -603,16 +621,19 @@ pub async fn knowledge_generate_plan(
             hints
         } else {
             let hints = partial_context.paper_hints.clone().unwrap_or_default();
-            let _ = app.emit("interest:agent_complete", json!({
-                "id": rid,
-                "agent": {
-                    "id": &scout_id,
-                    "name": "探知模型",
-                    "role": "筛选本地与联网参考论文",
-                    "status": "done",
-                    "summary": format!("已复用前次筛选的 {} 篇参考论文", hints.len())
-                }
-            }));
+            let _ = app.emit(
+                "interest:agent_complete",
+                json!({
+                    "id": rid,
+                    "agent": {
+                        "id": &scout_id,
+                        "name": "探知模型",
+                        "role": "筛选本地与联网参考论文",
+                        "status": "done",
+                        "summary": format!("已复用前次筛选的 {} 篇参考论文", hints.len())
+                    }
+                }),
+            );
             hints
         };
 
@@ -688,28 +709,29 @@ pub async fn knowledge_generate_plan(
                         .await
                         .unwrap_or_else(|_| "active".to_string());
                     let _ = app.emit("interest:status", json!({ "id": &rid, "status": status }));
-                let _ = app.emit(
-                    "interest:agent_error",
-                    json!({
-                        "id": rid,
-                        "agent": {
-                            "id": &designer_id,
-                            "name": "谋策模型",
-                            "role": "生成结构化学习路线",
-                            "status": "failed",
-                            "error": e.to_string()
-                        }
-                    }),
-                );
+                    let _ = app.emit(
+                        "interest:agent_error",
+                        json!({
+                            "id": rid,
+                            "agent": {
+                                "id": &designer_id,
+                                "name": "谋策模型",
+                                "role": "生成结构化学习路线",
+                                "status": "failed",
+                                "error": e.to_string()
+                            }
+                        }),
+                    );
 
                     let _ = app.emit("interest:error", json!({ "id": &rid, "error": &error }));
                     return;
                 }
                 // Clear partial plan on success
-                let _ = sqlx::query("UPDATE research_interests SET partial_plan = NULL WHERE id = ?")
-                    .bind(&rid)
-                    .execute(&db)
-                    .await;
+                let _ =
+                    sqlx::query("UPDATE research_interests SET partial_plan = NULL WHERE id = ?")
+                        .bind(&rid)
+                        .execute(&db)
+                        .await;
                 let stage_count = v
                     .get("learning_stages")
                     .and_then(|x| x.as_array())
@@ -754,10 +776,7 @@ pub async fn knowledge_generate_plan(
                     }),
                 );
 
-                let _ = app.emit(
-                    "interest:error",
-                    json!({ "id": rid, "error": &error }),
-                );
+                let _ = app.emit("interest:error", json!({ "id": rid, "error": &error }));
             }
         }
     });
@@ -829,19 +848,25 @@ pub async fn knowledge_generate_interest_hints(
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty())
                 .unwrap_or_else(|| "已结合当前输入生成实时建议。".to_string()),
-            next_field: normalize_next_field(parsed.get("next_field").and_then(|value| value.as_str())),
+            next_field: normalize_next_field(
+                parsed.get("next_field").and_then(|value| value.as_str()),
+            ),
             matched_domains: extract_string_list(parsed.get("matched_domains"), 4),
             keyword_suggestions: extract_string_list(parsed.get("keyword_suggestions"), 6),
             goal_suggestions: extract_string_list(parsed.get("goal_suggestions"), 6),
             background_prompts: extract_string_list(parsed.get("background_prompts"), 6),
             time_budget_suggestions: extract_string_list(parsed.get("time_budget_suggestions"), 6),
             constraint_suggestions: extract_string_list(parsed.get("constraint_suggestions"), 6),
-            known_context_suggestions: extract_string_list(parsed.get("known_context_suggestions"), 6),
+            known_context_suggestions: extract_string_list(
+                parsed.get("known_context_suggestions"),
+                6,
+            ),
             output_suggestions: extract_string_list(parsed.get("output_suggestions"), 6),
         };
 
         Ok::<_, String>(json!(result))
-    }.await;
+    }
+    .await;
 
     match outcome {
         Ok(v) => {
@@ -852,10 +877,7 @@ pub async fn knowledge_generate_interest_hints(
             Ok(v)
         }
         Err(e) => {
-            let _ = app.emit(
-                "interest:error",
-                json!({ "id": "hints", "error": &e }),
-            );
+            let _ = app.emit("interest:error", json!({ "id": "hints", "error": &e }));
             Err(e)
         }
     }
@@ -871,10 +893,14 @@ const TOPIC_SUGGEST_PROMPT: &str = r#"你是一位资深研究导师，请根据
 - 个人背景：{background}
 
 要求：
-- 每个课题必须具体可执行，避免宽泛的领域名词（例如"机器学习"太宽，"基于对比学习的低资源医学图像分割"才是合格的课题）
+- 每个课题必须具体可执行。例如不能说"机器学习"，要说"基于对比学习的低资源医学图像分割"
 - 课题名称 10~30 字，使用中文
-- 体现近两年学术前沿或有实际落地价值
-- 仅返回合法 JSON 数组，不要输出任何其他文本：["课题方向1", "课题方向2", ...]"#;
+- 体现近两年学术前沿或有实际落地价值，尽量给出能发顶会/顶刊的方向
+- 如果背景信息充分，结合学生的现有技术栈推荐
+- 返回 JSON 对象，每个课题包含 name 和 reason，不要只返回字符串数组
+
+仅返回合法 JSON 对象：
+{"topics": [{"name": "课题方向", "reason": "一句话推荐理由"}]}"#;
 
 #[tauri::command]
 pub async fn knowledge_suggest_topics(
@@ -923,10 +949,23 @@ pub async fn knowledge_suggest_topics(
             .await
             .map_err(|e| e.to_string())?;
         let clean = crate::commands::papers::extract_json_pub(&response);
-        let topics: Vec<String> =
-            serde_json::from_str(&clean).map_err(|e| format!("课题建议解析失败：{e}"))?;
+        let topics: Vec<String> = serde_json::from_str::<serde_json::Value>(&clean)
+            .ok()
+            .and_then(|v| {
+                v.get("topics").and_then(|arr| arr.as_array()).map(|arr| {
+                    arr.iter()
+                        .filter_map(|item| {
+                            item.get("name")
+                                .and_then(|n| n.as_str())
+                                .map(|s| s.to_string())
+                        })
+                        .collect()
+                })
+            })
+            .unwrap_or_default();
         Ok::<_, String>(topics)
-    }.await;
+    }
+    .await;
 
     match outcome {
         Ok(v) => {
@@ -937,10 +976,7 @@ pub async fn knowledge_suggest_topics(
             Ok(v)
         }
         Err(e) => {
-            let _ = app.emit(
-                "interest:error",
-                json!({ "id": "suggest", "error": &e }),
-            );
+            let _ = app.emit("interest:error", json!({ "id": "suggest", "error": &e }));
             Err(e)
         }
     }
@@ -1230,27 +1266,38 @@ pub async fn knowledge_web_clip(
 
     // Extract title
     let title = {
-        let re = regex::Regex::new(r"(?i)<title[^>]*>([^<]+)</title>").unwrap();
-        re.captures(&html)
+        use std::sync::LazyLock;
+        static RE_TITLE: LazyLock<regex::Regex> =
+            LazyLock::new(|| regex::Regex::new(r"(?i)<title[^>]*>([^<]+)</title>").unwrap());
+        RE_TITLE
+            .captures(&html)
             .and_then(|c| c.get(1))
             .map(|m| m.as_str().trim().to_string())
             .unwrap_or_else(|| url.clone())
     };
 
     // Strip scripts, styles, tags; collapse whitespace
-    let re_script = regex::Regex::new(r"(?is)<script[^>]*>.*?</script>").unwrap();
-    let re_style = regex::Regex::new(r"(?is)<style[^>]*>.*?</style>").unwrap();
-    let re_tags = regex::Regex::new(r"<[^>]+>").unwrap();
-    let re_ws = regex::Regex::new(r"\s{2,}").unwrap();
+    let text = {
+        use std::sync::LazyLock;
+        static RE_SCRIPT: LazyLock<regex::Regex> =
+            LazyLock::new(|| regex::Regex::new(r"(?is)<script[^>]*>.*?</script>").unwrap());
+        static RE_STYLE: LazyLock<regex::Regex> =
+            LazyLock::new(|| regex::Regex::new(r"(?is)<style[^>]*>.*?</style>").unwrap());
+        static RE_TAGS: LazyLock<regex::Regex> =
+            LazyLock::new(|| regex::Regex::new(r"<[^>]+>").unwrap());
+        static RE_WS: LazyLock<regex::Regex> =
+            LazyLock::new(|| regex::Regex::new(r"\s{2,}").unwrap());
 
-    let text = re_script.replace_all(&html, " ");
-    let text = re_style.replace_all(&text, " ");
-    let text = re_tags.replace_all(&text, " ");
-    let text = re_ws.replace_all(&text, "\n");
+        let t = RE_SCRIPT.replace_all(&html, " ");
+        let t = RE_STYLE.replace_all(&t, " ");
+        let t = RE_TAGS.replace_all(&t, " ");
+        let t = RE_WS.replace_all(&t, "\n");
+        t.trim().chars().take(8000).collect::<String>()
+    };
     let content = format!(
         "来源：{}\n\n{}",
         url,
-        text.trim().chars().take(8000).collect::<String>()
+        text
     );
 
     // Save as knowledge note

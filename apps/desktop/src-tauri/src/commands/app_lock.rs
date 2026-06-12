@@ -94,6 +94,9 @@ pub async fn app_lock_set_password(
     if password.is_empty() {
         return Err("密码不能为空。".into());
     }
+    if password.len() < 6 {
+        return Err("密码长度不能少于6位。".into());
+    }
     if email.is_empty() {
         return Err("邮箱不能为空。".into());
     }
@@ -271,6 +274,9 @@ pub async fn app_lock_reset_password(
     let answer = answer.trim().to_string();
     if new_password.is_empty() {
         return Err("新密码不能为空。".into());
+    }
+    if new_password.len() < 6 {
+        return Err("新密码长度不能少于6位。".into());
     }
 
     let settings = state.settings.read().await;

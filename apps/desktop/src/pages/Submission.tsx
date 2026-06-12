@@ -1,176 +1,69 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import { formatErrorMessage, submissionApi } from "../lib/client";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
-import AddSubmissionModal from "../features/submission/AddSubmissionModal";
-import AddVenueModal from "../features/submission/AddVenueModal";
-import ChecklistWorkspace from "../features/submission/ChecklistWorkspace";
-import CoverLetterModal from "../features/submission/CoverLetterModal";
-import KanbanWorkspace from "../features/submission/KanbanWorkspace";
-import MockReviewModal from "../features/submission/MockReviewModal";
-import PolishPanel from "../features/submission/PolishPanel";
-import ReviewEntryModal from "../features/submission/ReviewEntryModal";
-import ReviewWorkspace from "../features/submission/ReviewWorkspace";
-import SaveVersionModal from "../features/submission/SaveVersionModal";
-import SubmissionFeedbackBanner from "../features/submission/SubmissionFeedbackBanner";
-import SubmissionPageHeader from "../features/submission/SubmissionPageHeader";
-import { SUBMISSION_TAB_KEYS, type SubmissionTab } from "../features/submission/SubmissionTabs";
+import { formatErrorMessage } from "../lib/client";
+import { usePersistentStringState } from "../hooks/usePersistentStringState";
+import { useSubmissionVenues } from "../features/submission/useSubmissionVenues";
 import { useSubmissionBoard } from "../features/submission/useSubmissionBoard";
+import { useRejectionRecovery } from "../features/submission/useRejectionRecovery";
+import { useSubmissionVersions } from "../features/submission/useSubmissionVersions";
 import { useSubmissionChecklist } from "../features/submission/useSubmissionChecklist";
 import { useSubmissionDiagnosisReports } from "../features/submission/useSubmissionDiagnosisReports";
 import { useSubmissionRevisionTasks } from "../features/submission/useSubmissionRevisionTasks";
-import { useRejectionRecovery } from "../features/submission/useRejectionRecovery";
-import { useSubmissionVersions } from "../features/submission/useSubmissionVersions";
-import { useSubmissionVenues } from "../features/submission/useSubmissionVenues";
+import { useSubmissionReview } from "../features/submission/useSubmissionReview";
+import SubmissionPageHeader from "../features/submission/SubmissionPageHeader";
+import SubmissionFeedbackBanner from "../features/submission/SubmissionFeedbackBanner";
+import SubmissionTimelineStrip from "../features/submission/SubmissionTimelineStrip";
 import VenueTrackerWorkspace from "../features/submission/VenueTrackerWorkspace";
+import AddVenueModal from "../features/submission/AddVenueModal";
+import KanbanWorkspace from "../features/submission/KanbanWorkspace";
+import AddSubmissionModal from "../features/submission/AddSubmissionModal";
+import SubmissionPaperSidebar from "../features/submission/SubmissionPaperSidebar";
+import ReviewWorkspace from "../features/submission/ReviewWorkspace";
+import ReviewEntryModal from "../features/submission/ReviewEntryModal";
+import MockReviewModal from "../features/submission/MockReviewModal";
+import ChecklistWorkspace from "../features/submission/ChecklistWorkspace";
+import DiagnosisReportPanel from "../features/submission/DiagnosisReportPanel";
+import RevisionTaskPanel from "../features/submission/RevisionTaskPanel";
 import VersionWorkspace from "../features/submission/VersionWorkspace";
-import { usePersistentStringState } from "../hooks/usePersistentStringState";
-import {
-  countVerdicts,
-  getDominantVerdict,
-  rowToComment,
-  rowToRound,
-  type MockReviewInput,
-  type MockReviewerResult,
-  type PaperVersion,
-  type ReviewComment,
-  type ReviewFormState,
-  type ReviewRound,
-  type ReviewVerdict,
-  type SaveVersionFormState,
+import SaveVersionModal from "../features/submission/SaveVersionModal";
+import CoverLetterModal from "../features/submission/CoverLetterModal";
+import PolishPanel from "../features/submission/PolishPanel";
+import { SUBMISSION_TAB_KEYS } from "../features/submission/SubmissionTabs";
+import { submissionApi } from "../lib/client";
+import type {
+  SubmissionTab, SaveVersionFormState, MockReviewerResult, ReviewVerdict,
 } from "../features/submission/shared";
 
 export default function Submission() {
-  const [syncingDdl, setSyncingDdl] = useState(false);
-  const [ddlSyncResult, setDdlSyncResult] = useState("");
   const [feedback, setFeedback] = useState("");
-  const showSubmissionError = useCallback((error: unknown) => {
-    setFeedback(formatErrorMessage(error));
-  }, []);
-  const [tab, setTab] = usePersistentStringState<SubmissionTab>(
-    "rc:submission:active-tab",
-    "conferences",
-    SUBMISSION_TAB_KEYS,
-  );
+  const showError = useCallback((error: unknown) => setFeedback(formatErrorMessage(error)), []);
+  const [tab, setTab] = usePersistentStringState<SubmissionTab>("rc:submission:active-tab", "conferences", SUBMISSION_TAB_KEYS);
 
-  const {
-    conferences,
-    journals,
-    venueFilter,
-    visibleVenues,
-    showAddModal,
-    addModalSearch,
-    addModalAreaFilter,
-    addModalTypeFilter,
-    recInput,
-    recommendations,
-    recLoading,
-    filteredVenueTemplates,
-    areas,
-    venueTemplateLoading,
-    setVenueFilter,
-    setShowAddModal,
-    setAddModalSearch,
-    setAddModalAreaFilter,
-    setAddModalTypeFilter,
-    setRecInput,
-    toggleVenueStar,
-    handleAddVenue,
-    isVenueAdded,
-    generateRecommendations,
-  } = useSubmissionVenues(showSubmissionError);
-  const {
-    submissions,
-    showAddSubModal,
-    addSubForm,
-    setShowAddSubModal,
-    setAddSubForm,
-    moveSubmission,
-    handleAddSubmission,
-  } = useSubmissionBoard(showSubmissionError);
-  const rejectionRecoveryPlans = useRejectionRecovery(submissions);
+  const venues = useSubmissionVenues(showError);
+  const board = useSubmissionBoard(showError);
+  const rejectionPlans = useRejectionRecovery(board.submissions);
+  const review = useSubmissionReview(showError);
 
-  // Version control state
   const [versionSubId, setVersionSubId] = useState<string>("");
   const { versions, versionCounts, appendVersion, patchVersion } = useSubmissionVersions(
-    submissions,
-    versionSubId,
-    showSubmissionError,
+    board.submissions, versionSubId, showError,
   );
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveForm, setSaveForm] = useState<SaveVersionFormState>({ tag: "", label: "", notes: "", content: "" });
 
-  const {
-    checklist,
-    checklistCat,
-    checklistSubId,
-    categories,
-    visibleCategories,
-    filteredChecklist,
-    checkedCount,
-    progress,
-    setChecklistCat,
-    setChecklistSubId,
-    toggleCheck,
-    resetChecklist,
-    reloadChecklist,
-  } = useSubmissionChecklist(submissions, showSubmissionError);
-  const handleDiagnosisImported = useCallback(
-    async (created: number) => {
-      await reloadChecklist();
-      setFeedback(created > 0 ? `已转入 ${created} 条诊断清单` : "诊断清单已是最新");
-    },
-    [reloadChecklist],
-  );
-  const {
-    reports: diagnosisReports,
-    loading: diagnosisLoading,
-    importingReportId: importingDiagnosisReportId,
-    refreshReports: refreshDiagnosisReports,
-    importReportToChecklist,
-  } = useSubmissionDiagnosisReports(checklistSubId, {
-    onError: showSubmissionError,
-    onImported: handleDiagnosisImported,
+  const checklist = useSubmissionChecklist(board.submissions, showError);
+  const handleDiagnosisImported = useCallback(async (created: number) => {
+    await checklist.reloadChecklist();
+    setFeedback(created > 0 ? `已转入 ${created} 条诊断清单` : "诊断清单已是最新");
+  }, [checklist]);
+  const diagnosis = useSubmissionDiagnosisReports(checklist.checklistSubId, {
+    onError: showError, onImported: handleDiagnosisImported,
   });
-  const handleRevisionTasksImported = useCallback((created: number) => {
-    setFeedback(created > 0 ? `已转入 ${created} 个修改任务` : "修改任务已是最新");
-  }, []);
-  const {
-    tasks: revisionTasks,
-    versions: revisionVersions,
-    experiments: revisionExperiments,
-    loading: revisionLoading,
-    importingReportId: importingRevisionTaskReportId,
-    updatingTaskId: updatingRevisionTaskId,
-    importReportToTasks,
-    updateTask: updateRevisionTask,
-  } = useSubmissionRevisionTasks(checklistSubId, {
-    onError: showSubmissionError,
-    onImported: handleRevisionTasksImported,
+  const revision = useSubmissionRevisionTasks(checklist.checklistSubId, {
+    onError: showError,
+    onImported: (created: number) => setFeedback(created > 0 ? `已转入 ${created} 个修改任务` : "修改任务已是最新"),
   });
-
-  // Review archive state
-  const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
-  const [reviewRounds, setReviewRounds] = useState<ReviewRound[]>([]);
-  const [reviewSubId, setReviewSubId] = useState<string>("");
-  const [reviewRound, setReviewRound] = useState<number>(1);
-  const [showAddReviewModal, setShowAddReviewModal] = useState(false);
-  const [reviewForm, setReviewForm] = useState<ReviewFormState>({
-    reviewer: "", content: "", tags: [] as string[], verdict: "major_revision" as ReviewVerdict,
-  });
-
-  // AI review state
-  const [showMockReviewModal, setShowMockReviewModal] = useState(false);
-  const [mockReviewInput, setMockReviewInput] = useState<MockReviewInput>({
-    abstract: "",
-    reviewerCount: 3,
-    strictness: "balanced",
-  });
-  const [mockReviewLoading, setMockReviewLoading] = useState(false);
-  const [mockReviewResult, setMockReviewResult] = useState<MockReviewerResult[] | null>(null);
-  const [mockFileExtracting, setMockFileExtracting] = useState(false);
-  const [mockFileName, setMockFileName] = useState<string | null>(null);
 
   // Cover letter / polish state
   const [showCoverLetterModal, setShowCoverLetterModal] = useState(false);
@@ -180,684 +73,274 @@ export default function Submission() {
   const [polishText, setPolishText] = useState("");
   const [polishLoading, setPolishLoading] = useState(false);
   const [polishSourceId, setPolishSourceId] = useState<string>("");
-  const mockReviewBufferRef = useRef<MockReviewerResult[]>([]);
-  const activeMockReviewSubmissionRef = useRef<string>("");
 
   useEffect(() => {
-    if (submissions.length === 0) {
-      return;
-    }
-
-    if (!versionSubId) {
-      setVersionSubId(submissions[0].id);
-    }
-    if (!reviewSubId) {
-      setReviewSubId(submissions[0].id);
-    }
-  }, [reviewSubId, submissions, versionSubId]);
-
-  // Reload rounds + comments when selected review submission changes
-  useEffect(() => {
-    if (!reviewSubId) return;
-    Promise.all([
-      submissionApi.listRounds(reviewSubId),
-      submissionApi.listComments(reviewSubId),
-    ]).then(([roundsRes, commentsRes]) => {
-      setReviewRounds(roundsRes.rounds.map(rowToRound));
-      setReviewComments(commentsRes.comments.map(rowToComment));
-    }).catch(showSubmissionError);
-  }, [reviewSubId, showSubmissionError]);
+    if (board.submissions.length === 0) return;
+    if (!versionSubId) setVersionSubId(board.submissions[0].id);
+    if (!review.subId) review.setSubId(board.submissions[0].id);
+  }, [board.submissions, versionSubId, review.subId, review]);
 
   // AI review event listeners
+  const mockBufferRef = useRef<MockReviewerResult[]>([]);
+  const activeMockSubRef = useRef<string>("");
   useEffect(() => {
-    let unlistenReviewer: (() => void) | undefined;
-    let unlistenDone: (() => void) | undefined;
-    let unlistenError: (() => void) | undefined;
-
-    listen<{ submissionId: string; index: number; reviewer: string; raw: string }>(
-      "submission:ai_review:reviewer",
+    let unlistenR: (() => void) | undefined, unlistenD: (() => void) | undefined, unlistenE: (() => void) | undefined;
+    listen<{ submissionId: string; index: number; reviewer: string; raw: string }>("submission:ai_review:reviewer",
       ({ payload }) => {
-        if (payload.submissionId !== activeMockReviewSubmissionRef.current) {
-          return;
-        }
+        if (payload.submissionId !== activeMockSubRef.current) return;
         try {
           const parsed = JSON.parse(payload.raw);
-          const result: MockReviewerResult = {
-            reviewer: payload.reviewer,
-            content: [
-              parsed.summary ? `**Summary:** ${parsed.summary}` : "",
-              parsed.strengths?.length ? `**Strengths:**\n${(parsed.strengths as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
-              parsed.weaknesses?.length ? `**Weaknesses:**\n${(parsed.weaknesses as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
-              parsed.questions?.length ? `**Questions:**\n${(parsed.questions as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
-            ].filter(Boolean).join("\n\n"),
-            tags: ["方法", "实验"],
-            verdict: (parsed.verdict === "accept" ? "accept"
-              : parsed.verdict === "weak_accept" ? "minor_revision"
-              : parsed.verdict === "weak_reject" ? "major_revision"
-              : "reject") as ReviewVerdict,
-          };
-          mockReviewBufferRef.current = [...mockReviewBufferRef.current, result];
-          setMockReviewResult([...mockReviewBufferRef.current]);
+          const result = { reviewer: payload.reviewer, content: [
+            parsed.summary ? `**Summary:** ${parsed.summary}` : "",
+            parsed.strengths?.length ? `**Strengths:**\n${(parsed.strengths as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
+            parsed.weaknesses?.length ? `**Weaknesses:**\n${(parsed.weaknesses as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
+            parsed.questions?.length ? `**Questions:**\n${(parsed.questions as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
+          ].filter(Boolean).join("\n\n"), tags: [], verdict: (
+            parsed.verdict === "accept" ? "accept" : parsed.verdict === "weak_accept" ? "minor_revision"
+            : parsed.verdict === "weak_reject" ? "major_revision" : "reject") as ReviewVerdict };
+          mockBufferRef.current = [...mockBufferRef.current, result];
+          review.setMockResult([...mockBufferRef.current]);
         } catch {
-          mockReviewBufferRef.current = [
-            ...mockReviewBufferRef.current,
-            { reviewer: payload.reviewer, content: payload.raw, tags: [], verdict: "major_revision" },
-          ];
-          setMockReviewResult([...mockReviewBufferRef.current]);
+          mockBufferRef.current = [...mockBufferRef.current, {
+            reviewer: payload.reviewer, content: payload.raw, tags: [], verdict: "major_revision" as ReviewVerdict,
+          }];
+          review.setMockResult([...mockBufferRef.current]);
         }
-      }
-    ).then(u => { unlistenReviewer = u; });
-
+      }).then(u => { unlistenR = u; });
     listen<{ submissionId: string }>("submission:ai_review:done", ({ payload }) => {
-      if (payload.submissionId !== activeMockReviewSubmissionRef.current) {
-        return;
-      }
-      setMockReviewLoading(false);
-      if (payload.submissionId === checklistSubId) {
-        void refreshDiagnosisReports();
-      }
-    }).then(u => { unlistenDone = u; });
-
+      if (payload.submissionId !== activeMockSubRef.current) return;
+      review.setMockLoading(false);
+      if (payload.submissionId === checklist.checklistSubId) void diagnosis.refreshReports();
+    }).then(u => { unlistenD = u; });
     listen<{ submissionId: string; error: string }>("submission:ai_review:error", ({ payload }) => {
-      if (payload.submissionId !== activeMockReviewSubmissionRef.current) {
-        return;
-      }
-      setMockReviewLoading(false);
-      showSubmissionError(payload.error);
-    }).then(u => { unlistenError = u; });
+      if (payload.submissionId !== activeMockSubRef.current) return;
+      review.setMockLoading(false); showError(payload.error);
+    }).then(u => { unlistenE = u; });
+    return () => { unlistenR?.(); unlistenD?.(); unlistenE?.(); };
+  }, [checklist.checklistSubId, diagnosis, review, showError]);
 
-    return () => {
-      unlistenReviewer?.();
-      unlistenDone?.();
-      unlistenError?.();
-    };
-  }, [checklistSubId, refreshDiagnosisReports, showSubmissionError]);
-
-  // Cover letter event listeners
+  // Cover letter / polish event listeners
   useEffect(() => {
-    let unlistenDelta: (() => void) | undefined;
-    let unlistenDone: (() => void) | undefined;
-
-    listen<{ submissionId: string; delta: string }>("submission:cover_letter:delta", ({ payload }) => {
-      setCoverLetterText(prev => prev + payload.delta);
-    }).then(u => { unlistenDelta = u; });
-
-    listen<{ submissionId: string; fullText: string }>("submission:cover_letter:done", ({ payload }) => {
-      setCoverLetterText(payload.fullText);
-      setCoverLetterLoading(false);
-    }).then(u => { unlistenDone = u; });
-
-    return () => { unlistenDelta?.(); unlistenDone?.(); };
+    let u1: (() => void) | undefined, u2: (() => void) | undefined;
+    listen<{ submissionId: string; delta: string }>("submission:cover_letter:delta",
+      ({ payload }) => { setCoverLetterText(prev => prev + payload.delta); }).then(u => { u1 = u; });
+    listen<{ submissionId: string; fullText: string }>("submission:cover_letter:done",
+      ({ payload }) => { setCoverLetterText(payload.fullText); setCoverLetterLoading(false); }).then(u => { u2 = u; });
+    return () => { u1?.(); u2?.(); };
   }, []);
-
-  // Polish event listeners
   useEffect(() => {
-    let unlistenDelta: (() => void) | undefined;
-    let unlistenDone: (() => void) | undefined;
-
+    let u1: (() => void) | undefined, u2: (() => void) | undefined;
     listen<{ submissionId: string; delta: string }>("submission:polish:delta", ({ payload }) => {
-      if (payload.submissionId === reviewSubId || payload.submissionId === versionSubId) {
-        setPolishText(prev => prev + payload.delta);
-      }
-    }).then(u => { unlistenDelta = u; });
+      if (payload.submissionId === review.subId || payload.submissionId === versionSubId) setPolishText(prev => prev + payload.delta);
+    }).then(u => { u1 = u; });
+    listen<{ submissionId: string; fullText: string }>("submission:polish:done",
+      ({ payload }) => { setPolishText(payload.fullText); setPolishLoading(false); }).then(u => { u2 = u; });
+    return () => { u1?.(); u2?.(); };
+  }, [review.subId, versionSubId]);
 
-    listen<{ submissionId: string; fullText: string }>("submission:polish:done", ({ payload }) => {
-      setPolishText(payload.fullText);
-      setPolishLoading(false);
-    }).then(u => { unlistenDone = u; });
-
-    return () => { unlistenDelta?.(); unlistenDone?.(); };
-  }, [reviewSubId, versionSubId]);
-
-  const handleUploadVersionFile = async (versionId: string) => {
+  // DDL sync
+  const [syncingDdl, setSyncingDdl] = useState(false);
+  const handleSyncDdl = async () => {
+    setSyncingDdl(true);
     try {
-      const selected = await open({
-        multiple: false,
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
-      });
-      if (typeof selected === "string" && selected) {
-        const fileName = selected.split(/[\\/]/).pop() || "paper.pdf";
-        await patchVersion(versionId, { filePath: selected, fileName });
-      }
-    } catch (error) {
-      showSubmissionError(error);
-    }
+      const result = await submissionApi.syncDeadlines();
+      const venueCount = result?.venue_count ?? 0;
+      setFeedback(venueCount > 0 ? `已同步 ${venueCount} 个期刊/会议的截止日期` : "没有需要更新的截止日期");
+    } catch (err) { showError(err); }
+    finally { setSyncingDdl(false); }
   };
-
-  const handleDownloadVersionFile = async (filePath?: string) => {
-    if (!filePath) return;
-    try {
-      const { openLink } = await import("../lib/links");
-      await openLink(filePath);
-    } catch (error) {
-      showSubmissionError(error);
-    }
-  };
-
-  // ── Version helpers ──
-  const versionNextTag = (() => {
-    if (versions.length === 0) return "v1.0";
-    const last = versions[versions.length - 1].tag;
-    const [major, minor] = last.replace("v", "").split(".").map(Number);
-    return `v${major}.${(minor ?? 0) + 1}`;
-  })();
-
-  const handleSaveVersion = async () => {
-    if (!saveForm.label.trim() || !saveForm.content.trim()) return;
-    const currentSub = submissions.find(s => s.id === versionSubId);
-    const tag = saveForm.tag.trim() || versionNextTag;
-    try {
-      const res = await submissionApi.createVersion({
-        submissionId: versionSubId,
-        tag, label: saveForm.label.trim(),
-        stage: currentSub?.status ?? "writing",
-        content: saveForm.content.trim(),
-        notes: saveForm.notes.trim(),
-      });
-      appendVersion({
-        id: res.id, submissionId: versionSubId, tag,
-        label: saveForm.label.trim(),
-        stage: currentSub?.status ?? "writing",
-        content: saveForm.content.trim(),
-        notes: saveForm.notes.trim(),
-        createdAt: new Date(),
-      });
-    } catch (error) {
-      showSubmissionError(error);
-      return;
-    }
-    setShowSaveModal(false);
-    setSaveForm({ tag: "", label: "", notes: "", content: "" });
-  };
-
-  const handleOpenSaveVersionModal = () => {
-    setSaveForm({
-      tag: versionNextTag,
-      label: "",
-      notes: "",
-      content: versions[versions.length - 1]?.content ?? "",
-    });
-    setShowSaveModal(true);
-  };
-
-  const handlePolishVersion = (version: PaperVersion) => {
-    if (!version.content.trim()) return;
-    setPolishSourceId(version.id);
-    setPolishText("");
-    setPolishLoading(true);
-    setShowPolishPanel(true);
-    submissionApi.polishAbstract(version.submissionId, version.content).catch((error) => {
-      showSubmissionError(error);
-      setPolishLoading(false);
-    });
-  };
-
-  const handleOpenMockReview = async (version: PaperVersion) => {
-    setReviewSubId(version.submissionId);
-    setMockReviewResult(null);
-    setMockFileName(null);
-    setShowMockReviewModal(true);
-
-    if (version.filePath) {
-      setMockFileExtracting(true);
-      setMockReviewInput((currentInput) => ({ ...currentInput, abstract: "" }));
-      try {
-        const { extractTextFromPdf } = await import("../lib/pdfExtract");
-        const text = await extractTextFromPdf(version.filePath);
-        setMockReviewInput((currentInput) => ({ ...currentInput, abstract: text }));
-        setMockFileName(version.fileName ?? "paper.pdf");
-      } catch {
-        setMockReviewInput((currentInput) => ({ ...currentInput, abstract: version.content }));
-      } finally {
-        setMockFileExtracting(false);
-      }
-      return;
-    }
-
-    setMockReviewInput((currentInput) => ({ ...currentInput, abstract: version.content }));
-  };
-
-  const handleOpenAddReviewModal = () => {
-    const currentRounds = reviewRounds.filter((round) => round.submissionId === reviewSubId);
-    const nextRound = currentRounds.length > 0 ? Math.max(...currentRounds.map((round) => round.round)) + 1 : 1;
-    setReviewRound(nextRound);
-    setReviewForm({ reviewer: "Reviewer 1", content: "", tags: [], verdict: "major_revision" });
-    setShowAddReviewModal(true);
-  };
-
-  const handleAddReviewComment = async () => {
-    if (!reviewForm.reviewer.trim() || !reviewForm.content.trim()) return;
-
-    try {
-      const roundExists = reviewRounds.some((round) => round.submissionId === reviewSubId && round.round === reviewRound);
-      if (!roundExists) {
-        await submissionApi.upsertRound({
-          submissionId: reviewSubId,
-          round: reviewRound,
-          verdict: reviewForm.verdict,
-        });
-
-        setReviewRounds((currentRounds) => [
-          ...currentRounds,
-          {
-            submissionId: reviewSubId,
-            round: reviewRound,
-            verdict: reviewForm.verdict,
-            receivedAt: new Date(),
-          },
-        ]);
-      }
-
-      const response = await submissionApi.createComment({
-        submissionId: reviewSubId,
-        round: reviewRound,
-        reviewer: reviewForm.reviewer.trim(),
-        content: reviewForm.content.trim(),
-        tags: reviewForm.tags,
-      });
-
-      setReviewComments((currentComments) => [
-        ...currentComments,
-        {
-          id: response.id,
-          submissionId: reviewSubId,
-          round: reviewRound,
-          reviewer: reviewForm.reviewer.trim(),
-          content: reviewForm.content.trim(),
-          response: "",
-          resolved: false,
-          tags: reviewForm.tags,
-          createdAt: new Date(),
-        },
-      ]);
-
-      const reviewerMatch = reviewForm.reviewer.match(/\d+/);
-      const nextReviewerIndex = reviewerMatch ? Number.parseInt(reviewerMatch[0], 10) + 1 : 2;
-      setReviewForm((currentForm) => ({
-        ...currentForm,
-        reviewer: `Reviewer ${nextReviewerIndex}`,
-        content: "",
-        tags: [],
-      }));
-    } catch (error) {
-      showSubmissionError(error);
-    }
-  };
-
-  const handleToggleReviewResolved = (commentId: string) => {
-    const comment = reviewComments.find((item) => item.id === commentId);
-    if (!comment) return;
-
-    setReviewComments((currentComments) =>
-      currentComments.map((item) => (item.id === commentId ? { ...item, resolved: !item.resolved } : item))
-    );
-    submissionApi.updateComment(commentId, { resolved: !comment.resolved }).catch((error) => {
-      showSubmissionError(error);
-      setReviewComments((currentComments) =>
-        currentComments.map((item) => (item.id === commentId ? { ...item, resolved: comment.resolved } : item))
-      );
-    });
-  };
-
-  const handleUpdateReviewResponse = (commentId: string, response: string) => {
-    const previousResponse = reviewComments.find((item) => item.id === commentId)?.response ?? "";
-    setReviewComments((currentComments) =>
-      currentComments.map((item) => (item.id === commentId ? { ...item, response } : item))
-    );
-    submissionApi.updateComment(commentId, { response }).catch((error) => {
-      showSubmissionError(error);
-      setReviewComments((currentComments) =>
-        currentComments.map((item) => (item.id === commentId ? { ...item, response: previousResponse } : item))
-      );
-    });
-  };
-
-  const handleOpenCoverLetter = () => {
-    setCoverLetterText("");
-    setCoverLetterLoading(true);
-    setShowCoverLetterModal(true);
-    submissionApi.generateCoverLetter(reviewSubId).catch((error) => {
-      showSubmissionError(error);
-      setCoverLetterLoading(false);
-    });
-  };
-
-  const handlePickMockReviewPdf = async () => {
-    const selected = await open({
-      multiple: false,
-      filters: [{ name: "PDF", extensions: ["pdf"] }],
-    });
-
-    if (typeof selected !== "string" || !selected) {
-      return;
-    }
-
-    setMockFileExtracting(true);
-    try {
-      const { extractTextFromPdf } = await import("../lib/pdfExtract");
-      const text = await extractTextFromPdf(selected);
-      setMockReviewInput((currentInput) => ({ ...currentInput, abstract: text }));
-      setMockFileName(selected.split("/").pop() ?? "paper.pdf");
-    } catch (error) {
-      showSubmissionError(error);
-    } finally {
-      setMockFileExtracting(false);
-    }
-  };
-
-  const handleResetMockReview = () => {
-    mockReviewBufferRef.current = [];
-    setMockReviewResult(null);
-  };
-
-  const handleGenerateMockReview = () => {
-    activeMockReviewSubmissionRef.current = reviewSubId;
-    mockReviewBufferRef.current = [];
-    setMockReviewLoading(true);
-    setMockReviewResult([]);
-    submissionApi
-      .aiReview({
-        submissionId: reviewSubId,
-        content: mockReviewInput.abstract,
-        reviewerCount: mockReviewInput.reviewerCount,
-        strictness: mockReviewInput.strictness,
-      })
-      .catch((error) => {
-        showSubmissionError(error);
-        setMockReviewLoading(false);
-      });
-  };
-
-  const handleImportMockReview = async () => {
-    if (!mockReviewResult?.length) return;
-
-    const existingRounds = reviewRounds
-      .filter((round) => round.submissionId === reviewSubId)
-      .map((round) => round.round);
-    const nextRound = existingRounds.length > 0 ? Math.max(...existingRounds) + 1 : 1;
-    const verdict = getDominantVerdict(countVerdicts(mockReviewResult));
-
-    try {
-      await submissionApi.upsertRound({ submissionId: reviewSubId, round: nextRound, verdict });
-
-      const createdComments = await Promise.all(
-        mockReviewResult.map(async (result) => {
-          const response = await submissionApi.createComment({
-            submissionId: reviewSubId,
-            round: nextRound,
-            reviewer: result.reviewer,
-            content: result.content,
-            tags: result.tags,
-          });
-
-          return {
-            id: response.id,
-            submissionId: reviewSubId,
-            round: nextRound,
-            reviewer: result.reviewer,
-            content: result.content,
-            response: "",
-            resolved: false,
-            tags: result.tags,
-            createdAt: new Date(),
-          };
-        })
-      );
-
-      setReviewRounds((currentRounds) => [
-        ...currentRounds,
-        { submissionId: reviewSubId, round: nextRound, verdict, receivedAt: new Date() },
-      ]);
-      setReviewComments((currentComments) => [...currentComments, ...createdComments]);
-      setReviewRound(nextRound);
-      setShowMockReviewModal(false);
-    } catch (error) {
-      showSubmissionError(error);
-    }
-  };
-
-  const handleApplyPolishResult = () => {
-    if (!polishText || !polishSourceId) return;
-    patchVersion(polishSourceId, { content: polishText })
-      .then(() => setShowPolishPanel(false))
-      .catch(showSubmissionError);
-  };
-
-  // ── Stats ──
-  const activeCount = submissions.filter(s => ["writing", "submitted", "reviewing"].includes(s.status)).length;
-  const acceptedCount = submissions.filter(s => s.status === "accepted").length;
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+    <div className="rc-app-page space-y-4">
       <SubmissionPageHeader
         activeTab={tab}
-        conferencesCount={conferences.length}
-        journalsCount={journals.length}
-        activeCount={activeCount}
-        acceptedCount={acceptedCount}
+        conferencesCount={venues.conferences.length}
+        journalsCount={venues.journals.length}
+        activeCount={board.submissions.filter(s => s.status !== "accepted" && s.status !== "rejected").length}
+        acceptedCount={board.submissions.filter(s => s.status === "accepted").length}
         onTabChange={setTab}
       />
 
       <SubmissionFeedbackBanner feedback={feedback} onDismiss={() => setFeedback("")} />
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="min-h-0 flex-1 space-y-4">
         {tab === "conferences" && (
-          <>
-            <VenueTrackerWorkspace
-              venueFilter={venueFilter}
-              visibleVenues={visibleVenues}
-              conferencesCount={conferences.length}
-              journalsCount={journals.length}
-              recommendations={recommendations}
-              recommendationLoading={recLoading}
-              recommendationInput={recInput}
-              onVenueFilterChange={setVenueFilter}
-              onOpenAddVenue={() => setShowAddModal(true)}
-              onChangeRecommendationInput={setRecInput}
-              onGenerateRecommendations={generateRecommendations}
-              isVenueAdded={isVenueAdded}
-              onAddVenue={handleAddVenue}
-              onCreateSubmissionFromRecommendation={(recommendation) => {
-                setAddSubForm({
-                  title: recInput.title.trim(),
-                  venue: recommendation.name,
-                  venueType: recommendation.type,
-                  deadline: "",
-                });
-                setShowAddSubModal(true);
-              }}
-              onToggleVenueStar={toggleVenueStar}
-              onSyncDdl={async () => {
-                setSyncingDdl(true);
-                setDdlSyncResult("");
-                try {
-                  // 优先使用内置数据，失败时尝试 GitHub
-                  let result;
-                  try {
-                    result = await submissionApi.syncCcfDdlLocal();
-                  } catch {
-                    result = await submissionApi.syncCcfDdl();
-                  }
-                  setDdlSyncResult(`已同步 ${result.fetched} 个会议，更新 ${result.updated} 条记录`);
-                } catch (err) {
-                  setDdlSyncResult(formatErrorMessage(err));
-                } finally {
-                  setSyncingDdl(false);
-                }
-              }}
-              syncingDdl={syncingDdl}
-            />
-            {ddlSyncResult ? (
-              <p className="mt-2 text-xs text-ink-tertiary">{ddlSyncResult}</p>
-            ) : null}
-          </>
-        )}
-
-        {tab === "kanban" && (
-          <KanbanWorkspace
-            submissions={submissions}
-            rejectionRecoveryPlans={rejectionRecoveryPlans}
-            onOpenAddSubmission={() => setShowAddSubModal(true)}
-            onMoveSubmission={moveSubmission}
-            onPrepareTransfer={(plan, target) => {
-              setAddSubForm({
-                title: plan.submission.title,
-                venue: target.name,
-                venueType: target.type,
+          <VenueTrackerWorkspace
+            venueFilter={venues.venueFilter}
+            visibleVenues={venues.visibleVenues}
+            conferencesCount={venues.conferences.length}
+            journalsCount={venues.journals.length}
+            recommendations={venues.recommendations}
+            recommendationLoading={venues.recLoading}
+            recommendationInput={venues.recInput}
+            onVenueFilterChange={venues.setVenueFilter}
+            onOpenAddVenue={() => venues.setShowAddModal(true)}
+            onChangeRecommendationInput={venues.setRecInput}
+            onGenerateRecommendations={venues.generateRecommendations}
+            isVenueAdded={venues.isVenueAdded}
+            onAddVenue={venues.handleAddVenue}
+            onCreateSubmissionFromRecommendation={(recommendation) => {
+              board.setAddSubForm({
+                title: venues.recInput.title.trim(),
+                venue: recommendation.name,
+                venueType: recommendation.type,
                 deadline: "",
               });
-              setShowAddSubModal(true);
+              board.setShowAddSubModal(true);
+            }}
+            onToggleVenueStar={venues.toggleVenueStar}
+            onSyncDdl={handleSyncDdl}
+            syncingDdl={syncingDdl}
+          />
+        )}
+        {tab === "kanban" && (
+          <KanbanWorkspace
+            submissions={board.submissions}
+            rejectionRecoveryPlans={rejectionPlans}
+            onOpenAddSubmission={() => board.setShowAddSubModal(true)}
+            onMoveSubmission={board.moveSubmission}
+            onPrepareTransfer={(plan, target) => {
+              board.setAddSubForm({
+                title: plan.submissionTitle,
+                venue: target.name,
+                venueType: target.type,
+                deadline: target.deadline ?? "",
+              });
+              board.setShowAddSubModal(true);
             }}
           />
         )}
-
-        {tab === "checklist" && (
-          <ChecklistWorkspace
-            submissions={submissions}
-            checklistSubId={checklistSubId}
-            checklist={checklist}
-            checklistCat={checklistCat}
-            categories={categories}
-            visibleCategories={visibleCategories}
-            filteredChecklist={filteredChecklist}
-            diagnosisReports={diagnosisReports}
-            diagnosisLoading={diagnosisLoading}
-            importingDiagnosisReportId={importingDiagnosisReportId}
-            revisionTasks={revisionTasks}
-            revisionVersions={revisionVersions}
-            revisionExperiments={revisionExperiments}
-            revisionLoading={revisionLoading}
-            importingRevisionTaskReportId={importingRevisionTaskReportId}
-            updatingRevisionTaskId={updatingRevisionTaskId}
-            checkedCount={checkedCount}
-            progress={progress}
-            onSelectSubmission={setChecklistSubId}
-            onReset={resetChecklist}
-            onSelectCategory={setChecklistCat}
-            onToggleCheck={toggleCheck}
-            onImportDiagnosisReport={importReportToChecklist}
-            onImportDiagnosisTasks={importReportToTasks}
-            onUpdateRevisionTask={updateRevisionTask}
-          />
-        )}
-
-        {tab === "versions" && (
-          <VersionWorkspace
-            submissions={submissions}
-            versions={versions}
-            versionCounts={versionCounts}
-            versionSubId={versionSubId}
-            compareIds={compareIds}
-            onSelectSubmission={(submissionId) => {
-              setVersionSubId(submissionId);
-              setCompareIds(null);
-            }}
-            onSetCompareIds={setCompareIds}
-            onOpenSaveModal={handleOpenSaveVersionModal}
-            onUploadVersionFile={handleUploadVersionFile}
-            onDownloadVersionFile={handleDownloadVersionFile}
-            onPolishVersion={handlePolishVersion}
-            onOpenMockReview={handleOpenMockReview}
-          />
-        )}
-
-        {tab === "reviews" && (
-          <ReviewWorkspace
-            submissions={submissions}
-            reviewComments={reviewComments}
-            reviewRounds={reviewRounds}
-            reviewSubId={reviewSubId}
-            reviewRound={reviewRound}
-            onSelectSubmission={(submissionId) => {
-              setReviewSubId(submissionId);
-              setReviewRound(1);
-            }}
-            onSelectRound={setReviewRound}
-            onOpenCoverLetter={handleOpenCoverLetter}
-            onOpenAddReview={handleOpenAddReviewModal}
-            onToggleResolved={handleToggleReviewResolved}
-            onUpdateResponse={handleUpdateReviewResponse}
-          />
-        )}
+        {tab === "reviews" && <ReviewWorkspace
+          subId={review.subId} submissions={board.submissions}
+          onSelectSubId={review.setSubId}
+          rounds={review.rounds} comments={review.comments}
+          onSelectRound={review.setRound}
+          onAddComment={() => review.setShowAddModal(true)}
+          onMockReview={(subId) => {
+            activeMockSubRef.current = subId;
+            review.setMockResult(null);
+            review.setShowMockModal(true);
+          }}
+        />}
+        {tab === "checklist" && <ChecklistWorkspace
+          subId={checklist.checklistSubId} submissions={board.submissions}
+          onSelectSubId={checklist.setChecklistSubId}
+          cat={checklist.checklistCat}
+          onCatChange={checklist.setChecklistCat}
+          categories={checklist.visibleCategories}
+          items={checklist.filteredChecklist}
+          checkedCount={checklist.checkedCount}
+          progress={checklist.progress}
+          onToggle={checklist.toggleCheck}
+          onReset={checklist.resetChecklist}
+          diagnosisPanel={
+            <DiagnosisReportPanel
+              reports={diagnosis.reports}
+              loading={diagnosis.diagnosisLoading}
+              importingReportId={diagnosis.importingDiagnosisReportId}
+              onImport={diagnosis.importReportToChecklist}
+              onRefresh={diagnosis.refreshReports}
+            />
+          }
+          revisionPanel={
+            <RevisionTaskPanel
+              tasks={revision.revisionTasks}
+              versions={revision.revisionVersions}
+              experiments={revision.revisionExperiments}
+              loading={revision.revisionLoading}
+              importingReportId={revision.importingRevisionTaskReportId}
+              onImport={revision.importReportToTasks}
+              onUpdate={revision.updateRevisionTask}
+            />
+          }
+        />}
+        {tab === "versions" && <VersionWorkspace
+          subId={versionSubId} submissions={board.submissions}
+          onSelectSubId={setVersionSubId}
+          versions={versions} versionCounts={versionCounts}
+          compareIds={compareIds} onToggleCompare={setCompareIds}
+          onSave={(id, content) => { setVersionSubId(id); setSaveForm(prev => ({ ...prev, content })); setShowSaveModal(true); }}
+          onUpdate={patchVersion}
+          onPolish={(id, content) => { setPolishSourceId(id); setPolishText(content); setShowPolishPanel(true); }}
+          onCoverLetter={(id) => { setVersionSubId(id); setShowCoverLetterModal(true); }}
+          rejectionRecoveryPlans={rejectionPlans}
+        />}
+        {tab === "timeline" && <SubmissionTimelineStrip submissions={board.submissions} />}
       </div>
 
-      <MockReviewModal
-        open={showMockReviewModal}
-        mockReviewInput={mockReviewInput}
-        mockReviewResult={mockReviewResult}
-        mockReviewLoading={mockReviewLoading}
-        mockFileExtracting={mockFileExtracting}
-        mockFileName={mockFileName}
-        onClose={() => setShowMockReviewModal(false)}
-        onSetInput={setMockReviewInput}
-        onPickPdf={handlePickMockReviewPdf}
-        onReset={handleResetMockReview}
-        onImport={handleImportMockReview}
-        onGenerate={handleGenerateMockReview}
-      />
-
-      <ReviewEntryModal
-        open={showAddReviewModal}
-        currentVenue={submissions.find((submission) => submission.id === reviewSubId)?.venue}
-        reviewRound={reviewRound}
-        reviewRounds={reviewRounds}
-        reviewSubId={reviewSubId}
-        reviewForm={reviewForm}
-        onClose={() => setShowAddReviewModal(false)}
-        onSetReviewForm={setReviewForm}
-        onSubmit={handleAddReviewComment}
-      />
-
-      <AddSubmissionModal
-        open={showAddSubModal}
-        form={addSubForm}
-        onClose={() => setShowAddSubModal(false)}
-        onSetForm={setAddSubForm}
-        onSubmit={handleAddSubmission}
-      />
-
-      <SaveVersionModal
-        open={showSaveModal}
-        versionNextTag={versionNextTag}
-        form={saveForm}
-        onClose={() => setShowSaveModal(false)}
-        onSetForm={setSaveForm}
-        onSubmit={handleSaveVersion}
-      />
-
-      <AddVenueModal
-        open={showAddModal}
-        search={addModalSearch}
-        areaFilter={addModalAreaFilter}
-        typeFilter={addModalTypeFilter}
-        areas={areas}
-        filteredVenueTemplates={filteredVenueTemplates}
-        loading={venueTemplateLoading}
-        trackedCount={conferences.length + journals.length}
-        onClose={() => setShowAddModal(false)}
-        onSearchChange={setAddModalSearch}
-        onAreaFilterChange={setAddModalAreaFilter}
-        onTypeFilterChange={setAddModalTypeFilter}
-        isVenueAdded={isVenueAdded}
-        onAddVenue={handleAddVenue}
-      />
-
-      <CoverLetterModal
-        open={showCoverLetterModal}
-        text={coverLetterText}
-        loading={coverLetterLoading}
-        onClose={() => setShowCoverLetterModal(false)}
-        onChangeText={setCoverLetterText}
-      />
-
-      <PolishPanel
-        open={showPolishPanel}
-        text={polishText}
-        loading={polishLoading}
-        onClose={() => setShowPolishPanel(false)}
-        onChangeText={setPolishText}
-        onApply={handleApplyPolishResult}
-      />
+      {/* Modals */}
+      {venues.showAddModal && <AddVenueModal
+        search={venues.addModalSearch} area={venues.addModalAreaFilter} type={venues.addModalTypeFilter}
+        areas={venues.areas} templates={venues.filteredVenueTemplates}
+        loading={venues.venueTemplateLoading}
+        onSearchChange={venues.setAddModalSearch} onAreaChange={venues.setAddModalAreaFilter}
+        onTypeChange={venues.setAddModalTypeFilter}
+        onAdd={venues.handleAddVenue} isAdded={venues.isVenueAdded}
+        onClose={() => venues.setShowAddModal(false)}
+      />}
+      {board.showAddSubModal && <AddSubmissionModal
+        form={board.addSubForm} onChange={board.setAddSubForm}
+        venues={venues.conferences.concat(venues.journals)}
+        onSave={() => { void board.handleAddSubmission(); }}
+        onCancel={() => board.setShowAddSubModal(false)}
+      />}
+      {tab !== "conferences" && <SubmissionPaperSidebar
+        submissions={board.submissions} activeSubId={
+          tab === "versions" ? versionSubId : tab === "reviews" ? review.subId : tab === "checklist" ? checklist.checklistSubId : undefined
+        }
+        onSelect={(id) => {
+          if (tab === "versions") setVersionSubId(id);
+          else if (tab === "reviews") review.setSubId(id);
+          else if (tab === "checklist") checklist.setChecklistSubId(id);
+        }}
+      />}
+      {review.showAddModal && <ReviewEntryModal
+        subId={review.subId} round={review.round} form={review.form}
+        onChange={review.setForm} onSave={() => void review.handleReviewSubmit()}
+        onCancel={() => review.setShowAddModal(false)}
+      />}
+      {review.showMockModal && <MockReviewModal
+        input={review.mockInput} onChange={review.setMockInput}
+        loading={review.mockLoading} result={review.mockResult}
+        fileExtracting={review.mockFileExtracting} fileName={review.mockFileName}
+        onStart={(subId, input) => {
+          activeMockSubRef.current = subId;
+          mockBufferRef.current = [];
+          review.setMockLoading(true);
+        }}
+        onCancel={() => { review.setShowMockModal(false); review.setMockResult(null); }}
+        onExtractFile={async (path) => {
+          review.setMockFileExtracting(true);
+          try {
+            const text = await submissionApi.extractPaperText(path);
+            review.setMockInput(prev => ({ ...prev, abstract: text.slice(0, 5000) }));
+            review.setMockFileName(path.split("/").pop() ?? null);
+          } catch (err) { showError(err); }
+          finally { review.setMockFileExtracting(false); }
+        }}
+      />}
+      {showSaveModal && <SaveVersionModal
+        form={saveForm} onChange={setSaveForm}
+        onSave={() => { void appendVersion(versionSubId, saveForm); setShowSaveModal(false); }}
+        onCancel={() => setShowSaveModal(false)}
+      />}
+      {showCoverLetterModal && <CoverLetterModal
+        subId={versionSubId} loading={coverLetterLoading} text={coverLetterText}
+        onGenerate={async (subId, title, venue, type, rounds, comments) => {
+          setCoverLetterLoading(true); setCoverLetterText("");
+          try { await submissionApi.generateCoverLetter(subId, title, venue, type, rounds, comments); }
+          catch (err) { showError(err); setCoverLetterLoading(false); }
+        }}
+        onClose={() => { setShowCoverLetterModal(false); setCoverLetterText(""); }}
+        onSubmit={(subId) => board.submissions.find(s => s.id === subId)?.title ?? ""}
+      />}
+      {showPolishPanel && <PolishPanel
+        subId={polishSourceId} text={polishText} loading={polishLoading}
+        onPolish={async (subId, text) => { setPolishLoading(true); setPolishText("");
+          try { await submissionApi.polish(subId, text); } catch (err) { showError(err); setPolishLoading(false); }
+        }}
+        onClose={() => { setShowPolishPanel(false); setPolishText(""); }}
+      />}
     </div>
   );
 }

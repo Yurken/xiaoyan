@@ -90,6 +90,18 @@ export const settingsApi = {
     import: (data: string, password: string): Promise<void> =>
       invoke("data_backup_import", { data, password }),
   },
+  webdav: {
+    testConnection: (url: string, username: string, password: string): Promise<void> =>
+      invoke("webdav_test_connection", { url, username, password }),
+    listBackups: (url: string, username: string, password: string): Promise<Array<{name: string; path: string; size: number; lastModified: string}>> =>
+      invoke("webdav_list_backups", { url, username, password }),
+    uploadBackup: (url: string, username: string, password: string): Promise<string> =>
+      invoke("webdav_upload_backup", { url, username, password }),
+    downloadBackup: (url: string, username: string, password: string, filename: string): Promise<void> =>
+      invoke("webdav_download_backup", { url, username, password, filename }),
+    deleteBackup: (url: string, username: string, password: string, filename: string): Promise<void> =>
+      invoke("webdav_delete_backup", { url, username, password, filename }),
+  },
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
   appLock: {
@@ -168,6 +180,35 @@ export const papersApi = {
     invoke("papers_list_figures", { paperId: paper_id }),
   extractPdfText: (filePath: string, max_chars = 32000): Promise<string> =>
     invoke("papers_extract_pdf_text", { filePath, maxChars: max_chars }),
+};
+
+export const paperNotesApi = {
+  list: (paperId: string): Promise<unknown[]> =>
+    invoke("paper_notes_list", { paperId }),
+  create: (data: {
+    paper_id: string;
+    page: number;
+    content: string;
+    highlight_text?: string;
+    highlight_color?: string;
+    highlight_positions?: unknown[];
+  }): Promise<unknown> =>
+    invoke("paper_notes_create", {
+      paperId: data.paper_id,
+      page: data.page,
+      content: data.content,
+      highlightText: data.highlight_text ?? null,
+      highlightColor: data.highlight_color ?? null,
+      highlightPositions: data.highlight_positions ?? null,
+    }),
+  update: (id: string, data: { content?: string; highlight_color?: string }): Promise<unknown> =>
+    invoke("paper_notes_update", {
+      id,
+      content: data.content ?? null,
+      highlightColor: data.highlight_color ?? null,
+    }),
+  delete: (id: string): Promise<void> =>
+    invoke("paper_notes_delete", { id }),
 };
 
 export const ccfApi = {
@@ -768,15 +809,6 @@ export const evidenceApi = {
     invoke("evidence_get_links", { targetId, targetType }),
 };
 
-// ── Submission Diagnosis API ──────────────────────────────────────
-
-export const submissionDiagnosisApi = {
-  getDiagnosisTasks: (submissionId: string) =>
-    invoke<{ id: string; risk: string; suggestion: string; isTaskCreated: boolean }[]>("submission_diagnosis_get_tasks", { submissionId }),
-  createTaskFromDiagnosis: (diagnosisId: string) =>
-    invoke<{ taskId: string }>("submission_diagnosis_create_task", { diagnosisId }),
-};
-
 // ── Export API ────────────────────────────────────────────────────
 
 export const exportApi = {
@@ -785,6 +817,42 @@ export const exportApi = {
 };
 
 // ── Unified client (mirrors api-sdk shape) ────────────────────────
+
+
+// ── Cross-paper Analysis ──────────────────────────────────────
+
+export const crossAnalysisApi = {
+  analyze: (paper_ids: string[]): Promise<{ papers: unknown[]; analysis: string }> =>
+    invoke("papers_cross_analysis", { paperIds: paper_ids }),
+};
+
+// ── Active Researcher ──────────────────────────────────────────
+
+export interface ActiveResearcherFinding {
+  id: string;
+  interest_id: string;
+  interest_topic: string;
+  arxiv_id: string;
+  title: string;
+  authors: string;
+  published_at: string;
+  abs_url: string;
+  pdf_url: string;
+  relevance_score: number;
+  relevance_reason: string;
+  abstract_snippet: string;
+  scanned_at: string;
+  is_read: boolean;
+}
+
+export const activeResearcherApi = {
+  scan: (days?: number, maxPerInterest?: number): Promise<{ findings: ActiveResearcherFinding[]; unread_count: number; scanned_interests: number }> =>
+    invoke("active_researcher_scan", { days: days ?? null, maxPerInterest: maxPerInterest ?? null }),
+  findings: (limit?: number): Promise<{ findings: ActiveResearcherFinding[]; unread_count: number }> =>
+    invoke("active_researcher_findings", { limit: limit ?? null }),
+  markRead: (id?: string): Promise<void> =>
+    invoke("active_researcher_mark_read", { id: id ?? null }),
+};
 
 export const apiClient = {
   memory: memoryApi,
@@ -804,11 +872,12 @@ export const apiClient = {
   survey: surveyApi,
   skills: skillsApi,
   submission: submissionApi,
-  submissionDiagnosis: submissionDiagnosisApi,
   experiment: experimentApi,
   export: exportApi,
   workbench: workbenchApi,
   writing: writingApi,
   researchContext: researchContextApi,
   evidence: evidenceApi,
+  crossAnalysis: crossAnalysisApi,
+  activeResearcher: activeResearcherApi,
 };

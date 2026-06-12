@@ -1,7 +1,9 @@
-import { Loader2 } from "lucide-react";
+import { Link, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { Card } from "@research-copilot/ui";
 import { useThemeContext } from "./useResearchContext";
 import ResearchTimelinePanel from "./ResearchTimelinePanel";
+import EvidenceDrawer from "./EvidenceDrawer";
 
 interface ResearchCommandCenterProps {
   themeId: string;
@@ -9,6 +11,7 @@ interface ResearchCommandCenterProps {
 
 export default function ResearchCommandCenter({ themeId }: ResearchCommandCenterProps) {
   const { theme, events, loading, error } = useThemeContext(themeId);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
 
   if (loading) {
     return (
@@ -31,10 +34,23 @@ export default function ResearchCommandCenter({ themeId }: ResearchCommandCenter
   }
 
   return (
+    <>
     <div className="flex h-full flex-col p-5">
       <Card padding="md" className="flex flex-col gap-5">
         <div>
-          <h1 className="text-2xl font-bold text-ink-primary">{theme.name}</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-ink-primary">{theme.name}</h1>
+            <button
+              type="button"
+              onClick={() => setEvidenceOpen(true)}
+              className="flex h-9 items-center gap-1.5 rounded-2xl px-3 text-xs font-medium transition-colors hover:text-ink-primary"
+              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" as string }}
+              title="查看证据链"
+            >
+              <Link className="h-3.5 w-3.5" />
+              证据
+            </button>
+          </div>
           <p className="text-sm text-ink-tertiary mt-1">
             最近活动：{new Date(theme.lastActiveAt).toLocaleString()}
           </p>
@@ -82,5 +98,12 @@ export default function ResearchCommandCenter({ themeId }: ResearchCommandCenter
         </div>
       </Card>
     </div>
+      <EvidenceDrawer
+        targetId={themeId}
+        targetType="research_theme"
+        isOpen={evidenceOpen}
+        onClose={() => setEvidenceOpen(false)}
+      />
+    </>
   );
 }

@@ -11,6 +11,9 @@ import type {
 } from "./shared";
 import { useCompanionController } from "./useCompanionController";
 import { useCompanionPreference } from "./useCompanionPreference";
+import CompanionFindingsDrawer from "./CompanionFindingsDrawer";
+import { apiClient } from "../../lib/client";
+import { useEffect } from "react";
 
 function clampFrame(frame: number, frames: number) {
   return Math.min(Math.max(0, frame), Math.max(0, frames - 1));
@@ -311,9 +314,20 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
   const definition = useMemo(() => getCompanionDefinition(companionId), [companionId]);
   const controller = useCompanionController({ allowIdleSleep: definition.allowIdleSleep !== false });
 
+  // 启动时加载未读数
+  useEffect(() => {
+    apiClient.activeResearcher.findings(0).then((r) => {
+      if (r.unread_count > 0) {
+        controller.setNotificationCount(r.unread_count);
+      }
+    }).catch((err) => { console.warn("Failed to load findings:", err); });
+  }, []);
+
   if (!controller.visible) return null;
 
-  const tooltipText = getCompanionTooltip(definition, controller.shownAction);
+  const tooltipText = controller.notificationCount > 0
+    ? `我帮你找到了 ${controller.notificationCount} 篇可能相关的论文，点我看看~`
+    : getCompanionTooltip(definition, controller.shownAction);
 
   if (inline) {
     return (
@@ -360,6 +374,14 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
     >
       <Tooltip text={tooltipText} inline={false} />
       <div className="flex h-full w-full items-end justify-center">
+        {controller.notificationCount > 0 ? (
+          <div
+            className="absolute -top-1 -right-1 z-50 flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white"
+            style={{ background: "#FF3B30", boxShadow: "0 2px 6px rgba(255,59,48,0.4)" }}
+          >
+            {controller.notificationCount}
+          </div>
+        ) : null}
         <CompanionVisual
           definition={definition}
           actionKey={controller.shownAction}
@@ -367,6 +389,14 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
           opacity={controller.opacity}
         />
       </div>
+      {controller.notificationOpen ? (
+        <CompanionFindingsDrawer
+          onClose={() => {
+            controller.setNotificationOpen(false);
+            controller.setNotificationCount(0);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,0 +1,264 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  Pencil,
+  RefreshCw,
+  X,
+} from "lucide-react";
+import { MarkdownRenderer } from "@research-copilot/ui";
+import { MAIN_ASSISTANT_WELCOME_DESCRIPTION, MAIN_ASSISTANT_WELCOME_TITLE } from "@research-copilot/types";
+import ThinkingProcessPanel from "./ThinkingProcessPanel";
+import { ToolActionCard } from "./ToolActionCard";
+import appLogo from "../../assets/xiaoyanv.svg";
+import { parseCopilotMessageContent } from "./shared";
+import { openLink } from "../../lib/links";
+import type { AgentPlanStep, AgentRun, ChatMessage, RoutingDecision } from "@research-copilot/types";
+
+const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
+
+function splitThoughtFromContent(content: string) {
+  const thinkTagPattern = /<think>([\s\S]*?)<\/think>/gi;
+  const thoughts: string[] = [];
+  let match: RegExpExecArray | null = null;
+  while ((match = thinkTagPattern.exec(content)) !== null) {
+    const text = (match[1] || "").trim();
+    if (text) thoughts.push(text);
+  }
+  return {
+    thought: thoughts.join("\n\n"),
+    answer: content.replace(thinkTagPattern, "").trim(),
+  };
+}
+
+interface CopilotChatAreaProps {
+  messages: ChatMessage[];
+  agentRuns: AgentRun[];
+  plan: AgentPlanStep[];
+  routingDecision: RoutingDecision | null;
+  activeAssistantId: string | null;
+  sending: boolean;
+  searchingQuery: string | null;
+  loadError: string;
+  editingMessageId: string | null;
+  editText: string;
+  copiedId: string | null;
+  onClearError: () => void;
+  onCopy: (text: string, id: string) => void;
+  onRetry: (assistantMsgId: string) => void;
+  onStartEdit: (msg: ChatMessage) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onEditTextChange: (text: string) => void;
+  onPickFromDrop: (paths: string[]) => void;
+}
+
+export function CopilotChatArea(props: CopilotChatAreaProps) {
+  const {
+    messages, agentRuns, plan, routingDecision, activeAssistantId, sending, searchingQuery,
+    loadError, editingMessageId, editText, copiedId,
+    onClearError, onCopy, onRetry, onStartEdit, onSaveEdit, onCancelEdit,
+    onEditTextChange, onPickFromDrop,
+  } = props;
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [chatDragOver, setChatDragOver] = useState(false);
+  const chatDragCounterRef = useRef(0);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    const unlisten = getCurrentWindow().onDragDropEvent((event) => {
+      if (event.payload.type === "drop") onPickFromDrop(event.payload.paths);
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, [onPickFromDrop]);
+
+  const handleChatDragEnter = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    chatDragCounterRef.current += 1;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) setChatDragOver(true);
+  };
+  const handleChatDragLeave = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    chatDragCounterRef.current -= 1;
+    if (chatDragCounterRef.current <= 0) { chatDragCounterRef.current = 0; setChatDragOver(false); }
+  };
+  const handleChatDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+  const handleChatDrop = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setChatDragOver(false);
+    chatDragCounterRef.current = 0;
+  };
+
+  const displayedRuns = [...agentRuns].sort((a, b) => a.orderIndex - b.orderIndex);
+
+  return (
+    <div
+      className="flex-1 overflow-y-auto p-4 space-y-4 relative rc-copilot-chat-area"
+      onDragEnter={handleChatDragEnter}
+      onDragLeave={handleChatDragLeave}
+      onDragOver={handleChatDragOver}
+      onDrop={handleChatDrop}
+    >
+      {chatDragOver && (
+        <div
+          className="absolute inset-2 z-30 rounded-3xl flex items-center justify-center"
+          style={{ background: "rgba(0,122,255,0.08)", border: "2px dashed #007AFF", pointerEvents: "none" }}
+        >
+          <span className="text-lg font-semibold" style={{ color: "#007AFF" }}>释放文件以上传</span>
+        </div>
+      )}
+
+      {loadError && (
+        <div className="px-1 pt-2">
+          <div
+            className="flex items-start gap-3 rounded-2xl px-4 py-3 text-sm text-apple-red"
+            style={{ background: "color-mix(in srgb, var(--rc-elevated) 82%, #FF3B30 10%)", boxShadow: "var(--rc-inset-shadow)" }}
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span className="rc-selectable min-w-0 flex-1 break-all">{loadError}</span>
+            <button type="button" aria-label="关闭错误提示" onClick={onClearError} className="rounded-lg p-0.5 text-apple-red/70 transition-colors hover:bg-apple-red/10 hover:text-apple-red">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {messages.length === 0 && (
+        <div className="flex flex-col items-center justify-center h-full gap-4 pb-12">
+          <img src={appLogo} alt="小妍" draggable={false} className="w-20 h-20 object-contain"
+            style={{ WebkitMaskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)", maskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)" }}
+          />
+          <div className="text-center max-w-md">
+            <p className="font-semibold text-ink-primary">{MAIN_ASSISTANT_WELCOME_TITLE}</p>
+            <p className="text-sm text-ink-tertiary mt-2 leading-6">{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</p>
+          </div>
+        </div>
+      )}
+
+      {messages.map((message) => (
+        <div key={message.id} className="space-y-2">
+          {message.role === "assistant" && (() => {
+            const parsed = splitThoughtFromContent(message.content || "");
+            const isActiveAssistant = message.id === activeAssistantId;
+            const planForBubble = isActiveAssistant ? plan : [];
+            const runsForBubble = isActiveAssistant ? displayedRuns : [];
+            const routingForBubble = isActiveAssistant ? routingDecision : null;
+
+            return (
+              <>
+                <ThinkingProcessPanel
+                  thought={parsed.thought}
+                  plan={planForBubble}
+                  runs={runsForBubble}
+                  routingDecision={routingForBubble}
+                  searchingQuery={isActiveAssistant ? searchingQuery : null}
+                  isThinking={sending && isActiveAssistant}
+                />
+                <div className="rc-selectable text-sm leading-relaxed" style={{ color: "var(--rc-text)" }}>
+                  <MarkdownRenderer
+                    content={parsed.answer || (sending && isActiveAssistant ? "小妍思考中..." : "")}
+                    onLinkClick={openLink}
+                  />
+                </div>
+                {message.tool_results && message.tool_results.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {message.tool_results.map((tr) => (
+                      <ToolActionCard key={tr.tool_id} tool={tr} />
+                    ))}
+                  </div>
+                )}
+                {parsed.answer && (
+                  <div className="flex items-center gap-0.5 mt-1">
+                    <button type="button" onClick={() => onCopy(parsed.answer, message.id)}
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors hover:bg-nm-dark/8"
+                      style={{ color: "var(--rc-text-tertiary)" }}>
+                      {copiedId === message.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                    <button type="button" onClick={() => onRetry(message.id)}
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors hover:bg-nm-dark/8"
+                      style={{ color: "var(--rc-text-tertiary)" }}>
+                      <RefreshCw className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
+          {message.role === "user" && (() => {
+            const parsedUserMessage = parseCopilotMessageContent(message.content);
+            const isEditing = editingMessageId === message.id;
+
+            return (
+              <div className="flex justify-end">
+                <div className="max-w-[85%]">
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      <textarea
+                        rows={3} value={editText} onChange={(e) => onEditTextChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSaveEdit(); }
+                          if (e.key === "Escape") onCancelEdit();
+                        }}
+                        className="w-full rounded-2xl px-3 py-2 text-xs text-ink-primary outline-none resize-none"
+                        style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-1">
+                        <button type="button" onClick={onCancelEdit}
+                          className="rounded-lg px-2 py-1 text-[11px] transition-colors hover:bg-nm-dark/8"
+                          style={{ color: "var(--rc-text-tertiary)" }}>取消</button>
+                        <button type="button" onClick={onSaveEdit} disabled={!editText.trim()}
+                          className="rounded-lg px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-40"
+                          style={{ color: "#FFFFFF", background: "#007AFF" }}>保存并发送</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {parsedUserMessage.attachments.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5 justify-end">
+                          {parsedUserMessage.attachments.map((att, i) => (
+                            <span key={`${att.name}-${i}`}
+                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium"
+                              style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}>
+                              {att.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="rounded-2xl px-3 py-1.5 text-xs"
+                        style={{ background: "linear-gradient(145deg, #1A8AFF, #0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)", color: "#FFFFFF" }}>
+                        <p className="rc-selectable whitespace-pre-wrap leading-relaxed">
+                          {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
+                        </p>
+                      </div>
+                      <div className="flex justify-end gap-0.5 mt-1">
+                        <button type="button" onClick={() => onCopy(parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT, message.id)}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors hover:bg-nm-dark/8"
+                          style={{ color: "var(--rc-text-tertiary)" }}>
+                          {copiedId === message.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                        <button type="button" onClick={() => onStartEdit(message)}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors hover:bg-nm-dark/8"
+                          style={{ color: "var(--rc-text-tertiary)" }}>
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      ))}
+      <div ref={bottomRef} />
+    </div>
+  );
+}

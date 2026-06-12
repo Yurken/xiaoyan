@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   ChatMode,
   ChatStreamChunk,
+  RoutingDecision,
 } from "@research-copilot/types";
 
 function createChatRequestId() {
@@ -35,7 +36,7 @@ export async function* streamChat(
   let unlisteners: Array<() => void> = [];
 
   const cancelBackend = () => {
-    invoke("chat_cancel", { requestId }).catch(() => {});
+    invoke("chat_cancel", { requestId }).catch((err) => { console.debug("Cancel request failed:", err); });
   };
 
   const onAbort = () => {
@@ -89,6 +90,25 @@ export async function* streamChat(
       listen<{ request_id: string; query: string }>("chat:searching", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "searching", query: event.payload.query });
+        }
+      }),
+      listen<{
+        request_id: string;
+        policy: string;
+        selected: string[];
+        reasoning?: string | null;
+        execution_waves: string[][];
+      }>("chat:routing_decision", (event) => {
+        if (event.payload.request_id === requestId) {
+          enqueue({
+            type: "routing_decision",
+            value: {
+              policy: event.payload.policy,
+              selected: event.payload.selected,
+              reasoning: event.payload.reasoning,
+              execution_waves: event.payload.execution_waves,
+            },
+          });
         }
       }),
       listen<{ request_id: string; value: NonNullable<ChatMessage["sources"]> }>("chat:sources", (event) => {

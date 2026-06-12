@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FileText,
@@ -54,7 +55,7 @@ function getToolNavLink(toolName: string): string | null {
   }
 }
 
-export function ToolActionCard({ tool }: { tool: ChatToolResult }) {
+export const ToolActionCard = memo(function ToolActionCard({ tool }: { tool: ChatToolResult }) {
   const navigate = useNavigate();
   const Icon = TOOL_ICONS[tool.tool_name] || Search;
   const label = TOOL_LABELS[tool.tool_name] || tool.tool_name;
@@ -84,4 +85,4 @@ export function ToolActionCard({ tool }: { tool: ChatToolResult }) {
       )}
     </div>
   );
-}
+});

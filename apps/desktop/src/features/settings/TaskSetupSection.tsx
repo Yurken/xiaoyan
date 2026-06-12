@@ -62,7 +62,7 @@ export default function TaskSetupSection({
   useEffect(() => {
     void apiClient.settings.appLock.status().then((s) => {
       setAppLockHasSecurity(s.hasSecurity);
-    }).catch(() => {});
+    }).catch((err) => { console.warn("Failed to load app lock status:", err); });
   }, [appLockEnabled]);
 
   const steps = [

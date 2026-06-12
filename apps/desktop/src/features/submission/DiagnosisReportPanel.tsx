@@ -1,5 +1,7 @@
-import { AlertTriangle, ClipboardList, Loader2, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ClipboardList, Link, Loader2, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 import { Button, Card } from "@research-copilot/ui";
+import EvidenceDrawer from "../research-context/EvidenceDrawer";
 import {
   DIAGNOSIS_RISK_CFG,
   getDiagnosisReportIssues,
@@ -32,9 +34,11 @@ export default function DiagnosisReportPanel({
   onImportReport,
   onImportTasks,
 }: DiagnosisReportPanelProps) {
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const latest = reports[0];
 
   return (
+    <>
     <Card padding="md" variant="flat" className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -47,6 +51,18 @@ export default function DiagnosisReportPanel({
           </p>
         </div>
         {loading ? <Loader2 className="h-4 w-4 animate-spin text-ink-tertiary" /> : null}
+          {latest && (
+            <button
+              type="button"
+              onClick={() => setEvidenceOpen(true)}
+              className="flex h-7 items-center gap-1 rounded-xl px-2 text-[11px] font-medium transition-colors hover:text-ink-primary"
+              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" as string }}
+              title="查看证据链"
+            >
+              <Link className="h-3 w-3" />
+              证据
+            </button>
+          )}
       </div>
 
       {!latest ? (
@@ -128,5 +144,12 @@ export default function DiagnosisReportPanel({
         </div>
       )}
     </Card>
+      <EvidenceDrawer
+        targetId={latest?.submissionId ?? ""}
+        targetType="submission_diagnosis"
+        isOpen={evidenceOpen}
+        onClose={() => setEvidenceOpen(false)}
+      />
+    </>
   );
 }

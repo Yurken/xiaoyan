@@ -4,7 +4,7 @@ import { useState, useEffect, use, useCallback, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Sparkles, Code2, FlaskConical, Lightbulb, AlertTriangle,
-  CheckCircle, ChevronDown, ChevronUp, MessageSquare
+  CheckCircle, ChevronDown, ChevronUp, MessageSquare, Highlighter
 } from "lucide-react";
 import { Card, Button, Badge } from "@research-copilot/ui";
 import { papersApi } from "@/lib/client";
@@ -133,6 +133,12 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
           <div className="flex gap-2 flex-shrink-0">
+            <Link href={`/papers/${id}/reader`}>
+              <Button variant="secondary" size="sm">
+                <Highlighter className="w-4 h-4" />
+                PDF 笔记
+              </Button>
+            </Link>
             <Link href={`/xiaoyan?context_type=paper&context_id=${id}&title=${encodeURIComponent(paper.title)}`}>
               <Button variant="secondary" size="sm">
                 <MessageSquare className="w-4 h-4" />

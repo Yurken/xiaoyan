@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { buildSubmissionTimeline, type Submission } from "./shared";
 
 const stateStyle = {
@@ -6,7 +7,11 @@ const stateStyle = {
   pending: { bg: "var(--rc-border)", text: "var(--rc-text-tertiary)", line: "var(--rc-border)" },
 };
 
-export default function SubmissionTimelineStrip({ submission }: { submission: Submission }) {
+const SubmissionTimelineStrip = memo(function SubmissionTimelineStrip({
+  submission,
+}: {
+  submission: Submission;
+}) {
   const steps = buildSubmissionTimeline(submission);
 
   return (
@@ -32,4 +37,6 @@ export default function SubmissionTimelineStrip({ submission }: { submission: Su
       </div>
     </div>
   );
-}
+});
+
+export default SubmissionTimelineStrip;
