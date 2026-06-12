@@ -919,6 +919,76 @@ export const activeResearcherApi = {
     invoke("active_researcher_mark_read", { id: id ?? null }),
 };
 
+// ── OpenCode ──────────────────────────────────────────────────
+
+export interface OpenCodeMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export interface OpenCodeSession {
+  id: string;
+  title: string;
+  working_dir: string | null;
+  messages: OpenCodeMessage[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OpenCodeDetectResult {
+  installed: boolean;
+  binaryPath: string | null;
+  version: string | null;
+}
+
+export interface DirEntry {
+  name: string;
+  path: string;
+  is_dir: boolean;
+}
+
+export const opencodeApi = {
+  detect: (): Promise<OpenCodeDetectResult> =>
+    invoke("opencode_detect"),
+
+  listDir: (path: string): Promise<{ entries: DirEntry[] }> =>
+    invoke("opencode_list_dir", { path }),
+
+  readFile: (path: string): Promise<{ content: string }> =>
+    invoke("opencode_read_file", { path }),
+
+  writeFile: (path: string, content: string): Promise<void> =>
+    invoke("opencode_write_file", { path, content }),
+
+  listSessions: (): Promise<{ sessions: OpenCodeSession[] }> =>
+    invoke("opencode_list_sessions"),
+
+  getSession: (sessionId: string): Promise<OpenCodeSession> =>
+    invoke("opencode_get_session", { sessionId }),
+
+  createSession: (title?: string, workingDir?: string): Promise<OpenCodeSession> =>
+    invoke("opencode_create_session", { title: title ?? null, workingDir: workingDir ?? null }),
+
+  deleteSession: (sessionId: string): Promise<void> =>
+    invoke("opencode_delete_session", { sessionId }),
+
+  sendMessage: (sessionId: string, content: string, workingDir?: string): Promise<void> =>
+    invoke("opencode_send_message", {
+      sessionId,
+      content,
+      workingDir: workingDir ?? null,
+    }),
+
+  updateSession: (sessionId: string, title?: string, workingDir?: string): Promise<void> =>
+    invoke("opencode_update_session", {
+      sessionId,
+      title: title ?? null,
+      workingDir: workingDir ?? null,
+    }),
+};
+
 export const apiClient = {
   memory: memoryApi,
   arxiv: arxivApi,
@@ -945,4 +1015,5 @@ export const apiClient = {
   evidence: evidenceApi,
   crossAnalysis: crossAnalysisApi,
   activeResearcher: activeResearcherApi,
+  opencode: opencodeApi,
 };

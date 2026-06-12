@@ -19,6 +19,7 @@ mod graph_rag;
 mod journal_partitions;
 mod links;
 mod llm;
+mod opencode;
 mod rag;
 mod repositories;
 mod services;
@@ -86,6 +87,11 @@ use commands::{
     },
     paper_corpus::{
         paper_corpus_create, paper_corpus_delete, paper_corpus_list, paper_corpus_update,
+    },
+    opencode::{
+        opencode_create_session, opencode_delete_session, opencode_detect, opencode_get_session,
+        opencode_list_dir, opencode_list_sessions, opencode_read_file, opencode_send_message,
+        opencode_update_session, opencode_write_file,
     },
     paper_cross_analysis::papers_cross_analysis,
     paper_figures::papers_list_figures,
@@ -478,6 +484,17 @@ pub fn run() {
             survey_search,
             translate_text,
             markdown_format_chunk,
+            // OpenCode
+            opencode_create_session,
+            opencode_delete_session,
+            opencode_detect,
+            opencode_get_session,
+            opencode_list_dir,
+            opencode_list_sessions,
+            opencode_read_file,
+            opencode_send_message,
+            opencode_update_session,
+            opencode_write_file,
             // App lock
             app_lock_status,
             app_lock_set_password,
