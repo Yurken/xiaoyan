@@ -4,11 +4,12 @@ import { ArrowLeft, ExternalLink, Minus, Plus } from "lucide-react";
 import type { Paper } from "@research-copilot/types";
 import { Button } from "@research-copilot/ui";
 import { papersApi } from "../lib/client";
-import PdfReaderViewer, { type PdfReaderViewerHandle, type ReaderSelection } from "../features/reader/PdfReaderViewer";
-import ReaderAnnotationsPanel from "../features/reader/ReaderAnnotationsPanel";
+import PdfReaderViewer, { type PdfReaderViewerHandle } from "../features/reader/PdfReaderViewer";
+import ReaderTranslationPanel from "../features/reader/ReaderTranslationPanel";
 import SelectionPopup from "../features/reader/SelectionPopup";
 import { useReaderNotes } from "../features/reader/useReaderNotes";
-import type { AnnotationStyle, HighlightColor } from "../features/reader/readerTypes";
+import { useReaderTranslation } from "../features/reader/useReaderTranslation";
+import type { AnnotationStyle, HighlightColor, PaperNote, ReaderSelection } from "../features/reader/readerTypes";
 import { useCorpus } from "../features/papers/useCorpus";
 
 const MIN_SCALE = 0.6;
@@ -25,9 +26,11 @@ export default function PaperReader() {
   const [loading, setLoading] = useState(true);
   const [scale, setScale] = useState(1.4);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
+  const [editing, setEditing] = useState<{ note: PaperNote; x: number; y: number } | null>(null);
   const [toast, setToast] = useState("");
 
-  const { notes, loading: notesLoading, error: notesError, createAnnotation, deleteAnnotation } = useReaderNotes(id);
+  const { notes, error: notesError, createAnnotation, updateColor, deleteAnnotation } = useReaderNotes(id);
+  const translation = useReaderTranslation();
   const corpus = useCorpus(id);
 
   const flashToast = useCallback((message: string) => {
@@ -72,6 +75,27 @@ export default function PaperReader() {
     window.getSelection()?.removeAllRanges();
   }, []);
 
+  // 划词与点击已有高亮互斥，且页面空白处点击应关闭两个弹窗。
+  const handleTextSelected = useCallback((next: ReaderSelection) => {
+    setEditing(null);
+    setSelection(next);
+  }, []);
+
+  const handlePopupsCleared = useCallback(() => {
+    setSelection(null);
+    setEditing(null);
+  }, []);
+
+  const handleNoteClick = useCallback((note: PaperNote, point: { x: number; y: number }) => {
+    setSelection(null);
+    window.getSelection()?.removeAllRanges();
+    setEditing({ note, x: point.x, y: point.y });
+  }, []);
+
+  const handleZoom = useCallback((factor: number) => {
+    setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(s * factor * 100) / 100)));
+  }, []);
+
   const handleAnnotate = useCallback(
     (color: HighlightColor, style: AnnotationStyle, note?: string) => {
       if (!selection) return;
@@ -97,6 +121,12 @@ export default function PaperReader() {
     },
     [selection, id, corpus, clearSelection, flashToast],
   );
+
+  const handleTranslate = useCallback(() => {
+    if (!selection) return;
+    void translation.translate(selection.text, selection.page);
+    clearSelection();
+  }, [selection, translation, clearSelection]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
@@ -169,17 +199,18 @@ export default function PaperReader() {
               data={pdfData}
               notes={notes}
               scale={scale}
-              onTextSelected={setSelection}
-              onSelectionCleared={() => setSelection(null)}
+              onTextSelected={handleTextSelected}
+              onSelectionCleared={handlePopupsCleared}
+              onNoteClick={handleNoteClick}
+              onZoom={handleZoom}
             />
           ) : null}
         </div>
 
-        <ReaderAnnotationsPanel
-          notes={notes}
-          loading={notesLoading}
-          onJumpToPage={(page) => viewerRef.current?.scrollToPage(page)}
-          onDelete={(noteId) => void deleteAnnotation(noteId)}
+        <ReaderTranslationPanel
+          entries={translation.entries}
+          onRemove={translation.remove}
+          onClear={translation.clear}
         />
       </div>
 
@@ -190,7 +221,26 @@ export default function PaperReader() {
           selectedText={selection.text}
           onAnnotate={handleAnnotate}
           onSaveCorpus={handleSaveCorpus}
-          onClose={() => setSelection(null)}
+          onTranslate={handleTranslate}
+          onClose={clearSelection}
+        />
+      ) : editing ? (
+        <SelectionPopup
+          mode="edit"
+          x={editing.x}
+          y={editing.y}
+          selectedText={editing.note.highlight_text ?? ""}
+          initialColor={editing.note.highlight_color}
+          onRecolor={(color) => void updateColor(editing.note.id, color)}
+          onDelete={() => {
+            void deleteAnnotation(editing.note.id);
+            setEditing(null);
+          }}
+          onTranslate={() => {
+            void translation.translate(editing.note.highlight_text ?? "", editing.note.page);
+            setEditing(null);
+          }}
+          onClose={() => setEditing(null)}
         />
       ) : null}
 

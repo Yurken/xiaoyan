@@ -1,20 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import "./text-layer.css";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { HIGHLIGHT_COLORS, type NormalizedRect, type PaperNote } from "./readerTypes";
+import { HIGHLIGHT_COLORS, type PaperNote, type ReaderSelection } from "./readerTypes";
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
+import { usePdfTextSelection } from "./usePdfTextSelection";
+import { openLink } from "../../lib/links";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
-export interface ReaderSelection {
-  text: string;
-  page: number;
-  positions: NormalizedRect[];
-  popupX: number;
-  popupY: number;
-}
+const MAX_CANVAS_SIDE = 4096;
+const MAX_CANVAS_PIXELS = 12_000_000;
+const MIN_CANVAS_OUTPUT_SCALE = 2;
+const MAX_CANVAS_OUTPUT_SCALE = 2;
+const SETTLE_RERENDER_DELAYS = [180, 520, 1100] as const;
 
 interface PdfReaderViewerProps {
   data: Uint8Array;
@@ -22,6 +22,9 @@ interface PdfReaderViewerProps {
   scale: number;
   onTextSelected: (selection: ReaderSelection) => void;
   onSelectionCleared: () => void;
+  onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
+  /** Cmd/Ctrl + 滚轮缩放：factor > 1 放大、< 1 缩小。 */
+  onZoom: (factor: number) => void;
 }
 
 export interface PdfReaderViewerHandle {
@@ -29,24 +32,26 @@ export interface PdfReaderViewerHandle {
 }
 
 const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
-  function PdfReaderViewer({ data, notes, scale, onTextSelected, onSelectionCleared }, ref) {
+  function PdfReaderViewer({ data, notes, scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [numPages, setNumPages] = useState(0);
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
+    const [renderRevision, setRenderRevision] = useState(0);
+    const [linkMode, setLinkMode] = useState(false);
     const devicePixelRatio = useDevicePixelRatio();
 
-    const notesByPageRef = useRef<Map<number, PaperNote[]>>(new Map());
-    useEffect(() => {
+    // 渲染期同步计算：批注一变化即可立刻显示，避免靠 ref+effect 延迟一拍。
+    const notesByPage = useMemo(() => {
       const map = new Map<number, PaperNote[]>();
       for (const note of notes) {
         const list = map.get(note.page) ?? [];
         list.push(note);
         map.set(note.page, list);
       }
-      notesByPageRef.current = map;
+      return map;
     }, [notes]);
 
     // 加载 PDF 文档
@@ -76,74 +81,78 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
     useImperativeHandle(ref, () => ({ scrollToPage }), [scrollToPage]);
 
-    // 划词选择
+    usePdfTextSelection({
+      containerRef,
+      enabled: Boolean(pdfDoc),
+      onTextSelected,
+      onSelectionCleared,
+    });
+
+    // Cmd（mac）/ Ctrl（win）+ 滚轮缩放。必须用非 passive 原生监听才能 preventDefault。
     useEffect(() => {
       const container = containerRef.current;
       if (!container) return;
-
-      const handleMouseUp = () => {
-        // 用微任务延后读取选区：微任务在本轮事件循环结束、下一次 mousedown 之前执行，
-        // 既让 WKWebView 选区定稿，又避免与同步的 mousedown 清除产生竞态。
-        queueMicrotask(() => {
-        const sel = window.getSelection();
-        if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
-        const text = sel.toString().trim();
-        if (text.length < 2) return;
-
-        const range = sel.getRangeAt(0);
-        const startNode = range.startContainer;
-        const startEl = startNode.nodeType === Node.TEXT_NODE
-          ? startNode.parentElement
-          : (startNode as HTMLElement);
-        const textLayer = startEl?.closest("[data-page-num]");
-        if (!textLayer) return;
-        const pageNum = parseInt(textLayer.getAttribute("data-page-num") || "0", 10);
-        if (!pageNum) return;
-
-        const layerRect = textLayer.getBoundingClientRect();
-        if (layerRect.width === 0 || layerRect.height === 0) return;
-
-        const rects = range.getClientRects();
-        const positions: NormalizedRect[] = [];
-        for (let i = 0; i < rects.length; i += 1) {
-          const r = rects[i];
-          if (r.width < 1 || r.height < 1) continue;
-          positions.push({
-            x: (r.left - layerRect.left) / layerRect.width,
-            y: (r.top - layerRect.top) / layerRect.height,
-            w: r.width / layerRect.width,
-            h: r.height / layerRect.height,
-          });
-        }
-        if (positions.length === 0) return;
-
-        const lastRect = rects[rects.length - 1];
-        onTextSelected({
-          text,
-          page: pageNum,
-          positions,
-          popupX: lastRect.left + lastRect.width / 2,
-          popupY: lastRect.top,
-        });
-        });
+      const onWheel = (event: WheelEvent) => {
+        if (!event.ctrlKey && !event.metaKey) return;
+        event.preventDefault();
+        onZoom(Math.exp(-event.deltaY * 0.0015));
       };
+      container.addEventListener("wheel", onWheel, { passive: false });
+      return () => container.removeEventListener("wheel", onWheel);
+    }, [onZoom, pdfDoc]);
 
-      const handleMouseDown = (e: MouseEvent) => {
-        const target = e.target as HTMLElement;
-        // 点进弹窗内不清除选区。
-        if (target.closest(".pdf-selection-popup")) return;
-        if (!target.closest(".textLayer")) {
-          onSelectionCleared();
-        }
-      };
-
-      container.addEventListener("mouseup", handleMouseUp);
-      container.addEventListener("mousedown", handleMouseDown);
+    // 按住 Cmd/Ctrl 时进入「超链接模式」：链接层接管点击，松开恢复划词选择。
+    useEffect(() => {
+      const sync = (event: KeyboardEvent | MouseEvent) => setLinkMode(event.metaKey || event.ctrlKey);
+      const reset = () => setLinkMode(false);
+      window.addEventListener("keydown", sync);
+      window.addEventListener("keyup", sync);
+      window.addEventListener("mousemove", sync);
+      window.addEventListener("blur", reset);
       return () => {
-        container.removeEventListener("mouseup", handleMouseUp);
-        container.removeEventListener("mousedown", handleMouseDown);
+        window.removeEventListener("keydown", sync);
+        window.removeEventListener("keyup", sync);
+        window.removeEventListener("mousemove", sync);
+        window.removeEventListener("blur", reset);
       };
-    }, [onTextSelected, onSelectionCleared]);
+    }, []);
+
+    // 首屏页先快速显示，再在 WebView / DPR / 容器尺寸稳定后强制高清重绘。
+    useEffect(() => {
+      if (!pdfDoc) return;
+
+      let resizeTimer = 0;
+      const timers: number[] = [];
+      const bumpRevision = () => setRenderRevision((revision) => revision + 1);
+      const scheduleResizeRevision = () => {
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(bumpRevision, 160);
+      };
+
+      for (const delay of SETTLE_RERENDER_DELAYS) {
+        timers.push(window.setTimeout(bumpRevision, delay));
+      }
+
+      const container = containerRef.current;
+      const resizeObserver = typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(scheduleResizeRevision)
+        : null;
+      if (container) {
+        resizeObserver?.observe(container);
+      }
+      window.addEventListener("resize", scheduleResizeRevision);
+      window.visualViewport?.addEventListener("resize", scheduleResizeRevision);
+
+      return () => {
+        window.clearTimeout(resizeTimer);
+        timers.forEach((timer) => window.clearTimeout(timer));
+        resizeObserver?.disconnect();
+        window.removeEventListener("resize", scheduleResizeRevision);
+        window.visualViewport?.removeEventListener("resize", scheduleResizeRevision);
+      };
+      // 不依赖 scale：缩放本身已由页面渲染 effect 处理，否则每次滚轮缩放都会
+      // 重新挂载这批 settle 定时器，造成缩放后多次强制重绘（闪烁）。
+    }, [pdfDoc, devicePixelRatio]);
 
     // 懒渲染：进入视口的页才渲染
     useEffect(() => {
@@ -189,7 +198,10 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
     }
 
     return (
-      <div ref={containerRef} className="h-full space-y-4 overflow-y-auto px-6 py-4">
+      <div
+        ref={containerRef}
+        className={`h-full space-y-4 overflow-y-auto px-6 py-4${linkMode ? " pdf-links-active" : ""}`}
+      >
         {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
           <PdfPage
             key={pageNum}
@@ -197,8 +209,11 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
             pdfDoc={pdfDoc}
             scale={scale}
             devicePixelRatio={devicePixelRatio}
+            renderRevision={renderRevision}
             shouldRender={renderedPages.has(pageNum) || pageNum <= 4}
-            pageNotes={notesByPageRef.current.get(pageNum) ?? []}
+            pageNotes={notesByPage.get(pageNum) ?? []}
+            onNoteClick={onNoteClick}
+            onScrollToPage={scrollToPage}
             ref={(el) => {
               pageRefs.current[pageNum - 1] = el;
             }}
@@ -211,32 +226,60 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
 export default PdfReaderViewer;
 
+function resolveCanvasOutputScale(viewport: { width: number; height: number }, devicePixelRatio: number) {
+  // WKWebView 首屏偶尔长期把 DPR 报成 1；PDF 是矢量内容，至少 2x 超采样才能避免文字发虚。
+  const preferredScale = Math.min(
+    MAX_CANVAS_OUTPUT_SCALE,
+    Math.max(MIN_CANVAS_OUTPUT_SCALE, devicePixelRatio || 1),
+  );
+  const maxSideScale = Math.min(MAX_CANVAS_SIDE / viewport.width, MAX_CANVAS_SIDE / viewport.height);
+  const maxAreaScale = Math.sqrt(MAX_CANVAS_PIXELS / Math.max(1, viewport.width * viewport.height));
+  return Math.max(1, Math.min(preferredScale, maxSideScale, maxAreaScale));
+}
+
+function isRenderingCancelled(error: unknown) {
+  return error instanceof Error && error.name === "RenderingCancelledException";
+}
+
+interface PdfLink {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  url?: string;
+  dest?: unknown;
+}
+
 interface PdfPageProps {
   pageNum: number;
   pdfDoc: any;
   scale: number;
   devicePixelRatio: number;
+  renderRevision: number;
   shouldRender: boolean;
   pageNotes: PaperNote[];
+  onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
+  onScrollToPage: (page: number) => void;
 }
 
 const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, devicePixelRatio, shouldRender, pageNotes },
+  { pageNum, pdfDoc, scale, devicePixelRatio, renderRevision, shouldRender, pageNotes, onNoteClick, onScrollToPage },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
+  const [links, setLinks] = useState<PdfLink[]>([]);
   const renderedSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!shouldRender) return;
+    renderedSignatureRef.current = null;
+    setPageSize(null);
+    setLinks([]);
+  }, [pdfDoc, pageNum]);
 
-    // 至少 2 倍超采样：即便 WKWebView 首屏把 devicePixelRatio 误报为 1，
-    // 画布仍按 2x 绘制再用 CSS 缩回，保证文字清晰，不依赖 DPR 时序。
-    const outputScale = Math.max(devicePixelRatio || 1, 2);
-    const renderSignature = `${scale}:${outputScale}`;
-    if (renderedSignatureRef.current === renderSignature) return;
+  useEffect(() => {
+    if (!shouldRender) return;
 
     let cancelled = false;
     let renderTask: any = null;
@@ -250,42 +293,62 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           if (cancelled) return;
           const viewport = page.getViewport({ scale });
 
-          // 关键：用「取整后的 CSS 尺寸」作为页面尺寸，且画布 backing store、CSS 尺寸、
-          // 容器/文本层尺寸全部基于它。否则 React 用未取整的 float(如 612.48px) 覆盖
-          // 命令式写的整数 canvas.style.width(612px)，导致整数位图被拉伸到非整数 CSS 像素
-          // → 重采样发虚；同时文本层 box 与画布 box 不一致 → 选区错位重影。
-          const cssWidth = Math.floor(viewport.width);
-          const cssHeight = Math.floor(viewport.height);
+          const actualDpr = window.devicePixelRatio || devicePixelRatio || 1;
+          const outputScale = resolveCanvasOutputScale(viewport, actualDpr);
+
+          const cssWidth = Math.round(viewport.width);
+          const cssHeight = Math.round(viewport.height);
+          const pixelWidth = Math.round(cssWidth * outputScale);
+          const pixelHeight = Math.round(cssHeight * outputScale);
+
+          const renderSignature = [
+            scale,
+            outputScale,
+            actualDpr,
+            cssWidth,
+            cssHeight,
+            pixelWidth,
+            pixelHeight,
+            renderRevision,
+          ].join(":");
+
+          if (renderedSignatureRef.current === renderSignature) {
+            return;
+          }
+
           setPageSize({ w: cssWidth, h: cssHeight });
 
           const canvas = canvasRef.current;
           if (!canvas) return;
 
-          const pixelWidth = Math.floor(cssWidth * outputScale);
-          const pixelHeight = Math.floor(cssHeight * outputScale);
-
-          // 显式重置宽高，确保 WebKit 重新分配 backing store；
-          // 仅当数值真正变化时才改，避免无意义的重分配。
-          if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-            canvas.width = pixelWidth;
-            canvas.height = pixelHeight;
-          }
+          // 立即把可见画布的 CSS 尺寸调到新缩放：旧位图被拉伸显示（略糊但不清空），
+          // 缩放视觉即时跟手，且不会出现改尺寸清空导致的白闪。
           canvas.style.width = `${cssWidth}px`;
           canvas.style.height = `${cssHeight}px`;
 
-          const ctx = canvas.getContext("2d", { alpha: false });
-          if (!ctx) return;
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          // 先离屏渲染，完成后整帧贴回可见画布，避免渲染期间画布空白闪烁。
+          const buffer = document.createElement("canvas");
+          buffer.width = pixelWidth;
+          buffer.height = pixelHeight;
+          const bufferCtx = buffer.getContext("2d", { alpha: false });
+          if (!bufferCtx) return;
+          bufferCtx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
 
           renderTask = page.render({
-            canvasContext: ctx,
+            canvasContext: bufferCtx,
             viewport,
-            transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
+            canvas: buffer,
             background: "white",
           } as any);
           await renderTask.promise;
           if (cancelled) return;
+
+          const ctx = canvas.getContext("2d", { alpha: false });
+          if (!ctx) return;
+          // 设 width/height 会清空画布，但紧接着同步 drawImage，浏览器不会绘出空白中间帧。
+          canvas.width = pixelWidth;
+          canvas.height = pixelHeight;
+          ctx.drawImage(buffer, 0, 0);
 
           // 画布渲染成功即锁定签名，避免文本层失败时无限重渲染。
           renderedSignatureRef.current = renderSignature;
@@ -318,9 +381,34 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
               });
             }
           } catch (textErr) {
+            if (cancelled || isRenderingCancelled(textErr)) return;
             console.error(`[PdfReaderViewer] 第 ${pageNum} 页文本层渲染失败`, textErr);
           }
+
+          // 超链接层：解析页面注释里的 Link，换算成当前缩放下的 CSS 坐标。
+          try {
+            const annotations = await page.getAnnotations();
+            if (cancelled) return;
+            const linkRects: PdfLink[] = [];
+            for (const annotation of annotations as any[]) {
+              if (annotation.subtype !== "Link" || (!annotation.url && annotation.dest == null)) continue;
+              const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(annotation.rect);
+              linkRects.push({
+                left: Math.min(x1, x2),
+                top: Math.min(y1, y2),
+                width: Math.abs(x2 - x1),
+                height: Math.abs(y2 - y1),
+                url: annotation.url,
+                dest: annotation.dest,
+              });
+            }
+            setLinks(linkRects);
+          } catch (annotErr) {
+            if (cancelled || isRenderingCancelled(annotErr)) return;
+            console.error(`[PdfReaderViewer] 第 ${pageNum} 页超链接解析失败`, annotErr);
+          }
         } catch (err) {
+          if (cancelled || isRenderingCancelled(err)) return;
           console.error(`[PdfReaderViewer] 第 ${pageNum} 页渲染失败`, err);
         }
       })();
@@ -336,7 +424,32 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       }
       cancelAnimationFrame(raf);
     };
-  }, [shouldRender, pdfDoc, pageNum, scale, devicePixelRatio]);
+  }, [shouldRender, pdfDoc, pageNum, scale, devicePixelRatio, renderRevision]);
+
+  const handleLinkClick = useCallback(
+    async (event: React.MouseEvent, link: PdfLink) => {
+      // 仅在按住 Cmd/Ctrl 时跳转，避免影响普通划词选择。
+      if (!event.metaKey && !event.ctrlKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (link.url) {
+        await openLink(link.url);
+        return;
+      }
+      if (link.dest == null) return;
+      try {
+        const explicit = typeof link.dest === "string" ? await pdfDoc.getDestination(link.dest) : link.dest;
+        const ref = Array.isArray(explicit) ? explicit[0] : null;
+        if (ref) {
+          const pageIndex = await pdfDoc.getPageIndex(ref);
+          onScrollToPage(pageIndex + 1);
+        }
+      } catch (err) {
+        console.error("[PdfReaderViewer] 内部链接跳转失败", err);
+      }
+    },
+    [pdfDoc, onScrollToPage],
+  );
 
   const containerStyle: React.CSSProperties = pageSize
     ? ({
@@ -365,19 +478,22 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       <div
         ref={textLayerRef}
         className="textLayer rc-selectable absolute left-0 top-0"
-        style={{ zIndex: 1 }}
+        style={{ zIndex: 1, width: pageSize?.w, height: pageSize?.h }}
       />
 
       {pageSize
-        ? pageNotes.map((note) =>
-            (note.highlight_positions ?? []).map((pos, i) => {
-              const color = HIGHLIGHT_COLORS[note.highlight_color];
+        ? pageNotes.map((note) => {
+            const positions = note.highlight_positions ?? [];
+            if (positions.length === 0) return null;
+            const color = HIGHLIGHT_COLORS[note.highlight_color];
+            return positions.map((pos, i) => {
               const style: React.CSSProperties = {
                 left: pos.x * pageSize.w,
                 top: pos.y * pageSize.h,
                 width: pos.w * pageSize.w,
                 height: pos.h * pageSize.h,
                 zIndex: 2,
+                cursor: "pointer",
               };
               if (note.style === "underline") {
                 style.borderBottom = `2px solid ${color.border}`;
@@ -391,17 +507,34 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
               return (
                 <div
                   key={`${note.id}-${i}`}
-                  className="pdf-highlight-overlay pointer-events-none absolute"
+                  className="pdf-highlight-overlay absolute"
                   style={style}
+                  title="点击编辑批注"
+                  onClick={(event) => {
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    onNoteClick(note, { x: rect.left + rect.width / 2, y: rect.top });
+                  }}
                 />
               );
-            }),
-          )
+            });
+          })
+        : null}
+
+      {pageSize
+        ? links.map((link, i) => (
+            <div
+              key={`link-${i}`}
+              className="pdf-link-overlay absolute"
+              style={{ left: link.left, top: link.top, width: link.width, height: link.height, zIndex: 3 }}
+              title={link.url ?? "按住 Cmd/Ctrl 点击跳转"}
+              onClick={(event) => void handleLinkClick(event, link)}
+            />
+          ))
         : null}
 
       <div
         className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]"
-        style={{ background: "rgba(0,0,0,0.05)", color: "rgba(0,0,0,0.35)", zIndex: 3 }}
+        style={{ background: "rgba(0,0,0,0.05)", color: "rgba(0,0,0,0.35)", zIndex: 4 }}
       >
         {pageNum}
       </div>

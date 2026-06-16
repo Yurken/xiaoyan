@@ -7,10 +7,10 @@ import {
   Languages,
   StickyNote,
   Strikethrough,
+  Trash2,
   Underline,
   X,
 } from "lucide-react";
-import { translateApi } from "../../lib/client";
 import {
   HIGHLIGHT_COLORS,
   type AnnotationStyle,
@@ -21,23 +21,39 @@ interface SelectionPopupProps {
   x: number;
   y: number;
   selectedText: string;
-  onAnnotate: (color: HighlightColor, style: AnnotationStyle, note?: string) => void;
-  onSaveCorpus: (note?: string) => void;
+  /** "create"：划词后新建批注；"edit"：点击已有高亮再次编辑。 */
+  mode?: "create" | "edit";
+  initialColor?: HighlightColor;
+  onAnnotate?: (color: HighlightColor, style: AnnotationStyle, note?: string) => void;
+  onSaveCorpus?: (note?: string) => void;
+  onRecolor?: (color: HighlightColor) => void;
+  onDelete?: () => void;
+  onTranslate: () => void;
   onClose: () => void;
 }
 
 const colorKeys = Object.keys(HIGHLIGHT_COLORS) as HighlightColor[];
 
-type Panel = "none" | "note" | "corpus" | "translate";
+type Panel = "none" | "note" | "corpus";
 
-export default function SelectionPopup({ x, y, selectedText, onAnnotate, onSaveCorpus, onClose }: SelectionPopupProps) {
-  const [activeColor, setActiveColor] = useState<HighlightColor>("yellow");
+export default function SelectionPopup({
+  x,
+  y,
+  selectedText,
+  mode = "create",
+  initialColor = "yellow",
+  onAnnotate,
+  onSaveCorpus,
+  onRecolor,
+  onDelete,
+  onTranslate,
+  onClose,
+}: SelectionPopupProps) {
+  const isEdit = mode === "edit";
+  const [activeColor, setActiveColor] = useState<HighlightColor>(initialColor);
   const [panel, setPanel] = useState<Panel>("none");
   const [noteText, setNoteText] = useState("");
   const [copied, setCopied] = useState(false);
-  const [translation, setTranslation] = useState("");
-  const [translating, setTranslating] = useState(false);
-  const [translateError, setTranslateError] = useState("");
 
   const copy = async () => {
     await navigator.clipboard.writeText(selectedText);
@@ -45,29 +61,25 @@ export default function SelectionPopup({ x, y, selectedText, onAnnotate, onSaveC
     window.setTimeout(() => setCopied(false), 1200);
   };
 
-  const runTranslate = async () => {
-    setPanel("translate");
-    if (translating || translation) return;
-    setTranslating(true);
-    setTranslateError("");
-    try {
-      const result = await translateApi.translate(selectedText, "zh");
-      setTranslation(result.trim());
-    } catch (err) {
-      setTranslateError(err instanceof Error ? err.message : "翻译失败");
-    } finally {
-      setTranslating(false);
-    }
+  const pickColor = (color: HighlightColor) => {
+    setActiveColor(color);
+    if (isEdit) onRecolor?.(color);
   };
 
-  const actions: Array<{ key: string; icon: typeof Copy; label: string; onClick: () => void; active?: boolean }> = [
+  const createActions: Array<{ key: string; icon: typeof Copy; label: string; onClick: () => void; active?: boolean }> = [
     { key: "copy", icon: copied ? Check : Copy, label: copied ? "已复制" : "复制", onClick: () => void copy() },
-    { key: "highlight", icon: Highlighter, label: "高亮", onClick: () => onAnnotate(activeColor, "highlight") },
-    { key: "underline", icon: Underline, label: "下划线", onClick: () => onAnnotate(activeColor, "underline") },
-    { key: "strike", icon: Strikethrough, label: "删除线", onClick: () => onAnnotate(activeColor, "strike") },
+    { key: "highlight", icon: Highlighter, label: "高亮", onClick: () => onAnnotate?.(activeColor, "highlight") },
+    { key: "underline", icon: Underline, label: "下划线", onClick: () => onAnnotate?.(activeColor, "underline") },
+    { key: "strike", icon: Strikethrough, label: "删除线", onClick: () => onAnnotate?.(activeColor, "strike") },
     { key: "note", icon: StickyNote, label: "笔记", onClick: () => setPanel((p) => (p === "note" ? "none" : "note")), active: panel === "note" },
     { key: "corpus", icon: BookMarked, label: "语料", onClick: () => setPanel((p) => (p === "corpus" ? "none" : "corpus")), active: panel === "corpus" },
-    { key: "translate", icon: Languages, label: "翻译", onClick: () => void runTranslate(), active: panel === "translate" },
+    { key: "translate", icon: Languages, label: "翻译", onClick: onTranslate },
+  ];
+
+  const editActions: Array<{ key: string; icon: typeof Copy; label: string; onClick: () => void; danger?: boolean }> = [
+    { key: "copy", icon: copied ? Check : Copy, label: copied ? "已复制" : "复制", onClick: () => void copy() },
+    { key: "translate", icon: Languages, label: "翻译", onClick: onTranslate },
+    { key: "delete", icon: Trash2, label: "删除", onClick: () => onDelete?.(), danger: true },
   ];
 
   return (
@@ -89,7 +101,7 @@ export default function SelectionPopup({ x, y, selectedText, onAnnotate, onSaveC
             <button
               key={c}
               type="button"
-              onClick={() => setActiveColor(c)}
+              onClick={() => pickColor(c)}
               className="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
               style={{ background: HIGHLIGHT_COLORS[c].bg, borderColor: activeColor === c ? HIGHLIGHT_COLORS[c].border : "transparent" }}
               title={HIGHLIGHT_COLORS[c].label}
@@ -106,16 +118,26 @@ export default function SelectionPopup({ x, y, selectedText, onAnnotate, onSaveC
         </div>
 
         <div className="flex items-center gap-0.5">
-          {actions.map((action) => {
+          {(isEdit ? editActions : createActions).map((action) => {
             const Icon = action.icon;
+            const danger = "danger" in action && action.danger;
+            const active = "active" in action && action.active;
             return (
               <button
                 key={action.key}
                 type="button"
                 onClick={action.onClick}
                 title={action.label}
-                className="flex flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium transition-colors hover:bg-apple-blue/10"
-                style={action.active ? { background: "rgba(0,122,255,0.12)", color: "var(--rc-accent)" } : { color: "var(--rc-text-secondary)" }}
+                className={`flex flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium transition-colors ${
+                  danger ? "hover:bg-apple-red/10" : "hover:bg-apple-blue/10"
+                }`}
+                style={
+                  danger
+                    ? { color: "var(--rc-danger, #dc2626)" }
+                    : active
+                      ? { background: "rgba(0,122,255,0.12)", color: "var(--rc-accent)" }
+                      : { color: "var(--rc-text-secondary)" }
+                }
               >
                 <Icon className="h-4 w-4" />
                 {action.label}
@@ -124,7 +146,7 @@ export default function SelectionPopup({ x, y, selectedText, onAnnotate, onSaveC
           })}
         </div>
 
-        {panel === "note" || panel === "corpus" ? (
+        {!isEdit && (panel === "note" || panel === "corpus") ? (
           <div className="mt-2 space-y-2 border-t pt-2" style={{ borderColor: "var(--rc-border)" }}>
             <textarea
               value={noteText}
@@ -139,9 +161,9 @@ export default function SelectionPopup({ x, y, selectedText, onAnnotate, onSaveC
               type="button"
               onClick={() => {
                 if (panel === "note") {
-                  onAnnotate(activeColor, "highlight", noteText.trim());
+                  onAnnotate?.(activeColor, "highlight", noteText.trim());
                 } else {
-                  onSaveCorpus(noteText.trim() || undefined);
+                  onSaveCorpus?.(noteText.trim() || undefined);
                 }
               }}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold text-white"
@@ -150,28 +172,6 @@ export default function SelectionPopup({ x, y, selectedText, onAnnotate, onSaveC
               {panel === "note" ? <StickyNote className="h-3.5 w-3.5" /> : <BookMarked className="h-3.5 w-3.5" />}
               {panel === "note" ? "保存为高亮批注" : "收入语料库"}
             </button>
-          </div>
-        ) : null}
-
-        {panel === "translate" ? (
-          <div className="mt-2 border-t pt-2" style={{ borderColor: "var(--rc-border)" }}>
-            {translating ? (
-              <p className="px-1 text-xs text-ink-tertiary">小妍翻译中…</p>
-            ) : translateError ? (
-              <p className="px-1 text-xs text-apple-red">{translateError}</p>
-            ) : (
-              <>
-                <p className="max-h-40 overflow-y-auto whitespace-pre-wrap px-1 text-xs leading-5 text-ink-primary">{translation}</p>
-                <button
-                  type="button"
-                  onClick={() => void navigator.clipboard.writeText(translation)}
-                  className="mt-1.5 flex items-center gap-1 px-1 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue"
-                >
-                  <Copy className="h-3 w-3" />
-                  复制译文
-                </button>
-              </>
-            )}
           </div>
         ) : null}
       </div>

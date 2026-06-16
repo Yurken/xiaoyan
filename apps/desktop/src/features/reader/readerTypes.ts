@@ -22,6 +22,14 @@ export interface NormalizedRect {
   h: number;
 }
 
+export interface ReaderSelection {
+  text: string;
+  page: number;
+  positions: NormalizedRect[];
+  popupX: number;
+  popupY: number;
+}
+
 export interface PaperNote {
   id: string;
   paper_id: string;
