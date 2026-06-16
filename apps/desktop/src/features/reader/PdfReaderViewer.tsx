@@ -14,6 +14,8 @@ const MAX_CANVAS_SIDE = 4096;
 const MAX_CANVAS_PIXELS = 12_000_000;
 const MIN_CANVAS_OUTPUT_SCALE = 2;
 const MAX_CANVAS_OUTPUT_SCALE = 2;
+// 加载后在这些时刻强制重绘，把 WKWebView 首屏偏糊的前几页刷清晰（双缓冲下无感）。
+const SETTLE_RERENDER_DELAYS = [250, 700, 1500] as const;
 
 interface PdfReaderViewerProps {
   data: Uint8Array;
@@ -116,17 +118,24 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       };
     }, []);
 
-    // 仅在窗口/容器尺寸变化时重绘一次。不再做“先快速显示再补清晰”的首屏二次重绘，
-    // 每页只在清晰渲染完成后整页提交，避免首屏出现模糊页。
+    // WKWebView 首屏常把画布栅格化得偏糊（与手动“放大再缩小”能变清晰是同一现象：
+    // 都是等视图稳定后重新栅格一次）。因此在加载后做几次强制重绘把首屏几页刷清晰。
+    // 关键：现在每页都是“离屏渲染完成后再整帧贴回”，重绘对用户是无感的（不会白闪、
+    // 不会留下被拉伸的模糊底图），所以恢复这套 settle 重绘是安全的。
     useEffect(() => {
       if (!pdfDoc) return;
 
       let resizeTimer = 0;
+      const timers: number[] = [];
       const bumpRevision = () => setRenderRevision((revision) => revision + 1);
       const scheduleResizeRevision = () => {
         window.clearTimeout(resizeTimer);
         resizeTimer = window.setTimeout(bumpRevision, 160);
       };
+
+      for (const delay of SETTLE_RERENDER_DELAYS) {
+        timers.push(window.setTimeout(bumpRevision, delay));
+      }
 
       const container = containerRef.current;
       const resizeObserver = typeof ResizeObserver !== "undefined"
@@ -140,11 +149,12 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
       return () => {
         window.clearTimeout(resizeTimer);
+        timers.forEach((timer) => window.clearTimeout(timer));
         resizeObserver?.disconnect();
         window.removeEventListener("resize", scheduleResizeRevision);
         window.visualViewport?.removeEventListener("resize", scheduleResizeRevision);
       };
-      // 不依赖 scale：缩放由页面渲染 effect 处理。
+      // 不依赖 scale：缩放由页面渲染 effect 处理，避免每次缩放都重挂这批定时器。
     }, [pdfDoc, devicePixelRatio]);
 
     // 懒渲染：进入视口的页才渲染
