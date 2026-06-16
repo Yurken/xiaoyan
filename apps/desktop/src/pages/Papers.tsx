@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { ChevronDown, Upload } from "lucide-react";
+import { ChevronDown, FileDown, Upload } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Button, CapsuleTabs, Select } from "@research-copilot/ui";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { usePapersList } from "../features/papers/usePapersList";
@@ -24,6 +25,43 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     title: true, authors: true, year: true, venue: true, keywords: true,
   });
   const recognizeRef = useClickOutside(recognizeOpen, () => setRecognizeOpen(false));
+  const [fileDropActive, setFileDropActive] = useState(false);
+  const dragDepthRef = useRef(0);
+  const selectedInterestIdRef = useRef(papers.selectedInterestId);
+  useEffect(() => { selectedInterestIdRef.current = papers.selectedInterestId; }, [papers.selectedInterestId]);
+
+  // 拖拽 PDF 到窗口直接导入（路径由 Tauri onDragDropEvent 提供）
+  const importPaths = papers.importPaths;
+  useEffect(() => {
+    const unlisten = getCurrentWindow().onDragDropEvent((event) => {
+      if (event.payload.type === "drop") {
+        dragDepthRef.current = 0;
+        setFileDropActive(false);
+        const pdfs = (event.payload.paths ?? []).filter((p) => p.toLowerCase().endsWith(".pdf"));
+        if (pdfs.length > 0) void importPaths(pdfs, selectedInterestIdRef.current || undefined);
+      } else if (event.payload.type === "leave") {
+        dragDepthRef.current = 0;
+        setFileDropActive(false);
+      }
+    });
+    return () => { void unlisten.then((fn) => fn()); };
+  }, [importPaths]);
+
+  const handlePageDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setFileDropActive(true);
+  };
+  const handlePageDragLeave = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current -= 1;
+    if (dragDepthRef.current <= 0) { dragDepthRef.current = 0; setFileDropActive(false); }
+  };
+  const handlePageDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+  };
   const { taskProgressByPaperId, markPaperTaskStarted, markPaperTaskFailed } = usePaperTaskProgress({
     setPapers: papers.setPapers,
     setError: papers.setLoadError,
@@ -77,7 +115,30 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   };
 
   return (
-    <div className="rc-app-page space-y-5">
+    <div
+      className="rc-app-page space-y-5"
+      onDragEnter={handlePageDragEnter}
+      onDragLeave={handlePageDragLeave}
+      onDragOver={handlePageDragOver}
+    >
+      {fileDropActive ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center"
+          style={{ background: "rgba(0,122,255,0.08)", backdropFilter: "blur(1px)", pointerEvents: "none" }}
+        >
+          <div
+            className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed px-12 py-10"
+            style={{ borderColor: "#007AFF", background: "var(--rc-card-bg)" }}
+          >
+            <FileDown className="h-10 w-10 text-apple-blue" />
+            <p className="text-base font-bold text-ink-primary">释放以导入 PDF</p>
+            <p className="text-xs text-ink-tertiary">
+              {papers.selectedInterestId ? "将归档到当前所选研究主题" : "导入为未归档论文"}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className={clsx("mx-auto w-full space-y-5", hideFolders && "max-w-5xl px-4 pb-10")}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between shrink-0">
           <div>
@@ -171,6 +232,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           onTitleFilterChange={papers.setTitleFilter}
           getSortKey={papers.getSortKey}
           hideFolders={hideFolders}
+          onMovePaper={(paperId, interestId) =>
+            void papers.handleUpdatePaper(paperId, { research_interest_id: interestId || undefined })
+          }
         />
         )}
       </div>

@@ -52,6 +52,11 @@
     -webkit-user-drag: none;
   }
 
+  /* 拖拽手柄：恢复默认，使其上的拖拽可传递给 draggable 父元素 */
+  svg.rc-drag-grip {
+    -webkit-user-drag: auto;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

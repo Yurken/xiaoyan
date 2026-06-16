@@ -46,6 +46,34 @@ export function usePapersList() {
     if (!interests.some((i) => i.id === selectedInterestId)) setSelectedInterestId("");
   }, [interests, selectedInterestId, setSelectedInterestId]);
 
+  // 批量导入 PDF（对话框选择与拖拽导入共用）。interestId 为归档到的研究主题，留空则未归档。
+  const importPaths = useCallback(async (paths: string[], interestId?: string) => {
+    const pdfs = paths.filter((p) => p.toLowerCase().endsWith(".pdf"));
+    if (pdfs.length === 0) return;
+    try {
+      setLoadError("");
+      setUploading(true);
+      setBatchProgress({ done: 0, total: pdfs.length });
+      const failures: string[] = [];
+      for (let i = 0; i < pdfs.length; i++) {
+        try {
+          await apiClient.papers.upload(pdfs[i], interestId || undefined);
+        } catch (err) {
+          failures.push(`${pdfs[i].split("/").pop() ?? pdfs[i]}：${formatErrorMessage(err)}`);
+        }
+        setBatchProgress({ done: i + 1, total: pdfs.length });
+      }
+      const updated = await apiClient.papers.list();
+      setPapers(updated);
+      if (failures.length > 0) setLoadError(failures.join("\n"));
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+    } finally {
+      setUploading(false);
+      setBatchProgress(null);
+    }
+  }, []);
+
   const handleUpload = async () => {
     try {
       setLoadError("");
@@ -56,26 +84,9 @@ export function usePapersList() {
         .map((item) => typeof item === "string" ? item : (item && typeof item === "object" && "path" in item ? String((item as { path: unknown }).path) : ""))
         .filter(Boolean);
       if (paths.length === 0) return;
-
-      setUploading(true);
-      setBatchProgress({ done: 0, total: paths.length });
-      const failures: string[] = [];
-      for (let i = 0; i < paths.length; i++) {
-        try {
-          await apiClient.papers.upload(paths[i], selectedInterestId || undefined);
-        } catch (err) {
-          failures.push(`${paths[i].split("/").pop() ?? paths[i]}：${formatErrorMessage(err)}`);
-        }
-        setBatchProgress({ done: i + 1, total: paths.length });
-      }
-      const updated = await apiClient.papers.list();
-      setPapers(updated);
-      if (failures.length > 0) setLoadError(failures.join("\n"));
+      await importPaths(paths, selectedInterestId || undefined);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
-    } finally {
-      setUploading(false);
-      setBatchProgress(null);
     }
   };
 
@@ -197,7 +208,7 @@ export function usePapersList() {
     keywordFilters, setKeywordFilter,
     titleFilters, setTitleFilter,
     paperGroups, ungroupedPapers,
-    handleUpload, handleAnalyze, handleReproduce,
+    handleUpload, importPaths, handleAnalyze, handleReproduce,
     handleUpdatePaper, handleDeletePaper, handleDeleteInterestGroup,
   };
 }
