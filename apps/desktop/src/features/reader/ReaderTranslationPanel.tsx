@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Check, Copy, Eraser, Languages, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Copy, Eraser, Languages, Trash2 } from "lucide-react";
 import type { TranslationEntry } from "./useReaderTranslation";
 
 interface ReaderTranslationPanelProps {
   entries: TranslationEntry[];
   onRemove: (id: string) => void;
   onClear: () => void;
+  onCollapse: () => void;
 }
 
-export default function ReaderTranslationPanel({ entries, onRemove, onClear }: ReaderTranslationPanelProps) {
+export default function ReaderTranslationPanel({ entries, onRemove, onClear, onCollapse }: ReaderTranslationPanelProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const copy = async (id: string, text: string) => {
@@ -36,6 +37,14 @@ export default function ReaderTranslationPanel({ entries, onRemove, onClear }: R
             <Eraser className="h-3.5 w-3.5" />
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={onCollapse}
+          className="rounded p-1 text-ink-tertiary transition-colors hover:text-ink-secondary"
+          title="收起翻译栏"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -45,7 +54,7 @@ export default function ReaderTranslationPanel({ entries, onRemove, onClear }: R
             style={{ borderColor: "var(--rc-border)" }}
           >
             <Languages className="h-5 w-5 text-ink-tertiary" />
-            <p className="text-xs leading-5 text-ink-tertiary">在 PDF 中选中文字并点击「翻译」，译文会显示在这里。</p>
+            <p className="text-xs leading-5 text-ink-tertiary">翻译栏已展开，在 PDF 中选中文字即自动翻译，译文显示在这里。</p>
           </div>
         ) : (
           <ul className="space-y-2">

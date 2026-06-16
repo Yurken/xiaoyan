@@ -2,7 +2,6 @@ import {
   ArrowLeft,
   ExternalLink,
   Highlighter,
-  Languages,
   Minus,
   PanelLeft,
   Plus,
@@ -29,8 +28,6 @@ interface ReaderToolbarProps {
   onToolChange: (tool: AnnotationStyle) => void;
   color: HighlightColor;
   onColorChange: (color: HighlightColor) => void;
-  alwaysTranslate: boolean;
-  onToggleTranslate: () => void;
   onOpenExternal?: () => void;
 }
 
@@ -60,8 +57,6 @@ export default function ReaderToolbar({
   onToolChange,
   color,
   onColorChange,
-  alwaysTranslate,
-  onToggleTranslate,
   onOpenExternal,
 }: ReaderToolbarProps) {
   const iconBtn =
@@ -155,29 +150,11 @@ export default function ReaderToolbar({
         </div>
       ) : null}
 
-      <div className="ml-auto flex items-center gap-2">
-        {/* 一直翻译开关 */}
-        <button
-          type="button"
-          onClick={onToggleTranslate}
-          className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors"
-          style={
-            alwaysTranslate
-              ? { background: "var(--rc-accent)", color: "#fff", borderColor: "transparent" }
-              : { color: "var(--rc-text-secondary)", borderColor: "var(--rc-border)" }
-          }
-          title="开启后，划词即自动翻译到右侧面板"
-        >
-          <Languages className="h-3.5 w-3.5" />
-          一直翻译
+      {onOpenExternal ? (
+        <button type="button" onClick={onOpenExternal} className={`${iconBtn} ml-auto`} title="用系统阅读器打开">
+          <ExternalLink className="h-4 w-4" />
         </button>
-
-        {onOpenExternal ? (
-          <button type="button" onClick={onOpenExternal} className={iconBtn} title="用系统阅读器打开">
-            <ExternalLink className="h-4 w-4" />
-          </button>
-        ) : null}
-      </div>
+      ) : null}
     </header>
   );
 }

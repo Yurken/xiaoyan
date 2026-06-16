@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Languages } from "lucide-react";
 import { Button } from "@research-copilot/ui";
 import { papersApi } from "../lib/client";
 import PdfReaderViewer, { type PdfReaderViewerHandle } from "../features/reader/PdfReaderViewer";
@@ -40,7 +40,8 @@ export default function PaperReader() {
   const [mode, setMode] = useState<ReaderMode>("view");
   const [annotateTool, setAnnotateTool] = useState<AnnotationStyle>("highlight");
   const [annotateColor, setAnnotateColor] = useState<HighlightColor>("yellow");
-  const [alwaysTranslate, setAlwaysTranslate] = useState(false);
+  // 翻译栏展开即等于「自动翻译」：展开时划词自动翻译，收起则不翻译。
+  const [translateOpen, setTranslateOpen] = useState(false);
 
   const { notes, error: notesError, createAnnotation, updateColor, deleteAnnotation, undo } = useReaderNotes(id);
   const translation = useReaderTranslation();
@@ -107,7 +108,7 @@ export default function PaperReader() {
     (next: ReaderSelection) => {
       setEditing(null);
 
-      if (alwaysTranslate) {
+      if (translateOpen) {
         void translation.translate(next.text, next.page);
       }
 
@@ -123,14 +124,14 @@ export default function PaperReader() {
         return;
       }
 
-      if (alwaysTranslate) {
+      if (translateOpen) {
         clearSelection();
         return;
       }
 
       setSelection(next);
     },
-    [alwaysTranslate, mode, annotateColor, annotateTool, translation, createAnnotation, clearSelection],
+    [translateOpen, mode, annotateColor, annotateTool, translation, createAnnotation, clearSelection],
   );
 
   const handlePopupsCleared = useCallback(() => {
@@ -180,6 +181,7 @@ export default function PaperReader() {
 
   const handleTranslate = useCallback(() => {
     if (!selection) return;
+    setTranslateOpen(true); // 翻译结果显示在右侧栏，自动展开
     void translation.translate(selection.text, selection.page);
     clearSelection();
   }, [selection, translation, clearSelection]);
@@ -199,8 +201,6 @@ export default function PaperReader() {
         onToolChange={setAnnotateTool}
         color={annotateColor}
         onColorChange={setAnnotateColor}
-        alwaysTranslate={alwaysTranslate}
-        onToggleTranslate={() => setAlwaysTranslate((v) => !v)}
         onOpenExternal={id ? () => void papersApi.openFile(id) : undefined}
       />
 
@@ -241,11 +241,25 @@ export default function PaperReader() {
           ) : null}
         </div>
 
-        <ReaderTranslationPanel
-          entries={translation.entries}
-          onRemove={translation.remove}
-          onClear={translation.clear}
-        />
+        {translateOpen ? (
+          <ReaderTranslationPanel
+            entries={translation.entries}
+            onRemove={translation.remove}
+            onClear={translation.clear}
+            onCollapse={() => setTranslateOpen(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setTranslateOpen(true)}
+            className="flex w-9 shrink-0 flex-col items-center gap-2 border-l py-3 text-ink-tertiary transition-colors hover:text-apple-blue"
+            style={{ background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }}
+            title="展开翻译栏（划词自动翻译）"
+          >
+            <Languages className="h-4 w-4" />
+            <span className="text-[11px] tracking-wide" style={{ writingMode: "vertical-rl" }}>翻译</span>
+          </button>
+        )}
       </div>
 
       {selection ? (
