@@ -19,7 +19,7 @@ export default function OverviewWorkspace({ model }: OverviewWorkspaceProps) {
   const normalSections = model.layout.filter((section) => section.prominence === "normal");
 
   return (
-    <div className="rc-page-scroll pb-10">
+    <div className="pb-10">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-5">
         <Card padding="md" className="relative overflow-hidden">
           <div
