@@ -4,7 +4,6 @@ import {
   BookOpen,
   CircleCheck,
   CircleUser,
-  Code2,
   FileText,
   FlaskConical,
   LayoutDashboard,
@@ -29,7 +28,6 @@ const Tools = lazy(() => import("./pages/Tools"));
 const Submission = lazy(() => import("./pages/Submission"));
 const Experiment = lazy(() => import("./pages/Experiment"));
 const Writing = lazy(() => import("./pages/Writing"));
-const Code = lazy(() => import("./pages/Code"));
 const ResearchTheme = lazy(() => import("./pages/ResearchTheme"));
 const FocusApp = lazy(() => import("./pages/FocusLayout"));
 import LockScreen from "./features/appLock/LockScreen";
@@ -61,7 +59,6 @@ const navItems = [
   { to: "/writing", icon: PenLine, label: "写作" },
   { to: "/knowledge", icon: Library, label: "知识" },
   { to: "/experiment", icon: FlaskConical, label: "实验" },
-  { to: "/code", icon: Code2, label: "代码" },
   { to: "/submission", icon: Send, label: "投稿" },
   { to: "/tools", icon: Wrench, label: "工具" },
   { to: "/settings", icon: SettingsIcon, label: "设置" },
@@ -207,7 +204,6 @@ export default function App() {
             <Route path="/writing" element={<RouteErrorBoundary><Writing /></RouteErrorBoundary>} />
             <Route path="/submission" element={<RouteErrorBoundary><Submission /></RouteErrorBoundary>} />
             <Route path="/experiment" element={<RouteErrorBoundary><Experiment /></RouteErrorBoundary>} />
-            <Route path="/code" element={<RouteErrorBoundary><Code /></RouteErrorBoundary>} />
             <Route path="/tools" element={<RouteErrorBoundary><Tools /></RouteErrorBoundary>} />
             <Route path="/xiaoyan" element={<RouteErrorBoundary><Copilot /></RouteErrorBoundary>} />
             <Route path="/copilot" element={<Navigate to="/xiaoyan" replace />} />

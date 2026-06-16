@@ -18,7 +18,6 @@ pub mod memory;
 pub mod memory_checkpoints;
 pub mod memory_privacy;
 pub mod misc;
-pub mod opencode;
 pub mod paper_analysis_prompts;
 pub mod paper_analysis_text;
 pub mod paper_artifacts;

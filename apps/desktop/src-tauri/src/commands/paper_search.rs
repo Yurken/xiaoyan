@@ -10,7 +10,7 @@ use std::time::Duration;
 use tauri::State;
 
 const SEMANTIC_SCHOLAR_API_URL: &str = "https://api.semanticscholar.org/graph/v1/paper/search";
-const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.4.0";
+const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.4.2";
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", default)]
