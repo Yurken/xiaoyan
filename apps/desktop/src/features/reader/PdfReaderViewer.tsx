@@ -4,8 +4,37 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { HIGHLIGHT_COLORS, type NormalizedRect, type PaperNote } from "./readerTypes";
+import { useDevicePixelRatio } from "./useDevicePixelRatio";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+
+// pdf.js 的 getTextContent 依赖 ReadableStream 的异步迭代，而 macOS Tauri 的
+// WKWebView 尚未实现 ReadableStream[Symbol.asyncIterator]，会抛
+// "undefined is not a function (near '...value of readableStream...')"。此处补丁。
+(() => {
+  if (typeof ReadableStream === "undefined") return;
+  const proto = ReadableStream.prototype as unknown as Record<symbol | string, unknown>;
+  if (typeof proto[Symbol.asyncIterator] === "function") return;
+  const values = function (this: ReadableStream, options?: { preventCancel?: boolean }) {
+    const preventCancel = options?.preventCancel ?? false;
+    const reader = this.getReader();
+    return {
+      next() {
+        return reader.read();
+      },
+      return(value?: unknown) {
+        if (!preventCancel) void reader.cancel(value);
+        reader.releaseLock();
+        return Promise.resolve({ done: true, value });
+      },
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
+  };
+  proto.values = proto.values ?? values;
+  proto[Symbol.asyncIterator] = proto.values;
+})();
 
 export interface ReaderSelection {
   text: string;
@@ -35,6 +64,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
+    const devicePixelRatio = useDevicePixelRatio();
 
     const notesByPageRef = useRef<Map<number, PaperNote[]>>(new Map());
     useEffect(() => {
@@ -80,6 +110,8 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       if (!container) return;
 
       const handleMouseUp = () => {
+        // 延后一帧读取选区：WKWebView 在 mouseup 时选区可能尚未最终确定。
+        window.requestAnimationFrame(() => {
         const sel = window.getSelection();
         if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
         const text = sel.toString().trim();
@@ -115,6 +147,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
           positions,
           popupX: lastRect.left + lastRect.width / 2,
           popupY: lastRect.top,
+        });
         });
       };
 
@@ -184,7 +217,8 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
             pageNum={pageNum}
             pdfDoc={pdfDoc}
             scale={scale}
-            shouldRender={renderedPages.has(pageNum) || pageNum <= 2}
+            devicePixelRatio={devicePixelRatio}
+            shouldRender={renderedPages.has(pageNum) || pageNum <= 4}
             pageNotes={notesByPageRef.current.get(pageNum) ?? []}
             ref={(el) => {
               pageRefs.current[pageNum - 1] = el;
@@ -202,25 +236,34 @@ interface PdfPageProps {
   pageNum: number;
   pdfDoc: any;
   scale: number;
+  devicePixelRatio: number;
   shouldRender: boolean;
   pageNotes: PaperNote[];
 }
 
 const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, shouldRender, pageNotes },
+  { pageNum, pdfDoc, scale, devicePixelRatio, shouldRender, pageNotes },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
-  const renderedScaleRef = useRef<number | null>(null);
+  const renderedSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!shouldRender) return;
-    if (renderedScaleRef.current === scale) return;
-    let cancelled = false;
 
-    // 延后到下一帧再渲染：避免首屏页在 webview devicePixelRatio 稳定前渲染导致发虚。
+    // 至少 2 倍超采样：即便 WKWebView 首屏把 devicePixelRatio 误报为 1，
+    // 画布仍按 2x 绘制再用 CSS 缩回，保证文字清晰，不依赖 DPR 时序。
+    const outputScale = Math.max(devicePixelRatio || 1, 2);
+    const renderSignature = `${scale}:${outputScale}`;
+    if (renderedSignatureRef.current === renderSignature) return;
+
+    let cancelled = false;
+    let renderTask: any = null;
+    let textLayer: any = null;
+
+    // 延后到下一帧再渲染，进一步避开 WebView 首屏 DPR 抖动。
     const raf = requestAnimationFrame(() => {
       (async () => {
         try {
@@ -231,48 +274,95 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
 
           const canvas = canvasRef.current;
           if (!canvas) return;
-          const outputScale = window.devicePixelRatio || 1;
-          canvas.width = Math.floor(viewport.width * outputScale);
-          canvas.height = Math.floor(viewport.height * outputScale);
-          canvas.style.width = `${viewport.width}px`;
-          canvas.style.height = `${viewport.height}px`;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return;
-          ctx.scale(outputScale, outputScale);
-          await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
-          if (cancelled) return;
-          renderedScaleRef.current = scale;
 
-          const textLayerDiv = textLayerRef.current;
-          if (!textLayerDiv) return;
-          const textContent = await page.getTextContent();
+          const cssWidth = Math.floor(viewport.width);
+          const cssHeight = Math.floor(viewport.height);
+          const pixelWidth = Math.floor(cssWidth * outputScale);
+          const pixelHeight = Math.floor(cssHeight * outputScale);
+
+          // 显式重置宽高，确保 WebKit 重新分配 backing store；
+          // 仅当数值真正变化时才改，避免无意义的重分配。
+          if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+            canvas.width = pixelWidth;
+            canvas.height = pixelHeight;
+          }
+          canvas.style.width = `${cssWidth}px`;
+          canvas.style.height = `${cssHeight}px`;
+
+          const ctx = canvas.getContext("2d", { alpha: false });
+          if (!ctx) return;
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          renderTask = page.render({
+            canvasContext: ctx,
+            viewport,
+            transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
+            background: "white",
+          } as any);
+          await renderTask.promise;
           if (cancelled) return;
-          textLayerDiv.innerHTML = "";
-          pdfjsLib.setLayerDimensions(textLayerDiv, viewport);
-          const textLayer = new pdfjsLib.TextLayer({ textContentSource: textContent, container: textLayerDiv, viewport });
-          await textLayer.render();
-          textLayerDiv.querySelectorAll("span[role]").forEach((span) => {
-            (span as HTMLElement).style.userSelect = "text";
-            (span as HTMLElement).style.cursor = "text";
-          });
-        } catch {
-          // 渲染失败时静默，避免打断整篇阅读
+
+          // 画布渲染成功即锁定签名，避免文本层失败时无限重渲染。
+          renderedSignatureRef.current = renderSignature;
+
+          // 文本层（划词选择/批注/翻译依赖它）尽力渲染，失败不影响画布显示。
+          try {
+            const textLayerDiv = textLayerRef.current;
+            if (textLayerDiv) {
+              // 先清空旧的文本层，避免重复渲染导致选区重影（两层 span 叠加）。
+              textLayerDiv.replaceChildren();
+              const textContent = await page.getTextContent();
+              if (cancelled) {
+                textLayerDiv.replaceChildren();
+                return;
+              }
+              pdfjsLib.setLayerDimensions(textLayerDiv, viewport);
+              textLayer = new pdfjsLib.TextLayer({ textContentSource: textContent, container: textLayerDiv, viewport });
+              await textLayer.render();
+              if (cancelled) {
+                textLayer.cancel?.();
+                textLayerDiv.replaceChildren();
+                return;
+              }
+              // pdfjs-dist v5 的文本 span 不一定带 role 属性，这里兜底全部 span。
+              textLayerDiv.querySelectorAll("span").forEach((span) => {
+                const el = span as HTMLElement;
+                el.style.userSelect = "text";
+                el.style.webkitUserSelect = "text";
+                el.style.cursor = "text";
+              });
+            }
+          } catch (textErr) {
+            console.error(`[PdfReaderViewer] 第 ${pageNum} 页文本层渲染失败`, textErr);
+          }
+        } catch (err) {
+          console.error(`[PdfReaderViewer] 第 ${pageNum} 页渲染失败`, err);
         }
       })();
     });
 
     return () => {
       cancelled = true;
+      try {
+        renderTask?.cancel();
+        textLayer?.cancel();
+      } catch {
+        // ignore cancelled task cleanup errors
+      }
       cancelAnimationFrame(raf);
     };
-  }, [shouldRender, pdfDoc, pageNum, scale]);
+  }, [shouldRender, pdfDoc, pageNum, scale, devicePixelRatio]);
 
   const containerStyle: React.CSSProperties = pageSize
     ? ({
         width: pageSize.w,
         height: pageSize.h,
         "--scale-factor": scale,
-        "--total-scale-factor": scale,
+        "--user-unit": 1,
+        "--total-scale-factor": `calc(${scale} * var(--user-unit))`,
+        "--scale-round-x": "1px",
+        "--scale-round-y": "1px",
       } as React.CSSProperties)
     : { minHeight: 400, width: "100%" };
 
@@ -280,11 +370,15 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     <div
       ref={ref}
       data-page-num={pageNum}
-      className="relative mx-auto select-text"
+      className="rc-selectable relative mx-auto select-text"
       style={{ ...containerStyle, background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", borderRadius: 4 }}
     >
-      <canvas ref={canvasRef} className="absolute inset-0" style={pageSize ? { width: pageSize.w, height: pageSize.h } : {}} />
-      <div ref={textLayerRef} className="textLayer absolute inset-0" style={{ zIndex: 1 }} />
+      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0" style={pageSize ? { width: pageSize.w, height: pageSize.h } : {}} />
+      <div
+        ref={textLayerRef}
+        className="textLayer rc-selectable absolute inset-0"
+        style={{ zIndex: 1, width: pageSize?.w, height: pageSize?.h }}
+      />
 
       {pageSize
         ? pageNotes.map((note) =>
@@ -318,7 +412,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
         : null}
 
       <div
-        className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]"
+        className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]"
         style={{ background: "rgba(0,0,0,0.05)", color: "rgba(0,0,0,0.35)", zIndex: 3 }}
       >
         {pageNum}

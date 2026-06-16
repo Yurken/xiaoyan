@@ -17,8 +17,9 @@
   caret-color: CanvasText;
   z-index: 0;
   /* 覆盖生产环境 body { user-select: none }，使 PDF 文字可被划选批注 */
-  user-select: text;
-  -webkit-user-select: text;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  pointer-events: auto !important;
 }
 
 .textLayer.highlighting {
@@ -31,8 +32,9 @@
   white-space: pre;
   cursor: text;
   transform-origin: 0% 0%;
-  user-select: text;
-  -webkit-user-select: text;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  pointer-events: auto !important;
 }
 
 .textLayer > :not(.markedContent),
