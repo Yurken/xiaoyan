@@ -9,6 +9,7 @@ import ReaderAnnotationsPanel from "../features/reader/ReaderAnnotationsPanel";
 import SelectionPopup from "../features/reader/SelectionPopup";
 import { useReaderNotes } from "../features/reader/useReaderNotes";
 import type { AnnotationStyle, HighlightColor } from "../features/reader/readerTypes";
+import { useCorpus } from "../features/papers/useCorpus";
 
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 3;
@@ -24,8 +25,15 @@ export default function PaperReader() {
   const [loading, setLoading] = useState(true);
   const [scale, setScale] = useState(1.4);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
+  const [toast, setToast] = useState("");
 
   const { notes, loading: notesLoading, error: notesError, createAnnotation, deleteAnnotation } = useReaderNotes(id);
+  const corpus = useCorpus(id);
+
+  const flashToast = useCallback((message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 1800);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -59,8 +67,13 @@ export default function PaperReader() {
     };
   }, [id]);
 
+  const clearSelection = useCallback(() => {
+    setSelection(null);
+    window.getSelection()?.removeAllRanges();
+  }, []);
+
   const handleAnnotate = useCallback(
-    (color: HighlightColor, style: AnnotationStyle) => {
+    (color: HighlightColor, style: AnnotationStyle, note?: string) => {
       if (!selection) return;
       void createAnnotation({
         page: selection.page,
@@ -68,11 +81,21 @@ export default function PaperReader() {
         color,
         style,
         positions: selection.positions,
+        content: note,
       });
-      setSelection(null);
-      window.getSelection()?.removeAllRanges();
+      clearSelection();
     },
-    [selection, createAnnotation],
+    [selection, createAnnotation, clearSelection],
+  );
+
+  const handleSaveCorpus = useCallback(
+    (note?: string) => {
+      if (!selection || !id) return;
+      void corpus.addEntry({ paperId: id, text: selection.text, page: selection.page, note });
+      clearSelection();
+      flashToast("已收入语料库");
+    },
+    [selection, id, corpus, clearSelection, flashToast],
   );
 
   return (
@@ -166,8 +189,18 @@ export default function PaperReader() {
           y={selection.popupY}
           selectedText={selection.text}
           onAnnotate={handleAnnotate}
+          onSaveCorpus={handleSaveCorpus}
           onClose={() => setSelection(null)}
         />
+      ) : null}
+
+      {toast ? (
+        <div
+          className="fixed bottom-6 left-1/2 z-[90] -translate-x-1/2 rounded-full px-4 py-2 text-xs font-semibold text-white shadow-lg"
+          style={{ background: "rgba(28,28,30,0.92)" }}
+        >
+          {toast}
+        </div>
       ) : null}
     </div>
   );

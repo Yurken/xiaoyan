@@ -83,6 +83,9 @@ use commands::{
     misc::{
         markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text,
     },
+    paper_corpus::{
+        paper_corpus_create, paper_corpus_delete, paper_corpus_list, paper_corpus_update,
+    },
     paper_cross_analysis::papers_cross_analysis,
     paper_figures::papers_list_figures,
     paper_notes::{paper_notes_create, paper_notes_delete, paper_notes_list, paper_notes_update},
@@ -313,6 +316,10 @@ pub fn run() {
             paper_notes_create,
             paper_notes_update,
             paper_notes_delete,
+            paper_corpus_list,
+            paper_corpus_create,
+            paper_corpus_update,
+            paper_corpus_delete,
             // CCF
             ccf_list,
             ccf_lookup,

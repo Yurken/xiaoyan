@@ -290,21 +290,27 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
         ? pageNotes.map((note) =>
             (note.highlight_positions ?? []).map((pos, i) => {
               const color = HIGHLIGHT_COLORS[note.highlight_color];
-              const underline = note.style === "underline";
+              const style: React.CSSProperties = {
+                left: pos.x * pageSize.w,
+                top: pos.y * pageSize.h,
+                width: pos.w * pageSize.w,
+                height: pos.h * pageSize.h,
+                zIndex: 2,
+              };
+              if (note.style === "underline") {
+                style.borderBottom = `2px solid ${color.border}`;
+              } else if (note.style === "strike") {
+                style.background = `linear-gradient(to bottom, transparent calc(50% - 1px), ${color.border} calc(50% - 1px), ${color.border} calc(50% + 1px), transparent calc(50% + 1px))`;
+              } else {
+                style.background = color.bg;
+                style.borderBottom = `2px solid ${color.border}`;
+                style.borderRadius = 2;
+              }
               return (
                 <div
                   key={`${note.id}-${i}`}
                   className="pdf-highlight-overlay pointer-events-none absolute"
-                  style={{
-                    left: pos.x * pageSize.w,
-                    top: pos.y * pageSize.h,
-                    width: pos.w * pageSize.w,
-                    height: pos.h * pageSize.h,
-                    background: underline ? "transparent" : color.bg,
-                    borderBottom: `2px solid ${color.border}`,
-                    borderRadius: underline ? 0 : 2,
-                    zIndex: 2,
-                  }}
+                  style={style}
                 />
               );
             }),

@@ -213,6 +213,29 @@ export const paperNotesApi = {
     invoke("paper_notes_delete", { id }),
 };
 
+export const paperCorpusApi = {
+  list: (paperId?: string): Promise<unknown[]> =>
+    invoke("paper_corpus_list", { paperId: paperId ?? null }),
+  create: (data: {
+    paper_id?: string;
+    text: string;
+    note?: string;
+    page?: number;
+    tags?: string[];
+  }): Promise<unknown> =>
+    invoke("paper_corpus_create", {
+      paperId: data.paper_id ?? null,
+      text: data.text,
+      note: data.note ?? null,
+      page: data.page ?? null,
+      tags: data.tags ?? null,
+    }),
+  update: (id: string, data: { note?: string }): Promise<unknown> =>
+    invoke("paper_corpus_update", { id, note: data.note ?? null }),
+  delete: (id: string): Promise<void> =>
+    invoke("paper_corpus_delete", { id }),
+};
+
 export const ccfApi = {
   list: (): Promise<CcfListResponse> =>
     invoke("ccf_list"),

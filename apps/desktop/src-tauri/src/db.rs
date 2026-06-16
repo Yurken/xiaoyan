@@ -404,9 +404,29 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_knowledge_graph_tables(&pool).await?;
     ensure_paper_notes_table(&pool).await?;
     ensure_opencode_tables(&pool).await?;
+    ensure_paper_corpus_table(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
 
     Ok(pool)
+}
+
+pub async fn ensure_paper_corpus_table(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS paper_corpus (
+            id          TEXT PRIMARY KEY,
+            paper_id    TEXT REFERENCES papers(id) ON DELETE CASCADE,
+            text        TEXT NOT NULL,
+            note        TEXT NOT NULL DEFAULT '',
+            page        INTEGER,
+            tags        TEXT,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_paper_corpus_paper ON paper_corpus(paper_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_paper_corpus_created ON paper_corpus(created_at DESC);",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 async fn reset_stale_research_interest_plans(pool: &SqlitePool) -> Result<()> {

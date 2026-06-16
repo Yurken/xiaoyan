@@ -1,0 +1,149 @@
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { BookMarked, Check, Copy, FileText, Pencil, Search, Trash2 } from "lucide-react";
+import { Card } from "@research-copilot/ui";
+import { useCorpus } from "./useCorpus";
+import type { CorpusEntry } from "./corpusTypes";
+
+function formatDate(value: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+}
+
+export default function CorpusPanel() {
+  const navigate = useNavigate();
+  const { entries, loading, error, updateNote, deleteEntry } = useCorpus();
+  const [query, setQuery] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftNote, setDraftNote] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const filtered = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return entries;
+    return entries.filter(
+      (entry) =>
+        entry.text.toLowerCase().includes(keyword) ||
+        entry.note.toLowerCase().includes(keyword) ||
+        (entry.paper_title ?? "").toLowerCase().includes(keyword),
+    );
+  }, [entries, query]);
+
+  const copy = async (entry: CorpusEntry) => {
+    await navigator.clipboard.writeText(entry.text);
+    setCopiedId(entry.id);
+    window.setTimeout(() => setCopiedId((current) => (current === entry.id ? null : current)), 1200);
+  };
+
+  const startEdit = (entry: CorpusEntry) => {
+    setEditingId(entry.id);
+    setDraftNote(entry.note);
+  };
+
+  const saveEdit = () => {
+    if (editingId) void updateNote(editingId, draftNote.trim());
+    setEditingId(null);
+    setDraftNote("");
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <div
+          className="flex flex-1 items-center gap-2 rounded-2xl border px-3 py-2"
+          style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
+        >
+          <Search className="h-4 w-4 text-ink-tertiary" />
+          <input
+            type="text"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索语料、备注或论文…"
+            className="rc-selectable w-full border-0 bg-transparent text-sm text-ink-primary outline-none placeholder:text-ink-tertiary/60"
+          />
+        </div>
+        <span className="text-xs text-ink-tertiary">{entries.length} 条语料</span>
+      </div>
+
+      {error ? <p className="rounded-lg bg-apple-red/10 px-3 py-2 text-xs text-apple-red">{error}</p> : null}
+
+      {loading ? (
+        <p className="px-1 py-10 text-center text-sm text-ink-tertiary">加载中…</p>
+      ) : filtered.length === 0 ? (
+        <Card padding="lg" variant="inset" className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+          <BookMarked className="h-6 w-6 text-apple-blue" />
+          <p className="text-sm font-semibold text-ink-primary">{query ? "没有匹配的语料" : "语料库还是空的"}</p>
+          <p className="max-w-md text-xs leading-5 text-ink-tertiary">
+            在论文批注阅读中划选有价值的句子，点「语料」即可收入这里，便于写作时复用。
+          </p>
+        </Card>
+      ) : (
+        <div className="space-y-2.5">
+          {filtered.map((entry) => (
+            <Card key={entry.id} padding="sm" className="group">
+              <p className="rc-selectable text-sm leading-6 text-ink-primary">{entry.text}</p>
+
+              {editingId === entry.id ? (
+                <div className="mt-2 space-y-1.5">
+                  <textarea
+                    value={draftNote}
+                    onChange={(event) => setDraftNote(event.target.value)}
+                    rows={2}
+                    autoFocus
+                    placeholder="备注…"
+                    className="rc-selectable w-full resize-none rounded-lg border px-2.5 py-1.5 text-xs leading-5 text-ink-primary outline-none"
+                    style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
+                  />
+                  <div className="flex gap-1.5">
+                    <button type="button" onClick={saveEdit} className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white" style={{ background: "var(--rc-accent)" }}>
+                      保存
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)} className="rounded-lg px-2.5 py-1 text-[11px] font-medium text-ink-secondary hover:bg-white/5">
+                      取消
+                    </button>
+                  </div>
+                </div>
+              ) : entry.note ? (
+                <p className="mt-1.5 rounded-lg px-2.5 py-1.5 text-xs leading-5 text-ink-secondary" style={{ background: "var(--rc-card-inset-bg)" }}>
+                  {entry.note}
+                </p>
+              ) : null}
+
+              <div className="mt-2 flex items-center gap-3 border-t pt-2 text-xs text-ink-tertiary" style={{ borderColor: "var(--rc-border)" }}>
+                {entry.paper_id ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/papers/${entry.paper_id}/reader`)}
+                    className="flex min-w-0 items-center gap-1 transition-colors hover:text-apple-blue"
+                    title="回到论文批注阅读"
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                    <span className="max-w-[260px] truncate">{entry.paper_title || "未知论文"}</span>
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" />未关联论文</span>
+                )}
+                {entry.page ? <span>第 {entry.page} 页</span> : null}
+                <span>{formatDate(entry.created_at)}</span>
+
+                <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button type="button" onClick={() => void copy(entry)} className="rounded p-1 hover:text-apple-blue" title="复制">
+                    {copiedId === entry.id ? <Check className="h-3.5 w-3.5 text-[#34C759]" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                  <button type="button" onClick={() => startEdit(entry)} className="rounded p-1 hover:text-apple-blue" title="编辑备注">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" onClick={() => void deleteEntry(entry.id)} className="rounded p-1 hover:text-apple-red" title="删除">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

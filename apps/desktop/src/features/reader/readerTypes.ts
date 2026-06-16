@@ -1,7 +1,7 @@
 /** PDF 阅读器 / 批注类型定义（桌面端） */
 
 export type HighlightColor = "yellow" | "green" | "blue" | "pink" | "purple";
-export type AnnotationStyle = "highlight" | "underline";
+export type AnnotationStyle = "highlight" | "underline" | "strike";
 
 export const HIGHLIGHT_COLORS: Record<
   HighlightColor,
@@ -46,7 +46,8 @@ export function normalizePaperNote(raw: unknown): PaperNote | null {
   const color = typeof record.highlight_color === "string" && VALID_COLORS.has(record.highlight_color)
     ? (record.highlight_color as HighlightColor)
     : "yellow";
-  const style = record.style === "underline" ? "underline" : "highlight";
+  const style: AnnotationStyle =
+    record.style === "underline" ? "underline" : record.style === "strike" ? "strike" : "highlight";
   const positions = Array.isArray(record.highlight_positions)
     ? (record.highlight_positions as NormalizedRect[]).filter(
         (rect) =>

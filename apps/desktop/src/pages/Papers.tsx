@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { clsx } from "clsx";
 import { ChevronDown, Upload } from "lucide-react";
-import { Button, Card, Select } from "@research-copilot/ui";
+import { Button, CapsuleTabs, Select } from "@research-copilot/ui";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { usePapersList } from "../features/papers/usePapersList";
 import { PapersListPanel } from "../features/papers/PapersListPanel";
+import CorpusPanel from "../features/papers/CorpusPanel";
 import PaperDetailModal from "../features/papers/PaperDetailModal";
 import { usePaperDetailRoute } from "../features/papers/usePaperDetailRoute";
 import { usePaperTaskProgress } from "../features/papers/usePaperTaskProgress";
@@ -14,6 +15,7 @@ import { interestFolderName } from "../lib/interestUtils";
 
 export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
   const papers = usePapersList();
+  const [view, setView] = useState<"papers" | "corpus">("papers");
   const [detailPaperId, setDetailPaperId] = useState<string | null>(null);
   const [paperFigures, setPaperFigures] = useState<Record<string, PaperFigure[]>>({});
   const [recognizeOpen, setRecognizeOpen] = useState(false);
@@ -87,7 +89,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               上传 PDF，小妍会按论文类型精读内容；需要时可单独生成复现/验证指南。
             </p>
           </div>
-          <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
+          <div className={clsx("w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap", view === "papers" ? "flex" : "hidden")}>
             <div ref={recognizeRef} className="relative flex-shrink-0">
               <button type="button" onClick={() => setRecognizeOpen((v) => !v)} data-open={recognizeOpen}
                 className="rc-dropdown-trigger flex items-center gap-1.5 rounded-2xl px-3 py-2 transition-all duration-150"
@@ -123,6 +125,18 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           </div>
         </div>
 
+        <CapsuleTabs
+          value={view}
+          onChange={(v) => setView(v as "papers" | "corpus")}
+          options={[
+            { value: "papers", label: "论文库" },
+            { value: "corpus", label: "语料库" },
+          ]}
+        />
+
+        {view === "corpus" ? (
+          <CorpusPanel />
+        ) : (
         <PapersListPanel
           papers={papers.papers}
           interests={papers.interests}
@@ -158,6 +172,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           getSortKey={papers.getSortKey}
           hideFolders={hideFolders}
         />
+        )}
       </div>
       <PaperDetailModal paper={detailPaper} figures={detailPaper ? (paperFigures[detailPaper.id] ?? []) : []}
         onClose={closePaperDetail} />
