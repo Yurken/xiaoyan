@@ -27,6 +27,7 @@ pub const SENSITIVE_KEYS: &[&str] = &[
     "multi_agent_synthesis_api_key",
     "vision_api_key",
     "translation_api_key",
+    "opencode_api_key",
     "app_lock_password_salt",
     "app_lock_password_hash",
 ];
@@ -263,6 +264,14 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("app_lock_password_salt".into(), "".into());
     m.insert("app_lock_password_hash".into(), "".into());
     m.insert("app_lock_timeout_minutes".into(), "0".into());
+    // OpenCode settings
+    m.insert("opencode_enabled".into(), "true".into());
+    m.insert("opencode_binary_path".into(), "".into());
+    m.insert("opencode_model".into(), "".into());
+    m.insert("opencode_base_url".into(), "".into());
+    m.insert("opencode_api_key".into(), "".into());
+    m.insert("opencode_temperature".into(), "0.3".into());
+    m.insert("opencode_max_tokens".into(), "16384".into());
     m
 }
 

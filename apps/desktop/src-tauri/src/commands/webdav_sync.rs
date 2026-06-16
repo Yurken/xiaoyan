@@ -9,7 +9,11 @@ pub async fn webdav_test_connection(
     username: String,
     password: String,
 ) -> Result<(), String> {
-    let config = WebdavConfig { url, username, password };
+    let config = WebdavConfig {
+        url,
+        username,
+        password,
+    };
     webdav_service::test_connection(&config).await
 }
 
@@ -19,7 +23,11 @@ pub async fn webdav_list_backups(
     username: String,
     password: String,
 ) -> Result<Vec<WebdavFile>, String> {
-    let config = WebdavConfig { url, username, password };
+    let config = WebdavConfig {
+        url,
+        username,
+        password,
+    };
     webdav_service::list_backups(&config).await
 }
 
@@ -40,7 +48,11 @@ pub async fn webdav_upload_backup(
     );
 
     // Upload to WebDAV (uses password for auth)
-    let config = WebdavConfig { url, username, password };
+    let config = WebdavConfig {
+        url,
+        username,
+        password,
+    };
     webdav_service::upload_backup(&config, &filename, backup_data.as_bytes()).await?;
 
     Ok(filename)
@@ -63,7 +75,8 @@ pub async fn webdav_download_backup(
     let data = webdav_service::download_backup(&config, &filename).await?;
     let data_str = String::from_utf8(data).map_err(|e| format!("备份文件格式错误: {}", e))?;
 
-    crate::services::settings_service::import_all_data(state.inner(), &app, &data_str, &password).await
+    crate::services::settings_service::import_all_data(state.inner(), &app, &data_str, &password)
+        .await
 }
 
 #[tauri::command]
@@ -73,6 +86,10 @@ pub async fn webdav_delete_backup(
     password: String,
     filename: String,
 ) -> Result<(), String> {
-    let config = WebdavConfig { url, username, password };
+    let config = WebdavConfig {
+        url,
+        username,
+        password,
+    };
     webdav_service::delete_backup(&config, &filename).await
 }

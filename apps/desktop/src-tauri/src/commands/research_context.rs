@@ -1,6 +1,8 @@
-use tauri::{command, State};
-use crate::services::research_context_service::{ResearchContextService, ResearchTheme, ResearchThemeContext};
+use crate::services::research_context_service::{
+    ResearchContextService, ResearchTheme, ResearchThemeContext,
+};
 use crate::state::AppState;
+use tauri::{command, State};
 
 #[command]
 pub async fn research_context_get_recent_themes(

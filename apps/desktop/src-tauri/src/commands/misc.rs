@@ -818,8 +818,19 @@ pub async fn survey_generate(
     let settings = state.settings.read().await.clone();
     let db = state.db.clone();
     run_survey_generation(
-        app, db, settings, query, max_papers, time_from, time_to,
-        lit_types, databases, citation_format, language, paper_ids, request_id,
+        app,
+        db,
+        settings,
+        query,
+        max_papers,
+        time_from,
+        time_to,
+        lit_types,
+        databases,
+        citation_format,
+        language,
+        paper_ids,
+        request_id,
     )
     .await
 }

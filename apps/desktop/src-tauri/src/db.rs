@@ -351,6 +351,18 @@ CREATE INDEX IF NOT EXISTS idx_findings_interest ON active_researcher_findings(i
 CREATE INDEX IF NOT EXISTS idx_findings_scanned ON active_researcher_findings(scanned_at DESC);
 ";
 
+pub const OPENCODE_SESSIONS_DDL: &str = "
+CREATE TABLE IF NOT EXISTS opencode_sessions (
+    id             TEXT PRIMARY KEY,
+    title          TEXT NOT NULL DEFAULT '新对话',
+    working_dir    TEXT,
+    messages_json  TEXT NOT NULL DEFAULT '[]',
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_opencode_sessions_updated ON opencode_sessions(updated_at DESC);
+";
+
 pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     std::fs::create_dir_all(app_data_dir)?;
     let db_path = app_data_dir.join("research_copilot.db");
@@ -390,6 +402,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_submission_revision_task_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
     ensure_paper_notes_table(&pool).await?;
+    ensure_opencode_tables(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
 
     Ok(pool)
@@ -897,6 +910,11 @@ pub async fn ensure_paper_notes_table(pool: &SqlitePool) -> Result<()> {
     )
     .execute(pool)
     .await?;
+    Ok(())
+}
+
+pub async fn ensure_opencode_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(OPENCODE_SESSIONS_DDL).execute(pool).await?;
     Ok(())
 }
 

@@ -14,8 +14,11 @@ pub async fn active_researcher_scan(
     let settings = state.settings.read().await.clone();
 
     active_researcher_service::ensure_table(&state.db).await?;
-    let findings = active_researcher_service::scan_interests(&state.db, &settings, days, max_per).await?;
-    let unread = active_researcher_service::count_unread(&state.db).await.unwrap_or(0);
+    let findings =
+        active_researcher_service::scan_interests(&state.db, &settings, days, max_per).await?;
+    let unread = active_researcher_service::count_unread(&state.db)
+        .await
+        .unwrap_or(0);
 
     let result = serde_json::json!({
         "findings": findings,
@@ -33,8 +36,11 @@ pub async fn active_researcher_findings(
     limit: Option<i64>,
 ) -> Result<serde_json::Value, String> {
     active_researcher_service::ensure_table(&state.db).await?;
-    let findings = active_researcher_service::get_recent_findings(&state.db, limit.unwrap_or(50)).await?;
-    let unread = active_researcher_service::count_unread(&state.db).await.unwrap_or(0);
+    let findings =
+        active_researcher_service::get_recent_findings(&state.db, limit.unwrap_or(50)).await?;
+    let unread = active_researcher_service::count_unread(&state.db)
+        .await
+        .unwrap_or(0);
 
     Ok(serde_json::json!({
         "findings": findings,
@@ -54,10 +60,16 @@ pub async fn active_researcher_mark_read(
     }
 }
 
-pub async fn auto_researcher_scan_on_startup(state: &crate::state::AppState, app: &tauri::AppHandle) {
+pub async fn auto_researcher_scan_on_startup(
+    state: &crate::state::AppState,
+    app: &tauri::AppHandle,
+) {
     use crate::services::active_researcher_service;
 
-    if active_researcher_service::ensure_table(&state.db).await.is_err() {
+    if active_researcher_service::ensure_table(&state.db)
+        .await
+        .is_err()
+    {
         return;
     }
 
@@ -67,12 +79,19 @@ pub async fn auto_researcher_scan_on_startup(state: &crate::state::AppState, app
 
     match active_researcher_service::scan_interests(&state.db, &settings, days, max_per).await {
         Ok(findings) => {
-            if findings.is_empty() { return; }
-            let unread = active_researcher_service::count_unread(&state.db).await.unwrap_or(0);
-            let _ = app.emit("active-researcher:scan-complete", serde_json::json!({
-                "count": findings.len(),
-                "unread": unread,
-            }));
+            if findings.is_empty() {
+                return;
+            }
+            let unread = active_researcher_service::count_unread(&state.db)
+                .await
+                .unwrap_or(0);
+            let _ = app.emit(
+                "active-researcher:scan-complete",
+                serde_json::json!({
+                    "count": findings.len(),
+                    "unread": unread,
+                }),
+            );
         }
         Err(e) => {
             crate::append_diagnostic_log(&format!("active-researcher startup scan failed: {e}"));

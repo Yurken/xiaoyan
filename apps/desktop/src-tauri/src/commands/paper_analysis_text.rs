@@ -42,12 +42,7 @@ const REFERENCE_HEADINGS: &[&str] = &[
     "acknowledgments",
 ];
 
-const KEYWORD_MARKERS: &[&str] = &[
-    "author keywords",
-    "keywords",
-    "key words",
-    "index terms",
-];
+const KEYWORD_MARKERS: &[&str] = &["author keywords", "keywords", "key words", "index terms"];
 
 const KEYWORD_STOP_HEADINGS: &[&str] = &[
     "abstract",
@@ -190,7 +185,10 @@ fn clean_analysis_text(text: &str) -> String {
     for line in normalized.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
-            if cleaned_lines.last().is_some_and(|prev: &String| prev.is_empty()) {
+            if cleaned_lines
+                .last()
+                .is_some_and(|prev: &String| prev.is_empty())
+            {
                 continue;
             }
             cleaned_lines.push(String::new());
@@ -260,7 +258,8 @@ fn find_section_start_after(text: &str, headings: &[&str], min_offset: usize) ->
 
     let tail = &text[offset.min(text.len())..];
     let trimmed = tail.trim();
-    if !trimmed.is_empty() && offset >= min_offset && looks_like_section_heading(trimmed, headings) {
+    if !trimmed.is_empty() && offset >= min_offset && looks_like_section_heading(trimmed, headings)
+    {
         Some(offset)
     } else {
         None
@@ -384,7 +383,10 @@ fn split_keyword_candidates(raw: &str) -> Vec<String> {
         .map(normalize_keyword_candidate)
     {
         if let Some(keyword) = candidate {
-            if keywords.iter().all(|existing| !eq_ignore_case(existing, &keyword)) {
+            if keywords
+                .iter()
+                .all(|existing| !eq_ignore_case(existing, &keyword))
+            {
                 keywords.push(keyword);
             }
         }
@@ -397,7 +399,12 @@ fn split_keyword_candidates(raw: &str) -> Vec<String> {
 fn normalize_keyword_candidate(candidate: &str) -> Option<String> {
     let normalized = candidate
         .trim()
-        .trim_matches(|ch: char| matches!(ch, '"' | '\'' | '(' | ')' | '[' | ']' | '{' | '}' | '.' | ':' | '：'))
+        .trim_matches(|ch: char| {
+            matches!(
+                ch,
+                '"' | '\'' | '(' | ')' | '[' | ']' | '{' | '}' | '.' | ':' | '：'
+            )
+        })
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");

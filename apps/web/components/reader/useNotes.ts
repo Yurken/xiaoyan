@@ -22,11 +22,12 @@ declare global {
 }
 
 function getTauriInvoke(): TauriInvoke | null {
-  if (typeof window === "undefined" || !window.__TAURI__) {
+  if (typeof window === "undefined") {
     return null;
   }
 
-  return window.__TAURI_INTERNALS__?.invoke ?? null;
+  const invoke = window.__TAURI_INTERNALS__?.invoke;
+  return typeof invoke === "function" ? invoke : null;
 }
 
 // ── Backend adapter ──────────────────────────────────────────

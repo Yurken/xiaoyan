@@ -203,5 +203,7 @@ fn should_suppress_pdf_stderr_line(line: &str) -> bool {
     if trimmed.is_empty() {
         return true;
     }
-    trimmed.contains("Unicode mismatch") || trimmed.contains("missing char") || trimmed.contains("ToUnicode")
+    trimmed.contains("Unicode mismatch")
+        || trimmed.contains("missing char")
+        || trimmed.contains("ToUnicode")
 }

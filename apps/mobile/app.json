@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "\u5c0f\u598d",
+    "name": "小妍",
     "slug": "research-copilot",
-    "version": "0.4.0",
+    "version": "0.4.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "research-copilot",
@@ -20,7 +20,7 @@
       "package": "com.researchcopilot.app",
       "versionCode": 5,
       "permissions": [
-        "NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {

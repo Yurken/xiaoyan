@@ -47,7 +47,7 @@ pub async fn list_submission_diagnosis_reports(
     let rows = sqlx::query(
         "SELECT id, submission_id, reviewer_name, report_json, created_at
          FROM submission_diagnosis_reports WHERE submission_id = ?
-         ORDER BY created_at DESC"
+         ORDER BY created_at DESC",
     )
     .bind(submission_id)
     .fetch_all(db)
@@ -82,7 +82,7 @@ pub async fn import_diagnosis_report_to_checklist(
     report_id: &str,
 ) -> Result<Vec<String>, String> {
     let row = sqlx::query(
-        "SELECT report_json, submission_id FROM submission_diagnosis_reports WHERE id = ?"
+        "SELECT report_json, submission_id FROM submission_diagnosis_reports WHERE id = ?",
     )
     .bind(report_id)
     .fetch_optional(db)

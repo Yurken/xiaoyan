@@ -195,7 +195,7 @@ impl ResearchContextService {
         let paper_rows = sqlx::query(
             "SELECT id, title, created_at FROM papers
              WHERE research_interest_id = ?
-             ORDER BY created_at DESC LIMIT 5"
+             ORDER BY created_at DESC LIMIT 5",
         )
         .bind(theme_id)
         .fetch_all(db)
@@ -219,7 +219,7 @@ impl ResearchContextService {
         let note_rows = sqlx::query(
             "SELECT id, title, created_at FROM knowledge_notes
              WHERE research_interest_id = ?
-             ORDER BY created_at DESC LIMIT 5"
+             ORDER BY created_at DESC LIMIT 5",
         )
         .bind(theme_id)
         .fetch_all(db)
@@ -257,7 +257,7 @@ impl ResearchContextService {
                     WHERE entity_type = 'research_interest' AND entity_id = ?
                 )
              ORDER BY updated_at DESC
-             LIMIT ?"
+             LIMIT ?",
         )
         .bind(theme_id)
         .bind(theme_id)
@@ -305,7 +305,10 @@ impl ResearchContextService {
         let mut questions = Vec::new();
         let mut seen = HashSet::new();
 
-        if let Some(checkpoint) = checkpoints.iter().find(|item| !item.open_questions.is_empty()) {
+        if let Some(checkpoint) = checkpoints
+            .iter()
+            .find(|item| !item.open_questions.is_empty())
+        {
             for question in &checkpoint.open_questions {
                 Self::push_unique_text(
                     &mut questions,
@@ -391,7 +394,10 @@ impl ResearchContextService {
 
     fn checkpoint_description(checkpoint: &ResearchCheckpointSignal) -> Option<String> {
         if checkpoint.status == "failed" && !checkpoint.summary.trim().is_empty() {
-            return Some(format!("上次续接未完成：{}", preview_text(&checkpoint.summary, 60)));
+            return Some(format!(
+                "上次续接未完成：{}",
+                preview_text(&checkpoint.summary, 60)
+            ));
         }
 
         if !checkpoint.summary.trim().is_empty() {
@@ -399,11 +405,17 @@ impl ResearchContextService {
         }
 
         if !checkpoint.goal.trim().is_empty() {
-            return Some(format!("延续最近一次对话目标：{}", preview_text(&checkpoint.goal, 40)));
+            return Some(format!(
+                "延续最近一次对话目标：{}",
+                preview_text(&checkpoint.goal, 40)
+            ));
         }
 
         if !checkpoint.updated_at.trim().is_empty() {
-            return Some(format!("来自 {} 的最近研究续接点", short_timestamp(&checkpoint.updated_at)));
+            return Some(format!(
+                "来自 {} 的最近研究续接点",
+                short_timestamp(&checkpoint.updated_at)
+            ));
         }
 
         None
@@ -565,10 +577,7 @@ fn compact_text(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-pub async fn build_research_context_summary(
-    db: &sqlx::SqlitePool,
-    interest_id: &str,
-) -> String {
+pub async fn build_research_context_summary(db: &sqlx::SqlitePool, interest_id: &str) -> String {
     let ctx = ResearchContextService::get_theme_context(db, interest_id)
         .await
         .unwrap_or_else(|_| ResearchThemeContext {
@@ -605,7 +614,10 @@ pub async fn build_research_context_summary(
         ctx.theme.name,
         join_or_fallback(&ctx.theme.completed_tasks, "暂无明确里程碑"),
         join_or_fallback(&next_steps, "继续从当前主题目标切入"),
-        join_or_fallback(&ctx.theme.open_questions, "暂无明显阻塞，可直接推进最近任务"),
+        join_or_fallback(
+            &ctx.theme.open_questions,
+            "暂无明显阻塞，可直接推进最近任务"
+        ),
         join_or_fallback(&recent_events, "暂无活动记录"),
     )
 }
@@ -659,7 +671,7 @@ mod tests {
                 context_id   TEXT,
                 created_at   TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
-            );"
+            );",
         )
         .execute(&pool)
         .await?;
@@ -670,12 +682,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn theme_context_prefers_checkpoint_signals_for_open_questions_and_next_steps() -> Result<()> {
+    async fn theme_context_prefers_checkpoint_signals_for_open_questions_and_next_steps(
+    ) -> Result<()> {
         let pool = test_pool().await?;
 
         sqlx::query(
             "INSERT INTO research_interests (id, topic, folder_name, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?)",
         )
         .bind("interest-1")
         .bind("Graph RAG")
@@ -702,7 +715,7 @@ mod tests {
             "INSERT INTO memory_session_summaries (
                 id, session_id, request_id, context_type, context_id, goal, summary,
                 completed_items, open_questions, next_steps, status, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind("checkpoint-1")
         .bind("session-1")
@@ -747,7 +760,7 @@ mod tests {
 
         sqlx::query(
             "INSERT INTO research_interests (id, topic, folder_name, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?)",
         )
         .bind("interest-2")
         .bind("Multimodal Agents")
@@ -759,7 +772,7 @@ mod tests {
 
         sqlx::query(
             "INSERT INTO papers (id, title, research_interest_id, created_at)
-             VALUES (?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?)",
         )
         .bind("paper-1")
         .bind("Vision-Language Agent Planning")

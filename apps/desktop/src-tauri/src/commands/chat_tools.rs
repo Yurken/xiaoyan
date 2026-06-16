@@ -4,7 +4,7 @@ use crate::commands::experiment::create_experiment_core;
 use crate::commands::knowledge_notes::create_note_core;
 use crate::commands::misc::{run_planner_generation, run_survey_generation};
 use crate::journal_partitions;
-use crate::llm::{ToolDefinition, ToolCall};
+use crate::llm::{ToolCall, ToolDefinition};
 use serde_json::json;
 use sqlx::Row;
 use tauri::Emitter;
@@ -140,7 +140,8 @@ fn generate_survey_tool() -> ToolDefinition {
 fn search_experiments_tool() -> ToolDefinition {
     ToolDefinition {
         name: "search_experiments".into(),
-        description: "搜索本地实验记录。当需要查找用户之前记录的实验方案、结果或观察时使用。".into(),
+        description: "搜索本地实验记录。当需要查找用户之前记录的实验方案、结果或观察时使用。"
+            .into(),
         parameters: json!({
             "type": "object",
             "properties": {
@@ -258,7 +259,9 @@ fn all_tool_definitions() -> Vec<ToolDefinition> {
     ]
 }
 
-pub fn build_chat_tools(settings: &std::collections::HashMap<String, String>) -> Vec<ToolDefinition> {
+pub fn build_chat_tools(
+    settings: &std::collections::HashMap<String, String>,
+) -> Vec<ToolDefinition> {
     let mut tools: Vec<ToolDefinition> = vec![];
 
     let web_search_enabled = settings
@@ -287,7 +290,9 @@ pub async fn dispatch_tool(
         "search_papers" => dispatch_search_papers(db, tool_call).await,
         "create_note" => dispatch_create_note(app, db, settings, tool_call, request_id).await,
         "create_experiment" => dispatch_create_experiment(app, db, tool_call, request_id).await,
-        "generate_survey" => dispatch_generate_survey(app, db, settings, tool_call, request_id).await,
+        "generate_survey" => {
+            dispatch_generate_survey(app, db, settings, tool_call, request_id).await
+        }
         "search_experiments" => dispatch_search_experiments(db, tool_call).await,
         "generate_plan" => dispatch_generate_plan(app, settings, tool_call, request_id).await,
         "search_arxiv" => dispatch_search_arxiv(settings, tool_call).await,
@@ -349,12 +354,7 @@ async fn dispatch_search_knowledge(
             let title: String = r.get("title");
             let content: String = r.get("content");
             let snippet: String = content.chars().take(200).collect();
-            format!(
-                "{}. {} — {}",
-                i + 1,
-                title,
-                snippet
-            )
+            format!("{}. {} — {}", i + 1, title, snippet)
         })
         .collect();
 
@@ -408,7 +408,8 @@ async fn dispatch_search_papers(
                 i + 1,
                 title,
                 authors.as_deref().unwrap_or("未知作者"),
-                year.map(|y| y.to_string()).unwrap_or_else(|| "未知年份".into()),
+                year.map(|y| y.to_string())
+                    .unwrap_or_else(|| "未知年份".into()),
                 venue.as_deref().unwrap_or("")
             )
         })
@@ -457,11 +458,7 @@ async fn dispatch_search_experiments(
         .map(|(i, r)| {
             let title: String = r.get("title");
             let result_text: Option<String> = r.get("result");
-            let snippet: String = result_text
-                .unwrap_or_default()
-                .chars()
-                .take(150)
-                .collect();
+            let snippet: String = result_text.unwrap_or_default().chars().take(150).collect();
             format!("{}. {} — {}", i + 1, title, snippet)
         })
         .collect();
@@ -495,15 +492,29 @@ async fn dispatch_create_note(
                 })
             })
         });
-    let research_interest_id: Option<String> = serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
-        .ok()
-        .and_then(|v| v.get("research_interest_id").and_then(|s| s.as_str().map(|s| s.to_string())));
+    let research_interest_id: Option<String> =
+        serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
+            .ok()
+            .and_then(|v| {
+                v.get("research_interest_id")
+                    .and_then(|s| s.as_str().map(|s| s.to_string()))
+            });
 
     if title.is_empty() || content.is_empty() {
         return Err("笔记标题和内容不能为空。".into());
     }
 
-    match create_note_core(db, settings, title.clone(), content, tags, research_interest_id, "chat").await {
+    match create_note_core(
+        db,
+        settings,
+        title.clone(),
+        content,
+        tags,
+        research_interest_id,
+        "chat",
+    )
+    .await
+    {
         Ok(result) => {
             let note_id = result["id"].as_str().unwrap_or("").to_string();
             let _ = app.emit(
@@ -520,7 +531,10 @@ async fn dispatch_create_note(
                 "knowledge:note_created",
                 json!({ "id": note_id, "title": title }),
             );
-            Ok(format!("已成功创建笔记「{}」（ID: {}）。用户可以在知识库页面查看。", title, note_id))
+            Ok(format!(
+                "已成功创建笔记「{}」（ID: {}）。用户可以在知识库页面查看。",
+                title, note_id
+            ))
         }
         Err(e) => Err(format!("创建笔记失败: {}", e)),
     }
@@ -537,12 +551,19 @@ async fn dispatch_create_experiment(
         serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
             .ok()
             .and_then(|v| v.get("config").cloned());
-    let result_text: Option<String> = serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
-        .ok()
-        .and_then(|v| v.get("result").and_then(|s| s.as_str().map(|s| s.to_string())));
+    let result_text: Option<String> =
+        serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
+            .ok()
+            .and_then(|v| {
+                v.get("result")
+                    .and_then(|s| s.as_str().map(|s| s.to_string()))
+            });
     let notes: Option<String> = serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
         .ok()
-        .and_then(|v| v.get("notes").and_then(|s| s.as_str().map(|s| s.to_string())));
+        .and_then(|v| {
+            v.get("notes")
+                .and_then(|s| s.as_str().map(|s| s.to_string()))
+        });
 
     if title.is_empty() {
         return Err("实验标题不能为空。".into());
@@ -565,7 +586,10 @@ async fn dispatch_create_experiment(
                 "experiment:created",
                 json!({ "id": exp_id, "title": title }),
             );
-            Ok(format!("已成功创建实验记录「{}」（ID: {}）。用户可以在实验记录页面查看。", title, exp_id))
+            Ok(format!(
+                "已成功创建实验记录「{}」（ID: {}）。用户可以在实验记录页面查看。",
+                title, exp_id
+            ))
         }
         Err(e) => Err(format!("创建实验记录失败: {}", e)),
     }
@@ -585,7 +609,10 @@ async fn dispatch_generate_survey(
         .map(|n| n as i32);
     let language: Option<String> = serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
         .ok()
-        .and_then(|v| v.get("language").and_then(|s| s.as_str().map(|s| s.to_string())));
+        .and_then(|v| {
+            v.get("language")
+                .and_then(|s| s.as_str().map(|s| s.to_string()))
+        });
 
     if query.is_empty() {
         return Err("综述主题不能为空。".into());
@@ -613,9 +640,19 @@ async fn dispatch_generate_survey(
     let query_spawn = query.clone();
     tauri::async_runtime::spawn(async move {
         let _ = run_survey_generation(
-            app_spawn, db_spawn, settings_spawn, query_spawn,
-            max_papers, None, None, None, None, None,
-            language, None, Some(survey_request_id),
+            app_spawn,
+            db_spawn,
+            settings_spawn,
+            query_spawn,
+            max_papers,
+            None,
+            None,
+            None,
+            None,
+            None,
+            language,
+            None,
+            Some(survey_request_id),
         )
         .await;
     });
@@ -673,13 +710,8 @@ async fn dispatch_generate_plan(
     let topic_spawn = topic.clone();
     let keywords_spawn = keywords;
     tauri::async_runtime::spawn(async move {
-        let _ = run_planner_generation(
-            app_spawn,
-            settings_spawn,
-            topic_spawn,
-            keywords_spawn,
-        )
-        .await;
+        let _ =
+            run_planner_generation(app_spawn, settings_spawn, topic_spawn, keywords_spawn).await;
     });
 
     Ok(format!(
@@ -702,9 +734,13 @@ async fn dispatch_search_arxiv(
         .ok()
         .and_then(|v| v.get("limit").and_then(|n| n.as_i64()))
         .map(|n| n as i32);
-    let ranking_mode: Option<String> = serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
-        .ok()
-        .and_then(|v| v.get("ranking_mode").and_then(|s| s.as_str().map(|s| s.to_string())));
+    let ranking_mode: Option<String> =
+        serde_json::from_str::<serde_json::Value>(&tool_call.arguments)
+            .ok()
+            .and_then(|v| {
+                v.get("ranking_mode")
+                    .and_then(|s| s.as_str().map(|s| s.to_string()))
+            });
 
     if topic.is_empty() {
         return Err("检索主题不能为空。".into());
@@ -721,7 +757,10 @@ async fn dispatch_search_arxiv(
                     arr.iter()
                         .enumerate()
                         .map(|(i, p)| {
-                            let title = p.get("title").and_then(|s| s.as_str()).unwrap_or("未知标题");
+                            let title = p
+                                .get("title")
+                                .and_then(|s| s.as_str())
+                                .unwrap_or("未知标题");
                             let authors = p
                                 .get("authors")
                                 .and_then(|a| a.as_array())
@@ -767,9 +806,7 @@ async fn dispatch_search_arxiv(
 
 // ── query_journal dispatcher ──────────────────────────────────
 
-async fn dispatch_query_journal(
-    tool_call: &ToolCall,
-) -> Result<String, String> {
+async fn dispatch_query_journal(tool_call: &ToolCall) -> Result<String, String> {
     let query = parse_str_arg(&tool_call.arguments, "query");
 
     if query.is_empty() {
@@ -809,9 +846,7 @@ async fn dispatch_query_journal(
 
 // ── lookup_ccf dispatcher ─────────────────────────────────────
 
-async fn dispatch_lookup_ccf(
-    tool_call: &ToolCall,
-) -> Result<String, String> {
+async fn dispatch_lookup_ccf(tool_call: &ToolCall) -> Result<String, String> {
     let query = parse_str_arg(&tool_call.arguments, "query");
 
     if query.is_empty() {
@@ -826,8 +861,15 @@ async fn dispatch_lookup_ccf(
     let results: Vec<String> = matches
         .iter()
         .map(|m| {
-            let rating = if m.rating.is_empty() { "其他" } else { &m.rating };
-            format!("{} [{}] {} — {} ({})", m.label, rating, m.full_name, m.area, m.kind)
+            let rating = if m.rating.is_empty() {
+                "其他"
+            } else {
+                &m.rating
+            };
+            format!(
+                "{} [{}] {} — {} ({})",
+                m.label, rating, m.full_name, m.area, m.kind
+            )
         })
         .collect();
 

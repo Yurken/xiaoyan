@@ -72,9 +72,6 @@ pub async fn settings_history_apply(
 }
 
 #[tauri::command]
-pub async fn settings_history_delete(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn settings_history_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
     settings_service::delete_settings_history_entry(state.inner(), &id).await
 }

@@ -98,7 +98,11 @@ pub(super) async fn parse_json_response(resp: Response, label: &str) -> Result<V
         let preview = compact_preview(text.trim(), 1200);
         crate::append_diagnostic_log(&format!(
             "[llm][{}] JSON解析失败: status={} content_type={} error={} 响应预览: {}",
-            label, status.as_u16(), content_type, error, preview
+            label,
+            status.as_u16(),
+            content_type,
+            error,
+            preview
         ));
         if preview.is_empty() {
             anyhow!("{}：响应为空，无法解析为 JSON（{}）", label, error)
