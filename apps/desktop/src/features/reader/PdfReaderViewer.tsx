@@ -8,34 +8,6 @@ import { useDevicePixelRatio } from "./useDevicePixelRatio";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
-// pdf.js 的 getTextContent 依赖 ReadableStream 的异步迭代，而 macOS Tauri 的
-// WKWebView 尚未实现 ReadableStream[Symbol.asyncIterator]，会抛
-// "undefined is not a function (near '...value of readableStream...')"。此处补丁。
-(() => {
-  if (typeof ReadableStream === "undefined") return;
-  const proto = ReadableStream.prototype as unknown as Record<symbol | string, unknown>;
-  if (typeof proto[Symbol.asyncIterator] === "function") return;
-  const values = function (this: ReadableStream, options?: { preventCancel?: boolean }) {
-    const preventCancel = options?.preventCancel ?? false;
-    const reader = this.getReader();
-    return {
-      next() {
-        return reader.read();
-      },
-      return(value?: unknown) {
-        if (!preventCancel) void reader.cancel(value);
-        reader.releaseLock();
-        return Promise.resolve({ done: true, value });
-      },
-      [Symbol.asyncIterator]() {
-        return this;
-      },
-    };
-  };
-  proto.values = proto.values ?? values;
-  proto[Symbol.asyncIterator] = proto.values;
-})();
-
 export interface ReaderSelection {
   text: string;
   page: number;
@@ -110,15 +82,20 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       if (!container) return;
 
       const handleMouseUp = () => {
-        // 延后一帧读取选区：WKWebView 在 mouseup 时选区可能尚未最终确定。
-        window.requestAnimationFrame(() => {
+        // 用微任务延后读取选区：微任务在本轮事件循环结束、下一次 mousedown 之前执行，
+        // 既让 WKWebView 选区定稿，又避免与同步的 mousedown 清除产生竞态。
+        queueMicrotask(() => {
         const sel = window.getSelection();
         if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
         const text = sel.toString().trim();
         if (text.length < 2) return;
 
         const range = sel.getRangeAt(0);
-        const textLayer = range.startContainer.parentElement?.closest("[data-page-num]");
+        const startNode = range.startContainer;
+        const startEl = startNode.nodeType === Node.TEXT_NODE
+          ? startNode.parentElement
+          : (startNode as HTMLElement);
+        const textLayer = startEl?.closest("[data-page-num]");
         if (!textLayer) return;
         const pageNum = parseInt(textLayer.getAttribute("data-page-num") || "0", 10);
         if (!pageNum) return;
@@ -153,7 +130,9 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
       const handleMouseDown = (e: MouseEvent) => {
         const target = e.target as HTMLElement;
-        if (!target.closest(".textLayer") && !target.closest(".pdf-selection-popup")) {
+        // 点进弹窗内不清除选区。
+        if (target.closest(".pdf-selection-popup")) return;
+        if (!target.closest(".textLayer")) {
           onSelectionCleared();
         }
       };
@@ -270,13 +249,18 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           const page = await pdfDoc.getPage(pageNum);
           if (cancelled) return;
           const viewport = page.getViewport({ scale });
-          setPageSize({ w: viewport.width, h: viewport.height });
+
+          // 关键：用「取整后的 CSS 尺寸」作为页面尺寸，且画布 backing store、CSS 尺寸、
+          // 容器/文本层尺寸全部基于它。否则 React 用未取整的 float(如 612.48px) 覆盖
+          // 命令式写的整数 canvas.style.width(612px)，导致整数位图被拉伸到非整数 CSS 像素
+          // → 重采样发虚；同时文本层 box 与画布 box 不一致 → 选区错位重影。
+          const cssWidth = Math.floor(viewport.width);
+          const cssHeight = Math.floor(viewport.height);
+          setPageSize({ w: cssWidth, h: cssHeight });
 
           const canvas = canvasRef.current;
           if (!canvas) return;
 
-          const cssWidth = Math.floor(viewport.width);
-          const cssHeight = Math.floor(viewport.height);
           const pixelWidth = Math.floor(cssWidth * outputScale);
           const pixelHeight = Math.floor(cssHeight * outputScale);
 
@@ -373,11 +357,15 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       className="rc-selectable relative mx-auto select-text"
       style={{ ...containerStyle, background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", borderRadius: 4 }}
     >
-      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0" style={pageSize ? { width: pageSize.w, height: pageSize.h } : {}} />
+      <canvas
+        ref={canvasRef}
+        className="pointer-events-none absolute left-0 top-0 block"
+        style={pageSize ? { width: pageSize.w, height: pageSize.h } : undefined}
+      />
       <div
         ref={textLayerRef}
-        className="textLayer rc-selectable absolute inset-0"
-        style={{ zIndex: 1, width: pageSize?.w, height: pageSize?.h }}
+        className="textLayer rc-selectable absolute left-0 top-0"
+        style={{ zIndex: 1 }}
       />
 
       {pageSize
