@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
 import { ArrowDown, ArrowUp, Clipboard, Code2, FileText, ImagePlus, Replace, Search, X } from "lucide-react";
 import type { MouseEvent, RefObject } from "react";
-import type { WritingImageAsset } from "./shared";
+import type { WritingAssistantActionId, WritingImageAsset } from "./shared";
 import WritingEditorContextMenu from "./WritingEditorContextMenu";
 
 interface WritingEditorPanelProps {
@@ -16,6 +16,7 @@ interface WritingEditorPanelProps {
   onBibtexChange: (value: string) => void;
   onInsertText: (before: string, after?: string) => void;
   onInsertImage: () => void;
+  onAssistantAction: (actionId: WritingAssistantActionId) => void;
 }
 
 export default function WritingEditorPanel({
@@ -29,6 +30,7 @@ export default function WritingEditorPanel({
   onBibtexChange,
   onInsertText,
   onInsertImage,
+  onAssistantAction,
 }: WritingEditorPanelProps) {
   const lineNumbersRef = useRef<HTMLPreElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -350,6 +352,7 @@ export default function WritingEditorPanel({
         onClose={() => setContextMenu((current) => ({ ...current, open: false }))}
         onInsert={handleContextInsert}
         onInsertImage={onInsertImage}
+        onAssistantAction={onAssistantAction}
       />
     </section>
   );

@@ -1,14 +1,16 @@
 import { useState } from "react";
+import type { ResearchInterest } from "@research-copilot/types";
 import { normalizeVenueKey, type VenueTemplate } from "../../data/venues";
-import type {
-  CcfRating,
-  Conference,
-  Journal,
-  RecommendationRiskLevel,
-  RecommendationRiskPreference,
-  RecommendationTier,
-  VenueRecommendation,
-  VenueRecommendationInput,
+import {
+  buildRecommendationInputFromInterest,
+  type CcfRating,
+  type Conference,
+  type Journal,
+  type RecommendationRiskLevel,
+  type RecommendationRiskPreference,
+  type RecommendationTier,
+  type VenueRecommendation,
+  type VenueRecommendationInput,
 } from "./shared";
 
 const INITIAL_RECOMMENDATION_INPUT: VenueRecommendationInput = {
@@ -142,17 +144,18 @@ export function useVenueRecommendations(
   const [recommendations, setRecommendations] = useState<VenueRecommendation[]>([]);
   const [recLoading, setRecLoading] = useState(false);
 
-  const generateRecommendations = () => {
+  const generateRecommendations = (overrideInput?: VenueRecommendationInput) => {
+    const activeInput = overrideInput ?? recInput;
     setRecLoading(true);
 
     window.setTimeout(() => {
       const terms = tokenize(
         [
-          recInput.title,
-          recInput.abstract,
-          recInput.keywords,
-          recInput.direction,
-          recInput.extra,
+          activeInput.title,
+          activeInput.abstract,
+          activeInput.keywords,
+          activeInput.direction,
+          activeInput.extra,
         ].join(" ")
       );
       const trackedNames = new Set([
@@ -161,23 +164,23 @@ export function useVenueRecommendations(
       ]);
 
       const results = venueTemplates.filter((venue) => !trackedNames.has(normalizeVenueKey(venue.name)))
-        .filter((venue) => recInput.targetType === "all" || venue.type === recInput.targetType)
+        .filter((venue) => activeInput.targetType === "all" || venue.type === activeInput.targetType)
         .map((venue) => {
           const haystack = `${venue.name} ${venue.fullName} ${venue.area}`.toLowerCase();
           const matchTags = Array.from(new Set(terms.filter((term) => haystack.includes(term)))).slice(0, 6);
           const prestigeScore = getPrestigeScore(venue.ccf, venue.sci, venue.sciQuartile);
           const keywordScore = Math.min(30, matchTags.length * 9);
-          const rankScore = getRankFit(recInput, venue);
-          const riskScore = getRiskFit(recInput.riskPreference, prestigeScore);
+          const rankScore = getRankFit(activeInput, venue);
+          const riskScore = getRiskFit(activeInput.riskPreference, prestigeScore);
           const timeScore =
-            recInput.timePreference === "fast"
+            activeInput.timePreference === "fast"
               ? venue.type === "journal" ? 8 : 2
-              : recInput.timePreference === "normal"
+              : activeInput.timePreference === "normal"
                 ? 5
                 : 4;
           const baseScore = 18 + keywordScore + prestigeScore + rankScore + riskScore + timeScore + deterministicJitter(venue.id);
           const matchScore = Math.max(28, Math.min(98, baseScore));
-          const tier = classifyTier(matchScore, recInput.riskPreference, prestigeScore);
+          const tier = classifyTier(matchScore, activeInput.riskPreference, prestigeScore);
           const riskLevel = classifyRisk(tier, prestigeScore);
           const reason = [
             `${venue.area} 方向匹配${matchTags.length > 0 ? `，命中 ${matchTags.slice(0, 3).join("、")}` : "，但需要补充更多论文信息"}`,
@@ -192,8 +195,8 @@ export function useVenueRecommendations(
             matchTags,
             tier,
             riskLevel,
-            riskTips: buildRiskTips(recInput, venue, riskLevel, matchTags),
-            rejectionReasons: buildRejectionReasons(recInput, venue, riskLevel),
+            riskTips: buildRiskTips(activeInput, venue, riskLevel, matchTags),
+            rejectionReasons: buildRejectionReasons(activeInput, venue, riskLevel),
           } satisfies VenueRecommendation;
         })
         .filter((recommendation) => recommendation.matchScore >= 30)
@@ -208,11 +211,19 @@ export function useVenueRecommendations(
     }, 500);
   };
 
+  // 选择研究主题后一键推荐：用主题填充输入并立即生成。
+  const recommendForInterest = (interest: ResearchInterest) => {
+    const nextInput = buildRecommendationInputFromInterest(recInput, interest);
+    setRecInput(nextInput);
+    generateRecommendations(nextInput);
+  };
+
   return {
     recInput,
     recommendations,
     recLoading,
     setRecInput,
     generateRecommendations,
+    recommendForInterest,
   };
 }

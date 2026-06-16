@@ -143,8 +143,12 @@ export default function Submission() {
   const handleSyncDdl = async () => {
     setSyncingDdl(true);
     try {
-      const result = await submissionApi.syncDeadlines();
-      const venueCount = result?.venue_count ?? 0;
+      let result = await submissionApi.syncCcfDdl();
+      // 在线接口受 GitHub 速率限制/离线影响时回退到内置数据
+      if ((result?.fetched ?? 0) === 0) {
+        result = await submissionApi.syncCcfDdlLocal();
+      }
+      const venueCount = result?.updated ?? 0;
       setFeedback(venueCount > 0 ? `已同步 ${venueCount} 个期刊/会议的截止日期` : "没有需要更新的截止日期");
     } catch (err) { showError(err); }
     finally { setSyncingDdl(false); }
@@ -173,9 +177,13 @@ export default function Submission() {
             recommendations={venues.recommendations}
             recommendationLoading={venues.recLoading}
             recommendationInput={venues.recInput}
+            researchInterests={venues.interests}
+            selectedRecommendationInterestId={venues.recInterestId}
             onVenueFilterChange={venues.setVenueFilter}
             onOpenAddVenue={() => venues.setShowAddModal(true)}
             onChangeRecommendationInput={venues.setRecInput}
+            onSelectRecommendationInterest={venues.setRecInterestId}
+            onRecommendFromInterest={venues.recommendFromInterest}
             onGenerateRecommendations={venues.generateRecommendations}
             isVenueAdded={venues.isVenueAdded}
             onAddVenue={venues.handleAddVenue}

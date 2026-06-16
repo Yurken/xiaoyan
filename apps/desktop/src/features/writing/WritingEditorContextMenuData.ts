@@ -2,19 +2,25 @@ import {
   BookOpen,
   Braces,
   CaseSensitive,
+  Clipboard,
   FileCode2,
+  FilePenLine,
   Hash,
   Heading1,
   Image,
   List,
+  MessageSquareText,
   Pilcrow,
   Quote,
   Sigma,
+  Sparkles,
   Table2,
   TextCursorInput,
   Type,
+  Wand2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { WritingAssistantActionId } from "./shared";
 
 const latex = String.raw;
 
@@ -370,6 +376,14 @@ export const CONTEXT_MENU_GROUPS: WritingContextMenuGroup[] = [
     ],
   },
 ];
+
+export const WRITING_ASSISTANT_ACTION_ICONS: Record<WritingAssistantActionId, LucideIcon> = {
+  freeform: MessageSquareText,
+  polish: Wand2,
+  continue: FilePenLine,
+  abstract: Sparkles,
+  review: Clipboard,
+};
 
 export const QUICK_INSERTS: WritingContextMenuQuickInsert[] = [
   { id: "label", title: "标签", hint: latex`\label{...}`, icon: Hash, before: latex`\label{`, after: "}" },

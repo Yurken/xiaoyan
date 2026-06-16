@@ -1,5 +1,6 @@
 import { AlertTriangle, ChevronDown, ChevronUp, FilePlus, FileSearch } from "lucide-react";
 import { Badge, Button, Card } from "@research-copilot/ui";
+import type { ResearchInterest } from "@research-copilot/types";
 import type { VenueTemplate } from "../../data/venues";
 import {
   CCF_STYLE,
@@ -15,8 +16,12 @@ interface VenueRecommendationsPanelProps {
   recommendations: VenueRecommendation[];
   loading: boolean;
   input: VenueRecommendationInput;
+  interests: ResearchInterest[];
+  selectedInterestId: string;
   onToggle: () => void;
   onChangeInput: (value: VenueRecommendationInput) => void;
+  onSelectInterest: (id: string) => void;
+  onRecommendInterest: () => void;
   onGenerate: () => void;
   isVenueAdded: (template: VenueTemplate) => boolean;
   onAddVenue: (template: VenueTemplate) => void | Promise<void>;
@@ -40,8 +45,12 @@ export default function VenueRecommendationsPanel({
   recommendations,
   loading,
   input,
+  interests,
+  selectedInterestId,
   onToggle,
   onChangeInput,
+  onSelectInterest,
+  onRecommendInterest,
   onGenerate,
   isVenueAdded,
   onAddVenue,
@@ -82,7 +91,11 @@ export default function VenueRecommendationsPanel({
             <VenueRecommendationForm
               input={input}
               loading={loading}
+              interests={interests}
+              selectedInterestId={selectedInterestId}
               onChangeInput={onChangeInput}
+              onSelectInterest={onSelectInterest}
+              onRecommendInterest={onRecommendInterest}
               onGenerate={onGenerate}
             />
           </div>

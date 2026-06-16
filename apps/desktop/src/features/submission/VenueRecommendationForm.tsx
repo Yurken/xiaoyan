@@ -1,11 +1,16 @@
-import { FileSearch } from "lucide-react";
+import { FileSearch, Sparkles } from "lucide-react";
 import { Button, Input, Select, Textarea } from "@research-copilot/ui";
+import type { ResearchInterest } from "@research-copilot/types";
 import type { VenueRecommendationInput } from "./shared";
 
 interface VenueRecommendationFormProps {
   input: VenueRecommendationInput;
   loading: boolean;
+  interests: ResearchInterest[];
+  selectedInterestId: string;
   onChangeInput: (value: VenueRecommendationInput) => void;
+  onSelectInterest: (id: string) => void;
+  onRecommendInterest: () => void;
   onGenerate: () => void;
 }
 
@@ -41,9 +46,22 @@ const timePreferenceOptions = [
 export default function VenueRecommendationForm({
   input,
   loading,
+  interests,
+  selectedInterestId,
   onChangeInput,
+  onSelectInterest,
+  onRecommendInterest,
   onGenerate,
 }: VenueRecommendationFormProps) {
+  const hasInterests = interests.length > 0;
+  const interestOptions = [
+    { value: "", label: hasInterests ? "选择研究主题…" : "暂无研究主题", disabled: !hasInterests },
+    ...interests.map((interest) => ({
+      value: interest.id,
+      label: interest.folder_name?.trim() || interest.topic,
+    })),
+  ];
+
   return (
     <form
       className="space-y-4 rounded-3xl border p-4"
@@ -58,6 +76,34 @@ export default function VenueRecommendationForm({
         onGenerate();
       }}
     >
+      <div
+        className="flex flex-col gap-3 rounded-2xl border p-3 sm:flex-row sm:items-end"
+        style={{ background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }}
+      >
+        <div className="min-w-0 flex-1">
+          <Select
+            label="按研究主题推荐"
+            value={selectedInterestId}
+            options={interestOptions}
+            placeholder={hasInterests ? "选择研究主题…" : "暂无研究主题"}
+            disabled={!hasInterests}
+            onChange={onSelectInterest}
+          />
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          loading={loading}
+          disabled={!selectedInterestId || loading}
+          onClick={onRecommendInterest}
+          className="sm:min-w-[124px]"
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          一键推荐
+        </Button>
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)]">
         <div className="space-y-3">
           <Input

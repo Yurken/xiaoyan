@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ccfApi, submissionApi } from "../../lib/client";
+import type { ResearchInterest } from "@research-copilot/types";
+import { ccfApi, knowledgeApi, submissionApi } from "../../lib/client";
 import {
   POPULAR_VENUES,
   buildVenueTemplatesFromCcfCatalog,
@@ -36,7 +37,10 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
     recLoading,
     setRecInput,
     generateRecommendations,
+    recommendForInterest,
   } = useVenueRecommendations(conferences, journals, venueTemplates);
+  const [interests, setInterests] = useState<ResearchInterest[]>([]);
+  const [recInterestId, setRecInterestId] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +88,29 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
       cancelled = true;
     };
   }, [onError]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    knowledgeApi
+      .listInterests()
+      .then((list) => {
+        if (!cancelled) setInterests(list);
+      })
+      .catch((error) => {
+        onError?.(error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onError]);
+
+  const recommendFromInterest = useCallback(() => {
+    const interest = interests.find((item) => item.id === recInterestId);
+    if (!interest) return;
+    recommendForInterest(interest);
+  }, [interests, recInterestId, recommendForInterest]);
 
   const allVenues = useMemo<Venue[]>(() => [...conferences, ...journals], [conferences, journals]);
   const visibleVenues = useMemo(
@@ -259,6 +286,8 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
     recInput,
     recommendations,
     recLoading,
+    interests,
+    recInterestId,
     filteredVenueTemplates,
     areas,
     venueTemplateLoading,
@@ -269,9 +298,11 @@ export function useSubmissionVenues(onError?: (error: unknown) => void) {
     setAddModalAreaFilter,
     setAddModalTypeFilter,
     setRecInput,
+    setRecInterestId,
     toggleVenueStar,
     handleAddVenue,
     isVenueAdded,
     generateRecommendations,
+    recommendFromInterest,
   };
 }

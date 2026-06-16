@@ -64,6 +64,7 @@ export default function PaperDetailModal({
 }: PaperDetailModalProps) {
   const [visible, setVisible] = useState(false);
   const [copiedSectionKey, setCopiedSectionKey] = useState<string | null>(null);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const onCloseRef = useRef(onClose);
   const closeTimerRef = useRef<number | null>(null);
   const paperId = paper?.id;

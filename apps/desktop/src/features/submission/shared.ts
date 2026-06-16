@@ -1,3 +1,4 @@
+import type { ResearchInterest } from "@research-copilot/types";
 import type { VenueTemplate } from "../../data/venues";
 
 export type CcfRating = "A" | "B" | "C" | "none";
@@ -81,6 +82,24 @@ export interface VenueRecommendationInput {
   riskPreference: RecommendationRiskPreference;
   timePreference: RecommendationTimePreference;
   extra: string;
+}
+
+// 用研究主题填充推荐输入：主题写入研究方向、关键词，空白的标题/摘要按需补全，已填字段不覆盖。
+export function buildRecommendationInputFromInterest(
+  base: VenueRecommendationInput,
+  interest: ResearchInterest,
+): VenueRecommendationInput {
+  const keywords = (interest.keywords ?? []).map((keyword) => keyword.trim()).filter(Boolean);
+  const background = interest.profile?.background?.trim();
+  const goal = interest.profile?.goal?.trim();
+  return {
+    ...base,
+    title: base.title.trim() || interest.topic,
+    direction: interest.topic,
+    keywords: keywords.length > 0 ? keywords.join(", ") : base.keywords,
+    abstract: base.abstract.trim() || background || goal || base.abstract,
+    extra: base.extra.trim() || goal || base.extra,
+  };
 }
 
 export interface VenueRecommendation extends VenueTemplate {

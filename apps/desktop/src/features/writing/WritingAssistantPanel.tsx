@@ -3,12 +3,10 @@ import { clsx } from "clsx";
 import {
   Clipboard,
   FilePenLine,
-  MessageSquareText,
   RefreshCcw,
   Send,
   Sparkles,
   Square,
-  Wand2,
   X,
 } from "lucide-react";
 import { Button, MarkdownRenderer } from "@research-copilot/ui";
@@ -19,6 +17,7 @@ import {
   type LatexStats,
   type WritingAssistantActionId,
 } from "./shared";
+import { WRITING_ASSISTANT_ACTION_ICONS } from "./WritingEditorContextMenuData";
 import { useWritingAssistant } from "./useWritingAssistant";
 
 interface WritingAssistantPanelProps {
@@ -32,16 +31,9 @@ interface WritingAssistantPanelProps {
   stats: LatexStats;
   getSelectedText: () => string;
   onApplyText: (text: string) => void;
+  requestedAction?: { actionId: WritingAssistantActionId; nonce: number } | null;
   onClose: () => void;
 }
-
-const ACTION_ICON = {
-  freeform: MessageSquareText,
-  polish: Wand2,
-  continue: FilePenLine,
-  abstract: Sparkles,
-  review: Clipboard,
-} satisfies Record<WritingAssistantActionId, typeof MessageSquareText>;
 
 export default function WritingAssistantPanel({
   open,
@@ -54,11 +46,13 @@ export default function WritingAssistantPanel({
   stats,
   getSelectedText,
   onApplyText,
+  requestedAction,
   onClose,
 }: WritingAssistantPanelProps) {
   const [activeAction, setActiveAction] = useState<WritingAssistantActionId>("freeform");
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const handledRequestNonce = useRef(0);
   const assistant = useWritingAssistant({
     projectName,
     mainTex,
@@ -79,6 +73,17 @@ export default function WritingAssistantPanel({
     }, 20);
     return () => window.clearTimeout(timer);
   }, [assistant.messages, open]);
+
+  // 右键菜单触发的功能：切到对应动作；除“问小妍”外（需要用户输入）直接基于当前选区运行。
+  useEffect(() => {
+    if (!open || !requestedAction) return;
+    if (requestedAction.nonce === handledRequestNonce.current) return;
+    handledRequestNonce.current = requestedAction.nonce;
+    setActiveAction(requestedAction.actionId);
+    if (requestedAction.actionId !== "freeform") {
+      void assistant.send(requestedAction.actionId, "");
+    }
+  }, [open, requestedAction, assistant]);
 
   const activeActionMeta = useMemo(
     () => WRITING_ASSISTANT_ACTIONS.find((action) => action.id === activeAction) ?? WRITING_ASSISTANT_ACTIONS[0],
@@ -129,7 +134,7 @@ export default function WritingAssistantPanel({
 
           <div className="mt-3 grid grid-cols-5 gap-1.5">
             {WRITING_ASSISTANT_ACTIONS.map((action) => {
-              const Icon = ACTION_ICON[action.id];
+              const Icon = WRITING_ASSISTANT_ACTION_ICONS[action.id];
               const active = activeAction === action.id;
               return (
                 <button

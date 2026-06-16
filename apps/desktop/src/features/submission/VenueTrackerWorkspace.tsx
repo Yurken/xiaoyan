@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Bell, BookOpen, Clock, Plus, RefreshCw, Star, StarOff } from "lucide-react";
 import { Button, CapsuleTabs, Card } from "@research-copilot/ui";
 import ExternalLink from "../../components/ExternalLink";
+import type { ResearchInterest } from "@research-copilot/types";
 import type { VenueTemplate } from "../../data/venues";
 import VenueRecommendationsPanel from "./VenueRecommendationsPanel";
 import {
@@ -23,9 +24,13 @@ interface VenueTrackerWorkspaceProps {
   recommendations: VenueRecommendation[];
   recommendationLoading: boolean;
   recommendationInput: VenueRecommendationInput;
+  researchInterests: ResearchInterest[];
+  selectedRecommendationInterestId: string;
   onVenueFilterChange: (value: "all" | "conference" | "journal" | "starred") => void;
   onOpenAddVenue: () => void;
   onChangeRecommendationInput: (value: VenueRecommendationInput) => void;
+  onSelectRecommendationInterest: (id: string) => void;
+  onRecommendFromInterest: () => void;
   onGenerateRecommendations: () => void;
   isVenueAdded: (template: VenueTemplate) => boolean;
   onAddVenue: (template: VenueTemplate) => void | Promise<void>;
@@ -43,9 +48,13 @@ export default function VenueTrackerWorkspace({
   recommendations,
   recommendationLoading,
   recommendationInput,
+  researchInterests,
+  selectedRecommendationInterestId,
   onVenueFilterChange,
   onOpenAddVenue,
   onChangeRecommendationInput,
+  onSelectRecommendationInterest,
+  onRecommendFromInterest,
   onGenerateRecommendations,
   isVenueAdded,
   onAddVenue,
@@ -254,8 +263,12 @@ export default function VenueTrackerWorkspace({
         recommendations={recommendations}
         loading={recommendationLoading}
         input={recommendationInput}
+        interests={researchInterests}
+        selectedInterestId={selectedRecommendationInterestId}
         onToggle={() => setRecommendationsOpen((currentOpen) => !currentOpen)}
         onChangeInput={onChangeRecommendationInput}
+        onSelectInterest={onSelectRecommendationInterest}
+        onRecommendInterest={onRecommendFromInterest}
         onGenerate={onGenerateRecommendations}
         isVenueAdded={isVenueAdded}
         onAddVenue={onAddVenue}

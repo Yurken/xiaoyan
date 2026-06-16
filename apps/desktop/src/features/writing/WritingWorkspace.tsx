@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
 import {
-  Archive,
-  Bot,
   CheckCircle2,
   Eye,
   FileCheck2,
@@ -16,12 +14,14 @@ import { Button, CapsuleTabs } from "@research-copilot/ui";
 import WritingAssistantPanel from "./WritingAssistantPanel";
 import WritingDraftManagerModal from "./WritingDraftManagerModal";
 import WritingEditorPanel from "./WritingEditorPanel";
+import WritingExportMenu from "./WritingExportMenu";
 import WritingLatexInstallNotice from "./WritingLatexInstallNotice";
 import WritingNewDraftModal from "./WritingNewDraftModal";
 import WritingPreviewPanel from "./WritingPreviewPanel";
 import WritingSidebar from "./WritingSidebar";
 import {
   isLatexCompilerMissing,
+  type WritingAssistantActionId,
   type WritingCompileStatus,
   type WritingExportTarget,
   type WritingViewMode,
@@ -34,11 +34,6 @@ const VIEW_OPTIONS = [
   { value: "preview", label: "预览", icon: <Eye className="h-3.5 w-3.5" /> },
 ] as const;
 
-const EXPORT_OPTIONS: Array<{ target: WritingExportTarget; label: string }> = [
-  { target: "texstudio", label: "导出 TeXstudio" },
-  { target: "overleaf", label: "导出 Overleaf" },
-];
-
 export default function WritingWorkspace() {
   const workspace = useWritingWorkspace();
   const showEditor = workspace.viewMode !== "preview";
@@ -47,6 +42,12 @@ export default function WritingWorkspace() {
   const [draftManagerOpen, setDraftManagerOpen] = useState(false);
   const [newDraftModalOpen, setNewDraftModalOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantRequest, setAssistantRequest] = useState<{ actionId: WritingAssistantActionId; nonce: number } | null>(null);
+
+  const handleAssistantAction = (actionId: WritingAssistantActionId) => {
+    setAssistantOpen(true);
+    setAssistantRequest((current) => ({ actionId, nonce: (current?.nonce ?? 0) + 1 }));
+  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
@@ -72,16 +73,6 @@ export default function WritingWorkspace() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => setAssistantOpen(true)}
-              title="打开小妍辅助写作"
-            >
-              <Bot className="h-3.5 w-3.5" />
-              小妍辅助
-            </Button>
             <Button
               type="button"
               size="sm"
@@ -127,21 +118,10 @@ export default function WritingWorkspace() {
               </div>
 
               <div className="ml-1 flex items-center gap-1.5">
-                {EXPORT_OPTIONS.map((option) => (
-                  <Button
-                    key={option.target}
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void workspace.exportProject(option.target)}
-                    loading={workspace.exportingTarget === option.target}
-                    disabled={workspace.exportingTarget !== null}
-                    className="px-2.5"
-                  >
-                    <Archive className="h-3.5 w-3.5 text-ink-tertiary" />
-                    <span className="hidden xl:inline">{option.label.replace("导出 ", "")}</span>
-                  </Button>
-                ))}
+                <WritingExportMenu
+                  exportingTarget={workspace.exportingTarget}
+                  onExport={(target) => void workspace.exportProject(target)}
+                />
               </div>
             </div>
           </div>
@@ -205,6 +185,7 @@ export default function WritingWorkspace() {
             onBibtexChange={workspace.setBibtex}
             onInsertText={workspace.insertText}
             onInsertImage={workspace.insertImage}
+            onAssistantAction={handleAssistantAction}
           />
         ) : null}
 
@@ -277,6 +258,7 @@ export default function WritingWorkspace() {
         stats={workspace.stats}
         getSelectedText={workspace.getSelectedText}
         onApplyText={workspace.insertGeneratedText}
+        requestedAction={assistantRequest}
         onClose={() => setAssistantOpen(false)}
       />
     </div>
