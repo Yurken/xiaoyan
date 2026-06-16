@@ -285,17 +285,17 @@ async fn add_embedded_image_fallbacks(
     extracted: &mut HashSet<(FigureKind, u32)>,
     now: &str,
 ) {
+    // 没有视觉模型时的兜底：抽取 PDF 内嵌位图。不再只挑“方法图”标题，
+    // 否则结果图/无关键词标题的论文会一张都抽不出来（这是“从来不显示图”的主因）。
     let mut expected_figures = captions
         .iter()
         .filter_map(|((kind, index), caption)| {
-            (kind == &FigureKind::Figure
-                && !extracted.contains(&(kind.clone(), *index))
-                && is_likely_method_figure_caption(caption))
-            .then(|| (*index, caption.clone()))
+            (kind == &FigureKind::Figure && !extracted.contains(&(kind.clone(), *index)))
+                .then(|| (*index, caption.clone()))
         })
         .collect::<Vec<_>>();
     expected_figures.sort_by_key(|(index, _)| *index);
-    expected_figures.truncate(6);
+    expected_figures.truncate(12);
 
     if expected_figures.is_empty() {
         return;
@@ -312,10 +312,8 @@ async fn add_embedded_image_fallbacks(
         .into_iter()
         .filter(is_likely_paper_figure_image)
         .collect::<Vec<_>>();
-    if candidates.len() > expected_figures.len().saturating_add(2) {
-        return;
-    }
-    candidates.sort_by(|left, right| left.file_path.cmp(&right.file_path));
+    // 按面积从大到小，优先取更可能是正文插图的大图；图与编号按顺序对齐。
+    candidates.sort_by(|left, right| right.area().cmp(&left.area()));
     candidates.truncate(expected_figures.len());
 
     for ((index, caption), image) in expected_figures.into_iter().zip(candidates.into_iter()) {
@@ -932,6 +930,7 @@ fn is_likely_paper_figure_image(image: &RawPdfImage) -> bool {
     aspect > 0.22 && aspect < 5.2
 }
 
+#[allow(dead_code)] // 兜底抽取已不再按“方法图”标题过滤；保留供未来分类使用
 fn is_likely_method_figure_caption(caption: &str) -> bool {
     let normalized = caption.to_ascii_lowercase();
     const EXCLUDE_KEYWORDS: &[&str] = &[
