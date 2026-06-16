@@ -4,7 +4,7 @@ import { Badge, MarkdownRenderer } from "@research-copilot/ui";
 import type { Paper } from "@research-copilot/types";
 import PaperParseQualityPanel from "./PaperParseQualityPanel";
 import EvidenceDrawer from "../research-context/EvidenceDrawer";
-import { findMethodReferencedFigures, type PaperFigure } from "./shared";
+import { findMethodReferencedFigures, selectDisplayableMethodFigures, type PaperFigure } from "./shared";
 import { usePaperParseRuns } from "./usePaperParseRuns";
 
 const ANALYSIS_SECTIONS: Array<{
@@ -32,6 +32,12 @@ const REPRODUCTION_SECTIONS: Array<[string, keyof NonNullable<Paper["reproductio
   ["评估指标", "evaluation_metrics"],
   ["风险与复核路径", "risks_and_notes"],
 ];
+
+// 方法栏配图：优先用解读正文显式引用到的图；没有引用时兜底展示方法/框架类配图。
+function resolveMethodFigures(content: string, figures: PaperFigure[]): PaperFigure[] {
+  const referenced = findMethodReferencedFigures(content, figures);
+  return referenced.length ? referenced : selectDisplayableMethodFigures(figures);
+}
 
 interface PaperDetailModalProps {
   paper: Paper | null;
@@ -123,7 +129,7 @@ export default function PaperDetailModal({
         return {
           ...section,
           content,
-          figures: section.key === "core_method" ? findMethodReferencedFigures(content, figures) : [],
+          figures: section.key === "core_method" ? resolveMethodFigures(content, figures) : [],
         };
       })
       .filter((section): section is NonNullable<typeof section> => section !== null);

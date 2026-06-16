@@ -5,7 +5,15 @@ pub(crate) struct PaperAnalysisSlices {
     pub experiment_text: String,
 }
 
-const DEFAULT_ANALYSIS_CHUNK_BYTES: usize = 18_000;
+/// 解读切片策略：实验/方法论文按 method/experiment 标题锚定；
+/// 综述/理论/人文社科等改为全文等分覆盖，避免被切成方法/实验结构。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PaperAnalysisLayout {
+    MethodExperiment,
+    Holistic,
+}
+
+pub(crate) const DEFAULT_ANALYSIS_CHUNK_BYTES: usize = 30_000;
 
 const METHOD_HEADINGS: &[&str] = &[
     "method",
@@ -66,7 +74,8 @@ const NOISY_KEYWORD_PHRASES: &[&str] = &[
     "respectively",
 ];
 
-pub(crate) fn build_analysis_slices(full_text: &str) -> PaperAnalysisSlices {
+/// 清洗正文并截去参考文献等尾部章节，得到用于切片的工作文本。
+fn analysis_working_text(full_text: &str) -> String {
     let cleaned = clean_analysis_text(full_text);
     let analysis_text = if cleaned.is_empty() {
         full_text.trim().to_string()
@@ -75,6 +84,39 @@ pub(crate) fn build_analysis_slices(full_text: &str) -> PaperAnalysisSlices {
     };
 
     if analysis_text.is_empty() {
+        return String::new();
+    }
+
+    let without_references = truncate_at_section(&analysis_text, REFERENCE_HEADINGS)
+        .unwrap_or_else(|| analysis_text.clone());
+    if without_references.trim().is_empty() {
+        analysis_text
+    } else {
+        without_references
+    }
+}
+
+/// 引言/问题区段切片，与论文类型无关（始终取正文开头），供首轮问题背景分析使用。
+pub(crate) fn build_intro_slice(full_text: &str, chunk_bytes: usize) -> String {
+    let working_text = analysis_working_text(full_text);
+    if working_text.is_empty() {
+        return String::new();
+    }
+
+    let method_start = find_section_start(&working_text, METHOD_HEADINGS);
+    method_start
+        .map(|start| slice_range(&working_text, 0, start, chunk_bytes))
+        .filter(|text| !text.trim().is_empty())
+        .unwrap_or_else(|| safe_text_preview_owned(&working_text, chunk_bytes))
+}
+
+pub(crate) fn build_analysis_slices(
+    full_text: &str,
+    chunk_bytes: usize,
+    layout: PaperAnalysisLayout,
+) -> PaperAnalysisSlices {
+    let working_text = analysis_working_text(full_text);
+    if working_text.is_empty() {
         return PaperAnalysisSlices {
             intro_text: String::new(),
             method_text: String::new(),
@@ -82,48 +124,12 @@ pub(crate) fn build_analysis_slices(full_text: &str) -> PaperAnalysisSlices {
         };
     }
 
-    let without_references = truncate_at_section(&analysis_text, REFERENCE_HEADINGS)
-        .unwrap_or_else(|| analysis_text.clone());
-    let working_text = if without_references.trim().is_empty() {
-        analysis_text
-    } else {
-        without_references
-    };
-
-    let method_start = find_section_start(&working_text, METHOD_HEADINGS);
-    let experiment_start = find_section_start_after(
-        &working_text,
-        EXPERIMENT_HEADINGS,
-        method_start.unwrap_or(working_text.len() / 3),
-    );
-
-    let intro_text = method_start
-        .map(|start| slice_range(&working_text, 0, start, DEFAULT_ANALYSIS_CHUNK_BYTES))
-        .filter(|text| !text.trim().is_empty())
-        .unwrap_or_else(|| safe_text_preview_owned(&working_text, DEFAULT_ANALYSIS_CHUNK_BYTES));
-
-    let method_text = match method_start {
-        Some(start) => {
-            let end = experiment_start
-                .filter(|end| *end > start)
-                .unwrap_or(working_text.len());
-            slice_range(&working_text, start, end, DEFAULT_ANALYSIS_CHUNK_BYTES)
+    let intro_text = build_intro_slice(full_text, chunk_bytes);
+    let (method_text, experiment_text) = match layout {
+        PaperAnalysisLayout::MethodExperiment => {
+            method_experiment_slices(&working_text, chunk_bytes)
         }
-        None => safe_text_slice_owned(
-            &working_text,
-            working_text.len() / 4,
-            DEFAULT_ANALYSIS_CHUNK_BYTES,
-        ),
-    };
-
-    let experiment_text = match experiment_start {
-        Some(start) => slice_range(
-            &working_text,
-            start,
-            working_text.len(),
-            DEFAULT_ANALYSIS_CHUNK_BYTES,
-        ),
-        None => safe_text_tail_owned(&working_text, DEFAULT_ANALYSIS_CHUNK_BYTES),
+        PaperAnalysisLayout::Holistic => holistic_slices(&working_text, chunk_bytes),
     };
 
     PaperAnalysisSlices {
@@ -133,8 +139,54 @@ pub(crate) fn build_analysis_slices(full_text: &str) -> PaperAnalysisSlices {
     }
 }
 
+/// 实验/方法论文：按 method / experiment 标题锚定中段与证据段。
+fn method_experiment_slices(working_text: &str, chunk_bytes: usize) -> (String, String) {
+    let method_start = find_section_start(working_text, METHOD_HEADINGS);
+    let experiment_start = find_section_start_after(
+        working_text,
+        EXPERIMENT_HEADINGS,
+        method_start.unwrap_or(working_text.len() / 3),
+    );
+
+    let method_text = match method_start {
+        Some(start) => {
+            let end = experiment_start
+                .filter(|end| *end > start)
+                .unwrap_or(working_text.len());
+            slice_range(working_text, start, end, chunk_bytes)
+        }
+        None => safe_text_slice_owned(working_text, working_text.len() / 4, chunk_bytes),
+    };
+
+    let experiment_text = match experiment_start {
+        Some(start) => slice_range(working_text, start, working_text.len(), chunk_bytes),
+        None => safe_text_tail_owned(working_text, chunk_bytes),
+    };
+
+    (method_text, experiment_text)
+}
+
+/// 综述/理论/人文社科等：全文按中段、尾段等分覆盖，
+/// 让“方法/论证路径”与“证据/结果”两段共同覆盖整篇，而非锚定到方法/实验标题。
+fn holistic_slices(working_text: &str, chunk_bytes: usize) -> (String, String) {
+    let len = working_text.len();
+    if len == 0 {
+        return (String::new(), String::new());
+    }
+
+    let third = len / 3;
+    let two_third = (third * 2).min(len);
+    let method_text = slice_range(working_text, third, two_third.max(third), chunk_bytes);
+    let experiment_text = slice_range(working_text, two_third, len, chunk_bytes);
+    (method_text, experiment_text)
+}
+
 pub(crate) fn build_reproduction_context(full_text: &str, max_bytes: usize) -> String {
-    let slices = build_analysis_slices(full_text);
+    let slices = build_analysis_slices(
+        full_text,
+        DEFAULT_ANALYSIS_CHUNK_BYTES,
+        PaperAnalysisLayout::MethodExperiment,
+    );
     let mut sections = Vec::new();
 
     push_context_section(&mut sections, "引言与问题定义", &slices.intro_text);
@@ -511,7 +563,10 @@ fn is_cjk(ch: char) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_analysis_slices, extract_keywords_from_text};
+    use super::{
+        build_analysis_slices, extract_keywords_from_text, PaperAnalysisLayout,
+        DEFAULT_ANALYSIS_CHUNK_BYTES,
+    };
 
     #[test]
     fn extracts_wrapped_keywords_without_author_noise() {
@@ -563,7 +618,11 @@ References
 [1] omitted
 "#;
 
-        let slices = build_analysis_slices(text);
+        let slices = build_analysis_slices(
+            text,
+            DEFAULT_ANALYSIS_CHUNK_BYTES,
+            PaperAnalysisLayout::MethodExperiment,
+        );
         assert!(slices.intro_text.contains("Introduction"));
         assert!(slices.method_text.contains("Proposed Method"));
         assert!(slices.experiment_text.contains("Experiments"));

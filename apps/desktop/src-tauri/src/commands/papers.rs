@@ -3,9 +3,11 @@ use crate::ccf::{infer_from_text, match_venue};
 use crate::commands::paper_analysis_prompts::{
     agent1_system, agent2_system, agent3_system, agent4_system, build_agent1_prompt,
     build_agent2_prompt, build_agent3_prompt, build_agent4_prompt, build_method_figure_context,
-    build_reproduce_prompt, reproduce_system,
+    build_reproduce_prompt, build_type_directive, reproduce_system,
 };
-use crate::commands::paper_analysis_text::{build_analysis_slices, build_reproduction_context};
+use crate::commands::paper_analysis_text::{
+    build_analysis_slices, build_intro_slice, build_reproduction_context, PaperAnalysisLayout,
+};
 use crate::commands::paper_figures::ensure_figures_extracted as ensure_paper_figures_extracted;
 use crate::commands::paper_text::extract_pdf_text_with_filtered_stderr;
 use crate::journal_partitions::match_journal;
@@ -1085,10 +1087,11 @@ pub async fn papers_analyze(
     let app_for_spawn = app.clone();
     let previous_status = status.clone();
 
-    let analysis_slices = build_analysis_slices(&full_text);
-    let intro_text = analysis_slices.intro_text;
-    let method_text = analysis_slices.method_text;
-    let experiment_text = analysis_slices.experiment_text;
+    let analysis_chunk_bytes = settings
+        .get("paper_analysis_chunk_bytes")
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .unwrap_or(30_000)
+        .clamp(12_000, 80_000);
 
     let now_pre = chrono::Utc::now().to_rfc3339();
     let _ = sqlx::query("UPDATE papers SET status = 'analyzing', updated_at = ? WHERE id = ?")
@@ -1186,11 +1189,12 @@ pub async fn papers_analyze(
 
         let method_figure_context = build_method_figure_context(&extracted_figures);
 
-        // ── Agent 1: Problem & Background ────────────────────────
+        // ── Agent 1: Problem & Background + 论文类型判定 ──────────
         let _ = app.emit(
             "paper:status",
             json!({ "paper_id": pid, "status": "analyzing", "step": "问题背景分析中（1/4）…" }),
         );
+        let intro_text = build_intro_slice(&full_text, analysis_chunk_bytes);
         let prompt1 = build_agent1_prompt(&intro_text);
         let msgs1 = vec![
             LlmMessage::system(agent1_system()),
@@ -1205,37 +1209,54 @@ pub async fn papers_analyze(
             max_tokens,
             &msgs1,
         );
-        let research_question = match client
+        let (research_question, paper_type, paper_type_label) = match client
             .chat_with_max_tokens(&msgs1, model.as_deref(), temperature, max_tokens)
             .await
         {
             Ok(resp) => {
                 log_llm_response("paper-analyze", &pid, "agent1", &resp);
                 match parse_llm_json_value(&resp) {
-                    Ok(value) => value["research_question"]
-                        .as_str()
-                        .unwrap_or("")
-                        .to_string(),
+                    Ok(value) => (
+                        value["research_question"]
+                            .as_str()
+                            .unwrap_or("")
+                            .to_string(),
+                        value["paper_type"].as_str().unwrap_or("").to_string(),
+                        value["type_label"].as_str().unwrap_or("").to_string(),
+                    ),
                     Err(error) => {
                         eprintln!("[paper-analyze][{}] agent1 parse failed: {}", pid, error);
                         agent_errors.push(format!("问题背景分析返回格式错误：{error}"));
-                        String::new()
+                        (String::new(), String::new(), String::new())
                     }
                 }
             }
             Err(error) => {
                 eprintln!("[paper-analyze][{}] agent1 failed: {}", pid, error);
                 agent_errors.push(format!("问题背景分析失败：{error}"));
-                String::new()
+                (String::new(), String::new(), String::new())
             }
         };
+
+        // 按论文类型选择切片策略：综述/理论/人文社科等用全文等分覆盖，
+        // 其余（含未识别）沿用 method/experiment 锚定，保持既有行为。
+        let layout = match paper_type.trim().to_ascii_lowercase().as_str() {
+            "review" | "survey" | "theory" | "humanities" | "case_study" => {
+                PaperAnalysisLayout::Holistic
+            }
+            _ => PaperAnalysisLayout::MethodExperiment,
+        };
+        let analysis_slices = build_analysis_slices(&full_text, analysis_chunk_bytes, layout);
+        let method_text = analysis_slices.method_text;
+        let experiment_text = analysis_slices.experiment_text;
+        let type_directive = build_type_directive(&paper_type_label);
 
         // ── Agent 2: Method Deep-Dive ─────────────────────────────
         let _ = app.emit(
             "paper:status",
             json!({ "paper_id": pid, "status": "analyzing", "step": "方法深度解析中（2/4）…" }),
         );
-        let method_prompt_text = format!("{method_figure_context}{method_text}");
+        let method_prompt_text = format!("{type_directive}{method_figure_context}{method_text}");
         let prompt2 = build_agent2_prompt(&research_question, &method_prompt_text);
         let msgs2 = vec![
             LlmMessage::system(agent2_system()),
@@ -1277,7 +1298,8 @@ pub async fn papers_analyze(
             "paper:status",
             json!({ "paper_id": pid, "status": "analyzing", "step": "证据与结果分析中（3/4）…" }),
         );
-        let prompt3 = build_agent3_prompt(&core_method, &experiment_text);
+        let experiment_prompt_text = format!("{type_directive}{experiment_text}");
+        let prompt3 = build_agent3_prompt(&core_method, &experiment_prompt_text);
         let msgs3 = vec![
             LlmMessage::system(agent3_system()),
             LlmMessage::user(&prompt3),
@@ -1328,7 +1350,9 @@ pub async fn papers_analyze(
             json!({ "paper_id": pid, "status": "analyzing", "step": "综合评审中（4/4）…" }),
         );
         let experiment_summary = format!("{}\n\n{}", experiment_design, experiment_results);
-        let prompt4 = build_agent4_prompt(&research_question, &core_method, &experiment_summary);
+        let problem_summary_for_review = format!("{type_directive}{research_question}");
+        let prompt4 =
+            build_agent4_prompt(&problem_summary_for_review, &core_method, &experiment_summary);
         let msgs4 = vec![
             LlmMessage::system(agent4_system()),
             LlmMessage::user(&prompt4),

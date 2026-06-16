@@ -123,6 +123,23 @@ export function findMethodReferencedFigures(text: string, figures: PaperFigure[]
   return findReferencedFigures(text, figures).filter(isDisplayableMethodFigure);
 }
 
+// 解读正文未显式写出图号时的兜底：直接挑出可展示的方法/框架类配图，
+// 让“提取图片展示”逻辑不再依赖模型恰好引用了 Figure 编号。
+export function selectDisplayableMethodFigures(figures: PaperFigure[], limit = 4): PaperFigure[] {
+  return figures
+    .filter(isDisplayableMethodFigure)
+    .map((figure, order) => ({ figure, order, score: methodFigureScore(figure) }))
+    .sort((left, right) => right.score - left.score || left.order - right.order)
+    .slice(0, limit)
+    .map((item) => item.figure);
+}
+
+function methodFigureScore(figure: PaperFigure): number {
+  const caption = normalizeCaption(figure.caption ?? "");
+  if (!caption) return 0;
+  return METHOD_FIGURE_INCLUDE_KEYWORDS.some((keyword) => caption.includes(keyword)) ? 2 : 1;
+}
+
 const METHOD_FIGURE_INCLUDE_KEYWORDS = [
   "architecture",
   "framework",
