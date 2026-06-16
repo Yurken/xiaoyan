@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS paper_notes (
     highlight_text      TEXT,
     highlight_color     TEXT NOT NULL DEFAULT 'yellow',
     highlight_positions TEXT,
+    style               TEXT NOT NULL DEFAULT 'highlight',
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -903,6 +904,7 @@ pub async fn ensure_paper_notes_table(pool: &SqlitePool) -> Result<()> {
             highlight_text      TEXT,
             highlight_color     TEXT NOT NULL DEFAULT 'yellow',
             highlight_positions TEXT,
+            style               TEXT NOT NULL DEFAULT 'highlight',
             created_at          TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -910,6 +912,12 @@ pub async fn ensure_paper_notes_table(pool: &SqlitePool) -> Result<()> {
     )
     .execute(pool)
     .await?;
+
+    // 兼容旧库：补充 style 列（highlight / underline）。列已存在时报错可忽略。
+    let _ = sqlx::query("ALTER TABLE paper_notes ADD COLUMN style TEXT NOT NULL DEFAULT 'highlight'")
+        .execute(pool)
+        .await;
+
     Ok(())
 }
 

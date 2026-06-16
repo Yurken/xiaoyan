@@ -192,6 +192,7 @@ export const paperNotesApi = {
     highlight_text?: string;
     highlight_color?: string;
     highlight_positions?: unknown[];
+    style?: string;
   }): Promise<unknown> =>
     invoke("paper_notes_create", {
       paperId: data.paper_id,
@@ -200,6 +201,7 @@ export const paperNotesApi = {
       highlightText: data.highlight_text ?? null,
       highlightColor: data.highlight_color ?? null,
       highlightPositions: data.highlight_positions ?? null,
+      style: data.style ?? null,
     }),
   update: (id: string, data: { content?: string; highlight_color?: string }): Promise<unknown> =>
     invoke("paper_notes_update", {

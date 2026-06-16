@@ -1,9 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
 import {
   BookOpen,
-  CircleCheck,
-  CircleUser,
   FileText,
   FlaskConical,
   LayoutDashboard,
@@ -21,6 +19,7 @@ const Home = lazy(() => import("./pages/Home"));
 const Planner = lazy(() => import("./pages/Planner"));
 const Survey = lazy(() => import("./pages/Survey"));
 const Papers = lazy(() => import("./pages/Papers"));
+const PaperReader = lazy(() => import("./pages/PaperReader"));
 const Copilot = lazy(() => import("./pages/Copilot"));
 const Knowledge = lazy(() => import("./pages/Knowledge"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -46,8 +45,6 @@ import { IS_MACOS_DESKTOP } from "./lib/windowChrome";
 import MacWindowDragStrip from "./components/MacWindowDragStrip";
 import UpdateNotification from "./components/UpdateNotification";
 import XiaoYanPet from "./components/XiaoYanPet";
-import LoginModal from "./features/auth/LoginModal";
-import { hasToken } from "./lib/apiBridge";
 import { useInterestPlanEventBridge } from "./features/knowledge/useInterestPlanRuns";
 
 const navItems = [
@@ -74,7 +71,6 @@ export default function App() {
   useInterestPlanEventBridge();
   useThemeInit();
   useKeyboardShortcuts();
-  const navigate = useNavigate();
   const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());
   const { locked, setLocked, lockChecked } = useAppLock();
 
@@ -89,9 +85,6 @@ export default function App() {
       window.removeEventListener(LAYOUT_MODE_CHANGE_EVENT, syncLayoutMode);
     };
   }, []);
-
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(hasToken());
 
   // Lock screen — shown before any app content
   if (locked) {
@@ -142,7 +135,6 @@ export default function App() {
   }
 
   return (
-    <>
     <div className={`app-shell ${IS_MACOS_DESKTOP ? "app-shell--macos-overlay" : ""}`.trim()}>
       <aside className="app-sidebar">
         <MacWindowDragStrip className="app-sidebar__window-drag-region" />
@@ -168,26 +160,7 @@ export default function App() {
           </NavLink>
         ))}
 
-        <div className="app-sidebar__account">
-            <button
-              type="button"
-              onClick={() => setLoginOpen(true)}
-              className="app-nav-link"
-              aria-label="账号"
-              title={loggedIn ? "已登录 — 点击管理账号与同步" : "登录以启用 WebDAV 同步"}
-            >
-              <span className={`app-nav-item ${loggedIn ? "is-active" : ""}`.trim()}>
-                <span className="app-nav-item__marker" />
-                {loggedIn
-                  ? <CircleCheck className="app-nav-item__icon" />
-                  : <CircleUser className="app-nav-item__icon" />
-                }
-                <span className="app-nav-item__label">{loggedIn ? "已登录" : "登录"}</span>
-              </span>
-            </button>
-          </div>
-
-          <div className="app-sidebar__pet">
+        <div className="app-sidebar__pet">
           <XiaoYanPet inline />
         </div>
       </aside>
@@ -201,6 +174,7 @@ export default function App() {
             <Route path="/survey" element={<RouteErrorBoundary><Survey /></RouteErrorBoundary>} />
             <Route path="/write" element={<Navigate to="/writing" replace />} />
             <Route path="/papers" element={<RouteErrorBoundary><Papers /></RouteErrorBoundary>} />
+            <Route path="/papers/:id/reader" element={<RouteErrorBoundary><PaperReader /></RouteErrorBoundary>} />
             <Route path="/writing" element={<RouteErrorBoundary><Writing /></RouteErrorBoundary>} />
             <Route path="/submission" element={<RouteErrorBoundary><Submission /></RouteErrorBoundary>} />
             <Route path="/experiment" element={<RouteErrorBoundary><Experiment /></RouteErrorBoundary>} />
@@ -217,7 +191,5 @@ export default function App() {
       </main>
       <UpdateNotification {...autoUpdate} />
     </div>
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLoginSuccess={() => navigate("/settings")} />
-    </>
   );
 }
