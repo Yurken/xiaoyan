@@ -1,8 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card } from "@research-copilot/ui";
-import { Cloud, Link2, Upload, Download, Trash2, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Cloud, Link2, Upload, Download, Trash2, Loader2, CheckCircle2, AlertCircle, CircleUser, CircleCheck, LogOut, Lock } from "lucide-react";
 import { SectionIcon } from "./shared";
 import { apiClient } from "../../lib/client";
+import LoginModal from "../auth/LoginModal";
+import { useDesktopAuth } from "../auth/useDesktopAuth";
+import { hasToken } from "../../lib/apiBridge";
+import { loadWebdavConfig, saveWebdavConfig } from "./webdavConfigStorage";
 
 interface WebdavFile {
   name: string;
@@ -12,9 +16,14 @@ interface WebdavFile {
 }
 
 export default function WebdavSyncSection() {
-  const [url, setUrl] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const { logout } = useDesktopAuth();
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(hasToken());
+
+  const initialConfig = loadWebdavConfig();
+  const [url, setUrl] = useState(initialConfig.url);
+  const [username, setUsername] = useState(initialConfig.username);
+  const [password, setPassword] = useState(initialConfig.password);
 
   const [testing, setTesting] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -25,8 +34,28 @@ export default function WebdavSyncSection() {
   const [listingBackups, setListingBackups] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
 
+  // Sync is tied to the login session; remember the server config across restarts.
+  useEffect(() => {
+    saveWebdavConfig({ url, username, password });
+  }, [url, username, password]);
+
+  // A connection is only trusted within a logged-in session — re-verify after re-login.
+  useEffect(() => {
+    if (!loggedIn) {
+      setConnected(false);
+      setBackups([]);
+      setConnectionError("");
+      setSyncMsg("");
+    }
+  }, [loggedIn]);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    setLoggedIn(false);
+  }, [logout]);
+
   const handleTestConnection = useCallback(async () => {
-    if (!url.trim()) return;
+    if (!loggedIn || !url.trim()) return;
     setTesting(true);
     setConnectionError("");
     setConnected(false);
@@ -38,18 +67,18 @@ export default function WebdavSyncSection() {
     } finally {
       setTesting(false);
     }
-  }, [url, username, password]);
+  }, [loggedIn, url, username, password]);
 
   const handleListBackups = useCallback(async () => {
     if (!url.trim() || !connected) return;
     setListingBackups(true);
     try {
       const files = await apiClient.settings.webdav.listBackups(url, username, password);
-      setBackups(files.map((f: any) => ({
+      setBackups(files.map((f: { name: string; path: string; size: number; lastModified?: string; last_modified?: string }) => ({
         name: f.name,
         path: f.path,
         size: f.size,
-        lastModified: f.last_modified?.replace("last_modified","") ?? f.lastModified ?? "",
+        lastModified: f.last_modified?.replace("last_modified", "") ?? f.lastModified ?? "",
       })));
     } catch {
       // Listing is optional
@@ -115,8 +144,63 @@ export default function WebdavSyncSection() {
           </div>
         </div>
 
+        {/* Account — login is only used for syncing across devices */}
+        <div
+          className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3"
+          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            {loggedIn
+              ? <CircleCheck className="h-5 w-5 shrink-0 text-apple-green" />
+              : <CircleUser className="h-5 w-5 shrink-0 text-ink-tertiary" />}
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-ink-primary">{loggedIn ? "已登录" : "未登录"}</p>
+              <p className="mt-0.5 text-xs text-ink-tertiary">
+                {loggedIn ? "可在多设备间同步加密备份。" : "登录后即可在多设备间同步备份。"}
+              </p>
+            </div>
+          </div>
+          {loggedIn ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex shrink-0 items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-95"
+              style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
+            >
+              <LogOut className="h-4 w-4" />
+              退出登录
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLoginOpen(true)}
+              className="flex shrink-0 items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium text-white transition-all duration-150 active:scale-95"
+              style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3)" }}
+            >
+              <CircleUser className="h-4 w-4" />
+              登录
+            </button>
+          )}
+        </div>
+
+        {/* Login gate — sync requires an active session */}
+        {!loggedIn && (
+          <div className="flex items-center gap-2 rounded-2xl bg-apple-blue/10 px-4 py-3 text-xs text-apple-blue">
+            <Lock className="h-3.5 w-3.5 shrink-0" />
+            请先登录以配置并启用 WebDAV 同步。
+          </div>
+        )}
+
         {/* Connection config */}
-        <div className="grid gap-3 rounded-2xl p-4" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
+        <div
+          className="grid gap-3 rounded-2xl p-4 transition-opacity"
+          style={{
+            background: "var(--rc-chip-inset-bg)",
+            boxShadow: "var(--rc-chip-inset-shadow)",
+            opacity: loggedIn ? 1 : 0.5,
+            pointerEvents: loggedIn ? "auto" : "none",
+          }}
+        >
           <div className="grid gap-3 md:grid-cols-3">
             <div>
               <label className="mb-1.5 ml-1 block text-xs font-medium text-ink-tertiary">服务器地址</label>
@@ -124,6 +208,7 @@ export default function WebdavSyncSection() {
                 type="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
+                disabled={!loggedIn}
                 placeholder="https://dav.example.com/remote.php/dav/files/user/"
                 className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]"
                 style={{
@@ -139,6 +224,7 @@ export default function WebdavSyncSection() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                disabled={!loggedIn}
                 placeholder="用户名"
                 className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]"
                 style={{
@@ -154,6 +240,7 @@ export default function WebdavSyncSection() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={!loggedIn}
                 placeholder="••••••••"
                 className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]"
                 style={{
@@ -281,6 +368,12 @@ export default function WebdavSyncSection() {
           </div>
         )}
       </Card>
+
+      <LoginModal
+        open={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        onLoginSuccess={() => setLoggedIn(true)}
+      />
     </div>
   );
 }
