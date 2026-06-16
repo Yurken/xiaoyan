@@ -213,48 +213,57 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
+  const renderedScaleRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!shouldRender) return;
+    if (renderedScaleRef.current === scale) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const page = await pdfDoc.getPage(pageNum);
-        if (cancelled) return;
-        const viewport = page.getViewport({ scale });
-        setPageSize({ w: viewport.width, h: viewport.height });
 
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const outputScale = window.devicePixelRatio || 1;
-        canvas.width = Math.floor(viewport.width * outputScale);
-        canvas.height = Math.floor(viewport.height * outputScale);
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.scale(outputScale, outputScale);
-        await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
-        if (cancelled) return;
+    // 延后到下一帧再渲染：避免首屏页在 webview devicePixelRatio 稳定前渲染导致发虚。
+    const raf = requestAnimationFrame(() => {
+      (async () => {
+        try {
+          const page = await pdfDoc.getPage(pageNum);
+          if (cancelled) return;
+          const viewport = page.getViewport({ scale });
+          setPageSize({ w: viewport.width, h: viewport.height });
 
-        const textLayerDiv = textLayerRef.current;
-        if (!textLayerDiv) return;
-        const textContent = await page.getTextContent();
-        if (cancelled) return;
-        textLayerDiv.innerHTML = "";
-        pdfjsLib.setLayerDimensions(textLayerDiv, viewport);
-        const textLayer = new pdfjsLib.TextLayer({ textContentSource: textContent, container: textLayerDiv, viewport });
-        await textLayer.render();
-        textLayerDiv.querySelectorAll("span[role]").forEach((span) => {
-          (span as HTMLElement).style.userSelect = "text";
-          (span as HTMLElement).style.cursor = "text";
-        });
-      } catch {
-        // 渲染失败时静默，避免打断整篇阅读
-      }
-    })();
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const outputScale = window.devicePixelRatio || 1;
+          canvas.width = Math.floor(viewport.width * outputScale);
+          canvas.height = Math.floor(viewport.height * outputScale);
+          canvas.style.width = `${viewport.width}px`;
+          canvas.style.height = `${viewport.height}px`;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return;
+          ctx.scale(outputScale, outputScale);
+          await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+          if (cancelled) return;
+          renderedScaleRef.current = scale;
+
+          const textLayerDiv = textLayerRef.current;
+          if (!textLayerDiv) return;
+          const textContent = await page.getTextContent();
+          if (cancelled) return;
+          textLayerDiv.innerHTML = "";
+          pdfjsLib.setLayerDimensions(textLayerDiv, viewport);
+          const textLayer = new pdfjsLib.TextLayer({ textContentSource: textContent, container: textLayerDiv, viewport });
+          await textLayer.render();
+          textLayerDiv.querySelectorAll("span[role]").forEach((span) => {
+            (span as HTMLElement).style.userSelect = "text";
+            (span as HTMLElement).style.cursor = "text";
+          });
+        } catch {
+          // 渲染失败时静默，避免打断整篇阅读
+        }
+      })();
+    });
+
     return () => {
       cancelled = true;
+      cancelAnimationFrame(raf);
     };
   }, [shouldRender, pdfDoc, pageNum, scale]);
 

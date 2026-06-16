@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Check, Copy, Eye, FileText, Highlighter, Link, X } from "lucide-react";
+import { Check, Copy, Eye, FileText, Link, X } from "lucide-react";
 import { Badge, MarkdownRenderer } from "@research-copilot/ui";
 import type { Paper } from "@research-copilot/types";
 import PaperParseQualityPanel from "./PaperParseQualityPanel";
@@ -63,7 +62,6 @@ export default function PaperDetailModal({
   figures,
   onClose,
 }: PaperDetailModalProps) {
-  const navigate = useNavigate();
   const [visible, setVisible] = useState(false);
   const [copiedSectionKey, setCopiedSectionKey] = useState<string | null>(null);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
@@ -200,19 +198,6 @@ export default function PaperDetailModal({
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {paper.file_path ? (
-              <button
-                type="button"
-                onClick={() => navigate(`/papers/${paper.id}/reader`)}
-                className="flex h-9 items-center gap-1.5 rounded-2xl px-3 text-sm font-semibold transition-colors hover:text-ink-primary"
-                style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" as string }}
-                aria-label="批注阅读"
-                title="批注阅读（高亮 / 下划线 / 翻译）"
-              >
-                <Highlighter className="h-4 w-4" />
-                批注阅读
-              </button>
-            ) : null}
             <button
               type="button"
               onClick={() => setEvidenceOpen(true)}

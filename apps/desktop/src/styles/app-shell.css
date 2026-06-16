@@ -200,6 +200,7 @@
   .app-shell--macos-overlay .rc-copilot-session-sidebar-header,
   .app-shell--macos-overlay .rc-copilot-chat-area,
   .app-shell--macos-overlay .rc-copilot-overview-sidebar,
+  .app-shell--macos-overlay .rc-reader-header,
   .app-shell--macos-overlay .rc-home-container {
     padding-top: 32px !important;
   }

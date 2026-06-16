@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   Eye,
@@ -71,6 +72,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
     hideFolders,
   } = props;
 
+  const navigate = useNavigate();
   const [confirmDeletePaperId, setConfirmDeletePaperId] = useState<string | null>(null);
   const [confirmReanalyzePaperId, setConfirmReanalyzePaperId] = useState<string | null>(null);
   const [citationPaperId, setCitationPaperId] = useState<string | null>(null);
@@ -169,7 +171,18 @@ export function PapersListPanel(props: PapersListPanelProps) {
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1 text-sm">
           <div className="flex items-start gap-2">
-            <span className="font-semibold text-ink-primary">{paper.title}</span>
+            {paper.file_path ? (
+              <button
+                type="button"
+                onClick={() => navigate(`/papers/${paper.id}/reader`)}
+                className="text-left font-semibold text-ink-primary transition-colors hover:text-apple-blue hover:underline"
+                title="打开批注阅读（高亮 / 下划线 / 翻译）"
+              >
+                {paper.title}
+              </button>
+            ) : (
+              <span className="font-semibold text-ink-primary">{paper.title}</span>
+            )}
             {statusBadge(paper.status)}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-tertiary">

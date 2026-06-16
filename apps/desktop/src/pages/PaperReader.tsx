@@ -78,7 +78,7 @@ export default function PaperReader() {
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       <header
-        className="flex h-12 shrink-0 items-center gap-3 border-b px-4"
+        className="rc-reader-header flex min-h-[48px] shrink-0 items-center gap-3 border-b px-4 py-1.5"
         style={{ borderColor: "var(--rc-border)", background: "var(--rc-header-bg)" }}
       >
         <button
