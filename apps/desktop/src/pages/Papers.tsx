@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
 import { ChevronDown, FileDown, Upload } from "lucide-react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { safeOnDragDrop } from "../lib/tauriEvent";
 import { Button, CapsuleTabs, Select } from "@research-copilot/ui";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { usePapersList } from "../features/papers/usePapersList";
@@ -33,7 +33,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   // 拖拽 PDF 到窗口直接导入（路径由 Tauri onDragDropEvent 提供）
   const importPaths = papers.importPaths;
   useEffect(() => {
-    const unlisten = getCurrentWindow().onDragDropEvent((event) => {
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
+    void safeOnDragDrop((event) => {
       if (event.payload.type === "drop") {
         dragDepthRef.current = 0;
         setFileDropActive(false);
@@ -43,8 +45,18 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
         dragDepthRef.current = 0;
         setFileDropActive(false);
       }
+    }).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
+      unlisten = cleanup;
     });
-    return () => { void unlisten.then((fn) => fn()); };
+    return () => {
+      mounted = false;
+      unlisten?.();
+      unlisten = undefined;
+    };
   }, [importPaths]);
 
   const handlePageDragEnter = (e: React.DragEvent) => {

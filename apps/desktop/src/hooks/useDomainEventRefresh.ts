@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { safeListen } from "../lib/tauriEvent";
 
 export function useDomainEventRefresh(
   eventName: string,
@@ -8,13 +8,21 @@ export function useDomainEventRefresh(
 ) {
   useEffect(() => {
     if (!active) return;
-    let cancelled = false;
-    const p = listen(eventName, () => {
-      if (!cancelled) onRefresh();
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
+    void safeListen(eventName, () => {
+      if (mounted) onRefresh();
+    }).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
+      unlisten = cleanup;
     });
     return () => {
-      cancelled = true;
-      p.then((unlisten) => unlisten());
+      mounted = false;
+      unlisten?.();
+      unlisten = undefined;
     };
   }, [eventName, onRefresh, active]);
 }

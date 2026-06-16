@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { safeListen } from "../../lib/tauriEvent";
 import { apiClient, formatErrorMessage, submissionApi } from "../../lib/client";
 import {
   type SubmissionOverviewStats,
@@ -114,13 +114,32 @@ export function useWorkbenchOverview(): WorkbenchOverviewState {
     };
 
     loadOverview();
-    const unlistenPlan = listen("interest:plan", loadOverview);
-    const unlistenStatus = listen("interest:status", loadOverview);
+    let unlistenPlan: (() => void) | undefined;
+    let unlistenStatus: (() => void) | undefined;
+    let mounted = true;
+
+    void safeListen("interest:plan", loadOverview).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
+      unlistenPlan = cleanup;
+    });
+    void safeListen("interest:status", loadOverview).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
+      unlistenStatus = cleanup;
+    });
 
     return () => {
       cancelled = true;
-      void unlistenPlan.then((cleanup) => cleanup());
-      void unlistenStatus.then((cleanup) => cleanup());
+      mounted = false;
+      unlistenPlan?.();
+      unlistenStatus?.();
+      unlistenPlan = undefined;
+      unlistenStatus = undefined;
     };
   }, []);
 

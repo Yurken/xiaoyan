@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { safeListen } from "./tauriEvent";
 import { updatesApi } from "./client";
 import type { AppUpdateInfo } from "@research-copilot/types";
 
@@ -63,13 +63,20 @@ export function useAutoUpdate(): AutoUpdateState {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    void listen<DownloadProgress>("update:download-progress", (event) => {
+    let mounted = true;
+    void safeListen<DownloadProgress>("update:download-progress", (event) => {
       setDownloadProgress(event.payload);
     }).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
       unlisten = cleanup;
     });
     return () => {
+      mounted = false;
       unlisten?.();
+      unlisten = undefined;
     };
   }, []);
 

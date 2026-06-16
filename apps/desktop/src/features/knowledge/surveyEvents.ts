@@ -1,5 +1,5 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { safeListen } from "../../lib/tauriEvent";
 import type { StructuredSurveyResult, SurveyAgentState } from "./shared";
 
 interface SurveyEventOptions {
@@ -35,21 +35,21 @@ export async function registerSurveyEventListeners({
   };
 
   return Promise.all([
-    listen<{ request_id?: string; delta: string }>("survey:delta", (event) => {
+    safeListen<{ request_id?: string; delta: string }>("survey:delta", (event) => {
       if (!acceptRequest(event.payload.request_id)) return;
       contentRef.current += event.payload.delta;
       setContent(contentRef.current);
     }),
-    listen<{ request_id?: string }>("survey:done", (event) => {
+    safeListen<{ request_id?: string }>("survey:done", (event) => {
       if (!acceptRequest(event.payload.request_id)) return;
       setGenerating(false);
       cleanupSurveyListeners();
     }),
-    listen<{ request_id?: string; error: string }>("survey:error", (event) => {
+    safeListen<{ request_id?: string; error: string }>("survey:error", (event) => {
       if (!acceptRequest(event.payload.request_id)) return;
       finishWithError(event.payload.error);
     }),
-    listen<{
+    safeListen<{
       request_id?: string;
       query: string;
       report: StructuredSurveyResult["report"];
@@ -68,7 +68,7 @@ export async function registerSurveyEventListeners({
         meta: event.payload.meta,
       });
     }),
-    listen<{ request_id?: string; agent: SurveyAgentState }>("survey:agent_start", (event) => {
+    safeListen<{ request_id?: string; agent: SurveyAgentState }>("survey:agent_start", (event) => {
       if (!acceptRequest(event.payload.request_id)) return;
       const nextAgent = event.payload.agent;
       setAgents((prev) => {
@@ -77,12 +77,12 @@ export async function registerSurveyEventListeners({
         return [...prev, nextAgent];
       });
     }),
-    listen<{ request_id?: string; agent: SurveyAgentState }>("survey:agent_complete", (event) => {
+    safeListen<{ request_id?: string; agent: SurveyAgentState }>("survey:agent_complete", (event) => {
       if (!acceptRequest(event.payload.request_id)) return;
       const nextAgent = event.payload.agent;
       setAgents((prev) => prev.map((item) => (item.id === nextAgent.id ? { ...item, ...nextAgent, status: "done" } : item)));
     }),
-    listen<{ request_id?: string; agent: SurveyAgentState }>("survey:agent_error", (event) => {
+    safeListen<{ request_id?: string; agent: SurveyAgentState }>("survey:agent_error", (event) => {
       if (!acceptRequest(event.payload.request_id)) return;
       const nextAgent = event.payload.agent;
       setAgents((prev) => prev.map((item) => (item.id === nextAgent.id ? { ...item, ...nextAgent, status: "failed" } : item)));

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { listen } from "@tauri-apps/api/event";
+import { safeListen } from "../../lib/tauriEvent";
 import type { AppSettings, AppUpdateInfo } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { emitCompanionPreferenceChange, normalizeCompanionId } from "../companion/shared";
@@ -96,13 +96,20 @@ export function useSettingsController(defaultSettings: AppSettings) {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    void listen<DownloadProgress>("update:download-progress", (event) => {
+    let mounted = true;
+    void safeListen<DownloadProgress>("update:download-progress", (event) => {
       setDownloadProgress(event.payload);
     }).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
       unlisten = cleanup;
     });
     return () => {
+      mounted = false;
       unlisten?.();
+      unlisten = undefined;
     };
   }, []);
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { safeOnDragDrop } from "../../lib/tauriEvent";
 import {
   AlertCircle,
   Check,
@@ -72,10 +72,22 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
   }, [messages]);
 
   useEffect(() => {
-    const unlisten = getCurrentWindow().onDragDropEvent((event) => {
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
+    void safeOnDragDrop((event) => {
       if (event.payload.type === "drop") onPickFromDrop(event.payload.paths);
+    }).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
+      unlisten = cleanup;
     });
-    return () => { unlisten.then((fn) => fn()); };
+    return () => {
+      mounted = false;
+      unlisten?.();
+      unlisten = undefined;
+    };
   }, [onPickFromDrop]);
 
   const handleChatDragEnter = (e: React.DragEvent) => {

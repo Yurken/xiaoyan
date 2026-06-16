@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject, type PointerEvent } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { safeListen } from "../../lib/tauriEvent";
 import {
   chatAgentAction,
   interestAgentAction,
@@ -173,17 +173,17 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
   useEffect(() => {
     const unlisten: Array<() => void> = [];
     (async () => {
-      unlisten.push(await listen<{ request_id: string; value: { id: string; agent_name: string } }>(
+      unlisten.push(await safeListen<{ request_id: string; value: { id: string; agent_name: string } }>(
         "chat:agent_start",
         ({ payload }) => startWork(payload.value.id, chatAgentAction(payload.value.agent_name)),
       ));
 
-      unlisten.push(await listen<{ request_id: string; value: { id: string; status: string } }>(
+      unlisten.push(await safeListen<{ request_id: string; value: { id: string; status: string } }>(
         "chat:agent_complete",
         ({ payload }) => finishWork(payload.value.id, payload.value.status !== "failed"),
       ));
 
-      unlisten.push(await listen("chat:delta", () => {
+      unlisten.push(await safeListen("chat:delta", () => {
         if (!isStreaming.current) {
           isStreaming.current = true;
           cancelIdleTimer();
@@ -192,7 +192,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
         }
       }));
 
-      unlisten.push(await listen("chat:done", () => {
+      unlisten.push(await safeListen("chat:done", () => {
         isStreaming.current = false;
         for (const id of activeWork.current.keys()) {
           if (!id.startsWith("paper_") && !id.startsWith("survey_") && !id.startsWith("interest_")) {
@@ -204,7 +204,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
         }
       }));
 
-      unlisten.push(await listen("chat:error", () => {
+      unlisten.push(await safeListen("chat:error", () => {
         isStreaming.current = false;
         for (const id of activeWork.current.keys()) {
           if (!id.startsWith("paper_") && !id.startsWith("survey_") && !id.startsWith("interest_")) {
@@ -216,34 +216,34 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
         }
       }));
 
-      unlisten.push(await listen("chat:plan", () => {
+      unlisten.push(await safeListen("chat:plan", () => {
         cancelIdleTimer();
         wakeIfSleeping();
         if (activeWork.current.size === 0 && !isReacting.current) showAction("planning");
       }));
 
-      unlisten.push(await listen<{ request_id: string; agent: { id: string; name: string } }>(
+      unlisten.push(await safeListen<{ request_id: string; agent: { id: string; name: string } }>(
         "survey:agent_start",
         ({ payload }) => startWork(`survey_${payload.agent.id}`, surveyAgentAction(payload.agent.name)),
       ));
 
-      unlisten.push(await listen<{ request_id: string; agent: { id: string } }>(
+      unlisten.push(await safeListen<{ request_id: string; agent: { id: string } }>(
         "survey:agent_complete",
         ({ payload }) => finishWork(`survey_${payload.agent.id}`),
       ));
 
-      unlisten.push(await listen("survey:done", () => {
+      unlisten.push(await safeListen("survey:done", () => {
         activeWork.current = new Map([...activeWork.current.entries()].filter(([id]) => !id.startsWith("survey_")));
         if (activeWork.current.size === 0) triggerFeedback("celebrating", 4000, () => startIdleTimer());
       }));
 
-      unlisten.push(await listen("survey:error", () => {
+      unlisten.push(await safeListen("survey:error", () => {
         activeWork.current = new Map([...activeWork.current.entries()].filter(([id]) => !id.startsWith("survey_")));
         if (activeWork.current.size === 0) triggerFeedback("alerting", 5000, () => startIdleTimer());
       }));
 
       // 小妍主动扫描论文通知
-      unlisten.push(await listen<{ count: number; unread: number }>(
+      unlisten.push(await safeListen<{ count: number; unread: number }>(
         "active-researcher:scan-complete",
         ({ payload }) => {
           if (payload.unread > 0) {
@@ -255,7 +255,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
         },
       ));
 
-      unlisten.push(await listen<{ paper_id: string; status: string }>("paper:status", ({ payload }) => {
+      unlisten.push(await safeListen<{ paper_id: string; status: string }>("paper:status", ({ payload }) => {
         const workId = `paper_${payload.paper_id}`;
         if (payload.status === "parsing" || payload.status === "metadata") {
           startWork(workId, "reading");
@@ -270,17 +270,17 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
         }
       }));
 
-      unlisten.push(await listen<{ id: string; agent: { id: string; name: string } }>(
+      unlisten.push(await safeListen<{ id: string; agent: { id: string; name: string } }>(
         "interest:agent_start",
         ({ payload }) => startWork(`interest_${payload.agent.id}`, interestAgentAction(payload.agent.name)),
       ));
 
-      unlisten.push(await listen<{ id: string; agent: { id: string } }>(
+      unlisten.push(await safeListen<{ id: string; agent: { id: string } }>(
         "interest:agent_complete",
         ({ payload }) => finishWork(`interest_${payload.agent.id}`),
       ));
 
-      unlisten.push(await listen("interest:error", () => {
+      unlisten.push(await safeListen("interest:error", () => {
         activeWork.current = new Map([...activeWork.current.entries()].filter(([id]) => !id.startsWith("interest_")));
         if (activeWork.current.size === 0) triggerFeedback("alerting", 5000, () => startIdleTimer());
       }));

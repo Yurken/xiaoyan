@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { safeListen } from "../../lib/tauriEvent";
 import type { Paper } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import {
@@ -72,7 +72,9 @@ export function usePaperTaskProgress({ setPapers, setError }: UsePaperTaskProgre
       fetchPaperSnapshot(paperId, (latest) => latest);
     };
 
-    const unlisten = listen<PaperStatusEventPayload>("paper:status", (event) => {
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
+    void safeListen<PaperStatusEventPayload>("paper:status", (event) => {
       const { paper_id: paperId, status, error } = event.payload;
 
       if (status === "analyzed" || status === "reproduced") {
@@ -122,10 +124,18 @@ export function usePaperTaskProgress({ setPapers, setError }: UsePaperTaskProgre
       }
 
       setPapers((prev) => prev.map((paper) => (paper.id === paperId ? { ...paper, status } : paper)));
+    }).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
+      unlisten = cleanup;
     });
 
     return () => {
-      void unlisten.then((cleanup) => cleanup());
+      mounted = false;
+      unlisten?.();
+      unlisten = undefined;
     };
   }, [clearPaperTaskProgress, setError, setPapers]);
 

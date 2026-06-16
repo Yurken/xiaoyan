@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { safeListen } from "../../lib/tauriEvent";
 import { apiClient } from "../../lib/client";
 import { rowToPaperParseRun, type PaperParseRun } from "./shared";
 
@@ -45,7 +45,9 @@ export function usePaperParseRuns(paperId?: string) {
       return undefined;
     }
 
-    const unlisten = listen<{ paper_id: string; status: string }>("paper:status", (event) => {
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
+    void safeListen<{ paper_id: string; status: string }>("paper:status", (event) => {
       if (event.payload.paper_id !== paperId) {
         return;
       }
@@ -55,10 +57,18 @@ export function usePaperParseRuns(paperId?: string) {
           setParseRuns(response.runs.map(rowToPaperParseRun));
         });
       }
+    }).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
+      unlisten = cleanup;
     });
 
     return () => {
-      void unlisten.then((cleanup) => cleanup());
+      mounted = false;
+      unlisten?.();
+      unlisten = undefined;
     };
   }, [paperId]);
 

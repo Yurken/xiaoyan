@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { safeListen } from "../../lib/tauriEvent";
+import type { UnlistenFn } from "@tauri-apps/api/event";
 import type { LearningPath, ResearchInterest } from "@research-copilot/types";
 import type { InterestAgentState, InterestPlanRunSnapshot, InterestPlanRunSnapshots } from "./shared";
 

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { safeListen } from "./tauriEvent";
 import type {
   AgentPlanStep,
   AgentRun,
@@ -62,37 +62,37 @@ export async function* streamChat(
     signal?.addEventListener("abort", onAbort);
 
     unlisteners = await Promise.all([
-      listen<{ request_id: string; plan: AgentPlanStep[] }>("chat:plan", (event) => {
+      safeListen<{ request_id: string; plan: AgentPlanStep[] }>("chat:plan", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "plan", value: event.payload.plan });
         }
       }),
-      listen<{ request_id: string; value: AgentRun }>("chat:agent_start", (event) => {
+      safeListen<{ request_id: string; value: AgentRun }>("chat:agent_start", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "agent_start", value: event.payload.value });
         }
       }),
-      listen<{ request_id: string; value: AgentRun }>("chat:agent_complete", (event) => {
+      safeListen<{ request_id: string; value: AgentRun }>("chat:agent_complete", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "agent_complete", value: event.payload.value });
         }
       }),
-      listen<{ request_id: string; value: AgentRun }>("chat:agent_error", (event) => {
+      safeListen<{ request_id: string; value: AgentRun }>("chat:agent_error", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "agent_error", value: event.payload.value });
         }
       }),
-      listen<{ request_id: string; delta: string }>("chat:delta", (event) => {
+      safeListen<{ request_id: string; delta: string }>("chat:delta", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "delta", value: event.payload.delta });
         }
       }),
-      listen<{ request_id: string; query: string }>("chat:searching", (event) => {
+      safeListen<{ request_id: string; query: string }>("chat:searching", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "searching", query: event.payload.query });
         }
       }),
-      listen<{
+      safeListen<{
         request_id: string;
         policy: string;
         selected: string[];
@@ -111,12 +111,12 @@ export async function* streamChat(
           });
         }
       }),
-      listen<{ request_id: string; value: NonNullable<ChatMessage["sources"]> }>("chat:sources", (event) => {
+      safeListen<{ request_id: string; value: NonNullable<ChatMessage["sources"]> }>("chat:sources", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "sources", value: event.payload.value });
         }
       }),
-      listen<{ request_id: string }>("chat:done", (event) => {
+      safeListen<{ request_id: string }>("chat:done", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "done" });
           done = true;
@@ -124,7 +124,7 @@ export async function* streamChat(
           resolve = null;
         }
       }),
-      listen<{ request_id: string; tool_name: string; tool_id: string; result: string; result_id?: string }>("chat:tool_result", (event) => {
+      safeListen<{ request_id: string; tool_name: string; tool_id: string; result: string; result_id?: string }>("chat:tool_result", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({
             type: "tool_result",
@@ -135,7 +135,7 @@ export async function* streamChat(
           });
         }
       }),
-      listen<{ request_id: string; error: string }>("chat:error", (event) => {
+      safeListen<{ request_id: string; error: string }>("chat:error", (event) => {
         if (event.payload.request_id === requestId) {
           enqueue({ type: "error", value: event.payload.error });
           done = true;

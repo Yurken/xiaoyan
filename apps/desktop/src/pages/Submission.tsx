@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { safeListen } from "../lib/tauriEvent";
 import { formatErrorMessage } from "../lib/client";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import { useSubmissionVenues } from "../features/submission/useSubmissionVenues";
@@ -85,7 +85,8 @@ export default function Submission() {
   const activeMockSubRef = useRef<string>("");
   useEffect(() => {
     let unlistenR: (() => void) | undefined, unlistenD: (() => void) | undefined, unlistenE: (() => void) | undefined;
-    listen<{ submissionId: string; index: number; reviewer: string; raw: string }>("submission:ai_review:reviewer",
+    let mounted = true;
+    safeListen<{ submissionId: string; index: number; reviewer: string; raw: string }>("submission:ai_review:reviewer",
       ({ payload }) => {
         if (payload.submissionId !== activeMockSubRef.current) return;
         try {
@@ -106,27 +107,36 @@ export default function Submission() {
           }];
           review.setMockResult([...mockBufferRef.current]);
         }
-      }).then(u => { unlistenR = u; });
-    listen<{ submissionId: string }>("submission:ai_review:done", ({ payload }) => {
+      }).then(u => { if (!mounted) { u(); return; } unlistenR = u; });
+    safeListen<{ submissionId: string }>("submission:ai_review:done", ({ payload }) => {
       if (payload.submissionId !== activeMockSubRef.current) return;
       review.setMockLoading(false);
       if (payload.submissionId === checklist.checklistSubId) void diagnosis.refreshReports();
-    }).then(u => { unlistenD = u; });
-    listen<{ submissionId: string; error: string }>("submission:ai_review:error", ({ payload }) => {
+    }).then(u => { if (!mounted) { u(); return; } unlistenD = u; });
+    safeListen<{ submissionId: string; error: string }>("submission:ai_review:error", ({ payload }) => {
       if (payload.submissionId !== activeMockSubRef.current) return;
       review.setMockLoading(false); showError(payload.error);
-    }).then(u => { unlistenE = u; });
-    return () => { unlistenR?.(); unlistenD?.(); unlistenE?.(); };
+    }).then(u => { if (!mounted) { u(); return; } unlistenE = u; });
+    return () => {
+      mounted = false;
+      unlistenR?.(); unlistenD?.(); unlistenE?.();
+      unlistenR = undefined; unlistenD = undefined; unlistenE = undefined;
+    };
   }, [checklist.checklistSubId, diagnosis, review, showError]);
 
   // Cover letter / polish event listeners
   useEffect(() => {
     let u1: (() => void) | undefined, u2: (() => void) | undefined;
-    listen<{ submissionId: string; delta: string }>("submission:cover_letter:delta",
-      ({ payload }) => { setCoverLetterText(prev => prev + payload.delta); }).then(u => { u1 = u; });
-    listen<{ submissionId: string; fullText: string }>("submission:cover_letter:done",
-      ({ payload }) => { setCoverLetterText(payload.fullText); setCoverLetterLoading(false); }).then(u => { u2 = u; });
-    return () => { u1?.(); u2?.(); };
+    let mounted = true;
+    safeListen<{ submissionId: string; delta: string }>("submission:cover_letter:delta",
+      ({ payload }) => { setCoverLetterText(prev => prev + payload.delta); }).then(u => { if (!mounted) { u(); return; } u1 = u; });
+    safeListen<{ submissionId: string; fullText: string }>("submission:cover_letter:done",
+      ({ payload }) => { setCoverLetterText(payload.fullText); setCoverLetterLoading(false); }).then(u => { if (!mounted) { u(); return; } u2 = u; });
+    return () => {
+      mounted = false;
+      u1?.(); u2?.();
+      u1 = undefined; u2 = undefined;
+    };
   }, []);
   useEffect(() => {
     let u1: (() => void) | undefined, u2: (() => void) | undefined;
