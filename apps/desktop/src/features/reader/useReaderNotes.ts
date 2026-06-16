@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { paperNotesApi } from "../../lib/client";
 import {
   normalizePaperNote,
@@ -17,10 +17,31 @@ interface CreateAnnotationInput {
   content?: string;
 }
 
+/** 撤销栈条目：记录某次批注操作的“逆操作”。 */
+type UndoEntry =
+  | { kind: "remove"; id: string } // 撤销“创建” → 删除该批注
+  | { kind: "restore"; note: PaperNote } // 撤销“删除” → 重新创建
+  | { kind: "recolor"; id: string; color: HighlightColor }; // 撤销“改色” → 还原颜色
+
+const MAX_UNDO = 100;
+
 export function useReaderNotes(paperId: string | undefined) {
   const [notes, setNotes] = useState<PaperNote[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // 让各操作能同步读到最新 notes（用于捕获“删除前的批注 / 改色前的颜色”），避免把 notes 塞进依赖。
+  const notesRef = useRef<PaperNote[]>([]);
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
+
+  const undoRef = useRef<UndoEntry[]>([]);
+  const pushUndo = useCallback((entry: UndoEntry) => {
+    const stack = undoRef.current;
+    stack.push(entry);
+    if (stack.length > MAX_UNDO) stack.shift();
+  }, []);
 
   const reload = useCallback(async () => {
     if (!paperId) return;
@@ -41,6 +62,7 @@ export function useReaderNotes(paperId: string | undefined) {
 
   useEffect(() => {
     void reload();
+    undoRef.current = []; // 切换论文时清空撤销栈
   }, [reload]);
 
   const createAnnotation = useCallback(
@@ -59,6 +81,7 @@ export function useReaderNotes(paperId: string | undefined) {
         const note = normalizePaperNote(created);
         if (note) {
           setNotes((current) => [...current, note]);
+          pushUndo({ kind: "remove", id: note.id });
         } else {
           await reload();
         }
@@ -67,28 +90,72 @@ export function useReaderNotes(paperId: string | undefined) {
         setError(err instanceof Error ? err.message : "保存批注失败");
       }
     },
-    [paperId, reload],
+    [paperId, reload, pushUndo],
   );
 
-  const updateColor = useCallback(async (id: string, color: HighlightColor) => {
-    setNotes((current) => current.map((note) => (note.id === id ? { ...note, highlight_color: color } : note)));
-    try {
-      await paperNotesApi.update(id, { highlight_color: color });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "更新批注失败");
-    }
-  }, []);
+  const updateColor = useCallback(
+    async (id: string, color: HighlightColor) => {
+      const prev = notesRef.current.find((note) => note.id === id)?.highlight_color;
+      if (prev && prev !== color) pushUndo({ kind: "recolor", id, color: prev });
+      setNotes((current) => current.map((note) => (note.id === id ? { ...note, highlight_color: color } : note)));
+      try {
+        await paperNotesApi.update(id, { highlight_color: color });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "更新批注失败");
+      }
+    },
+    [pushUndo],
+  );
 
-  const deleteAnnotation = useCallback(async (id: string) => {
-    const snapshot = notes;
-    setNotes((current) => current.filter((note) => note.id !== id));
-    try {
-      await paperNotesApi.delete(id);
-    } catch (err) {
-      setNotes(snapshot);
-      setError(err instanceof Error ? err.message : "删除批注失败");
-    }
-  }, [notes]);
+  const deleteAnnotation = useCallback(
+    async (id: string) => {
+      const snapshot = notesRef.current;
+      const removed = snapshot.find((note) => note.id === id);
+      setNotes((current) => current.filter((note) => note.id !== id));
+      if (removed) pushUndo({ kind: "restore", note: removed });
+      try {
+        await paperNotesApi.delete(id);
+      } catch (err) {
+        setNotes(snapshot);
+        setError(err instanceof Error ? err.message : "删除批注失败");
+      }
+    },
+    [pushUndo],
+  );
 
-  return { notes, loading, error, reload, createAnnotation, updateColor, deleteAnnotation };
+  // 撤销最近一次批注操作（创建/删除/改色）。逆操作直接走底层 API，不再压栈。
+  const undo = useCallback(async () => {
+    const entry = undoRef.current.pop();
+    if (!entry) return;
+    try {
+      if (entry.kind === "remove") {
+        setNotes((current) => current.filter((note) => note.id !== entry.id));
+        await paperNotesApi.delete(entry.id);
+      } else if (entry.kind === "recolor") {
+        setNotes((current) =>
+          current.map((note) => (note.id === entry.id ? { ...note, highlight_color: entry.color } : note)),
+        );
+        await paperNotesApi.update(entry.id, { highlight_color: entry.color });
+      } else {
+        const { note } = entry;
+        const created = await paperNotesApi.create({
+          paper_id: note.paper_id,
+          page: note.page,
+          content: note.content,
+          highlight_text: note.highlight_text ?? undefined,
+          highlight_color: note.highlight_color,
+          highlight_positions: note.highlight_positions ?? undefined,
+          style: note.style,
+        });
+        const restored = normalizePaperNote(created);
+        if (restored) setNotes((current) => [...current, restored]);
+        else await reload();
+      }
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "撤销失败");
+    }
+  }, [reload]);
+
+  return { notes, loading, error, reload, createAnnotation, updateColor, deleteAnnotation, undo };
 }

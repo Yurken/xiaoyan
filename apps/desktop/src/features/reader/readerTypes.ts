@@ -3,6 +3,9 @@
 export type HighlightColor = "yellow" | "green" | "blue" | "pink" | "purple";
 export type AnnotationStyle = "highlight" | "underline" | "strike";
 
+/** 阅读器顶部工具栏的模式：view=正常阅读；annotate=预选工具持续批注。 */
+export type ReaderMode = "view" | "annotate";
+
 export const HIGHLIGHT_COLORS: Record<
   HighlightColor,
   { bg: string; border: string; label: string }

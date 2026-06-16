@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ExternalLink, Minus, Plus } from "lucide-react";
-import type { Paper } from "@research-copilot/types";
+import { ExternalLink } from "lucide-react";
 import { Button } from "@research-copilot/ui";
 import { papersApi } from "../lib/client";
 import PdfReaderViewer, { type PdfReaderViewerHandle } from "../features/reader/PdfReaderViewer";
 import ReaderTranslationPanel from "../features/reader/ReaderTranslationPanel";
+import ReaderPaperList from "../features/reader/ReaderPaperList";
+import ReaderToolbar from "../features/reader/ReaderToolbar";
 import SelectionPopup from "../features/reader/SelectionPopup";
 import { useReaderNotes } from "../features/reader/useReaderNotes";
 import { useReaderTranslation } from "../features/reader/useReaderTranslation";
-import type { AnnotationStyle, HighlightColor, PaperNote, ReaderSelection } from "../features/reader/readerTypes";
+import type {
+  AnnotationStyle,
+  HighlightColor,
+  PaperNote,
+  ReaderMode,
+  ReaderSelection,
+} from "../features/reader/readerTypes";
 import { useCorpus } from "../features/papers/useCorpus";
 
 const MIN_SCALE = 0.6;
@@ -20,7 +27,6 @@ export default function PaperReader() {
   const navigate = useNavigate();
   const viewerRef = useRef<PdfReaderViewerHandle>(null);
 
-  const [paper, setPaper] = useState<Paper | null>(null);
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -29,7 +35,14 @@ export default function PaperReader() {
   const [editing, setEditing] = useState<{ note: PaperNote; x: number; y: number } | null>(null);
   const [toast, setToast] = useState("");
 
-  const { notes, error: notesError, createAnnotation, updateColor, deleteAnnotation } = useReaderNotes(id);
+  // 工具栏状态
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [mode, setMode] = useState<ReaderMode>("view");
+  const [annotateTool, setAnnotateTool] = useState<AnnotationStyle>("highlight");
+  const [annotateColor, setAnnotateColor] = useState<HighlightColor>("yellow");
+  const [alwaysTranslate, setAlwaysTranslate] = useState(false);
+
+  const { notes, error: notesError, createAnnotation, updateColor, deleteAnnotation, undo } = useReaderNotes(id);
   const translation = useReaderTranslation();
   const corpus = useCorpus(id);
 
@@ -44,12 +57,13 @@ export default function PaperReader() {
     setLoading(true);
     setLoadError("");
     setPdfData(null);
+    setSelection(null);
+    setEditing(null);
 
     (async () => {
       try {
         const detail = await papersApi.get(id);
         if (cancelled) return;
-        setPaper(detail);
         if (!detail.file_path) {
           setLoadError("该论文没有本地 PDF 文件，无法批注阅读。");
           return;
@@ -75,11 +89,49 @@ export default function PaperReader() {
     window.getSelection()?.removeAllRanges();
   }, []);
 
-  // 划词与点击已有高亮互斥，且页面空白处点击应关闭两个弹窗。
-  const handleTextSelected = useCallback((next: ReaderSelection) => {
-    setEditing(null);
-    setSelection(next);
-  }, []);
+  // Cmd(mac)/Ctrl(win)+Z 撤销最近一次批注；在输入框内则交还给浏览器做文本撤销。
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "z" || !(event.metaKey || event.ctrlKey) || event.shiftKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      event.preventDefault();
+      void undo();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [undo]);
+
+  // 划词处理：注释模式直接套用预选工具；一直翻译开启则自动翻译；否则视图模式弹工具菜单。
+  const handleTextSelected = useCallback(
+    (next: ReaderSelection) => {
+      setEditing(null);
+
+      if (alwaysTranslate) {
+        void translation.translate(next.text, next.page);
+      }
+
+      if (mode === "annotate") {
+        void createAnnotation({
+          page: next.page,
+          highlightText: next.text,
+          color: annotateColor,
+          style: annotateTool,
+          positions: next.positions,
+        });
+        clearSelection();
+        return;
+      }
+
+      if (alwaysTranslate) {
+        clearSelection();
+        return;
+      }
+
+      setSelection(next);
+    },
+    [alwaysTranslate, mode, annotateColor, annotateTool, translation, createAnnotation, clearSelection],
+  );
 
   const handlePopupsCleared = useCallback(() => {
     setSelection(null);
@@ -94,6 +146,10 @@ export default function PaperReader() {
 
   const handleZoom = useCallback((factor: number) => {
     setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(s * factor * 100) / 100)));
+  }, []);
+
+  const zoomStep = useCallback((delta: number) => {
+    setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round((s + delta) * 10) / 10)));
   }, []);
 
   const handleAnnotate = useCallback(
@@ -130,55 +186,33 @@ export default function PaperReader() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
-      <header
-        className="rc-reader-header flex min-h-[48px] shrink-0 items-center gap-3 border-b px-4 py-1.5"
-        style={{ borderColor: "var(--rc-border)", background: "var(--rc-header-bg)" }}
-      >
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-secondary"
-          title="返回"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <p className="min-w-0 flex-1 truncate text-sm font-bold text-ink-primary">
-          {paper?.title || "PDF 阅读"}
-        </p>
-
-        <div className="flex items-center gap-1 rounded-lg border px-1 py-0.5" style={{ borderColor: "var(--rc-border)" }}>
-          <button
-            type="button"
-            onClick={() => setScale((s) => Math.max(MIN_SCALE, Math.round((s - 0.1) * 10) / 10))}
-            className="flex h-6 w-6 items-center justify-center rounded text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-secondary"
-            title="缩小"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-          <span className="w-10 text-center text-xs tabular-nums text-ink-secondary">{Math.round(scale * 100)}%</span>
-          <button
-            type="button"
-            onClick={() => setScale((s) => Math.min(MAX_SCALE, Math.round((s + 0.1) * 10) / 10))}
-            className="flex h-6 w-6 items-center justify-center rounded text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-secondary"
-            title="放大"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </div>
-
-        {id ? (
-          <Button type="button" size="sm" variant="secondary" onClick={() => void papersApi.openFile(id)} title="用系统阅读器打开">
-            <ExternalLink className="h-3.5 w-3.5" />
-            外部打开
-          </Button>
-        ) : null}
-      </header>
+      <ReaderToolbar
+        leftOpen={leftOpen}
+        onToggleLeft={() => setLeftOpen((v) => !v)}
+        onBack={() => navigate("/papers")}
+        scalePercent={Math.round(scale * 100)}
+        onZoomIn={() => zoomStep(0.1)}
+        onZoomOut={() => zoomStep(-0.1)}
+        mode={mode}
+        onModeChange={setMode}
+        tool={annotateTool}
+        onToolChange={setAnnotateTool}
+        color={annotateColor}
+        onColorChange={setAnnotateColor}
+        alwaysTranslate={alwaysTranslate}
+        onToggleTranslate={() => setAlwaysTranslate((v) => !v)}
+        onOpenExternal={id ? () => void papersApi.openFile(id) : undefined}
+      />
 
       {notesError ? (
         <div className="shrink-0 bg-apple-red/10 px-4 py-1.5 text-xs text-apple-red">{notesError}</div>
       ) : null}
 
       <div className="flex min-h-0 flex-1">
+        {leftOpen ? (
+          <ReaderPaperList currentId={id} onSelect={(pid) => navigate(`/papers/${pid}/reader`)} />
+        ) : null}
+
         <div className="min-w-0 flex-1">
           {loading ? (
             <div className="flex h-full items-center justify-center text-sm text-ink-tertiary">正在打开论文…</div>

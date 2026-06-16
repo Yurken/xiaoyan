@@ -71,8 +71,12 @@ export default function App() {
   useInterestPlanEventBridge();
   useThemeInit();
   useKeyboardShortcuts();
+  const location = useLocation();
   const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());
   const { locked, setLocked, lockChecked } = useAppLock();
+
+  // 论文阅读页沉浸式：隐藏全局侧边导航，腾出空间给阅读器自带的论文库/工具栏。
+  const immersiveReader = /^\/papers\/[^/]+\/reader\/?$/.test(location.pathname);
 
   useEffect(() => {
     const syncLayoutMode = () => setCurrentLayoutMode(getLayoutMode());
@@ -136,34 +140,36 @@ export default function App() {
 
   return (
     <div className={`app-shell ${IS_MACOS_DESKTOP ? "app-shell--macos-overlay" : ""}`.trim()}>
-      <aside className="app-sidebar">
-        <MacWindowDragStrip className="app-sidebar__window-drag-region" />
+      {!immersiveReader ? (
+        <aside className="app-sidebar">
+          <MacWindowDragStrip className="app-sidebar__window-drag-region" />
 
-        {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === "/"}
-            aria-label={label}
-            draggable={false}
-            className="app-nav-link"
-          >
-            {({ isActive }) => (
-              <span
-                className={`app-nav-item ${isActive ? "is-active" : ""}`.trim()}
-              >
-                <span className="app-nav-item__marker" />
-                <Icon className="app-nav-item__icon" />
-                <span className="app-nav-item__label">{label}</span>
-              </span>
-            )}
-          </NavLink>
-        ))}
+          {navItems.map(({ to, icon: Icon, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === "/"}
+              aria-label={label}
+              draggable={false}
+              className="app-nav-link"
+            >
+              {({ isActive }) => (
+                <span
+                  className={`app-nav-item ${isActive ? "is-active" : ""}`.trim()}
+                >
+                  <span className="app-nav-item__marker" />
+                  <Icon className="app-nav-item__icon" />
+                  <span className="app-nav-item__label">{label}</span>
+                </span>
+              )}
+            </NavLink>
+          ))}
 
-        <div className="app-sidebar__pet">
-          <XiaoYanPet inline />
-        </div>
-      </aside>
+          <div className="app-sidebar__pet">
+            <XiaoYanPet inline />
+          </div>
+        </aside>
+      ) : null}
 
       <main className="app-main">
         <MacWindowDragStrip className="app-main__window-drag-region" />

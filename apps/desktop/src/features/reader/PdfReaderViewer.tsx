@@ -14,7 +14,6 @@ const MAX_CANVAS_SIDE = 4096;
 const MAX_CANVAS_PIXELS = 12_000_000;
 const MIN_CANVAS_OUTPUT_SCALE = 2;
 const MAX_CANVAS_OUTPUT_SCALE = 2;
-const SETTLE_RERENDER_DELAYS = [180, 520, 1100] as const;
 
 interface PdfReaderViewerProps {
   data: Uint8Array;
@@ -117,21 +116,17 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       };
     }, []);
 
-    // 首屏页先快速显示，再在 WebView / DPR / 容器尺寸稳定后强制高清重绘。
+    // 仅在窗口/容器尺寸变化时重绘一次。不再做“先快速显示再补清晰”的首屏二次重绘，
+    // 每页只在清晰渲染完成后整页提交，避免首屏出现模糊页。
     useEffect(() => {
       if (!pdfDoc) return;
 
       let resizeTimer = 0;
-      const timers: number[] = [];
       const bumpRevision = () => setRenderRevision((revision) => revision + 1);
       const scheduleResizeRevision = () => {
         window.clearTimeout(resizeTimer);
         resizeTimer = window.setTimeout(bumpRevision, 160);
       };
-
-      for (const delay of SETTLE_RERENDER_DELAYS) {
-        timers.push(window.setTimeout(bumpRevision, delay));
-      }
 
       const container = containerRef.current;
       const resizeObserver = typeof ResizeObserver !== "undefined"
@@ -145,13 +140,11 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
       return () => {
         window.clearTimeout(resizeTimer);
-        timers.forEach((timer) => window.clearTimeout(timer));
         resizeObserver?.disconnect();
         window.removeEventListener("resize", scheduleResizeRevision);
         window.visualViewport?.removeEventListener("resize", scheduleResizeRevision);
       };
-      // 不依赖 scale：缩放本身已由页面渲染 effect 处理，否则每次滚轮缩放都会
-      // 重新挂载这批 settle 定时器，造成缩放后多次强制重绘（闪烁）。
+      // 不依赖 scale：缩放由页面渲染 effect 处理。
     }, [pdfDoc, devicePixelRatio]);
 
     // 懒渲染：进入视口的页才渲染
@@ -316,17 +309,14 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
             return;
           }
 
-          setPageSize({ w: cssWidth, h: cssHeight });
-
           const canvas = canvasRef.current;
           if (!canvas) return;
 
-          // 立即把可见画布的 CSS 尺寸调到新缩放：旧位图被拉伸显示（略糊但不清空），
-          // 缩放视觉即时跟手，且不会出现改尺寸清空导致的白闪。
-          canvas.style.width = `${cssWidth}px`;
-          canvas.style.height = `${cssHeight}px`;
-
-          // 先离屏渲染，完成后整帧贴回可见画布，避免渲染期间画布空白闪烁。
+          // 离屏渲染，完成后再一次性把「尺寸 + 位图」提交到可见画布。
+          // 渲染未完成前完全不动可见画布，因此：
+          //  - 首屏只会在清晰页就绪后整页出现，不存在先模糊后变清晰；
+          //  - 缩放时若中途被新的缩放打断，可见画布仍保持上一次的清晰画面，
+          //    不会出现“小底图被拉伸成新尺寸”的永久模糊。
           const buffer = document.createElement("canvas");
           buffer.width = pixelWidth;
           buffer.height = pixelHeight;
@@ -345,13 +335,16 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
 
           const ctx = canvas.getContext("2d", { alpha: false });
           if (!ctx) return;
-          // 设 width/height 会清空画布，但紧接着同步 drawImage，浏览器不会绘出空白中间帧。
+          // 渲染完成后才提交：原子地设置 backing 像素、CSS 尺寸并贴图，三者一致 → 始终清晰。
           canvas.width = pixelWidth;
           canvas.height = pixelHeight;
+          canvas.style.width = `${cssWidth}px`;
+          canvas.style.height = `${cssHeight}px`;
           ctx.drawImage(buffer, 0, 0);
 
-          // 画布渲染成功即锁定签名，避免文本层失败时无限重渲染。
+          // 渲染成功后再锁定签名并提交页面尺寸，保证“清晰就绪”后整页一次性出现。
           renderedSignatureRef.current = renderSignature;
+          setPageSize({ w: cssWidth, h: cssHeight });
 
           // 文本层（划词选择/批注/翻译依赖它）尽力渲染，失败不影响画布显示。
           try {
