@@ -35,7 +35,10 @@ function isReleaseInstaller(file) {
   return (
     (segments.includes("dmg") && file.name.endsWith(".dmg")) ||
     (segments.includes("msi") && file.name.endsWith(".msi")) ||
-    (segments.includes("nsis") && file.name.endsWith("setup.exe"))
+    (segments.includes("nsis") && file.name.endsWith("setup.exe")) ||
+    (segments.includes("appimage") && file.name.endsWith(".AppImage")) ||
+    (segments.includes("deb") && file.name.endsWith(".deb")) ||
+    (segments.includes("rpm") && file.name.endsWith(".rpm"))
   );
 }
 

@@ -12,6 +12,8 @@ const PLATFORM_INSTALLER_PREFERENCES = {
   "darwin-x86_64": [".dmg"],
   "windows-x86_64": [".msi", "setup.exe", ".exe"],
   "windows-aarch64": [".msi", "setup.exe", ".exe"],
+  "linux-x86_64": [".AppImage", ".deb", ".rpm"],
+  "linux-aarch64": [".AppImage", ".deb", ".rpm"],
 };
 
 function getArg(flag) {

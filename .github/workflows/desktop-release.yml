@@ -105,6 +105,7 @@ jobs:
             ### 下载说明
             - **macOS Apple Silicon** -> .dmg (aarch64)
             - **Windows** -> .msi 或 .exe
+            - **Linux x64** -> .AppImage / .deb / .rpm
 
             > 首次安装 macOS 版本如提示"无法验证"，请前往系统设置 -> 隐私与安全性 -> 仍要打开。`;
             const prerelease = tag.includes('-');
@@ -157,6 +158,12 @@ jobs:
             rust_target: ""
             build_target_dir: release
             updater_target: windows-x86_64
+          - label: Linux x64
+            platform: ubuntu-22.04
+            args: ""
+            rust_target: ""
+            build_target_dir: release
+            updater_target: linux-x86_64
 
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 90
@@ -186,6 +193,21 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "./apps/desktop/src-tauri -> target"
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -270,7 +292,11 @@ jobs:
               -name '*.nsis.zip' -o \
               -name '*.nsis.zip.sig' -o \
               -name '*.msi.zip' -o \
-              -name '*.msi.zip.sig' \
+              -name '*.msi.zip.sig' -o \
+              -name '*.AppImage' -o \
+              -name '*.AppImage.sig' -o \
+              -name '*.AppImage.tar.gz' -o \
+              -name '*.AppImage.tar.gz.sig' \
             \) \
             -exec cp '{}' "$output_dir/" ';'
           test -n "$(find "$output_dir" -type f | head -n 1)"
@@ -307,7 +333,7 @@ jobs:
           AWS_DEFAULT_REGION: auto
         run: |
           mkdir -p .release-assets
-          for target in darwin-aarch64 windows-x86_64; do
+          for target in darwin-aarch64 windows-x86_64 linux-x86_64; do
             aws s3 cp s3://${{ secrets.R2_BUCKET_NAME }}/releases/${{ env.RELEASE_TAG }}/${target}/ \
               .release-assets/ \
               --recursive \
@@ -356,7 +382,7 @@ jobs:
           AWS_DEFAULT_REGION: auto
         run: |
           set -euo pipefail
-          for target in darwin-aarch64 windows-x86_64; do
+          for target in darwin-aarch64 windows-x86_64 linux-x86_64; do
             mkdir -p ".updater-assets/${target}" ".release-assets/${target}"
             aws s3 cp s3://${{ secrets.R2_BUCKET_NAME }}/updaters/${{ env.RELEASE_TAG }}/${target}/ \
               ".updater-assets/${target}/" --recursive --endpoint-url "$AWS_ENDPOINT_URL"
