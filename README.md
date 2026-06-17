@@ -151,15 +151,9 @@ node scripts/sync-version.mjs --version 1.2.3
 
 ## 发布
 
-推送 `v*` tag 触发 GitHub Actions 流水线：创建 Release → 矩阵构建（macOS / Windows）→ 上传产物 → 发布。
+推送 `v*` tag 触发 GitHub Actions 流水线：创建 Release → 矩阵构建（macOS / Windows）→ 上传安装包与更新包到 Cloudflare R2 → 生成更新清单（`updaters/latest.json`）与官网下载清单（`releases/latest.json`）回传 R2 → 发布。
 
-手工打包上传：
-
-```bash
-export UPDATE_ADMIN_PASSWORD='<password>'
-pnpm build:updater:mac -- v0.3.2    # macOS
-pnpm build:updater:win -- v0.3.2    # Windows (PowerShell)
-```
+安装包与自动更新统一从 R2 公共地址分发（见 `R2_PUBLIC_BASE_URL`），应用更新端点为 `<R2_PUBLIC_BASE_URL>/updaters/latest.json`，官网下载链接读取 `<R2_PUBLIC_BASE_URL>/releases/latest.json`。发布无需手工打包上传，全部走 CI。
 
 macOS 首次打开提示"已损坏"时执行 `xattr -cr /Applications/小妍.app` 后重新打开。
 

@@ -9,8 +9,6 @@
     "build:web": "turbo run build --filter=@research-copilot/web",
     "build:desktop": "pnpm --dir apps/desktop run tauri build",
     "render:promo": "pnpm --dir apps/promo run render",
-    "build:updater:mac": "bash scripts/build-mac-updater-upload.sh",
-    "build:updater:win": "powershell -ExecutionPolicy Bypass -File scripts/build-win-updater-upload.ps1",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",

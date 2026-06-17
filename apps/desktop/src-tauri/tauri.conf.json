@@ -73,9 +73,8 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEEyRTdENTE4QTYwQzlCRUQKUldUdG13eW1HTlhub2l6bFZCM0RHeWF0ME1KZzBHZkZoWVE0L0ZNUDJnSGNOS3dlQml0WGJrRzMK",
       "endpoints": [
-        "http://111.231.56.208:18081/xiaoyan-updates/latest.json"
+        "https://pub-9c3110eb71b241e5a88d8aa3388af9a2.r2.dev/updaters/latest.json"
       ],
-      "dangerousInsecureTransportProtocol": true,
       "windows": {
         "installMode": "passive"
       }

@@ -128,8 +128,13 @@ async function buildManifest(inputDir, baseUrl, version, notes, pubDate) {
 
   for (const platform of platformDirs) {
     const names = await readdir(platform.dirPath);
+    // Prefer files carrying the version (Windows installers embed it), but fall
+    // back to all files when none match — the macOS bundle is named
+    // "<productName>.app.tar.gz" with no version. Each platform dir holds a
+    // single release, so the fallback cannot pick a wrong version.
     const namesForVersion = names.filter((name) => fileMatchesVersion(name, version));
-    const bundleName = pickBundleName(namesForVersion, platform.platformKey);
+    const candidateNames = namesForVersion.length > 0 ? namesForVersion : names;
+    const bundleName = pickBundleName(candidateNames, platform.platformKey);
     if (!bundleName) {
       const candidateList = formatCandidateList(names.filter((name) => !name.endsWith(".sig")));
       throw new Error(

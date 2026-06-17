@@ -329,8 +329,8 @@ jobs:
             --repo "${{ github.repository }}" \
             --clobber
 
-  upload-updater-assets:
-    name: Upload Updater Assets
+  publish-manifests:
+    name: Publish R2 Manifests
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -348,40 +348,71 @@ jobs:
       - name: Install AWS CLI
         run: pip install awscli
 
-      - name: Download updater bundles from R2
+      - name: Download artifacts from R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
           AWS_DEFAULT_REGION: auto
         run: |
-          mkdir -p .updater-assets
+          set -euo pipefail
           for target in darwin-aarch64 windows-x86_64; do
+            mkdir -p ".updater-assets/${target}" ".release-assets/${target}"
             aws s3 cp s3://${{ secrets.R2_BUCKET_NAME }}/updaters/${{ env.RELEASE_TAG }}/${target}/ \
-              .updater-assets/ \
-              --recursive \
-              --endpoint-url $AWS_ENDPOINT_URL
+              ".updater-assets/${target}/" --recursive --endpoint-url "$AWS_ENDPOINT_URL"
+            aws s3 cp s3://${{ secrets.R2_BUCKET_NAME }}/releases/${{ env.RELEASE_TAG }}/${target}/ \
+              ".release-assets/${target}/" --recursive --endpoint-url "$AWS_ENDPOINT_URL"
           done
-          ls -l .updater-assets
+          find .updater-assets .release-assets -type f
 
-      - name: Upload updater bundles to update server
+      - name: Generate manifests
         env:
-          UPDATE_ADMIN_URL: ${{ secrets.UPDATE_ADMIN_URL }}
-          UPDATE_ADMIN_USERNAME: ${{ secrets.UPDATE_ADMIN_USERNAME }}
-          UPDATE_ADMIN_PASSWORD: ${{ secrets.UPDATE_ADMIN_PASSWORD }}
+          R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
         run: |
           set -euo pipefail
-          node scripts/upload-updater-via-admin.mjs \
+          if [ -z "${R2_PUBLIC_BASE_URL:-}" ]; then
+            echo "Missing R2_PUBLIC_BASE_URL secret" >&2
+            exit 1
+          fi
+          base="${R2_PUBLIC_BASE_URL%/}"
+          node scripts/generate-updater-manifest.mjs \
             --input-dir .updater-assets \
+            --base-url "${base}/updaters/${{ env.RELEASE_TAG }}" \
             --version "${{ env.RELEASE_TAG }}" \
-            --url "$UPDATE_ADMIN_URL" \
-            --username "$UPDATE_ADMIN_USERNAME" \
-            --password "$UPDATE_ADMIN_PASSWORD"
+            --output updaters-latest.json
+          node scripts/generate-download-manifest.mjs \
+            --input-dir .release-assets \
+            --base-url "${base}/releases/${{ env.RELEASE_TAG }}" \
+            --version "${{ env.RELEASE_TAG }}" \
+            --output releases-latest.json
+          echo "--- updaters/latest.json ---"; cat updaters-latest.json
+          echo "--- releases/latest.json ---"; cat releases-latest.json
+
+      - name: Upload manifests to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          set -euo pipefail
+          bucket="${{ secrets.R2_BUCKET_NAME }}"
+          tag="${{ env.RELEASE_TAG }}"
+          for dest in "updaters/latest.json" "updaters/${tag}/latest.json"; do
+            aws s3 cp updaters-latest.json "s3://${bucket}/${dest}" \
+              --content-type application/json --cache-control "no-cache" \
+              --endpoint-url "$AWS_ENDPOINT_URL"
+          done
+          for dest in "releases/latest.json" "releases/${tag}/latest.json"; do
+            aws s3 cp releases-latest.json "s3://${bucket}/${dest}" \
+              --content-type application/json --cache-control "no-cache" \
+              --endpoint-url "$AWS_ENDPOINT_URL"
+          done
 
   # ── Stage 4: Publish release after all builds succeed ─────────
   publish-release:
     name: Publish Release
-    needs: [create-release, build, publish-github-assets, upload-updater-assets]
+    needs: [create-release, build, publish-github-assets, publish-manifests]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
