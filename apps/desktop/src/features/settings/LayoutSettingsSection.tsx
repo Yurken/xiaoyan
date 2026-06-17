@@ -112,6 +112,31 @@ function StylePreview({ style, theme }: { style: ThemeStyle; theme: ThemePrefere
     );
   }
 
+  if (style === "liquid-glass") {
+    return (
+      <div
+        className="relative flex h-10 w-14 items-center justify-center overflow-hidden rounded-2xl border"
+        style={{
+          borderColor: "var(--rc-border)",
+          background: dark
+            ? "linear-gradient(135deg, #2563eb, #7c3aed 55%, #06b6d4)"
+            : "linear-gradient(135deg, #60a5fa, #c084fc 55%, #5eead4)",
+        }}
+      >
+        <div
+          className="h-5 w-9 rounded-lg border"
+          style={{
+            background: dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.45)",
+            borderColor: dark ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.8)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)",
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex h-10 w-14 items-center justify-center rounded-2xl border px-2"
@@ -199,7 +224,7 @@ export default function LayoutSettingsSection({
 
       <div>
         <p className="mb-2 ml-1 text-xs font-medium text-ink-tertiary">界面风格</p>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           {([
             {
               style: "neumorphic" as ThemeStyle,
@@ -210,6 +235,11 @@ export default function LayoutSettingsSection({
               style: "modern-minimal" as ThemeStyle,
               label: "极简工作台",
               description: "借鉴 Codex / ChatGPT 的克制壳层，信息靠边界、密度和排版建立层次。",
+            },
+            {
+              style: "liquid-glass" as ThemeStyle,
+              label: "液体玻璃",
+              description: "参照 macOS 26 的玻璃材质，半透磨砂叠在彩色壁纸上，面板带流光高光，像浮起的玻璃。",
             },
           ] as const).map(({ style, label, description }) => (
             <OptionCard

@@ -1,10 +1,10 @@
 const KEY = "rc_style";
 
-export type ThemeStyle = "neumorphic" | "modern-minimal";
+export type ThemeStyle = "neumorphic" | "modern-minimal" | "liquid-glass";
 
 export function getThemeStyle(): ThemeStyle {
   const stored = localStorage.getItem(KEY);
-  if (stored === "neumorphic" || stored === "modern-minimal") return stored;
+  if (stored === "neumorphic" || stored === "modern-minimal" || stored === "liquid-glass") return stored;
   return "neumorphic";
 }
 

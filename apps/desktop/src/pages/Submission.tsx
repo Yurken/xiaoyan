@@ -140,12 +140,17 @@ export default function Submission() {
   }, []);
   useEffect(() => {
     let u1: (() => void) | undefined, u2: (() => void) | undefined;
-    listen<{ submissionId: string; delta: string }>("submission:polish:delta", ({ payload }) => {
+    let mounted = true;
+    safeListen<{ submissionId: string; delta: string }>("submission:polish:delta", ({ payload }) => {
       if (payload.submissionId === review.subId || payload.submissionId === versionSubId) setPolishText(prev => prev + payload.delta);
-    }).then(u => { u1 = u; });
-    listen<{ submissionId: string; fullText: string }>("submission:polish:done",
-      ({ payload }) => { setPolishText(payload.fullText); setPolishLoading(false); }).then(u => { u2 = u; });
-    return () => { u1?.(); u2?.(); };
+    }).then(u => { if (!mounted) { u(); return; } u1 = u; });
+    safeListen<{ submissionId: string; fullText: string }>("submission:polish:done",
+      ({ payload }) => { setPolishText(payload.fullText); setPolishLoading(false); }).then(u => { if (!mounted) { u(); return; } u2 = u; });
+    return () => {
+      mounted = false;
+      u1?.(); u2?.();
+      u1 = undefined; u2 = undefined;
+    };
   }, [review.subId, versionSubId]);
 
   // DDL sync
