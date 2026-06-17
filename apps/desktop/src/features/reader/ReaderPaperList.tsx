@@ -73,7 +73,7 @@ export default function ReaderPaperList({ currentId, onSelect }: ReaderPaperList
         ) : filtered.length === 0 ? (
           <p className="px-1 py-6 text-center text-xs text-ink-tertiary">没有匹配的论文</p>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-0.5">
             {filtered.map((paper) => {
               const active = paper.id === currentId;
               return (
@@ -81,7 +81,7 @@ export default function ReaderPaperList({ currentId, onSelect }: ReaderPaperList
                   <button
                     type="button"
                     onClick={() => onSelect(paper.id)}
-                    className={`w-full rounded-lg px-2.5 py-2 text-left transition-colors ${
+                    className={`w-full rounded-lg px-2.5 py-1.5 text-left transition-colors ${
                       active ? "bg-apple-blue/10" : "hover:bg-[var(--rc-card-inset-bg)]"
                     }`}
                   >

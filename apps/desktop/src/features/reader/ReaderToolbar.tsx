@@ -40,7 +40,7 @@ const tools: Array<{ key: AnnotationStyle; icon: typeof Highlighter; label: stri
 ];
 
 const modes: Array<{ key: ReaderMode; label: string }> = [
-  { key: "view", label: "视图" },
+  { key: "view", label: "阅读" },
   { key: "annotate", label: "注释" },
 ];
 

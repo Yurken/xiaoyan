@@ -3,9 +3,10 @@ import "./text-layer.css";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { HIGHLIGHT_COLORS, type PaperNote, type ReaderSelection } from "./readerTypes";
+import { HIGHLIGHT_COLORS, mergeNormalizedRects, type PaperNote, type ReaderSelection } from "./readerTypes";
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
 import { usePdfTextSelection } from "./usePdfTextSelection";
+import { registerTextLayer } from "./textLayerSelection";
 import { openLink } from "../../lib/links";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -287,6 +288,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     let cancelled = false;
     let renderTask: any = null;
     let textLayer: any = null;
+    let unregisterTextLayer: (() => void) | null = null;
 
     // 延后到下一帧再渲染，进一步避开 WebView 首屏 DPR 抖动。
     const raf = requestAnimationFrame(() => {
@@ -382,6 +384,8 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
                 el.style.webkitUserSelect = "text";
                 el.style.cursor = "text";
               });
+              // 挂上 endOfContent 选区管理，消除选词（公式/跨段落）抖动。
+              unregisterTextLayer = registerTextLayer(textLayerDiv);
             }
           } catch (textErr) {
             if (cancelled || isRenderingCancelled(textErr)) return;
@@ -422,6 +426,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       try {
         renderTask?.cancel();
         textLayer?.cancel();
+        unregisterTextLayer?.();
       } catch {
         // ignore cancelled task cleanup errors
       }
@@ -486,7 +491,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
 
       {pageSize
         ? pageNotes.map((note) => {
-            const positions = note.highlight_positions ?? [];
+            const positions = mergeNormalizedRects(note.highlight_positions ?? []);
             if (positions.length === 0) return null;
             const color = HIGHLIGHT_COLORS[note.highlight_color];
             return positions.map((pos, i) => {
@@ -504,7 +509,6 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
                 style.background = `linear-gradient(to bottom, transparent calc(50% - 1px), ${color.border} calc(50% - 1px), ${color.border} calc(50% + 1px), transparent calc(50% + 1px))`;
               } else {
                 style.background = color.bg;
-                style.borderBottom = `2px solid ${color.border}`;
                 style.borderRadius = 2;
               }
               return (

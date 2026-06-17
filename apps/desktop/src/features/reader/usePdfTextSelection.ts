@@ -1,5 +1,5 @@
 import { useEffect, type RefObject } from "react";
-import type { NormalizedRect, ReaderSelection } from "./readerTypes";
+import { mergeNormalizedRects, type NormalizedRect, type ReaderSelection } from "./readerTypes";
 
 interface UsePdfTextSelectionOptions {
   containerRef: RefObject<HTMLElement | null>;
@@ -47,7 +47,7 @@ function findPageElement(range: Range): HTMLElement | null {
 }
 
 function selectionRects(range: Range, pageRect: DOMRect): NormalizedRect[] {
-  return Array.from(range.getClientRects())
+  const normalized = Array.from(range.getClientRects())
     .filter((rect) => rect.width >= 1 && rect.height >= 1)
     .map((rect) => ({
       x: (rect.left - pageRect.left) / pageRect.width,
@@ -55,6 +55,7 @@ function selectionRects(range: Range, pageRect: DOMRect): NormalizedRect[] {
       w: rect.width / pageRect.width,
       h: rect.height / pageRect.height,
     }));
+  return mergeNormalizedRects(normalized);
 }
 
 function popupPoint(range: Range, fallback: MouseEvent) {

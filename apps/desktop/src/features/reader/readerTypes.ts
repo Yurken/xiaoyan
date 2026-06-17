@@ -25,6 +25,41 @@ export interface NormalizedRect {
   h: number;
 }
 
+/**
+ * 把零碎矩形按“同一行”合并成连贯整行条。
+ * 以矩形竖直中心是否落在某行容差内归行（容差取行/矩形较大高度的一半），
+ * 因此公式的上下标、分式、大括号都会并进同一行，而正常行距的相邻行不会被并；
+ * 同一行内取 top=最小、bottom=最大（按最高对齐），left/right 取整行跨度，消除中间断裂。
+ */
+export function mergeNormalizedRects(rects: NormalizedRect[]): NormalizedRect[] {
+  const sorted = rects
+    .filter((rect) => rect.w > 0 && rect.h > 0)
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+
+  const lines: NormalizedRect[] = [];
+  for (const rect of sorted) {
+    const rectCenter = rect.y + rect.h / 2;
+    const line = lines.find((l) => {
+      const lineCenter = l.y + l.h / 2;
+      const tolerance = Math.max(l.h, rect.h) * 0.5;
+      return Math.abs(rectCenter - lineCenter) <= tolerance;
+    });
+    if (line) {
+      const left = Math.min(line.x, rect.x);
+      const top = Math.min(line.y, rect.y);
+      const right = Math.max(line.x + line.w, rect.x + rect.w);
+      const bottom = Math.max(line.y + line.h, rect.y + rect.h);
+      line.x = left;
+      line.y = top;
+      line.w = right - left;
+      line.h = bottom - top;
+    } else {
+      lines.push({ ...rect });
+    }
+  }
+  return lines;
+}
+
 export interface ReaderSelection {
   text: string;
   page: number;
