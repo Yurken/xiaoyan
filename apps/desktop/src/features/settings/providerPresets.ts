@@ -4,26 +4,6 @@ export const ANTHROPIC_ENDPOINT = "https://api.anthropic.com/v1/messages";
 
 export const PROVIDER_PRESETS = [
   {
-    id: "openai",
-    label: "OpenAI",
-    providerType: "openai" as LlmProvider,
-    baseUrl: "https://api.openai.com/v1",
-    defaultChatModel: "gpt-4o-mini",
-    defaultEmbedModel: "text-embedding-3-small",
-    apiKeyPlaceholder: "sk-...",
-    description: "官方 OpenAI 接口，自动填入标准 `/v1` 地址。",
-  },
-  {
-    id: "anthropic",
-    label: "Anthropic",
-    providerType: "anthropic" as LlmProvider,
-    baseUrl: ANTHROPIC_ENDPOINT,
-    defaultChatModel: "claude-3-5-haiku-20241022",
-    defaultEmbedModel: "",
-    apiKeyPlaceholder: "sk-ant-...",
-    description: "原生 Messages API，当前主模型配置不支持自定义 URL。",
-  },
-  {
     id: "deepseek",
     label: "DeepSeek",
     providerType: "openai_compatible" as LlmProvider,
@@ -62,6 +42,26 @@ export const PROVIDER_PRESETS = [
     defaultEmbedModel: "",
     apiKeyPlaceholder: "sk-...",
     description: "自动填入 Moonshot 官方兼容地址。",
+  },
+  {
+    id: "openai",
+    label: "OpenAI",
+    providerType: "openai" as LlmProvider,
+    baseUrl: "https://api.openai.com/v1",
+    defaultChatModel: "gpt-4o-mini",
+    defaultEmbedModel: "text-embedding-3-small",
+    apiKeyPlaceholder: "sk-...",
+    description: "官方 OpenAI 接口，自动填入标准 `/v1` 地址。",
+  },
+  {
+    id: "anthropic",
+    label: "Anthropic",
+    providerType: "anthropic" as LlmProvider,
+    baseUrl: ANTHROPIC_ENDPOINT,
+    defaultChatModel: "claude-3-5-haiku-20241022",
+    defaultEmbedModel: "",
+    apiKeyPlaceholder: "sk-ant-...",
+    description: "原生 Messages API，当前主模型配置不支持自定义 URL。",
   },
   {
     id: "gemini",
