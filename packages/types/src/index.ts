@@ -83,6 +83,7 @@ export interface Paper {
   notes?: string;
   file_path?: string;
   status: string;
+  sort_order?: number;
   created_at: string;
   updated_at: string;
   analysis?: PaperAnalysis;

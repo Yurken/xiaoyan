@@ -199,6 +199,8 @@ export const papersApi = {
       notes: data.notes ?? null,
       tags: data.tags ?? null,
     }),
+  reorder: (orderedIds: string[]): Promise<void> =>
+    invoke("papers_reorder", { orderedIds }),
   delete: (id: string): Promise<void> =>
     invoke("papers_delete", { id }),
   openFile: (id: string): Promise<void> =>

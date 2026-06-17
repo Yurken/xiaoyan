@@ -5,7 +5,6 @@ import {
   Eye,
   FileText,
   FlaskConical,
-  GripVertical,
   Loader2,
   Pencil,
   Quote,
@@ -25,7 +24,7 @@ import { usePaperTaskProgress } from "./usePaperTaskProgress";
 import type { PaperFigure } from "./shared";
 import { interestFolderName } from "../../lib/interestUtils";
 
-type SortKey = "created_at" | "title" | "importance";
+type SortKey = "created_at" | "title" | "importance" | "manual";
 
 interface PapersListPanelProps {
   papers: Paper[];
@@ -63,6 +62,7 @@ interface PapersListPanelProps {
   getSortKey: (groupId: string) => SortKey;
   hideFolders?: boolean;
   onMovePaper?: (paperId: string, interestId: string | null) => void;
+  onReorderPaper?: (groupId: string, orderedIds: string[]) => void;
 }
 
 export function PapersListPanel(props: PapersListPanelProps) {
@@ -74,12 +74,15 @@ export function PapersListPanel(props: PapersListPanelProps) {
     onUpload, onAnalyze, onReproduce, onReparse, onUpdatePaper, onDeletePaper,
     onDeleteInterestGroup, onSelectInterest, onOpenDetail, onCloseDetail, onSetDetailPaperId,
     onSortKeyChange, onKeywordFilterChange, onTitleFilterChange, getSortKey,
-    hideFolders, onMovePaper,
+    hideFolders, onMovePaper, onReorderPaper,
   } = props;
 
   const navigate = useNavigate();
   const [draggingPaperId, setDraggingPaperId] = useState<string | null>(null);
+  const [draggingFromGroup, setDraggingFromGroup] = useState<string | null>(null);
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null);
+  const [dragOverPaperId, setDragOverPaperId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<"before" | "after">("before");
 
   const paperInterestOf = useMemo(() => {
     const map: Record<string, string> = {};
@@ -87,15 +90,42 @@ export function PapersListPanel(props: PapersListPanelProps) {
     return map;
   }, [paperGroups]);
 
+  const clearDrag = () => {
+    setDraggingPaperId(null);
+    setDraggingFromGroup(null);
+    setDragOverGroup(null);
+    setDragOverPaperId(null);
+  };
+
+  // 当前文件夹的论文顺序（即页面展示顺序）。
+  const groupPapersOf = (groupKey: string): Paper[] =>
+    groupKey === "ungrouped" ? ungroupedPapers : (paperGroups.find((g) => g.key === groupKey)?.papers ?? []);
+
   const handleDropToGroup = (interestId: string | null, groupKey: string) => {
     const paperId = draggingPaperId;
-    setDragOverGroup(null);
-    setDraggingPaperId(null);
+    clearDrag();
     if (!paperId || !onMovePaper) return;
     // 已在该分组则不重复移动
     const current = paperInterestOf[paperId] ?? "ungrouped";
     if (current === groupKey) return;
     onMovePaper(paperId, interestId);
+  };
+
+  // 文件夹内拖拽排序：把被拖论文插入到目标论文的前/后。
+  const handleReorderDrop = (targetPaperId: string, groupKey: string) => {
+    const paperId = draggingPaperId;
+    const position = dropPosition;
+    clearDrag();
+    if (!paperId || !onReorderPaper || paperId === targetPaperId) return;
+    const ids = groupPapersOf(groupKey).map((p) => p.id);
+    const from = ids.indexOf(paperId);
+    if (from < 0) return;
+    ids.splice(from, 1);
+    let to = ids.indexOf(targetPaperId);
+    if (to < 0) return;
+    if (position === "after") to += 1;
+    ids.splice(to, 0, paperId);
+    onReorderPaper(groupKey, ids);
   };
   const [confirmDeletePaperId, setConfirmDeletePaperId] = useState<string | null>(null);
   const [confirmReanalyzePaperId, setConfirmReanalyzePaperId] = useState<string | null>(null);
@@ -125,7 +155,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
     };
   }, [contextMenu]);
 
-  const SORT_LABELS: Record<SortKey, string> = { created_at: "导入时间", title: "名称", importance: "重要性" };
+  const SORT_LABELS: Record<SortKey, string> = { created_at: "导入时间", title: "名称", importance: "重要性", manual: "自定义" };
   const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
   const hasLoadedContent = papers.length > 0 || interests.length > 0;
 
@@ -203,7 +233,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
 
   const renderSortControl = (groupId: string) => (
     <div className="flex items-center gap-1">
-      {(["created_at", "title", "importance"] as SortKey[]).map((key) => {
+      {(["created_at", "title", "importance", "manual"] as SortKey[]).map((key) => {
         const active = getSortKey(groupId) === key;
         return (
           <button key={key} type="button" onClick={(e) => { e.stopPropagation(); onSortKeyChange(groupId, key); }}
@@ -237,8 +267,12 @@ export function PapersListPanel(props: PapersListPanelProps) {
     <Card
       key={paper.id}
       padding="sm"
-      className={`relative${draggingPaperId === paper.id ? " opacity-50" : ""}`}
-      draggable={Boolean(onMovePaper) && editingId !== paper.id}
+      className={clsx(
+        "relative",
+        Boolean(onMovePaper || onReorderPaper) && editingId !== paper.id && "cursor-grab active:cursor-grabbing",
+        draggingPaperId === paper.id && "opacity-50",
+      )}
+      draggable={Boolean(onMovePaper || onReorderPaper) && editingId !== paper.id}
       onDragStart={(e) => {
         const target = e.target as HTMLElement;
         if (target.closest("button, a, input, textarea, select")) {
@@ -248,17 +282,39 @@ export function PapersListPanel(props: PapersListPanelProps) {
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", paper.id);
         setDraggingPaperId(paper.id);
+        setDraggingFromGroup(groupId);
       }}
-      onDragEnd={() => { setDraggingPaperId(null); setDragOverGroup(null); }}
+      onDragEnd={clearDrag}
+      onDragOver={(e) => {
+        // 仅处理同文件夹内的排序；跨文件夹移动交给分组容器。
+        if (!draggingPaperId || !onReorderPaper) return;
+        if (draggingFromGroup !== groupId || draggingPaperId === paper.id) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        const rect = e.currentTarget.getBoundingClientRect();
+        const after = e.clientY > rect.top + rect.height / 2;
+        setDragOverPaperId(paper.id);
+        setDropPosition(after ? "after" : "before");
+      }}
+      onDrop={(e) => {
+        if (!draggingPaperId || !onReorderPaper || draggingFromGroup !== groupId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        handleReorderDrop(paper.id, groupId);
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         setContextMenu({ paper, x: e.clientX, y: e.clientY });
       }}
     >
+      {dragOverPaperId === paper.id && (
+        <div className={clsx(
+          "pointer-events-none absolute left-3 right-3 h-0.5 rounded-full bg-[var(--rc-accent)]",
+          dropPosition === "before" ? "-top-1.5" : "-bottom-1.5",
+        )} />
+      )}
       <div className="flex items-start gap-3">
-        {onMovePaper ? (
-          <GripVertical className="rc-drag-grip mt-0.5 h-4 w-4 flex-shrink-0 cursor-grab text-ink-tertiary/40" aria-hidden />
-        ) : null}
         <div className="min-w-0 flex-1 text-sm">
           <div className="flex items-start gap-2">
             {paper.file_path ? (
@@ -488,10 +544,10 @@ export function PapersListPanel(props: PapersListPanelProps) {
       {paperGroups.map((group) => (
         <div
           key={group.key}
-          onDragOver={(e) => { if (draggingPaperId) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }}
-          onDragEnter={(e) => { if (draggingPaperId) { e.preventDefault(); setDragOverGroup(group.key); } }}
+          onDragOver={(e) => { if (draggingPaperId && draggingFromGroup !== group.key) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }}
+          onDragEnter={(e) => { if (draggingPaperId && draggingFromGroup !== group.key) { e.preventDefault(); setDragOverGroup(group.key); } }}
           onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverGroup((g) => (g === group.key ? null : g)); }}
-          onDrop={(e) => { e.preventDefault(); handleDropToGroup(group.key, group.key); }}
+          onDrop={(e) => { if (draggingFromGroup === group.key) return; e.preventDefault(); handleDropToGroup(group.key, group.key); }}
           className={clsx("rounded-[24px] transition-shadow", dragOverGroup === group.key && "shadow-[0_0_0_2px_var(--rc-accent)]")}
         >
         <CollapsibleGroup title={group.title}
@@ -530,10 +586,10 @@ export function PapersListPanel(props: PapersListPanelProps) {
 
       {ungroupedPapers.length > 0 && (
         <section
-          onDragOver={(e) => { if (draggingPaperId) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }}
-          onDragEnter={(e) => { if (draggingPaperId) { e.preventDefault(); setDragOverGroup("ungrouped"); } }}
+          onDragOver={(e) => { if (draggingPaperId && draggingFromGroup !== "ungrouped") { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }}
+          onDragEnter={(e) => { if (draggingPaperId && draggingFromGroup !== "ungrouped") { e.preventDefault(); setDragOverGroup("ungrouped"); } }}
           onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverGroup((g) => (g === "ungrouped" ? null : g)); }}
-          onDrop={(e) => { e.preventDefault(); handleDropToGroup(null, "ungrouped"); }}
+          onDrop={(e) => { if (draggingFromGroup === "ungrouped") return; e.preventDefault(); handleDropToGroup(null, "ungrouped"); }}
           className={clsx("space-y-3 rounded-[24px] transition-shadow", dragOverGroup === "ungrouped" && "shadow-[0_0_0_2px_var(--rc-accent)]")}
         >
           <div className="flex items-center justify-between gap-2 px-1">

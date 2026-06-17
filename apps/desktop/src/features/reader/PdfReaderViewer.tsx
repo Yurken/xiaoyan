@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import "./text-layer.css";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
+import type { PDFDocumentProxy, RenderTask, TextLayer } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { HIGHLIGHT_COLORS, mergeNormalizedRects, type PaperNote, type ReaderSelection } from "./readerTypes";
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
@@ -38,7 +38,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [numPages, setNumPages] = useState(0);
-    const [pdfDoc, setPdfDoc] = useState<any>(null);
+    const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
     const [renderRevision, setRenderRevision] = useState(0);
@@ -291,7 +291,7 @@ interface PdfLink {
 
 interface PdfPageProps {
   pageNum: number;
-  pdfDoc: any;
+  pdfDoc: PDFDocumentProxy;
   scale: number;
   devicePixelRatio: number;
   renderRevision: number;
@@ -321,8 +321,8 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     if (!shouldRender) return;
 
     let cancelled = false;
-    let renderTask: any = null;
-    let textLayer: any = null;
+    let renderTask: RenderTask | null = null;
+    let textLayer: TextLayer | null = null;
     let unregisterTextLayer: (() => void) | null = null;
 
     // 延后到下一帧再渲染，进一步避开 WebView 首屏 DPR 抖动。
@@ -376,7 +376,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
             viewport,
             canvas: buffer,
             background: "white",
-          } as any);
+          });
           await renderTask.promise;
           if (cancelled) return;
 
@@ -440,7 +440,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
             const annotations = await page.getAnnotations();
             if (cancelled) return;
             const linkRects: PdfLink[] = [];
-            for (const annotation of annotations as any[]) {
+            for (const annotation of annotations) {
               if (annotation.subtype !== "Link" || (!annotation.url && annotation.dest == null)) continue;
               const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(annotation.rect);
               linkRects.push({

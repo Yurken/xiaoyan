@@ -120,7 +120,7 @@ pub async fn papers_list(
         research_interest_id.filter(|value| !value.trim().is_empty())
     {
         sqlx::query(
-            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.importance_color, p.notes, p.research_interest_id, p.status, p.created_at, p.updated_at,
+            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.importance_color, p.notes, p.research_interest_id, p.status, p.sort_order, p.created_at, p.updated_at,
                     a.research_question, a.core_method, a.experiment_design, a.experiment_results, a.innovations, a.limitations, a.key_conclusions,
                     rg.code_repository, rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
                     rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
@@ -128,7 +128,7 @@ pub async fn papers_list(
              LEFT JOIN paper_analyses a ON a.paper_id = p.id
              LEFT JOIN reproduction_guides rg ON rg.paper_id = p.id
              WHERE p.research_interest_id = ?
-             ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
+             ORDER BY p.sort_order ASC, p.created_at DESC LIMIT ? OFFSET ?",
         )
         .bind(&interest_id)
         .bind(limit)
@@ -138,14 +138,14 @@ pub async fn papers_list(
         .map_err(|e| e.to_string())?
     } else {
         sqlx::query(
-            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.importance_color, p.notes, p.research_interest_id, p.status, p.created_at, p.updated_at,
+            "SELECT p.id, p.title, p.authors, p.abstract, p.year, p.venue, p.doi, p.file_path, p.tags, p.importance_color, p.notes, p.research_interest_id, p.status, p.sort_order, p.created_at, p.updated_at,
                     a.research_question, a.core_method, a.experiment_design, a.experiment_results, a.innovations, a.limitations, a.key_conclusions,
                     rg.code_repository, rg.environment_setup, rg.dependencies, rg.dataset_preparation, rg.training_process,
                     rg.inference_process, rg.evaluation_metrics, rg.risks_and_notes
              FROM papers p
              LEFT JOIN paper_analyses a ON a.paper_id = p.id
              LEFT JOIN reproduction_guides rg ON rg.paper_id = p.id
-             ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
+             ORDER BY p.sort_order ASC, p.created_at DESC LIMIT ? OFFSET ?",
         )
         .bind(limit)
         .bind(offset)
@@ -188,7 +188,7 @@ pub async fn papers_get(
     id: String,
 ) -> Result<serde_json::Value, String> {
     let row = sqlx::query(
-        "SELECT id, title, authors, abstract, year, venue, doi, file_path, tags, importance_color, notes, research_interest_id, status, created_at, updated_at
+        "SELECT id, title, authors, abstract, year, venue, doi, file_path, tags, importance_color, notes, research_interest_id, status, sort_order, created_at, updated_at
          FROM papers WHERE id = ?",
     )
     .bind(&id)
@@ -521,6 +521,33 @@ pub async fn papers_update(
     }
 
     papers_get(state, id).await
+}
+
+// ── Reorder ──────────────────────────────────────────────────────
+
+/// 按给定顺序重排同一文件夹内论文的 `sort_order`（从 0 递增）。
+/// `ordered_ids` 为该文件夹内全部论文的目标顺序。
+#[tauri::command]
+pub async fn papers_reorder(
+    state: State<'_, AppState>,
+    ordered_ids: Vec<String>,
+) -> Result<(), String> {
+    if ordered_ids.is_empty() {
+        return Ok(());
+    }
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
+    for (index, id) in ordered_ids.iter().enumerate() {
+        sqlx::query("UPDATE papers SET sort_order = ?, updated_at = ? WHERE id = ?")
+            .bind(index as i64)
+            .bind(&now)
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // ── Delete ───────────────────────────────────────────────────────
@@ -2157,6 +2184,7 @@ fn paper_row_to_json(r: &sqlx::sqlite::SqliteRow, _include_file_path: bool) -> s
         "notes": r.get::<Option<String>, _>("notes"),
         "file_path": paper_file_path,
         "status": r.get::<String, _>("status"),
+        "sort_order": r.try_get::<i64, _>("sort_order").unwrap_or(0),
         "created_at": r.get::<String, _>("created_at"),
         "updated_at": r.get::<String, _>("updated_at"),
     });

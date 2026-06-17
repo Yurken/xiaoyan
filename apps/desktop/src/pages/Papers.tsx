@@ -248,6 +248,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           onMovePaper={(paperId, interestId) =>
             void papers.handleUpdatePaper(paperId, { research_interest_id: interestId || undefined })
           }
+          onReorderPaper={(groupId, orderedIds) => void papers.handleReorderPaper(groupId, orderedIds)}
         />
         )}
       </div>

@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS papers (
     importance_color   TEXT NOT NULL DEFAULT '',
     notes              TEXT,
     status             TEXT NOT NULL DEFAULT 'uploaded',
+    sort_order         INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -429,6 +430,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_reproduction_guides_code_repository_column(&pool).await?;
     ensure_papers_importance_color_column(&pool).await?;
     ensure_papers_notes_column(&pool).await?;
+    ensure_papers_sort_order_column(&pool).await?;
     ensure_paper_figures_table(&pool).await?;
     ensure_paper_parse_runs_table(&pool).await?;
     ensure_performance_indexes(&pool).await?;
@@ -557,6 +559,7 @@ async fn ensure_schema(pool: &SqlitePool) -> Result<()> {
     ensure_reproduction_guides_code_repository_column(pool).await?;
     ensure_papers_importance_color_column(pool).await?;
     ensure_papers_notes_column(pool).await?;
+    ensure_papers_sort_order_column(pool).await?;
     ensure_paper_figures_table(pool).await?;
     ensure_paper_parse_runs_table(pool).await?;
     ensure_performance_indexes(pool).await?;
@@ -753,6 +756,10 @@ async fn ensure_research_interest_profile_column(pool: &SqlitePool) -> Result<()
 
 async fn ensure_research_interest_partial_plan_column(pool: &SqlitePool) -> Result<()> {
     ensure_table_column(pool, "research_interests", "partial_plan", "TEXT").await
+}
+
+async fn ensure_papers_sort_order_column(pool: &SqlitePool) -> Result<()> {
+    ensure_table_column(pool, "papers", "sort_order", "INTEGER NOT NULL DEFAULT 0").await
 }
 
 async fn ensure_papers_research_interest_column(pool: &SqlitePool) -> Result<()> {

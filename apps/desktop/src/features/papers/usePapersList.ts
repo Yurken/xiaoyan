@@ -3,7 +3,7 @@ import { apiClient, formatErrorMessage } from "../../lib/client";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
 import type { Paper, ResearchInterest } from "@research-copilot/types";
 
-type SortKey = "created_at" | "title" | "importance";
+type SortKey = "created_at" | "title" | "importance" | "manual";
 
 const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
 
@@ -172,6 +172,12 @@ export function usePapersList() {
 
 
   const sortPapers = useCallback((ps: Paper[], key: SortKey): Paper[] => {
+    if (key === "manual") return [...ps].sort((a, b) => {
+      const ao = a.sort_order ?? 0;
+      const bo = b.sort_order ?? 0;
+      if (ao !== bo) return ao - bo;
+      return b.created_at.localeCompare(a.created_at);
+    });
     if (key === "title") return [...ps].sort((a, b) => a.title.localeCompare(b.title, "zh"));
     if (key === "importance") return [...ps].sort((a, b) => {
       const ai = a.importance_color ? COLOR_PRIORITY.indexOf(a.importance_color) : COLOR_PRIORITY.length;
@@ -186,6 +192,25 @@ export function usePapersList() {
 
   const setKeywordFilter = (groupId: string, kw: string) => setKeywordFilters((prev) => ({ ...prev, [groupId]: kw }));
   const setTitleFilter = (groupId: string, q: string) => setTitleFilters((prev) => ({ ...prev, [groupId]: q }));
+
+  // 文件夹内拖拽排序：orderedIds 为该文件夹论文的目标顺序。
+  // 切换该分组为「自定义」排序，乐观更新本地 sort_order，再持久化到后端（随同步分发）。
+  const handleReorderPaper = async (groupId: string, orderedIds: string[]) => {
+    const orderMap = new Map(orderedIds.map((id, index) => [id, index]));
+    setSortKeys((prev) => ({ ...prev, [groupId]: "manual" }));
+    setPapers((prev) => prev.map((p) => {
+      const next = orderMap.get(p.id);
+      return next === undefined ? p : { ...p, sort_order: next };
+    }));
+    try {
+      setLoadError("");
+      await apiClient.papers.reorder(orderedIds);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      const fresh = await apiClient.papers.list().catch(() => null);
+      if (fresh) setPapers(fresh);
+    }
+  };
 
   const interestMap = useMemo(() => Object.fromEntries(interests.map((i) => [i.id, i])), [interests]);
 
@@ -221,6 +246,6 @@ export function usePapersList() {
     titleFilters, setTitleFilter,
     paperGroups, ungroupedPapers,
     handleUpload, importPaths, handleAnalyze, handleReproduce, handleReparse,
-    handleUpdatePaper, handleDeletePaper, handleDeleteInterestGroup,
+    handleUpdatePaper, handleDeletePaper, handleDeleteInterestGroup, handleReorderPaper,
   };
 }
