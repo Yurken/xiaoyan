@@ -1,0 +1,7 @@
+{
+  "string": [
+    { "name": "app_name", "value": "小妍" },
+    { "name": "module_desc", "value": "小妍 HarmonyOS 桌面版入口模块" },
+    { "name": "ability_desc", "value": "面向科研工作者的 AI 研究助手" }
+  ]
+}

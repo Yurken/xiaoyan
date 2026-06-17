@@ -1,0 +1,25 @@
+{
+  "apiType": "stageMode",
+  "buildOption": {
+    // Rust NAPI 产物（libxiaoyanbridge.so）由 native/ 通过 ohrs 构建后放入 libs/<abi>/。
+    // 详见 apps/harmony/README.md「原生后端构建」。
+  },
+  "buildOptionSet": [
+    {
+      "name": "release",
+      "arkOptions": {
+        "obfuscation": {
+          "ruleOptions": {
+            "enable": false,
+            "files": ["./obfuscation-rules.txt"]
+          }
+        }
+      }
+    }
+  ],
+  "targets": [
+    {
+      "name": "default"
+    }
+  ]
+}

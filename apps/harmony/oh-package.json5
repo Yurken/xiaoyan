@@ -1,0 +1,13 @@
+{
+  "modelVersion": "5.0.0",
+  "name": "xiaoyan-harmony",
+  "version": "0.4.2",
+  "description": "小妍 · HarmonyOS 桌面版（ArkTS/ArkUI + Rust NAPI 后端）",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {},
+  "devDependencies": {
+    "@ohos/hypium": "1.0.21"
+  }
+}

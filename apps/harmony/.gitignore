@@ -1,0 +1,21 @@
+# DevEco / hvigor 构建产物
+/build
+/entry/build
+/.hvigor
+/.cxx
+/oh_modules
+/entry/oh_modules
+**/.preview
+
+# 本地配置
+/local.properties
+/.clangd
+/.clang-format
+/.clang-tidy
+
+# Rust NAPI 构建产物
+/native/target
+/native/dist
+
+# 预编译 .so（由 ohrs 构建后拷入，不入库；保留目录占位）
+/entry/libs/**/*.so

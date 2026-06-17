@@ -1,0 +1,23 @@
+[package]
+name = "xiaoyanbridge"
+version = "0.4.2"
+edition = "2021"
+description = "小妍 HarmonyOS 原生后端桥接（NAPI），零重复复用桌面端 Rust 纯模块"
+
+[lib]
+# 产物 libxiaoyanbridge.so，放入 entry/libs/<abi>/ 供 ArkTS import。
+crate-type = ["cdylib"]
+
+[dependencies]
+# ohos-rs（napi-rs 的 OpenHarmony 分支），由 ohrs 工具链管理。
+napi-ohos = "1"
+napi-derive-ohos = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[build-dependencies]
+napi-build-ohos = "1"
+
+[profile.release]
+lto = true
+strip = true

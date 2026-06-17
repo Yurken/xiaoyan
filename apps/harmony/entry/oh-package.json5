@@ -1,0 +1,13 @@
+{
+  "name": "entry",
+  "version": "0.4.2",
+  "description": "小妍 HarmonyOS 桌面版入口 HAP",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    // 预编译的 Rust NAPI 原生后端类型声明（.so 放在 entry/libs/<abi>/）。
+    // 类型来自 src/main/cpp/types/libxiaoyanbridge，运行时由系统按 abi 加载 libxiaoyanbridge.so。
+    "libxiaoyanbridge.so": "file:./src/main/cpp/types/libxiaoyanbridge"
+  }
+}
