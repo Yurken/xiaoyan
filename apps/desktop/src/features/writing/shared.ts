@@ -1,3 +1,5 @@
+import { DESKTOP_PLATFORM, type DesktopPlatform } from "../../lib/desktopPlatform";
+
 export type WritingExportTarget = "texstudio" | "overleaf";
 export type WritingViewMode = "split" | "editor" | "preview";
 export type WritingTemplateId = "journal" | "conference" | "thesis-note";
@@ -121,13 +123,23 @@ export interface WritingCompileSummary {
   log: string;
 }
 
+export interface LatexInstallSupport {
+  description: string;
+  paths: string[];
+  primaryActionLabel: string | null;
+  secondaryActionLabel: string;
+  missingCompilerMessage: string;
+  installerOpenedMessage: string | null;
+  installGuideOpenedMessage: string;
+}
+
 export const WRITING_STORAGE_KEY = "rc:writing:workspace:v1";
 export const WRITING_LIBRARY_STORAGE_KEY = "rc:writing:library:v1";
 export const WRITING_ACTIVE_DRAFT_KEY = "rc:writing:active-draft:v1";
 export const DEFAULT_PROJECT_NAME = "xiaoyan-paper";
 export const MACOS_TEXBIN_PATH = "/Library/TeX/texbin";
-export const MACTEX_INSTALLER_URL = "https://mirror.ctan.org/systems/mac/mactex/MacTeX.pkg";
-export const MACTEX_DOWNLOAD_PAGE_URL = "https://tug.org/mactex/mactex-download.html";
+export const LINUX_TEXLIVE_BIN_PATH = "/usr/local/texlive/YYYY/bin/*-linux";
+export const LINUX_TINYTEX_BIN_PATH = "~/.TinyTeX/bin/*-linux";
 
 export const EXPORT_TARGET_LABELS: Record<WritingExportTarget, string> = {
   texstudio: "TeXstudio",
@@ -156,6 +168,51 @@ export function isLatexCompilerMissing(result: WritingCompileSummary | null): bo
   if (!result) return false;
   return result.engine === "not-found" || result.log.includes("未找到 LaTeX 编译器");
 }
+
+export function getLatexInstallSupport(
+  platform: DesktopPlatform = DESKTOP_PLATFORM,
+): LatexInstallSupport {
+  if (platform === "macos") {
+    return {
+      description: "请安装 MacTeX / TeX Live，并确保 latexmk 或 xelatex 可用。",
+      paths: [MACOS_TEXBIN_PATH],
+      primaryActionLabel: "下载 MacTeX",
+      secondaryActionLabel: "安装说明",
+      missingCompilerMessage:
+        "未找到 LaTeX 编译器。请安装 MacTeX / TeX Live，或使用下方按钮下载 MacTeX 安装器。",
+      installerOpenedMessage:
+        "已打开 MacTeX 官方安装器下载。下载完成后运行 MacTeX.pkg，安装完成再重新编译。",
+      installGuideOpenedMessage: "已打开 MacTeX 官方安装说明。",
+    };
+  }
+
+  if (platform === "linux") {
+    return {
+      description: "请安装 TeX Live，并确保 latexmk 或 xelatex 可用。",
+      paths: [LINUX_TEXLIVE_BIN_PATH, LINUX_TINYTEX_BIN_PATH, "/usr/bin"],
+      primaryActionLabel: null,
+      secondaryActionLabel: "TeX Live 安装说明",
+      missingCompilerMessage:
+        "未找到 LaTeX 编译器。请安装 TeX Live，并确认 latexmk 或 xelatex 已加入 PATH。",
+      installerOpenedMessage: null,
+      installGuideOpenedMessage:
+        "已打开 TeX Live 官方安装说明。安装完成后请把 TeX Live bin 目录加入 PATH，再重新编译。",
+    };
+  }
+
+  return {
+    description: "请安装 TeX Live，并确保 latexmk 或 xelatex 可用。",
+    paths: [],
+    primaryActionLabel: null,
+    secondaryActionLabel: "安装说明",
+    missingCompilerMessage:
+      "未找到 LaTeX 编译器。请安装 TeX Live，并确认 latexmk 或 xelatex 可用。",
+    installerOpenedMessage: null,
+    installGuideOpenedMessage: "已打开 TeX Live 官方安装说明。",
+  };
+}
+
+export const LATEX_INSTALL_SUPPORT = getLatexInstallSupport();
 
 export function buildWritingAssistantPrompt(input: {
   actionId: WritingAssistantActionId;

@@ -1,17 +1,17 @@
 import { Download, ExternalLink, Terminal } from "lucide-react";
 import { Button } from "@research-copilot/ui";
-import { MACOS_TEXBIN_PATH } from "./shared";
+import { LATEX_INSTALL_SUPPORT } from "./shared";
 
 interface WritingLatexInstallNoticeProps {
   openingInstaller: boolean;
   onDownloadInstaller: () => void;
-  onOpenDownloadPage: () => void;
+  onOpenInstallGuide: () => void;
 }
 
 export default function WritingLatexInstallNotice({
   openingInstaller,
   onDownloadInstaller,
-  onOpenDownloadPage,
+  onOpenInstallGuide,
 }: WritingLatexInstallNoticeProps) {
   return (
     <div
@@ -25,25 +25,33 @@ export default function WritingLatexInstallNotice({
         <div className="min-w-0 text-xs leading-5 text-ink-secondary">
           <p className="font-semibold text-ink-primary">未找到 LaTeX 编译器</p>
           <p>
-            请安装 MacTeX / TeX Live，并确保 latexmk 或 xelatex 可用。macOS 常见路径：
-            <span className="rc-selectable font-mono">{MACOS_TEXBIN_PATH}</span>
+            {LATEX_INSTALL_SUPPORT.description}
+            {LATEX_INSTALL_SUPPORT.paths.length > 0 ? " 常见路径：" : null}
+            {LATEX_INSTALL_SUPPORT.paths.map((path, index) => (
+              <span key={path}>
+                {index > 0 ? " / " : null}
+                <span className="rc-selectable font-mono">{path}</span>
+              </span>
+            ))}
           </p>
         </div>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          onClick={onDownloadInstaller}
-          loading={openingInstaller}
-        >
-          <Download className="h-3.5 w-3.5" />
-          下载 MacTeX
-        </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onOpenDownloadPage}>
+        {LATEX_INSTALL_SUPPORT.primaryActionLabel ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={onDownloadInstaller}
+            loading={openingInstaller}
+          >
+            <Download className="h-3.5 w-3.5" />
+            {LATEX_INSTALL_SUPPORT.primaryActionLabel}
+          </Button>
+        ) : null}
+        <Button type="button" size="sm" variant="ghost" onClick={onOpenInstallGuide}>
           <ExternalLink className="h-3.5 w-3.5" />
-          安装说明
+          {LATEX_INSTALL_SUPPORT.secondaryActionLabel}
         </Button>
       </div>
     </div>

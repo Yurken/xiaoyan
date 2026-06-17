@@ -10,8 +10,10 @@ use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 
-const MACTEX_INSTALLER_URL: &str = "https://mirror.ctan.org/systems/mac/mactex/MacTeX.pkg";
-const MACTEX_DOWNLOAD_PAGE_URL: &str = "https://tug.org/mactex/mactex-download.html";
+use crate::commands::writing_support::{
+    executable_candidates, latex_compiler_missing_message, latex_install_guide_url,
+    mactex_installer_url,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -96,15 +98,19 @@ pub async fn writing_open_compiled_pdf(
 
 #[tauri::command]
 pub async fn writing_open_mactex_installer(app: tauri::AppHandle) -> Result<(), String> {
+    let Some(url) = mactex_installer_url() else {
+        return Err("当前平台不提供内置 MacTeX 安装器，请改用安装说明。".to_string());
+    };
+
     app.opener()
-        .open_url(MACTEX_INSTALLER_URL, None::<&str>)
+        .open_url(url, None::<&str>)
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn writing_open_mactex_download_page(app: tauri::AppHandle) -> Result<(), String> {
     app.opener()
-        .open_url(MACTEX_DOWNLOAD_PAGE_URL, None::<&str>)
+        .open_url(latex_install_guide_url(), None::<&str>)
         .map_err(|e| e.to_string())
 }
 
@@ -136,9 +142,7 @@ fn compile_project(
             run_xelatex_pipeline(&work_dir, &xelatex, &mut log)?,
         )
     } else {
-        log.push_str(
-            "未找到 LaTeX 编译器。\n\n请安装 MacTeX / TeX Live，并确保 latexmk 或 xelatex 可用。\nmacOS 常见路径：/Library/TeX/texbin\n\n可在小妍中一键下载 MacTeX 安装器。\n",
-        );
+        log.push_str(latex_compiler_missing_message());
         ("not-found".to_string(), false)
     };
 
@@ -378,24 +382,6 @@ fn find_executable(name: &str) -> Option<String> {
         }
     }
     None
-}
-
-fn executable_candidates(name: &str) -> Vec<String> {
-    #[cfg(target_os = "windows")]
-    {
-        return vec![format!("{name}.exe"), name.to_string()];
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        vec![
-            name.to_string(),
-            format!("/Library/TeX/texbin/{name}"),
-            format!("/usr/texbin/{name}"),
-            format!("/opt/homebrew/bin/{name}"),
-            format!("/usr/local/bin/{name}"),
-        ]
-    }
 }
 
 fn append_output(log: &mut String, command: &str, output: &Output) {

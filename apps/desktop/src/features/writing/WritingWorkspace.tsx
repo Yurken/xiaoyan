@@ -152,7 +152,7 @@ export default function WritingWorkspace() {
             <WritingLatexInstallNotice
               openingInstaller={workspace.latexInstallerStatus === "opening"}
               onDownloadInstaller={() => void workspace.openLatexInstaller()}
-              onOpenDownloadPage={() => void workspace.openLatexDownloadPage()}
+              onOpenInstallGuide={() => void workspace.openLatexDownloadPage()}
             />
           </div>
         ) : null}

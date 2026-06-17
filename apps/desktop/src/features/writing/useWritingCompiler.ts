@@ -3,6 +3,7 @@ import { formatErrorMessage, writingApi } from "../../lib/client";
 import { sanitizeLatexProjectName } from "./latexProject";
 import {
   isLatexCompilerMissing,
+  LATEX_INSTALL_SUPPORT,
   type WritingCompileStatus,
   type WritingCompileSummary,
   type WritingImageAsset,
@@ -70,7 +71,7 @@ export function useWritingCompiler({
         setCompileStatus("ready");
       } else if (isLatexCompilerMissing(result)) {
         setCompileStatus("failed");
-        onError("未找到 LaTeX 编译器。请安装 MacTeX / TeX Live，或使用下方按钮下载 MacTeX 安装器。");
+        onError(LATEX_INSTALL_SUPPORT.missingCompilerMessage);
       } else {
         setCompileStatus("failed");
         onError("PDF 编译失败，请展开编译日志查看具体错误。");
@@ -86,7 +87,10 @@ export function useWritingCompiler({
     clearStatus();
     try {
       await writingApi.openMactexInstaller();
-      onMessage("已打开 MacTeX 官方安装器下载。下载完成后运行 MacTeX.pkg，安装完成再重新编译。");
+      onMessage(
+        LATEX_INSTALL_SUPPORT.installerOpenedMessage ??
+          "已打开 LaTeX 安装器，请完成安装后重新编译。",
+      );
     } catch (err) {
       onError(formatErrorMessage(err));
     } finally {
@@ -97,10 +101,11 @@ export function useWritingCompiler({
   const openLatexDownloadPage = useCallback(async () => {
     try {
       await writingApi.openMactexDownloadPage();
+      onMessage(LATEX_INSTALL_SUPPORT.installGuideOpenedMessage);
     } catch (err) {
       onError(formatErrorMessage(err));
     }
-  }, [onError]);
+  }, [onError, onMessage]);
 
   const openCompiledPdf = useCallback(async () => {
     if (!compileResult?.pdfPath) return;
