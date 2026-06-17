@@ -115,7 +115,7 @@ function getSnapshot() {
 
 async function installInterestPlanListeners() {
   return Promise.all([
-    listen<InterestStatusEvent>("interest:status", (event) => {
+    safeListen<InterestStatusEvent>("interest:status", (event) => {
       const { id, status, learning_path: learningPath } = event.payload;
       updateSnapshot(id, (current) => ({
         ...current,
@@ -124,7 +124,7 @@ async function installInterestPlanListeners() {
         error: status === "planning" ? undefined : current.error,
       }));
     }),
-    listen<InterestPlanEvent>("interest:plan", (event) => {
+    safeListen<InterestPlanEvent>("interest:plan", (event) => {
       updateSnapshot(event.payload.id, (current) => ({
         ...current,
         status: "planned",
@@ -132,7 +132,7 @@ async function installInterestPlanListeners() {
         error: undefined,
       }));
     }),
-    listen<InterestErrorEvent>("interest:error", (event) => {
+    safeListen<InterestErrorEvent>("interest:error", (event) => {
       const { id, error } = event.payload;
       updateSnapshot(id, (current) => ({
         ...current,
@@ -141,13 +141,13 @@ async function installInterestPlanListeners() {
         error,
       }));
     }),
-    listen<InterestAgentEvent>("interest:agent_start", (event) => {
+    safeListen<InterestAgentEvent>("interest:agent_start", (event) => {
       upsertAgent(event.payload.id, event.payload.agent, "running");
     }),
-    listen<InterestAgentEvent>("interest:agent_complete", (event) => {
+    safeListen<InterestAgentEvent>("interest:agent_complete", (event) => {
       upsertAgent(event.payload.id, { ...event.payload.agent, status: "done" }, "done");
     }),
-    listen<InterestAgentEvent>("interest:agent_error", (event) => {
+    safeListen<InterestAgentEvent>("interest:agent_error", (event) => {
       upsertAgent(event.payload.id, { ...event.payload.agent, status: "failed" }, "failed");
     }),
   ]);
