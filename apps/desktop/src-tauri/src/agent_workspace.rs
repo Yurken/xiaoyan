@@ -385,12 +385,12 @@ mod tests {
         assert!(waves[0].contains(&"planner".to_string()));
         assert!(waves[0].contains(&"paper_analyst".to_string()));
 
-        // Wave 2: literature_scout (depends on planner)
+        // Wave 2: literature_scout (depends on planner) + reproduction (depends on paper_analyst)
         assert!(waves[1].contains(&"literature_scout".to_string()));
+        assert!(waves[1].contains(&"reproduction".to_string()));
 
-        // Wave 3: survey + reproduction
+        // Wave 3: survey (depends on planner + literature_scout)
         assert!(waves[2].contains(&"survey".to_string()));
-        assert!(waves[2].contains(&"reproduction".to_string()));
     }
 
     #[test]
