@@ -230,6 +230,41 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
 export default PdfReaderViewer;
 
+/**
+ * 强制 WKWebView 以当前 DPR 重建 <canvas> 合成层的 raster backing。
+ *
+ * 根因：首屏 DPR=1 时图层按 1x 合成，2x 位图被降采样上屏 → 发虚；而“同尺寸重绘”只更新
+ * 图层内容、不会重建图层，所以 settle 重绘修不好。唯有 canvas 的 backing 尺寸真正变化时，
+ * WebView 才会丢弃旧图层、按【当前】设备像素密度（settle 时已稳定为 2x）重建 backing——
+ * 这正是“放大再缩小”能修复的机制（缩放改变了尺寸）。
+ *
+ * 这里用 backing 高度 +1 再复位来复刻该机制：canvas.width/height 属性 React 不接管、不会被
+ * 回滚，且改尺寸的变化必须跨帧才会被 WebView 观察到，因此用两帧完成、每帧都从离屏缓冲重贴，
+ * 全程显示完整位图（仅 1 个设备像素行差、单帧），无白闪、无跳动；canvas 绝对定位，不影响
+ * 文本层/高亮层/页码坐标。
+ */
+function forceLayerRebuild(
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  buffer: HTMLCanvasElement,
+  pixelWidth: number,
+  pixelHeight: number,
+  isStale: () => boolean,
+) {
+  requestAnimationFrame(() => {
+    if (isStale()) return;
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight + 1; // 改成不同值 → 强制 WebView 按当前 DPR 重建图层
+    ctx.drawImage(buffer, 0, 0, pixelWidth, pixelHeight + 1); // 拉满，避免底部 1px 黑边
+    requestAnimationFrame(() => {
+      if (isStale()) return;
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight; // 复位为正确尺寸（再次重建，仍是当前 DPR）
+      ctx.drawImage(buffer, 0, 0);
+    });
+  });
+}
+
 function resolveCanvasOutputScale(viewport: { width: number; height: number }, devicePixelRatio: number) {
   // WKWebView 首屏偶尔长期把 DPR 报成 1；PDF 是矢量内容，至少 2x 超采样才能避免文字发虚。
   const preferredScale = Math.min(
@@ -353,6 +388,14 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           canvas.style.width = `${cssWidth}px`;
           canvas.style.height = `${cssHeight}px`;
           ctx.drawImage(buffer, 0, 0);
+
+          // 根因：WKWebView 首屏常以 DPR=1 合成该 <canvas> 图层（位图是 2x 但被降采样上屏 → 发虚），
+          // 且“同尺寸重绘”只更新图层内容、不会按当前 DPR 重建图层 raster backing；只有几何/合成属性
+          // 变化才会触发重建（这正是“放大再缩小”能修复、而 settle 同尺寸重绘修不好的原因）。
+          // 这里在每次提交后做一次 backing 尺寸微扰，强制 WebView 以当前已稳定的 DPR 重建该图层——
+          // 配合 settle 重绘（250/700/1500ms，此时 DPR 已稳定），前几页会被刷成 2x 合成 → 清晰。
+          // 双缓冲 + 每帧重贴保证可见画布全程显示完整位图，故无白闪、无跳动。
+          forceLayerRebuild(canvas, ctx, buffer, pixelWidth, pixelHeight, () => cancelled || canvasRef.current !== canvas);
 
           // 渲染成功后再锁定签名并提交页面尺寸，保证“清晰就绪”后整页一次性出现。
           renderedSignatureRef.current = renderSignature;
