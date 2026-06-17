@@ -232,6 +232,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           onUpload={papers.handleUpload}
           onAnalyze={handleAnalyze}
           onReproduce={papers.handleReproduce}
+          onReparse={papers.handleReparse}
           onUpdatePaper={papers.handleUpdatePaper}
           onDeletePaper={papers.handleDeletePaper}
           onDeleteInterestGroup={papers.handleDeleteInterestGroup}

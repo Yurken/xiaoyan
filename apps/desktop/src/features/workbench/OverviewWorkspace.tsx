@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Sparkles } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
 import { Link } from "react-router-dom";
@@ -12,9 +13,10 @@ import type { WorkbenchOverviewModel } from "./shared";
 
 interface OverviewWorkspaceProps {
   model: WorkbenchOverviewModel;
+  beforeQuickActions?: ReactNode;
 }
 
-export default function OverviewWorkspace({ model }: OverviewWorkspaceProps) {
+export default function OverviewWorkspace({ model, beforeQuickActions }: OverviewWorkspaceProps) {
   const promotedSections = model.layout.filter((section) => section.prominence === "promoted");
   const normalSections = model.layout.filter((section) => section.prominence === "normal");
 
@@ -88,6 +90,8 @@ export default function OverviewWorkspace({ model }: OverviewWorkspaceProps) {
             ))}
           </div>
         ) : null}
+
+        {beforeQuickActions}
 
         <QuickActionStrip />
       </div>

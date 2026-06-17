@@ -31,10 +31,7 @@ export default function Home() {
   if (model) {
     return (
       <div className="h-full overflow-y-auto p-5 rc-home-container">
-        <ContinueResearchPanel />
-        <div className="mt-6">
-          <OverviewWorkspace model={model} />
-        </div>
+        <OverviewWorkspace model={model} beforeQuickActions={<ContinueResearchPanel />} />
       </div>
     );
   }

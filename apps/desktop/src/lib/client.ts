@@ -186,7 +186,7 @@ export const papersApi = {
     invoke("papers_list_parse_runs", { paperId: paper_id }),
   upload: (filePath: string, research_interest_id?: string): Promise<{ paper_id: string; title: string }> =>
     invoke("papers_upload", { filePath, researchInterestId: research_interest_id ?? null }),
-  update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string; research_interest_id?: string; importance_color?: string; notes?: string }): Promise<Paper> =>
+  update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string; research_interest_id?: string; importance_color?: string; notes?: string; tags?: string[] }): Promise<Paper> =>
     invoke("papers_update", {
       id,
       title: data.title ?? null,
@@ -197,6 +197,7 @@ export const papersApi = {
       researchInterestId: data.research_interest_id ?? null,
       importanceColor: data.importance_color ?? null,
       notes: data.notes ?? null,
+      tags: data.tags ?? null,
     }),
   delete: (id: string): Promise<void> =>
     invoke("papers_delete", { id }),

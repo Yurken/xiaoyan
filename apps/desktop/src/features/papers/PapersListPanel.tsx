@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -9,6 +9,7 @@ import {
   Loader2,
   Pencil,
   Quote,
+  RotateCw,
   Trash2,
   Upload,
   X,
@@ -48,6 +49,7 @@ interface PapersListPanelProps {
   onUpload: () => void;
   onAnalyze: (id: string) => void;
   onReproduce: (id: string) => void;
+  onReparse: (id: string) => void;
   onUpdatePaper: (id: string, data: Record<string, unknown>) => Promise<unknown>;
   onDeletePaper: (id: string) => void;
   onDeleteInterestGroup: (id: string, deleteAll: boolean) => void;
@@ -69,7 +71,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
     deletingPaperId, savingEdit, selectedInterestId, deletingGroupId,
     paperGroups, ungroupedPapers, detailPaperId, paperFigures, taskProgressByPaperId,
     sortKeys, keywordFilters, titleFilters,
-    onUpload, onAnalyze, onReproduce, onUpdatePaper, onDeletePaper,
+    onUpload, onAnalyze, onReproduce, onReparse, onUpdatePaper, onDeletePaper,
     onDeleteInterestGroup, onSelectInterest, onOpenDetail, onCloseDetail, onSetDetailPaperId,
     onSortKeyChange, onKeywordFilterChange, onTitleFilterChange, getSortKey,
     hideFolders, onMovePaper,
@@ -100,10 +102,28 @@ export function PapersListPanel(props: PapersListPanelProps) {
   const [citationPaperId, setCitationPaperId] = useState<string | null>(null);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ paper: Paper; x: number; y: number } | null>(null);
   const [editDraft, setEditDraft] = useState({
     title: "", authors: "", venue: "", year: "", doi: "",
     research_interest_id: "", importance_color: "", notes: "",
+    tags: [] as string[],
   });
+  const [tagInput, setTagInput] = useState("");
+
+  // 右键菜单：点击其它位置、滚动或按 Esc 时关闭。
+  useEffect(() => {
+    if (!contextMenu) return undefined;
+    const close = () => setContextMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
 
   const SORT_LABELS: Record<SortKey, string> = { created_at: "导入时间", title: "名称", importance: "重要性" };
   const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
@@ -130,12 +150,30 @@ export function PapersListPanel(props: PapersListPanelProps) {
 
   const openEditor = (paper: Paper) => {
     setEditingId(paper.id);
+    setTagInput("");
     setEditDraft({
       title: paper.title || "", authors: paper.authors || "",
       venue: paper.venue || "", year: paper.year ? String(paper.year) : "",
       doi: paper.doi || "", research_interest_id: paper.research_interest_id || "",
       importance_color: paper.importance_color || "", notes: paper.notes || "",
+      tags: paper.tags ? [...paper.tags] : [],
     });
+  };
+
+  // 把当前输入框里的内容收成一个标签，忽略大小写去重，最多 16 个。
+  const commitTagInput = () => {
+    const next = tagInput.trim();
+    if (!next) return;
+    setEditDraft((prev) => {
+      if (prev.tags.length >= 16) return prev;
+      if (prev.tags.some((tag) => tag.toLowerCase() === next.toLowerCase())) return prev;
+      return { ...prev, tags: [...prev.tags, next] };
+    });
+    setTagInput("");
+  };
+
+  const removeTag = (tag: string) => {
+    setEditDraft((prev) => ({ ...prev, tags: prev.tags.filter((item) => item !== tag) }));
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -143,13 +181,20 @@ export function PapersListPanel(props: PapersListPanelProps) {
     if (!nextTitle) throw new Error("论文标题不能为空");
     const yearText = editDraft.year.trim();
     if (yearText && !/^\d{4}$/.test(yearText)) throw new Error("年份需填写 4 位数字");
+    // 提交前把还没回车的输入内容也并入标签
+    const pending = tagInput.trim();
+    const tags = pending && !editDraft.tags.some((tag) => tag.toLowerCase() === pending.toLowerCase())
+      ? [...editDraft.tags, pending]
+      : editDraft.tags;
     await onUpdatePaper(id, {
       title: nextTitle, authors: editDraft.authors.trim(),
       venue: editDraft.venue.trim(), year: yearText ? Number.parseInt(yearText, 10) : 0,
       doi: editDraft.doi.trim(), research_interest_id: editDraft.research_interest_id,
       importance_color: editDraft.importance_color, notes: editDraft.notes,
+      tags,
     });
     setEditingId(null);
+    setTagInput("");
   };
 
   const editTitleError = editingId && !editDraft.title.trim() ? "标题不能为空" : "";
@@ -205,6 +250,10 @@ export function PapersListPanel(props: PapersListPanelProps) {
         setDraggingPaperId(paper.id);
       }}
       onDragEnd={() => { setDraggingPaperId(null); setDragOverGroup(null); }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setContextMenu({ paper, x: e.clientX, y: e.clientY });
+      }}
     >
       <div className="flex items-start gap-3">
         {onMovePaper ? (
@@ -230,12 +279,14 @@ export function PapersListPanel(props: PapersListPanelProps) {
             {paper.authors && <span>{paper.authors}</span>}
             {paper.year && <span>{paper.year}</span>}
             {paper.venue && <span className="text-apple-blue font-medium">{paper.venue}</span>}
-            {paper.venue_type && <VenueTypeBadge kind={paper.venue_type} />}
-            {paper.wos_index && paper.wos_index !== "none" && <WosIndexBadge level={paper.wos_index} />}
+            {paper.ccf_type && <VenueTypeBadge type={paper.ccf_type} />}
+            {paper.wos_indexes
+              ?.filter((index) => index && index !== "none")
+              .map((index) => <WosIndexBadge key={index} index={index} />)}
             {paper.jcr_quartile && paper.jcr_quartile !== "N/A" && <JcrQuartileBadge quartile={paper.jcr_quartile} />}
             {paper.cas_quartile && paper.cas_quartile !== "N/A" && <CasQuartileBadge quartile={paper.cas_quartile} />}
-            {paper.cas_top && <CasTopBadge />}
-            {paper.ccf_rating && <CcfRatingBadge level={paper.ccf_rating} />}
+            {paper.cas_top && <CasTopBadge top={paper.cas_top} />}
+            {paper.ccf_rating && <CcfRatingBadge rating={paper.ccf_rating} />}
             {paper.importance_color && (
               <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ background: paper.importance_color }}
                 title={COLOR_PRIORITY.indexOf(paper.importance_color) >= 0 ? ["极其重要","非常重要","重要","较重要","一般","不重要"][COLOR_PRIORITY.indexOf(paper.importance_color)] : ""} />
@@ -250,34 +301,37 @@ export function PapersListPanel(props: PapersListPanelProps) {
             </div>
           )}
         </div>
-      </div>
 
-      <div className="mt-2 flex items-center gap-2 border-t border-nm-dark/10 pt-2">
-        <Button size="sm" variant="secondary" onClick={() => openEditor(paper)}><Pencil className="h-3.5 w-3.5" />编辑</Button>
-        <Button size="sm" variant="secondary" onClick={() => setConfirmDeletePaperId(confirmDeletePaperId === paper.id ? null : paper.id)}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-        <Button size="sm" variant="secondary" onClick={() => setCitationPaperId(citationPaperId === paper.id ? null : paper.id)}>
-          <Quote className="h-3.5 w-3.5" />
-        </Button>
-        <Button size="sm" onClick={() => {
-          if (requiresReanalyzeConfirm(paper)) { setConfirmReanalyzePaperId((prev) => (prev === paper.id ? null : paper.id)); return; }
-          onAnalyze(paper.id);
-        }} disabled={!canStartAnalyze(paper.status)}>
-          {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          {paper.status === "analyzing" ? "分析中…" : paper.status === "parsing" ? "解析中…" : "小妍解读"}
-        </Button>
-        <Button size="sm" variant="secondary" onClick={() => onReproduce(paper.id)} disabled={!canStartAnalyze(paper.status)} title="生成复现/验证指南">
-          <FlaskConical className="h-3.5 w-3.5" />复现
-        </Button>
-        {(paper.analysis || paper.reproduction_guide || ["parsed","failed","error"].includes(paper.status)) && (
-          <button type="button" onClick={() => detailPaperId === paper.id ? onCloseDetail() : onOpenDetail(paper.id)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
-            style={{ background: "var(--rc-surface)", boxShadow: detailPaperId === paper.id ? "var(--rc-inset-shadow)" : "var(--rc-chip-shadow)", color: detailPaperId === paper.id ? "#007AFF" : "var(--rc-text-secondary)" }}
-            title={detailPaperId === paper.id ? "关闭详情" : "查看详情"}>
-            <Eye className="h-4 w-4" />
+        {/* 右上角操作：解读 / 复现 / 引用 / 详情；编辑·重解析·删除见右键菜单 */}
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          <Button size="sm" onClick={() => {
+            if (requiresReanalyzeConfirm(paper)) { setConfirmReanalyzePaperId((prev) => (prev === paper.id ? null : paper.id)); return; }
+            onAnalyze(paper.id);
+          }} disabled={!canStartAnalyze(paper.status)}>
+            {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            {paper.status === "analyzing" ? "分析中…" : paper.status === "parsing" ? "解析中…" : "小妍解读"}
+          </Button>
+          <button type="button" onClick={() => onReproduce(paper.id)} disabled={!canStartAnalyze(paper.status)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:opacity-40"
+            style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" }}
+            title="生成复现/验证指南">
+            <FlaskConical className="h-4 w-4" />
           </button>
-        )}
+          <button type="button" onClick={() => setCitationPaperId(citationPaperId === paper.id ? null : paper.id)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+            style={{ background: "var(--rc-surface)", boxShadow: citationPaperId === paper.id ? "var(--rc-inset-shadow)" : "var(--rc-chip-shadow)", color: citationPaperId === paper.id ? "#007AFF" : "var(--rc-text-secondary)" }}
+            title="引用">
+            <Quote className="h-4 w-4" />
+          </button>
+          {(paper.analysis || paper.reproduction_guide || ["parsed","failed","error"].includes(paper.status)) && (
+            <button type="button" onClick={() => detailPaperId === paper.id ? onCloseDetail() : onOpenDetail(paper.id)}
+              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+              style={{ background: "var(--rc-surface)", boxShadow: detailPaperId === paper.id ? "var(--rc-inset-shadow)" : "var(--rc-chip-shadow)", color: detailPaperId === paper.id ? "#007AFF" : "var(--rc-text-secondary)" }}
+              title={detailPaperId === paper.id ? "关闭详情" : "查看详情"}>
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {paper.status === "analyzing" && taskProgressByPaperId[paper.id] ? (
@@ -343,6 +397,34 @@ export function PapersListPanel(props: PapersListPanelProps) {
                   {color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />}{label}
                 </button>
               ))}
+            </div>
+          </div>
+          <div className="md:col-span-2 space-y-1">
+            <label className="ml-1 block text-xs font-medium text-ink-tertiary">标签</label>
+            <div className="flex flex-wrap items-center gap-1.5 rounded-2xl px-3 py-2"
+              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}>
+              {editDraft.tags.map((tag) => (
+                <span key={tag} className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-ink-secondary"
+                  style={{ background: "var(--rc-chip-inset-bg)" }}>
+                  {tag}
+                  <button type="button" onClick={() => removeTag(tag)}
+                    className="text-ink-tertiary/60 transition-colors hover:text-apple-red" aria-label={`移除标签 ${tag}`}>
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              <input type="text" value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commitTagInput(); }
+                  else if (e.key === "Backspace" && !tagInput && editDraft.tags.length > 0) {
+                    removeTag(editDraft.tags[editDraft.tags.length - 1]);
+                  }
+                }}
+                onBlur={commitTagInput}
+                placeholder={editDraft.tags.length >= 16 ? "最多 16 个标签" : "输入后回车添加标签"}
+                disabled={editDraft.tags.length >= 16}
+                className="min-w-[120px] flex-1 bg-transparent text-sm text-ink-primary outline-none placeholder:text-ink-tertiary/60" />
             </div>
           </div>
           <div className="md:col-span-2 space-y-1">
@@ -463,6 +545,38 @@ export function PapersListPanel(props: PapersListPanelProps) {
           </div>
           {ungroupedPapers.map((p) => renderPaperCard(p, "ungrouped"))}
         </section>
+      )}
+
+      {contextMenu && (
+        <div
+          className="fixed z-[60] min-w-[160px] overflow-hidden rounded-xl py-1"
+          style={{
+            left: Math.min(contextMenu.x, window.innerWidth - 180),
+            top: Math.min(contextMenu.y, window.innerHeight - 150),
+            background: "var(--rc-surface)",
+            boxShadow: "0 12px 36px rgba(15,23,42,0.2)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-black/5"
+            onClick={() => { openEditor(contextMenu.paper); setContextMenu(null); }}>
+            <Pencil className="h-3.5 w-3.5" />编辑
+          </button>
+          {contextMenu.paper.file_path && (
+            <button type="button"
+              disabled={["parsing", "analyzing"].includes(contextMenu.paper.status)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-black/5 disabled:opacity-40"
+              onClick={() => { onReparse(contextMenu.paper.id); setContextMenu(null); }}>
+              <RotateCw className="h-3.5 w-3.5" />重新解析
+            </button>
+          )}
+          <button type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-apple-red transition-colors hover:bg-apple-red/10"
+            onClick={() => { setConfirmDeletePaperId(contextMenu.paper.id); setContextMenu(null); }}>
+            <Trash2 className="h-3.5 w-3.5" />删除
+          </button>
+        </div>
       )}
     </div>
   );

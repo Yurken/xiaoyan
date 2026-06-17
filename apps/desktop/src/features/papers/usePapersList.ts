@@ -112,6 +112,18 @@ export function usePapersList() {
     }
   };
 
+  // 重新解析 PDF：刷新正文与分块；后续 parsed/failed 状态由 paper:status 监听统一回填。
+  const handleReparse = async (id: string) => {
+    try {
+      setLoadError("");
+      setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "parsing" } : p)));
+      await apiClient.papers.reparse(id);
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "failed" } : p)));
+    }
+  };
+
   const handleUpdatePaper = async (id: string, data: Record<string, unknown>) => {
     try {
       setSavingEdit(true);
@@ -208,7 +220,7 @@ export function usePapersList() {
     keywordFilters, setKeywordFilter,
     titleFilters, setTitleFilter,
     paperGroups, ungroupedPapers,
-    handleUpload, importPaths, handleAnalyze, handleReproduce,
+    handleUpload, importPaths, handleAnalyze, handleReproduce, handleReparse,
     handleUpdatePaper, handleDeletePaper, handleDeleteInterestGroup,
   };
 }

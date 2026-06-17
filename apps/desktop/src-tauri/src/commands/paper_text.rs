@@ -25,9 +25,15 @@ pub fn extract_pdf_preview_text(path: &Path, max_pages: usize, max_chars: usize)
 
 pub fn extract_pdf_text_with_filtered_stderr(path: &Path) -> Result<String, String> {
     let mut redirect = gag::BufferRedirect::stderr().ok();
-    let result = panic::catch_unwind(AssertUnwindSafe(|| pdf_extract::extract_text(path)))
-        .map_err(|_| "PDF 解析异常中断".to_string())?
-        .map_err(|error| error.to_string());
+    // pdf_extract panics on certain math fonts (e.g. CMEX10 with a char missing
+    // from both the unicode map and the encoding). Treat a panic as a normal
+    // failure so it falls through to the lopdf fallback below instead of
+    // short-circuiting the whole parse.
+    let result: Result<String, String> =
+        match panic::catch_unwind(AssertUnwindSafe(|| pdf_extract::extract_text(path))) {
+            Ok(inner) => inner.map_err(|error| error.to_string()),
+            Err(_) => Err("PDF 解析异常中断".to_string()),
+        };
 
     if let Some(ref mut handle) = redirect {
         let mut captured = String::new();
@@ -39,6 +45,8 @@ pub fn extract_pdf_text_with_filtered_stderr(path: &Path) -> Result<String, Stri
             eprintln!("{line}");
         }
     }
+    // Stop redirecting before the fallback so its diagnostics reach real stderr.
+    drop(redirect);
 
     match result {
         Ok(text) if !text.trim().is_empty() => Ok(text),
@@ -206,4 +214,7 @@ fn should_suppress_pdf_stderr_line(line: &str) -> bool {
     trimmed.contains("Unicode mismatch")
         || trimmed.contains("missing char")
         || trimmed.contains("ToUnicode")
+        || trimmed.contains("missing unicode map and encoding")
+        || trimmed.contains("note: run with `RUST_BACKTRACE`")
+        || (trimmed.contains("panicked at") && trimmed.contains("pdf-extract"))
 }

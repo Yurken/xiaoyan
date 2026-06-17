@@ -276,7 +276,7 @@ pub async fn papers_reparse(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
-    let row = sqlx::query("SELECT file_path FROM papers WHERE id = ?")
+    let row = sqlx::query("SELECT file_path, tags FROM papers WHERE id = ?")
         .bind(&id)
         .fetch_optional(&state.db)
         .await
@@ -286,6 +286,13 @@ pub async fn papers_reparse(
     let file_path = row
         .get::<Option<String>, _>("file_path")
         .ok_or_else(|| "这篇论文没有可重解析的 PDF 文件。".to_string())?;
+    // 重解析会刷新正文与分块，但用户可能已设置自定义标签，这里保留非空标签，避免被关键词覆盖。
+    let existing_tags_json = row.get::<Option<String>, _>("tags");
+    let has_existing_tags = existing_tags_json
+        .as_deref()
+        .and_then(|raw| serde_json::from_str::<Vec<String>>(raw).ok())
+        .map(|tags| tags.iter().any(|tag| !tag.trim().is_empty()))
+        .unwrap_or(false);
     let managed_path = canonical_managed_pdf_path(&app, Path::new(&file_path))?;
     let db = state.db.clone();
     let settings = state.settings.read().await.clone();
@@ -323,10 +330,15 @@ pub async fn papers_reparse(
         };
 
         let text = parse_result.text;
-        let refreshed_keywords =
-            crate::commands::paper_analysis_text::extract_keywords_from_text(&text);
-        let refreshed_tags =
-            serde_json::to_string(&refreshed_keywords).unwrap_or_else(|_| "[]".to_string());
+        let refreshed_tags = if has_existing_tags {
+            existing_tags_json
+                .clone()
+                .unwrap_or_else(|| "[]".to_string())
+        } else {
+            let refreshed_keywords =
+                crate::commands::paper_analysis_text::extract_keywords_from_text(&text);
+            serde_json::to_string(&refreshed_keywords).unwrap_or_else(|_| "[]".to_string())
+        };
         let parsed_now = chrono::Utc::now().to_rfc3339();
         let _ = sqlx::query(
             "UPDATE papers SET full_text = ?, tags = ?, status = 'parsed', updated_at = ? WHERE id = ?",
@@ -371,6 +383,7 @@ pub async fn papers_update(
     research_interest_id: Option<String>,
     importance_color: Option<String>,
     notes: Option<String>,
+    tags: Option<Vec<String>>,
 ) -> Result<serde_json::Value, String> {
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -475,6 +488,31 @@ pub async fn papers_update(
             } else {
                 Some(value.trim().to_string())
             })
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if let Some(value) = tags {
+        // 规范化自定义标签：去空白、丢空值、忽略大小写去重，最多保留 16 个。
+        let mut cleaned: Vec<String> = Vec::new();
+        for raw in value {
+            let tag = raw.trim().to_string();
+            if tag.is_empty() {
+                continue;
+            }
+            if !cleaned.iter().any(|existing| existing.eq_ignore_ascii_case(&tag)) {
+                cleaned.push(tag);
+            }
+            if cleaned.len() >= 16 {
+                break;
+            }
+        }
+        let tags_json = serde_json::to_string(&cleaned).unwrap_or_else(|_| "[]".to_string());
+        sqlx::query("UPDATE papers SET tags = ?, updated_at = ? WHERE id = ?")
+            .bind(&tags_json)
             .bind(&now)
             .bind(&id)
             .execute(&state.db)
