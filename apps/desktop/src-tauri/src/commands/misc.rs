@@ -1145,6 +1145,35 @@ pub async fn translate_text(
 
 // ── Markdown Format ───────────────────────────────────────────────
 
+/// 修复 LLM 生成 JSON 时常见的非法转义：当文本里含有 LaTeX（如 `\mathcal`、
+/// `\le`、`\Delta`）时，这些反斜杠不是合法的 JSON 转义，会导致解析失败。
+/// 这里把所有「后面不跟合法转义字符」的反斜杠补成 `\\`，已合法的（如
+/// `\n`、`\"`、`\\`、`\u`）原样保留。反斜杠只会出现在字符串内，全局扫描安全。
+fn repair_json_escapes(input: &str) -> String {
+    let chars: Vec<char> = input.chars().collect();
+    let mut out = String::with_capacity(input.len() + 16);
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\' {
+            match chars.get(i + 1) {
+                Some(&n @ ('"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' | 'u')) => {
+                    out.push('\\');
+                    out.push(n);
+                    i += 2;
+                }
+                _ => {
+                    out.push_str("\\\\");
+                    i += 1;
+                }
+            }
+        } else {
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
 #[tauri::command]
 pub async fn markdown_format_chunk(
     state: State<'_, AppState>,
@@ -1178,9 +1207,26 @@ pub async fn markdown_format_chunk(
         .chat(&msgs, model.as_deref(), temperature)
         .await
         .map_err(|e| e.to_string())?;
-    let clean = extract_json(&raw);
-    serde_json::from_str::<serde_json::Value>(&clean)
-        .map_err(|e| format!("JSON parse error: {e}\nraw: {raw}"))
+    let clean = repair_json_escapes(&extract_json(&raw));
+    let parsed = serde_json::from_str::<serde_json::Value>(&clean)
+        .map_err(|e| format!("JSON parse error: {e}\nraw: {raw}"))?;
+    // 归一化为前端期望的驼峰键，并对缺失字段兜底，避免 styleSummary 变成 undefined
+    // 后续块回传时丢键导致 "missing required key styleSummary"。
+    let formatted = parsed
+        .get("formatted")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let style_summary = parsed
+        .get("style_summary")
+        .or_else(|| parsed.get("styleSummary"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    Ok(serde_json::json!({
+        "formatted": formatted,
+        "styleSummary": style_summary,
+    }))
 }
 
 async fn retrieve_papers(

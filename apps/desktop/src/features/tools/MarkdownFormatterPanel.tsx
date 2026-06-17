@@ -1,5 +1,6 @@
 import { AlertCircle, FileText, Loader2, Plus } from "lucide-react";
 import { Card, Textarea } from "@research-copilot/ui";
+import { CHUNK_SIZE } from "./useMarkdownFormatter";
 
 const insetShadow = "var(--rc-inset-shadow)";
 const primaryButtonStyle = {
@@ -80,7 +81,7 @@ export function MarkdownFormatterPanel({
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-ink-tertiary">
             {trimmedLength > 0
-              ? `${trimmedLength} 字 · 预计 ${Math.ceil(trimmedLength / 1500)} 块`
+              ? `${trimmedLength} 字 · 预计 ${Math.ceil(trimmedLength / CHUNK_SIZE)} 块`
               : "支持 ⌘/Ctrl+Enter 快捷提交"}
           </p>
           <button

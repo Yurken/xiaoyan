@@ -6,6 +6,10 @@ interface MarkdownProgress {
   total: number;
 }
 
+// 分块上限。受限于模型输出 token 上限（排版输出≈输入等长），
+// 单块过大可能被截断丢失内容，因此保留分块，仅放宽阈值。
+export const CHUNK_SIZE = 6000;
+
 export function useMarkdownFormatter() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState("");
@@ -21,7 +25,7 @@ export function useMarkdownFormatter() {
     const chunks: string[] = [];
     let currentChunk = "";
     for (const paragraph of paragraphs) {
-      if (currentChunk.length + paragraph.length > 1500 && currentChunk) {
+      if (currentChunk.length + paragraph.length > CHUNK_SIZE && currentChunk) {
         chunks.push(currentChunk.trim());
         currentChunk = paragraph;
       } else {
