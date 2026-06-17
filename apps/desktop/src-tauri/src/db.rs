@@ -79,6 +79,20 @@ CREATE TABLE IF NOT EXISTS reproduction_guides (
     created_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS surveys (
+    id              TEXT PRIMARY KEY,
+    query           TEXT NOT NULL,
+    report_json     TEXT NOT NULL DEFAULT '{}',
+    papers_json     TEXT NOT NULL DEFAULT '[]',
+    citations_json  TEXT NOT NULL DEFAULT '[]',
+    citation_format TEXT,
+    language        TEXT,
+    meta_json       TEXT NOT NULL DEFAULT '{}',
+    markdown        TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_surveys_created_at ON surveys(created_at DESC);
+
 CREATE TABLE IF NOT EXISTS research_interests (
     id            TEXT PRIMARY KEY,
     topic         TEXT NOT NULL,

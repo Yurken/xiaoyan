@@ -81,7 +81,8 @@ use commands::{
         memory_privacy_verify_password,
     },
     misc::{
-        markdown_format_chunk, planner_generate, survey_generate, survey_search, translate_text,
+        markdown_format_chunk, planner_generate, survey_delete, survey_generate, survey_get,
+        survey_list, survey_search, translate_text,
     },
     paper_corpus::{
         paper_corpus_create, paper_corpus_delete, paper_corpus_list, paper_corpus_update,
@@ -471,6 +472,9 @@ pub fn run() {
             // Misc
             planner_generate,
             survey_generate,
+            survey_list,
+            survey_get,
+            survey_delete,
             survey_search,
             translate_text,
             markdown_format_chunk,

@@ -701,3 +701,20 @@ export interface OpenCodeDetectResult {
   binaryPath: string | null;
   version: string | null;
 }
+
+// ── Survey（综述，持久化后跨端同步：桌面端生成落盘，移动端只读消费）──
+export interface SurveySummary {
+  id: string;
+  query: string;
+  created_at: string;
+}
+
+export interface SavedSurvey extends SurveySummary {
+  report: Record<string, unknown>;
+  papers: unknown[];
+  formatted_citations: string[];
+  citation_format?: string | null;
+  language?: string | null;
+  meta: Record<string, unknown>;
+  markdown?: string | null;
+}

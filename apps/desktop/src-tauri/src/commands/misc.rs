@@ -744,21 +744,46 @@ pub async fn run_survey_generation(
                     "survey:delta",
                     json!({ "request_id": request_id, "delta": markdown }),
                 );
+
+                // 落盘：综述结果持久化入库，并通过同步白名单跨端分发（移动端只读消费）。
+                let survey_meta = json!({
+                    "time_range": time_range_str,
+                    "lit_types": lit_types_str,
+                    "databases": databases_str,
+                    "language": language.as_deref().unwrap_or("both")
+                });
+                let survey_id = Uuid::new_v4().to_string();
+                if let Err(e) = sqlx::query(
+                    "INSERT INTO surveys \
+                     (id, query, report_json, papers_json, citations_json, citation_format, language, meta_json, markdown) \
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                )
+                .bind(&survey_id)
+                .bind(&query)
+                .bind(serde_json::to_string(&report).unwrap_or_else(|_| "{}".into()))
+                .bind(serde_json::to_string(&papers).unwrap_or_else(|_| "[]".into()))
+                .bind(serde_json::to_string(&formatted_citations).unwrap_or_else(|_| "[]".into()))
+                .bind(cite_format)
+                .bind(language.as_deref().unwrap_or("both"))
+                .bind(serde_json::to_string(&survey_meta).unwrap_or_else(|_| "{}".into()))
+                .bind(&markdown)
+                .execute(&db)
+                .await
+                {
+                    eprintln!("[survey] 综述落盘失败: {e}");
+                }
+
                 let _ = app.emit(
                     "survey:structured",
                     json!({
                         "request_id": request_id,
+                        "id": survey_id,
                         "query": query,
                         "report": report,
                         "papers": papers,
                         "formatted_citations": formatted_citations,
                         "citation_format": cite_format,
-                        "meta": {
-                            "time_range": time_range_str,
-                            "lit_types": lit_types_str,
-                            "databases": databases_str,
-                            "language": language.as_deref().unwrap_or("both")
-                        }
+                        "meta": survey_meta
                     }),
                 );
                 let _ = app.emit("survey:agent_complete", json!({
@@ -833,6 +858,61 @@ pub async fn survey_generate(
         request_id,
     )
     .await
+}
+
+/// 已保存综述列表（仅摘要字段），按生成时间倒序。
+#[tauri::command]
+pub async fn survey_list(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let rows = sqlx::query("SELECT id, query, created_at FROM surveys ORDER BY created_at DESC")
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(json!(rows
+        .into_iter()
+        .map(|r| json!({
+            "id": r.get::<String, _>("id"),
+            "query": r.get::<String, _>("query"),
+            "created_at": r.get::<String, _>("created_at"),
+        }))
+        .collect::<Vec<_>>()))
+}
+
+/// 读取单条已保存综述的完整结构。
+#[tauri::command]
+pub async fn survey_get(state: State<'_, AppState>, id: String) -> Result<serde_json::Value, String> {
+    let row = sqlx::query("SELECT * FROM surveys WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "综述不存在".to_string())?;
+
+    let parse = |col: &str, fallback: serde_json::Value| {
+        serde_json::from_str::<serde_json::Value>(&row.get::<String, _>(col)).unwrap_or(fallback)
+    };
+    Ok(json!({
+        "id": row.get::<String, _>("id"),
+        "query": row.get::<String, _>("query"),
+        "report": parse("report_json", json!({})),
+        "papers": parse("papers_json", json!([])),
+        "formatted_citations": parse("citations_json", json!([])),
+        "citation_format": row.get::<Option<String>, _>("citation_format"),
+        "language": row.get::<Option<String>, _>("language"),
+        "meta": parse("meta_json", json!({})),
+        "markdown": row.get::<Option<String>, _>("markdown"),
+        "created_at": row.get::<String, _>("created_at"),
+    }))
+}
+
+/// 删除一条已保存综述（删除会经墓碑机制同步到其他设备）。
+#[tauri::command]
+pub async fn survey_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    sqlx::query("DELETE FROM surveys WHERE id = ?")
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
