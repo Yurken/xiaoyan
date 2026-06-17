@@ -1,6 +1,6 @@
-export const IS_MACOS_DESKTOP =
-  typeof navigator !== "undefined" &&
-  /mac/i.test(`${navigator.platform} ${navigator.userAgent}`);
+import { IS_MACOS_DESKTOP } from "./desktopPlatform";
+
+export { IS_MACOS_DESKTOP };
 
 export const MACOS_WINDOW_DRAG_HEIGHT = 28;
 export const MACOS_TITLEBAR_LEFT_CLEARANCE = 92;
