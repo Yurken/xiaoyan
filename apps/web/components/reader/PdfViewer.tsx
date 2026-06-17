@@ -304,49 +304,41 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
-  const renderedRef = useRef(false);
 
-  // Get page dimensions
+  // Render-ID counter — incremented on every render attempt (incl. cleanup).
+  // Only the most recent render is allowed to write to the canvas.
+  // This prevents a stale page.render() (which cannot be cancelled) from
+  // overwriting the correct canvas content after a scale change.
+  const renderIdRef = useRef(0);
+
+  // Render canvas + text layer.
+  // Viewport is always computed fresh from the current `scale` inside the
+  // effect body, so there is no dependency on a potentially-stale `pageSize` state.
   useEffect(() => {
     if (!shouldRender) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const page = await pdfDoc.getPage(pageNum);
-        if (cancelled) return;
-        const viewport = page.getViewport({ scale });
-        setPageSize({ w: viewport.width, h: viewport.height });
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pdfDoc, pageNum, scale, shouldRender]);
 
-  // Render canvas + text layer
-  useEffect(() => {
-    if (!shouldRender || !pageSize || renderedRef.current) return;
-    renderedRef.current = true;
-
-    let cancelled = false;
+    const id = ++renderIdRef.current;
 
     (async () => {
       try {
         const page = await pdfDoc.getPage(pageNum);
-        if (cancelled) return;
+        if (id !== renderIdRef.current) return; // stale — skip
 
         const viewport = page.getViewport({ scale });
         const outputScale = window.devicePixelRatio || 1;
+        const w = viewport.width;
+        const h = viewport.height;
 
-        // Render to canvas
+        // Update container dimensions for layout sizing
+        setPageSize({ w, h });
+
+        // Size the canvas buffer & CSS in one synchronous step
         const canvas = canvasRef.current;
         if (!canvas) return;
-        canvas.width = Math.floor(viewport.width * outputScale);
-        canvas.height = Math.floor(viewport.height * outputScale);
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
+        canvas.width = Math.floor(w * outputScale);
+        canvas.height = Math.floor(h * outputScale);
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
 
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
@@ -358,14 +350,15 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           canvas: canvas as unknown as HTMLCanvasElement,
         } as any).promise;
 
-        if (cancelled) return;
+        // Double-check: if a newer render started while we were painting, abort
+        if (id !== renderIdRef.current) return;
 
-        // Render text layer
+        // ── Text layer ──
         const textLayerDiv = textLayerRef.current;
         if (!textLayerDiv) return;
 
         const textContent = await page.getTextContent();
-        if (cancelled) return;
+        if (id !== renderIdRef.current) return;
 
         const { TextLayer, setLayerDimensions } = await loadPdfJs();
 
@@ -387,19 +380,17 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           (span as HTMLElement).style.cursor = "text";
         });
       } catch (e) {
-        console.error(`Failed to render page ${pageNum}:`, e);
+        if (id === renderIdRef.current) {
+          console.error(`Failed to render page ${pageNum}:`, e);
+        }
       }
     })();
 
     return () => {
-      cancelled = true;
+      // Invalidate this render — any in-flight async work will bail out
+      renderIdRef.current++;
     };
-  }, [shouldRender, pageSize, pdfDoc, pageNum, scale]);
-
-  // Reset rendered flag when scale changes
-  useEffect(() => {
-    renderedRef.current = false;
-  }, [scale]);
+  }, [shouldRender, pdfDoc, pageNum, scale]);
 
   const containerStyle: React.CSSProperties = pageSize
     ? {
