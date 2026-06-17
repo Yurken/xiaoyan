@@ -29,9 +29,8 @@ interface WritingAssistantPanelProps {
   outline: LatexOutlineEntry[];
   diagnostics: LatexDiagnostic[];
   stats: LatexStats;
-  getSelectedText: () => string;
   onApplyText: (text: string) => void;
-  requestedAction?: { actionId: WritingAssistantActionId; nonce: number } | null;
+  requestedAction?: { actionId: WritingAssistantActionId; nonce: number; selectedText: string } | null;
   onClose: () => void;
 }
 
@@ -44,15 +43,18 @@ export default function WritingAssistantPanel({
   outline,
   diagnostics,
   stats,
-  getSelectedText,
   onApplyText,
   requestedAction,
   onClose,
 }: WritingAssistantPanelProps) {
   const [activeAction, setActiveAction] = useState<WritingAssistantActionId>("freeform");
   const [input, setInput] = useState("");
+  const [attachedSelection, setAttachedSelection] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const handledRequestNonce = useRef(0);
+  // 选区快照用 ref 保存，保证 send 时同步可读（state 更新是异步的）。
+  const selectionRef = useRef("");
+  const getSelectedText = useRef(() => selectionRef.current).current;
   const assistant = useWritingAssistant({
     projectName,
     mainTex,
@@ -80,10 +82,18 @@ export default function WritingAssistantPanel({
     if (requestedAction.nonce === handledRequestNonce.current) return;
     handledRequestNonce.current = requestedAction.nonce;
     setActiveAction(requestedAction.actionId);
+    // 同步写入 ref（供 send 立即读取）与 state（供展示）。
+    selectionRef.current = requestedAction.selectedText;
+    setAttachedSelection(requestedAction.selectedText);
     if (requestedAction.actionId !== "freeform") {
       void assistant.send(requestedAction.actionId, "");
     }
   }, [open, requestedAction, assistant]);
+
+  const clearSelection = () => {
+    selectionRef.current = "";
+    setAttachedSelection("");
+  };
 
   const activeActionMeta = useMemo(
     () => WRITING_ASSISTANT_ACTIONS.find((action) => action.id === activeAction) ?? WRITING_ASSISTANT_ACTIONS[0],
@@ -203,6 +213,31 @@ export default function WritingAssistantPanel({
         ) : null}
 
         <footer className="shrink-0 border-t p-4" style={{ borderColor: "var(--rc-border)" }}>
+          {attachedSelection.trim() ? (
+            <div
+              className="mb-3 rounded-xl border px-3 py-2"
+              style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
+            >
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-apple-blue">
+                  <FilePenLine className="h-3 w-3" />
+                  选中内容 · {attachedSelection.trim().length} 字符
+                </span>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  title="移除选中内容"
+                  className="flex h-5 w-5 items-center justify-center rounded text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-secondary"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+              <p className="line-clamp-3 whitespace-pre-wrap break-words text-[11px] leading-4 text-ink-tertiary">
+                {attachedSelection.trim()}
+              </p>
+            </div>
+          ) : null}
+
           <div className="mb-3 flex items-center gap-2">
             <Button
               type="button"

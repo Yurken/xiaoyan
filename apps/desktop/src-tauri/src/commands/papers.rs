@@ -2181,7 +2181,7 @@ mod tests {
             year: Some(2017),
             venue: Some("NeurIPS".into()),
             doi: Some("10.5555/demo".into()),
-            keywords: None,
+            _keywords: None,
         };
         let rendered = render_import_file_stem(
             "{first_author} - {title} ({year})",
@@ -2203,7 +2203,7 @@ mod tests {
             year: Some(0),
             venue: None,
             doi: None,
-            keywords: None,
+            _keywords: None,
         };
         let rendered = render_import_file_stem(
             "{first_author} - {title} ({year})",

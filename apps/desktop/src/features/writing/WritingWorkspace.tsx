@@ -42,11 +42,17 @@ export default function WritingWorkspace() {
   const [draftManagerOpen, setDraftManagerOpen] = useState(false);
   const [newDraftModalOpen, setNewDraftModalOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [assistantRequest, setAssistantRequest] = useState<{ actionId: WritingAssistantActionId; nonce: number } | null>(null);
+  const [assistantRequest, setAssistantRequest] = useState<{
+    actionId: WritingAssistantActionId;
+    nonce: number;
+    selectedText: string;
+  } | null>(null);
 
   const handleAssistantAction = (actionId: WritingAssistantActionId) => {
+    // 在动作触发瞬间（编辑器仍持有选区）抓取快照，避免焦点移到面板后选区丢失。
+    const selectedText = workspace.getSelectedText();
     setAssistantOpen(true);
-    setAssistantRequest((current) => ({ actionId, nonce: (current?.nonce ?? 0) + 1 }));
+    setAssistantRequest((current) => ({ actionId, nonce: (current?.nonce ?? 0) + 1, selectedText }));
   };
 
   return (
@@ -256,7 +262,6 @@ export default function WritingWorkspace() {
         outline={workspace.outline}
         diagnostics={workspace.diagnostics}
         stats={workspace.stats}
-        getSelectedText={workspace.getSelectedText}
         onApplyText={workspace.insertGeneratedText}
         requestedAction={assistantRequest}
         onClose={() => setAssistantOpen(false)}

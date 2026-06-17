@@ -733,7 +733,9 @@ mod tests {
         .execute(&pool)
         .await?;
 
-        let context = ResearchContextService::get_theme_context(&pool, "interest-1").await?;
+        let context = ResearchContextService::get_theme_context(&pool, "interest-1")
+            .await
+            .map_err(anyhow::Error::msg)?;
 
         assert_eq!(context.theme.open_questions.len(), 1);
         assert_eq!(
@@ -781,7 +783,9 @@ mod tests {
         .execute(&pool)
         .await?;
 
-        let context = ResearchContextService::get_theme_context(&pool, "interest-2").await?;
+        let context = ResearchContextService::get_theme_context(&pool, "interest-2")
+            .await
+            .map_err(anyhow::Error::msg)?;
 
         assert!(!context.theme.open_questions.is_empty());
         assert!(!context.theme.next_steps.is_empty());
