@@ -55,7 +55,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Sync versions from tag
-        run: node scripts/sync-version.mjs --tag "$RELEASE_TAG"
+        run: node scripts/sync-version.mjs --tag "${{ env.RELEASE_TAG }}"
 
       - name: Type check workspace
         run: pnpm type-check
@@ -191,7 +191,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Sync versions from tag
-        run: node scripts/sync-version.mjs --tag "$RELEASE_TAG"
+        run: node scripts/sync-version.mjs --tag "${{ env.RELEASE_TAG }}"
 
       - name: Build application
         uses: tauri-apps/tauri-action@v0

@@ -11,6 +11,10 @@ function getArg(name) {
   return index === -1 ? undefined : args[index + 1];
 }
 
+function firstNonEmpty(values) {
+  return values.find((value) => typeof value === "string" && value.trim() !== "");
+}
+
 function normalizeVersion(input) {
   const version = input.replace(/^v/, "");
   if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
@@ -47,12 +51,13 @@ function updateText(relativePath, updater, touched) {
   }
 }
 
-const rawVersion =
-  getArg("--version") ??
-  getArg("--tag") ??
-  process.env.RELEASE_TAG ??
-  process.env.GITHUB_REF_NAME ??
-  process.env.TAG_NAME;
+const rawVersion = firstNonEmpty([
+  getArg("--version"),
+  getArg("--tag"),
+  process.env.RELEASE_TAG,
+  process.env.GITHUB_REF_NAME,
+  process.env.TAG_NAME,
+]);
 
 if (!rawVersion) {
   throw new Error("Missing version. Use --version 1.2.3 or --tag v1.2.3.");
