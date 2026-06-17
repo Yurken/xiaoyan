@@ -6,6 +6,7 @@ import type { ProviderPresetId } from "./providerPresets";
 import ConnectionSection from "./ConnectionSection";
 import RolesSection from "./RolesSection";
 import { SectionIcon, ToggleRow } from "./shared";
+import type { ConfigHistoryControls } from "./ConfigHistorySwitcher";
 import CompanionSettingsSection from "../companion/CompanionSettingsSection";
 
 interface AssistantSettingsSectionProps {
@@ -17,6 +18,8 @@ interface AssistantSettingsSectionProps {
   loadingOllamaModels: boolean;
   routingMode: MultiAgentRoutingMode;
   enabledAgents: string[];
+  configHistory: ConfigHistoryControls;
+  onManageConfigHistory: () => void;
   setForm: Dispatch<SetStateAction<AppSettings>>;
   set: (key: keyof AppSettings) => (value: string) => void;
   setMany: (keys: (keyof AppSettings)[]) => (value: string) => void;
@@ -66,6 +69,8 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
         form={props.form}
         ollamaModels={props.ollamaModels}
         loadingOllamaModels={props.loadingOllamaModels}
+        configHistory={props.configHistory}
+        onManageConfigHistory={props.onManageConfigHistory}
         setForm={props.setForm}
         set={props.set}
         applyPreset={props.applyPreset}

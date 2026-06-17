@@ -4,6 +4,7 @@ import { Card } from "@research-copilot/ui";
 import type { AppSettings, LlmProvider, PaperSearchEngine } from "@research-copilot/types";
 import { MASK, SectionIcon, SettingInput } from "./shared";
 import { ANTHROPIC_ENDPOINT, PROVIDER_PRESETS, type ProviderPresetId } from "./providerPresets";
+import ConfigHistorySwitcher, { type ConfigHistoryControls } from "./ConfigHistorySwitcher";
 
 interface ConnectionSectionProps {
   contentUnavailable: boolean;
@@ -12,6 +13,8 @@ interface ConnectionSectionProps {
   form: AppSettings;
   ollamaModels: string[];
   loadingOllamaModels: boolean;
+  configHistory: ConfigHistoryControls;
+  onManageConfigHistory: () => void;
   setForm: Dispatch<SetStateAction<AppSettings>>;
   set: (key: keyof AppSettings) => (value: string) => void;
   applyPreset: (presetId: ProviderPresetId) => void;
@@ -93,6 +96,8 @@ export default function ConnectionSection({
   form,
   ollamaModels,
   loadingOllamaModels,
+  configHistory,
+  onManageConfigHistory,
   setForm,
   set,
   applyPreset,
@@ -133,14 +138,19 @@ export default function ConnectionSection({
 
   return (
     <Card padding="md" className="space-y-4">
-      <div className="flex items-center gap-3">
-        <SectionIcon icon={Brain} color="#AF52DE" />
-        <div>
-          <h2 className="text-base font-semibold text-ink-primary">小妍</h2>
-          <p className="mt-0.5 text-xs text-ink-tertiary">
-            点击厂商卡片自动填入接口地址和推荐模型，之后仍可手动修改。
-          </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <SectionIcon icon={Brain} color="#AF52DE" />
+          <div>
+            <h2 className="text-base font-semibold text-ink-primary">小妍</h2>
+            <p className="mt-0.5 text-xs text-ink-tertiary">
+              点击厂商卡片自动填入接口地址和推荐模型，之后仍可手动修改。
+            </p>
+          </div>
         </div>
+        {!contentUnavailable ? (
+          <ConfigHistorySwitcher {...configHistory} onManage={onManageConfigHistory} />
+        ) : null}
       </div>
 
       {!contentUnavailable ? (

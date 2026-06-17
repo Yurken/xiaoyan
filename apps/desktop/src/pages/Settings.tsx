@@ -459,6 +459,21 @@ export default function Settings() {
             loadingOllamaModels={loadingOllamaModels}
             routingMode={routingMode}
             enabledAgents={enabledAgents}
+            configHistory={{
+              entries: settingsHistory.entries,
+              loading: settingsHistory.loading,
+              selectedId: settingsHistory.selectedId,
+              saving: settingsHistory.saving,
+              applyingId: settingsHistory.applyingId,
+              actionError: settingsHistory.actionError,
+              actionMessage: settingsHistory.actionMessage,
+              busy: settingsHistory.busy,
+              draftName: settingsHistory.draftName,
+              setDraftName: settingsHistory.setDraftName,
+              onSaveCurrent: settingsHistory.saveCurrent,
+              onApplyHistory: settingsHistory.applyHistory,
+            }}
+            onManageConfigHistory={() => setActiveSection("history")}
             setForm={setForm}
             set={set}
             setMany={setMany}
