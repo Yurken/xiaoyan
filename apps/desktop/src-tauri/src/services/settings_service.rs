@@ -16,6 +16,8 @@ use uuid::Uuid;
 
 const MAGIC_SETTINGS: &[u8; 6] = b"RCCFG1";
 pub const MAGIC_BACKUP: &[u8; 6] = b"RCBAK1";
+/// 同步状态文件 / 资产 blob 的加密魔数。
+pub const MAGIC_SYNC: &[u8; 6] = b"RCSYN1";
 const PBKDF2_ROUNDS: u32 = 600_000;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
@@ -45,7 +47,7 @@ const LOCAL_ONLY_SETTINGS_KEYS: &[&str] = &[
     "app_lock_security_answer_hash",
 ];
 
-const BACKUP_TABLES: &[&str] = &[
+pub(crate) const BACKUP_TABLES: &[&str] = &[
     "settings",
     "settings_history",
     "research_interests",
@@ -143,11 +145,20 @@ pub fn decrypt_blob(b64_data: &str, password: &str, magic: &[u8]) -> Result<Vec<
         .map_err(|_| ERR_INVALID_PASSWORD_OR_CORRUPTED.to_string())
 }
 
-fn row_to_json(row: &sqlx::sqlite::SqliteRow) -> Result<serde_json::Value, String> {
+pub(crate) fn row_to_json(row: &sqlx::sqlite::SqliteRow) -> Result<serde_json::Value, String> {
+    use sqlx::ValueRef;
     let mut map = serde_json::Map::new();
     for col in row.columns() {
         let name = col.name();
-        let value = if let Ok(v) = row.try_get::<String, _>(name) {
+        // 先判 NULL：否则 try_get::<String> 会把 NULL 读成空串，
+        // 导致可空外键列被写成 "" 触发外键约束失败。
+        let is_null = row
+            .try_get_raw(name)
+            .map(|raw| raw.is_null())
+            .unwrap_or(true);
+        let value = if is_null {
+            serde_json::Value::Null
+        } else if let Ok(v) = row.try_get::<String, _>(name) {
             serde_json::Value::String(v)
         } else if let Ok(v) = row.try_get::<i64, _>(name) {
             serde_json::json!(v)
@@ -165,7 +176,7 @@ fn is_exposed_key(defaults: &HashMap<String, String>, key: &str) -> bool {
     defaults.contains_key(key)
 }
 
-fn is_local_only_settings_key(key: &str) -> bool {
+pub(crate) fn is_local_only_settings_key(key: &str) -> bool {
     LOCAL_ONLY_SETTINGS_KEYS.contains(&key)
 }
 

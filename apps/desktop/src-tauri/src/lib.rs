@@ -117,6 +117,7 @@ use commands::{
         submission_update_comment, submission_update_revision_task, submission_update_venue,
         submission_update_version, submission_upsert_round,
     },
+    sync::{sync_configure, sync_disable, sync_get_config, sync_now, sync_status},
     update::{update_check, update_install, PendingUpdate},
     webdav_sync::{
         webdav_delete_backup, webdav_download_backup, webdav_list_backups, webdav_test_connection,
@@ -251,6 +252,24 @@ pub fn run() {
                     });
                 }
 
+                // WebDAV 无冲突同步：启动后跑一次，之后每 5 分钟自动后台同步。
+                // 未配置凭据时 run_sync 直接返回 None，开销可忽略。
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    let app_handle = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        let _ = services::sync_service::run_sync(&state, &app_handle).await;
+                        let mut ticker =
+                            tokio::time::interval(std::time::Duration::from_secs(300));
+                        ticker.tick().await; // 立即返回的第一次 tick
+                        loop {
+                            ticker.tick().await;
+                            let _ = services::sync_service::run_sync(&state, &app_handle).await;
+                        }
+                    });
+                }
+
                 // Backfill keywords for existing papers that have full_text but empty tags
                 tauri::async_runtime::spawn(async move {
                     use sqlx::Row;
@@ -284,6 +303,18 @@ pub fn run() {
             }
 
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // 窗口重新获得焦点时触发一次同步，让用户切回应用即见最新数据。
+            if let tauri::WindowEvent::Focused(true) = event {
+                let app = window.app_handle().clone();
+                if let Some(state) = app.try_state::<AppState>() {
+                    let state = state.inner().clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = services::sync_service::run_sync(&state, &app).await;
+                    });
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             // Settings
@@ -461,6 +492,12 @@ pub fn run() {
             webdav_upload_backup,
             webdav_download_backup,
             webdav_delete_backup,
+            // WebDAV 无冲突同步
+            sync_configure,
+            sync_get_config,
+            sync_status,
+            sync_now,
+            sync_disable,
             // Workbench
             workbench_get_overview_text_cache,
             workbench_generate_overview_text,

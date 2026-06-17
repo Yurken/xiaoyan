@@ -364,6 +364,46 @@ CREATE TABLE IF NOT EXISTS opencode_sessions (
 CREATE INDEX IF NOT EXISTS idx_opencode_sessions_updated ON opencode_sessions(updated_at DESC);
 ";
 
+// ── WebDAV 无冲突同步所需的本地元数据 ─────────────────────────────
+pub const SYNC_DDL: &str = "
+CREATE TABLE IF NOT EXISTS sync_tombstones (
+    entity_table TEXT NOT NULL,
+    entity_id    TEXT NOT NULL,
+    deleted_at   TEXT NOT NULL,
+    PRIMARY KEY (entity_table, entity_id)
+);
+CREATE TABLE IF NOT EXISTS sync_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+";
+
+/// 需要按 `updated_at` 做记录级 Last-Write-Wins 合并的可变同步表。
+/// 这些表统一保证有 `updated_at` 列，并通过触发器在任何写入后自动刷新，
+/// 使同步时钟独立于具体业务写入路径。纯追加表（仅 created_at）不在此列，
+/// 合并时回退使用 created_at。
+pub const SYNC_MUTABLE_TABLES: &[&str] = &[
+    "settings",
+    "chat_sessions",
+    "skills",
+    "papers",
+    "knowledge_notes",
+    "knowledge_graph_claims",
+    "submissions",
+    "experiment_records",
+    "agent_runs",
+    "paper_parse_runs",
+    "submission_diagnosis_reports",
+    "submission_revision_tasks",
+    "memory_session_summaries",
+    "research_interests",
+    "venues",
+    "user_memories",
+    "review_comments",
+    "review_rounds",
+    "submission_checklist",
+];
+
 pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     std::fs::create_dir_all(app_data_dir)?;
     let db_path = app_data_dir.join("research_copilot.db");
@@ -405,9 +445,70 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_paper_notes_table(&pool).await?;
     ensure_opencode_tables(&pool).await?;
     ensure_paper_corpus_table(&pool).await?;
+    ensure_sync_tables(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
 
     Ok(pool)
+}
+
+/// 建立同步元数据表，补齐可变同步表的 `updated_at` 列，并安装自动刷新触发器。
+///
+/// 触发器策略：
+/// - AFTER INSERT：当业务 INSERT 未提供 `updated_at` 时补 `datetime('now')`。
+/// - AFTER UPDATE：仅当本次写入未显式改动 `updated_at`（`NEW = OLD`）时才刷新。
+///   这一条同时实现三件事——避免触发器递归、保留同步合并写入的远端时间戳、
+///   兜底那些忘记更新 `updated_at` 的业务 UPDATE 语句。
+pub async fn ensure_sync_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(SYNC_DDL).execute(pool).await?;
+
+    for &table in SYNC_MUTABLE_TABLES {
+        // 1) 补列（已存在则跳过）。SQLite 不允许 ADD COLUMN 带非常量默认值，故为可空列。
+        ensure_table_column(pool, table, "updated_at", "TEXT").await?;
+
+        // 2) 回填空值：优先用 created_at，否则用当前时间。
+        let has_created = column_present(pool, table, "created_at").await?;
+        let backfill = if has_created {
+            format!(
+                "UPDATE {table} SET updated_at = COALESCE(created_at, datetime('now')) \
+                 WHERE updated_at IS NULL OR updated_at = ''"
+            )
+        } else {
+            format!(
+                "UPDATE {table} SET updated_at = datetime('now') \
+                 WHERE updated_at IS NULL OR updated_at = ''"
+            )
+        };
+        sqlx::query(&backfill).execute(pool).await?;
+
+        // 3) 安装自动刷新触发器。
+        let triggers = format!(
+            "CREATE TRIGGER IF NOT EXISTS trg_sync_ins_{table}
+                 AFTER INSERT ON {table} FOR EACH ROW
+                 WHEN NEW.updated_at IS NULL OR NEW.updated_at = ''
+                 BEGIN
+                     UPDATE {table} SET updated_at = datetime('now') WHERE rowid = NEW.rowid;
+                 END;
+             CREATE TRIGGER IF NOT EXISTS trg_sync_upd_{table}
+                 AFTER UPDATE ON {table} FOR EACH ROW
+                 WHEN NEW.updated_at = OLD.updated_at
+                 BEGIN
+                     UPDATE {table} SET updated_at = datetime('now') WHERE rowid = NEW.rowid;
+                 END;"
+        );
+        sqlx::raw_sql(&triggers).execute(pool).await?;
+    }
+
+    Ok(())
+}
+
+async fn column_present(pool: &SqlitePool, table: &str, column: &str) -> Result<bool> {
+    let columns = sqlx::query(&format!("PRAGMA table_info({table})"))
+        .fetch_all(pool)
+        .await?;
+    Ok(columns.iter().any(|row| {
+        let name: String = sqlx::Row::get(row, "name");
+        name == column
+    }))
 }
 
 pub async fn ensure_paper_corpus_table(pool: &SqlitePool) -> Result<()> {

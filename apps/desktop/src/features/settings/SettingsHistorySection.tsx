@@ -5,6 +5,7 @@ import type { SettingsHistoryEntry } from "@research-copilot/types";
 import DataConfigTransferCard from "./DataConfigTransferCard";
 import { SectionIcon } from "./shared";
 import WebdavSyncSection from "./WebdavSyncSection";
+import SyncSection from "./SyncSection";
 
 interface SettingsHistorySectionProps {
   entries: SettingsHistoryEntry[];
@@ -155,6 +156,8 @@ export default function SettingsHistorySection({
         settingsBusy={settingsTransferBusy}
         dataBusy={dataTransferBusy}
       />
+
+      <SyncSection />
 
       <WebdavSyncSection />
 

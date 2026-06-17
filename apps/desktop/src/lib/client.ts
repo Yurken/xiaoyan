@@ -74,6 +74,29 @@ export function formatErrorMessage(error: unknown): string {
 
 // ── Settings ─────────────────────────────────────────────────────
 
+export interface SyncSummary {
+  pushed: boolean;
+  pulled_devices: number;
+  rows_applied: number;
+  rows_deleted: number;
+  assets_uploaded: number;
+  assets_downloaded: number;
+}
+
+export interface SyncStatus {
+  configured: boolean;
+  running: boolean;
+  last_sync_at: string | null;
+  last_error: string | null;
+  last_message: string | null;
+}
+
+export interface SyncConfigView {
+  configured: boolean;
+  url: string;
+  username: string;
+}
+
 export const settingsApi = {
   get: (): Promise<AppSettings> => invoke("settings_get"),
   update: (data: Partial<AppSettings>): Promise<{ ok: boolean; updated: string[] }> =>
@@ -101,6 +124,15 @@ export const settingsApi = {
       invoke("webdav_download_backup", { url, username, password, filename }),
     deleteBackup: (url: string, username: string, password: string, filename: string): Promise<void> =>
       invoke("webdav_delete_backup", { url, username, password, filename }),
+  },
+  // 无冲突自动同步（凭据存入系统钥匙串，全平台记录级合并）
+  sync: {
+    configure: (url: string, username: string, password: string): Promise<SyncSummary> =>
+      invoke("sync_configure", { url, username, password }),
+    getConfig: (): Promise<SyncConfigView> => invoke("sync_get_config"),
+    status: (): Promise<SyncStatus> => invoke("sync_status"),
+    now: (): Promise<SyncSummary | null> => invoke("sync_now"),
+    disable: (): Promise<void> => invoke("sync_disable"),
   },
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),

@@ -33,6 +33,7 @@ pub mod settings;
 pub mod skills;
 pub mod source;
 pub mod submission;
+pub mod sync;
 pub mod update;
 pub mod webdav_sync;
 pub mod workbench;

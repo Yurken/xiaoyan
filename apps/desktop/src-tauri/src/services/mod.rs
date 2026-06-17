@@ -17,4 +17,6 @@ pub mod submission_revision_service;
 pub mod submission_service;
 
 pub mod active_researcher_service;
+pub mod secure_store;
+pub mod sync_service;
 pub mod webdav_service;

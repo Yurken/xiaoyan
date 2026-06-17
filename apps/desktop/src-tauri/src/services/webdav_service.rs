@@ -197,6 +197,128 @@ pub async fn delete_backup(config: &WebdavConfig, filename: &str) -> Result<(), 
     }
 }
 
+// ───────────────────────────────────────────────────────────────────
+// 通用子路径操作（供无冲突同步使用）：在 WebDAV 上以任意相对路径读写文件、
+// 创建目录、判断存在、列目录。路径相对于 config.url，不带前导斜杠。
+// ───────────────────────────────────────────────────────────────────
+
+fn join_url(base: &str, path: &str) -> String {
+    format!("{}/{}", normalize_url(base), path.trim_start_matches('/'))
+}
+
+/// 创建集合（目录）。已存在（405/301）视为成功。会逐级创建父目录。
+pub async fn ensure_collection(config: &WebdavConfig, path: &str) -> Result<(), String> {
+    let client = build_client(config)?;
+    let method = Method::from_bytes(b"MKCOL").map_err(|e| format!("Invalid method: {}", e))?;
+
+    // 逐级创建：a/b/c → a, a/b, a/b/c
+    let mut prefix = String::new();
+    for segment in path.trim_matches('/').split('/') {
+        if segment.is_empty() {
+            continue;
+        }
+        if prefix.is_empty() {
+            prefix = segment.to_string();
+        } else {
+            prefix = format!("{}/{}", prefix, segment);
+        }
+        let url = join_url(&config.url, &prefix);
+        let resp = client
+            .request(method.clone(), &url)
+            .send()
+            .await
+            .map_err(|e| format!("创建目录失败: {}", e))?;
+        let status = resp.status();
+        // 201 Created / 405 已存在 / 301 已存在(带斜杠重定向) 都算成功
+        if status.is_success()
+            || status == reqwest::StatusCode::METHOD_NOT_ALLOWED
+            || status == reqwest::StatusCode::MOVED_PERMANENTLY
+        {
+            continue;
+        }
+        return Err(format!("创建目录失败: HTTP {}", status));
+    }
+    Ok(())
+}
+
+/// 上传文件到任意相对路径。
+pub async fn put_file(config: &WebdavConfig, path: &str, data: &[u8]) -> Result<(), String> {
+    let client = build_client(config)?;
+    let url = join_url(&config.url, path);
+    let resp = client
+        .put(&url)
+        .body(data.to_vec())
+        .send()
+        .await
+        .map_err(|e| format!("上传失败: {}", e))?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("上传失败: HTTP {}", resp.status()))
+    }
+}
+
+/// 下载任意相对路径的文件；404 返回 Ok(None)。
+pub async fn get_file(config: &WebdavConfig, path: &str) -> Result<Option<Vec<u8>>, String> {
+    let client = build_client(config)?;
+    let url = join_url(&config.url, path);
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("下载失败: {}", e))?;
+    let status = resp.status();
+    if status.is_success() {
+        resp.bytes()
+            .await
+            .map(|b| Some(b.to_vec()))
+            .map_err(|e| format!("读取响应失败: {}", e))
+    } else if status == reqwest::StatusCode::NOT_FOUND {
+        Ok(None)
+    } else {
+        Err(format!("下载失败: HTTP {}", status))
+    }
+}
+
+/// 列出某个集合（目录）下的文件（Depth 1）。目录不存在返回空列表。
+pub async fn list_dir(config: &WebdavConfig, path: &str) -> Result<Vec<WebdavFile>, String> {
+    let client = build_client(config)?;
+    let url = join_url(&config.url, path);
+
+    let body = r#"<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:">
+  <D:prop>
+    <D:displayname/>
+    <D:getcontentlength/>
+    <D:getlastmodified/>
+    <D:resourcetype/>
+  </D:prop>
+</D:propfind>"#;
+
+    let method = Method::from_bytes(b"PROPFIND").map_err(|e| format!("Invalid method: {}", e))?;
+    let resp = client
+        .request(method, &url)
+        .header("Depth", "1")
+        .header("Content-Type", "application/xml")
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| format!("列表请求失败: {}", e))?;
+
+    let status = resp.status();
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Ok(Vec::new());
+    }
+    if !status.is_success() {
+        return Err(format!("服务器返回错误: {}", status));
+    }
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("读取响应失败: {}", e))?;
+    parse_propfind_response(&text)
+}
+
 fn parse_propfind_response(xml: &str) -> Result<Vec<WebdavFile>, String> {
     let mut files = Vec::new();
     let mut remaining = xml;
