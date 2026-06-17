@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { NmCard } from "../../components/NmCard";
-import { apiClient } from "../../lib/client";
+import { getRecords } from "../../features/sync/localStore";
 import type { KnowledgeNote } from "@research-copilot/types";
 
 export default function KnowledgeScreen() {
@@ -18,8 +18,17 @@ export default function KnowledgeScreen() {
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
     try {
-      const data = await apiClient.knowledge.listNotes(search || undefined);
-      setNotes(data);
+      // 数据来自 WebDAV 同步下来的本地缓存（桌面端生成 → 同步 → 本机查阅）。
+      const all = await getRecords<KnowledgeNote>("knowledge_notes");
+      const keyword = search.trim().toLowerCase();
+      setNotes(
+        keyword
+          ? all.filter(
+              (note) =>
+                note.title?.toLowerCase().includes(keyword) || note.content?.toLowerCase().includes(keyword),
+            )
+          : all,
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -7,6 +7,7 @@ import { MAIN_ASSISTANT_NAME, PRODUCT_NAME } from "@research-copilot/types";
 import { NmCard } from "../../components/NmCard";
 import { getApiBaseUrl, setApiBaseUrl } from "../../lib/client";
 import { useWebdavSync } from "../../features/webdav/useWebdavSync";
+import { useSync } from "../../features/sync/useSync";
 
 type SectionRow = { label: string; value: string };
 
@@ -23,10 +24,8 @@ export default function SettingsScreen() {
   const [apiUrl, setApiUrlState] = useState(getApiBaseUrl());
   const [saved, setSaved] = useState(false);
 
-  // WebDAV state
-  const [webdavUrl, setWebdavUrl] = useState("");
-  const [webdavUser, setWebdavUser] = useState("");
-  const [webdavPass, setWebdavPass] = useState("");
+  // WebDAV 同步：配置由 useSync 持久化（密码即同步加密密钥）
+  const { config, setField, syncing, summary, error: syncError, lastSyncedAt, runSync } = useSync();
   const { testing, testConnection, message: webdavMsg, setMessage: setWebdavMsg } = useWebdavSync();
 
   const handleSave = async () => {
@@ -36,10 +35,10 @@ export default function SettingsScreen() {
   };
 
   const handleWebdavTest = useCallback(async () => {
-    if (!webdavUrl.trim()) return;
+    if (!config.url.trim()) return;
     setWebdavMsg(null);
-    await testConnection({ url: webdavUrl.trim(), username: webdavUser, password: webdavPass });
-  }, [webdavUrl, webdavUser, webdavPass, testConnection, setWebdavMsg]);
+    await testConnection({ url: config.url.trim(), username: config.username, password: config.password });
+  }, [config, testConnection, setWebdavMsg]);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -104,13 +103,13 @@ export default function SettingsScreen() {
             </View>
             <Text style={styles.sectionTitle}>WebDAV 同步</Text>
           </View>
-          <Text style={styles.sectionHint}>连接到自建 WebDAV 服务进行备份同步</Text>
+          <Text style={styles.sectionHint}>连接到自建 WebDAV 服务，从桌面端同步论文、研究方向、综述等数据到本机</Text>
 
           <Text style={styles.inputLabel}>服务器地址</Text>
           <TextInput
             style={styles.input}
-            value={webdavUrl}
-            onChangeText={setWebdavUrl}
+            value={config.url}
+            onChangeText={(v) => setField("url", v)}
             placeholder="https://dav.example.com/remote.php/dav/files/user/"
             placeholderTextColor="#5F6B7A"
             autoCapitalize="none"
@@ -122,8 +121,8 @@ export default function SettingsScreen() {
               <Text style={styles.inputLabel}>用户名</Text>
               <TextInput
                 style={styles.input}
-                value={webdavUser}
-                onChangeText={setWebdavUser}
+                value={config.username}
+                onChangeText={(v) => setField("username", v)}
                 placeholder="用户名"
                 placeholderTextColor="#5F6B7A"
                 autoCapitalize="none"
@@ -133,8 +132,8 @@ export default function SettingsScreen() {
               <Text style={styles.inputLabel}>密码</Text>
               <TextInput
                 style={styles.input}
-                value={webdavPass}
-                onChangeText={setWebdavPass}
+                value={config.password}
+                onChangeText={(v) => setField("password", v)}
                 placeholder="••••••••"
                 placeholderTextColor="#5F6B7A"
                 secureTextEntry
@@ -142,26 +141,40 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={[styles.saveBtn, { backgroundColor: "#0A84FF" }]}
-            onPress={handleWebdavTest}
-            disabled={testing || !webdavUrl.trim()}
-            activeOpacity={0.8}
-          >
-            {testing ? (
-              <Text style={styles.saveBtnText}>测试中…</Text>
-            ) : (
-              <>
-                <Ionicons name="link-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.saveBtnText}>测试连接</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={styles.webdavRow}>
+            <TouchableOpacity
+              style={[styles.saveBtn, styles.webdavBtnFlex, { backgroundColor: "#1C2530" }]}
+              onPress={handleWebdavTest}
+              disabled={testing || !config.url.trim()}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="link-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.saveBtnText}>{testing ? "测试中…" : "测试连接"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveBtn, styles.webdavBtnFlex, { backgroundColor: "#0A84FF" }]}
+              onPress={() => void runSync()}
+              disabled={syncing || !config.url.trim() || !config.password}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="cloud-download-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.saveBtnText}>{syncing ? "同步中…" : "立即同步"}</Text>
+            </TouchableOpacity>
+          </View>
 
           {webdavMsg ? (
             <Text style={[styles.webdavMsg, webdavMsg.includes("失败") ? { color: "#FF3B30" } : { color: "#34C759" }]}>
               {webdavMsg}
             </Text>
+          ) : null}
+          {syncError ? <Text style={[styles.webdavMsg, { color: "#FF3B30" }]}>{syncError}</Text> : null}
+          {summary ? (
+            <Text style={[styles.webdavMsg, { color: "#34C759" }]}>
+              已同步 {summary.devices} 台设备 · 更新 {summary.applied} 条 · 删除 {summary.deleted} 条
+            </Text>
+          ) : null}
+          {lastSyncedAt ? (
+            <Text style={styles.webdavMsg}>上次同步：{new Date(lastSyncedAt).toLocaleString("zh-CN")}</Text>
           ) : null}
         </NmCard>
 
@@ -182,7 +195,7 @@ export default function SettingsScreen() {
           <View style={styles.divider} />
           <InfoRow label="平台" value="Expo SDK 52 · React Native" />
           <View style={styles.divider} />
-          <InfoRow label="后端" value="FastAPI · PostgreSQL · pgvector" />
+          <InfoRow label="数据" value="本地存储 · WebDAV 同步" />
         </NmCard>
       </ScrollView>
     </SafeAreaView>
@@ -248,7 +261,8 @@ const styles = StyleSheet.create({
 
   webdavRow: { flexDirection: "row", gap: 10 },
   webdavHalf: { flex: 1, gap: 6 },
-  webdavMsg: { fontSize: 12, fontWeight: "500", textAlign: "center", marginTop: 4 },
+  webdavBtnFlex: { flex: 1 },
+  webdavMsg: { fontSize: 12, fontWeight: "500", textAlign: "center", marginTop: 4, color: "#9AA7B8" },
 
   infoRow:  { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 2 },
   infoLabel:{ fontSize: 14, color: "#5F6B7A" },
