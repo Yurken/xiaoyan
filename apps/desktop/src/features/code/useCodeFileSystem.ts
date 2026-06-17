@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { opencodeApi } from "../../lib/client";
+import { codeApi } from "../../lib/client";
 import type { DirEntry } from "./shared";
 
 export function useCodeFileSystem() {
@@ -11,7 +11,7 @@ export function useCodeFileSystem() {
     setLoading(true);
     setError("");
     try {
-      const result = await opencodeApi.listDir(path);
+      const result = await codeApi.listDir(path);
       setEntries(result.entries);
       return result.entries;
     } catch (err) {
@@ -25,7 +25,7 @@ export function useCodeFileSystem() {
 
   const readFile = useCallback(async (path: string) => {
     try {
-      const result = await opencodeApi.readFile(path);
+      const result = await codeApi.readFile(path);
       return result.content;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -36,7 +36,7 @@ export function useCodeFileSystem() {
 
   const writeFile = useCallback(async (path: string, content: string) => {
     try {
-      await opencodeApi.writeFile(path, content);
+      await codeApi.writeFile(path, content);
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

@@ -1,10 +1,11 @@
-import { useRef, type KeyboardEvent } from "react";
+import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import { Loader2, Send, Sparkles, PanelTopClose, PanelTopOpen } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
-import type { OpenCodeMessage } from "../../lib/client";
+import type { CodeMessage } from "../../lib/client";
+import { codeToolLabel } from "./shared";
 
 interface CodeChatPanelProps {
-  messages: OpenCodeMessage[];
+  messages: CodeMessage[];
   streamingContent: string;
   sending: boolean;
   input: string;
@@ -13,6 +14,8 @@ interface CodeChatPanelProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   currentFileName: string | null;
+  /** 工具/模型切换器，渲染在面板头部下方。 */
+  toolbar?: ReactNode;
 }
 
 export default function CodeChatPanel({
@@ -25,6 +28,7 @@ export default function CodeChatPanel({
   collapsed,
   onToggleCollapse,
   currentFileName,
+  toolbar,
 }: CodeChatPanelProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -81,6 +85,8 @@ export default function CodeChatPanel({
         </button>
       </div>
 
+      {toolbar && <div className="code-chat-panel__toolbar">{toolbar}</div>}
+
       <div className="code-chat-panel__messages">
         {messages.length === 0 && !streamingContent && (
           <div className="code-chat-panel__empty">
@@ -103,6 +109,12 @@ export default function CodeChatPanel({
                 </div>
                 <div className="code-chat-msg__assistant-content">
                   <MarkdownRenderer content={msg.content} className="code-chat-md" />
+                  {msg.tool_id && (
+                    <div className="code-chat-msg__meta">
+                      {codeToolLabel(msg.tool_id)}
+                      {msg.model ? ` · ${msg.model}` : ""}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

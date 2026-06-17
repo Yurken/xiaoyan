@@ -5,6 +5,7 @@ pub mod ccf;
 pub mod chat;
 pub mod chat_tools;
 pub mod citation_graph;
+pub mod code;
 pub mod data_backup;
 pub mod evidence;
 pub mod experiment;

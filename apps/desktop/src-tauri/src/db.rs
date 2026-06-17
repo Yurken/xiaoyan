@@ -367,16 +367,19 @@ CREATE INDEX IF NOT EXISTS idx_findings_interest ON active_researcher_findings(i
 CREATE INDEX IF NOT EXISTS idx_findings_scanned ON active_researcher_findings(scanned_at DESC);
 ";
 
-pub const OPENCODE_SESSIONS_DDL: &str = "
-CREATE TABLE IF NOT EXISTS opencode_sessions (
+// 代码功能会话：仅落盘本地，刻意不加入 BACKUP_TABLES / SYNC_MUTABLE_TABLES，不参与多平台同步。
+pub const CODE_SESSIONS_DDL: &str = "
+CREATE TABLE IF NOT EXISTS code_sessions (
     id             TEXT PRIMARY KEY,
     title          TEXT NOT NULL DEFAULT '新对话',
     working_dir    TEXT,
+    tool_id        TEXT,
+    model          TEXT,
     messages_json  TEXT NOT NULL DEFAULT '[]',
     created_at     TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_opencode_sessions_updated ON opencode_sessions(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_code_sessions_updated ON code_sessions(updated_at DESC);
 ";
 
 // ── WebDAV 无冲突同步所需的本地元数据 ─────────────────────────────
@@ -459,7 +462,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_submission_revision_task_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
     ensure_paper_notes_table(&pool).await?;
-    ensure_opencode_tables(&pool).await?;
+    ensure_code_tables(&pool).await?;
     ensure_paper_corpus_table(&pool).await?;
     ensure_sync_tables(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
@@ -1063,8 +1066,8 @@ pub async fn ensure_paper_notes_table(pool: &SqlitePool) -> Result<()> {
     Ok(())
 }
 
-pub async fn ensure_opencode_tables(pool: &SqlitePool) -> Result<()> {
-    sqlx::raw_sql(OPENCODE_SESSIONS_DDL).execute(pool).await?;
+pub async fn ensure_code_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(CODE_SESSIONS_DDL).execute(pool).await?;
     Ok(())
 }
 

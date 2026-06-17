@@ -919,27 +919,34 @@ export const activeResearcherApi = {
     invoke("active_researcher_mark_read", { id: id ?? null }),
 };
 
-// ── OpenCode ──────────────────────────────────────────────────
+// ── Code（多工具壳）────────────────────────────────────────────
 
-export interface OpenCodeMessage {
+export interface CodeMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** 产出该消息的工具/模型（仅 assistant 消息有值）。 */
+  tool_id?: string | null;
+  model?: string | null;
   created_at: string;
 }
 
-export interface OpenCodeSession {
+export interface CodeSession {
   id: string;
   title: string;
   working_dir: string | null;
-  messages: OpenCodeMessage[];
+  tool_id: string | null;
+  model: string | null;
+  messages: CodeMessage[];
   created_at: string;
   updated_at: string;
 }
 
-export interface OpenCodeDetectResult {
+export interface CodeToolStatus {
+  id: string;
+  label: string;
   installed: boolean;
-  binaryPath: string | null;
+  binary_path: string | null;
   version: string | null;
 }
 
@@ -949,43 +956,60 @@ export interface DirEntry {
   is_dir: boolean;
 }
 
-export const opencodeApi = {
-  detect: (): Promise<OpenCodeDetectResult> =>
-    invoke("opencode_detect"),
+export interface CodeUpdateSessionInput {
+  title?: string;
+  workingDir?: string;
+  toolId?: string;
+  model?: string;
+}
+
+export const codeApi = {
+  detectTools: (): Promise<{ tools: CodeToolStatus[] }> =>
+    invoke("code_detect_tools"),
 
   listDir: (path: string): Promise<{ entries: DirEntry[] }> =>
-    invoke("opencode_list_dir", { path }),
+    invoke("code_list_dir", { path }),
 
   readFile: (path: string): Promise<{ content: string }> =>
-    invoke("opencode_read_file", { path }),
+    invoke("code_read_file", { path }),
 
   writeFile: (path: string, content: string): Promise<void> =>
-    invoke("opencode_write_file", { path, content }),
+    invoke("code_write_file", { path, content }),
 
-  listSessions: (): Promise<{ sessions: OpenCodeSession[] }> =>
-    invoke("opencode_list_sessions"),
+  listSessions: (): Promise<{ sessions: CodeSession[] }> =>
+    invoke("code_list_sessions"),
 
-  getSession: (sessionId: string): Promise<OpenCodeSession> =>
-    invoke("opencode_get_session", { sessionId }),
+  getSession: (sessionId: string): Promise<CodeSession> =>
+    invoke("code_get_session", { sessionId }),
 
-  createSession: (title?: string, workingDir?: string): Promise<OpenCodeSession> =>
-    invoke("opencode_create_session", { title: title ?? null, workingDir: workingDir ?? null }),
+  createSession: (title?: string, workingDir?: string): Promise<CodeSession> =>
+    invoke("code_create_session", { title: title ?? null, workingDir: workingDir ?? null }),
 
   deleteSession: (sessionId: string): Promise<void> =>
-    invoke("opencode_delete_session", { sessionId }),
+    invoke("code_delete_session", { sessionId }),
 
-  sendMessage: (sessionId: string, content: string, workingDir?: string): Promise<void> =>
-    invoke("opencode_send_message", {
+  sendMessage: (
+    sessionId: string,
+    content: string,
+    toolId: string,
+    model?: string,
+    workingDir?: string,
+  ): Promise<void> =>
+    invoke("code_send_message", {
       sessionId,
       content,
+      toolId,
+      model: model ?? null,
       workingDir: workingDir ?? null,
     }),
 
-  updateSession: (sessionId: string, title?: string, workingDir?: string): Promise<void> =>
-    invoke("opencode_update_session", {
+  updateSession: (sessionId: string, input: CodeUpdateSessionInput): Promise<void> =>
+    invoke("code_update_session", {
       sessionId,
-      title: title ?? null,
-      workingDir: workingDir ?? null,
+      title: input.title ?? null,
+      workingDir: input.workingDir ?? null,
+      toolId: input.toolId ?? null,
+      model: input.model ?? null,
     }),
 };
 
@@ -1015,5 +1039,5 @@ export const apiClient = {
   evidence: evidenceApi,
   crossAnalysis: crossAnalysisApi,
   activeResearcher: activeResearcherApi,
-  opencode: opencodeApi,
+  code: codeApi,
 };

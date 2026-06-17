@@ -13,6 +13,7 @@ import { useCodeWorkspace } from "../features/code/useCodeWorkspace";
 import CodeFileTree from "../features/code/CodeFileTree";
 import CodeEditor from "../features/code/CodeEditor";
 import CodeChatPanel from "../features/code/CodeChatPanel";
+import CodeToolSwitcher from "../features/code/CodeToolSwitcher";
 
 export default function Code() {
   const ws = useCodeWorkspace();
@@ -90,12 +91,7 @@ export default function Code() {
                   key={s.id}
                   type="button"
                   className={`code-sidebar__item ${s.id === ws.selectedId ? "is-active" : ""}`}
-                  onClick={() => {
-                    ws.setSelectedId(s.id);
-                    if (s.working_dir) {
-                      ws.setWorkingDir(s.working_dir);
-                    }
-                  }}
+                  onClick={() => ws.selectSession(s)}
                 >
                   <div className="code-sidebar__item-text">
                     <span className="code-sidebar__item-title">{s.title}</span>
@@ -159,6 +155,16 @@ export default function Code() {
           collapsed={ws.chatCollapsed}
           onToggleCollapse={() => ws.setChatCollapsed((v) => !v)}
           currentFileName={ws.openFile?.name ?? null}
+          toolbar={
+            <CodeToolSwitcher
+              tools={ws.tools}
+              toolsLoaded={ws.toolsLoaded}
+              activeTool={ws.activeTool}
+              onSelectTool={ws.setActiveTool}
+              activeModel={ws.activeModel}
+              onModelChange={ws.setActiveModel}
+            />
+          }
         />
       </main>
 
