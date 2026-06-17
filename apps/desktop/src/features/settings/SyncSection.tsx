@@ -10,6 +10,19 @@ import {
 } from "lucide-react";
 import { SectionIcon } from "./shared";
 import { useSync } from "./useSync";
+import type { SyncSummary } from "../../lib/client";
+
+/** 把同步结果转成给用户看的中文说明，重点强调本地数据已保留。 */
+function describeSummary(s: SyncSummary): string {
+  if (s.pulled_devices === 0) {
+    return "这是接入的第一台设备，本地数据已全部上传到云端，可放心在其它设备登录同步。";
+  }
+  const parts = [`已与 ${s.pulled_devices} 台设备合并`];
+  if (s.rows_applied > 0) parts.push(`新增/更新 ${s.rows_applied} 条记录`);
+  if (s.rows_deleted > 0) parts.push(`应用 ${s.rows_deleted} 条删除`);
+  if (s.assets_downloaded > 0) parts.push(`下载 ${s.assets_downloaded} 个附件`);
+  return `${parts.join("，")}；本地原有数据已保留并上传，不会被覆盖。`;
+}
 
 /**
  * 无冲突自动同步设置区。
@@ -27,6 +40,7 @@ export default function SyncSection() {
     loading,
     busy,
     error,
+    lastSummary,
     configure,
     syncNow,
     disable,
@@ -154,6 +168,14 @@ export default function SyncSection() {
             </>
           )}
         </div>
+
+        {/* 首次配置 / 手动同步后的合并结果说明 */}
+        {lastSummary && !error && (
+          <div className="flex items-start gap-1.5 rounded-xl bg-apple-green/10 px-4 py-2.5 text-xs text-apple-green">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{describeSummary(lastSummary)}</span>
+          </div>
+        )}
 
         {/* 状态行 */}
         {!loading && status.configured && status.last_sync_at && (

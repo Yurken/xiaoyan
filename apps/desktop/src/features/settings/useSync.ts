@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiClient, type SyncStatus } from "../../lib/client";
+import { apiClient, type SyncStatus, type SyncSummary } from "../../lib/client";
 import { safeListen } from "../../lib/tauriEvent";
 
 /**
@@ -21,6 +21,7 @@ export function useSync() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [lastSummary, setLastSummary] = useState<SyncSummary | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -54,7 +55,12 @@ export function useSync() {
       setBusy(true);
       setError("");
       try {
-        await apiClient.settings.sync.configure(url.trim(), username.trim(), password);
+        const summary = await apiClient.settings.sync.configure(
+          url.trim(),
+          username.trim(),
+          password,
+        );
+        setLastSummary(summary);
         await refresh();
         return true;
       } catch (e) {
@@ -71,7 +77,8 @@ export function useSync() {
     setBusy(true);
     setError("");
     try {
-      await apiClient.settings.sync.now();
+      const summary = await apiClient.settings.sync.now();
+      if (summary) setLastSummary(summary);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "同步失败");
@@ -103,6 +110,7 @@ export function useSync() {
     busy,
     error,
     setError,
+    lastSummary,
     configure,
     syncNow,
     disable,
