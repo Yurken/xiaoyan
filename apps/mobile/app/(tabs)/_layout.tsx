@@ -6,12 +6,16 @@ import { MAIN_ASSISTANT_NAME } from "@research-copilot/types";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
+// 启动落在工作台，作为移动端的中枢入口。
+export const unstable_settings = { initialRouteName: "home" };
+
 const tabs: {
   name: string;
   title: string;
   icon: IconName;
   activeIcon: IconName;
 }[] = [
+  { name: "home",      title: "工作台",    icon: "home-outline",              activeIcon: "home" },
   { name: "index",     title: "论文库",    icon: "document-text-outline",    activeIcon: "document-text" },
   { name: "xiaoyan",   title: MAIN_ASSISTANT_NAME, icon: "chatbubble-ellipses-outline", activeIcon: "chatbubble-ellipses" },
   { name: "knowledge", title: "知识库",    icon: "book-outline",              activeIcon: "book" },
