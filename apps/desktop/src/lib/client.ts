@@ -24,6 +24,8 @@ import type {
   AppUpdateInfo,
   AgentRun,
   SettingsHistoryEntry,
+  SurveySummary,
+  SavedSurvey,
 } from "@research-copilot/types";
 import { streamChat } from "./chatStream";
 export { streamChat } from "./chatStream";
@@ -488,6 +490,9 @@ export const surveyApi = {
     }),
   search: (query: string, limit = 20): Promise<unknown[]> =>
     invoke("survey_search", { query, limit }),
+  list: (): Promise<SurveySummary[]> => invoke("survey_list"),
+  get: (id: string): Promise<SavedSurvey> => invoke("survey_get", { id }),
+  delete: (id: string): Promise<void> => invoke("survey_delete", { id }),
 };
 
 // ── Translate ─────────────────────────────────────────────────────
