@@ -952,20 +952,35 @@ html[data-style="modern-minimal"][data-theme="light"] {
     border-radius: 0.75rem;
   }
 
+  .rc-focus-tabbar {
+    scrollbar-width: none;
+    border-top: 1px solid rgb(var(--rc-border-rgb) / 0.5);
+  }
+
+  .rc-focus-tabbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .rc-focus-tab {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 0.375rem;
     padding: 0.375rem 0.75rem;
-    border-radius: 0.75rem;
-    font-size: 0.75rem;
+    border-radius: 0.625rem;
+    font-size: 0.8125rem;
     font-weight: 500;
+    white-space: nowrap;
     background: transparent;
     color: var(--rc-text-muted);
     border: none;
     cursor: pointer;
-    transition:
-      all 0.15s ease;
+    transition: all 0.15s ease;
+  }
+
+  .rc-focus-tab:not(.rc-focus-tab--active):hover {
+    color: var(--rc-text-soft);
+    background: var(--rc-nav-item-hover-bg);
   }
 
   .rc-focus-tab--active {
