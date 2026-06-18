@@ -12,12 +12,35 @@ pub struct ResearchTheme {
     pub name: String,
     #[serde(rename = "lastActiveAt")]
     pub last_active_at: String,
+    /// 主题路线是否已规划成形，用于前端推导研究进展阶梯。
+    pub planned: bool,
+    /// 主题在各模块下的真实工作量，驱动「研究进展」可视化。
+    pub progress: ResearchThemeProgress,
     #[serde(rename = "completedTasks")]
     pub completed_tasks: Vec<String>,
     #[serde(rename = "openQuestions")]
     pub open_questions: Vec<String>,
     #[serde(rename = "nextSteps")]
     pub next_steps: Vec<NextStep>,
+}
+
+/// 一个研究主题在各功能模块下沉淀的计数，前端据此展示阶段进展与模块直达。
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct ResearchThemeProgress {
+    #[serde(rename = "paperCount")]
+    pub paper_count: i64,
+    #[serde(rename = "analyzedPaperCount")]
+    pub analyzed_paper_count: i64,
+    #[serde(rename = "noteCount")]
+    pub note_count: i64,
+    #[serde(rename = "sessionCount")]
+    pub session_count: i64,
+    #[serde(rename = "experimentCount")]
+    pub experiment_count: i64,
+    #[serde(rename = "submissionCount")]
+    pub submission_count: i64,
+    #[serde(rename = "claimCount")]
+    pub claim_count: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -46,9 +69,9 @@ pub struct ResearchThemeContext {
 struct ResearchThemeBase {
     id: String,
     name: String,
+    status: String,
     last_active_at: String,
-    paper_count: i64,
-    note_count: i64,
+    progress: ResearchThemeProgress,
 }
 
 struct ResearchCheckpointSignal {
@@ -62,24 +85,46 @@ struct ResearchCheckpointSignal {
 
 pub struct ResearchContextService;
 
+/// 主题最近活动时间：取主题自身创建时间与各模块最新动作的最大值，
+/// 让「最近活动」真实反映用户在论文 / 笔记 / 对话里的推进，而不是停留在创建时刻。
+/// 注意：research_interests 表没有 updated_at 列，不能直接引用它。
+const THEME_LAST_ACTIVE_EXPR: &str = "MAX(
+        ri.created_at,
+        COALESCE((SELECT MAX(created_at) FROM papers WHERE research_interest_id = ri.id), ri.created_at),
+        COALESCE((SELECT MAX(created_at) FROM knowledge_notes WHERE research_interest_id = ri.id), ri.created_at),
+        COALESCE((SELECT MAX(COALESCE(updated_at, created_at)) FROM chat_sessions WHERE context_type = 'interest' AND context_id = ri.id), ri.created_at)
+    )";
+
+/// 主题在各功能模块下的计数子查询，与 ResearchThemeProgress 字段一一对应。
+/// 实验、投稿没有直接外键，通过「主张 → 证据链 → 实验 → 关联投稿」聚合得到。
+const THEME_PROGRESS_COLUMNS: &str = "(SELECT COUNT(*) FROM papers p WHERE p.research_interest_id = ri.id) as paper_count,
+        (SELECT COUNT(*) FROM papers p WHERE p.research_interest_id = ri.id AND EXISTS(SELECT 1 FROM paper_analyses pa WHERE pa.paper_id = p.id)) as analyzed_paper_count,
+        (SELECT COUNT(*) FROM knowledge_notes n WHERE n.research_interest_id = ri.id) as note_count,
+        (SELECT COUNT(*) FROM chat_sessions s WHERE s.context_type = 'interest' AND s.context_id = ri.id) as session_count,
+        (SELECT COUNT(*) FROM knowledge_graph_claims c WHERE c.research_interest_id = ri.id) as claim_count,
+        (SELECT COUNT(DISTINCT el.source_id) FROM knowledge_graph_evidence_links el JOIN knowledge_graph_claims c ON c.id = el.claim_id WHERE c.research_interest_id = ri.id AND el.source_kind = 'experiment') as experiment_count,
+        (SELECT COUNT(DISTINCT er.linked_submission_id) FROM experiment_records er WHERE er.linked_submission_id IS NOT NULL AND er.id IN (SELECT el.source_id FROM knowledge_graph_evidence_links el JOIN knowledge_graph_claims c ON c.id = el.claim_id WHERE c.research_interest_id = ri.id AND el.source_kind = 'experiment')) as submission_count";
+
 impl ResearchContextService {
     pub async fn get_recent_themes(
         db: &sqlx::SqlitePool,
         limit: usize,
     ) -> Result<Vec<ResearchTheme>, String> {
-        let rows = sqlx::query(
-            "SELECT ri.id, ri.topic, ri.folder_name,
-                    COALESCE(ri.updated_at, ri.created_at) as last_active,
-                    (SELECT COUNT(*) FROM papers p WHERE p.research_interest_id = ri.id) as paper_count,
-                    (SELECT COUNT(*) FROM knowledge_notes n WHERE n.research_interest_id = ri.id) as note_count
+        let sql = format!(
+            "SELECT ri.id, ri.topic, ri.folder_name, ri.status,
+                    {last_active} as last_active,
+                    {progress}
              FROM research_interests ri
              ORDER BY last_active DESC
-             LIMIT ?"
-        )
-        .bind(limit as i64)
-        .fetch_all(db)
-        .await
-        .map_err(|e| e.to_string())?;
+             LIMIT ?",
+            last_active = THEME_LAST_ACTIVE_EXPR,
+            progress = THEME_PROGRESS_COLUMNS,
+        );
+        let rows = sqlx::query(&sql)
+            .bind(limit as i64)
+            .fetch_all(db)
+            .await
+            .map_err(|e| e.to_string())?;
 
         let mut themes = Vec::new();
         for row in rows {
@@ -95,17 +140,19 @@ impl ResearchContextService {
         db: &sqlx::SqlitePool,
         theme_id: &str,
     ) -> Result<ResearchThemeContext, String> {
-        let row = sqlx::query(
-            "SELECT id, topic, folder_name,
-                    COALESCE(updated_at, created_at) as last_active,
-                    (SELECT COUNT(*) FROM papers WHERE research_interest_id = research_interests.id) as paper_count,
-                    (SELECT COUNT(*) FROM knowledge_notes WHERE research_interest_id = research_interests.id) as note_count
-             FROM research_interests WHERE id = ?"
-        )
-        .bind(theme_id)
-        .fetch_optional(db)
-        .await
-        .map_err(|e| e.to_string())?;
+        let sql = format!(
+            "SELECT ri.id, ri.topic, ri.folder_name, ri.status,
+                    {last_active} as last_active,
+                    {progress}
+             FROM research_interests ri WHERE ri.id = ?",
+            last_active = THEME_LAST_ACTIVE_EXPR,
+            progress = THEME_PROGRESS_COLUMNS,
+        );
+        let row = sqlx::query(&sql)
+            .bind(theme_id)
+            .fetch_optional(db)
+            .await
+            .map_err(|e| e.to_string())?;
 
         let (theme, events) = match row {
             Some(r) => {
@@ -128,9 +175,17 @@ impl ResearchContextService {
         ResearchThemeBase {
             id: row.get("id"),
             name: folder_name.unwrap_or(topic),
+            status: row.get("status"),
             last_active_at: row.get("last_active"),
-            paper_count: row.get("paper_count"),
-            note_count: row.get("note_count"),
+            progress: ResearchThemeProgress {
+                paper_count: row.get("paper_count"),
+                analyzed_paper_count: row.get("analyzed_paper_count"),
+                note_count: row.get("note_count"),
+                session_count: row.get("session_count"),
+                experiment_count: row.get("experiment_count"),
+                submission_count: row.get("submission_count"),
+                claim_count: row.get("claim_count"),
+            },
         }
     }
 
@@ -152,11 +207,14 @@ impl ResearchContextService {
         let completed_tasks = Self::completed_tasks(&base);
         let open_questions = Self::build_open_questions(&base, checkpoints, events);
         let next_steps = Self::build_next_steps(&base, checkpoints, events);
+        let planned = base.status == "planned";
 
         ResearchTheme {
             id: base.id,
             name: base.name,
             last_active_at: base.last_active_at,
+            planned,
+            progress: base.progress,
             completed_tasks,
             open_questions,
             next_steps,
@@ -168,9 +226,9 @@ impl ResearchContextService {
         let base = ResearchThemeBase {
             id: theme_id.to_string(),
             name,
+            status: String::new(),
             last_active_at: String::new(),
-            paper_count: 0,
-            note_count: 0,
+            progress: ResearchThemeProgress::default(),
         };
         let open_questions = Self::fallback_open_questions(&base);
         let next_steps = Self::fallback_next_steps(&base);
@@ -179,6 +237,8 @@ impl ResearchContextService {
             id: base.id,
             name: base.name,
             last_active_at: base.last_active_at,
+            planned: false,
+            progress: base.progress,
             completed_tasks: Vec::new(),
             open_questions,
             next_steps,
@@ -239,6 +299,63 @@ impl ResearchContextService {
             });
         }
 
+        // Recent experiments linked to this theme via the knowledge-graph evidence chain
+        let experiment_rows = sqlx::query(
+            "SELECT DISTINCT er.id, er.title, er.created_at
+             FROM experiment_records er
+             JOIN knowledge_graph_evidence_links el
+               ON el.source_id = er.id AND el.source_kind = 'experiment'
+             JOIN knowledge_graph_claims c ON c.id = el.claim_id
+             WHERE c.research_interest_id = ?
+             ORDER BY er.created_at DESC LIMIT 5",
+        )
+        .bind(theme_id)
+        .fetch_all(db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        for row in experiment_rows {
+            let id: String = row.get("id");
+            let title: String = row.get("title");
+            let created_at: String = row.get("created_at");
+            events.push(ResearchActivityEvent {
+                id,
+                theme_id: theme_id.to_string(),
+                event_type: "experiment_logged".into(),
+                title,
+                timestamp: created_at,
+            });
+        }
+
+        // Recent submissions reached through this theme's experiments
+        let submission_rows = sqlx::query(
+            "SELECT DISTINCT s.id, s.title, COALESCE(s.updated_at, s.created_at) as ts
+             FROM submissions s
+             JOIN experiment_records er ON er.linked_submission_id = s.id
+             JOIN knowledge_graph_evidence_links el
+               ON el.source_id = er.id AND el.source_kind = 'experiment'
+             JOIN knowledge_graph_claims c ON c.id = el.claim_id
+             WHERE c.research_interest_id = ?
+             ORDER BY ts DESC LIMIT 5",
+        )
+        .bind(theme_id)
+        .fetch_all(db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        for row in submission_rows {
+            let id: String = row.get("id");
+            let title: String = row.get("title");
+            let ts: String = row.get("ts");
+            events.push(ResearchActivityEvent {
+                id,
+                theme_id: theme_id.to_string(),
+                event_type: "submission_updated".into(),
+                title,
+                timestamp: ts,
+            });
+        }
+
         events.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         Ok(events)
     }
@@ -280,17 +397,16 @@ impl ResearchContextService {
     }
 
     fn completed_tasks(base: &ResearchThemeBase) -> Vec<String> {
+        let p = &base.progress;
         [
-            if base.paper_count > 0 {
-                Some(format!("已导入 {} 篇论文", base.paper_count))
-            } else {
-                None
-            },
-            if base.note_count > 0 {
-                Some(format!("已记录 {} 条笔记", base.note_count))
-            } else {
-                None
-            },
+            (p.paper_count > 0).then(|| format!("已导入 {} 篇论文", p.paper_count)),
+            (p.analyzed_paper_count > 0)
+                .then(|| format!("已解读 {} 篇论文", p.analyzed_paper_count)),
+            (p.note_count > 0).then(|| format!("已记录 {} 条笔记", p.note_count)),
+            (p.session_count > 0).then(|| format!("已展开 {} 次主题对话", p.session_count)),
+            (p.experiment_count > 0)
+                .then(|| format!("已关联 {} 个实验记录", p.experiment_count)),
+            (p.submission_count > 0).then(|| format!("已推进 {} 个投稿", p.submission_count)),
         ]
         .into_iter()
         .flatten()
@@ -450,14 +566,14 @@ impl ResearchContextService {
     }
 
     fn fallback_open_questions(base: &ResearchThemeBase) -> Vec<String> {
-        if base.paper_count == 0 {
+        if base.progress.paper_count == 0 {
             return vec![format!(
                 "主题「{}」最先要锁定的关键词、代表论文和问题边界分别是什么？",
                 base.name
             )];
         }
 
-        if base.note_count == 0 {
+        if base.progress.note_count == 0 {
             return vec!["现有论文里，哪一篇最适合作为第一篇精读与拆解对象？".to_string()];
         }
 
@@ -465,7 +581,7 @@ impl ResearchContextService {
     }
 
     fn fallback_next_steps(base: &ResearchThemeBase) -> Vec<NextStep> {
-        if base.paper_count == 0 {
+        if base.progress.paper_count == 0 {
             return vec![NextStep {
                 title: "先导入 1-2 篇核心论文，建立这个主题的证据起点。".to_string(),
                 description: Some(format!(
@@ -475,12 +591,12 @@ impl ResearchContextService {
             }];
         }
 
-        if base.note_count == 0 {
+        if base.progress.note_count == 0 {
             return vec![NextStep {
                 title: "从已导入论文里选 1 篇做精读，并沉淀第一条研究笔记。".to_string(),
                 description: Some(format!(
                     "当前已有 {} 篇论文入库，但还没有形成笔记沉淀。",
-                    base.paper_count
+                    base.progress.paper_count
                 )),
             }];
         }
@@ -489,7 +605,7 @@ impl ResearchContextService {
             title: "把现有论文和笔记收敛成一个明确的实验、写作或对比任务。".to_string(),
             description: Some(format!(
                 "现在已有 {} 篇论文、{} 条笔记，可以继续推进更具体的研究动作。",
-                base.paper_count, base.note_count
+                base.progress.paper_count, base.progress.note_count
             )),
         }]
     }
@@ -585,6 +701,8 @@ pub async fn build_research_context_summary(db: &sqlx::SqlitePool, interest_id: 
                 id: interest_id.to_string(),
                 name: "未知主题".to_string(),
                 last_active_at: String::new(),
+                planned: false,
+                progress: ResearchThemeProgress::default(),
                 completed_tasks: vec![],
                 open_questions: vec!["尚未提炼出明确开放问题。".to_string()],
                 next_steps: vec![NextStep {
@@ -643,19 +761,26 @@ mod tests {
             .connect_with(options)
             .await?;
 
+        // 刻意贴近生产 schema：research_interests 没有 updated_at 列（只有 status / created_at），
+        // 以此回归守护「最近活动查询误引用 updated_at 导致命令报错」的问题。
         sqlx::raw_sql(
             "CREATE TABLE research_interests (
                 id          TEXT PRIMARY KEY,
                 topic       TEXT NOT NULL,
                 folder_name TEXT,
-                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+                status      TEXT NOT NULL DEFAULT 'active',
+                created_at  TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE TABLE papers (
                 id                   TEXT PRIMARY KEY,
                 title                TEXT NOT NULL,
                 research_interest_id TEXT,
                 created_at           TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE paper_analyses (
+                id         TEXT PRIMARY KEY,
+                paper_id   TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE TABLE knowledge_notes (
                 id                   TEXT PRIMARY KEY,
@@ -671,6 +796,31 @@ mod tests {
                 context_id   TEXT,
                 created_at   TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE knowledge_graph_claims (
+                id                   TEXT PRIMARY KEY,
+                title                TEXT NOT NULL,
+                research_interest_id TEXT,
+                created_at           TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE knowledge_graph_evidence_links (
+                id          TEXT PRIMARY KEY,
+                claim_id    TEXT NOT NULL,
+                source_kind TEXT NOT NULL,
+                source_id   TEXT NOT NULL,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE experiment_records (
+                id                   TEXT PRIMARY KEY,
+                title                TEXT NOT NULL,
+                linked_submission_id TEXT,
+                created_at           TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE submissions (
+                id         TEXT PRIMARY KEY,
+                title      TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT
             );",
         )
         .execute(&pool)
@@ -687,14 +837,14 @@ mod tests {
         let pool = test_pool().await?;
 
         sqlx::query(
-            "INSERT INTO research_interests (id, topic, folder_name, created_at, updated_at)
+            "INSERT INTO research_interests (id, topic, folder_name, status, created_at)
              VALUES (?, ?, ?, ?, ?)",
         )
         .bind("interest-1")
         .bind("Graph RAG")
         .bind("Graph RAG")
+        .bind("planned")
         .bind("2026-06-08 09:00:00")
-        .bind("2026-06-08 10:00:00")
         .execute(&pool)
         .await?;
 
@@ -761,14 +911,14 @@ mod tests {
         let pool = test_pool().await?;
 
         sqlx::query(
-            "INSERT INTO research_interests (id, topic, folder_name, created_at, updated_at)
+            "INSERT INTO research_interests (id, topic, folder_name, status, created_at)
              VALUES (?, ?, ?, ?, ?)",
         )
         .bind("interest-2")
         .bind("Multimodal Agents")
         .bind("Multimodal Agents")
+        .bind("planned")
         .bind("2026-06-08 08:00:00")
-        .bind("2026-06-08 11:00:00")
         .execute(&pool)
         .await?;
 
@@ -794,6 +944,147 @@ mod tests {
             .title
             .contains("Vision-Language Agent Planning"));
         assert_eq!(context.events.len(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn theme_context_aggregates_progress_across_modules() -> Result<()> {
+        let pool = test_pool().await?;
+
+        sqlx::query(
+            "INSERT INTO research_interests (id, topic, folder_name, status, created_at)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind("interest-3")
+        .bind("Diffusion Policies")
+        .bind("Diffusion Policies")
+        .bind("planned")
+        .bind("2026-06-08 08:00:00")
+        .execute(&pool)
+        .await?;
+
+        for (id, ts) in [("paper-a", "2026-06-08 09:00:00"), ("paper-b", "2026-06-08 09:30:00")] {
+            sqlx::query(
+                "INSERT INTO papers (id, title, research_interest_id, created_at) VALUES (?, ?, ?, ?)",
+            )
+            .bind(id)
+            .bind(format!("Paper {id}"))
+            .bind("interest-3")
+            .bind(ts)
+            .execute(&pool)
+            .await?;
+        }
+
+        // 仅 paper-a 有解读结果，analyzed_paper_count 应为 1。
+        sqlx::query("INSERT INTO paper_analyses (id, paper_id) VALUES (?, ?)")
+            .bind("analysis-a")
+            .bind("paper-a")
+            .execute(&pool)
+            .await?;
+
+        sqlx::query(
+            "INSERT INTO knowledge_notes (id, research_interest_id, title, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .bind("note-a")
+        .bind("interest-3")
+        .bind("第一条笔记")
+        .bind("2026-06-08 10:00:00")
+        .execute(&pool)
+        .await?;
+
+        sqlx::query(
+            "INSERT INTO chat_sessions (id, title, context_type, context_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind("session-a")
+        .bind("会话")
+        .bind("interest")
+        .bind("interest-3")
+        .bind("2026-06-08 10:30:00")
+        .bind("2026-06-08 11:00:00")
+        .execute(&pool)
+        .await?;
+
+        // 实验 / 投稿通过「主张 → 证据链 → 实验 → 关联投稿」串联到主题。
+        sqlx::query(
+            "INSERT INTO knowledge_graph_claims (id, title, research_interest_id, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .bind("claim-a")
+        .bind("核心主张")
+        .bind("interest-3")
+        .bind("2026-06-08 11:30:00")
+        .execute(&pool)
+        .await?;
+        sqlx::query(
+            "INSERT INTO submissions (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        )
+        .bind("sub-a")
+        .bind("投到顶会")
+        .bind("2026-06-08 12:00:00")
+        .bind("2026-06-08 12:30:00")
+        .execute(&pool)
+        .await?;
+        sqlx::query(
+            "INSERT INTO experiment_records (id, title, linked_submission_id, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .bind("exp-a")
+        .bind("主实验")
+        .bind("sub-a")
+        .bind("2026-06-08 11:45:00")
+        .execute(&pool)
+        .await?;
+        sqlx::query(
+            "INSERT INTO knowledge_graph_evidence_links (id, claim_id, source_kind, source_id) VALUES (?, ?, ?, ?)",
+        )
+        .bind("link-a")
+        .bind("claim-a")
+        .bind("experiment")
+        .bind("exp-a")
+        .execute(&pool)
+        .await?;
+
+        let context = ResearchContextService::get_theme_context(&pool, "interest-3")
+            .await
+            .map_err(anyhow::Error::msg)?;
+
+        assert!(context.theme.planned);
+        let progress = &context.theme.progress;
+        assert_eq!(progress.paper_count, 2);
+        assert_eq!(progress.analyzed_paper_count, 1);
+        assert_eq!(progress.note_count, 1);
+        assert_eq!(progress.session_count, 1);
+        assert_eq!(progress.claim_count, 1);
+        assert_eq!(progress.experiment_count, 1);
+        assert_eq!(progress.submission_count, 1);
+
+        // 时间线纳入实验与投稿活动，让用户看到跨模块进展。
+        assert!(context
+            .events
+            .iter()
+            .any(|event| event.event_type == "experiment_logged"));
+        assert!(context
+            .events
+            .iter()
+            .any(|event| event.event_type == "submission_updated"));
+
+        // 已完成里程碑覆盖多个模块。
+        assert!(context
+            .theme
+            .completed_tasks
+            .iter()
+            .any(|task| task.contains("解读")));
+        assert!(context
+            .theme
+            .completed_tasks
+            .iter()
+            .any(|task| task.contains("投稿")));
+
+        // get_recent_themes 走相同的查询路径，确保不再误引用 research_interests.updated_at。
+        let recent = ResearchContextService::get_recent_themes(&pool, 5)
+            .await
+            .map_err(anyhow::Error::msg)?;
+        assert!(recent.iter().any(|theme| theme.id == "interest-3"));
 
         Ok(())
     }
