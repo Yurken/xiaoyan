@@ -34,14 +34,7 @@ export default function ThemeProgressLadder({ stages, percent }: ThemeProgressLa
         </div>
       </div>
 
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06]">
-        <div
-          className="h-full rounded-full bg-apple-blue transition-all duration-500"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-
-      <div className="mt-5 flex items-start">
+      <div className="mt-4 flex items-start">
         {stages.map((stage, index) => {
           const prevDone = index > 0 && stages[index - 1].state === "done";
           return (
