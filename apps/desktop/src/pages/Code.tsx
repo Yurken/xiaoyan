@@ -18,7 +18,7 @@ import CodeToolSwitcher from "../features/code/CodeToolSwitcher";
 export default function Code() {
   const ws = useCodeWorkspace();
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [showSessions, setShowSessions] = useState(false);
+  const [showSessions, setShowSessions] = useState(true);
 
   async function onConfirmDelete() {
     if (!pendingDeleteId) return;
@@ -116,16 +116,29 @@ export default function Code() {
 
         {/* File tree */}
         {ws.workingDir && (
-          <div className="code-sidebar__tree">
-            <CodeFileTree
-              rootPath={ws.workingDir}
-              entries={ws.fs.entries}
-              loading={ws.fs.loading}
-              onListDir={ws.fs.listDir}
-              onOpenFile={ws.openFileByPath}
-              activePath={ws.openFile?.path ?? null}
-            />
-          </div>
+          <>
+            <button
+              type="button"
+              className="code-sidebar__toggle"
+              onClick={() => ws.setTreeOpen((v) => !v)}
+            >
+              {ws.treeOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              <FolderOpen size={14} />
+              <span>文件浏览器</span>
+            </button>
+            {ws.treeOpen && (
+              <div className="code-sidebar__tree">
+                <CodeFileTree
+                  rootPath={ws.workingDir}
+                  entries={ws.fs.entries}
+                  loading={ws.fs.loading}
+                  onListDir={ws.fs.listDir}
+                  onOpenFile={ws.openFileByPath}
+                  activePath={ws.openFile?.path ?? null}
+                />
+              </div>
+            )}
+          </>
         )}
       </aside>
 

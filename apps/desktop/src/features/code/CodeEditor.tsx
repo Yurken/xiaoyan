@@ -74,9 +74,9 @@ export default function CodeEditor({
     return (
       <div className="code-editor code-editor--empty">
         <div className="code-editor__empty-state">
-          <FileCode size={32} className="code-editor__empty-icon" />
+          <FileCode size={36} className="code-editor__empty-icon" />
           <p className="code-editor__empty-title">选择一个文件开始编辑</p>
-          <p className="code-editor__empty-desc">在左侧目录树中点击文件即可打开</p>
+          <p className="code-editor__empty-desc">在左侧文件浏览器中点击文件即可打开</p>
         </div>
       </div>
     );
