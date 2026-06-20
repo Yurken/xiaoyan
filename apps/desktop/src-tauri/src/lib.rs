@@ -56,10 +56,10 @@ use commands::{
     export::export_to_obsidian,
     journal::{journal_lookup, journal_rank_filter},
     knowledge::{
-        knowledge_create_interest, knowledge_delete_interest_bundle,
+        knowledge_create_folder, knowledge_create_interest, knowledge_delete_interest_bundle,
         knowledge_delete_interest_only, knowledge_generate_interest_hints, knowledge_generate_plan,
-        knowledge_list_interests, knowledge_suggest_topics, knowledge_update_interest_folder,
-        knowledge_web_clip,
+        knowledge_list_interests, knowledge_move_interest, knowledge_suggest_topics,
+        knowledge_update_interest_folder, knowledge_web_clip,
     },
     knowledge_graph::{
         knowledge_graph_create_citation, knowledge_graph_create_claim,
@@ -371,6 +371,8 @@ pub fn run() {
             knowledge_update_interest_folder,
             knowledge_delete_interest_bundle,
             knowledge_delete_interest_only,
+            knowledge_create_folder,
+            knowledge_move_interest,
             knowledge_generate_interest_hints,
             knowledge_suggest_topics,
             knowledge_generate_plan,

@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS research_interests (
     id            TEXT PRIMARY KEY,
     topic         TEXT NOT NULL,
     folder_name   TEXT,
+    parent_id     TEXT,
     keywords      TEXT NOT NULL DEFAULT '[]',
     profile       TEXT,
     learning_path TEXT,
@@ -439,6 +440,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_research_interest_profile_column(&pool).await?;
     ensure_research_interest_folder_name_column(&pool).await?;
     ensure_research_interest_partial_plan_column(&pool).await?;
+    ensure_research_interest_parent_id_column(&pool).await?;
     ensure_papers_research_interest_column(&pool).await?;
     ensure_paper_analyses_experiment_results_column(&pool).await?;
     ensure_reproduction_guides_code_repository_column(&pool).await?;
@@ -568,6 +570,7 @@ async fn ensure_schema(pool: &SqlitePool) -> Result<()> {
     ensure_research_interest_profile_column(pool).await?;
     ensure_research_interest_folder_name_column(pool).await?;
     ensure_research_interest_partial_plan_column(pool).await?;
+    ensure_research_interest_parent_id_column(pool).await?;
     ensure_papers_research_interest_column(pool).await?;
     ensure_paper_analyses_experiment_results_column(pool).await?;
     ensure_reproduction_guides_code_repository_column(pool).await?;
@@ -770,6 +773,12 @@ async fn ensure_research_interest_profile_column(pool: &SqlitePool) -> Result<()
 
 async fn ensure_research_interest_partial_plan_column(pool: &SqlitePool) -> Result<()> {
     ensure_table_column(pool, "research_interests", "partial_plan", "TEXT").await
+}
+
+/// 子文件夹层级：research_interests 自引用父节点。`NULL` 表示顶层文件夹。
+/// 不加外键约束，删除/上提语义统一由 knowledge 命令在应用层控制（见 knowledge.rs）。
+async fn ensure_research_interest_parent_id_column(pool: &SqlitePool) -> Result<()> {
+    ensure_table_column(pool, "research_interests", "parent_id", "TEXT").await
 }
 
 async fn ensure_papers_sort_order_column(pool: &SqlitePool) -> Result<()> {
@@ -1188,6 +1197,7 @@ mod tests {
         for (table, column) in [
             ("research_interests", "profile"),
             ("research_interests", "folder_name"),
+            ("research_interests", "parent_id"),
             ("papers", "research_interest_id"),
             ("papers", "importance_color"),
             ("papers", "notes"),

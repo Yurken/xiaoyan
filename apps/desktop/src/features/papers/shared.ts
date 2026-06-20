@@ -1,5 +1,7 @@
 import type { Paper } from "@research-copilot/types";
 
+export type PaperSortKey = "created_at" | "title" | "importance" | "manual";
+
 export type PaperFigure = {
   id: string;
   fig_index: number;

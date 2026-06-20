@@ -323,6 +323,10 @@ export const knowledgeApi = {
     profile?: ResearchInterestProfile
   ): Promise<ResearchInterest> =>
     invoke("knowledge_create_interest", { topic, keywords, profile: profile ?? null }),
+  createFolder: (name: string, parentId?: string | null): Promise<ResearchInterest> =>
+    invoke("knowledge_create_folder", { name, parentId: parentId ?? null }),
+  moveInterest: (id: string, parentId: string | null): Promise<ResearchInterest> =>
+    invoke("knowledge_move_interest", { id, parentId: parentId ?? null }),
   updateInterestFolder: (id: string, folder_name: string): Promise<ResearchInterest> =>
     invoke("knowledge_update_interest_folder", { id, folderName: folder_name }),
   deleteInterestBundle: (id: string): Promise<{ deleted_interest_id: string; deleted_sessions: number; deleted_notes: number; deleted_papers: number }> =>

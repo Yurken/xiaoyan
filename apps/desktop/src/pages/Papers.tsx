@@ -12,7 +12,7 @@ import { usePaperDetailRoute } from "../features/papers/usePaperDetailRoute";
 import { usePaperTaskProgress } from "../features/papers/usePaperTaskProgress";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { PaperFigure } from "../features/papers/shared";
-import { interestFolderName } from "../lib/interestUtils";
+import { buildFolderSelectOptions } from "../features/papers/interestTree";
 
 export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
   const papers = usePapersList();
@@ -189,7 +189,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             {!hideFolders && (
               <Select className="min-w-[200px]" prefix="文件夹：" value={papers.selectedInterestId}
                 onChange={papers.setSelectedInterestId}
-                options={[{ value: "", label: "未归档" }, ...papers.interests.map((i) => ({ value: i.id, label: interestFolderName(i) }))]} />
+                options={[{ value: "", label: "未归档" }, ...buildFolderSelectOptions(papers.interests)]} />
             )}
             <Button onClick={papers.handleUpload} loading={papers.uploading} size="md">
               <Upload className="w-4 h-4" />
@@ -214,41 +214,35 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           papers={papers.papers}
           interests={papers.interests}
           loading={papers.loading}
-          uploading={papers.uploading}
-          batchProgress={papers.batchProgress}
           loadError={papers.loadError}
           deletingPaperId={papers.deletingPaperId}
-          savingEdit={papers.savingEdit}
-          selectedInterestId={papers.selectedInterestId}
           deletingGroupId={papers.deletingGroupId}
+          savingEdit={papers.savingEdit}
+          folderForest={papers.folderForest}
           paperGroups={papers.paperGroups}
           ungroupedPapers={papers.ungroupedPapers}
           detailPaperId={detailPaperId}
-          paperFigures={paperFigures}
           taskProgressByPaperId={taskProgressByPaperId}
-          sortKeys={papers.sortKeys}
           keywordFilters={papers.keywordFilters}
           titleFilters={papers.titleFilters}
-          onUpload={papers.handleUpload}
+          getSortKey={papers.getSortKey}
           onAnalyze={handleAnalyze}
           onReproduce={papers.handleReproduce}
           onReparse={papers.handleReparse}
           onUpdatePaper={papers.handleUpdatePaper}
           onDeletePaper={papers.handleDeletePaper}
           onDeleteInterestGroup={papers.handleDeleteInterestGroup}
-          onSelectInterest={papers.setSelectedInterestId}
           onOpenDetail={openPaperDetail}
           onCloseDetail={closePaperDetail}
-          onSetDetailPaperId={setDetailPaperId}
           onSortKeyChange={papers.setSortKey}
           onKeywordFilterChange={papers.setKeywordFilter}
           onTitleFilterChange={papers.setTitleFilter}
-          getSortKey={papers.getSortKey}
-          hideFolders={hideFolders}
           onMovePaper={(paperId, interestId) =>
             void papers.handleUpdatePaper(paperId, { research_interest_id: interestId || undefined })
           }
           onReorderPaper={(groupId, orderedIds) => void papers.handleReorderPaper(groupId, orderedIds)}
+          onCreateFolder={papers.handleCreateFolder}
+          onMoveFolder={papers.handleMoveFolder}
         />
         )}
       </div>

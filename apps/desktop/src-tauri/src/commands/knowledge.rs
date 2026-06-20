@@ -48,7 +48,7 @@ pub async fn knowledge_list_interests(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let rows = sqlx::query(
-        "SELECT id, topic, folder_name, keywords, profile, learning_path, status, created_at FROM research_interests ORDER BY created_at DESC",
+        "SELECT id, topic, folder_name, parent_id, keywords, profile, learning_path, status, created_at FROM research_interests ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
     .await
@@ -93,6 +93,7 @@ pub async fn knowledge_create_interest(
         "id": id,
         "topic": trimmed_topic,
         "folder_name": folder_name,
+        "parent_id": null,
         "keywords": keywords,
         "profile": profile,
         "status": "active",
@@ -119,7 +120,7 @@ pub async fn knowledge_update_interest_folder(
         .map_err(|e| e.to_string())?;
 
     let row = sqlx::query(
-        "SELECT id, topic, folder_name, keywords, profile, learning_path, status, created_at FROM research_interests WHERE id = ?",
+        "SELECT id, topic, folder_name, parent_id, keywords, profile, learning_path, status, created_at FROM research_interests WHERE id = ?",
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -135,11 +136,9 @@ pub async fn knowledge_delete_interest_bundle(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<serde_json::Value, String> {
-    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
-
     let exists = sqlx::query("SELECT id FROM research_interests WHERE id = ?")
         .bind(&id)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&state.db)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -147,27 +146,119 @@ pub async fn knowledge_delete_interest_bundle(
         return Err("未找到对应研究方向。".to_string());
     }
 
-    let deleted_sessions =
-        sqlx::query("DELETE FROM chat_sessions WHERE context_type = 'interest' AND context_id = ?")
-            .bind(&id)
+    // 连同所有子孙文件夹一起删除。
+    let interest_ids = collect_interest_subtree_ids(&state.db, &id).await?;
+
+    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
+    let mut deleted_sessions = 0u64;
+    let mut deleted_notes = 0u64;
+    let mut deleted_papers = 0u64;
+
+    for interest_id in &interest_ids {
+        deleted_sessions += sqlx::query(
+            "DELETE FROM chat_sessions WHERE context_type = 'interest' AND context_id = ?",
+        )
+        .bind(interest_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected();
+
+        deleted_notes += sqlx::query("DELETE FROM knowledge_notes WHERE research_interest_id = ?")
+            .bind(interest_id)
             .execute(&mut *tx)
             .await
             .map_err(|e| e.to_string())?
             .rows_affected();
 
-    let deleted_notes = sqlx::query("DELETE FROM knowledge_notes WHERE research_interest_id = ?")
-        .bind(&id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| e.to_string())?
-        .rows_affected();
+        deleted_papers += sqlx::query("DELETE FROM papers WHERE research_interest_id = ?")
+            .bind(interest_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?
+            .rows_affected();
 
-    let deleted_papers = sqlx::query("DELETE FROM papers WHERE research_interest_id = ?")
+        sqlx::query("DELETE FROM research_interests WHERE id = ?")
+            .bind(interest_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+
+    Ok(json!({
+        "deleted_interest_id": id,
+        "deleted_interest_ids": interest_ids,
+        "deleted_sessions": deleted_sessions,
+        "deleted_notes": deleted_notes,
+        "deleted_papers": deleted_papers,
+    }))
+}
+
+/// 仅删除该文件夹本身，内容上提一层：
+/// - 直接论文、笔记移动到被删文件夹的父级（顶层文件夹则变为未归档）；
+/// - 直接子文件夹挂到被删文件夹的父级；
+/// - 关联会话回到通用上下文。
+#[tauri::command]
+pub async fn knowledge_delete_interest_only(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
+
+    let row = sqlx::query("SELECT parent_id FROM research_interests WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("未找到对应研究方向。")?;
+    let parent_id: Option<String> = row
+        .get::<Option<String>, _>("parent_id")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // 直接论文上提到父级（无父级则置为未归档）。
+    sqlx::query(
+        "UPDATE papers SET research_interest_id = ?, updated_at = ? WHERE research_interest_id = ?",
+    )
+    .bind(&parent_id)
+    .bind(&now)
+    .bind(&id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 直接笔记上提到父级。
+    sqlx::query(
+        "UPDATE knowledge_notes SET research_interest_id = ?, updated_at = ? WHERE research_interest_id = ?",
+    )
+    .bind(&parent_id)
+    .bind(&now)
+    .bind(&id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 直接子文件夹上提到父级。
+    sqlx::query("UPDATE research_interests SET parent_id = ? WHERE parent_id = ?")
+        .bind(&parent_id)
         .bind(&id)
         .execute(&mut *tx)
         .await
-        .map_err(|e| e.to_string())?
-        .rows_affected();
+        .map_err(|e| e.to_string())?;
+
+    // 关联会话回到通用上下文。
+    sqlx::query(
+        "UPDATE chat_sessions SET context_type = 'general', context_id = NULL \
+         WHERE context_type = 'interest' AND context_id = ?",
+    )
+    .bind(&id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
 
     sqlx::query("DELETE FROM research_interests WHERE id = ?")
         .bind(&id)
@@ -177,40 +268,117 @@ pub async fn knowledge_delete_interest_bundle(
 
     tx.commit().await.map_err(|e| e.to_string())?;
 
-    Ok(json!({
-        "deleted_interest_id": id,
-        "deleted_sessions": deleted_sessions,
-        "deleted_notes": deleted_notes,
-        "deleted_papers": deleted_papers,
-    }))
+    Ok(json!({ "deleted_interest_id": id, "reparented_to": parent_id }))
 }
 
-/// Deletes only the research interest record.
-/// Papers and notes lose their association (ON DELETE SET NULL).
-/// Chat sessions are moved back to the general context rather than deleted.
+/// 在论文库中创建整理文件夹（含子文件夹）。
+/// 区别于 `knowledge_create_interest`：这是轻量整理容器，`topic` 与 `folder_name`
+/// 同为传入名称，不附带关键词与学习路线。`parent_id` 为空表示顶层文件夹。
 #[tauri::command]
-pub async fn knowledge_delete_interest_only(
+pub async fn knowledge_create_folder(
     state: State<'_, AppState>,
-    id: String,
+    name: String,
+    parent_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    // Detach sessions from the interest (move to general)
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("文件夹名称不能为空".to_string());
+    }
+
+    let parent = parent_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if let Some(parent) = parent {
+        let exists = sqlx::query("SELECT id FROM research_interests WHERE id = ?")
+            .bind(parent)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+        if exists.is_none() {
+            return Err("未找到上级文件夹。".to_string());
+        }
+    }
+
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
-        "UPDATE chat_sessions SET context_type = 'general', context_id = NULL \
-         WHERE context_type = 'interest' AND context_id = ?",
+        "INSERT INTO research_interests (id, topic, folder_name, parent_id, created_at) VALUES (?, ?, ?, ?, ?)",
     )
     .bind(&id)
+    .bind(trimmed)
+    .bind(trimmed)
+    .bind(parent)
+    .bind(&now)
     .execute(&state.db)
     .await
     .map_err(|e| e.to_string())?;
 
-    // Delete the interest — ON DELETE SET NULL handles papers and notes automatically
-    sqlx::query("DELETE FROM research_interests WHERE id = ?")
+    let row = sqlx::query(
+        "SELECT id, topic, folder_name, parent_id, keywords, profile, learning_path, status, created_at FROM research_interests WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("文件夹创建失败。")?;
+
+    Ok(research_interest_row_to_json(&row))
+}
+
+/// 调整文件夹的父级。`parent_id` 为空表示移动到顶层。
+/// 校验：不能把文件夹移动到它自身或它的子孙之下（避免成环）。
+#[tauri::command]
+pub async fn knowledge_move_interest(
+    state: State<'_, AppState>,
+    id: String,
+    parent_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let target_parent = parent_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+
+    if let Some(parent) = target_parent.as_deref() {
+        if parent == id.as_str() {
+            return Err("不能把文件夹移动到它自己下面。".to_string());
+        }
+        let exists = sqlx::query("SELECT id FROM research_interests WHERE id = ?")
+            .bind(parent)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+        if exists.is_none() {
+            return Err("未找到上级文件夹。".to_string());
+        }
+        let subtree = collect_interest_subtree_ids(&state.db, &id).await?;
+        if subtree.iter().any(|item| item.as_str() == parent) {
+            return Err("不能把文件夹移动到它自己的子文件夹下面。".to_string());
+        }
+    }
+
+    let result = sqlx::query("UPDATE research_interests SET parent_id = ? WHERE id = ?")
+        .bind(&target_parent)
         .bind(&id)
         .execute(&state.db)
         .await
         .map_err(|e| e.to_string())?;
+    if result.rows_affected() == 0 {
+        return Err("未找到对应文件夹。".to_string());
+    }
 
-    Ok(json!({ "deleted_interest_id": id }))
+    let row = sqlx::query(
+        "SELECT id, topic, folder_name, parent_id, keywords, profile, learning_path, status, created_at FROM research_interests WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("未找到对应文件夹。")?;
+
+    Ok(research_interest_row_to_json(&row))
 }
 
 const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{keywords}）设计系统化研究学习路线。
@@ -1225,6 +1393,7 @@ fn research_interest_row_to_json(r: &sqlx::sqlite::SqliteRow) -> serde_json::Val
         "id": r.get::<String, _>("id"),
         "topic": r.get::<String, _>("topic"),
         "folder_name": r.get::<Option<String>, _>("folder_name"),
+        "parent_id": r.get::<Option<String>, _>("parent_id"),
         "keywords": serde_json::from_str::<serde_json::Value>(&keywords).unwrap_or(json!([])),
         "profile": profile_str.and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok()),
         "learning_path": learning_path,
@@ -1240,6 +1409,30 @@ fn default_interest_folder_name(topic: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+/// 收集某文件夹及其全部子孙文件夹的 id（含自身），用于级联删除与移动防环校验。
+async fn collect_interest_subtree_ids(
+    pool: &sqlx::SqlitePool,
+    root_id: &str,
+) -> Result<Vec<String>, String> {
+    let mut ids = vec![root_id.to_string()];
+    let mut frontier = vec![root_id.to_string()];
+    while let Some(current) = frontier.pop() {
+        let children = sqlx::query("SELECT id FROM research_interests WHERE parent_id = ?")
+            .bind(&current)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        for row in children {
+            let child_id: String = row.get("id");
+            if !ids.contains(&child_id) {
+                ids.push(child_id.clone());
+                frontier.push(child_id);
+            }
+        }
+    }
+    Ok(ids)
 }
 
 // ── Web Clip ─────────────────────────────────────────────────────

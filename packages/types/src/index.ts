@@ -121,6 +121,7 @@ export interface ResearchInterest {
   id: string;
   topic: string;
   folder_name?: string;
+  parent_id?: string;
   keywords?: string[];
   profile?: ResearchInterestProfile;
   learning_path?: LearningPath;
