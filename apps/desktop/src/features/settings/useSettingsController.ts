@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { safeListen } from "../../lib/tauriEvent";
 import type { AppSettings, AppUpdateInfo } from "@research-copilot/types";
@@ -22,6 +22,8 @@ export function useSettingsController(defaultSettings: AppSettings) {
   const [updateMsg, setUpdateMsg] = useState("");
   const [appVersion, setAppVersion] = useState("");
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
+  // 最近一次已持久化的表单快照（JSON），用于自动保存判重，避免加载即保存或重复保存。
+  const lastSavedRef = useRef("");
 
   const replaceForm = useCallback((next: Partial<AppSettings>) => {
     setForm({ ...defaultSettings, ...next });
@@ -75,6 +77,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
         const [data, version] = await Promise.all([apiClient.settings.get(), getVersion()]);
         if (!cancelled) {
           replaceForm(data);
+          lastSavedRef.current = JSON.stringify({ ...defaultSettings, ...data });
           setAppVersion(version);
         }
       } catch (error) {
@@ -92,7 +95,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
     return () => {
       cancelled = true;
     };
-  }, [replaceForm]);
+  }, [replaceForm, defaultSettings]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -113,18 +116,31 @@ export function useSettingsController(defaultSettings: AppSettings) {
     };
   }, []);
 
-  const handleSaveSettings = async () => {
+  const handleSaveSettings = useCallback(async () => {
     setSaveState("saving");
     try {
       await apiClient.settings.update(form);
+      lastSavedRef.current = JSON.stringify(form);
       emitCompanionPreferenceChange(normalizeCompanionId(form.xiaoyan_companion_id));
-      markSaved();
+      setSaveState("saved");
+      window.setTimeout(() => setSaveState("idle"), 2500);
     } catch (error) {
       setSaveState("error");
       window.setTimeout(() => setSaveState("idle"), 3000);
       console.error("save settings failed:", error);
     }
-  };
+  }, [form]);
+
+  // 自动保存：表单变化后防抖 700ms 持久化（已去掉手动「保存」按钮）。
+  // 加载阶段、以及与上次已保存内容相同时都跳过，避免加载即保存或重复保存。
+  useEffect(() => {
+    if (loading) return;
+    if (JSON.stringify(form) === lastSavedRef.current) return;
+    const timer = window.setTimeout(() => {
+      void handleSaveSettings();
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [form, loading, handleSaveSettings]);
 
   const handleTestConnection = async () => {
     setTestState("testing");

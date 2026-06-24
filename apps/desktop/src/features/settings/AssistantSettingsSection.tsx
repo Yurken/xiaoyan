@@ -3,7 +3,7 @@ import { Card } from "@research-copilot/ui";
 import type { Dispatch, SetStateAction } from "react";
 import type { AppSettings, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
 import type { ProviderPresetId } from "./providerPresets";
-import ConnectionSection from "./ConnectionSection";
+import ConnectionSection, { type ConnectionActions } from "./ConnectionSection";
 import RolesSection from "./RolesSection";
 import { SectionIcon, ToggleRow } from "./shared";
 import type { ConfigHistoryControls } from "./ConfigHistorySwitcher";
@@ -19,6 +19,7 @@ interface AssistantSettingsSectionProps {
   routingMode: MultiAgentRoutingMode;
   enabledAgents: string[];
   configHistory: ConfigHistoryControls;
+  connectionActions: ConnectionActions;
   onManageConfigHistory: () => void;
   setForm: Dispatch<SetStateAction<AppSettings>>;
   set: (key: keyof AppSettings) => (value: string) => void;
@@ -70,6 +71,7 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
         ollamaModels={props.ollamaModels}
         loadingOllamaModels={props.loadingOllamaModels}
         configHistory={props.configHistory}
+        connectionActions={props.connectionActions}
         onManageConfigHistory={props.onManageConfigHistory}
         setForm={props.setForm}
         set={props.set}

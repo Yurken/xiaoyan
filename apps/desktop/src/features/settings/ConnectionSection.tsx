@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Brain, ChevronDown, ChevronRight, Loader2, RefreshCw } from "lucide-react";
+import { Brain, ChevronDown, ChevronRight, Loader2, RefreshCw, Wifi } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppSettings, LlmProvider, PaperSearchEngine } from "@research-copilot/types";
 import { MASK, SectionIcon, SettingInput } from "./shared";
@@ -19,6 +19,16 @@ interface ConnectionSectionProps {
   set: (key: keyof AppSettings) => (value: string) => void;
   applyPreset: (presetId: ProviderPresetId) => void;
   loadOllamaModels: () => Promise<void>;
+  connectionActions: ConnectionActions;
+}
+
+/** 全局「测试连接」操作 + 自动保存状态（按钮从设置页头移到小妍卡片头部；保存改为自动）。 */
+export interface ConnectionActions {
+  testState: "idle" | "testing" | "ok" | "error";
+  testMsg: string;
+  saveState: "idle" | "saving" | "saved" | "error";
+  busy: boolean;
+  onTest: () => void;
 }
 
 function PresetCard({
@@ -102,7 +112,9 @@ export default function ConnectionSection({
   set,
   applyPreset,
   loadOllamaModels,
+  connectionActions,
 }: ConnectionSectionProps) {
+  const { testState, testMsg, saveState, busy: actionsBusy, onTest } = connectionActions;
   const [showAdvanced, setShowAdvanced] = useState(false);
   const activePresetMeta = PROVIDER_PRESETS.find((preset) => preset.id === activePreset);
   const isOpenAI = provider === "openai";
@@ -148,9 +160,45 @@ export default function ConnectionSection({
             </p>
           </div>
         </div>
-        {!contentUnavailable ? (
-          <ConfigHistorySwitcher {...configHistory} onManage={onManageConfigHistory} />
-        ) : null}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={onTest}
+              disabled={testState === "testing" || actionsBusy}
+              className="flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
+              style={{
+                background:
+                  testState === "ok"
+                    ? "linear-gradient(145deg,#40D466,#28A844)"
+                    : testState === "error"
+                      ? "linear-gradient(145deg,#FF5555,#CC2200)"
+                      : "var(--rc-chip-bg)",
+                color: testState === "ok" || testState === "error" ? "#fff" : "var(--rc-text-soft)",
+                boxShadow: testState === "idle" || testState === "testing" ? "var(--rc-chip-shadow)" : "none",
+              }}
+            >
+              {testState === "testing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
+              {testState === "testing" ? "测试中…" : testState === "ok" ? "连接正常" : testState === "error" ? "连接失败" : "测试连接"}
+            </button>
+            {testState === "error" && testMsg ? (
+              <span className="absolute right-0 top-full z-10 mt-0.5 whitespace-nowrap text-xs text-red-500">
+                {testMsg.slice(0, 30)}
+              </span>
+            ) : null}
+          </div>
+          <span
+            className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-ink-tertiary"
+            style={saveState === "saved" ? { color: "#1f9d4d" } : saveState === "error" ? { color: "#D92D20" } : undefined}
+            title="设置改动会自动保存"
+          >
+            {saveState === "saving" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "error" ? "保存失败" : "自动保存"}
+          </span>
+          {!contentUnavailable ? (
+            <ConfigHistorySwitcher {...configHistory} onManage={onManageConfigHistory} />
+          ) : null}
+        </div>
       </div>
 
       {!contentUnavailable ? (
@@ -192,7 +240,7 @@ export default function ConnectionSection({
                 value={baseUrlValue}
                 onChange={set(isOpenAI ? "openai_base_url" : "openai_compatible_base_url")}
                 placeholder={activePresetMeta?.baseUrl || "https://api.example.com/v1"}
-                hint={activePreset === "custom" ? "填写兼容 OpenAI 接口格式的地址。" : undefined}
+                hint={activePreset === "custom" ? "填写 OpenAI 兼容接口的根地址，通常以 /v1 结尾（如 https://api.example.com/v1）。" : undefined}
               />
             )}
 

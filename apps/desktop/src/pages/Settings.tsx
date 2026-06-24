@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  AlertCircle,
-  CheckCircle,
-  FileSearch,
-  Layers3,
-  Loader2,
-  Wifi,
-} from "lucide-react";
+import { AlertCircle, FileSearch, Layers3, Loader2 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { apiClient } from "../lib/client";
 import AboutSection from "../features/settings/AboutSection";
@@ -16,6 +9,7 @@ import CryptoConfigModal from "../features/settings/CryptoConfigModal";
 import { emitAppLockStatusChange } from "../features/appLock/shared";
 import MemorySection from "../features/settings/MemorySection";
 import SettingsHistorySection from "../features/settings/SettingsHistorySection";
+import ConfigHistoryManageModal from "../features/settings/ConfigHistoryManageModal";
 import SkillsSection from "../features/settings/SkillsSection";
 import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from "../features/settings/SettingsChangelogCard";
 import TaskSetupSection from "../features/settings/TaskSetupSection";
@@ -152,7 +146,6 @@ export default function Settings() {
     downloadProgress,
     appVersion,
     markSaved,
-    handleSaveSettings,
     handleTestConnection,
     handleCheckUpdate,
     handleInstallUpdate,
@@ -162,6 +155,8 @@ export default function Settings() {
     "guided",
     SETTINGS_SECTION_KEYS,
   );
+  // 「切换与管理」弹窗（由小妍配置弹层的「更多管理」触发）。
+  const [configManageOpen, setConfigManageOpen] = useState(false);
   const {
     currentTheme,
     pendingLayout,
@@ -305,73 +300,7 @@ export default function Settings() {
         <div>
           <h1 className="text-2xl font-bold text-ink-primary">设置</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={handleTestConnection}
-              disabled={testState === "testing" || loading}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
-              style={{
-                background:
-                  testState === "ok"
-                    ? "linear-gradient(145deg,#40D466,#28A844)"
-                    : testState === "error"
-                      ? "linear-gradient(145deg,#FF5555,#CC2200)"
-                      : "var(--rc-chip-bg)",
-                color: testState === "ok" || testState === "error" ? "#fff" : "var(--rc-text-soft)",
-                boxShadow:
-                  testState === "idle" || testState === "testing"
-                    ? "var(--rc-chip-shadow)"
-                    : "none",
-              }}
-            >
-              {testState === "testing" ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Wifi className="w-3.5 h-3.5" />
-              )}
-              {testState === "testing"
-                ? "测试中…"
-                : testState === "ok"
-                  ? "连接正常"
-                  : testState === "error"
-                    ? "连接失败"
-                    : "测试连接"}
-            </button>
-            {testState === "error" && testMsg ? (
-              <span className="absolute top-full left-0 mt-0.5 text-xs whitespace-nowrap text-red-500">
-                {testMsg.slice(0, 30)}
-              </span>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={handleSaveSettings}
-            disabled={saveState === "saving" || loading}
-            className="flex items-center gap-1.5 px-5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-            style={{
-              background:
-                saveState === "saved"
-                  ? "linear-gradient(145deg,#40D466,#28A844)"
-                  : saveState === "error"
-                    ? "linear-gradient(145deg,#FF5555,#CC2200)"
-                    : "linear-gradient(145deg,#1A8AFF,#0062CC)",
-              boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
-            }}
-          >
-            {saveState === "saving" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-            {saveState === "saved" ? <CheckCircle className="w-3.5 h-3.5" /> : null}
-            {saveState === "error" ? <AlertCircle className="w-3.5 h-3.5" /> : null}
-            {saveState === "saving"
-              ? "保存中…"
-              : saveState === "saved"
-                ? "已保存"
-                : saveState === "error"
-                  ? "保存失败"
-                  : "保存"}
-          </button>
-        </div>
+        {/* 「测试连接 / 保存」已移到「小妍」卡片头部（assistant 段内 ConnectionSection）。 */}
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
@@ -471,7 +400,14 @@ export default function Settings() {
               onSaveCurrent: settingsHistory.saveCurrent,
               onApplyHistory: settingsHistory.applyHistory,
             }}
-            onManageConfigHistory={() => setActiveSection("history")}
+            onManageConfigHistory={() => setConfigManageOpen(true)}
+            connectionActions={{
+              testState,
+              testMsg,
+              saveState,
+              busy: loading,
+              onTest: handleTestConnection,
+            }}
             setForm={setForm}
             set={set}
             setMany={setMany}
@@ -574,29 +510,19 @@ export default function Settings() {
 
         {activeSection === "history" ? (
           <SettingsHistorySection
-            entries={settingsHistory.entries}
-            loading={settingsHistory.loading}
-            loadError={settingsHistory.loadError}
             draftName={settingsHistory.draftName}
-            selectedId={settingsHistory.selectedId}
             saving={settingsHistory.saving}
-            applyingId={settingsHistory.applyingId}
-            deletingId={settingsHistory.deletingId}
             actionError={settingsHistory.actionError}
             actionMessage={settingsHistory.actionMessage}
             busy={settingsHistory.busy}
             settingsTransferBusy={cryptoBusy}
             dataTransferBusy={backupBusy}
             setDraftName={settingsHistory.setDraftName}
-            setSelectedId={settingsHistory.setSelectedId}
             onExportSettings={openConfigExportModal}
             onImportSettings={openConfigImportPicker}
             onExportAllData={openBackupExportModal}
             onImportAllData={openBackupImportPicker}
             onSaveCurrent={settingsHistory.saveCurrent}
-            onApplyHistory={settingsHistory.applyHistory}
-            onDeleteHistory={settingsHistory.deleteHistory}
-            onReload={settingsHistory.reload}
           />
         ) : null}
 
@@ -678,6 +604,22 @@ export default function Settings() {
         onSubmit={handleBackupConfirm}
       />
     )}
+
+    <ConfigHistoryManageModal
+      open={configManageOpen}
+      entries={settingsHistory.entries}
+      loading={settingsHistory.loading}
+      loadError={settingsHistory.loadError}
+      selectedId={settingsHistory.selectedId}
+      applyingId={settingsHistory.applyingId}
+      deletingId={settingsHistory.deletingId}
+      busy={settingsHistory.busy}
+      setSelectedId={settingsHistory.setSelectedId}
+      onApplyHistory={settingsHistory.applyHistory}
+      onDeleteHistory={settingsHistory.deleteHistory}
+      onReload={settingsHistory.reload}
+      onClose={() => setConfigManageOpen(false)}
+    />
     </>
   );
 }
