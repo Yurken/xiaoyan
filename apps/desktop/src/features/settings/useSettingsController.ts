@@ -25,8 +25,12 @@ export function useSettingsController(defaultSettings: AppSettings) {
   // 最近一次已持久化的表单快照（JSON），用于自动保存判重，避免加载即保存或重复保存。
   const lastSavedRef = useRef("");
 
-  const replaceForm = useCallback((next: Partial<AppSettings>) => {
-    setForm({ ...defaultSettings, ...next });
+  // markPersisted：调用方已将该配置持久化到后端（导入/应用历史/恢复备份）时置 true，
+  // 同步刷新 lastSavedRef，避免随后的自动保存对同一份配置做一次多余回写。
+  const replaceForm = useCallback((next: Partial<AppSettings>, markPersisted = false) => {
+    const merged = { ...defaultSettings, ...next };
+    if (markPersisted) lastSavedRef.current = JSON.stringify(merged);
+    setForm(merged);
   }, [defaultSettings]);
 
   const set = (key: keyof AppSettings) => (value: string) =>

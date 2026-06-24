@@ -187,12 +187,12 @@ export default function Settings() {
     openImportPicker: openConfigImportPicker,
     handleConfirm: handleCryptoConfirm,
   } = useSettingsCrypto({
-    onImported: replaceForm,
+    onImported: (next) => replaceForm(next, true),
     onSaved: () => markSaved(),
   });
   const settingsHistory = useSettingsHistory({
     form,
-    onApplied: replaceForm,
+    onApplied: (next) => replaceForm(next, true),
     onMarkedSaved: () => markSaved(),
   });
   const {
@@ -210,7 +210,7 @@ export default function Settings() {
   } = useDataBackup({
     onImported: async () => {
       const fresh = await apiClient.settings.get();
-      replaceForm(fresh);
+      replaceForm(fresh, true);
       markSaved();
       await settingsHistory.reload();
       emitAppLockStatusChange({
