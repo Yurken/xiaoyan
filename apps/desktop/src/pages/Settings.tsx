@@ -294,22 +294,18 @@ export default function Settings() {
     <>
     <div className="h-full flex flex-col" style={{ background: "var(--rc-surface)" }}>
       <div
-        className="flex-shrink-0 flex items-center justify-between px-6 pt-5 pb-4 border-b rc-settings-header"
+        className="flex-shrink-0 px-6 pt-5 pb-4 border-b rc-settings-header"
         style={{ borderColor: "var(--rc-border)" }}
       >
-        <div>
-          <h1 className="text-2xl font-bold text-ink-primary">设置</h1>
-        </div>
-        {/* 「测试连接 / 保存」已移到「小妍」卡片头部（assistant 段内 ConnectionSection）。 */}
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        {/* 「设置」标题已移除，胶囊导航上移到此处；测试连接/保存在小妍卡片头部。 */}
         <SettingsTabBar
           sections={SETTINGS_SECTIONS}
           activeSection={activeSection}
           onSelect={setActiveSection}
         />
+      </div>
 
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
         {/* 当前分区摘要卡与上方导航重复，先注释掉。 */}
         {/*
         <Card padding="md" className="space-y-3">
