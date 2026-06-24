@@ -3,7 +3,6 @@ import {
   Brain,
   ChevronDown,
   ChevronRight,
-  Compass,
   Database,
   Eye,
   EyeOff,
@@ -459,28 +458,6 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     ],
     modelPlaceholder: "例如：deepseek-reasoner / o3 / claude-opus",
     temperaturePlaceholder: "0.1",
-  },
-  {
-    title: "小妍 · 默认回退",
-    description: "没有单独指定时，作为各专项任务的统一执行回退。",
-    recommendation: "如果上方的小妍默认模型已经足够稳定，这里可以留空；只有想让工作节点统一切到另一模型时再单独设置。",
-    affectedScopes: "小妍步骤通用工作节点",
-    icon: Compass,
-    iconColor: "#34C759",
-    modelKeys: [
-      "multi_agent_worker_model",
-    ],
-    temperatureKeys: [
-      "multi_agent_worker_temperature",
-    ],
-    baseUrlKeys: [
-      "multi_agent_worker_base_url",
-    ],
-    apiKeyKeys: [
-      "multi_agent_worker_api_key",
-    ],
-    modelPlaceholder: "例如：gpt-4o / qwen-plus / deepseek-chat",
-    temperaturePlaceholder: "0.3",
   },
   {
     title: "溯源 · 向量化与检索",
