@@ -163,11 +163,9 @@ export default function Settings() {
     SETTINGS_SECTION_KEYS,
   );
   const {
-    currentStyle,
     currentTheme,
     pendingLayout,
     changeLayout,
-    changeStyle,
     changeTheme,
   } = useLayoutSettingsController();
   const {
@@ -568,10 +566,8 @@ export default function Settings() {
         {activeSection === "layout" ? (
           <LayoutSettingsSection
             currentTheme={currentTheme}
-            currentStyle={currentStyle}
             pendingLayout={pendingLayout}
             onThemeChange={changeTheme}
-            onStyleChange={changeStyle}
             onLayoutChange={changeLayout}
           />
         ) : null}

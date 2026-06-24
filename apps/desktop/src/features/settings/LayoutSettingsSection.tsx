@@ -3,7 +3,6 @@ import { Card } from "@research-copilot/ui";
 import { LayoutDashboard, Monitor, Moon, Sun } from "lucide-react";
 import type { LayoutMode } from "../../lib/layoutMode";
 import type { ThemePreference } from "../../lib/themeMode";
-import type { ThemeStyle } from "../../lib/themeStyle";
 import { SectionIcon } from "./shared";
 
 function OptionCard({
@@ -87,63 +86,15 @@ function ThemeSwatch({ mode }: { mode: "light" | "dark" | "auto" }) {
   );
 }
 
-function StylePreview({ style, theme }: { style: ThemeStyle; theme: ThemePreference }) {
-  const dark = theme === "dark";
-
-  if (style === "neumorphic") {
-    return (
-      <div
-        className="flex h-10 w-14 items-center justify-center rounded-2xl border px-2"
-        style={{
-          borderColor: "var(--rc-border)",
-          background: dark ? "#1c2025" : "#eef2f5",
-        }}
-      >
-        <div
-          className="h-5 w-full rounded-xl"
-          style={{
-            background: dark ? "#252a32" : "#fff",
-            boxShadow: dark
-              ? "4px 4px 10px rgba(0,0,0,0.45), -4px -4px 10px rgba(70,78,94,0.15)"
-              : "4px 4px 10px rgba(120,132,148,0.18), -4px -4px 10px rgba(255,255,255,0.85)",
-          }}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="flex h-10 w-14 items-center justify-center rounded-2xl border px-2"
-      style={{
-        borderColor: "var(--rc-border)",
-        background: dark ? "#111317" : "#f0f0f0",
-      }}
-    >
-      <div
-        className="h-5 w-full rounded-lg border"
-        style={{
-          borderColor: dark ? "#2b3039" : "#d9d9d9",
-          background: dark ? "#171b21" : "#fff",
-        }}
-      />
-    </div>
-  );
-}
-
 export default function LayoutSettingsSection({
   currentTheme,
-  currentStyle,
   pendingLayout,
   onThemeChange,
-  onStyleChange,
   onLayoutChange,
 }: {
   currentTheme: ThemePreference;
-  currentStyle: ThemeStyle;
   pendingLayout: LayoutMode;
   onThemeChange: (mode: ThemePreference) => void;
-  onStyleChange: (style: ThemeStyle) => void;
   onLayoutChange: (mode: LayoutMode) => void;
 }) {
   return (
@@ -198,33 +149,6 @@ export default function LayoutSettingsSection({
       </div>
 
       <div>
-        <p className="mb-2 ml-1 text-xs font-medium text-ink-tertiary">界面风格</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {([
-            {
-              style: "neumorphic" as ThemeStyle,
-              label: "柔和拟态",
-              description: "保留软投影和流动质感，但边界与对比更清晰，不再显得发虚。",
-            },
-            {
-              style: "modern-minimal" as ThemeStyle,
-              label: "极简工作台",
-              description: "借鉴 Codex / ChatGPT 的克制壳层，信息靠边界、密度和排版建立层次。",
-            },
-          ] as const).map(({ style, label, description }) => (
-            <OptionCard
-              key={style}
-              selected={currentStyle === style}
-              title={label}
-              description={description}
-              preview={<StylePreview style={style} theme={currentTheme} />}
-              onClick={() => onStyleChange(style)}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div>
         <p className="mb-2 ml-1 text-xs font-medium text-ink-tertiary">布局模式</p>
         <div className="grid gap-3 sm:grid-cols-2">
           {([
@@ -254,7 +178,7 @@ export default function LayoutSettingsSection({
         className="rounded-2xl px-4 py-3 text-xs leading-5 text-ink-tertiary"
         style={{ background: "var(--rc-card-inset-bg)", border: "1px solid var(--rc-card-inset-outline)" }}
       >
-        切换布局后应用会自动重启。主题和风格会立即保存并作用到当前窗口。
+        切换布局后应用会自动重启。主题会立即保存并作用到当前窗口。
       </div>
     </Card>
   );
