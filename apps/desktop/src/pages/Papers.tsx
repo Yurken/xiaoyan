@@ -175,9 +175,9 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             <p className="mt-1 text-sm text-ink-tertiary">
               {`共 ${papers.papers.length} 篇论文 · ${papers.interests.length} 个主题分组`}
             </p>
-            <p className="mt-1 text-sm text-ink-tertiary">
+            {/* <p className="mt-1 text-sm text-ink-tertiary">
               上传 PDF，小妍会按论文类型精读内容；需要时可单独生成复现/验证指南。
-            </p>
+            </p> */}
           </div>
           <div className={clsx("w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap", view === "papers" ? "flex" : "hidden")}>
             <div ref={recognizeRef} className="relative flex-shrink-0">
