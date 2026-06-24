@@ -2,11 +2,13 @@ import { useState } from "react";
 import { Bot, Check, Route, Sparkles, Wand2 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppSettings, MultiAgentRoutingMode } from "@research-copilot/types";
+import { apiClient } from "../../lib/client";
 import {
   AGENT_GUIDES,
   AGENT_OPTIONS,
   AgentChip,
   CHARACTERISTIC_MODEL_CARDS,
+  MASK,
   ProviderTab,
   RecommendationList,
   ROUTING_MODE_COPY,
@@ -14,6 +16,8 @@ import {
   SettingInput,
   ToggleRow,
 } from "./shared";
+
+export type RoleTestState = "idle" | "testing" | "ok" | "error";
 import { CompactModelCard } from "./CompactModelCard";
 import {
   MODEL_PRESETS,
@@ -21,7 +25,6 @@ import {
   applyModelPreset,
   isCardCustomized,
   getCardStatusSummary,
-  type ModelPresetId,
 } from "./modelPresets";
 
 interface RolesSectionProps {
@@ -49,12 +52,56 @@ export default function RolesSection({
   setManyFlat,
 }: RolesSectionProps) {
   const [showAllCards, setShowAllCards] = useState(false);
+  const [roleTestStates, setRoleTestStates] = useState<Record<string, RoleTestState>>({});
   const activePreset = detectModelPreset(form);
 
   // Count how many cards have custom values
   const customizedCount = CHARACTERISTIC_MODEL_CARDS.filter((card) =>
     isCardCustomized(form, card),
   ).length;
+
+  // 当前主服务商对应的「主聊天模型 / 地址 / 密钥」字段，用于把某角色的配置覆盖进去单独测试。
+  const providerChatModelKey = (): keyof AppSettings =>
+    form.llm_provider === "openai" ? "openai_chat_model"
+      : form.llm_provider === "anthropic" ? "anthropic_chat_model"
+        : "openai_compatible_chat_model";
+  const providerBaseUrlKey = (): keyof AppSettings | null =>
+    form.llm_provider === "openai" ? "openai_base_url"
+      : form.llm_provider === "anthropic" ? null
+        : "openai_compatible_base_url";
+  const providerApiKeyKey = (): keyof AppSettings =>
+    form.llm_provider === "openai" ? "openai_api_key"
+      : form.llm_provider === "anthropic" ? "anthropic_api_key"
+        : "openai_compatible_api_key";
+
+  // 测试某个角色：把该角色的模型（及独立地址/密钥，若有）覆盖进表单后调用 settings.test，
+  // 结果只反映到该角色卡片，不影响全局连接状态。
+  const handleTestRole = async (item: (typeof CHARACTERISTIC_MODEL_CARDS)[number]) => {
+    const key = item.title;
+    setRoleTestStates((prev) => ({ ...prev, [key]: "testing" }));
+    try {
+      const testForm: Partial<AppSettings> = { ...form };
+      const roleModel = getSharedValue(item.modelKeys).trim();
+      if (roleModel) testForm[providerChatModelKey()] = roleModel;
+      const baseKey = providerBaseUrlKey();
+      const roleBaseUrl = baseKey ? getSharedValue(item.baseUrlKeys).trim() : "";
+      if (baseKey && roleBaseUrl) testForm[baseKey] = roleBaseUrl;
+      const roleApiKey = getSharedValue(item.apiKeyKeys).trim();
+      if (roleApiKey && roleApiKey !== MASK) testForm[providerApiKeyKey()] = roleApiKey;
+      await apiClient.settings.test(testForm);
+      setRoleTestStates((prev) => ({ ...prev, [key]: "ok" }));
+      window.setTimeout(
+        () => setRoleTestStates((prev) => (prev[key] === "ok" ? { ...prev, [key]: "idle" } : prev)),
+        4000,
+      );
+    } catch {
+      setRoleTestStates((prev) => ({ ...prev, [key]: "error" }));
+      window.setTimeout(
+        () => setRoleTestStates((prev) => (prev[key] === "error" ? { ...prev, [key]: "idle" } : prev)),
+        5000,
+      );
+    }
+  };
 
   return (
     <Card padding="md" className="space-y-4">
@@ -197,6 +244,8 @@ export default function RolesSection({
                 secondaryFieldHint={item.secondaryFieldHint}
                 statusSummary={getCardStatusSummary(form, item)}
                 isCustomized={customized}
+                roleTestState={roleTestStates[item.title] ?? "idle"}
+                onTestRole={() => handleTestRole(item)}
               />
             );
           })}

@@ -1,5 +1,5 @@
 import { useState, type ComponentType } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, ChevronRight, Loader2, Wifi } from "lucide-react";
 import { MASK, SettingInput, SectionIcon } from "./shared";
 
 interface CompactModelCardProps {
@@ -27,6 +27,9 @@ interface CompactModelCardProps {
   statusSummary: string;
   /** 是否有自定义值 */
   isCustomized: boolean;
+  /** 该角色测试连接状态：以卡片红/绿配色展示 */
+  roleTestState?: "idle" | "testing" | "ok" | "error";
+  onTestRole?: () => void;
 }
 
 export function CompactModelCard({
@@ -52,6 +55,8 @@ export function CompactModelCard({
   secondaryFieldHint,
   statusSummary,
   isCustomized,
+  roleTestState = "idle",
+  onTestRole,
 }: CompactModelCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [showApiAdvanced, setShowApiAdvanced] = useState(false);
@@ -60,15 +65,32 @@ export function CompactModelCard({
     <div
       className="rounded-2xl overflow-hidden transition-all"
       style={{
-        background: "var(--rc-chip-bg)",
-        boxShadow: "var(--rc-chip-shadow)",
+        background:
+          roleTestState === "ok"
+            ? "rgba(52,199,89,0.12)"
+            : roleTestState === "error"
+              ? "rgba(255,69,58,0.12)"
+              : "var(--rc-chip-bg)",
+        boxShadow:
+          roleTestState === "ok"
+            ? "0 0 0 1px rgba(52,199,89,0.5)"
+            : roleTestState === "error"
+              ? "0 0 0 1px rgba(255,69,58,0.5)"
+              : "var(--rc-chip-shadow)",
       }}
     >
       {/* Compact header — always visible */}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded((prev) => !prev)}
-        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-black/[0.02]"
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setExpanded((prev) => !prev);
+          }
+        }}
+        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left cursor-pointer transition-colors hover:bg-black/[0.02]"
       >
         <SectionIcon icon={Icon} color={iconColor} />
         <div className="flex-1 min-w-0">
@@ -88,14 +110,51 @@ export function CompactModelCard({
             {statusSummary}
           </span>
         </div>
-        <div className="flex items-center flex-shrink-0">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {onTestRole ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onTestRole();
+              }}
+              disabled={roleTestState === "testing"}
+              className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-60"
+              style={{
+                background:
+                  roleTestState === "ok"
+                    ? "rgba(52,199,89,0.18)"
+                    : roleTestState === "error"
+                      ? "rgba(255,69,58,0.18)"
+                      : "var(--rc-chip-inset-bg)",
+                color:
+                  roleTestState === "ok"
+                    ? "#1f9d4d"
+                    : roleTestState === "error"
+                      ? "#D92D20"
+                      : "var(--rc-text-soft)",
+              }}
+              title="测试该角色模型连接"
+            >
+              {roleTestState === "testing" ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : roleTestState === "ok" ? (
+                <Check className="h-3 w-3" />
+              ) : roleTestState === "error" ? (
+                <AlertCircle className="h-3 w-3" />
+              ) : (
+                <Wifi className="h-3 w-3" />
+              )}
+              测试
+            </button>
+          ) : null}
           {expanded ? (
             <ChevronDown className="w-3.5 h-3.5 text-ink-tertiary" />
           ) : (
             <ChevronRight className="w-3.5 h-3.5 text-ink-tertiary" />
           )}
         </div>
-      </button>
+      </div>
 
       {/* Expanded detail */}
       {expanded && (
