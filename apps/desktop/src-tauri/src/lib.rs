@@ -93,8 +93,8 @@ use commands::{
     paper_search::paper_search,
     papers::{
         papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list,
-        papers_list_parse_runs, papers_open_pdf, papers_reorder, papers_reparse, papers_reproduce,
-        papers_update, papers_upload,
+        papers_list_parse_runs, papers_merge, papers_open_pdf, papers_reorder, papers_reparse,
+        papers_reproduce, papers_update, papers_upload,
     },
     research_context::{research_context_get_recent_themes, research_context_get_theme_context},
     settings::{
@@ -338,6 +338,7 @@ pub fn run() {
             papers_update,
             papers_reorder,
             papers_delete,
+            papers_merge,
             papers_open_pdf,
             papers_extract_pdf_text,
             papers_reparse,

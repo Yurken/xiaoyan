@@ -154,6 +154,21 @@ export function usePapersList() {
     }
   };
 
+  // 合并重复论文：保留 keepId，关联数据并入后删除副本；后端返回合并后的主论文。
+  const handleMergePapers = async (keepId: string, deleteIds: string[]) => {
+    try {
+      setLoadError("");
+      const merged = await apiClient.papers.merge(keepId, deleteIds);
+      setPapers((prev) =>
+        prev.filter((p) => !deleteIds.includes(p.id)).map((p) => (p.id === keepId ? { ...p, ...merged } : p)),
+      );
+      return merged;
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      throw error;
+    }
+  };
+
   const handleCreateFolder = async (name: string, parentId?: string | null) => {
     try {
       setLoadError("");
@@ -280,7 +295,7 @@ export function usePapersList() {
     titleFilters, setTitleFilter,
     paperGroups, ungroupedPapers, folderForest,
     handleUpload, importPaths, handleAnalyze, handleReproduce, handleReparse,
-    handleUpdatePaper, handleDeletePaper, handleDeleteInterestGroup, handleReorderPaper,
+    handleUpdatePaper, handleDeletePaper, handleMergePapers, handleDeleteInterestGroup, handleReorderPaper,
     handleCreateFolder, handleMoveFolder,
   };
 }

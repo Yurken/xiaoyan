@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { ChevronDown, FileDown, Upload } from "lucide-react";
+import { ChevronDown, FileDown, GitMerge, Upload } from "lucide-react";
 import { safeOnDragDrop } from "../lib/tauriEvent";
 import { Button, CapsuleTabs, Select } from "@research-copilot/ui";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { usePapersList } from "../features/papers/usePapersList";
 import { PapersListPanel } from "../features/papers/PapersListPanel";
 import CorpusPanel from "../features/papers/CorpusPanel";
+import MergeDuplicatesDialog from "../features/papers/MergeDuplicatesDialog";
+import { findDuplicateGroups } from "../features/papers/duplicatePapers";
 import PaperDetailModal from "../features/papers/PaperDetailModal";
 import { usePaperDetailRoute } from "../features/papers/usePaperDetailRoute";
 import { usePaperTaskProgress } from "../features/papers/usePaperTaskProgress";
@@ -17,6 +19,8 @@ import { buildFolderSelectOptions } from "../features/papers/interestTree";
 export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
   const papers = usePapersList();
   const [view, setView] = useState<"papers" | "corpus">("papers");
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [detailPaperId, setDetailPaperId] = useState<string | null>(null);
   const [paperFigures, setPaperFigures] = useState<Record<string, PaperFigure[]>>({});
   const [recognizeOpen, setRecognizeOpen] = useState(false);
@@ -126,6 +130,19 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     }
   };
 
+  const duplicateGroups = useMemo(() => findDuplicateGroups(papers.papers), [papers.papers]);
+
+  const handleMerge = async (keepId: string, deleteIds: string[]) => {
+    setMerging(true);
+    try {
+      await papers.handleMergePapers(keepId, deleteIds);
+    } catch {
+      // 错误已由 hook 写入 loadError
+    } finally {
+      setMerging(false);
+    }
+  };
+
   return (
     <div
       className="rc-app-page space-y-5"
@@ -191,6 +208,16 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                 onChange={papers.setSelectedInterestId}
                 options={[{ value: "", label: "未归档" }, ...buildFolderSelectOptions(papers.interests)]} />
             )}
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setMergeOpen(true)}
+              disabled={duplicateGroups.length === 0}
+              title={duplicateGroups.length === 0 ? "未发现重复论文" : "合并疑似重复的论文"}
+            >
+              <GitMerge className="w-4 h-4" />
+              {duplicateGroups.length > 0 ? `合并重复 (${duplicateGroups.length})` : "合并重复"}
+            </Button>
             <Button onClick={papers.handleUpload} loading={papers.uploading} size="md">
               <Upload className="w-4 h-4" />
               {papers.batchProgress ? `导入中 (${papers.batchProgress.done}/${papers.batchProgress.total})` : "导入 PDF"}
@@ -248,6 +275,14 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       </div>
       <PaperDetailModal paper={detailPaper} figures={detailPaper ? (paperFigures[detailPaper.id] ?? []) : []}
         onClose={closePaperDetail} />
+      {mergeOpen ? (
+        <MergeDuplicatesDialog
+          groups={duplicateGroups}
+          busy={merging}
+          onMerge={handleMerge}
+          onClose={() => setMergeOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

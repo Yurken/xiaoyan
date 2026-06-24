@@ -205,6 +205,8 @@ export const papersApi = {
     invoke("papers_reorder", { orderedIds }),
   delete: (id: string): Promise<void> =>
     invoke("papers_delete", { id }),
+  merge: (keepId: string, deleteIds: string[]): Promise<Paper> =>
+    invoke("papers_merge", { keepId, deleteIds }),
   openFile: (id: string): Promise<void> =>
     invoke("papers_open_pdf", { id }),
   analyze: (id: string): Promise<void> =>
