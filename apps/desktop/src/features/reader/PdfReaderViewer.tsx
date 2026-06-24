@@ -15,8 +15,6 @@ const MAX_CANVAS_SIDE = 4096;
 const MAX_CANVAS_PIXELS = 12_000_000;
 const MIN_CANVAS_OUTPUT_SCALE = 2;
 const MAX_CANVAS_OUTPUT_SCALE = 2;
-// 加载后在这些时刻强制重绘，把 WKWebView 首屏偏糊的前几页刷清晰（双缓冲下无感）。
-const SETTLE_RERENDER_DELAYS = [250, 700, 1500] as const;
 
 interface PdfReaderViewerProps {
   data: Uint8Array;
@@ -41,7 +39,6 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
     const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
-    const [renderRevision, setRenderRevision] = useState(0);
     const [linkMode, setLinkMode] = useState(false);
     const devicePixelRatio = useDevicePixelRatio();
 
@@ -119,45 +116,6 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       };
     }, []);
 
-    // WKWebView 首屏常把画布栅格化得偏糊（与手动“放大再缩小”能变清晰是同一现象：
-    // 都是等视图稳定后重新栅格一次）。因此在加载后做几次强制重绘把首屏几页刷清晰。
-    // 关键：现在每页都是“离屏渲染完成后再整帧贴回”，重绘对用户是无感的（不会白闪、
-    // 不会留下被拉伸的模糊底图），所以恢复这套 settle 重绘是安全的。
-    useEffect(() => {
-      if (!pdfDoc) return;
-
-      let resizeTimer = 0;
-      const timers: number[] = [];
-      const bumpRevision = () => setRenderRevision((revision) => revision + 1);
-      const scheduleResizeRevision = () => {
-        window.clearTimeout(resizeTimer);
-        resizeTimer = window.setTimeout(bumpRevision, 160);
-      };
-
-      for (const delay of SETTLE_RERENDER_DELAYS) {
-        timers.push(window.setTimeout(bumpRevision, delay));
-      }
-
-      const container = containerRef.current;
-      const resizeObserver = typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(scheduleResizeRevision)
-        : null;
-      if (container) {
-        resizeObserver?.observe(container);
-      }
-      window.addEventListener("resize", scheduleResizeRevision);
-      window.visualViewport?.addEventListener("resize", scheduleResizeRevision);
-
-      return () => {
-        window.clearTimeout(resizeTimer);
-        timers.forEach((timer) => window.clearTimeout(timer));
-        resizeObserver?.disconnect();
-        window.removeEventListener("resize", scheduleResizeRevision);
-        window.visualViewport?.removeEventListener("resize", scheduleResizeRevision);
-      };
-      // 不依赖 scale：缩放由页面渲染 effect 处理，避免每次缩放都重挂这批定时器。
-    }, [pdfDoc, devicePixelRatio]);
-
     // 懒渲染：进入视口的页才渲染
     useEffect(() => {
       const container = containerRef.current;
@@ -213,7 +171,6 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
             pdfDoc={pdfDoc}
             scale={scale}
             devicePixelRatio={devicePixelRatio}
-            renderRevision={renderRevision}
             shouldRender={renderedPages.has(pageNum) || pageNum <= 4}
             pageNotes={notesByPage.get(pageNum) ?? []}
             onNoteClick={onNoteClick}
@@ -229,41 +186,6 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 );
 
 export default PdfReaderViewer;
-
-/**
- * 强制 WKWebView 以当前 DPR 重建 <canvas> 合成层的 raster backing。
- *
- * 根因：首屏 DPR=1 时图层按 1x 合成，2x 位图被降采样上屏 → 发虚；而“同尺寸重绘”只更新
- * 图层内容、不会重建图层，所以 settle 重绘修不好。唯有 canvas 的 backing 尺寸真正变化时，
- * WebView 才会丢弃旧图层、按【当前】设备像素密度（settle 时已稳定为 2x）重建 backing——
- * 这正是“放大再缩小”能修复的机制（缩放改变了尺寸）。
- *
- * 这里用 backing 高度 +1 再复位来复刻该机制：canvas.width/height 属性 React 不接管、不会被
- * 回滚，且改尺寸的变化必须跨帧才会被 WebView 观察到，因此用两帧完成、每帧都从离屏缓冲重贴，
- * 全程显示完整位图（仅 1 个设备像素行差、单帧），无白闪、无跳动；canvas 绝对定位，不影响
- * 文本层/高亮层/页码坐标。
- */
-function forceLayerRebuild(
-  canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
-  buffer: HTMLCanvasElement,
-  pixelWidth: number,
-  pixelHeight: number,
-  isStale: () => boolean,
-) {
-  requestAnimationFrame(() => {
-    if (isStale()) return;
-    canvas.width = pixelWidth;
-    canvas.height = pixelHeight + 1; // 改成不同值 → 强制 WebView 按当前 DPR 重建图层
-    ctx.drawImage(buffer, 0, 0, pixelWidth, pixelHeight + 1); // 拉满，避免底部 1px 黑边
-    requestAnimationFrame(() => {
-      if (isStale()) return;
-      canvas.width = pixelWidth;
-      canvas.height = pixelHeight; // 复位为正确尺寸（再次重建，仍是当前 DPR）
-      ctx.drawImage(buffer, 0, 0);
-    });
-  });
-}
 
 function resolveCanvasOutputScale(viewport: { width: number; height: number }, devicePixelRatio: number) {
   // WKWebView 首屏偶尔长期把 DPR 报成 1；PDF 是矢量内容，至少 2x 超采样才能避免文字发虚。
@@ -294,7 +216,6 @@ interface PdfPageProps {
   pdfDoc: PDFDocumentProxy;
   scale: number;
   devicePixelRatio: number;
-  renderRevision: number;
   shouldRender: boolean;
   pageNotes: PaperNote[];
   onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
@@ -302,20 +223,34 @@ interface PdfPageProps {
 }
 
 const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, devicePixelRatio, renderRevision, shouldRender, pageNotes, onNoteClick, onScrollToPage },
+  { pageNum, pdfDoc, scale, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage },
   ref,
 ) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [links, setLinks] = useState<PdfLink[]>([]);
   const renderedSignatureRef = useRef<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     renderedSignatureRef.current = null;
     setPageSize(null);
+    setImgSrc(null);
     setLinks([]);
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
   }, [pdfDoc, pageNum]);
+
+  // 组件卸载时回收最后一张位图 URL。
+  useEffect(
+    () => () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!shouldRender) return;
@@ -349,21 +284,15 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
             cssHeight,
             pixelWidth,
             pixelHeight,
-            renderRevision,
           ].join(":");
 
           if (renderedSignatureRef.current === renderSignature) {
             return;
           }
 
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-
-          // 离屏渲染，完成后再一次性把「尺寸 + 位图」提交到可见画布。
-          // 渲染未完成前完全不动可见画布，因此：
-          //  - 首屏只会在清晰页就绪后整页出现，不存在先模糊后变清晰；
-          //  - 缩放时若中途被新的缩放打断，可见画布仍保持上一次的清晰画面，
-          //    不会出现“小底图被拉伸成新尺寸”的永久模糊。
+          // 离屏渲染到 buffer，再导出成位图用 <img> 显示。
+          // WKWebView 会把 live <canvas> 合成层按首屏 DPR（常误报为 1）栅格化 → 前几页发虚；
+          // <img> 则按图片自身的自然分辨率（这里是 2x）合成，首帧即清晰，无需 settle/图层重建补丁。
           const buffer = document.createElement("canvas");
           buffer.width = pixelWidth;
           buffer.height = pixelHeight;
@@ -380,25 +309,16 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           await renderTask.promise;
           if (cancelled) return;
 
-          const ctx = canvas.getContext("2d", { alpha: false });
-          if (!ctx) return;
-          // 渲染完成后才提交：原子地设置 backing 像素、CSS 尺寸并贴图，三者一致 → 始终清晰。
-          canvas.width = pixelWidth;
-          canvas.height = pixelHeight;
-          canvas.style.width = `${cssWidth}px`;
-          canvas.style.height = `${cssHeight}px`;
-          ctx.drawImage(buffer, 0, 0);
+          const blob = await new Promise<Blob | null>((resolve) => buffer.toBlob(resolve, "image/png"));
+          if (cancelled || !blob) return;
+          const url = URL.createObjectURL(blob);
+          // 替换旧图前回收上一张的 objectURL，避免内存泄漏。
+          if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+          objectUrlRef.current = url;
 
-          // 根因：WKWebView 首屏常以 DPR=1 合成该 <canvas> 图层（位图是 2x 但被降采样上屏 → 发虚），
-          // 且“同尺寸重绘”只更新图层内容、不会按当前 DPR 重建图层 raster backing；只有几何/合成属性
-          // 变化才会触发重建（这正是“放大再缩小”能修复、而 settle 同尺寸重绘修不好的原因）。
-          // 这里在每次提交后做一次 backing 尺寸微扰，强制 WebView 以当前已稳定的 DPR 重建该图层——
-          // 配合 settle 重绘（250/700/1500ms，此时 DPR 已稳定），前几页会被刷成 2x 合成 → 清晰。
-          // 双缓冲 + 每帧重贴保证可见画布全程显示完整位图，故无白闪、无跳动。
-          forceLayerRebuild(canvas, ctx, buffer, pixelWidth, pixelHeight, () => cancelled || canvasRef.current !== canvas);
-
-          // 渲染成功后再锁定签名并提交页面尺寸，保证“清晰就绪”后整页一次性出现。
+          // 渲染成功后才锁定签名、提交位图与页面尺寸，保证“清晰就绪”后整页一次性出现。
           renderedSignatureRef.current = renderSignature;
+          setImgSrc(url);
           setPageSize({ w: cssWidth, h: cssHeight });
 
           // 文本层（划词选择/批注/翻译依赖它）尽力渲染，失败不影响画布显示。
@@ -475,7 +395,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       }
       cancelAnimationFrame(raf);
     };
-  }, [shouldRender, pdfDoc, pageNum, scale, devicePixelRatio, renderRevision]);
+  }, [shouldRender, pdfDoc, pageNum, scale, devicePixelRatio]);
 
   const handleLinkClick = useCallback(
     async (event: React.MouseEvent, link: PdfLink) => {
@@ -521,11 +441,15 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       className="rc-selectable relative mx-auto select-text"
       style={{ ...containerStyle, background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", borderRadius: 4 }}
     >
-      <canvas
-        ref={canvasRef}
-        className="pointer-events-none absolute left-0 top-0 block"
-        style={pageSize ? { width: pageSize.w, height: pageSize.h } : undefined}
-      />
+      {imgSrc ? (
+        <img
+          src={imgSrc}
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute left-0 top-0 block"
+          style={pageSize ? { width: pageSize.w, height: pageSize.h } : undefined}
+        />
+      ) : null}
       <div
         ref={textLayerRef}
         className="textLayer rc-selectable absolute left-0 top-0"
