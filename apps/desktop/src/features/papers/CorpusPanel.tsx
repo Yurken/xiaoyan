@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookMarked, Check, Copy, FileText, Pencil, Search, Trash2 } from "lucide-react";
+import { BookMarked, Check, Copy, FileText, Pencil, RefreshCw, Search, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { useCorpus } from "./useCorpus";
+import { useCorpusRewrite } from "./useCorpusRewrite";
 import type { CorpusEntry } from "./corpusTypes";
 
 function formatDate(value: string): string {
@@ -15,10 +16,12 @@ function formatDate(value: string): string {
 export default function CorpusPanel() {
   const navigate = useNavigate();
   const { entries, loading, error, updateNote, deleteEntry } = useCorpus();
+  const { rewrites, rewrite, clearRewrite } = useCorpusRewrite();
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftNote, setDraftNote] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedRewriteId, setCopiedRewriteId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -35,6 +38,12 @@ export default function CorpusPanel() {
     await navigator.clipboard.writeText(entry.text);
     setCopiedId(entry.id);
     window.setTimeout(() => setCopiedId((current) => (current === entry.id ? null : current)), 1200);
+  };
+
+  const copyRewrite = async (id: string, text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedRewriteId(id);
+    window.setTimeout(() => setCopiedRewriteId((current) => (current === id ? null : current)), 1200);
   };
 
   const startEdit = (entry: CorpusEntry) => {
@@ -111,6 +120,55 @@ export default function CorpusPanel() {
                 </p>
               ) : null}
 
+              {rewrites[entry.id] ? (
+                <div
+                  className="mt-2 rounded-lg border p-2.5"
+                  style={{ borderColor: "rgba(124,92,255,0.35)", background: "rgba(124,92,255,0.07)" }}
+                >
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-violet-500" />
+                    <span className="text-[11px] font-semibold text-violet-500">小妍改写（可引用）</span>
+                    <div className="ml-auto flex items-center gap-1">
+                      {rewrites[entry.id].status === "done" ? (
+                        <button
+                          type="button"
+                          onClick={() => void copyRewrite(entry.id, rewrites[entry.id].text)}
+                          className="rounded p-0.5 text-ink-tertiary hover:text-apple-blue"
+                          title="复制改写"
+                        >
+                          {copiedRewriteId === entry.id ? <Check className="h-3.5 w-3.5 text-[#34C759]" /> : <Copy className="h-3.5 w-3.5" />}
+                        </button>
+                      ) : null}
+                      {rewrites[entry.id].status !== "loading" ? (
+                        <button
+                          type="button"
+                          onClick={() => void rewrite(entry.id, entry.text)}
+                          className="rounded p-0.5 text-ink-tertiary hover:text-violet-600"
+                          title="重新改写"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => clearRewrite(entry.id)}
+                        className="rounded p-0.5 text-ink-tertiary hover:text-ink-secondary"
+                        title="关闭"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  {rewrites[entry.id].status === "loading" && !rewrites[entry.id].text ? (
+                    <p className="text-xs text-ink-tertiary">小妍改写中…</p>
+                  ) : rewrites[entry.id].status === "error" ? (
+                    <p className="text-xs text-apple-red">{rewrites[entry.id].error}</p>
+                  ) : (
+                    <p className="rc-selectable whitespace-pre-wrap text-sm leading-6 text-ink-primary">{rewrites[entry.id].text}</p>
+                  )}
+                </div>
+              ) : null}
+
               <div className="mt-2 flex items-center gap-3 border-t pt-2 text-xs text-ink-tertiary" style={{ borderColor: "var(--rc-border)" }}>
                 {entry.paper_id ? (
                   <button
@@ -128,16 +186,28 @@ export default function CorpusPanel() {
                 {entry.page ? <span>第 {entry.page} 页</span> : null}
                 <span>{formatDate(entry.created_at)}</span>
 
-                <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button type="button" onClick={() => void copy(entry)} className="rounded p-1 hover:text-apple-blue" title="复制">
-                    {copiedId === entry.id ? <Check className="h-3.5 w-3.5 text-[#34C759]" /> : <Copy className="h-3.5 w-3.5" />}
+                <div className="ml-auto flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => void rewrite(entry.id, entry.text)}
+                    disabled={rewrites[entry.id]?.status === "loading"}
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold text-violet-500 transition-colors hover:text-violet-600 disabled:opacity-50"
+                    title="让小妍改写为可引用表述"
+                  >
+                    <Wand2 className="h-3.5 w-3.5" />
+                    改写
                   </button>
-                  <button type="button" onClick={() => startEdit(entry)} className="rounded p-1 hover:text-apple-blue" title="编辑备注">
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button type="button" onClick={() => void deleteEntry(entry.id)} className="rounded p-1 hover:text-apple-red" title="删除">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button type="button" onClick={() => void copy(entry)} className="rounded p-1 hover:text-apple-blue" title="复制">
+                      {copiedId === entry.id ? <Check className="h-3.5 w-3.5 text-[#34C759]" /> : <Copy className="h-3.5 w-3.5" />}
+                    </button>
+                    <button type="button" onClick={() => startEdit(entry)} className="rounded p-1 hover:text-apple-blue" title="编辑备注">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" onClick={() => void deleteEntry(entry.id)} className="rounded p-1 hover:text-apple-red" title="删除">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </Card>
