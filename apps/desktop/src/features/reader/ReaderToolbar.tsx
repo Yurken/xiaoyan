@@ -73,6 +73,9 @@ export default function ReaderToolbar({
       className="rc-reader-header flex min-h-[48px] shrink-0 flex-wrap items-center gap-2 border-b px-3 py-1.5"
       style={{ borderColor: "var(--rc-border)", background: "var(--rc-header-bg)" }}
     >
+      <button type="button" onClick={onBack} className={iconBtn} title="返回">
+        <ArrowLeft className="h-4 w-4" />
+      </button>
       <button
         type="button"
         onClick={onToggleLeft}
@@ -81,9 +84,6 @@ export default function ReaderToolbar({
         title={leftOpen ? "隐藏论文库" : "显示论文库"}
       >
         <PanelLeft className="h-4 w-4" />
-      </button>
-      <button type="button" onClick={onBack} className={iconBtn} title="返回">
-        <ArrowLeft className="h-4 w-4" />
       </button>
 
       <div className="h-5 w-px" style={{ background: "var(--rc-border)" }} />
