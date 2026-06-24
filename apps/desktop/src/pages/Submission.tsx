@@ -80,6 +80,9 @@ export default function Submission() {
   // AI review event listeners
   const mockBufferRef = useRef<MockReviewerResult[]>([]);
   const activeMockSubRef = useRef<string>("");
+  // 当前正在生成 cover letter / 润色的投稿，用于过滤对应流式事件，隔离多投稿并发。
+  const activeCoverSubRef = useRef<string>("");
+  const activePolishSubRef = useRef<string>("");
   useEffect(() => {
     let unlistenR: (() => void) | undefined, unlistenD: (() => void) | undefined, unlistenE: (() => void) | undefined;
     let mounted = true;
@@ -122,29 +125,50 @@ export default function Submission() {
   }, [checklist.checklistSubId, diagnosis, review, showError]);
 
   // Cover letter / polish event listeners
+  // 均按 active*SubRef 过滤，避免多投稿并发时一路流式结果串写到另一路面板；
+  // 同时监听 error 事件，防止流式中途失败导致面板永久停在 loading。
   useEffect(() => {
-    let u1: (() => void) | undefined, u2: (() => void) | undefined;
+    let u1: (() => void) | undefined, u2: (() => void) | undefined, u3: (() => void) | undefined;
     let mounted = true;
-    safeListen<{ submissionId: string; delta: string }>("submission:cover_letter:delta",
-      ({ payload }) => { setCoverLetterText(prev => prev + payload.delta); }).then(u => { if (!mounted) { u(); return; } u1 = u; });
-    safeListen<{ submissionId: string; fullText: string }>("submission:cover_letter:done",
-      ({ payload }) => { setCoverLetterText(payload.fullText); setCoverLetterLoading(false); }).then(u => { if (!mounted) { u(); return; } u2 = u; });
+    safeListen<{ submissionId: string; delta: string }>("submission:cover_letter:delta", ({ payload }) => {
+      if (payload.submissionId !== activeCoverSubRef.current) return;
+      setCoverLetterText(prev => prev + payload.delta);
+    }).then(u => { if (!mounted) { u(); return; } u1 = u; });
+    safeListen<{ submissionId: string; fullText: string }>("submission:cover_letter:done", ({ payload }) => {
+      if (payload.submissionId !== activeCoverSubRef.current) return;
+      setCoverLetterText(payload.fullText); setCoverLetterLoading(false);
+    }).then(u => { if (!mounted) { u(); return; } u2 = u; });
+    safeListen<{ submissionId: string; error: string }>("submission:cover_letter:error", ({ payload }) => {
+      if (payload.submissionId !== activeCoverSubRef.current) return;
+      setCoverLetterLoading(false); showError(payload.error);
+    }).then(u => { if (!mounted) { u(); return; } u3 = u; });
     return () => {
       mounted = false;
-      u1?.(); u2?.();
-      u1 = undefined; u2 = undefined;
+      u1?.(); u2?.(); u3?.();
+      u1 = undefined; u2 = undefined; u3 = undefined;
     };
-  }, []);
+  }, [showError]);
   useEffect(() => {
-    let u1: (() => void) | undefined, u2: (() => void) | undefined;
+    let u1: (() => void) | undefined, u2: (() => void) | undefined, u3: (() => void) | undefined;
     let mounted = true;
     safeListen<{ submissionId: string; delta: string }>("submission:polish:delta", ({ payload }) => {
-      if (payload.submissionId === review.subId || payload.submissionId === versionSubId) setPolishText(prev => prev + payload.delta);
+      if (payload.submissionId !== activePolishSubRef.current) return;
+      setPolishText(prev => prev + payload.delta);
     }).then(u => { if (!mounted) { u(); return; } u1 = u; });
-    safeListen<{ submissionId: string; fullText: string }>("submission:polish:done",
-      ({ payload }) => { setPolishText(payload.fullText); setPolishLoading(false); }).then(u => { if (!mounted) { u(); return; } u2 = u; });
-    return () => { mounted = false; u1?.(); u2?.(); u1 = undefined; u2 = undefined; };
-  }, [review.subId, versionSubId]);
+    safeListen<{ submissionId: string; fullText: string }>("submission:polish:done", ({ payload }) => {
+      if (payload.submissionId !== activePolishSubRef.current) return;
+      setPolishText(payload.fullText); setPolishLoading(false);
+    }).then(u => { if (!mounted) { u(); return; } u2 = u; });
+    safeListen<{ submissionId: string; error: string }>("submission:polish:error", ({ payload }) => {
+      if (payload.submissionId !== activePolishSubRef.current) return;
+      setPolishLoading(false); showError(payload.error);
+    }).then(u => { if (!mounted) { u(); return; } u3 = u; });
+    return () => {
+      mounted = false;
+      u1?.(); u2?.(); u3?.();
+      u1 = undefined; u2 = undefined; u3 = undefined;
+    };
+  }, [showError]);
 
   // DDL sync
   const [syncingDdl, setSyncingDdl] = useState(false);
@@ -256,6 +280,7 @@ export default function Submission() {
   // Cover letter：打开弹窗即触发流式生成（监听器写入 coverLetterText）
   const handleOpenCoverLetter = (submissionId: string) => {
     if (!submissionId) return;
+    activeCoverSubRef.current = submissionId;
     setVersionSubId(submissionId);
     setCoverLetterText("");
     setCoverLetterLoading(true);
@@ -265,6 +290,7 @@ export default function Submission() {
 
   // 润色：打开面板即触发流式润色（监听器写入 polishText）
   const handlePolishVersion = (version: PaperVersion) => {
+    activePolishSubRef.current = version.submissionId;
     setPolishSourceId(version.id);
     setPolishText("");
     setPolishLoading(true);
