@@ -12,6 +12,8 @@ export interface TranslationState {
 
 export interface InterpretationState {
   status: "loading" | "done" | "error";
+  /** 被解读的原文（划词「解读」无译文时，面板据此展示原文）。 */
+  source: string;
   text: string;
   error?: string;
 }
@@ -47,7 +49,6 @@ export function useReaderTranslation() {
   const seqRef = useRef(0);
   const currentRef = useRef<TranslationState | null>(null);
   const continuousRef = useRef(continuous);
-  const sessionRef = useRef<string | undefined>(undefined);
   const interpretAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -96,40 +97,51 @@ export function useReaderTranslation() {
     [runTranslate],
   );
 
-  const interpret = useCallback(async () => {
-    const active = currentRef.current;
-    if (!active || !active.source.trim()) return;
+  // 解读：不传 source 时解读当前译文的原文（面板按钮）；传入则解读指定文字（划词「解读」）。
+  const interpret = useCallback(async (sourceOverride?: string) => {
+    const raw = sourceOverride ?? currentRef.current?.source ?? "";
+    const source = sourceOverride ? normalizeSourceText(raw) : raw.trim();
+    if (!source) return;
     interpretAbortRef.current?.abort();
     const ac = new AbortController();
     interpretAbortRef.current = ac;
-    setInterpretation({ status: "loading", text: "" });
+    setInterpretation({ status: "loading", source, text: "" });
     const prompt =
-      `请用中文解读下面这段学术原文：先点出它在讲什么，再解释其中的关键概念/术语，必要时说明其作用或意义。不要逐句翻译。\n\n原文：\n${active.source}`;
+      `请用中文解读下面这段学术原文：先点出它在讲什么，再解释其中的关键概念/术语，必要时说明其作用或意义。不要逐句翻译。\n\n原文：\n${source}`;
     let acc = "";
     try {
+      // 不传 session_id：每次解读都是全新、无记忆的一次性对话（tag 让它不进导航对话列表）。
       for await (const chunk of chatApi.stream(
-        { session_id: sessionRef.current, message: prompt, context_type: "general", chat_mode: "direct", tag: "reader-interpret" },
+        { message: prompt, context_type: "general", chat_mode: "direct", tag: "reader-interpret" },
         ac.signal,
       )) {
         if (interpretAbortRef.current !== ac) break;
-        if (chunk.type === "session_id") sessionRef.current = chunk.value;
         if (chunk.type === "delta") {
           acc += chunk.value;
-          setInterpretation({ status: "loading", text: acc });
+          setInterpretation({ status: "loading", source, text: acc });
         }
         if (chunk.type === "error") {
-          setInterpretation({ status: "error", text: acc, error: chunk.value || "解读失败" });
+          setInterpretation({ status: "error", source, text: acc, error: chunk.value || "解读失败" });
         }
       }
       if (interpretAbortRef.current === ac) {
-        setInterpretation((prev) => (prev && prev.status === "error" ? prev : { status: "done", text: acc }));
+        setInterpretation((prev) => (prev && prev.status === "error" ? prev : { status: "done", source, text: acc }));
       }
     } catch (err) {
       if ((err as Error)?.name === "AbortError") return;
       const message = err instanceof Error ? err.message : "解读失败";
-      setInterpretation({ status: "error", text: acc, error: message });
+      setInterpretation({ status: "error", source, text: acc, error: message });
     }
   }, []);
+
+  // 划词「解读」：丢掉旧译文，仅就选中文字独立解读（面板只显示解读卡片）。
+  const interpretText = useCallback(
+    (text: string) => {
+      setCurrent(null);
+      void interpret(text);
+    },
+    [interpret],
+  );
 
   const toggleContinuous = useCallback(() => setContinuous((value) => !value), []);
   const toggleLock = useCallback(() => setLocked((value) => !value), []);
@@ -150,6 +162,7 @@ export function useReaderTranslation() {
     translate,
     editSource,
     interpret,
+    interpretText,
     clear,
     setLocked,
     toggleLock,

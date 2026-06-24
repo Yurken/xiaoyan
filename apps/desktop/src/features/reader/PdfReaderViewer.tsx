@@ -3,7 +3,18 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import * as pdfjsLib from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask, TextLayer } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { HIGHLIGHT_COLORS, mergeNormalizedRects, type PaperNote, type ReaderSelection } from "./readerTypes";
+import {
+  boundingRect,
+  HIGHLIGHT_COLORS,
+  isShapeStyle,
+  mergeNormalizedRects,
+  SHAPE_BORDER_RADIUS,
+  type HighlightColor,
+  type NormalizedRect,
+  type PaperNote,
+  type ReaderSelection,
+  type ShapeStyle,
+} from "./readerTypes";
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
 import { usePdfTextSelection } from "./usePdfTextSelection";
 import { registerTextLayer } from "./textLayerSelection";
@@ -25,6 +36,13 @@ interface PdfReaderViewerProps {
   onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
   /** Cmd/Ctrl + 滚轮缩放：factor > 1 放大、< 1 缩小。 */
   onZoom: (factor: number) => void;
+  /** 形状绘制模式：非空时在页面上拖拽画框，而非划词选择。 */
+  drawShape?: ShapeStyle | null;
+  drawColor?: HighlightColor;
+  drawFill?: HighlightColor | null;
+  onShapeDrawn?: (page: number, rect: NormalizedRect) => void;
+  /** 拖动已有形状批注到新位置。 */
+  onShapeMove?: (note: PaperNote, rect: NormalizedRect) => void;
 }
 
 export interface PdfReaderViewerHandle {
@@ -32,7 +50,10 @@ export interface PdfReaderViewerHandle {
 }
 
 const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
-  function PdfReaderViewer({ data, notes, scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom }, ref) {
+  function PdfReaderViewer(
+    { data, notes, scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
+    ref,
+  ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [numPages, setNumPages] = useState(0);
@@ -82,7 +103,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
     usePdfTextSelection({
       containerRef,
-      enabled: Boolean(pdfDoc),
+      enabled: Boolean(pdfDoc) && !drawShape, // 形状绘制时关闭划词选择
       onTextSelected,
       onSelectionCleared,
     });
@@ -175,6 +196,11 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
             pageNotes={notesByPage.get(pageNum) ?? []}
             onNoteClick={onNoteClick}
             onScrollToPage={scrollToPage}
+            drawShape={drawShape}
+            drawColor={drawColor}
+            drawFill={drawFill}
+            onShapeDrawn={onShapeDrawn}
+            onShapeMove={onShapeMove}
             ref={(el) => {
               pageRefs.current[pageNum - 1] = el;
             }}
@@ -220,13 +246,21 @@ interface PdfPageProps {
   pageNotes: PaperNote[];
   onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
   onScrollToPage: (page: number) => void;
+  drawShape?: ShapeStyle | null;
+  drawColor?: HighlightColor;
+  drawFill?: HighlightColor | null;
+  onShapeDrawn?: (page: number, rect: NormalizedRect) => void;
+  onShapeMove?: (note: PaperNote, rect: NormalizedRect) => void;
 }
 
 const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage },
+  { pageNum, pdfDoc, scale, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
   ref,
 ) {
   const textLayerRef = useRef<HTMLDivElement>(null);
+  const drawLayerRef = useRef<HTMLDivElement>(null);
+  const [draftRect, setDraftRect] = useState<NormalizedRect | null>(null);
+  const [movingShape, setMovingShape] = useState<{ id: string; rect: NormalizedRect } | null>(null);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [links, setLinks] = useState<PdfLink[]>([]);
@@ -422,6 +456,77 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     [pdfDoc, onScrollToPage],
   );
 
+  // 形状绘制：在页面上按下并拖拽，松手得到一个归一化矩形 → 新建形状批注。
+  const startDraw = useCallback(
+    (event: React.MouseEvent) => {
+      if (!drawShape || !onShapeDrawn) return;
+      const layer = drawLayerRef.current;
+      if (!layer) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const bounds = layer.getBoundingClientRect();
+      if (bounds.width === 0 || bounds.height === 0) return;
+      const toPoint = (clientX: number, clientY: number) => ({
+        x: Math.min(1, Math.max(0, (clientX - bounds.left) / bounds.width)),
+        y: Math.min(1, Math.max(0, (clientY - bounds.top) / bounds.height)),
+      });
+      const start = toPoint(event.clientX, event.clientY);
+      const rectFrom = (cur: { x: number; y: number }): NormalizedRect => ({
+        x: Math.min(start.x, cur.x),
+        y: Math.min(start.y, cur.y),
+        w: Math.abs(cur.x - start.x),
+        h: Math.abs(cur.y - start.y),
+      });
+      setDraftRect({ x: start.x, y: start.y, w: 0, h: 0 });
+
+      const onMove = (e: MouseEvent) => setDraftRect(rectFrom(toPoint(e.clientX, e.clientY)));
+      const onUp = (e: MouseEvent) => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        const rect = rectFrom(toPoint(e.clientX, e.clientY));
+        setDraftRect(null);
+        if (rect.w > 0.01 && rect.h > 0.01) onShapeDrawn(pageNum, rect); // 太小视为误触
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [drawShape, onShapeDrawn, pageNum],
+  );
+
+  // 形状批注：按住拖动改位置；没怎么动（视为点击）则打开编辑弹窗。
+  const startShapeMove = useCallback(
+    (event: React.MouseEvent, note: PaperNote, box: NormalizedRect) => {
+      event.stopPropagation();
+      event.preventDefault(); // 拖动时不要触发原生文字选择
+      const size = pageSize;
+      if (!size) return;
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const elRect = event.currentTarget.getBoundingClientRect();
+      let moved = false;
+      const rectAt = (clientX: number, clientY: number): NormalizedRect => ({
+        x: Math.min(1 - box.w, Math.max(0, box.x + (clientX - startX) / size.w)),
+        y: Math.min(1 - box.h, Math.max(0, box.y + (clientY - startY) / size.h)),
+        w: box.w,
+        h: box.h,
+      });
+      const onMove = (e: MouseEvent) => {
+        if (Math.abs(e.clientX - startX) > 3 || Math.abs(e.clientY - startY) > 3) moved = true;
+        setMovingShape({ id: note.id, rect: rectAt(e.clientX, e.clientY) });
+      };
+      const onUp = (e: MouseEvent) => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        setMovingShape(null);
+        if (moved) onShapeMove?.(note, rectAt(e.clientX, e.clientY));
+        else onNoteClick(note, { x: elRect.left + elRect.width / 2, y: elRect.top });
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [pageSize, onShapeMove, onNoteClick],
+  );
+
   const containerStyle: React.CSSProperties = pageSize
     ? ({
         width: pageSize.w,
@@ -458,9 +563,38 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
 
       {pageSize
         ? pageNotes.map((note) => {
+            const color = HIGHLIGHT_COLORS[note.highlight_color];
+
+            // 形状：整段套一个外框（矩形/圆角/椭圆），只用颜色描边、内部不填充。
+            if (isShapeStyle(note.style)) {
+              const stored = boundingRect(note.highlight_positions ?? []);
+              const box = movingShape?.id === note.id ? movingShape.rect : stored;
+              if (!box) return null;
+              const pad = 3; // 略微外扩，避免框线压住文字
+              const shapeStyle: React.CSSProperties = {
+                left: box.x * pageSize.w - pad,
+                top: box.y * pageSize.h - pad,
+                width: box.w * pageSize.w + pad * 2,
+                height: box.h * pageSize.h + pad * 2,
+                border: `2px solid ${color.border}`,
+                borderRadius: SHAPE_BORDER_RADIUS[note.style],
+                background: note.fill_color ? HIGHLIGHT_COLORS[note.fill_color].bg : "transparent",
+                zIndex: 2,
+                cursor: "move",
+              };
+              return (
+                <div
+                  key={note.id}
+                  className="pdf-highlight-overlay absolute"
+                  style={shapeStyle}
+                  title="拖拽移动 · 点击编辑"
+                  onMouseDown={(event) => startShapeMove(event, note, stored ?? box)}
+                />
+              );
+            }
+
             const positions = mergeNormalizedRects(note.highlight_positions ?? []);
             if (positions.length === 0) return null;
-            const color = HIGHLIGHT_COLORS[note.highlight_color];
             return positions.map((pos, i) => {
               const style: React.CSSProperties = {
                 left: pos.x * pageSize.w,
@@ -505,6 +639,30 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
             />
           ))
         : null}
+
+      {pageSize && drawShape ? (
+        <div
+          ref={drawLayerRef}
+          className="absolute left-0 top-0"
+          style={{ width: pageSize.w, height: pageSize.h, zIndex: 5, cursor: "crosshair" }}
+          onMouseDown={startDraw}
+        >
+          {draftRect ? (
+            <div
+              className="pointer-events-none absolute"
+              style={{
+                left: draftRect.x * pageSize.w,
+                top: draftRect.y * pageSize.h,
+                width: draftRect.w * pageSize.w,
+                height: draftRect.h * pageSize.h,
+                border: `2px solid ${(drawColor ? HIGHLIGHT_COLORS[drawColor] : HIGHLIGHT_COLORS.yellow).border}`,
+                borderRadius: SHAPE_BORDER_RADIUS[drawShape],
+                background: drawFill ? HIGHLIGHT_COLORS[drawFill].bg : "transparent",
+              }}
+            />
+          ) : null}
+        </div>
+      ) : null}
 
       <div
         className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]"

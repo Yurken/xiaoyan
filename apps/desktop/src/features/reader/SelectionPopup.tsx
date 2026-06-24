@@ -1,10 +1,12 @@
 import { useState } from "react";
 import {
+  Ban,
   BookMarked,
   Check,
   Copy,
   Highlighter,
   Languages,
+  Sparkles,
   StickyNote,
   Strikethrough,
   Trash2,
@@ -24,11 +26,16 @@ interface SelectionPopupProps {
   /** "create"：划词后新建批注；"edit"：点击已有高亮再次编辑。 */
   mode?: "create" | "edit";
   initialColor?: HighlightColor;
+  /** 编辑形状时为 true：颜色点表示边框色，并额外显示填充选择。 */
+  isShape?: boolean;
+  initialFill?: HighlightColor | null;
   onAnnotate?: (color: HighlightColor, style: AnnotationStyle, note?: string) => void;
   onSaveCorpus?: (note?: string) => void;
   onRecolor?: (color: HighlightColor) => void;
+  onRecolorFill?: (fill: HighlightColor | null) => void;
   onDelete?: () => void;
   onTranslate: () => void;
+  onInterpret?: () => void;
   onClose: () => void;
 }
 
@@ -42,15 +49,20 @@ export default function SelectionPopup({
   selectedText,
   mode = "create",
   initialColor = "yellow",
+  isShape = false,
+  initialFill = null,
   onAnnotate,
   onSaveCorpus,
   onRecolor,
+  onRecolorFill,
   onDelete,
   onTranslate,
+  onInterpret,
   onClose,
 }: SelectionPopupProps) {
   const isEdit = mode === "edit";
   const [activeColor, setActiveColor] = useState<HighlightColor>(initialColor);
+  const [activeFill, setActiveFill] = useState<HighlightColor | null>(initialFill);
   const [panel, setPanel] = useState<Panel>("none");
   const [noteText, setNoteText] = useState("");
   const [copied, setCopied] = useState(false);
@@ -73,6 +85,7 @@ export default function SelectionPopup({
     { key: "strike", icon: Strikethrough, label: "删除线", onClick: () => onAnnotate?.(activeColor, "strike") },
     { key: "note", icon: StickyNote, label: "笔记", onClick: () => setPanel((p) => (p === "note" ? "none" : "note")), active: panel === "note" },
     { key: "corpus", icon: BookMarked, label: "语料", onClick: () => setPanel((p) => (p === "corpus" ? "none" : "corpus")), active: panel === "corpus" },
+    { key: "interpret", icon: Sparkles, label: "解读", onClick: () => onInterpret?.() },
     { key: "translate", icon: Languages, label: "翻译", onClick: onTranslate },
   ];
 
@@ -86,17 +99,18 @@ export default function SelectionPopup({
     <div
       className="pdf-selection-popup fixed z-[80]"
       style={{
-        left: Math.max(8, Math.min(x, window.innerWidth - 360)),
+        left: Math.max(8, Math.min(x, window.innerWidth - 400)),
         top: Math.max(8, y - 12),
         transform: "translateY(-100%)",
       }}
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div
-        className="w-[340px] rounded-xl border p-2 shadow-2xl"
+        className="w-[380px] rounded-xl border p-2 shadow-2xl"
         style={{ background: "var(--rc-card-bg)", borderColor: "var(--rc-border)", boxShadow: "0 12px 36px rgba(15,23,42,0.22)" }}
       >
         <div className="mb-1.5 flex items-center gap-1.5 px-1">
+          {isEdit && isShape ? <span className="text-[11px] text-ink-tertiary">边框</span> : null}
           {colorKeys.map((c) => (
             <button
               key={c}
@@ -104,7 +118,7 @@ export default function SelectionPopup({
               onClick={() => pickColor(c)}
               className="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
               style={{ background: HIGHLIGHT_COLORS[c].bg, borderColor: activeColor === c ? HIGHLIGHT_COLORS[c].border : "transparent" }}
-              title={HIGHLIGHT_COLORS[c].label}
+              title={isShape ? `边框${HIGHLIGHT_COLORS[c].label}` : HIGHLIGHT_COLORS[c].label}
             />
           ))}
           <button
@@ -116,6 +130,37 @@ export default function SelectionPopup({
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
+
+        {isEdit && isShape ? (
+          <div className="mb-1.5 flex items-center gap-1.5 px-1">
+            <span className="text-[11px] text-ink-tertiary">填充</span>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFill(null);
+                onRecolorFill?.(null);
+              }}
+              title="无填充"
+              className="flex h-5 w-5 items-center justify-center rounded-full border-2 text-ink-tertiary transition-transform hover:scale-110"
+              style={{ borderColor: activeFill == null ? "var(--rc-accent)" : "var(--rc-border)" }}
+            >
+              <Ban className="h-3 w-3" />
+            </button>
+            {colorKeys.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => {
+                  setActiveFill(c);
+                  onRecolorFill?.(c);
+                }}
+                className="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
+                style={{ background: HIGHLIGHT_COLORS[c].bg, borderColor: activeFill === c ? HIGHLIGHT_COLORS[c].border : "transparent" }}
+                title={`填充${HIGHLIGHT_COLORS[c].label}`}
+              />
+            ))}
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-0.5">
           {(isEdit ? editActions : createActions).map((action) => {

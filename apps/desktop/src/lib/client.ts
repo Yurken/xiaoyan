@@ -232,6 +232,7 @@ export const paperNotesApi = {
     highlight_color?: string;
     highlight_positions?: unknown[];
     style?: string;
+    fill_color?: string;
   }): Promise<unknown> =>
     invoke("paper_notes_create", {
       paperId: data.paper_id,
@@ -241,12 +242,15 @@ export const paperNotesApi = {
       highlightColor: data.highlight_color ?? null,
       highlightPositions: data.highlight_positions ?? null,
       style: data.style ?? null,
+      fillColor: data.fill_color ?? null,
     }),
-  update: (id: string, data: { content?: string; highlight_color?: string }): Promise<unknown> =>
+  update: (id: string, data: { content?: string; highlight_color?: string; highlight_positions?: unknown[]; fill_color?: string }): Promise<unknown> =>
     invoke("paper_notes_update", {
       id,
       content: data.content ?? null,
       highlightColor: data.highlight_color ?? null,
+      highlightPositions: data.highlight_positions ?? null,
+      fillColor: data.fill_color ?? null,
     }),
   delete: (id: string): Promise<void> =>
     invoke("paper_notes_delete", { id }),

@@ -1,18 +1,25 @@
 import {
   ArrowLeft,
+  Ban,
+  Circle,
   ExternalLink,
   Highlighter,
   Minus,
   PanelLeft,
   Plus,
+  Square,
+  Squircle,
   Strikethrough,
   Underline,
 } from "lucide-react";
 import {
   HIGHLIGHT_COLORS,
+  isShapeStyle,
+  SHAPE_LABELS,
   type AnnotationStyle,
   type HighlightColor,
   type ReaderMode,
+  type ShapeStyle,
 } from "./readerTypes";
 
 interface ReaderToolbarProps {
@@ -28,6 +35,8 @@ interface ReaderToolbarProps {
   onToolChange: (tool: AnnotationStyle) => void;
   color: HighlightColor;
   onColorChange: (color: HighlightColor) => void;
+  fill: HighlightColor | null;
+  onFillChange: (fill: HighlightColor | null) => void;
   onOpenExternal?: () => void;
 }
 
@@ -39,9 +48,15 @@ const tools: Array<{ key: AnnotationStyle; icon: typeof Highlighter; label: stri
   { key: "strike", icon: Strikethrough, label: "删除线" },
 ];
 
+const shapes: Array<{ key: ShapeStyle; icon: typeof Square }> = [
+  { key: "rect", icon: Square },
+  { key: "rounded", icon: Squircle },
+  { key: "ellipse", icon: Circle },
+];
+
 const modes: Array<{ key: ReaderMode; label: string }> = [
   { key: "view", label: "阅读" },
-  { key: "annotate", label: "注释" },
+  { key: "annotate", label: "批注" },
 ];
 
 export default function ReaderToolbar({
@@ -57,6 +72,8 @@ export default function ReaderToolbar({
   onToolChange,
   color,
   onColorChange,
+  fill,
+  onFillChange,
   onOpenExternal,
 }: ReaderToolbarProps) {
   const iconBtn = "rc-icon-button h-8 w-8";
@@ -123,7 +140,7 @@ export default function ReaderToolbar({
         })}
       </div>
 
-      {/* 注释模式：工具 + 颜色 */}
+      {/* 批注模式：工具 + 形状 + 颜色 */}
       {mode === "annotate" ? (
         <div className="flex items-center gap-2 rounded-2xl px-2 py-1.5" style={well}>
           <div className="flex items-center gap-1">
@@ -150,17 +167,69 @@ export default function ReaderToolbar({
           </div>
           <div className="h-4 w-px" style={{ background: "var(--rc-border)" }} />
           <div className="flex items-center gap-1">
+            {shapes.map((s) => {
+              const Icon = s.icon;
+              const active = tool === s.key;
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => onToolChange(s.key)}
+                  title={`${SHAPE_LABELS[s.key]}框选`}
+                  className="flex h-7 w-7 items-center justify-center rounded-xl transition-all"
+                  style={
+                    active
+                      ? { background: "var(--rc-chip-bg)", color: "var(--rc-accent)", boxShadow: "var(--rc-chip-shadow)" }
+                      : { color: "var(--rc-text-secondary)" }
+                  }
+                >
+                  <Icon className="h-4 w-4" />
+                </button>
+              );
+            })}
+          </div>
+          <div className="h-4 w-px" style={{ background: "var(--rc-border)" }} />
+          <div className="flex items-center gap-1">
+            {isShapeStyle(tool) ? <span className="mr-0.5 text-[11px] text-ink-tertiary">边框</span> : null}
             {colorKeys.map((c) => (
               <button
                 key={c}
                 type="button"
                 onClick={() => onColorChange(c)}
-                title={HIGHLIGHT_COLORS[c].label}
+                title={isShapeStyle(tool) ? `边框${HIGHLIGHT_COLORS[c].label}` : HIGHLIGHT_COLORS[c].label}
                 className="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
                 style={{ background: HIGHLIGHT_COLORS[c].bg, borderColor: color === c ? HIGHLIGHT_COLORS[c].border : "transparent" }}
               />
             ))}
           </div>
+
+          {isShapeStyle(tool) ? (
+            <>
+              <div className="h-4 w-px" style={{ background: "var(--rc-border)" }} />
+              <div className="flex items-center gap-1">
+                <span className="mr-0.5 text-[11px] text-ink-tertiary">填充</span>
+                <button
+                  type="button"
+                  onClick={() => onFillChange(null)}
+                  title="无填充"
+                  className="flex h-5 w-5 items-center justify-center rounded-full border-2 transition-transform hover:scale-110"
+                  style={{ borderColor: fill == null ? "var(--rc-accent)" : "var(--rc-border)", color: "var(--rc-text-tertiary)" }}
+                >
+                  <Ban className="h-3 w-3" />
+                </button>
+                {colorKeys.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => onFillChange(c)}
+                    title={`填充${HIGHLIGHT_COLORS[c].label}`}
+                    className="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
+                    style={{ background: HIGHLIGHT_COLORS[c].bg, borderColor: fill === c ? HIGHLIGHT_COLORS[c].border : "transparent" }}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
       ) : null}
 

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronRight, Copy, Eraser, HelpCircle, Languages, Pencil, Sparkles } from "lucide-react";
+import { Check, ChevronRight, Copy, HelpCircle, Languages, Pencil, Sparkles } from "lucide-react";
 import {
   TRANSLATION_FONT_SIZES,
   type InterpretationState,
   type TranslationState,
 } from "./useReaderTranslation";
+import InterpretationContent, { splitReasoning } from "./InterpretationContent";
 
 interface ReaderTranslationPanelProps {
   current: TranslationState | null;
@@ -24,7 +25,7 @@ interface ReaderTranslationPanelProps {
 type CopyKey = "result" | "source" | "interpret";
 
 const CONTINUOUS_HINT =
-  "开启后，新选中的文字会接到上一段未完的句子后面，合并成完整文本重新翻译，专治跨页把句子切断。按 Shift 键可快速开启/关闭。";
+  "开启后，新选中的文字会接到上一段未完的句子后面，合并成完整文本重新翻译，专治跨页把句子切断。按 Shift+空格 可快速开启/关闭。";
 
 export default function ReaderTranslationPanel({
   current,
@@ -108,17 +109,16 @@ export default function ReaderTranslationPanel({
               </option>
             ))}
           </select>
-          字号
         </div>
 
         <button
           type="button"
           onClick={onClear}
-          disabled={!current}
-          className="rounded p-1 text-ink-tertiary transition-colors hover:text-apple-red disabled:opacity-40"
-          title="清空当前翻译"
+          disabled={!current && !interpretation}
+          className="rounded px-1.5 py-0.5 text-[11px] font-medium text-ink-tertiary transition-colors hover:text-apple-red disabled:opacity-40"
+          title="清空当前翻译/解读"
         >
-          <Eraser className="h-3.5 w-3.5" />
+          清空
         </button>
         <button
           type="button"
@@ -131,7 +131,7 @@ export default function ReaderTranslationPanel({
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
-        {!current ? (
+        {!current && !interpretation ? (
           <div
             className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 text-center"
             style={{ borderColor: "var(--rc-border)" }}
@@ -144,61 +144,89 @@ export default function ReaderTranslationPanel({
         ) : (
           <>
             {/* 译文 */}
-            <section>
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className="text-sm font-bold text-ink-primary">译文</span>
-                {current.page ? (
-                  <span className="text-[11px] font-semibold text-ink-tertiary">第 {current.page} 页</span>
-                ) : null}
-                <div className="ml-auto flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={onInterpret}
-                    disabled={!canInterpret}
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold text-violet-500 transition-colors hover:text-violet-600 disabled:opacity-40"
-                    title="让小妍解读这段内容"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    解读
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void copy("result", current.result)}
-                    disabled={current.status !== "done"}
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue disabled:opacity-40"
-                    title="复制译文"
-                  >
-                    {copied === "result" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    复制
-                  </button>
+            {current ? (
+              <section>
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="text-sm font-bold text-ink-primary">译文</span>
+                  {current.page ? (
+                    <span className="text-[11px] font-semibold text-ink-tertiary">第 {current.page} 页</span>
+                  ) : null}
+                  <div className="ml-auto flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onInterpret()}
+                      disabled={!canInterpret}
+                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold text-violet-500 transition-colors hover:text-violet-600 disabled:opacity-40"
+                      title="让小妍解读这段内容"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      解读
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void copy("result", current.result)}
+                      disabled={current.status !== "done"}
+                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue disabled:opacity-40"
+                      title="复制译文"
+                    >
+                      {copied === "result" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      复制
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {current.status === "loading" ? (
-                <p className="text-xs text-ink-tertiary">小妍翻译中…</p>
-              ) : current.status === "error" ? (
-                <p className="text-xs text-apple-red">{current.error}</p>
-              ) : (
-                <p
-                  className="whitespace-pre-wrap text-ink-primary"
-                  style={{ fontSize, lineHeight: 1.7 }}
-                >
-                  {current.result}
-                </p>
-              )}
+                {current.status === "loading" ? (
+                  <p className="text-xs text-ink-tertiary">小妍翻译中…</p>
+                ) : current.status === "error" ? (
+                  <p className="text-xs text-apple-red">{current.error}</p>
+                ) : (
+                  <p
+                    className="whitespace-pre-wrap text-ink-primary"
+                    style={{ fontSize, lineHeight: 1.7 }}
+                  >
+                    {current.result}
+                  </p>
+                )}
+              </section>
+            ) : null}
 
-              {interpretation ? (
+            {/* 解读（可独立于译文存在：划词「解读」时只显示这张卡片） */}
+            {interpretation ? (
+              <section>
+                {!current ? (
+                  <>
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <span className="text-sm font-bold text-ink-primary">原文</span>
+                      <button
+                        type="button"
+                        onClick={() => void copy("source", interpretation.source)}
+                        className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue"
+                        title="复制原文"
+                      >
+                        {copied === "source" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        复制
+                      </button>
+                    </div>
+                    <div
+                      className="mb-2 whitespace-pre-wrap rounded-lg border p-2.5 text-ink-secondary"
+                      style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)", fontSize, lineHeight: 1.7 }}
+                    >
+                      {interpretation.source}
+                    </div>
+                  </>
+                ) : null}
+
                 <div
-                  className="mt-2 rounded-lg border p-2.5"
+                  className="rounded-lg border p-2.5"
                   style={{ borderColor: "rgba(124,92,255,0.35)", background: "rgba(124,92,255,0.07)" }}
                 >
                   <div className="mb-1 flex items-center gap-1.5">
                     <Sparkles className="h-3 w-3 text-violet-500" />
                     <span className="text-[11px] font-semibold text-violet-500">解读</span>
-                    {interpretation.text ? (
+                    {splitReasoning(interpretation.text).answer ? (
                       <button
                         type="button"
-                        onClick={() => void copy("interpret", interpretation.text)}
+                        onClick={() => void copy("interpret", splitReasoning(interpretation.text).answer)}
                         className="ml-auto flex items-center gap-1 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue"
                         title="复制解读"
                       >
@@ -206,18 +234,20 @@ export default function ReaderTranslationPanel({
                       </button>
                     ) : null}
                   </div>
-                  {interpretation.status === "loading" && !interpretation.text ? (
-                    <p className="text-xs text-ink-tertiary">小妍解读中…</p>
-                  ) : interpretation.status === "error" ? (
+                  {interpretation.status === "error" ? (
                     <p className="text-xs text-apple-red">{interpretation.error}</p>
                   ) : (
-                    <p className="whitespace-pre-wrap text-xs leading-6 text-ink-primary">{interpretation.text}</p>
+                    <InterpretationContent
+                      text={interpretation.text}
+                      loading={interpretation.status === "loading"}
+                    />
                   )}
                 </div>
-              ) : null}
-            </section>
+              </section>
+            ) : null}
 
             {/* 原文 */}
+            {current ? (
             <section>
               <div className="mb-1.5 flex items-center gap-2">
                 <span className="text-sm font-bold text-ink-primary">原文</span>
@@ -284,6 +314,7 @@ export default function ReaderTranslationPanel({
                 </div>
               )}
             </section>
+            ) : null}
           </>
         )}
       </div>

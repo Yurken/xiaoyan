@@ -20,13 +20,14 @@ fn note_row_to_json(r: &sqlx::sqlite::SqliteRow) -> serde_json::Value {
         "highlight_color": r.get::<String, _>("highlight_color"),
         "highlight_positions": positions,
         "style": r.get::<String, _>("style"),
+        "fill_color": r.get::<Option<String>, _>("fill_color"),
         "created_at": r.get::<String, _>("created_at"),
         "updated_at": r.get::<String, _>("updated_at"),
     })
 }
 
 const SELECT_COLS: &str =
-    "id, paper_id, page, content, highlight_text, highlight_color, highlight_positions, style, created_at, updated_at";
+    "id, paper_id, page, content, highlight_text, highlight_color, highlight_positions, style, fill_color, created_at, updated_at";
 
 // ── List ──────────────────────────────────────────────────────
 
@@ -58,18 +59,20 @@ pub async fn paper_notes_create(
     highlight_color: Option<String>,
     highlight_positions: Option<serde_json::Value>,
     style: Option<String>,
+    fill_color: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let color = highlight_color.unwrap_or_else(|| "yellow".into());
     let annotation_style = style.unwrap_or_else(|| "highlight".into());
+    let fill = fill_color.unwrap_or_else(|| "none".into());
     let positions_json = highlight_positions
         .as_ref()
         .map(|v| serde_json::to_string(v).unwrap_or_default());
 
     sqlx::query(
-        "INSERT INTO paper_notes (id, paper_id, page, content, highlight_text, highlight_color, highlight_positions, style, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO paper_notes (id, paper_id, page, content, highlight_text, highlight_color, highlight_positions, style, fill_color, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&paper_id)
@@ -79,6 +82,7 @@ pub async fn paper_notes_create(
     .bind(&color)
     .bind(&positions_json)
     .bind(&annotation_style)
+    .bind(&fill)
     .bind(&now)
     .bind(&now)
     .execute(&state.db)
@@ -94,6 +98,7 @@ pub async fn paper_notes_create(
         "highlight_color": color,
         "highlight_positions": highlight_positions,
         "style": annotation_style,
+        "fill_color": fill,
         "created_at": now,
         "updated_at": now,
     }))
@@ -107,6 +112,8 @@ pub async fn paper_notes_update(
     id: String,
     content: Option<String>,
     highlight_color: Option<String>,
+    highlight_positions: Option<serde_json::Value>,
+    fill_color: Option<String>,
 ) -> Result<serde_json::Value, String> {
     // Verify existence
     sqlx::query("SELECT id FROM paper_notes WHERE id = ?")
@@ -130,6 +137,25 @@ pub async fn paper_notes_update(
     if let Some(next_color) = &highlight_color {
         sqlx::query("UPDATE paper_notes SET highlight_color = ?, updated_at = ? WHERE id = ?")
             .bind(next_color)
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(next_positions) = &highlight_positions {
+        let positions_json = serde_json::to_string(next_positions).unwrap_or_default();
+        sqlx::query("UPDATE paper_notes SET highlight_positions = ?, updated_at = ? WHERE id = ?")
+            .bind(&positions_json)
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(next_fill) = &fill_color {
+        sqlx::query("UPDATE paper_notes SET fill_color = ?, updated_at = ? WHERE id = ?")
+            .bind(next_fill)
             .bind(&now)
             .bind(&id)
             .execute(&state.db)

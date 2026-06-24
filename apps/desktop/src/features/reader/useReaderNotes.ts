@@ -15,13 +15,17 @@ interface CreateAnnotationInput {
   style: AnnotationStyle;
   positions: NormalizedRect[];
   content?: string;
+  /** 形状填充色；null/缺省 = 不填充。 */
+  fillColor?: HighlightColor | null;
 }
 
 /** 撤销栈条目：记录某次批注操作的“逆操作”。 */
 type UndoEntry =
   | { kind: "remove"; id: string } // 撤销“创建” → 删除该批注
   | { kind: "restore"; note: PaperNote } // 撤销“删除” → 重新创建
-  | { kind: "recolor"; id: string; color: HighlightColor }; // 撤销“改色” → 还原颜色
+  | { kind: "recolor"; id: string; color: HighlightColor } // 撤销“改色” → 还原边框色
+  | { kind: "refill"; id: string; fill: HighlightColor | null } // 撤销“改填充” → 还原填充
+  | { kind: "reposition"; id: string; positions: NormalizedRect[] }; // 撤销“移动” → 还原位置
 
 const MAX_UNDO = 100;
 
@@ -77,6 +81,7 @@ export function useReaderNotes(paperId: string | undefined) {
           highlight_color: input.color,
           highlight_positions: input.positions,
           style: input.style,
+          fill_color: input.fillColor ?? "none",
         });
         const note = normalizePaperNote(created);
         if (note) {
@@ -102,6 +107,34 @@ export function useReaderNotes(paperId: string | undefined) {
         await paperNotesApi.update(id, { highlight_color: color });
       } catch (err) {
         setError(err instanceof Error ? err.message : "更新批注失败");
+      }
+    },
+    [pushUndo],
+  );
+
+  const updateFill = useCallback(
+    async (id: string, fill: HighlightColor | null) => {
+      const prev = notesRef.current.find((note) => note.id === id)?.fill_color ?? null;
+      if (prev !== fill) pushUndo({ kind: "refill", id, fill: prev });
+      setNotes((current) => current.map((note) => (note.id === id ? { ...note, fill_color: fill } : note)));
+      try {
+        await paperNotesApi.update(id, { fill_color: fill ?? "none" });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "更新批注失败");
+      }
+    },
+    [pushUndo],
+  );
+
+  const moveAnnotation = useCallback(
+    async (id: string, positions: NormalizedRect[]) => {
+      const prev = notesRef.current.find((note) => note.id === id)?.highlight_positions;
+      if (prev && prev.length) pushUndo({ kind: "reposition", id, positions: prev });
+      setNotes((current) => current.map((note) => (note.id === id ? { ...note, highlight_positions: positions } : note)));
+      try {
+        await paperNotesApi.update(id, { highlight_positions: positions });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "移动批注失败");
       }
     },
     [pushUndo],
@@ -136,6 +169,16 @@ export function useReaderNotes(paperId: string | undefined) {
           current.map((note) => (note.id === entry.id ? { ...note, highlight_color: entry.color } : note)),
         );
         await paperNotesApi.update(entry.id, { highlight_color: entry.color });
+      } else if (entry.kind === "refill") {
+        setNotes((current) =>
+          current.map((note) => (note.id === entry.id ? { ...note, fill_color: entry.fill } : note)),
+        );
+        await paperNotesApi.update(entry.id, { fill_color: entry.fill ?? "none" });
+      } else if (entry.kind === "reposition") {
+        setNotes((current) =>
+          current.map((note) => (note.id === entry.id ? { ...note, highlight_positions: entry.positions } : note)),
+        );
+        await paperNotesApi.update(entry.id, { highlight_positions: entry.positions });
       } else {
         const { note } = entry;
         const created = await paperNotesApi.create({
@@ -146,6 +189,7 @@ export function useReaderNotes(paperId: string | undefined) {
           highlight_color: note.highlight_color,
           highlight_positions: note.highlight_positions ?? undefined,
           style: note.style,
+          fill_color: note.fill_color ?? "none",
         });
         const restored = normalizePaperNote(created);
         if (restored) setNotes((current) => [...current, restored]);
@@ -157,5 +201,5 @@ export function useReaderNotes(paperId: string | undefined) {
     }
   }, [reload]);
 
-  return { notes, loading, error, reload, createAnnotation, updateColor, deleteAnnotation, undo };
+  return { notes, loading, error, reload, createAnnotation, updateColor, updateFill, moveAnnotation, deleteAnnotation, undo };
 }
