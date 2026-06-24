@@ -1,11 +1,13 @@
 import { useState, useCallback, useEffect } from "react";
 import { Card } from "@research-copilot/ui";
-import { Cloud, Link2, Upload, Download, Trash2, Loader2, CheckCircle2, AlertCircle, CircleUser, CircleCheck, LogOut, Lock } from "lucide-react";
+import { Cloud, Link2, Upload, Download, Trash2, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { SectionIcon } from "./shared";
 import { apiClient } from "../../lib/client";
-import LoginModal from "../auth/LoginModal";
-import { useDesktopAuth } from "../auth/useDesktopAuth";
-import { hasToken } from "../../lib/apiBridge";
+// 登录功能暂时关闭：WebDAV 同步无需登录即可使用（beta）。
+// 恢复账号登录时，取消下面三行导入及相关 UI 的注释，并还原 loggedIn 逻辑。
+// import LoginModal from "../auth/LoginModal";
+// import { useDesktopAuth } from "../auth/useDesktopAuth";
+// import { hasToken } from "../../lib/apiBridge";
 import { loadWebdavConfig, saveWebdavConfig } from "./webdavConfigStorage";
 
 interface WebdavFile {
@@ -16,9 +18,10 @@ interface WebdavFile {
 }
 
 export default function WebdavSyncSection() {
-  const { logout } = useDesktopAuth();
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(hasToken());
+  // 登录暂时关闭：配置区与同步操作直接解锁（beta）。
+  // const { logout } = useDesktopAuth();
+  // const [loginOpen, setLoginOpen] = useState(false);
+  // const [loggedIn, setLoggedIn] = useState(hasToken());
 
   const initialConfig = loadWebdavConfig();
   const [url, setUrl] = useState(initialConfig.url);
@@ -39,23 +42,23 @@ export default function WebdavSyncSection() {
     saveWebdavConfig({ url, username, password });
   }, [url, username, password]);
 
-  // A connection is only trusted within a logged-in session — re-verify after re-login.
-  useEffect(() => {
-    if (!loggedIn) {
-      setConnected(false);
-      setBackups([]);
-      setConnectionError("");
-      setSyncMsg("");
-    }
-  }, [loggedIn]);
+  // 登录暂时关闭：登出后清空连接状态的逻辑与登出处理一并停用。
+  // useEffect(() => {
+  //   if (!loggedIn) {
+  //     setConnected(false);
+  //     setBackups([]);
+  //     setConnectionError("");
+  //     setSyncMsg("");
+  //   }
+  // }, [loggedIn]);
 
-  const handleLogout = useCallback(() => {
-    logout();
-    setLoggedIn(false);
-  }, [logout]);
+  // const handleLogout = useCallback(() => {
+  //   logout();
+  //   setLoggedIn(false);
+  // }, [logout]);
 
   const handleTestConnection = useCallback(async () => {
-    if (!loggedIn || !url.trim()) return;
+    if (!url.trim()) return;
     setTesting(true);
     setConnectionError("");
     setConnected(false);
@@ -67,7 +70,7 @@ export default function WebdavSyncSection() {
     } finally {
       setTesting(false);
     }
-  }, [loggedIn, url, username, password]);
+  }, [url, username, password]);
 
   const handleListBackups = useCallback(async () => {
     if (!url.trim() || !connected) return;
@@ -137,68 +140,30 @@ export default function WebdavSyncSection() {
         <div className="flex items-center gap-3">
           <SectionIcon icon={Cloud} color="#0A84FF" />
           <div>
-            <h2 className="text-base font-semibold text-ink-primary">WebDAV 同步</h2>
+            <h2 className="flex items-center gap-2 text-base font-semibold text-ink-primary">
+              WebDAV 同步
+              <span
+                className="rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                style={{ background: "rgba(255,159,10,0.15)", color: "#FF9F0A" }}
+              >
+                beta
+              </span>
+            </h2>
             <p className="mt-0.5 text-xs text-ink-tertiary">
               使用自建 WebDAV 服务同步加密备份（支持 Nextcloud / 群晖 NAS / 坚果云等）
             </p>
           </div>
         </div>
 
-        {/* Account — login is only used for syncing across devices */}
-        <div
-          className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3"
-          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
-        >
-          <div className="flex min-w-0 items-center gap-3">
-            {loggedIn
-              ? <CircleCheck className="h-5 w-5 shrink-0 text-apple-green" />
-              : <CircleUser className="h-5 w-5 shrink-0 text-ink-tertiary" />}
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-ink-primary">{loggedIn ? "已登录" : "未登录"}</p>
-              <p className="mt-0.5 text-xs text-ink-tertiary">
-                {loggedIn ? "可在多设备间同步加密备份。" : "登录后即可在多设备间同步备份。"}
-              </p>
-            </div>
-          </div>
-          {loggedIn ? (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex shrink-0 items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-95"
-              style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
-            >
-              <LogOut className="h-4 w-4" />
-              退出登录
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setLoginOpen(true)}
-              className="flex shrink-0 items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium text-white transition-all duration-150 active:scale-95"
-              style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3)" }}
-            >
-              <CircleUser className="h-4 w-4" />
-              登录
-            </button>
-          )}
-        </div>
+        {/* 登录功能暂时关闭：原「账号登录卡片」与「请先登录」提示已移除，WebDAV 同步无需登录即可使用（beta）。
+            如需恢复账号登录，请从 git 历史还原此处的账号卡片、登录提示与底部 LoginModal，并恢复 loggedIn 逻辑。 */}
 
-        {/* Login gate — sync requires an active session */}
-        {!loggedIn && (
-          <div className="flex items-center gap-2 rounded-2xl bg-apple-blue/10 px-4 py-3 text-xs text-apple-blue">
-            <Lock className="h-3.5 w-3.5 shrink-0" />
-            请先登录以配置并启用 WebDAV 同步。
-          </div>
-        )}
-
-        {/* Connection config */}
+        {/* Connection config — 登录关闭后始终可用 */}
         <div
-          className="grid gap-3 rounded-2xl p-4 transition-opacity"
+          className="grid gap-3 rounded-2xl p-4"
           style={{
             background: "var(--rc-chip-inset-bg)",
             boxShadow: "var(--rc-chip-inset-shadow)",
-            opacity: loggedIn ? 1 : 0.5,
-            pointerEvents: loggedIn ? "auto" : "none",
           }}
         >
           <div className="grid gap-3 md:grid-cols-3">
@@ -207,9 +172,7 @@ export default function WebdavSyncSection() {
               <input
                 type="url"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                disabled={!loggedIn}
-                placeholder="https://dav.example.com/remote.php/dav/files/user/"
+                onChange={(e) => setUrl(e.target.value)}                placeholder="https://dav.example.com/remote.php/dav/files/user/"
                 className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]"
                 style={{
                   background: "var(--rc-control-bg)",
@@ -223,9 +186,7 @@ export default function WebdavSyncSection() {
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={!loggedIn}
-                placeholder="用户名"
+                onChange={(e) => setUsername(e.target.value)}                placeholder="用户名"
                 className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]"
                 style={{
                   background: "var(--rc-control-bg)",
@@ -239,9 +200,7 @@ export default function WebdavSyncSection() {
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={!loggedIn}
-                placeholder="••••••••"
+                onChange={(e) => setPassword(e.target.value)}                placeholder="••••••••"
                 className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]"
                 style={{
                   background: "var(--rc-control-bg)",
@@ -369,11 +328,13 @@ export default function WebdavSyncSection() {
         )}
       </Card>
 
+      {/* 登录功能暂时关闭：恢复时取消注释。
       <LoginModal
         open={loginOpen}
         onClose={() => setLoginOpen(false)}
         onLoginSuccess={() => setLoggedIn(true)}
       />
+      */}
     </div>
   );
 }
