@@ -8,6 +8,7 @@ import { useCopilotSessions } from "../features/copilot/useCopilotSessions";
 import { useCopilotChat } from "../features/copilot/useCopilotChat";
 import { useCopilotAttachments } from "../features/copilot/useCopilotAttachments";
 import { useCopilotChatMode } from "../features/copilot/useCopilotChatMode";
+import { parseCopilotMessageContent } from "../features/copilot/shared";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
@@ -108,12 +109,18 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     } catch (err) { console.warn("Clipboard write failed:", err); }
   };
 
-  // Edit handlers
+  // Edit handlers：编辑时只暴露可读正文（去掉附件编码），保存即截断其后消息并以新正文重发。
   const handleStartEdit = (message: { id: string; content: string }) => {
     setEditingMessageId(message.id);
-    setEditText(message.content);
+    setEditText(parseCopilotMessageContent(message.content).text);
   };
-  const handleSaveEdit = () => { setEditingMessageId(null); setEditText(""); };
+  const handleSaveEdit = () => {
+    const id = editingMessageId;
+    const text = editText;
+    setEditingMessageId(null);
+    setEditText("");
+    if (id && text.trim()) chat.editAndResend(id, text);
+  };
   const handleCancelEdit = () => { setEditingMessageId(null); setEditText(""); };
 
   // Save memory
@@ -219,7 +226,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               copiedId={copiedId}
               onClearError={() => { sessions.setLoadError(""); chat.setLoadError(""); }}
               onCopy={handleCopy}
-              onRetry={() => {}}
+              onRetry={chat.retry}
               onStartEdit={handleStartEdit}
               onSaveEdit={handleSaveEdit}
               onCancelEdit={handleCancelEdit}

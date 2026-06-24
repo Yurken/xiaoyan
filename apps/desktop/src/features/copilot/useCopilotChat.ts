@@ -45,6 +45,9 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
   const streamAbortRef = useRef<AbortController | null>(null);
   const streamingContentRef = useRef("");
   const rafRef = useRef(0);
+  // 始终指向最新消息列表，供 retry/editAndResend 在点击时读取，避免闭包过期。
+  const messagesRef = useRef<ChatMessage[]>([]);
+  messagesRef.current = messages;
 
   const resetChat = useCallback(() => {
     setMessages([]);
@@ -63,6 +66,137 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     streamAbortRef.current = null;
   }, []);
 
+  // 流式对话核心：接收已构建好的发送内容与「基础消息列表」（含用户消息、不含助手占位），
+  // 追加助手占位后驱动流式响应。handleSend / retry / editAndResend 共用，避免重复流式逻辑。
+  const runChatStream = useCallback(
+    async (submittedText: string, buildBaseMessages: (prev: ChatMessage[]) => ChatMessage[]) => {
+      const assistantId = `${Date.now()}_a`;
+
+      if (chatMode === "task") setSidebarCollapsed(false);
+
+      cancelActiveStream();
+      const abortController = new AbortController();
+      streamAbortRef.current = abortController;
+
+      setSending(true);
+      setLoadError("");
+      setPlan([]);
+      setAgentRuns([]);
+      setRequestId(undefined);
+      setRoutingDecision(null);
+      setActiveAssistantId(assistantId);
+
+      const assistantMsg: ChatMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...buildBaseMessages(prev), assistantMsg]);
+      streamingContentRef.current = "";
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
+
+      try {
+        let sessionId = currentSession?.id;
+
+        for await (const chunk of apiClient.chat.stream(
+          {
+            session_id: currentSession?.id,
+            message: submittedText,
+            context_type: selectedInterestId ? "interest" : "general",
+            context_id: selectedInterestId || undefined,
+            chat_mode: chatMode,
+          },
+          abortController.signal
+        )) {
+          if (streamAbortRef.current !== abortController || abortController.signal.aborted) {
+            abortController.abort();
+            break;
+          }
+          if (chunk.type === "session_id") sessionId = chunk.value;
+          if (chunk.type === "request_id") setRequestId(chunk.value);
+          if (chunk.type === "plan") setPlan(chunk.value);
+          if (chunk.type === "agent_start" || chunk.type === "agent_complete" || chunk.type === "agent_error") {
+            setAgentRuns((prev) => upsertAgentRun(prev, chunk.value));
+          }
+          if (chunk.type === "searching") setSearchingQuery(chunk.query);
+          if (chunk.type === "routing_decision") setRoutingDecision(chunk.value);
+          if (chunk.type === "tool_result") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, tool_results: [...(m.tool_results || []), { tool_name: chunk.tool_name, tool_id: chunk.tool_id, result: chunk.result, result_id: chunk.result_id }] }
+                  : m
+              )
+            );
+          }
+          if (chunk.type === "delta") {
+            setSearchingQuery((q) => (q ? null : q));
+            streamingContentRef.current += chunk.value;
+
+            if (!rafRef.current) {
+              rafRef.current = requestAnimationFrame(() => {
+                const content = streamingContentRef.current;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === assistantId ? { ...m, content } : m))
+                );
+                rafRef.current = 0;
+              });
+            }
+          }
+          if (chunk.type === "sources") {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, sources: chunk.value } : m))
+            );
+          }
+          if (chunk.type === "error") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, content: chunk.value || "请求未完成，请稍后重试。" } : m
+              )
+            );
+          }
+        }
+
+        // Flush any remaining buffered streaming content
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = 0;
+        }
+        if (streamingContentRef.current) {
+          const finalContent = streamingContentRef.current;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content: finalContent } : m))
+          );
+          streamingContentRef.current = "";
+        }
+
+        if (sessionId && !currentSession && !abortController.signal.aborted) {
+          onSessionCreated(sessionId);
+        }
+      } catch (error) {
+        if ((error as Error)?.name !== "AbortError") {
+          const msg = `请求未完成：${formatErrorMessage(error)}`;
+          setMessages((prev) =>
+            prev.map((item) => (item.id === assistantId ? { ...item, content: msg } : item))
+          );
+        }
+      } finally {
+        setSending(false);
+        streamingContentRef.current = "";
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = 0;
+        }
+        if (streamAbortRef.current === abortController) streamAbortRef.current = null;
+      }
+    },
+    [chatMode, currentSession, selectedInterestId, cancelActiveStream, onSessionCreated]
+  );
+
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || sending) return;
     const rawText = input.trim() || DEFAULT_ATTACHMENT_PROMPT;
@@ -71,9 +205,6 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
       ? `[技能指令 · ${selSkill.title}]\n${selSkill.prompt}\n\n---\n\n${rawText}`
       : rawText;
     const submittedText = buildCopilotMessageContent(text, attachments);
-    const assistantId = `${Date.now()}_a`;
-
-    if (chatMode === "task") setSidebarCollapsed(false);
 
     void apiClient.memory.add({
       type: "auto",
@@ -81,138 +212,51 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
       summary: `向小妍提问：${rawText.slice(0, 60)}${rawText.length > 60 ? "..." : ""}`,
     });
 
-    cancelActiveStream();
-    const abortController = new AbortController();
-    streamAbortRef.current = abortController;
-
-    setInput("");
-    clearAttachments();
-    setSending(true);
-    setLoadError("");
-    setPlan([]);
-    setAgentRuns([]);
-    setRequestId(undefined);
-    setRoutingDecision(null);
-    setActiveAssistantId(assistantId);
-
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
       content: submittedText,
       created_at: new Date().toISOString(),
     };
-    const assistantMsg: ChatMessage = {
-      id: assistantId,
-      role: "assistant",
-      content: "",
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
-    streamingContentRef.current = "";
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = 0;
-    }
 
-    try {
-      let sessionId = currentSession?.id;
+    setInput("");
+    clearAttachments();
+    await runChatStream(submittedText, (prev) => [...prev, userMsg]);
+  }, [input, attachments, sending, skills, selectedSkillId, clearAttachments, runChatStream]);
 
-      for await (const chunk of apiClient.chat.stream(
-        {
-          session_id: currentSession?.id,
-          message: submittedText,
-          context_type: selectedInterestId ? "interest" : "general",
-          context_id: selectedInterestId || undefined,
-          chat_mode: chatMode,
-        },
-        abortController.signal
-      )) {
-        if (streamAbortRef.current !== abortController || abortController.signal.aborted) {
-          abortController.abort();
-          break;
-        }
-        if (chunk.type === "session_id") sessionId = chunk.value;
-        if (chunk.type === "request_id") setRequestId(chunk.value);
-        if (chunk.type === "plan") setPlan(chunk.value);
-        if (chunk.type === "agent_start" || chunk.type === "agent_complete" || chunk.type === "agent_error") {
-          setAgentRuns((prev) => upsertAgentRun(prev, chunk.value));
-        }
-        if (chunk.type === "searching") setSearchingQuery(chunk.query);
-        if (chunk.type === "routing_decision") setRoutingDecision(chunk.value);
-        if (chunk.type === "tool_result") {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId
-                ? { ...m, tool_results: [...(m.tool_results || []), { tool_name: chunk.tool_name, tool_id: chunk.tool_id, result: chunk.result, result_id: chunk.result_id }] }
-                : m
-            )
-          );
-        }
-        if (chunk.type === "delta") {
-          if (searchingQuery) setSearchingQuery(null);
-          streamingContentRef.current += chunk.value;
+  // 重新生成：复用目标助手消息之前那条用户消息（其 content 即原始发送内容，已含附件上下文）。
+  const retry = useCallback(
+    (assistantMsgId: string) => {
+      if (sending) return;
+      const list = messagesRef.current;
+      const assistantIdx = list.findIndex((m) => m.id === assistantMsgId);
+      if (assistantIdx < 0) return;
+      let userIdx = assistantIdx - 1;
+      while (userIdx >= 0 && list[userIdx].role !== "user") userIdx -= 1;
+      if (userIdx < 0) return;
+      const base = list.slice(0, userIdx + 1);
+      void runChatStream(list[userIdx].content, () => base);
+    },
+    [sending, runChatStream]
+  );
 
-          if (!rafRef.current) {
-            rafRef.current = requestAnimationFrame(() => {
-              const content = streamingContentRef.current;
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantId ? { ...m, content } : m))
-              );
-              rafRef.current = 0;
-            });
-          }
-        }
-        if (chunk.type === "sources") {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, sources: chunk.value } : m))
-          );
-        }
-        if (chunk.type === "error") {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: chunk.value || "请求未完成，请稍后重试。" } : m
-            )
-          );
-        }
-      }
-
-      // Flush any remaining buffered streaming content
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = 0;
-      }
-      if (streamingContentRef.current) {
-        const finalContent = streamingContentRef.current;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: finalContent } : m))
-        );
-        streamingContentRef.current = "";
-      }
-
-      if (sessionId && !currentSession && !abortController.signal.aborted) {
-        onSessionCreated(sessionId);
-      }
-    } catch (error) {
-      if ((error as Error)?.name !== "AbortError") {
-        const msg = `请求未完成：${formatErrorMessage(error)}`;
-        setMessages((prev) =>
-          prev.map((item) => (item.id === assistantId ? { ...item, content: msg } : item))
-        );
-      }
-    } finally {
-      setSending(false);
-      streamingContentRef.current = "";
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = 0;
-      }
-      if (streamAbortRef.current === abortController) streamAbortRef.current = null;
-    }
-  }, [
-    input, attachments, sending, skills, selectedSkillId, chatMode,
-    currentSession, selectedInterestId, clearAttachments, cancelActiveStream,
-    searchingQuery, onSessionCreated,
-  ]);
+  // 编辑并重发：用新文本替换该用户消息（保留其原有附件上下文块），截断其后所有消息后重发。
+  const editAndResend = useCallback(
+    (messageId: string, newText: string) => {
+      if (sending) return;
+      const trimmed = newText.trim();
+      if (!trimmed) return;
+      const list = messagesRef.current;
+      const idx = list.findIndex((m) => m.id === messageId);
+      if (idx < 0 || list[idx].role !== "user") return;
+      const blockIdx = list[idx].content.indexOf("<copilot-attachments");
+      const submittedText = blockIdx >= 0 ? `${trimmed}\n\n${list[idx].content.slice(blockIdx)}` : trimmed;
+      const updatedUser: ChatMessage = { ...list[idx], content: submittedText };
+      const base = [...list.slice(0, idx), updatedUser];
+      void runChatStream(submittedText, () => base);
+    },
+    [sending, runChatStream]
+  );
 
   return {
     messages,
@@ -234,5 +278,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     resetChat,
     cancelActiveStream,
     handleSend,
+    retry,
+    editAndResend,
   };
 }
