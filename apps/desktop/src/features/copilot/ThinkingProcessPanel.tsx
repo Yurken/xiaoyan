@@ -1,15 +1,12 @@
 import { useState } from "react";
 import {
   Brain,
-  CheckCircle2,
   ChevronDown,
   Clock3,
   Loader2,
   Search,
-  XCircle,
 } from "lucide-react";
 import {
-  toCapabilityModelName,
   type AgentPlanStep,
   type AgentRun,
   type RoutingDecision,

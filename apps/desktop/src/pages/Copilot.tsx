@@ -52,7 +52,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     selectedSkillId,
     attachments,
     clearAttachments,
-    onNewSession: () => {},
     onSessionCreated: async (sessionId: string) => {
       const updated = await apiClient.chat.listSessions();
       const nextSession = updated.find((s) => s.id === sessionId) ?? null;
@@ -153,7 +152,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   // Displayed runs for artifacts
   const displayedRuns = useMemo(() => {
-    return [...chat.agentRuns].sort((a, b) => a.orderIndex - b.orderIndex);
+    return [...chat.agentRuns].sort((a, b) => a.order_index - b.order_index);
   }, [chat.agentRuns]);
 
   const artifacts = useMemo(() => {

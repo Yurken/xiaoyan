@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, FileText, FlaskConical, Loader2, MessageSquare, Send, Upload, Wrench } from "lucide-react";
+import { AlertCircle, FileText, FlaskConical, Loader2, MessageSquare, Send, Upload } from "lucide-react";
 import { Badge, Button, Input, MarkdownRenderer, Select } from "@research-copilot/ui";
 import NotesPanel from "./NotesPanel";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";

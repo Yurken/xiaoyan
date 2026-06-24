@@ -9,7 +9,7 @@ import {
   type KnowledgeGraphSourceKind,
   type KnowledgeGraphEdgeKind,
 } from "./shared";
-import { buildKnowledgeGraphCanvasLayout, type KnowledgeGraphCanvasNode, type KnowledgeGraphLayoutInputNode } from "./knowledgeGraphLayout";
+import { buildKnowledgeGraphCanvasLayout, type KnowledgeGraphLayoutInputNode } from "./knowledgeGraphLayout";
 
 export interface KnowledgeGraphCanvasEdge {
   id: string;

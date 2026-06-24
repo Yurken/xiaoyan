@@ -27,9 +27,10 @@ export default function MacWindowDragStrip({
       onMouseDown={handleMouseDown}
       style={{
         userSelect: "none",
+        // 非标准 CSS 属性：macOS 原生窗口拖拽区域，不在 CSSProperties 类型内
         WebkitAppRegion: "drag",
         ...style,
-      }}
+      } as CSSProperties}
     />
   );
 }

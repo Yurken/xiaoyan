@@ -76,7 +76,7 @@ export function getCopilotInputPlaceholder(mode: ChatMode) {
     : "告诉我你的研究任务，我会先拆解步骤，再逐步推进";
 }
 
-const NODE_ORDER: AgentGraphNodeKey[] = [
+const NODE_ORDER: Exclude<AgentGraphNodeKey, "start">[] = [
   "retrieval",
   "planner",
   "literature_scout",

@@ -2,7 +2,7 @@
 
 import { clsx } from "clsx";
 import { ChevronDown } from "lucide-react";
-import { KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 export interface SelectOption {
   value: string;

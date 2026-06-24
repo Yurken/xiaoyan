@@ -25,7 +25,7 @@ const TOOL_LABELS: Record<string, string> = {
   lookup_ccf: "CCF 等级查询",
 };
 
-const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
   create_note: BookOpen,
   create_experiment: FlaskConical,
   generate_survey: ScrollText,

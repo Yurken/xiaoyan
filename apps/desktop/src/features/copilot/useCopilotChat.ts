@@ -1,23 +1,21 @@
 import { useCallback, useRef, useState } from "react";
 import {
   buildCopilotMessageContent,
-  parseCopilotMessageContent,
   upsertAgentRun,
 } from "./shared";
 import { apiClient, formatErrorMessage } from "../../lib/client";
-import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, RoutingDecision, Skill } from "@research-copilot/types";
+import type { AgentPlanStep, AgentRun, ChatMessage, ChatMode, ChatSession, RoutingDecision, Skill } from "@research-copilot/types";
 
 const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
 
 export interface UseCopilotChatOptions {
   currentSession: ChatSession | null;
   selectedInterestId: string;
-  chatMode: string;
+  chatMode: ChatMode;
   skills: Skill[];
   selectedSkillId: string | null;
   attachments: ReturnType<typeof import("./useCopilotAttachments").useCopilotAttachments>["attachments"];
   clearAttachments: () => void;
-  onNewSession: (session: ChatSession) => void;
   onSessionCreated: (sessionId: string) => void;
 }
 
@@ -30,7 +28,6 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     selectedSkillId,
     attachments,
     clearAttachments,
-    onNewSession,
     onSessionCreated,
   } = options;
 

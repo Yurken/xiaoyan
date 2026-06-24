@@ -6,7 +6,6 @@ import type {
   ChatMessage,
   ChatMode,
   ChatStreamChunk,
-  RoutingDecision,
 } from "@research-copilot/types";
 
 function createChatRequestId() {

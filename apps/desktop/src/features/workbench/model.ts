@@ -1,4 +1,4 @@
-import type { ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
+import type { KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 import {
   buildCheckpointAgendaItem,
   buildCheckpointHandoffItem,
@@ -7,7 +7,6 @@ import {
 import { buildLayout } from "./layout";
 import { paperAction, paperActionLabel, paperTitlePreview } from "./shared";
 import type {
-  SubmissionOverviewStats,
   WorkbenchAgendaItem,
   WorkbenchAssetItem,
   WorkbenchHandoffItem,

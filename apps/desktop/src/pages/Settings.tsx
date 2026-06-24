@@ -34,8 +34,8 @@ function SettingsTabBar({
   onSelect,
 }: {
   sections: typeof SETTINGS_SECTIONS;
-  activeSection: string;
-  onSelect: (key: string) => void;
+  activeSection: SettingsSectionKey;
+  onSelect: (key: SettingsSectionKey) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());

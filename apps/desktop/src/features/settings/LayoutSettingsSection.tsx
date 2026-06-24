@@ -134,13 +134,12 @@ export default function LayoutSettingsSection({
               description: "石墨感深色壳层，弱化装饰色，突出内容和结构。",
               preview: <ThemeSwatch mode="dark" />,
             },
-          ] as const).map(({ mode, label, description, icon, preview }) => (
+          ] as const).map(({ mode, label, description, preview }) => (
             <OptionCard
               key={mode}
               selected={currentTheme === mode}
               title={label}
               description={description}
-              icon={icon}
               preview={preview}
               onClick={() => onThemeChange(mode)}
             />

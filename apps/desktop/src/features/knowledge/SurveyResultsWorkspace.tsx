@@ -4,7 +4,7 @@ import { openLink } from "../../lib/links";
 import SurveyCandidatePapersPanel from "./SurveyCandidatePapersPanel";
 import SurveyRunSummaryPanel from "./SurveyRunSummaryPanel";
 import SurveyStructuredReport from "./SurveyStructuredReport";
-import type { SurveyGenerationController } from "./useSurveyGeneration";
+import type { SurveyGenerationController } from "./shared";
 
 export default function SurveyResultsWorkspace({ controller }: { controller: SurveyGenerationController }) {
   if (!controller.hasResults) {

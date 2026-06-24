@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { safeOnDragDrop } from "../../lib/tauriEvent";
 import {
   AlertCircle,
@@ -27,9 +27,17 @@ function splitThoughtFromContent(content: string) {
     const text = (match[1] || "").trim();
     if (text) thoughts.push(text);
   }
+  let answer = content.replace(thinkTagPattern, "");
+  // 流式过程中 <think> 可能尚未闭合：把从未闭合标签到结尾的内容都归入思考，避免原始推理泄漏进回答气泡。
+  const openIndex = answer.search(/<think>/i);
+  if (openIndex !== -1) {
+    const pending = answer.slice(openIndex).replace(/<think>/i, "").trim();
+    if (pending) thoughts.push(pending);
+    answer = answer.slice(0, openIndex);
+  }
   return {
     thought: thoughts.join("\n\n"),
-    answer: content.replace(thinkTagPattern, "").trim(),
+    answer: answer.trim(),
   };
 }
 
@@ -107,7 +115,7 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
     chatDragCounterRef.current = 0;
   };
 
-  const displayedRuns = [...agentRuns].sort((a, b) => a.orderIndex - b.orderIndex);
+  const displayedRuns = [...agentRuns].sort((a, b) => a.order_index - b.order_index);
 
   return (
     <div

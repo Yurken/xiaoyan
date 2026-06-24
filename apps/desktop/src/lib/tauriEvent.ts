@@ -29,7 +29,7 @@ export async function safeListen<T>(event: EventName, handler: EventCallback<T>)
 /**
  * getCurrentWindow().onDragDropEvent 的幂等包装。
  */
-export async function safeOnDragDrop(handler: (event: DragDropEvent) => void): Promise<UnlistenFn> {
+export async function safeOnDragDrop(handler: EventCallback<DragDropEvent>): Promise<UnlistenFn> {
   const unlisten = await getCurrentWindow().onDragDropEvent(handler);
   return makeIdempotent(unlisten);
 }

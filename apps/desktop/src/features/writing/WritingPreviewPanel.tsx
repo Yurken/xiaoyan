@@ -21,14 +21,12 @@ const ZOOM_STEP = 0.1;
 
 interface WritingPreviewPanelProps {
   blocks: LatexPreviewBlock[];
-  source: string;
   compileResult: WritingCompileSummary | null;
   compact: boolean;
 }
 
 export default function WritingPreviewPanel({
   blocks,
-  source,
   compileResult,
   compact,
 }: WritingPreviewPanelProps) {
@@ -134,11 +132,12 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
 
     let cancelled = false;
     const currentTasks = renderTaskRef.current;
+    const doc = pdfDoc;
 
     async function renderPages() {
       for (let i = 1; i <= numPages; i++) {
         if (cancelled) break;
-        const page = await pdfDoc.getPage(i);
+        const page = await doc.getPage(i);
         if (cancelled) break;
         const viewport = page.getViewport({ scale: 1.5 });
         const canvas = canvasRefs.current.get(i);
@@ -153,7 +152,7 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
         ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
         const existing = currentTasks.get(i);
         if (existing) { try { existing.cancel(); } catch { /* ignore */ } }
-        const task = page.render({ canvasContext: ctx, viewport });
+        const task = page.render({ canvasContext: ctx, viewport, canvas });
         currentTasks.set(i, task);
         try {
           await task.promise;

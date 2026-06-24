@@ -198,7 +198,6 @@ export default function WritingWorkspace() {
         {showPreview ? (
           <WritingPreviewPanel
             blocks={workspace.previewBlocks}
-            source={workspace.mainTex}
             compileResult={workspace.compileResult}
             compact={workspace.viewMode === "split"}
           />

@@ -61,15 +61,15 @@ export default function RolesSection({
   ).length;
 
   // 当前主服务商对应的「主聊天模型 / 地址 / 密钥」字段，用于把某角色的配置覆盖进去单独测试。
-  const providerChatModelKey = (): keyof AppSettings =>
+  const providerChatModelKey = (): "openai_chat_model" | "anthropic_chat_model" | "openai_compatible_chat_model" =>
     form.llm_provider === "openai" ? "openai_chat_model"
       : form.llm_provider === "anthropic" ? "anthropic_chat_model"
         : "openai_compatible_chat_model";
-  const providerBaseUrlKey = (): keyof AppSettings | null =>
+  const providerBaseUrlKey = (): "openai_base_url" | "openai_compatible_base_url" | null =>
     form.llm_provider === "openai" ? "openai_base_url"
       : form.llm_provider === "anthropic" ? null
         : "openai_compatible_base_url";
-  const providerApiKeyKey = (): keyof AppSettings =>
+  const providerApiKeyKey = (): "openai_api_key" | "anthropic_api_key" | "openai_compatible_api_key" =>
     form.llm_provider === "openai" ? "openai_api_key"
       : form.llm_provider === "anthropic" ? "anthropic_api_key"
         : "openai_compatible_api_key";

@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlaskConical,
-  ImagePlus,
   Link2,
   Loader2,
   Plus,
   Save,
   Trash2,
   X,
-  ZoomIn,
 } from "lucide-react";
 import { Button, Card, ConfirmDialog, Input, Select, Textarea } from "@research-copilot/ui";
-import { experimentApi, submissionApi, formatErrorMessage, type ExperimentAttachment } from "../lib/client";
+import { experimentApi, submissionApi, formatErrorMessage } from "../lib/client";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 
 interface ExperimentRecord {
@@ -341,7 +339,7 @@ export default function Experiment() {
 
                 {/* Screenshots */}
                 <Card variant="inset" padding="sm">
-                  <AttachmentPanel experimentId={selected.id} onError={showToast} />
+                  <ExperimentAttachmentPanel experimentId={selected.id} onError={showToast} />
                 </Card>
 
                 {/* Notes */}

@@ -65,7 +65,7 @@ export default function CrossPaperAnalysisModal({
                   >
                     <p className="text-sm font-semibold text-ink-primary leading-snug">{p.title}</p>
                     <p className="text-xs text-ink-tertiary mt-1">
-                      {p.authors?.join?.(", ") || "未知作者"}
+                      {p.authors || "未知作者"}
                       {p.year ? ` · ${p.year}` : ""}
                       {p.venue ? ` · ${p.venue}` : ""}
                     </p>

@@ -23,7 +23,7 @@ export default function LoginModal({ open, onClose, onLoginSuccess }: LoginModal
   const [codeSent, setCodeSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [success, setSuccess] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   // Reset when opening/closing
   useEffect(() => {

@@ -59,8 +59,6 @@ export default function WritingEditorPanel({
     return results;
   }, [value, searchTerm]);
 
-  const currentMatch = matches.length > 0 ? matches[(matchIndex % matches.length)] : -1;
-
   const selectMatch = useCallback((index: number) => {
     const el = textareaRef.current;
     if (!el || matches.length === 0) return;

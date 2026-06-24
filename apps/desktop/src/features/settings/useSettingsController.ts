@@ -42,7 +42,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
     });
 
   const setManyFlat = (updates: Partial<Record<keyof AppSettings, string>>) =>
-    setForm((current) => ({ ...current, ...updates }));
+    setForm((current) => ({ ...current, ...updates }) as AppSettings);
 
   const getSharedValue = (keys: (keyof AppSettings)[]) => {
     const values = keys

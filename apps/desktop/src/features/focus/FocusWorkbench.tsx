@@ -3,8 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Loader2,
-  Microscope,
-  Send,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@research-copilot/ui";
@@ -35,7 +33,6 @@ import {
   PLANNER_TAB,
   normalizeFreeTab,
   normalizeInterestTab,
-  type FreeTab,
 } from "./shared";
 
 function TabButton({
