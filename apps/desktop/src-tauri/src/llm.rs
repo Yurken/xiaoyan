@@ -134,7 +134,17 @@ pub enum LlmClient {
 const DEFAULT_ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
 
 fn normalize_base_url(url: &str) -> String {
-    url.trim().trim_end_matches('/').to_string()
+    let mut trimmed = url.trim().trim_end_matches('/');
+    // 容错：用户可能整段粘贴了完整 endpoint。剥掉我们会自行拼接的已知后缀，只保留 API 根地址，
+    // 避免出现 .../chat/completions/chat/completions 这类重复路径（自定义/兼容地址常见误填）。
+    let lower = trimmed.to_ascii_lowercase();
+    for suffix in ["/chat/completions", "/embeddings", "/messages"] {
+        if lower.ends_with(suffix) {
+            trimmed = trimmed[..trimmed.len() - suffix.len()].trim_end_matches('/');
+            break;
+        }
+    }
+    trimmed.to_string()
 }
 
 fn is_anthropic_compatible_base_url(base_url: &str) -> bool {
