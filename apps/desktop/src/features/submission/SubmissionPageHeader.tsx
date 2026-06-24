@@ -27,7 +27,8 @@ export default function SubmissionPageHeader({
   const stats = { conferencesCount, journalsCount, activeCount, acceptedCount };
 
   return (
-    <div className="flex-shrink-0 px-6 pt-5 pb-3 app-header">
+    // 直接置于 rc-app-page 的标准内边距下，与论文库/规划/综述等页面对齐（不再叠加 px-6/app-header 造成双重缩进）。
+    <div>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-ink-primary">投稿管理</h1>
