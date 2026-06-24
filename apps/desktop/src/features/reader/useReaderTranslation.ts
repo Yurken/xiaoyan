@@ -57,6 +57,8 @@ export function useReaderTranslation() {
   useEffect(() => {
     continuousRef.current = continuous;
   }, [continuous]);
+  // 卸载时中止仍在进行的解读流，避免卸载后 setState 与未释放的网络流。
+  useEffect(() => () => interpretAbortRef.current?.abort(), []);
 
   const runTranslate = useCallback(async (source: string, page?: number) => {
     const trimmed = normalizeSourceText(source);
