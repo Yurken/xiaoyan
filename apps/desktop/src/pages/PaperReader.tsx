@@ -103,12 +103,38 @@ export default function PaperReader() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [undo]);
 
+  // 翻译栏展开时，单击 Shift（未用于划词、未在输入框）快速开关「连续翻译」。
+  const toggleContinuous = translation.toggleContinuous;
+  useEffect(() => {
+    if (!translateOpen) return;
+    let shiftAlone = false;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      shiftAlone = event.key === "Shift";
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key !== "Shift" || !shiftAlone) return;
+      shiftAlone = false;
+      const target = document.activeElement as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.toString().trim()) return; // 正在划词，交还给选区
+      toggleContinuous();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [translateOpen, toggleContinuous]);
+
   // 划词处理：注释模式直接套用预选工具；一直翻译开启则自动翻译；否则视图模式弹工具菜单。
   const handleTextSelected = useCallback(
     (next: ReaderSelection) => {
       setEditing(null);
 
-      if (translateOpen) {
+      if (translateOpen && !translation.locked) {
         void translation.translate(next.text, next.page);
       }
 
@@ -124,8 +150,9 @@ export default function PaperReader() {
         return;
       }
 
-      if (translateOpen) {
-        clearSelection();
+      // 自动翻译时不弹划词菜单，但保留 PDF 上的高亮选区（别 removeAllRanges），让用户看清译的是哪段。
+      if (translateOpen && !translation.locked) {
+        setSelection(null);
         return;
       }
 
@@ -243,8 +270,16 @@ export default function PaperReader() {
 
         {translateOpen ? (
           <ReaderTranslationPanel
-            entries={translation.entries}
-            onRemove={translation.remove}
+            current={translation.current}
+            interpretation={translation.interpretation}
+            locked={translation.locked}
+            continuous={translation.continuous}
+            fontSize={translation.fontSize}
+            onToggleLock={translation.toggleLock}
+            onToggleContinuous={translation.toggleContinuous}
+            onFontSize={translation.setFontSize}
+            onInterpret={translation.interpret}
+            onEditSource={translation.editSource}
             onClear={translation.clear}
             onCollapse={() => setTranslateOpen(false)}
           />
