@@ -172,6 +172,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
 
   useEffect(() => {
     const unlisten: Array<() => void> = [];
+    let cancelled = false;
     (async () => {
       unlisten.push(await safeListen<{ request_id: string; value: { id: string; agent_name: string } }>(
         "chat:agent_start",
@@ -284,11 +285,16 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
         activeWork.current = new Map([...activeWork.current.entries()].filter(([id]) => !id.startsWith("interest_")));
         if (activeWork.current.size === 0) triggerFeedback("alerting", 5000, () => startIdleTimer());
       }));
+
+      // 卸载若发生在异步注册完成之前，cleanup 的 forEach 只清到部分监听；
+      // 这里在注册全部完成后补清一次（safeListen 的 unlisten 幂等，重复调用安全）。
+      if (cancelled) unlisten.forEach((fn) => fn());
     })();
 
     startIdleTimer();
     const visibleTimer = setTimeout(() => setVisible(true), 200);
     return () => {
+      cancelled = true;
       clearTimeout(visibleTimer);
       unlisten.forEach((fn) => fn());
       [idleTimer, oneshotTimer, reactionTimer, clickTimer, actionSwitchTimer].forEach(clearTimer);
