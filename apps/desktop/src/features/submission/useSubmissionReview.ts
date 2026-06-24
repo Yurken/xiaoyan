@@ -1,50 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { submissionApi } from "../../lib/client";
-import { formatErrorMessage } from "../../lib/client";
-import type { ReviewComment, ReviewRound, ReviewVerdict } from "./shared";
+import {
+  rowToComment,
+  rowToRound,
+  type MockReviewInput,
+  type MockReviewerResult,
+  type ReviewComment,
+  type ReviewFormState,
+  type ReviewRound,
+  type ReviewVerdict,
+} from "./shared";
 
-export interface ReviewFormState {
-  reviewer: string;
-  content: string;
-  tags: string[];
-  verdict: ReviewVerdict;
-}
-
-export interface MockReviewInput {
-  abstract: string;
-  reviewerCount: number;
-  strictness: string;
-}
-
-export interface MockReviewerResult {
-  reviewer: string;
-  content: string;
-  tags: string[];
-  verdict: ReviewVerdict;
-}
-
-function rowToRound(row: Record<string, unknown>) {
-  return {
-    id: String(row.id || ""),
-    submissionId: String(row.submission_id || ""),
-    roundNumber: Number(row.round_number ?? 1),
-    createdAt: String(row.created_at || ""),
-    summary: String(row.summary ?? ""),
-  } as ReviewRound;
-}
-
-function rowToComment(row: Record<string, unknown>) {
-  return {
-    id: String(row.id || ""),
-    submissionId: String(row.submission_id || ""),
-    roundNumber: Number(row.round_number ?? 1),
-    reviewer: String(row.reviewer ?? ""),
-    content: String(row.content ?? ""),
-    tags: (row.tags as string[]) ?? [],
-    verdict: (row.verdict as ReviewVerdict) ?? "major_revision",
-    createdAt: String(row.created_at || ""),
-  } as ReviewComment;
-}
+export type { MockReviewInput, MockReviewerResult, ReviewFormState };
 
 export function useSubmissionReview(onError: (error: unknown) => void) {
   const [comments, setComments] = useState<ReviewComment[]>([]);
@@ -66,6 +33,21 @@ export function useSubmissionReview(onError: (error: unknown) => void) {
   const [mockFileExtracting, setMockFileExtracting] = useState(false);
   const [mockFileName, setMockFileName] = useState<string | null>(null);
 
+  const reloadReview = () => {
+    if (!subId) {
+      setRounds([]);
+      setComments([]);
+      return;
+    }
+    Promise.all([
+      submissionApi.listRounds(subId),
+      submissionApi.listComments(subId),
+    ]).then(([roundsRes, commentsRes]) => {
+      setRounds(roundsRes.rounds.map(rowToRound));
+      setComments(commentsRes.comments.map(rowToComment));
+    }).catch(onError);
+  };
+
   useEffect(() => {
     if (!subId) return;
     Promise.all([
@@ -80,22 +62,50 @@ export function useSubmissionReview(onError: (error: unknown) => void) {
   const handleReviewSubmit = async () => {
     if (!subId) return;
     try {
-      await submissionApi.addComment({
-        submissionId: subId, roundNumber: round,
-        reviewer: form.reviewer, content: form.content,
-        tags: form.tags, verdict: form.verdict,
+      await submissionApi.upsertRound({
+        submissionId: subId, round, verdict: form.verdict,
+      });
+      await submissionApi.createComment({
+        submissionId: subId, round,
+        reviewer: form.reviewer, content: form.content, tags: form.tags,
       });
       setShowAddModal(false);
       setForm({ reviewer: "", content: "", tags: [], verdict: "major_revision" });
+      reloadReview();
     } catch (err) {
       onError(err);
     }
+  };
+
+  const toggleResolved = async (commentId: string) => {
+    const target = comments.find((comment) => comment.id === commentId);
+    if (!target) return;
+    const nextResolved = !target.resolved;
+    setComments((current) =>
+      current.map((comment) => (comment.id === commentId ? { ...comment, resolved: nextResolved } : comment)),
+    );
+    try {
+      await submissionApi.updateComment(commentId, { resolved: nextResolved });
+    } catch (err) {
+      setComments((current) =>
+        current.map((comment) => (comment.id === commentId ? { ...comment, resolved: target.resolved } : comment)),
+      );
+      onError(err);
+    }
+  };
+
+  const updateResponse = (commentId: string, response: string) => {
+    setComments((current) =>
+      current.map((comment) => (comment.id === commentId ? { ...comment, response } : comment)),
+    );
+    submissionApi.updateComment(commentId, { response }).catch(onError);
   };
 
   return {
     comments, rounds, subId, setSubId, round, setRound,
     showAddModal, setShowAddModal,
     form, setForm, handleReviewSubmit,
+    toggleResolved, updateResponse, reloadReview,
     showMockModal, setShowMockModal,
     mockInput, setMockInput, mockLoading, setMockLoading,
     mockResult, setMockResult,
