@@ -1,16 +1,34 @@
-import { listen, type EventCallback, type EventName, type UnlistenFn } from "@tauri-apps/api/event";
+import {
+  listen,
+  TauriEvent,
+  type EventCallback,
+  type EventName,
+  type UnlistenFn,
+} from "@tauri-apps/api/event";
+import { PhysicalPosition } from "@tauri-apps/api/dpi";
 import { getCurrentWindow, type DragDropEvent } from "@tauri-apps/api/window";
 
-function makeIdempotent(unlisten: UnlistenFn): UnlistenFn {
+type AsyncCapableUnlistenFn = UnlistenFn | (() => Promise<void>);
+
+function ignoreUnlistenError(unlisten: AsyncCapableUnlistenFn) {
+  try {
+    const result = unlisten();
+    if (result && typeof (result as Promise<void>).catch === "function") {
+      void (result as Promise<void>).catch(() => {
+        // 已注销或 listener 已被清理，忽略
+      });
+    }
+  } catch {
+    // 已注销或 listener 已被清理，忽略
+  }
+}
+
+function makeIdempotent(unlisten: AsyncCapableUnlistenFn): UnlistenFn {
   let called = false;
   return () => {
     if (called) return;
     called = true;
-    try {
-      unlisten();
-    } catch {
-      // 已注销或 listener 已被清理，忽略
-    }
+    ignoreUnlistenError(unlisten);
   };
 }
 
@@ -30,6 +48,52 @@ export async function safeListen<T>(event: EventName, handler: EventCallback<T>)
  * getCurrentWindow().onDragDropEvent 的幂等包装。
  */
 export async function safeOnDragDrop(handler: EventCallback<DragDropEvent>): Promise<UnlistenFn> {
-  const unlisten = await getCurrentWindow().onDragDropEvent(handler);
-  return makeIdempotent(unlisten);
+  const currentWindow = getCurrentWindow();
+  const cleanups = await Promise.all([
+    currentWindow.listen<{
+      paths: string[];
+      position: { x: number; y: number };
+    }>(TauriEvent.DRAG_ENTER, (event) => {
+      handler({
+        ...event,
+        payload: {
+          type: "enter",
+          paths: event.payload.paths,
+          position: new PhysicalPosition(event.payload.position),
+        },
+      });
+    }),
+    currentWindow.listen<{ position: { x: number; y: number } }>(TauriEvent.DRAG_OVER, (event) => {
+      handler({
+        ...event,
+        payload: {
+          type: "over",
+          position: new PhysicalPosition(event.payload.position),
+        },
+      });
+    }),
+    currentWindow.listen<{
+      paths: string[];
+      position: { x: number; y: number };
+    }>(TauriEvent.DRAG_DROP, (event) => {
+      handler({
+        ...event,
+        payload: {
+          type: "drop",
+          paths: event.payload.paths,
+          position: new PhysicalPosition(event.payload.position),
+        },
+      });
+    }),
+    currentWindow.listen(TauriEvent.DRAG_LEAVE, (event) => {
+      handler({
+        ...event,
+        payload: { type: "leave" },
+      });
+    }),
+  ]);
+
+  return makeIdempotent(() => {
+    cleanups.forEach((cleanup) => ignoreUnlistenError(cleanup));
+  });
 }
