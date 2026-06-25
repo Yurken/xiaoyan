@@ -689,7 +689,7 @@ pub fn resolve_max_tokens(settings: &HashMap<String, String>, keys: &[&str], def
 
 // ── OpenAI helpers ──────────────────────────────────────────────
 
-const USER_AGENT: &str = "xiaoyan-desktop/0.4.0";
+const USER_AGENT: &str = "xiaoyan-desktop/0.4.3";
 
 async fn openai_chat(
     base_url: &str,
