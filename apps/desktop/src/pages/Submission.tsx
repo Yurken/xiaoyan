@@ -83,6 +83,12 @@ export default function Submission() {
   // 当前正在生成 cover letter / 润色的投稿，用于过滤对应流式事件，隔离多投稿并发。
   const activeCoverSubRef = useRef<string>("");
   const activePolishSubRef = useRef<string>("");
+  // ai_review 监听只在 mount 注册一次（依赖 [showError]），故对会变化的值用 ref 读取，
+  // 避免 review/diagnosis 每次渲染换引用导致反复重订阅、在异步重注册窗口内丢失 reviewer 事件。
+  const checklistSubIdRef = useRef(checklist.checklistSubId);
+  checklistSubIdRef.current = checklist.checklistSubId;
+  const refreshReportsRef = useRef(diagnosis.refreshReports);
+  refreshReportsRef.current = diagnosis.refreshReports;
   useEffect(() => {
     let unlistenR: (() => void) | undefined, unlistenD: (() => void) | undefined, unlistenE: (() => void) | undefined;
     let mounted = true;
@@ -111,7 +117,7 @@ export default function Submission() {
     safeListen<{ submissionId: string }>("submission:ai_review:done", ({ payload }) => {
       if (payload.submissionId !== activeMockSubRef.current) return;
       review.setMockLoading(false);
-      if (payload.submissionId === checklist.checklistSubId) void diagnosis.refreshReports();
+      if (payload.submissionId === checklistSubIdRef.current) void refreshReportsRef.current();
     }).then(u => { if (!mounted) { u(); return; } unlistenD = u; });
     safeListen<{ submissionId: string; error: string }>("submission:ai_review:error", ({ payload }) => {
       if (payload.submissionId !== activeMockSubRef.current) return;
@@ -122,7 +128,10 @@ export default function Submission() {
       unlistenR?.(); unlistenD?.(); unlistenE?.();
       unlistenR = undefined; unlistenD = undefined; unlistenE = undefined;
     };
-  }, [checklist.checklistSubId, diagnosis, review, showError]);
+    // review 的 setMockResult/setMockLoading 是稳定的 useState setter，只在 mount 捕获一次即可；
+    // 刻意不依赖 review/diagnosis，避免它们每次渲染换引用导致重订阅丢事件。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showError]);
 
   // Cover letter / polish event listeners
   // 均按 active*SubRef 过滤，避免多投稿并发时一路流式结果串写到另一路面板；
