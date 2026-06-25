@@ -13,7 +13,7 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import type { AppSettings, MultiAgentRoutingMode } from "@research-copilot/types";
+import type { AppSettings } from "@research-copilot/types";
 
 export const MASK = "***";
 
@@ -369,24 +369,6 @@ export const AGENT_OPTIONS = [
   ["reproduction", "构域模型"],
   ["synthesis", "整合模型"],
 ] as const;
-
-export const ROUTING_MODE_COPY: Record<MultiAgentRoutingMode, { label: string; description: string; note: string }> = {
-  rule: {
-    label: "规则判断",
-    description: "根据关键词和上下文类型固定选择小妍步骤，最稳定，也最容易复现。",
-    note: "这一模式不会调用调度模型，适合你想严格控制成本和行为边界时使用。",
-  },
-  llm: {
-    label: "模型判断",
-    description: "由调度模型实时决定该启用哪些小妍步骤，更灵活，也更依赖模型本身。",
-    note: "适合复杂提问和开放式任务。建议给调度模型配置快一些、判断力强一些的模型。",
-  },
-  hybrid: {
-    label: "混合判断",
-    description: "先用规则确定基础班底，再由调度模型补充和重排，兼顾稳定性和灵活性。",
-    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键小妍步骤，再由模型补充额外分工。",
-  },
-};
 
 export const AGENT_GUIDES = [
   { key: "planner", label: "谋策模型", description: "拆解研究主题、学习路径和阶段目标。" },

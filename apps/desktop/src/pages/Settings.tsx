@@ -24,7 +24,7 @@ import { useSettingsHistory } from "../features/settings/useSettingsHistory";
 import { useSettingsMemories } from "../features/settings/useSettingsMemories";
 import { useLayoutSettingsController } from "../features/settings/useLayoutSettingsController";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
-import type { LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
+import type { LlmProvider } from "@research-copilot/types";
 
 const SETTINGS_SECTION_KEYS = SETTINGS_SECTIONS.map((section) => section.key);
 
@@ -232,7 +232,6 @@ export default function Settings() {
     setForm((current) => applyProviderPreset(current, presetId));
   };
 
-  const routingMode = form.multi_agent_routing_mode as MultiAgentRoutingMode;
   const enabledAgents = form.multi_agent_enabled_agents
     .split(",")
     .map((item) => item.trim())
@@ -380,7 +379,6 @@ export default function Settings() {
             form={form}
             ollamaModels={ollamaModels}
             loadingOllamaModels={loadingOllamaModels}
-            routingMode={routingMode}
             enabledAgents={enabledAgents}
             configHistory={{
               entries: settingsHistory.entries,

@@ -92,7 +92,7 @@ export default function TaskSetupSection({
         ? "小妍步骤协作已启用。复杂任务会走调度和分工流程。"
         : "如果你只想先稳定使用单模型对话，可以暂时关闭，等基础配置跑顺再打开。",
       ready: multiAgentReady,
-      action: "去调整协作模式",
+      action: "去设置步骤协作",
       onClick: onOpenAssistant,
       icon: Bot,
     },
@@ -109,7 +109,7 @@ export default function TaskSetupSection({
         <div className="space-y-1">
           <h2 className="text-base font-semibold text-ink-primary">快速开始</h2>
           <p className="text-xs leading-5 text-ink-tertiary">
-            设置页先做三件事就够了：先接通小妍，再按需要补任务分工，最后决定是否启用多能力域协作。剩下的参数放到后面的分区再看。
+            设置页先做三件事就够了：先接通小妍，再按需要补任务分工，最后决定是否启用小妍步骤协作。剩下的参数放到后面的分区再看。
           </p>
         </div>
 

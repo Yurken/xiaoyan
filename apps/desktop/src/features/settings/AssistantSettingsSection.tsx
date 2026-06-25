@@ -1,7 +1,7 @@
 import { Database } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { Dispatch, SetStateAction } from "react";
-import type { AppSettings, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
+import type { AppSettings, LlmProvider } from "@research-copilot/types";
 import type { ProviderPresetId } from "./providerPresets";
 import ConnectionSection, { type ConnectionActions } from "./ConnectionSection";
 import RolesSection from "./RolesSection";
@@ -16,7 +16,6 @@ interface AssistantSettingsSectionProps {
   form: AppSettings;
   ollamaModels: string[];
   loadingOllamaModels: boolean;
-  routingMode: MultiAgentRoutingMode;
   enabledAgents: string[];
   configHistory: ConfigHistoryControls;
   connectionActions: ConnectionActions;
@@ -83,7 +82,6 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
       {!props.contentUnavailable ? (
         <RolesSection
           form={props.form}
-          routingMode={props.routingMode}
           enabledAgents={props.enabledAgents}
           set={props.set}
           setMany={props.setMany}

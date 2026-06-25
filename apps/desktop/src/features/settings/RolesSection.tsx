@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Bot, Check, Route, Sparkles, Wand2 } from "lucide-react";
+import { Bot, Check, ChevronRight, Route, Sparkles, Wand2 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
-import type { AppSettings, MultiAgentRoutingMode } from "@research-copilot/types";
+import type { AppSettings } from "@research-copilot/types";
 import { apiClient } from "../../lib/client";
 import {
   AGENT_GUIDES,
@@ -9,9 +9,7 @@ import {
   AgentChip,
   CHARACTERISTIC_MODEL_CARDS,
   MASK,
-  ProviderTab,
   RecommendationList,
-  ROUTING_MODE_COPY,
   SectionIcon,
   SettingInput,
   ToggleRow,
@@ -29,7 +27,6 @@ import {
 
 interface RolesSectionProps {
   form: AppSettings;
-  routingMode: MultiAgentRoutingMode;
   enabledAgents: string[];
   set: (key: keyof AppSettings) => (value: string) => void;
   setMany: (keys: (keyof AppSettings)[]) => (value: string) => void;
@@ -42,7 +39,6 @@ interface RolesSectionProps {
 
 export default function RolesSection({
   form,
-  routingMode,
   enabledAgents,
   set,
   setMany,
@@ -52,6 +48,7 @@ export default function RolesSection({
   setManyFlat,
 }: RolesSectionProps) {
   const [showAllCards, setShowAllCards] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [roleTestStates, setRoleTestStates] = useState<Record<string, RoleTestState>>({});
   const activePreset = detectModelPreset(form);
 
@@ -285,13 +282,13 @@ export default function RolesSection({
               小妍步骤协作
             </h2>
             <p className="text-xs text-ink-tertiary mt-0.5">
-              控制复杂问题的协作方式与路由策略。
+              开启后，复杂问题会自动拆分成多步协作完成。
             </p>
           </div>
         </div>
 
         <ToggleRow
-          title="启用小妍步骤编排"
+          title="启用小妍步骤协作"
           description="关闭后仅使用默认模型直接回复，不拆分复杂任务。"
           checked={form.multi_agent_enabled === "true"}
           onToggle={() =>
@@ -301,87 +298,78 @@ export default function RolesSection({
           }
         />
 
-        <div className="space-y-2">
-          <label className="block text-xs font-medium text-ink-tertiary ml-1">
-            小妍路由判断模式
-          </label>
-          <div className="flex gap-2 flex-wrap">
-            {(["rule", "llm", "hybrid"] as const).map((value) => (
-              <ProviderTab
-                key={value}
-                label={ROUTING_MODE_COPY[value].label}
-                active={routingMode === value}
-                onClick={() => set("multi_agent_routing_mode")(value)}
-              />
-            ))}
-          </div>
-          <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-            <p className="text-sm font-semibold text-ink-primary">
-              {ROUTING_MODE_COPY[routingMode].label}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-ink-secondary">
-              {ROUTING_MODE_COPY[routingMode].description}
-            </p>
-            <p className="mt-2 text-xs leading-5 text-ink-tertiary">
-              {ROUTING_MODE_COPY[routingMode].note}
-            </p>
-          </div>
-        </div>
-
+        {/* 高级设置：参与步骤与执行上限，默认折叠，普通用户无需关心 */}
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Route className="w-4 h-4 text-[#1A8AFF]" />
-            <p className="text-sm font-semibold text-ink-primary">
-              小妍步骤开关
-            </p>
-          </div>
-          <p className="text-xs text-ink-tertiary">
-            选择允许小妍调度的能力步骤，关闭后不会被纳入考量。
-          </p>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((prev) => !prev)}
+            className="flex items-center gap-1.5 text-xs font-medium text-ink-tertiary hover:text-ink-secondary transition-colors"
+          >
+            <ChevronRight
+              className={`w-3.5 h-3.5 transition-transform ${showAdvanced ? "rotate-90" : ""}`}
+            />
+            高级设置（参与步骤与执行上限）
+          </button>
 
-          <div className="flex gap-2 flex-wrap pb-2">
-            {AGENT_OPTIONS.map(([value, label]) => (
-              <AgentChip
-                key={value}
-                label={label}
-                active={enabledAgents.includes(value)}
-                onClick={() => toggleAgent(value)}
-              />
-            ))}
-          </div>
+          {showAdvanced && (
+            <div className="space-y-4 pt-1">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Route className="w-4 h-4 text-[#1A8AFF]" />
+                  <p className="text-sm font-semibold text-ink-primary">
+                    小妍步骤开关
+                  </p>
+                </div>
+                <p className="text-xs text-ink-tertiary">
+                  默认全部开启。如需限制小妍可调度的能力步骤，可在此关闭，关闭后不会被纳入考量。
+                </p>
 
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {AGENT_GUIDES.map((item) => (
-              <div
-                key={item.key}
-                className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3 shadow-sm"
-              >
-                <p className="text-xs font-semibold text-ink-primary">
-                  {item.label}
-                </p>
-                <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-                  {item.description}
-                </p>
+                <div className="flex gap-2 flex-wrap pb-2">
+                  {AGENT_OPTIONS.map(([value, label]) => (
+                    <AgentChip
+                      key={value}
+                      label={label}
+                      active={enabledAgents.includes(value)}
+                      onClick={() => toggleAgent(value)}
+                    />
+                  ))}
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {AGENT_GUIDES.map((item) => (
+                    <div
+                      key={item.key}
+                      className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3 shadow-sm"
+                    >
+                      <p className="text-xs font-semibold text-ink-primary">
+                        {item.label}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-ink-tertiary">
+                        {item.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <SettingInput
-            label="单次最多调用的小妍步骤上限"
-            value={form.multi_agent_max_steps}
-            onChange={set("multi_agent_max_steps")}
-            placeholder="6"
-            hint="超过该步数将强制中断小妍步骤流程。"
-          />
-          <SettingInput
-            label="文献检索模型抓取条数上限"
-            value={form.multi_agent_search_limit}
-            onChange={set("multi_agent_search_limit")}
-            placeholder="8"
-            hint="搜索接口每次返回的文献条数上限。"
-          />
+              <div className="grid gap-3 md:grid-cols-2">
+                <SettingInput
+                  label="单次最多调用的小妍步骤上限"
+                  value={form.multi_agent_max_steps}
+                  onChange={set("multi_agent_max_steps")}
+                  placeholder="6"
+                  hint="超过该步数将强制中断小妍步骤流程。"
+                />
+                <SettingInput
+                  label="文献检索模型抓取条数上限"
+                  value={form.multi_agent_search_limit}
+                  onChange={set("multi_agent_search_limit")}
+                  placeholder="8"
+                  hint="搜索接口每次返回的文献条数上限。"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Card>
