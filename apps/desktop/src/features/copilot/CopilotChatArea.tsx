@@ -180,9 +180,13 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                   searchingQuery={isActiveAssistant ? searchingQuery : null}
                   isThinking={sending && isActiveAssistant}
                 />
-                <div className="rc-selectable text-sm leading-relaxed" style={{ color: "var(--rc-text)" }}>
+                <div
+                  className="rc-assistant-answer rc-selectable"
+                  style={{ color: "var(--rc-text)" }}
+                >
                   <MarkdownRenderer
                     content={parsed.answer || (sending && isActiveAssistant ? "小妍思考中..." : "")}
+                    className="rc-chat-markdown"
                     onLinkClick={openLink}
                   />
                 </div>
