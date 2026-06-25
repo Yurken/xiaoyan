@@ -593,9 +593,9 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "视界 · 视觉",
-    description: "扫描 PDF 中的图表、架构图与公式截图。",
+    description: "扫描 PDF 图表，以及在小妍对话中读取你发送的图片。",
     recommendation: "需要多模态能力，推荐 GPT-4o / Gemini / Claude Sonnet 等支持图像输入的模型。",
-    affectedScopes: "论文解读时的图表扫描（矢量图、表格补充识别）",
+    affectedScopes: "论文图表扫描、小妍对话发送图片（未配置时无法在对话中发图）",
     icon: Eye,
     iconColor: "#30B0C7",
     modelKeys: ["vision_model"],

@@ -80,15 +80,20 @@ export default function RolesSection({
     const key = item.title;
     setRoleTestStates((prev) => ({ ...prev, [key]: "testing" }));
     try {
-      const testForm: Partial<AppSettings> = { ...form };
-      const roleModel = getSharedValue(item.modelKeys).trim();
-      if (roleModel) testForm[providerChatModelKey()] = roleModel;
-      const baseKey = providerBaseUrlKey();
-      const roleBaseUrl = baseKey ? getSharedValue(item.baseUrlKeys).trim() : "";
-      if (baseKey && roleBaseUrl) testForm[baseKey] = roleBaseUrl;
-      const roleApiKey = getSharedValue(item.apiKeyKeys).trim();
-      if (roleApiKey && roleApiKey !== MASK) testForm[providerApiKeyKey()] = roleApiKey;
-      await apiClient.settings.test(testForm);
+      // 视觉模型需发送真实测试图确认多模态能力，走专用的视觉连接测试（直接读 form 里的 vision_* 字段）。
+      if (item.modelKeys.includes("vision_model")) {
+        await apiClient.settings.testVision(form);
+      } else {
+        const testForm: Partial<AppSettings> = { ...form };
+        const roleModel = getSharedValue(item.modelKeys).trim();
+        if (roleModel) testForm[providerChatModelKey()] = roleModel;
+        const baseKey = providerBaseUrlKey();
+        const roleBaseUrl = baseKey ? getSharedValue(item.baseUrlKeys).trim() : "";
+        if (baseKey && roleBaseUrl) testForm[baseKey] = roleBaseUrl;
+        const roleApiKey = getSharedValue(item.apiKeyKeys).trim();
+        if (roleApiKey && roleApiKey !== MASK) testForm[providerApiKeyKey()] = roleApiKey;
+        await apiClient.settings.test(testForm);
+      }
       setRoleTestStates((prev) => ({ ...prev, [key]: "ok" }));
       window.setTimeout(
         () => setRoleTestStates((prev) => (prev[key] === "ok" ? { ...prev, [key]: "idle" } : prev)),

@@ -100,7 +100,7 @@ use commands::{
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
         settings_history_list, settings_history_save, settings_import, settings_list_ollama_models,
-        settings_test, settings_update,
+        settings_test, settings_test_vision, settings_update,
     },
     skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
     source::source_lookup,
@@ -322,6 +322,7 @@ pub fn run() {
             settings_get,
             settings_update,
             settings_test,
+            settings_test_vision,
             settings_export,
             settings_import,
             settings_history_list,

@@ -218,6 +218,19 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     );
     const images = imageAttachments.map((a) => ({ data: a.imageData, mediaType: a.imageMediaType }));
 
+    // 发图前先确认已配置视觉模型；未配置则提示并保留输入/附件，不发送。
+    if (images.length > 0) {
+      try {
+        const settings = await apiClient.settings.get();
+        if (!settings.vision_model?.trim()) {
+          setLoadError("发送图片前请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。");
+          return;
+        }
+      } catch {
+        // 设置获取失败时不阻断，交由后端兜底校验。
+      }
+    }
+
     void apiClient.memory.add({
       type: "auto",
       action: "chat.query",

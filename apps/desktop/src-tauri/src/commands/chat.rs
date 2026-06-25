@@ -553,7 +553,18 @@ async fn run_simple(
         msgs.push(LlmMessage::user_with_images(message, images.to_vec()));
     }
     let temperature = resolve_temperature(settings, "copilot_simple_temperature", 0.4);
-    let model = resolve_model(settings, &["copilot_simple_model"]);
+    // 带图时改用专用视觉模型；未配置（vision_model 为空）则提示去设置，避免把图发给不支持视觉的主模型。
+    let vision = if images.is_empty() {
+        None
+    } else {
+        Some(LlmClient::vision_client_from_settings(settings).ok_or_else(|| {
+            anyhow::anyhow!("发送图片前请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。")
+        })?)
+    };
+    let (client, model): (&LlmClient, Option<String>) = match &vision {
+        Some((vision_client, vision_model)) => (vision_client, vision_model.clone()),
+        None => (client, resolve_model(settings, &["copilot_simple_model"])),
+    };
     let rid = request_id.to_string();
     let app_ref = app.clone();
 

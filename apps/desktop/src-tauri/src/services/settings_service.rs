@@ -719,6 +719,41 @@ pub async fn test_settings(state: &AppState, data: &serde_json::Value) -> Result
     Ok(reply.trim().to_string())
 }
 
+/// 视觉模型连接测试：不同于普通文本测试，发送一张 1x1 测试图 + 文本，
+/// 确认所配模型真正接受图片输入（即支持视觉），而不仅仅是 API 可达。
+pub async fn test_vision_settings(
+    state: &AppState,
+    data: &serde_json::Value,
+) -> Result<String, String> {
+    let saved = state.settings.read().await.clone();
+    let mut merged = saved;
+    if let Some(map) = data.as_object() {
+        for (key, value) in map {
+            let next_value = value.as_str().unwrap_or("").trim().to_string();
+            if next_value != MASK {
+                merged.insert(key.clone(), next_value);
+            }
+        }
+    }
+
+    let (client, model) = LlmClient::vision_client_from_settings(&merged)
+        .ok_or_else(|| "请先填写视觉模型名称。".to_string())?;
+    // 1x1 PNG（base64），仅用于确认端点接受 image 输入。
+    const TEST_PNG_B64: &str =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    let reply = client
+        .chat_with_image(
+            TEST_PNG_B64,
+            "image/png",
+            "请用一个词描述这张图片。",
+            model.as_deref(),
+            0.0,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(reply.trim().to_string())
+}
+
 pub async fn list_ollama_models(base_url: Option<String>) -> Result<Vec<String>, String> {
     let url = base_url
         .filter(|value| !value.trim().is_empty())

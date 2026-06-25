@@ -43,6 +43,14 @@ pub async fn settings_test(
 }
 
 #[tauri::command]
+pub async fn settings_test_vision(
+    state: State<'_, AppState>,
+    data: serde_json::Value,
+) -> Result<String, String> {
+    settings_service::test_vision_settings(state.inner(), &data).await
+}
+
+#[tauri::command]
 pub async fn settings_list_ollama_models(base_url: Option<String>) -> Result<Vec<String>, String> {
     settings_service::list_ollama_models(base_url).await
 }
