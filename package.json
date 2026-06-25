@@ -12,7 +12,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
-    "tauri": "pnpm --dir apps/desktop run tauri"
+    "tauri": "pnpm --dir apps/desktop run tauri",
+    "release:landing": "node scripts/release-sync-landing.mjs"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
