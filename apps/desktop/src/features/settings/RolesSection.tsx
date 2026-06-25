@@ -99,7 +99,8 @@ export default function RolesSection({
         () => setRoleTestStates((prev) => (prev[key] === "ok" ? { ...prev, [key]: "idle" } : prev)),
         4000,
       );
-    } catch {
+    } catch (error) {
+      console.error("Role test failed:", error);
       setRoleTestStates((prev) => ({ ...prev, [key]: "error" }));
       window.setTimeout(
         () => setRoleTestStates((prev) => (prev[key] === "error" ? { ...prev, [key]: "idle" } : prev)),
