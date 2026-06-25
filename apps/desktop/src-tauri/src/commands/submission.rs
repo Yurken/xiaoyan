@@ -941,6 +941,7 @@ pub async fn submission_polish_abstract(
     state: State<'_, AppState>,
     submission_id: String,
     text: String,
+    request_id: Option<String>,
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
     let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
@@ -954,6 +955,8 @@ pub async fn submission_polish_abstract(
     ];
 
     let sid = submission_id.clone();
+    // requestId 随事件回传，前端据此过滤旧请求的流式结果，防止同一投稿连续两次润色时旧 done 覆盖新流。
+    let req = request_id.clone();
     let app_clone = app.clone();
 
     tauri::async_runtime::spawn(async move {
@@ -961,7 +964,7 @@ pub async fn submission_polish_abstract(
             .stream_chat(&messages, model.as_deref(), temperature, |delta| {
                 let _ = app_clone.emit(
                     "submission:polish:delta",
-                    json!({ "submissionId": sid, "delta": delta }),
+                    json!({ "submissionId": sid, "requestId": req, "delta": delta }),
                 );
             })
             .await;
@@ -970,13 +973,13 @@ pub async fn submission_polish_abstract(
             Ok(full) => {
                 let _ = app.emit(
                     "submission:polish:done",
-                    json!({ "submissionId": submission_id, "fullText": full }),
+                    json!({ "submissionId": submission_id, "requestId": request_id, "fullText": full }),
                 );
             }
             Err(e) => {
                 let _ = app.emit(
                     "submission:polish:error",
-                    json!({ "submissionId": submission_id, "error": e.to_string() }),
+                    json!({ "submissionId": submission_id, "requestId": request_id, "error": e.to_string() }),
                 );
             }
         }
@@ -994,6 +997,7 @@ pub async fn submission_generate_cover_letter(
     app: AppHandle,
     state: State<'_, AppState>,
     submission_id: String,
+    request_id: Option<String>,
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
     let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
@@ -1073,6 +1077,8 @@ pub async fn submission_generate_cover_letter(
     ];
 
     let sid = submission_id.clone();
+    // requestId 随事件回传，前端据此过滤旧请求的流式结果，隔离并发与重复触发。
+    let req = request_id.clone();
     let app_clone = app.clone();
 
     tauri::async_runtime::spawn(async move {
@@ -1080,7 +1086,7 @@ pub async fn submission_generate_cover_letter(
             .stream_chat(&messages, model.as_deref(), temperature, |delta| {
                 let _ = app_clone.emit(
                     "submission:cover_letter:delta",
-                    json!({ "submissionId": sid, "delta": delta }),
+                    json!({ "submissionId": sid, "requestId": req, "delta": delta }),
                 );
             })
             .await;
@@ -1089,13 +1095,13 @@ pub async fn submission_generate_cover_letter(
             Ok(full) => {
                 let _ = app.emit(
                     "submission:cover_letter:done",
-                    json!({ "submissionId": submission_id, "fullText": full }),
+                    json!({ "submissionId": submission_id, "requestId": request_id, "fullText": full }),
                 );
             }
             Err(e) => {
                 let _ = app.emit(
                     "submission:cover_letter:error",
-                    json!({ "submissionId": submission_id, "error": e.to_string() }),
+                    json!({ "submissionId": submission_id, "requestId": request_id, "error": e.to_string() }),
                 );
             }
         }

@@ -767,10 +767,10 @@ export const submissionApi = {
       submissionId: params.submissionId, content: params.content,
       reviewerCount: params.reviewerCount, strictness: params.strictness,
     }),
-  polishAbstract: (submissionId: string, text: string) =>
-    invoke<void>("submission_polish_abstract", { submissionId, text }),
-  generateCoverLetter: (submissionId: string) =>
-    invoke<void>("submission_generate_cover_letter", { submissionId }),
+  polishAbstract: (submissionId: string, text: string, requestId?: string) =>
+    invoke<void>("submission_polish_abstract", { submissionId, text, requestId: requestId ?? null }),
+  generateCoverLetter: (submissionId: string, requestId?: string) =>
+    invoke<void>("submission_generate_cover_letter", { submissionId, requestId: requestId ?? null }),
   syncCcfDdl: () =>
     invoke<{ fetched: number; updated: number }>("submission_sync_ccfddl"),
   syncCcfDdlLocal: () =>

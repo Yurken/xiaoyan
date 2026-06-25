@@ -26,6 +26,7 @@ import CoverLetterModal from "../features/submission/CoverLetterModal";
 import PolishPanel from "../features/submission/PolishPanel";
 import { SUBMISSION_TAB_KEYS, type SubmissionTab } from "../features/submission/SubmissionTabs";
 import { papersApi, submissionApi } from "../lib/client";
+import { countVerdicts, getDominantVerdict } from "../features/submission/shared";
 import type { PaperVersion } from "../features/submission/shared";
 import type {
   SaveVersionFormState, MockReviewerResult, ReviewVerdict,
@@ -80,9 +81,10 @@ export default function Submission() {
   // AI review event listeners
   const mockBufferRef = useRef<MockReviewerResult[]>([]);
   const activeMockSubRef = useRef<string>("");
-  // 当前正在生成 cover letter / 润色的投稿，用于过滤对应流式事件，隔离多投稿并发。
-  const activeCoverSubRef = useRef<string>("");
-  const activePolishSubRef = useRef<string>("");
+  // 当前 cover letter / 润色请求的 requestId，用于过滤对应流式事件：
+  // requestId 每次请求唯一，既隔离多投稿并发，也防止同一投稿连续两次请求时旧 done 覆盖新流。
+  const activeCoverReqRef = useRef<string>("");
+  const activePolishReqRef = useRef<string>("");
   // ai_review 监听只在 mount 注册一次（依赖 [showError]），故对会变化的值用 ref 读取，
   // 避免 review/diagnosis 每次渲染换引用导致反复重订阅、在异步重注册窗口内丢失 reviewer 事件。
   const checklistSubIdRef = useRef(checklist.checklistSubId);
@@ -134,21 +136,21 @@ export default function Submission() {
   }, [showError]);
 
   // Cover letter / polish event listeners
-  // 均按 active*SubRef 过滤，避免多投稿并发时一路流式结果串写到另一路面板；
+  // 均按 active*ReqRef（requestId）过滤：隔离多投稿并发，且防止同一投稿连续两次请求时旧 done 覆盖新流；
   // 同时监听 error 事件，防止流式中途失败导致面板永久停在 loading。
   useEffect(() => {
     let u1: (() => void) | undefined, u2: (() => void) | undefined, u3: (() => void) | undefined;
     let mounted = true;
-    safeListen<{ submissionId: string; delta: string }>("submission:cover_letter:delta", ({ payload }) => {
-      if (payload.submissionId !== activeCoverSubRef.current) return;
+    safeListen<{ requestId: string; delta: string }>("submission:cover_letter:delta", ({ payload }) => {
+      if (payload.requestId !== activeCoverReqRef.current) return;
       setCoverLetterText(prev => prev + payload.delta);
     }).then(u => { if (!mounted) { u(); return; } u1 = u; });
-    safeListen<{ submissionId: string; fullText: string }>("submission:cover_letter:done", ({ payload }) => {
-      if (payload.submissionId !== activeCoverSubRef.current) return;
+    safeListen<{ requestId: string; fullText: string }>("submission:cover_letter:done", ({ payload }) => {
+      if (payload.requestId !== activeCoverReqRef.current) return;
       setCoverLetterText(payload.fullText); setCoverLetterLoading(false);
     }).then(u => { if (!mounted) { u(); return; } u2 = u; });
-    safeListen<{ submissionId: string; error: string }>("submission:cover_letter:error", ({ payload }) => {
-      if (payload.submissionId !== activeCoverSubRef.current) return;
+    safeListen<{ requestId: string; error: string }>("submission:cover_letter:error", ({ payload }) => {
+      if (payload.requestId !== activeCoverReqRef.current) return;
       setCoverLetterLoading(false); showError(payload.error);
     }).then(u => { if (!mounted) { u(); return; } u3 = u; });
     return () => {
@@ -160,16 +162,16 @@ export default function Submission() {
   useEffect(() => {
     let u1: (() => void) | undefined, u2: (() => void) | undefined, u3: (() => void) | undefined;
     let mounted = true;
-    safeListen<{ submissionId: string; delta: string }>("submission:polish:delta", ({ payload }) => {
-      if (payload.submissionId !== activePolishSubRef.current) return;
+    safeListen<{ requestId: string; delta: string }>("submission:polish:delta", ({ payload }) => {
+      if (payload.requestId !== activePolishReqRef.current) return;
       setPolishText(prev => prev + payload.delta);
     }).then(u => { if (!mounted) { u(); return; } u1 = u; });
-    safeListen<{ submissionId: string; fullText: string }>("submission:polish:done", ({ payload }) => {
-      if (payload.submissionId !== activePolishSubRef.current) return;
+    safeListen<{ requestId: string; fullText: string }>("submission:polish:done", ({ payload }) => {
+      if (payload.requestId !== activePolishReqRef.current) return;
       setPolishText(payload.fullText); setPolishLoading(false);
     }).then(u => { if (!mounted) { u(); return; } u2 = u; });
-    safeListen<{ submissionId: string; error: string }>("submission:polish:error", ({ payload }) => {
-      if (payload.submissionId !== activePolishSubRef.current) return;
+    safeListen<{ requestId: string; error: string }>("submission:polish:error", ({ payload }) => {
+      if (payload.requestId !== activePolishReqRef.current) return;
       setPolishLoading(false); showError(payload.error);
     }).then(u => { if (!mounted) { u(); return; } u3 = u; });
     return () => {
@@ -272,7 +274,12 @@ export default function Submission() {
     const results = review.mockResult ?? [];
     if (!submissionId || results.length === 0) return;
     try {
-      await submissionApi.upsertRound({ submissionId, round: review.round });
+      // 该轮裁决取各 reviewer 的主导意见，避免落到后端默认值、与生成时展示的主导裁决不一致。
+      await submissionApi.upsertRound({
+        submissionId,
+        round: review.round,
+        verdict: getDominantVerdict(countVerdicts(results)),
+      });
       for (const result of results) {
         await submissionApi.createComment({
           submissionId, round: review.round,
@@ -289,22 +296,24 @@ export default function Submission() {
   // Cover letter：打开弹窗即触发流式生成（监听器写入 coverLetterText）
   const handleOpenCoverLetter = (submissionId: string) => {
     if (!submissionId) return;
-    activeCoverSubRef.current = submissionId;
+    const reqId = crypto.randomUUID();
+    activeCoverReqRef.current = reqId;
     setVersionSubId(submissionId);
     setCoverLetterText("");
     setCoverLetterLoading(true);
     setShowCoverLetterModal(true);
-    submissionApi.generateCoverLetter(submissionId).catch((err) => { setCoverLetterLoading(false); showError(err); });
+    submissionApi.generateCoverLetter(submissionId, reqId).catch((err) => { setCoverLetterLoading(false); showError(err); });
   };
 
   // 润色：打开面板即触发流式润色（监听器写入 polishText）
   const handlePolishVersion = (version: PaperVersion) => {
-    activePolishSubRef.current = version.submissionId;
+    const reqId = crypto.randomUUID();
+    activePolishReqRef.current = reqId;
     setPolishSourceId(version.id);
     setPolishText("");
     setPolishLoading(true);
     setShowPolishPanel(true);
-    submissionApi.polishAbstract(version.submissionId, version.content).catch((err) => { setPolishLoading(false); showError(err); });
+    submissionApi.polishAbstract(version.submissionId, version.content, reqId).catch((err) => { setPolishLoading(false); showError(err); });
   };
   const handleApplyPolish = () => {
     if (!polishSourceId) { setShowPolishPanel(false); return; }
