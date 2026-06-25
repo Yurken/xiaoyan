@@ -7,7 +7,7 @@ use crate::commands::knowledge_plan_status::{
 };
 use crate::commands::memory::{is_long_term_memory_enabled, record_knowledge_note_created_event};
 use crate::links::paper_search_url;
-use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
+use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMessage};
 use crate::state::AppState;
 use chrono;
 use serde::{Deserialize, Serialize};
@@ -1132,6 +1132,166 @@ pub async fn knowledge_suggest_topics(
             })
             .unwrap_or_default();
         Ok::<_, String>(topics)
+    }
+    .await;
+
+    match outcome {
+        Ok(v) => {
+            let _ = app.emit(
+                "interest:agent_complete",
+                json!({ "id": "suggest", "agent": { "id": suggest_id } }),
+            );
+            Ok(v)
+        }
+        Err(e) => {
+            let _ = app.emit("interest:error", json!({ "id": "suggest", "error": &e }));
+            Err(e)
+        }
+    }
+}
+
+const IDEA_FROM_MATERIALS_PROMPT: &str = r#"你是一位资深研究导师。学生还没想好做什么，他提供了一些零散材料（可能是与导师讨论 idea 的记录/录音转写、会议笔记、灵感碎片、相关截图或图片等）。请基于这些材料，帮他提炼具体、可执行的研究 idea，并补充相关背景信息。
+
+要求：
+- 给出 4~6 个 idea，每个都必须具体可执行，不能是宽泛领域；体现近两年学术前沿或落地价值
+- title：一句话 idea（10~30 字，中文）
+- rationale：从材料里抓到的线索、为什么值得做（1~2 句）
+- background：相关背景信息——已有相关工作、关键概念、可能的数据/方法切入点（2~3 句）
+- keywords：3~5 个可用于文献检索的关键词
+- 紧扣材料内容，优先顺着材料里出现的线索发散，不要脱离材料凭空发挥；材料信息不足时也要给出最贴近的方向并说明依据
+
+仅返回合法 JSON 对象：
+{"ideas": [{"title": "...", "rationale": "...", "background": "...", "keywords": ["...", "..."]}]}
+
+学生提供的材料：
+{materials}"#;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ResearchIdeaSuggestion {
+    pub title: String,
+    pub rationale: String,
+    pub background: String,
+    pub keywords: Vec<String>,
+}
+
+/// 「没想好做什么」场景：学生给一些零散材料（文字/文档文本 + 可选图片），
+/// 小妍据此提炼可执行的研究 idea 与相关背景。含图片时走视觉模型。
+#[tauri::command]
+pub async fn knowledge_ideas_from_materials(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    materials: String,
+    images: Option<Vec<crate::commands::chat::ImageInput>>,
+) -> Result<Vec<ResearchIdeaSuggestion>, String> {
+    let images: Vec<LlmImage> = images
+        .unwrap_or_default()
+        .into_iter()
+        .map(|img| LlmImage {
+            media_type: img.media_type,
+            data: img.data,
+        })
+        .collect();
+
+    if materials.trim().is_empty() && images.is_empty() {
+        return Err("请先添加一些材料（文字、文档或图片）。".to_string());
+    }
+
+    let suggest_id = Uuid::new_v4().to_string();
+    let _ = app.emit(
+        "interest:agent_start",
+        json!({
+            "id": "suggest",
+            "agent": {
+                "id": suggest_id,
+                "name": "灵感提炼",
+                "role": "从材料中提炼研究 idea",
+                "status": "running"
+            }
+        }),
+    );
+
+    let outcome = async {
+        let settings = state.settings.read().await.clone();
+        let temperature = resolve_temperature(&settings, "planner_hint_temperature", 0.7);
+        // 含图片时改用专用视觉模型；未配置则提示去设置，避免把图发给不支持视觉的主模型。
+        let (client, model) = if images.is_empty() {
+            (
+                LlmClient::from_settings(&settings).map_err(|e| e.to_string())?,
+                resolve_model(&settings, &["planner_hint_model"]),
+            )
+        } else {
+            LlmClient::vision_client_from_settings(&settings).ok_or_else(|| {
+                "材料中包含图片，请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。".to_string()
+            })?
+        };
+
+        let material_text = if materials.trim().is_empty() {
+            "（无文字材料，仅提供了图片，请基于图片内容分析）".to_string()
+        } else {
+            materials.trim().to_string()
+        };
+        let prompt = IDEA_FROM_MATERIALS_PROMPT.replace("{materials}", &material_text);
+
+        let user_msg = if images.is_empty() {
+            LlmMessage::user(&prompt)
+        } else {
+            LlmMessage::user_with_images(&prompt, images.clone())
+        };
+        let messages = vec![
+            LlmMessage::system(
+                "你是一位资深学术导师，擅长从零散材料中识别有价值、可执行的研究切入点。",
+            ),
+            user_msg,
+        ];
+        let response = client
+            .chat(&messages, model.as_deref(), temperature)
+            .await
+            .map_err(|e| e.to_string())?;
+        let clean = crate::commands::papers::extract_json_pub(&response);
+        let ideas: Vec<ResearchIdeaSuggestion> = serde_json::from_str::<serde_json::Value>(&clean)
+            .ok()
+            .and_then(|v| {
+                v.get("ideas").and_then(|arr| arr.as_array()).map(|arr| {
+                    arr.iter()
+                        .filter_map(|item| {
+                            let title = item
+                                .get("title")
+                                .and_then(|n| n.as_str())
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())?;
+                            let str_field = |key: &str| {
+                                item.get(key)
+                                    .and_then(|n| n.as_str())
+                                    .unwrap_or("")
+                                    .trim()
+                                    .to_string()
+                            };
+                            let keywords = item
+                                .get("keywords")
+                                .and_then(|k| k.as_array())
+                                .map(|ks| {
+                                    ks.iter()
+                                        .filter_map(|k| k.as_str().map(|s| s.trim().to_string()))
+                                        .filter(|s| !s.is_empty())
+                                        .collect::<Vec<_>>()
+                                })
+                                .unwrap_or_default();
+                            Some(ResearchIdeaSuggestion {
+                                title,
+                                rationale: str_field("rationale"),
+                                background: str_field("background"),
+                                keywords,
+                            })
+                        })
+                        .collect()
+                })
+            })
+            .unwrap_or_default();
+
+        if ideas.is_empty() {
+            return Err("没能从材料里提炼出可用的 idea，请补充更多信息后重试。".to_string());
+        }
+        Ok::<_, String>(ideas)
     }
     .await;
 

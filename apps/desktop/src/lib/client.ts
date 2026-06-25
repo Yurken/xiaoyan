@@ -322,6 +322,13 @@ export const paperSearchApi = {
 
 // ── Knowledge ─────────────────────────────────────────────────────
 
+export interface ResearchIdeaSuggestion {
+  title: string;
+  rationale: string;
+  background: string;
+  keywords: string[];
+}
+
 export const knowledgeApi = {
   listInterests: (): Promise<ResearchInterest[]> =>
     invoke("knowledge_list_interests"),
@@ -354,6 +361,11 @@ export const knowledgeApi = {
     }),
   suggestTopics: (field: string, goalType: string, background: string): Promise<string[]> =>
     invoke("knowledge_suggest_topics", { field, goalType: goalType, background }),
+  ideasFromMaterials: (
+    materials: string,
+    images: { data: string; mediaType: string }[],
+  ): Promise<ResearchIdeaSuggestion[]> =>
+    invoke("knowledge_ideas_from_materials", { materials, images }),
   generatePlan: (id: string, startStep?: number): Promise<void> =>
     invoke("knowledge_generate_plan", { id, startStep: startStep ?? null }),
   listNotes: (search?: string): Promise<KnowledgeNote[]> =>
