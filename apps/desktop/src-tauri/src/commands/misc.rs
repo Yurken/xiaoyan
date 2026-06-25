@@ -1225,35 +1225,6 @@ pub async fn translate_text(
 
 // ── Markdown Format ───────────────────────────────────────────────
 
-/// 修复 LLM 生成 JSON 时常见的非法转义：当文本里含有 LaTeX（如 `\mathcal`、
-/// `\le`、`\Delta`）时，这些反斜杠不是合法的 JSON 转义，会导致解析失败。
-/// 这里把所有「后面不跟合法转义字符」的反斜杠补成 `\\`，已合法的（如
-/// `\n`、`\"`、`\\`、`\u`）原样保留。反斜杠只会出现在字符串内，全局扫描安全。
-fn repair_json_escapes(input: &str) -> String {
-    let chars: Vec<char> = input.chars().collect();
-    let mut out = String::with_capacity(input.len() + 16);
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] == '\\' {
-            match chars.get(i + 1) {
-                Some(&n @ ('"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' | 'u')) => {
-                    out.push('\\');
-                    out.push(n);
-                    i += 2;
-                }
-                _ => {
-                    out.push_str("\\\\");
-                    i += 1;
-                }
-            }
-        } else {
-            out.push(chars[i]);
-            i += 1;
-        }
-    }
-    out
-}
-
 #[tauri::command]
 pub async fn markdown_format_chunk(
     state: State<'_, AppState>,
@@ -1267,19 +1238,25 @@ pub async fn markdown_format_chunk(
     let temperature = resolve_temperature(&settings, "copilot_simple_temperature", 0.3);
 
     let style_context = if style_summary.trim().is_empty() {
-        "这是第一块，请自行决定合适的 Markdown 排版风格，并在 style_summary 中简要记录约定（标题层级用法、列表风格等），供后续块继承。".to_string()
+        "这是第一块，请自行确定合适的 Markdown 排版风格，并在末尾的风格摘要里简要记录约定（标题层级、列表风格、强调与代码块用法等），供后续块继承。".to_string()
     } else {
         format!("请严格延续以下排版约定，保证全文风格一致：\n{style_summary}")
     };
 
     let system = specialist_system(
         "Markdown 排版整理专家",
-        "将任意文本整理为规范、一致的 Markdown 格式，结构清晰，保留全部原始内容。",
-        Some("仅返回合法 JSON，不输出其他内容。"),
+        "把任意文本整理为规范、一致、结构清晰的 Markdown，完整保留原始内容与语义。",
+        Some("不要翻译、不要增删或解释内容；不要用代码块包裹整篇输出。"),
     );
 
+    // 用分隔行而非 JSON 承载结果：Markdown 常含引号/反斜杠/代码块/LaTeX，JSON 转义极易破坏内容。
     let user = format!(
-        "{style_context}\n\n请整理下面这段文本，仅返回 JSON：\n{{\n  \"formatted\": \"整理好的 Markdown 文本\",\n  \"style_summary\": \"排版约定摘要（≤150字，供下一块继承）\"\n}}\n\n待整理文本：\n{text}"
+        "{style_context}\n\n请整理下面的文本，严格按以下格式输出：\n\
+         1) 先输出整理后的完整 Markdown 正文（逐字保留原始信息，仅做排版与结构化）。\n\
+         2) 另起一行，单独输出一行分隔标记：{STYLE_SENTINEL}\n\
+         3) 在分隔标记之后输出本次排版约定摘要（≤150 字，供后续块继承）。\n\
+         除上述内容外不要输出任何额外说明。\n\n待整理文本：\n{text}",
+        STYLE_SENTINEL = MARKDOWN_STYLE_SENTINEL,
     );
 
     let msgs = vec![LlmMessage::system(system), LlmMessage::user(&user)];
@@ -1287,26 +1264,38 @@ pub async fn markdown_format_chunk(
         .chat(&msgs, model.as_deref(), temperature)
         .await
         .map_err(|e| e.to_string())?;
-    let clean = repair_json_escapes(&extract_json(&raw));
-    let parsed = serde_json::from_str::<serde_json::Value>(&clean)
-        .map_err(|e| format!("JSON parse error: {e}\nraw: {raw}"))?;
-    // 归一化为前端期望的驼峰键，并对缺失字段兜底，避免 styleSummary 变成 undefined
-    // 后续块回传时丢键导致 "missing required key styleSummary"。
-    let formatted = parsed
-        .get("formatted")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let style_summary = parsed
-        .get("style_summary")
-        .or_else(|| parsed.get("styleSummary"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+
+    let body = strip_outer_markdown_fence(raw.trim());
+    let (formatted, next_style) = match body.rfind(MARKDOWN_STYLE_SENTINEL) {
+        Some(idx) => (
+            body[..idx].trim_end().to_string(),
+            body[idx + MARKDOWN_STYLE_SENTINEL.len()..].trim().to_string(),
+        ),
+        // 模型未给分隔标记：整段视为正文，沿用上一块的风格摘要。
+        None => (body.clone(), style_summary.trim().to_string()),
+    };
+
     Ok(serde_json::json!({
         "formatted": formatted,
-        "styleSummary": style_summary,
+        "styleSummary": next_style,
     }))
+}
+
+const MARKDOWN_STYLE_SENTINEL: &str = "<<<STYLE-SUMMARY>>>";
+
+/// 仅当整段输出被一个显式的 ```markdown / ```md 代码块整体包裹时才剥离外层围栏，
+/// 避免破坏正文里合法的代码块（普通 ``` 包裹无法与「正文就是一个代码块」区分，故不剥离）。
+fn strip_outer_markdown_fence(text: &str) -> String {
+    let trimmed = text.trim();
+    let lines: Vec<&str> = trimmed.lines().collect();
+    if lines.len() >= 2 {
+        let first = lines[0].trim();
+        let last = lines[lines.len() - 1].trim();
+        if (first == "```markdown" || first == "```md") && last == "```" {
+            return lines[1..lines.len() - 1].join("\n").trim().to_string();
+        }
+    }
+    trimmed.to_string()
 }
 
 async fn retrieve_papers(

@@ -10,6 +10,63 @@ interface MarkdownProgress {
 // 单块过大可能被截断丢失内容，因此保留分块，仅放宽阈值。
 export const CHUNK_SIZE = 6000;
 
+// 按空行切块，但把围栏代码块（``` ... ```）视为不可分割整体，避免把半个代码块送给模型。
+function splitIntoBlocks(text: string): string[] {
+  const blocks: string[] = [];
+  let current: string[] = [];
+  let inFence = false;
+  const flush = () => {
+    if (current.length) {
+      blocks.push(current.join("\n"));
+      current = [];
+    }
+  };
+  for (const line of text.split("\n")) {
+    const isFence = /^\s*```/.test(line);
+    if (isFence) {
+      inFence = !inFence;
+      current.push(line);
+      continue;
+    }
+    if (!inFence && line.trim() === "") {
+      flush();
+      continue;
+    }
+    current.push(line);
+  }
+  flush();
+  return blocks;
+}
+
+/**
+ * 把 Markdown 源文本切成不超过 maxSize 的块：保持代码块完整、按空行对齐边界，
+ * 单个超大块（极少见的超长段/代码）兜底硬切，避免被模型截断丢内容。
+ */
+export function chunkMarkdownSource(text: string, maxSize: number): string[] {
+  const chunks: string[] = [];
+  let current = "";
+  for (const block of splitIntoBlocks(text)) {
+    if (block.length > maxSize) {
+      if (current) {
+        chunks.push(current);
+        current = "";
+      }
+      for (let i = 0; i < block.length; i += maxSize) {
+        chunks.push(block.slice(i, i + maxSize));
+      }
+      continue;
+    }
+    if (current && current.length + block.length + 2 > maxSize) {
+      chunks.push(current);
+      current = block;
+    } else {
+      current = current ? `${current}\n\n${block}` : block;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 export function useMarkdownFormatter() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState("");
@@ -21,18 +78,7 @@ export function useMarkdownFormatter() {
     const text = input.trim();
     if (!text || processing) return;
 
-    const paragraphs = text.split(/\n{2,}/);
-    const chunks: string[] = [];
-    let currentChunk = "";
-    for (const paragraph of paragraphs) {
-      if (currentChunk.length + paragraph.length > CHUNK_SIZE && currentChunk) {
-        chunks.push(currentChunk.trim());
-        currentChunk = paragraph;
-      } else {
-        currentChunk = currentChunk ? `${currentChunk}\n\n${paragraph}` : paragraph;
-      }
-    }
-    if (currentChunk.trim()) chunks.push(currentChunk.trim());
+    const chunks = chunkMarkdownSource(text, CHUNK_SIZE);
 
     setProcessing(true);
     setError("");
