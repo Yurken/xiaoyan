@@ -111,6 +111,8 @@ export const settingsApi = {
     invoke("settings_export", { password }),
   import: (data: string, password: string): Promise<string[]> =>
     invoke("settings_import", { data, password }),
+  readDiagnosticLog: (): Promise<{ name: string; content: string }> =>
+    invoke("read_diagnostic_log"),
   dataBackup: {
     export: (password: string): Promise<string> =>
       invoke("data_backup_export", { password }),

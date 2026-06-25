@@ -172,6 +172,31 @@ pub fn append_diagnostic_log(message: &str) {
     }
 }
 
+/// 读取应用当前诊断日志，供「附带本地日志」一键附带。
+/// 仅返回尾部（最多 ~200KB）——最近的日志最有用，也避免反馈载荷过大。
+#[tauri::command]
+fn read_diagnostic_log() -> Result<serde_json::Value, String> {
+    const MAX_BYTES: usize = 200_000;
+    let path = diagnostic_log_path();
+    let content = fs::read_to_string(&path).map_err(|e| format!("读取日志失败：{e}"))?;
+    let tail = if content.len() > MAX_BYTES {
+        // 从字符边界安全截断，保留最新的一段。
+        let mut start = content.len() - MAX_BYTES;
+        while start < content.len() && !content.is_char_boundary(start) {
+            start += 1;
+        }
+        format!("……（已省略较早日志）\n{}", &content[start..])
+    } else {
+        content
+    };
+    let name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("xiaoyan-desktop.log")
+        .to_string();
+    Ok(serde_json::json!({ "name": name, "content": tail }))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     panic::set_hook(Box::new(|panic_info| {
@@ -331,6 +356,7 @@ pub fn run() {
             settings_history_delete,
             update_check,
             update_install,
+            read_diagnostic_log,
             // Papers
             papers_list,
             papers_get,

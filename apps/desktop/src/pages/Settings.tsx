@@ -12,6 +12,7 @@ import SettingsHistorySection from "../features/settings/SettingsHistorySection"
 import ConfigHistoryManageModal from "../features/settings/ConfigHistoryManageModal";
 import SkillsSection from "../features/settings/SkillsSection";
 import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from "../features/settings/SettingsChangelogCard";
+import FeedbackSection from "../features/settings/FeedbackSection";
 import TaskSetupSection from "../features/settings/TaskSetupSection";
 import LayoutSettingsSection from "../features/settings/LayoutSettingsSection";
 import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
@@ -552,6 +553,7 @@ export default function Settings() {
               onInstallUpdate={handleInstallUpdate}
             />
             <SettingsChangelogCard />
+            <FeedbackSection />
           </div>
         ) : null}
       </div>
