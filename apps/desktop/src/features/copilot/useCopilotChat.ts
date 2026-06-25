@@ -76,7 +76,8 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     ) => {
       const assistantId = `${Date.now()}_a`;
 
-      if (chatMode === "task") setSidebarCollapsed(false);
+      // 带图时后端强制走直答（不发 plan/agent 事件），任务模式也不展开协同台，避免出现空的 agent 面板。
+      if (chatMode === "task" && images.length === 0) setSidebarCollapsed(false);
 
       cancelActiveStream();
       const abortController = new AbortController();

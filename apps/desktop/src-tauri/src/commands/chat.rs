@@ -262,7 +262,7 @@ pub async fn chat_stream(
     let images_bytes: usize = images.iter().map(|img| img.data.len()).sum();
     if images_bytes > MAX_CHAT_IMAGE_BYTES {
         return Err(format!(
-            "图片过大（约{}MB），请压缩后重试（上限约{}MB）。",
+            "图片过大（编码后约{}MB），请压缩或减少图片后重试（上限约{}MB）。",
             images_bytes / (1024 * 1024),
             MAX_CHAT_IMAGE_BYTES / (1024 * 1024)
         ));

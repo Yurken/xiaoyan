@@ -865,11 +865,9 @@ async fn anthropic_chat(
         .iter()
         .find(|m| m.role == "system")
         .map(|m| m.content.clone());
-    let user_msgs: Vec<_> = messages
-        .iter()
-        .filter(|m| m.role != "system")
-        .map(|m| json!({ "role": m.role, "content": m.content }))
-        .collect();
+    // 复用 build_anthropic_user_messages：统一处理 tool/tool_calls 与多模态图片块，
+    // 避免在非工具流式/非流式路径 inline 构造时丢弃 m.images。
+    let user_msgs = build_anthropic_user_messages(messages);
     let mut body = json!({
         "model": model,
         "max_tokens": max_tokens,
@@ -917,11 +915,9 @@ async fn stream_anthropic(
         .iter()
         .find(|m| m.role == "system")
         .map(|m| m.content.clone());
-    let user_msgs: Vec<_> = messages
-        .iter()
-        .filter(|m| m.role != "system")
-        .map(|m| json!({ "role": m.role, "content": m.content }))
-        .collect();
+    // 复用 build_anthropic_user_messages：统一处理 tool/tool_calls 与多模态图片块，
+    // 避免在非工具流式/非流式路径 inline 构造时丢弃 m.images。
+    let user_msgs = build_anthropic_user_messages(messages);
     let mut body = json!({
         "model": model,
         "max_tokens": max_tokens,
