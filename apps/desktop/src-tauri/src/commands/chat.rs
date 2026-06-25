@@ -72,7 +72,7 @@ pub async fn chat_get_session(
     .ok_or("未找到对应会话。")?;
 
     let msgs = sqlx::query(
-        "SELECT id, role, content, sources, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
+        "SELECT id, role, content, sources, images, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
     )
     .bind(&id)
     .fetch_all(&state.db)
@@ -83,11 +83,13 @@ pub async fn chat_get_session(
         .iter()
         .map(|m| {
             let src: Option<String> = m.get("sources");
+            let imgs: Option<String> = m.get("images");
             json!({
                 "id": m.get::<String, _>("id"),
                 "role": m.get::<String, _>("role"),
                 "content": m.get::<String, _>("content"),
                 "sources": src.as_deref().and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()),
+                "images": imgs.as_deref().and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()),
                 "created_at": m.get::<String, _>("created_at"),
             })
         })
@@ -318,10 +320,21 @@ pub async fn chat_stream(
         id
     };
 
-    // Save user message
+    // Save user message（含图片，供同会话多轮上下文回放）
     let msg_id = Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, 'user', ?, ?)")
-        .bind(&msg_id).bind(&sid).bind(&message).bind(&now)
+    let images_json: Option<String> = if images.is_empty() {
+        None
+    } else {
+        serde_json::to_string(
+            &images
+                .iter()
+                .map(|i| json!({ "mediaType": i.media_type, "data": i.data }))
+                .collect::<Vec<_>>(),
+        )
+        .ok()
+    };
+    sqlx::query("INSERT INTO chat_messages (id, session_id, role, content, images, created_at) VALUES (?, ?, 'user', ?, ?, ?)")
+        .bind(&msg_id).bind(&sid).bind(&message).bind(&images_json).bind(&now)
         .execute(&state.db).await.map_err(|e| e.to_string())?;
 
     let history = fetch_history(&state.db, &sid, 10)
@@ -447,8 +460,10 @@ async fn run_chat(
     )
     .await;
 
-    // 多模态图片仅在 run_simple（直答）路径支持；带图时强制走直答，避免多智能体路径静默丢图。
-    let use_direct_chat = chat_mode == "direct" || !images.is_empty();
+    // 多模态图片仅在 run_simple（直答）路径支持；当前轮或历史含图都强制走直答，
+    // 既避免多智能体路径静默丢图，也保证带图历史的多轮追问仍走视觉模型。
+    let history_has_image = history.iter().any(|m| !m.images.is_empty());
+    let use_direct_chat = chat_mode == "direct" || !images.is_empty() || history_has_image;
 
     let full = if !use_direct_chat && multi_agent {
         let runtime_result = run_agent_runtime(
@@ -553,13 +568,14 @@ async fn run_simple(
         msgs.push(LlmMessage::user_with_images(message, images.to_vec()));
     }
     let temperature = resolve_temperature(settings, "copilot_simple_temperature", 0.4);
-    // 带图时改用专用视觉模型；未配置（vision_model 为空）则提示去设置，避免把图发给不支持视觉的主模型。
-    let vision = if images.is_empty() {
-        None
-    } else {
+    // 当前轮或历史含图都改用专用视觉模型（保证多轮追问能看到先前图片）；未配置则提示去设置。
+    let needs_vision = !images.is_empty() || history.iter().any(|m| !m.images.is_empty());
+    let vision = if needs_vision {
         Some(LlmClient::vision_client_from_settings(settings).ok_or_else(|| {
-            anyhow::anyhow!("发送图片前请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。")
+            anyhow::anyhow!("该对话包含图片，请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。")
         })?)
+    } else {
+        None
     };
     let (client, model): (&LlmClient, Option<String>) = match &vision {
         Some((vision_client, vision_model)) => (vision_client, vision_model.clone()),
@@ -678,18 +694,34 @@ async fn fetch_history(
     limit: i64,
 ) -> anyhow::Result<Vec<LlmMessage>> {
     let rows = sqlx::query(
-        "SELECT role, content FROM (SELECT role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC",
+        "SELECT role, content, images FROM (SELECT role, content, images, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC",
     )
     .bind(session_id).bind(limit)
     .fetch_all(db).await?;
     Ok(rows
         .iter()
-        .map(|r| LlmMessage {
-            role: r.get("role"),
-            content: r.get("content"),
-            tool_call_id: None,
-            tool_calls: None,
-            images: Vec::new(),
+        .map(|r| {
+            let images = r
+                .get::<Option<String>, _>("images")
+                .and_then(|raw| serde_json::from_str::<Vec<serde_json::Value>>(&raw).ok())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| {
+                            Some(LlmImage {
+                                media_type: v.get("mediaType")?.as_str()?.to_string(),
+                                data: v.get("data")?.as_str()?.to_string(),
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            LlmMessage {
+                role: r.get("role"),
+                content: r.get("content"),
+                tool_call_id: None,
+                tool_calls: None,
+                images,
+            }
         })
         .collect())
 }

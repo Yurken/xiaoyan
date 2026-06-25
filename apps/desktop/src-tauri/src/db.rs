@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     role       TEXT NOT NULL,
     content    TEXT NOT NULL,
     sources    TEXT,
+    images     TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -621,6 +622,8 @@ async fn ensure_paper_figures_table(pool: &SqlitePool) -> Result<()> {
     ensure_table_column(pool, "paper_figures", "page_number", "INTEGER").await?;
     ensure_table_column(pool, "paper_figures", "bbox", "TEXT").await?;
     ensure_table_column(pool, "paper_figures", "source", "TEXT").await?;
+    // 对话多模态：用户消息附带的图片（JSON 数组 [{mediaType,data}]），供多轮上下文回放。
+    ensure_table_column(pool, "chat_messages", "images", "TEXT").await?;
     Ok(())
 }
 
