@@ -561,7 +561,22 @@ async fn run_simple(
 ) -> anyhow::Result<String> {
     let system_prompt = main_chat_system(context_summary);
     let mut msgs = vec![LlmMessage::system(&system_prompt)];
-    msgs.extend_from_slice(history);
+    // 控制成本：历史只保留最近 MAX_HISTORY_IMAGE_MSGS 条带图消息的图片，更早的剥成纯文本，
+    // 避免多轮追问把全部历史图片反复重发给视觉模型。
+    const MAX_HISTORY_IMAGE_MSGS: usize = 2;
+    let mut history_msgs = history.to_vec();
+    let mut kept = 0usize;
+    for m in history_msgs.iter_mut().rev() {
+        if m.images.is_empty() {
+            continue;
+        }
+        if kept < MAX_HISTORY_IMAGE_MSGS {
+            kept += 1;
+        } else {
+            m.images.clear();
+        }
+    }
+    msgs.extend(history_msgs);
     if images.is_empty() {
         msgs.push(LlmMessage::user(message));
     } else {
