@@ -164,7 +164,15 @@ export default function CopilotComposer({
                   <X className="w-2.5 h-2.5" />
                 </button>
                 <div className="flex-shrink-0" style={{ color: attachment.extension === "pdf" ? "#FF3B30" : "#007AFF" }}>
-                  {attachmentIcon(attachment.extension)}
+                  {attachment.kind === "image" && attachment.imageData ? (
+                    <img
+                      src={`data:${attachment.imageMediaType};base64,${attachment.imageData}`}
+                      alt={attachment.name}
+                      className="w-5 h-5 rounded object-cover"
+                    />
+                  ) : (
+                    attachmentIcon(attachment.extension)
+                  )}
                 </div>
                 <span
                   className="text-[11px] font-medium truncate"

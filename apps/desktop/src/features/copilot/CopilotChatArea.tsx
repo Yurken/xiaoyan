@@ -252,6 +252,19 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                           ))}
                         </div>
                       )}
+                      {message.images && message.images.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5 justify-end">
+                          {message.images.map((img, i) => (
+                            <img
+                              key={`${img.name ?? "img"}-${i}`}
+                              src={`data:${img.mediaType};base64,${img.data}`}
+                              alt={img.name ?? "图片"}
+                              className="max-h-40 max-w-[12rem] rounded-xl object-cover"
+                              style={{ boxShadow: "var(--rc-chip-shadow)" }}
+                            />
+                          ))}
+                        </div>
+                      )}
                       <div className="rounded-2xl px-3 py-1.5 text-xs"
                         style={{ background: "linear-gradient(145deg, #1A8AFF, #0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)", color: "#FFFFFF" }}>
                         <p className="rc-selectable whitespace-pre-wrap leading-relaxed">

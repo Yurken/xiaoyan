@@ -1,7 +1,7 @@
 use crate::assistant_prompts::main_chat_system;
 use crate::commands::chat_tools::{build_chat_tools, dispatch_tool};
 use crate::commands::memory::is_long_term_memory_enabled;
-use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage, StreamOutcome};
+use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMessage, StreamOutcome};
 use crate::services::agent_runtime_service::{
     run_agent_runtime, AgentRuntimeKind, AgentRuntimeRequest,
 };
@@ -17,6 +17,17 @@ use sqlx::Row;
 use std::collections::HashMap;
 use tauri::{Emitter, State};
 use uuid::Uuid;
+
+/// 前端 chat_stream 传入的图片块：data 为 base64（不含 data: 前缀），mediaType 为 MIME 类型。
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageInput {
+    pub data: String,
+    pub media_type: String,
+}
+
+/// 单次对话图片总 base64 体积上限（约 12MB 原图），超出直接拒绝，避免撑爆请求体。
+const MAX_CHAT_IMAGE_BYTES: usize = 16 * 1024 * 1024;
 
 // ── Session management ──────────────────────────────────────────
 
@@ -228,6 +239,7 @@ pub async fn chat_stream(
     chat_mode: Option<String>,
     tag: Option<String>,
     request_id: Option<String>,
+    images: Option<Vec<ImageInput>>,
 ) -> Result<serde_json::Value, String> {
     let request_id = request_id
         .filter(|value| !value.trim().is_empty())
@@ -239,6 +251,20 @@ pub async fn chat_stream(
             "消息过长（{}字符），请缩短后重试（上限{}字符）。",
             message.len(),
             MAX_CHAT_MESSAGE_LEN
+        ));
+    }
+
+    // 图片单独按字节上限校验，不与文本上限混算。
+    let images: Vec<LlmImage> = images.unwrap_or_default().into_iter().map(|img| LlmImage {
+        media_type: img.media_type,
+        data: img.data,
+    }).collect();
+    let images_bytes: usize = images.iter().map(|img| img.data.len()).sum();
+    if images_bytes > MAX_CHAT_IMAGE_BYTES {
+        return Err(format!(
+            "图片过大（约{}MB），请压缩后重试（上限约{}MB）。",
+            images_bytes / (1024 * 1024),
+            MAX_CHAT_IMAGE_BYTES / (1024 * 1024)
         ));
     }
 
@@ -333,6 +359,7 @@ pub async fn chat_stream(
             &normalized_context_id,
             chat_mode.as_deref().unwrap_or("task"),
             history,
+            images,
         )
         .await;
 
@@ -403,6 +430,7 @@ async fn run_chat(
     context_id: &Option<String>,
     chat_mode: &str,
     history: Vec<LlmMessage>,
+    images: Vec<LlmImage>,
 ) -> anyhow::Result<()> {
     let client = LlmClient::from_settings(settings)?;
     let multi_agent = settings
@@ -419,7 +447,8 @@ async fn run_chat(
     )
     .await;
 
-    let use_direct_chat = chat_mode == "direct";
+    // 多模态图片仅在 run_simple（直答）路径支持；带图时强制走直答，避免多智能体路径静默丢图。
+    let use_direct_chat = chat_mode == "direct" || !images.is_empty();
 
     let full = if !use_direct_chat && multi_agent {
         let runtime_result = run_agent_runtime(
@@ -451,6 +480,7 @@ async fn run_chat(
             message,
             &context_summary,
             &history,
+            &images,
         )
         .await?
     };
@@ -512,11 +542,16 @@ async fn run_simple(
     message: &str,
     context_summary: &str,
     history: &[LlmMessage],
+    images: &[LlmImage],
 ) -> anyhow::Result<String> {
     let system_prompt = main_chat_system(context_summary);
     let mut msgs = vec![LlmMessage::system(&system_prompt)];
     msgs.extend_from_slice(history);
-    msgs.push(LlmMessage::user(message));
+    if images.is_empty() {
+        msgs.push(LlmMessage::user(message));
+    } else {
+        msgs.push(LlmMessage::user_with_images(message, images.to_vec()));
+    }
     let temperature = resolve_temperature(settings, "copilot_simple_temperature", 0.4);
     let model = resolve_model(settings, &["copilot_simple_model"]);
     let rid = request_id.to_string();
@@ -643,6 +678,7 @@ async fn fetch_history(
             content: r.get("content"),
             tool_call_id: None,
             tool_calls: None,
+            images: Vec::new(),
         })
         .collect())
 }

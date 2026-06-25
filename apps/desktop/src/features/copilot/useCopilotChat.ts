@@ -69,7 +69,11 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
   // 流式对话核心：接收已构建好的发送内容与「基础消息列表」（含用户消息、不含助手占位），
   // 追加助手占位后驱动流式响应。handleSend / retry / editAndResend 共用，避免重复流式逻辑。
   const runChatStream = useCallback(
-    async (submittedText: string, buildBaseMessages: (prev: ChatMessage[]) => ChatMessage[]) => {
+    async (
+      submittedText: string,
+      buildBaseMessages: (prev: ChatMessage[]) => ChatMessage[],
+      images: Array<{ data: string; mediaType: string }> = [],
+    ) => {
       const assistantId = `${Date.now()}_a`;
 
       if (chatMode === "task") setSidebarCollapsed(false);
@@ -109,6 +113,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
             context_type: selectedInterestId ? "interest" : "general",
             context_id: selectedInterestId || undefined,
             chat_mode: chatMode,
+            images: images.length ? images : undefined,
           },
           abortController.signal
         )) {
@@ -205,6 +210,12 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
       ? `[技能指令 · ${selSkill.title}]\n${selSkill.prompt}\n\n---\n\n${rawText}`
       : rawText;
     const submittedText = buildCopilotMessageContent(text, attachments);
+    // 图片走多模态 images 通道：发送给后端用 {data,mediaType}，存进消息用带 name 的 ChatImageRef 供气泡缩略图展示。
+    const imageAttachments = attachments.filter(
+      (a): a is typeof a & { imageData: string; imageMediaType: string } =>
+        a.kind === "image" && !!a.imageData && !!a.imageMediaType,
+    );
+    const images = imageAttachments.map((a) => ({ data: a.imageData, mediaType: a.imageMediaType }));
 
     void apiClient.memory.add({
       type: "auto",
@@ -216,12 +227,15 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
       id: Date.now().toString(),
       role: "user",
       content: submittedText,
+      images: imageAttachments.length
+        ? imageAttachments.map((a) => ({ data: a.imageData, mediaType: a.imageMediaType, name: a.name }))
+        : undefined,
       created_at: new Date().toISOString(),
     };
 
     setInput("");
     clearAttachments();
-    await runChatStream(submittedText, (prev) => [...prev, userMsg]);
+    await runChatStream(submittedText, (prev) => [...prev, userMsg], images);
   }, [input, attachments, sending, skills, selectedSkillId, clearAttachments, runChatStream]);
 
   // 重新生成：复用目标助手消息之前那条用户消息（其 content 即原始发送内容，已含附件上下文）。
@@ -235,7 +249,8 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
       while (userIdx >= 0 && list[userIdx].role !== "user") userIdx -= 1;
       if (userIdx < 0) return;
       const base = list.slice(0, userIdx + 1);
-      void runChatStream(list[userIdx].content, () => base);
+      const images = (list[userIdx].images ?? []).map((im) => ({ data: im.data, mediaType: im.mediaType }));
+      void runChatStream(list[userIdx].content, () => base, images);
     },
     [sending, runChatStream]
   );
@@ -253,7 +268,8 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
       const submittedText = blockIdx >= 0 ? `${trimmed}\n\n${list[idx].content.slice(blockIdx)}` : trimmed;
       const updatedUser: ChatMessage = { ...list[idx], content: submittedText };
       const base = [...list.slice(0, idx), updatedUser];
-      void runChatStream(submittedText, () => base);
+      const images = (list[idx].images ?? []).map((im) => ({ data: im.data, mediaType: im.mediaType }));
+      void runChatStream(submittedText, () => base, images);
     },
     [sending, runChatStream]
   );

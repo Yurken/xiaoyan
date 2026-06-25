@@ -17,12 +17,21 @@ use self::transport::{
     format_openai_http_error as format_openai_http_error_impl, parse_json_response,
 };
 
+/// 多模态图片块：base64 编码（不含 data: 前缀）+ 媒体类型，复用 chat_with_image 的线格式。
+#[derive(Clone, Debug)]
+pub struct LlmImage {
+    pub media_type: String,
+    pub data: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct LlmMessage {
     pub role: String,
     pub content: String,
     pub tool_call_id: Option<String>,
     pub tool_calls: Option<Vec<ToolCall>>,
+    /// 该消息附带的图片（仅 user 消息有意义）；为空时按纯文本 content 发送，保持向后兼容。
+    pub images: Vec<LlmImage>,
 }
 
 #[derive(Clone, Debug)]
@@ -62,6 +71,7 @@ impl LlmMessage {
             content: content.into(),
             tool_call_id: None,
             tool_calls: None,
+            images: Vec::new(),
         }
     }
     pub fn user(content: impl Into<String>) -> Self {
@@ -70,6 +80,17 @@ impl LlmMessage {
             content: content.into(),
             tool_call_id: None,
             tool_calls: None,
+            images: Vec::new(),
+        }
+    }
+    /// 带图片的用户消息（多模态）；images 为空时等价于 user()。
+    pub fn user_with_images(content: impl Into<String>, images: Vec<LlmImage>) -> Self {
+        Self {
+            role: "user".into(),
+            content: content.into(),
+            tool_call_id: None,
+            tool_calls: None,
+            images,
         }
     }
     #[allow(dead_code)]
@@ -79,6 +100,7 @@ impl LlmMessage {
             content: content.into(),
             tool_call_id: None,
             tool_calls: None,
+            images: Vec::new(),
         }
     }
     pub fn assistant_with_tool_calls(tool_calls: Vec<ToolCall>) -> Self {
@@ -87,6 +109,7 @@ impl LlmMessage {
             content: String::new(),
             tool_call_id: None,
             tool_calls: Some(tool_calls),
+            images: Vec::new(),
         }
     }
     pub fn tool(tool_call_id: impl Into<String>, content: impl Into<String>) -> Self {
@@ -95,6 +118,7 @@ impl LlmMessage {
             content: content.into(),
             tool_call_id: Some(tool_call_id.into()),
             tool_calls: None,
+            images: Vec::new(),
         }
     }
 }

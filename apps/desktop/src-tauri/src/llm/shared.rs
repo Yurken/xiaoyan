@@ -22,7 +22,22 @@ pub(super) fn build_message_array(messages: &[LlmMessage]) -> serde_json::Value 
 fn build_single_message(m: &LlmMessage) -> Value {
     let mut obj = Map::new();
     obj.insert("role".into(), json!(m.role));
-    obj.insert("content".into(), json!(m.content));
+    if !m.images.is_empty() && m.role == "user" {
+        // OpenAI 多模态：content 为数组，文本块 + image_url(data URL) 块。
+        let mut parts: Vec<Value> = Vec::new();
+        if !m.content.is_empty() {
+            parts.push(json!({ "type": "text", "text": m.content }));
+        }
+        for img in &m.images {
+            parts.push(json!({
+                "type": "image_url",
+                "image_url": { "url": format!("data:{};base64,{}", img.media_type, img.data) }
+            }));
+        }
+        obj.insert("content".into(), json!(parts));
+    } else {
+        obj.insert("content".into(), json!(m.content));
+    }
     if let Some(ref tci) = m.tool_call_id {
         obj.insert("tool_call_id".into(), json!(tci));
     }
@@ -69,6 +84,22 @@ pub(super) fn build_anthropic_user_messages(messages: &[LlmMessage]) -> Vec<Valu
                         "input": serde_json::from_str::<Value>(&tc.arguments).unwrap_or(json!({}))
                     })).collect::<Vec<_>>()
                 })
+            } else if !m.images.is_empty() && m.role == "user" {
+                // Anthropic 多模态：image 块在前、text 块在后（与 chat_with_image 一致）。
+                let mut parts: Vec<Value> = m
+                    .images
+                    .iter()
+                    .map(|img| {
+                        json!({
+                            "type": "image",
+                            "source": { "type": "base64", "media_type": img.media_type, "data": img.data }
+                        })
+                    })
+                    .collect();
+                if !m.content.is_empty() {
+                    parts.push(json!({ "type": "text", "text": m.content }));
+                }
+                json!({ "role": m.role, "content": parts })
             } else {
                 json!({ "role": m.role, "content": m.content })
             }

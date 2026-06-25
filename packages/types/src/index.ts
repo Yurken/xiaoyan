@@ -361,12 +361,22 @@ export interface ChatToolResult {
   result_id?: string;
 }
 
+/** 多模态图片引用：data 为 base64（不含 data: 前缀），mediaType 为 MIME（如 image/png）。 */
+export interface ChatImageRef {
+  data: string;
+  mediaType: string;
+  /** 可选原始文件名，仅用于 UI 展示。 */
+  name?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   sources?: Array<{ content: string; source: string; url?: string }>;
   tool_results?: ChatToolResult[];
+  /** 用户消息附带的图片（多模态）；当前仅桌面端在本轮发送/展示，未持久化。 */
+  images?: ChatImageRef[];
   created_at: string;
 }
 

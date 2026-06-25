@@ -9,6 +9,25 @@ export interface PendingCopilotAttachment extends CopilotAttachmentPayload {
 
 const MAX_ATTACHMENTS = 5;
 const MAX_TEXT_CHARS = 12000;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 单图原始字节上限 8MB
+const IMAGE_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+};
+const IMAGE_FILE_EXTENSIONS = Object.keys(IMAGE_MIME);
+
+/** Uint8Array → base64（分块避免 String.fromCharCode 调用栈溢出）。 */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
 const TEXT_FILE_EXTENSIONS = new Set([
   "txt",
   "md",
@@ -110,6 +129,26 @@ export function useCopilotAttachments(onError: (message: string) => void) {
       const name = getFileName(path);
 
       try {
+        if (IMAGE_MIME[extension]) {
+          const { readFile } = await import("@tauri-apps/plugin-fs");
+          const bytes = await readFile(path);
+          if (bytes.length > MAX_IMAGE_BYTES) {
+            throw new Error(`图片过大（${(bytes.length / 1024 / 1024).toFixed(1)}MB），上限 ${MAX_IMAGE_BYTES / 1024 / 1024}MB`);
+          }
+          nextAttachments.push({
+            id: `${Date.now()}-${path}`,
+            path,
+            name,
+            extension,
+            mediaTypeLabel: "图片",
+            content: "",
+            kind: "image",
+            imageData: bytesToBase64(bytes),
+            imageMediaType: IMAGE_MIME[extension],
+          });
+          continue;
+        }
+
         const content = (await readAttachmentContent(path, extension)).trim();
         if (!content) {
           throw new Error("没有提取到可读内容");
@@ -122,6 +161,7 @@ export function useCopilotAttachments(onError: (message: string) => void) {
           extension,
           mediaTypeLabel: toMediaTypeLabel(extension),
           content,
+          kind: "text",
         });
       } catch (error) {
         failedFiles.push(`${name}：${formatErrorMessage(error)}`);
@@ -155,7 +195,7 @@ export function useCopilotAttachments(onError: (message: string) => void) {
       const selected = await open({
         multiple: true,
         filters: [
-          { name: "支持的文件", extensions: ["pdf", ...TEXT_FILE_EXTENSIONS] },
+          { name: "支持的文件", extensions: ["pdf", ...IMAGE_FILE_EXTENSIONS, ...TEXT_FILE_EXTENSIONS] },
         ],
       });
 

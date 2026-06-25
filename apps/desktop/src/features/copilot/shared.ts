@@ -42,7 +42,14 @@ export interface CopilotAttachmentPayload {
   name: string;
   extension: string;
   mediaTypeLabel: string;
+  /** 文本类附件提取出的可读文本；图片附件为空。 */
   content: string;
+  /** 附件类型，默认 text；image 走多模态 images 通道，不嵌入消息文本。 */
+  kind?: "text" | "image";
+  /** 图片 base64（不含 data: 前缀）。 */
+  imageData?: string;
+  /** 图片 MIME 类型，如 image/png。 */
+  imageMediaType?: string;
 }
 
 export interface CopilotMessageAttachmentView {
@@ -139,19 +146,21 @@ export function buildCopilotMessageContent(
   text: string,
   attachments: CopilotAttachmentPayload[],
 ) {
-  if (attachments.length === 0) {
+  // 图片走多模态 images 通道，不嵌入消息文本；这里只处理文本类附件。
+  const textAttachments = attachments.filter((attachment) => attachment.kind !== "image");
+  if (textAttachments.length === 0) {
     return text;
   }
 
   const metadata = encodeURIComponent(JSON.stringify({
-    attachments: attachments.map((attachment) => ({
+    attachments: textAttachments.map((attachment) => ({
       name: attachment.name,
       extension: attachment.extension,
       mediaTypeLabel: attachment.mediaTypeLabel,
     })),
   }));
 
-  const attachmentContext = attachments
+  const attachmentContext = textAttachments
     .map((attachment, index) => {
       const extensionLabel = attachment.extension ? `.${attachment.extension}` : "unknown";
       return [
