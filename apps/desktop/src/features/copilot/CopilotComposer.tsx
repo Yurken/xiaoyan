@@ -17,6 +17,7 @@ interface CopilotComposerProps {
   uploadingAttachments: boolean;
   attachments: PendingCopilotAttachment[];
   pickAttachments: () => void | Promise<void>;
+  onPasteImages: (files: File[]) => void | Promise<void>;
   removeAttachment: (attachmentId: string) => void;
   skills: Skill[];
   selectedSkillId: string | null;
@@ -38,6 +39,7 @@ export default function CopilotComposer({
   uploadingAttachments,
   attachments,
   pickAttachments,
+  onPasteImages,
   removeAttachment,
   skills,
   selectedSkillId,
@@ -72,6 +74,20 @@ export default function CopilotComposer({
   }, [hoveredSkill, selectedSkillId, skills]);
 
   const canSubmit = (input.trim() || attachments.length > 0) && !sending && !uploadingAttachments;
+
+  // 粘贴图片：从剪贴板取出图片文件并添加为附件（阻止其作为乱码/二进制贴入文本框）。
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    const files = Array.from(items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+    if (files.length > 0) {
+      event.preventDefault();
+      void onPasteImages(files);
+    }
+  };
 
   const attachmentIcon = (ext: string) => {
     if (ext === "pdf") return <FileText className="w-4 h-4 flex-shrink-0" />;
@@ -147,6 +163,7 @@ export default function CopilotComposer({
                   void onSubmit();
                 }
               }}
+              onPaste={handlePaste}
               placeholder={getCopilotInputPlaceholder(chatMode)}
               className="w-full px-5 pt-4 pb-2 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none"
               style={{ background: "transparent" }}

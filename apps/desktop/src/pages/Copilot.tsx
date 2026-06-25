@@ -42,6 +42,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     uploading: uploadingAttachments,
     pickAttachments,
     pickFromDrop,
+    addImageFiles,
     removeAttachment,
     clearAttachments,
   } = useCopilotAttachments((err) => sessions.setLoadError(err));
@@ -260,6 +261,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               uploadingAttachments={uploadingAttachments}
               attachments={attachments}
               pickAttachments={pickAttachments}
+              onPasteImages={addImageFiles}
               removeAttachment={removeAttachment}
               skills={skills}
               selectedSkillId={selectedSkillId}
