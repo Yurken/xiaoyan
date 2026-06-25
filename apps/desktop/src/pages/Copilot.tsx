@@ -8,6 +8,7 @@ import { useCopilotSessions } from "../features/copilot/useCopilotSessions";
 import { useCopilotChat } from "../features/copilot/useCopilotChat";
 import { useCopilotAttachments } from "../features/copilot/useCopilotAttachments";
 import { useCopilotChatMode } from "../features/copilot/useCopilotChatMode";
+import { useCopilotDropZone } from "../features/copilot/useCopilotDropZone";
 import { parseCopilotMessageContent } from "../features/copilot/shared";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
@@ -44,6 +45,9 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     removeAttachment,
     clearAttachments,
   } = useCopilotAttachments((err) => sessions.setLoadError(err));
+
+  // 拖拽文件到对话列即添加为附件（图片/文档由附件管线区分处理）。
+  const chatDropZone = useCopilotDropZone(pickFromDrop);
 
   const chat = useCopilotChat({
     currentSession: sessions.currentSession,
@@ -199,7 +203,15 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         />
 
         <div className="flex-1 min-w-0 flex overflow-hidden">
-          <div className="flex-1 flex flex-col min-w-0 bg-nm-bg relative">
+          <div ref={chatDropZone.zoneRef} className="flex-1 flex flex-col min-w-0 bg-nm-bg relative">
+            {chatDropZone.isOver && (
+              <div
+                className="absolute inset-3 z-40 flex items-center justify-center rounded-3xl"
+                style={{ background: "rgba(0,122,255,0.08)", border: "2px dashed #007AFF", pointerEvents: "none" }}
+              >
+                <span className="text-lg font-semibold" style={{ color: "#007AFF" }}>释放文件，添加到对话</span>
+              </div>
+            )}
             {sessionListCollapsed && (
               <button
                 type="button"
@@ -231,7 +243,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               onSaveEdit={handleSaveEdit}
               onCancelEdit={handleCancelEdit}
               onEditTextChange={setEditText}
-              onPickFromDrop={pickFromDrop}
             />
 
             <CopilotComposer

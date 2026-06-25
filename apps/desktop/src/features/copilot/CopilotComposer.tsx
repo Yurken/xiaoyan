@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowUp, Bot, BrainCircuit, FileText, Paperclip, Plus, X, Zap } from "lucide-react";
 import type { ChatMode, Skill } from "@research-copilot/types";
 import {
@@ -45,8 +45,6 @@ export default function CopilotComposer({
 }: CopilotComposerProps) {
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const [hoveredSkillId, setHoveredSkillId] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const dragCounterRef = useRef(0);
 
   useEffect(() => {
     if (!skillPickerOpen) return undefined;
@@ -59,38 +57,6 @@ export default function CopilotComposer({
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [skillPickerOpen]);
-
-  const handleDragEnter = (event: React.DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dragCounterRef.current += 1;
-    if (event.dataTransfer.items && event.dataTransfer.items.length > 0) {
-      setDragOver(true);
-    }
-  };
-
-  const handleDragLeave = (event: React.DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dragCounterRef.current -= 1;
-    if (dragCounterRef.current <= 0) {
-      dragCounterRef.current = 0;
-      setDragOver(false);
-    }
-  };
-
-  const handleDragOver = (event: React.DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  const handleDrop = (event: React.DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dragCounterRef.current = 0;
-    setDragOver(false);
-    // 文件路径由 Tauri onDragDropEvent 获取
-  };
 
   const hoveredSkill = useMemo(
     () => skills.find((item) => item.id === hoveredSkillId) ?? null,
@@ -113,31 +79,7 @@ export default function CopilotComposer({
   };
 
   return (
-    <div
-      className="px-3 pb-3 pt-2 relative"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      {dragOver && (
-        <div
-          className="absolute inset-0 z-30 rounded-2xl flex items-center justify-center"
-          style={{
-            background: "rgba(0,122,255,0.08)",
-            border: "2px dashed #007AFF",
-            pointerEvents: "none",
-          }}
-        >
-          <span
-            className="text-sm font-medium"
-            style={{ color: "#007AFF" }}
-          >
-            释放以添加文件
-          </span>
-        </div>
-      )}
-
+    <div className="px-3 pb-3 pt-2 relative">
       <div className="space-y-2.5">
         {/* 附件卡片 - 固定尺寸，在输入框上方 */}
         {attachments.length > 0 && (

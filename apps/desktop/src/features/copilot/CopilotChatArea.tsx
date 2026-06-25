@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { safeOnDragDrop } from "../../lib/tauriEvent";
+import { useEffect, useRef } from "react";
 import {
   AlertCircle,
   Check,
@@ -60,7 +59,6 @@ interface CopilotChatAreaProps {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onEditTextChange: (text: string) => void;
-  onPickFromDrop: (paths: string[]) => void;
 }
 
 export function CopilotChatArea(props: CopilotChatAreaProps) {
@@ -68,72 +66,19 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
     messages, agentRuns, plan, routingDecision, activeAssistantId, sending, searchingQuery,
     loadError, editingMessageId, editText, copiedId,
     onClearError, onCopy, onRetry, onStartEdit, onSaveEdit, onCancelEdit,
-    onEditTextChange, onPickFromDrop,
+    onEditTextChange,
   } = props;
 
   const bottomRef = useRef<HTMLDivElement>(null);
-  const [chatDragOver, setChatDragOver] = useState(false);
-  const chatDragCounterRef = useRef(0);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let mounted = true;
-    void safeOnDragDrop((event) => {
-      if (event.payload.type === "drop") onPickFromDrop(event.payload.paths);
-    }).then((cleanup) => {
-      if (!mounted) {
-        cleanup();
-        return;
-      }
-      unlisten = cleanup;
-    });
-    return () => {
-      mounted = false;
-      unlisten?.();
-      unlisten = undefined;
-    };
-  }, [onPickFromDrop]);
-
-  const handleChatDragEnter = (e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    chatDragCounterRef.current += 1;
-    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) setChatDragOver(true);
-  };
-  const handleChatDragLeave = (e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    chatDragCounterRef.current -= 1;
-    if (chatDragCounterRef.current <= 0) { chatDragCounterRef.current = 0; setChatDragOver(false); }
-  };
-  const handleChatDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
-  const handleChatDrop = (e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    setChatDragOver(false);
-    chatDragCounterRef.current = 0;
-  };
-
   const displayedRuns = [...agentRuns].sort((a, b) => a.order_index - b.order_index);
 
   return (
-    <div
-      className="flex-1 overflow-y-auto p-4 space-y-4 relative rc-copilot-chat-area"
-      onDragEnter={handleChatDragEnter}
-      onDragLeave={handleChatDragLeave}
-      onDragOver={handleChatDragOver}
-      onDrop={handleChatDrop}
-    >
-      {chatDragOver && (
-        <div
-          className="absolute inset-2 z-30 rounded-3xl flex items-center justify-center"
-          style={{ background: "rgba(0,122,255,0.08)", border: "2px dashed #007AFF", pointerEvents: "none" }}
-        >
-          <span className="text-lg font-semibold" style={{ color: "#007AFF" }}>释放文件以上传</span>
-        </div>
-      )}
-
+    <div className="flex-1 overflow-y-auto p-4 space-y-4 relative rc-copilot-chat-area">
       {loadError && (
         <div className="px-1 pt-2">
           <div
