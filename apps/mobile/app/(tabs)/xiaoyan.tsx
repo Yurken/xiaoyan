@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   View, Text, TextInput, FlatList, StyleSheet,
   TouchableOpacity, ActivityIndicator, KeyboardAvoidingView,
-  Platform,
+  Platform, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -32,6 +32,14 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           isUser ? styles.bubbleUser : styles.bubbleAssistant,
         ]}
       >
+        {isUser && message.images?.map((img, index) => (
+          <Image
+            key={`${img.name ?? "img"}-${index}`}
+            source={{ uri: `data:${img.mediaType};base64,${img.data}` }}
+            style={styles.bubbleImage}
+            resizeMode="cover"
+          />
+        ))}
         <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
           {message.content || "…"}
         </Text>
@@ -438,6 +446,7 @@ const styles = StyleSheet.create({
   },
   bubbleText:     { fontSize: 15, lineHeight: 22, color: "#F5F7FA" },
   bubbleTextUser: { color: "#FFFFFF" },
+  bubbleImage:    { width: 180, height: 135, borderRadius: 12, marginBottom: 6 },
 
   inputBar: {
     flexDirection: "row",

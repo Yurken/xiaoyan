@@ -559,6 +559,19 @@ function XiaoYanContent() {
                     );
                   })()}
 
+                  {message.role === "user" && message.images && message.images.length > 0 && (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {message.images.map((img, index) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={`${img.name ?? "img"}-${index}`}
+                          src={`data:${img.mediaType};base64,${img.data}`}
+                          alt={img.name ?? "图片"}
+                          className="max-h-48 max-w-[14rem] rounded-2xl object-cover shadow-[0_10px_30px_rgba(15,23,42,0.12)]"
+                        />
+                      ))}
+                    </div>
+                  )}
                   {message.role === "user" && (
                   <div
                     className="rounded-[28px] bg-brand-600 px-5 py-4 text-white shadow-[0_20px_40px_rgba(0,122,255,0.18)]"
