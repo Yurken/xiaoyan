@@ -119,11 +119,13 @@ export async function buildPptx(data: PptData): Promise<ArrayBuffer> {
     white: "FFFFFF",
     text: "1A2233",
     border: "D0D6DC",
+    muted: "9AA3AD",
     light: "F4F6F9",
     softBlue: "EAF3FF",
     softGreen: "EAF8EF",
   };
 
+  const total = data.slides.length;
   type DeckSlide = ReturnType<typeof pptx.addSlide>;
 
   const addHeader = (slide: DeckSlide, title: string) => {
@@ -133,10 +135,18 @@ export async function buildPptx(data: PptData): Promise<ArrayBuffer> {
     slide.addText(title, { x: 0.5, y: 0.18, w: width - 1, h: 0.9, fontSize: 26, bold: true, color: colors.white, valign: "middle" });
   };
 
+  // 正文页页脚：左下角演示标题、右下角页码，提升成稿感与可导航性。
+  const addFooter = (slide: DeckSlide, pageNumber: number) => {
+    slide.addText(data.title, { x: 0.5, y: height - 0.45, w: width - 2, h: 0.3, fontSize: 9, color: colors.muted, align: "left", valign: "middle" });
+    slide.addText(`${pageNumber} / ${total}`, { x: width - 1.4, y: height - 0.45, w: 0.9, h: 0.3, fontSize: 9, color: colors.muted, align: "right", valign: "middle" });
+  };
+
   const asBulletRuns = (items: string[], paraSpaceAfter: number) =>
     items.map((bullet) => ({ text: bullet, options: { bullet: { code: "2022" }, paraSpaceAfter } }));
 
+  let pageNumber = 0;
   for (const slide of data.slides) {
+    pageNumber += 1;
     const pptSlide = pptx.addSlide();
 
     if (slide.layout === "title") {
@@ -265,19 +275,22 @@ export async function buildPptx(data: PptData): Promise<ArrayBuffer> {
             valign: "middle",
           });
         });
-
-        if (slide.note) {
-          pptSlide.addText(slide.note, {
-            x: 0.95,
-            y: 5.45,
-            w: width - 1.9,
-            h: 0.7,
-            fontSize: 15,
-            color: colors.text,
-            align: "center",
-          });
-        }
       }
+    }
+
+    // 正文页加页脚/页码；标题页与章节页保持整洁不加。
+    if (
+      slide.layout === "content" ||
+      slide.layout === "two_column" ||
+      slide.layout === "highlight" ||
+      slide.layout === "timeline"
+    ) {
+      addFooter(pptSlide, pageNumber);
+    }
+
+    // 演讲者备注：借鉴 PPTX 制作规范，每页附演讲脚本，写入 PowerPoint 备注栏（不显示在幻灯片上）。
+    if (slide.note) {
+      pptSlide.addNotes(slide.note);
     }
   }
 
