@@ -289,12 +289,22 @@ impl LlmClient {
             .unwrap_or_default();
 
         let client = if !base_url.is_empty() && !api_key.is_empty() {
-            // Dedicated vision endpoint (OpenAI-compatible)
-            LlmClient::OpenAI {
-                base_url,
-                api_key,
-                chat_model: model.clone(),
-                embed_model: String::new(),
+            let normalized_base_url = normalize_base_url(&base_url);
+            if is_anthropic_compatible_base_url(&normalized_base_url) {
+                // Anthropic-compatible endpoint (e.g. Kimi Coding)
+                LlmClient::Anthropic {
+                    base_url: normalized_base_url,
+                    api_key,
+                    chat_model: model.clone(),
+                }
+            } else {
+                // Dedicated vision endpoint (OpenAI-compatible)
+                LlmClient::OpenAI {
+                    base_url: normalized_base_url,
+                    api_key,
+                    chat_model: model.clone(),
+                    embed_model: String::new(),
+                }
             }
         } else if !api_key.is_empty() {
             // Likely Anthropic (api_key only, no base_url)

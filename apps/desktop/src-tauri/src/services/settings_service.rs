@@ -738,9 +738,10 @@ pub async fn test_vision_settings(
 
     let (client, model) = LlmClient::vision_client_from_settings(&merged)
         .ok_or_else(|| "请先填写视觉模型名称。".to_string())?;
-    // 1x1 PNG（base64），仅用于确认端点接受 image 输入。
+    // 64x64 蓝色 PNG（base64）。Kimi Coding 等端点会拒绝 1x1 极小图，
+    // 因此用一个正常尺寸但足够小的测试图来确认端点接受 image 输入。
     const TEST_PNG_B64: &str =
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAY0lEQVR4nO3PQQ3AIADAQEArlpCJh4ngcVnSU9DOfe74s6UDXjWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgfdt0Aman/hOaAAAAAElFTkSuQmCC";
     let reply = client
         .chat_with_image(
             TEST_PNG_B64,
