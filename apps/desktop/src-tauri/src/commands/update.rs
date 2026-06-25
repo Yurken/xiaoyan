@@ -112,7 +112,7 @@ pub async fn update_install(
         json!({ "status": "started", "downloaded": 0u64, "total": null }),
     );
 
-    update
+    let result = update
         .download_and_install(
             |chunk_len, total_len| {
                 let dl = progress_dl.fetch_add(chunk_len as u64, Ordering::Relaxed) + chunk_len as u64;
@@ -131,8 +131,19 @@ pub async fn update_install(
                 );
             },
         )
-        .await
-        .map_err(|error| error.to_string())?;
+        .await;
+
+    if let Err(error) = result {
+        // 下载/安装失败时，把更新对象放回待安装槽位，让用户可以直接重试，
+        // 不必再次「检查更新」。若期间有新的检查写入了更新对象，则保留较新的。
+        if let Ok(mut guard) = pending_update.0.lock() {
+            if guard.is_none() {
+                *guard = Some(update);
+            }
+        }
+        return Err(error.to_string());
+    }
+
     app.restart();
     #[allow(unreachable_code)]
     Ok(())

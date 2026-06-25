@@ -2,7 +2,6 @@ import { Card } from "@research-copilot/ui";
 import { History, Loader2, Save } from "lucide-react";
 import DataConfigTransferCard from "./DataConfigTransferCard";
 import { SectionIcon } from "./shared";
-import WebdavSyncSection from "./WebdavSyncSection";
 import SyncSection from "./SyncSection";
 
 interface SettingsHistorySectionProps {
@@ -49,8 +48,6 @@ export default function SettingsHistorySection({
       />
 
       <SyncSection />
-
-      <WebdavSyncSection />
 
       <Card padding="md" className="space-y-4">
         <div className="flex items-center gap-3">
