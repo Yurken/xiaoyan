@@ -1,10 +1,17 @@
+use crate::rag::{cosine_similarity, parse_embedding};
 use crate::services::memory_checkpoint_service::checkpoint_to_memory_line;
 use serde::Serialize;
 use sqlx::{Row, SqlitePool};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 const CONTEXT_BUDGET: usize = 4000;
-const MAX_CANDIDATES: i64 = 120;
+/// 近期候选窗口（天）与条数：保证 recency / 关键词覆盖。
+const RECENT_WINDOW_DAYS: i64 = 90;
+const RECENT_LIMIT: i64 = 150;
+/// 语义候选条数：把更久远但已有 embedding 的观察也纳入候选，突破纯时间窗的盲区。
+const EMBEDDED_LIMIT: i64 = 400;
+/// 语义相似度并入打分时的权重（cosine ∈ [0,1] 时贡献 0..SEMANTIC_WEIGHT 分）。
+const SEMANTIC_WEIGHT: f32 = 40.0;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RetrievedMemoryObservation {
@@ -30,6 +37,7 @@ struct MemoryObservationCandidate {
     importance: i64,
     created_at: String,
     recency_rank: usize,
+    embedding: Option<Vec<f32>>,
 }
 
 fn safe_truncate(s: &str, max_bytes: usize) -> &str {
@@ -125,6 +133,7 @@ fn score_candidate(
     candidate: &MemoryObservationCandidate,
     query: &str,
     query_tokens: &[String],
+    query_embedding: Option<&[f32]>,
 ) -> i64 {
     let title = candidate.title.to_lowercase();
     let summary = candidate.summary.to_lowercase();
@@ -154,37 +163,86 @@ fn score_candidate(
         }
     }
 
+    // 语义相似度并入打分：让概念相关但字面不命中的观察也能被召回。
+    // 仅在 query 与候选都有 embedding 时生效；否则保持纯关键词行为。
+    if let (Some(query_vec), Some(candidate_vec)) = (query_embedding, candidate.embedding.as_deref())
+    {
+        let similarity = cosine_similarity(query_vec, candidate_vec);
+        if similarity > 0.0 {
+            score += (similarity * SEMANTIC_WEIGHT).round() as i64;
+        }
+    }
+
     let recency_bonus = (12_i64 - (candidate.recency_rank as i64 / 8)).max(0);
     score + recency_bonus
 }
 
-async fn load_recent_candidates(db: &SqlitePool) -> Vec<MemoryObservationCandidate> {
-    let rows = sqlx::query(
-        "SELECT id, source, event_type, title, summary, narrative, importance, created_at
+fn row_to_candidate(row: &sqlx::sqlite::SqliteRow) -> MemoryObservationCandidate {
+    let embedding = row
+        .get::<Option<String>, _>("embedding")
+        .map(|raw| parse_embedding(&raw))
+        .filter(|vector| !vector.is_empty());
+    MemoryObservationCandidate {
+        id: row.get::<String, _>("id"),
+        source: row.get::<String, _>("source"),
+        event_type: row.get::<String, _>("event_type"),
+        title: row.get::<String, _>("title"),
+        summary: row.get::<String, _>("summary"),
+        narrative: row.get::<String, _>("narrative"),
+        importance: row.get::<i64, _>("importance"),
+        created_at: row.get::<String, _>("created_at"),
+        recency_rank: 0,
+        embedding,
+    }
+}
+
+/// 候选集 = 近期窗口（recency / 关键词覆盖）∪ 已有 embedding 的更久远观察（语义覆盖）。
+/// 当存在 query embedding 时才纳入第二部分，避免无谓全表扫描。合并去重后按时间重排，
+/// 重新计算 recency_rank。
+async fn load_candidates(db: &SqlitePool, want_semantic: bool) -> Vec<MemoryObservationCandidate> {
+    let recent = sqlx::query(
+        "SELECT id, source, event_type, title, summary, narrative, importance, created_at, embedding
          FROM memory_observations
-         WHERE created_at >= datetime('now', '-30 days')
+         WHERE created_at >= datetime('now', ?)
          ORDER BY created_at DESC
          LIMIT ?",
     )
-    .bind(MAX_CANDIDATES)
+    .bind(format!("-{RECENT_WINDOW_DAYS} days"))
+    .bind(RECENT_LIMIT)
     .fetch_all(db)
     .await
     .unwrap_or_default();
 
-    rows.iter()
-        .enumerate()
-        .map(|(index, row)| MemoryObservationCandidate {
-            id: row.get::<String, _>("id"),
-            source: row.get::<String, _>("source"),
-            event_type: row.get::<String, _>("event_type"),
-            title: row.get::<String, _>("title"),
-            summary: row.get::<String, _>("summary"),
-            narrative: row.get::<String, _>("narrative"),
-            importance: row.get::<i64, _>("importance"),
-            created_at: row.get::<String, _>("created_at"),
-            recency_rank: index,
-        })
-        .collect()
+    let mut by_id: HashMap<String, MemoryObservationCandidate> = HashMap::new();
+    for row in &recent {
+        let candidate = row_to_candidate(row);
+        by_id.insert(candidate.id.clone(), candidate);
+    }
+
+    if want_semantic {
+        let embedded = sqlx::query(
+            "SELECT id, source, event_type, title, summary, narrative, importance, created_at, embedding
+             FROM memory_observations
+             WHERE embedding IS NOT NULL
+             ORDER BY created_at DESC
+             LIMIT ?",
+        )
+        .bind(EMBEDDED_LIMIT)
+        .fetch_all(db)
+        .await
+        .unwrap_or_default();
+        for row in &embedded {
+            let candidate = row_to_candidate(row);
+            by_id.entry(candidate.id.clone()).or_insert(candidate);
+        }
+    }
+
+    let mut candidates: Vec<MemoryObservationCandidate> = by_id.into_values().collect();
+    candidates.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+    for (index, candidate) in candidates.iter_mut().enumerate() {
+        candidate.recency_rank = index;
+    }
+    candidates
 }
 
 fn fallback_recent_observations(
@@ -212,12 +270,14 @@ fn fallback_recent_observations(
 pub async fn search_relevant_observations(
     db: &SqlitePool,
     query: &str,
+    query_embedding: Option<&[f32]>,
     limit: usize,
 ) -> Vec<RetrievedMemoryObservation> {
-    let candidates = load_recent_candidates(db).await;
+    let candidates = load_candidates(db, query_embedding.is_some()).await;
     let query_tokens = extract_search_tokens(query);
 
-    if query_tokens.is_empty() {
+    // 关键词与语义都无从下手时，退回「近期高重要度观察」。
+    if query_tokens.is_empty() && query_embedding.is_none() {
         return fallback_recent_observations(&candidates, limit);
     }
 
@@ -225,7 +285,7 @@ pub async fn search_relevant_observations(
     let mut scored = candidates
         .iter()
         .map(|candidate| {
-            let score = score_candidate(candidate, &normalized_query, &query_tokens);
+            let score = score_candidate(candidate, &normalized_query, &query_tokens, query_embedding);
             RetrievedMemoryObservation {
                 id: candidate.id.clone(),
                 source: candidate.source.clone(),
@@ -264,7 +324,11 @@ fn format_short_timestamp(timestamp: &str) -> String {
     }
 }
 
-async fn build_memory_context_internal(db: &SqlitePool, query: Option<&str>) -> String {
+async fn build_memory_context_internal(
+    db: &SqlitePool,
+    query: Option<&str>,
+    query_embedding: Option<&[f32]>,
+) -> String {
     let manual_rows = sqlx::query(
         "SELECT summary FROM user_memories WHERE type = 'manual'
          ORDER BY created_at DESC LIMIT 10",
@@ -281,12 +345,12 @@ async fn build_memory_context_internal(db: &SqlitePool, query: Option<&str>) -> 
     let relevant_observations = if let Some(raw_query) = query {
         let trimmed = raw_query.trim();
         if trimmed.is_empty() {
-            fallback_recent_observations(&load_recent_candidates(db).await, 6)
+            fallback_recent_observations(&load_candidates(db, false).await, 6)
         } else {
-            search_relevant_observations(db, trimmed, 5).await
+            search_relevant_observations(db, trimmed, query_embedding, 5).await
         }
     } else {
-        fallback_recent_observations(&load_recent_candidates(db).await, 6)
+        fallback_recent_observations(&load_candidates(db, false).await, 6)
     };
 
     let observation_lines = relevant_observations
@@ -424,9 +488,13 @@ async fn load_recent_checkpoint_lines(db: &SqlitePool) -> Vec<String> {
 }
 
 pub async fn build_memory_context(db: &SqlitePool) -> String {
-    build_memory_context_internal(db, None).await
+    build_memory_context_internal(db, None, None).await
 }
 
-pub async fn build_memory_context_for_query(db: &SqlitePool, query: &str) -> String {
-    build_memory_context_internal(db, Some(query)).await
+pub async fn build_memory_context_for_query(
+    db: &SqlitePool,
+    query: &str,
+    query_embedding: Option<&[f32]>,
+) -> String {
+    build_memory_context_internal(db, Some(query), query_embedding).await
 }

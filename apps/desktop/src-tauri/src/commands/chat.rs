@@ -5,7 +5,9 @@ use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMes
 use crate::services::agent_runtime_service::{
     run_agent_runtime, AgentRuntimeKind, AgentRuntimeRequest,
 };
-use crate::services::chat_context_service::{build_chat_context_summary, collect_chat_sources};
+use crate::services::chat_context_service::{
+    build_chat_context_summary, collect_chat_sources, embed_query,
+};
 use crate::services::memory_checkpoint_service::{
     record_chat_checkpoint, record_chat_failure_checkpoint, ChatCheckpointInput,
     ChatFailureCheckpointInput,
@@ -451,14 +453,26 @@ async fn run_chat(
         .map(|v| v == "true")
         .unwrap_or(true);
     let long_term_memory_enabled = is_long_term_memory_enabled(settings);
+    // 整轮对话只向量化一次 query：记忆检索与来源召回共用，避免重复 embed 调用。
+    let query_embedding = embed_query(settings, message).await;
     let context_summary = build_chat_context_summary(
         db,
         context_type,
         context_id,
         message,
         long_term_memory_enabled,
+        query_embedding.as_deref(),
     )
     .await;
+
+    // 后台回填观察的 embedding，使新写入的过程记忆很快可被语义检索；不阻塞回答。
+    {
+        let db = db.clone();
+        let settings = settings.clone();
+        tauri::async_runtime::spawn(async move {
+            crate::commands::memory::backfill_observation_embeddings(&db, &settings).await;
+        });
+    }
 
     // 多模态图片仅在 run_simple（直答）路径支持；当前轮或历史含图都强制走直答，
     // 既避免多智能体路径静默丢图，也保证带图历史的多轮追问仍走视觉模型。
@@ -500,7 +514,7 @@ async fn run_chat(
         .await?
     };
 
-    let sources = collect_chat_sources(db, settings, message).await;
+    let sources = collect_chat_sources(db, settings, message, query_embedding.as_deref()).await;
     let sources_json = if sources.is_empty() {
         None
     } else {

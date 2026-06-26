@@ -199,6 +199,7 @@ CREATE TABLE IF NOT EXISTS skills (
     description TEXT NOT NULL DEFAULT '',
     prompt      TEXT NOT NULL DEFAULT '',
     tags        TEXT NOT NULL DEFAULT '[]',
+    kind        TEXT NOT NULL DEFAULT 'prompt',
     is_builtin  INTEGER NOT NULL DEFAULT 0,
     is_enabled  INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -859,6 +860,7 @@ pub async fn ensure_skills_table(pool: &SqlitePool) -> Result<()> {
             description TEXT NOT NULL DEFAULT '',
             prompt      TEXT NOT NULL DEFAULT '',
             tags        TEXT NOT NULL DEFAULT '[]',
+            kind        TEXT NOT NULL DEFAULT 'prompt',
             is_builtin  INTEGER NOT NULL DEFAULT 0,
             is_enabled  INTEGER NOT NULL DEFAULT 1,
             created_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -867,6 +869,9 @@ pub async fn ensure_skills_table(pool: &SqlitePool) -> Result<()> {
     )
     .execute(pool)
     .await?;
+
+    // 既有 DB 补齐 kind 列（prompt=提示词技能 / tool=工具技能，如 PPT 生成）
+    ensure_table_column(pool, "skills", "kind", "TEXT NOT NULL DEFAULT 'prompt'").await?;
 
     // Seed built-in skills (INSERT OR IGNORE so existing customizations are preserved)
     crate::commands::skills::seed_builtin_skills(pool).await?;
@@ -881,6 +886,8 @@ pub async fn ensure_user_memories_table(pool: &SqlitePool) -> Result<()> {
 
 pub async fn ensure_memory_pipeline_tables(pool: &SqlitePool) -> Result<()> {
     sqlx::raw_sql(MEMORY_PIPELINE_DDL).execute(pool).await?;
+    // 语义检索所需：为既有库补 observation 的 embedding 列（JSON 向量，NULL = 尚未回填）。
+    ensure_table_column(pool, "memory_observations", "embedding", "TEXT").await?;
     Ok(())
 }
 

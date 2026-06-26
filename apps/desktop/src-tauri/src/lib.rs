@@ -367,6 +367,26 @@ pub fn run() {
                     });
                 }
 
+                // 后台回填过程记忆的 embedding（语义检索用）：启动后稍延迟，分批直到清空。
+                // 未配置 embedding 模型时单批即返回 0、立即结束，开销可忽略。
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                        let settings = state.settings.read().await.clone();
+                        loop {
+                            let written = commands::memory::backfill_observation_embeddings(
+                                &state.db, &settings,
+                            )
+                            .await;
+                            if written == 0 {
+                                break;
+                            }
+                            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                        }
+                    });
+                }
+
                 // Backfill keywords for existing papers that have full_text but empty tags
                 tauri::async_runtime::spawn(async move {
                     use sqlx::Row;
