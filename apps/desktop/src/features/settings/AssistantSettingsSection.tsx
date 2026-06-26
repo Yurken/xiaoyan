@@ -8,6 +8,7 @@ import RolesSection from "./RolesSection";
 import { SectionIcon, ToggleRow } from "./shared";
 import type { ConfigHistoryControls } from "./ConfigHistorySwitcher";
 import CompanionSettingsSection from "../companion/CompanionSettingsSection";
+import TokenUsageSection from "./TokenUsageSection";
 
 interface AssistantSettingsSectionProps {
   contentUnavailable: boolean;
@@ -77,6 +78,7 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
         applyPreset={props.applyPreset}
         loadOllamaModels={props.loadOllamaModels}
       />
+      <TokenUsageSection />
       <LongTermMemorySection form={props.form} set={props.set} />
       <CompanionSettingsSection form={props.form} set={props.set} />
       {!props.contentUnavailable ? (

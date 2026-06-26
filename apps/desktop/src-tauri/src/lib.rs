@@ -23,6 +23,7 @@ mod rag;
 mod repositories;
 mod services;
 mod state;
+mod token_usage;
 mod web_search;
 
 use tauri::Manager;
@@ -119,6 +120,7 @@ use commands::{
         submission_update_version, submission_upsert_round,
     },
     sync::{sync_configure, sync_disable, sync_get_config, sync_now, sync_status},
+    token_usage::token_usage_stats,
     update::{update_check, update_install, PendingUpdate},
     webdav_sync::{
         webdav_delete_backup, webdav_download_backup, webdav_list_backups, webdav_test_connection,
@@ -300,6 +302,9 @@ pub fn run() {
                 // Init SQLite
                 let pool = db::init_db(&app_data_dir).await.expect("failed to init DB");
 
+                // 注入全局 token 用量落库连接池（供所有 LLM 调用累加用量）
+                token_usage::init(pool.clone());
+
                 // Load persisted settings, merge with defaults
                 let mut settings = default_settings();
                 let rows = sqlx::query("SELECT key, value FROM settings")
@@ -420,6 +425,7 @@ pub fn run() {
             settings_history_save,
             settings_history_apply,
             settings_history_delete,
+            token_usage_stats,
             update_check,
             update_install,
             read_diagnostic_log,

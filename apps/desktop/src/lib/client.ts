@@ -99,6 +99,20 @@ export interface SyncConfigView {
   username: string;
 }
 
+export interface TokenUsageBucket {
+  input: number;
+  output: number;
+  total: number;
+  chars: number;
+  requests: number;
+}
+
+export interface TokenUsageStats {
+  total: TokenUsageBucket;
+  today: TokenUsageBucket;
+  month: TokenUsageBucket;
+}
+
 export const settingsApi = {
   get: (): Promise<AppSettings> => invoke("settings_get"),
   update: (data: Partial<AppSettings>): Promise<{ ok: boolean; updated: string[] }> =>
@@ -150,6 +164,7 @@ export const settingsApi = {
     now: (): Promise<SyncSummary | null> => invoke("sync_now"),
     disable: (): Promise<void> => invoke("sync_disable"),
   },
+  tokenUsage: (): Promise<TokenUsageStats> => invoke("token_usage_stats"),
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
   appLock: {

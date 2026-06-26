@@ -380,6 +380,16 @@ CREATE TABLE IF NOT EXISTS opencode_sessions (
     updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_opencode_sessions_updated ON opencode_sessions(updated_at DESC);
+
+-- 本地 token 用量按日聚合（仅本地统计，不参与同步）
+CREATE TABLE IF NOT EXISTS token_usage_daily (
+    day            TEXT PRIMARY KEY,
+    input_tokens   INTEGER NOT NULL DEFAULT 0,
+    output_tokens  INTEGER NOT NULL DEFAULT 0,
+    input_chars    INTEGER NOT NULL DEFAULT 0,
+    output_chars   INTEGER NOT NULL DEFAULT 0,
+    request_count  INTEGER NOT NULL DEFAULT 0
+);
 ";
 
 // ── WebDAV 无冲突同步所需的本地元数据 ─────────────────────────────
@@ -465,6 +475,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_paper_notes_table(&pool).await?;
     ensure_opencode_tables(&pool).await?;
     ensure_paper_corpus_table(&pool).await?;
+    ensure_token_usage_char_columns(&pool).await?;
     ensure_sync_tables(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
 
@@ -787,6 +798,14 @@ async fn ensure_research_interest_parent_id_column(pool: &SqlitePool) -> Result<
 
 async fn ensure_papers_sort_order_column(pool: &SqlitePool) -> Result<()> {
     ensure_table_column(pool, "papers", "sort_order", "INTEGER NOT NULL DEFAULT 0").await
+}
+
+/// 为既有 DB 的 token_usage_daily 补齐字符统计列。
+async fn ensure_token_usage_char_columns(pool: &SqlitePool) -> Result<()> {
+    ensure_table_column(pool, "token_usage_daily", "input_chars", "INTEGER NOT NULL DEFAULT 0")
+        .await?;
+    ensure_table_column(pool, "token_usage_daily", "output_chars", "INTEGER NOT NULL DEFAULT 0")
+        .await
 }
 
 async fn ensure_papers_research_interest_column(pool: &SqlitePool) -> Result<()> {
