@@ -47,6 +47,32 @@ export default function CopilotComposer({
 }: CopilotComposerProps) {
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const [hoveredSkillId, setHoveredSkillId] = useState<string | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+
+  // 斜杠唤起：当输入恰为单个 /token（无空格）时，弹出技能自动补全。
+  const slashQuery = useMemo(() => {
+    const match = input.match(/^\/(\S*)$/);
+    return match ? match[1] : null;
+  }, [input]);
+  const slashMatches = useMemo(() => {
+    if (slashQuery === null) return [];
+    const query = slashQuery.toLowerCase();
+    if (!query) return skills;
+    return skills.filter(
+      (skill) =>
+        skill.name.toLowerCase().includes(query) || skill.title.toLowerCase().includes(query),
+    );
+  }, [slashQuery, skills]);
+  const slashOpen = slashQuery !== null && slashMatches.length > 0;
+
+  useEffect(() => {
+    setSlashIndex(0);
+  }, [slashQuery]);
+
+  const selectSlashSkill = (skillId: string) => {
+    onSelectedSkillChange(skillId);
+    onInputChange("");
+  };
 
   useEffect(() => {
     if (!skillPickerOpen) return undefined;
@@ -152,12 +178,73 @@ export default function CopilotComposer({
             boxShadow: "var(--rc-inset-shadow)",
           }}
         >
-          <div className="rounded-t-3xl overflow-hidden">
+          <div className="relative rounded-t-3xl overflow-visible">
+            {slashOpen && (
+              <div
+                className="rc-dropdown-menu absolute bottom-full mb-2 left-3 z-30 w-64 max-h-72 overflow-y-auto rounded-2xl py-1.5"
+                onMouseDown={(event) => event.preventDefault()}
+              >
+                <p className="px-3 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">
+                  技能 · 回车选择
+                </p>
+                {slashMatches.map((skill, index) => (
+                  <button
+                    key={skill.id}
+                    type="button"
+                    onMouseEnter={() => setSlashIndex(index)}
+                    onClick={() => selectSlashSkill(skill.id)}
+                    className="w-full text-left px-3 py-2 transition-colors duration-100 flex items-center gap-2"
+                    style={{
+                      background: index === slashIndex ? "rgba(0,122,255,0.1)" : "transparent",
+                    }}
+                  >
+                    <Zap
+                      className="w-3 h-3 flex-shrink-0"
+                      style={{ color: index === slashIndex ? "#007AFF" : "#8E8E93" }}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className="block truncate text-xs font-medium"
+                        style={{ color: index === slashIndex ? "#007AFF" : "var(--rc-text-soft)" }}
+                      >
+                        {skill.title}
+                      </span>
+                      <span className="block truncate text-[10px] font-mono text-ink-tertiary">
+                        /{skill.name}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             <textarea
               rows={3}
               value={input}
               onChange={(event) => onInputChange(event.target.value)}
               onKeyDown={(event) => {
+                if (slashOpen) {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setSlashIndex((i) => (i + 1) % slashMatches.length);
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+                    return;
+                  }
+                  if (event.key === "Enter" || event.key === "Tab") {
+                    event.preventDefault();
+                    const picked = slashMatches[slashIndex];
+                    if (picked) selectSlashSkill(picked.id);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    onInputChange("");
+                    return;
+                  }
+                }
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
                   void onSubmit();

@@ -1,12 +1,21 @@
 import { useCallback, useRef, useState } from "react";
 import {
+  applySkillVariables,
   buildCopilotMessageContent,
+  buildSkillInjectedText,
+  extractSkillVariables,
   upsertAgentRun,
 } from "./shared";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatMode, ChatSession, RoutingDecision, Skill } from "@research-copilot/types";
 
 const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
+
+export interface PendingSkillFill {
+  skill: Skill;
+  rawText: string;
+  variables: string[];
+}
 
 export interface UseCopilotChatOptions {
   currentSession: ChatSession | null;
@@ -42,6 +51,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
   const [searchingQuery, setSearchingQuery] = useState<string | null>(null);
   const [routingDecision, setRoutingDecision] = useState<RoutingDecision | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [pendingSkillFill, setPendingSkillFill] = useState<PendingSkillFill | null>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
   const streamingContentRef = useRef("");
   const rafRef = useRef(0);
@@ -203,54 +213,85 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     [chatMode, currentSession, selectedInterestId, cancelActiveStream, onSessionCreated]
   );
 
+  // 实际发送：组装发送文本（含技能注入标记）、校验视觉模型、追加用户消息并驱动流式。
+  const sendChat = useCallback(
+    async (rawText: string, skill: Skill | null, finalPrompt: string | null) => {
+      const textForLlm =
+        skill && finalPrompt
+          ? buildSkillInjectedText(rawText, skill, finalPrompt)
+          : rawText;
+      const submittedText = buildCopilotMessageContent(textForLlm, attachments);
+      // 图片走多模态 images 通道：发送给后端用 {data,mediaType}，存进消息用带 name 的 ChatImageRef 供气泡缩略图展示。
+      const imageAttachments = attachments.filter(
+        (a): a is typeof a & { imageData: string; imageMediaType: string } =>
+          a.kind === "image" && !!a.imageData && !!a.imageMediaType,
+      );
+      const images = imageAttachments.map((a) => ({ data: a.imageData, mediaType: a.imageMediaType }));
+
+      // 发图前先确认已配置视觉模型；未配置则提示并保留输入/附件，不发送。
+      if (images.length > 0) {
+        try {
+          const settings = await apiClient.settings.get();
+          if (!settings.vision_model?.trim()) {
+            setLoadError("发送图片前请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。");
+            return;
+          }
+        } catch {
+          // 设置获取失败时不阻断，交由后端兜底校验。
+        }
+      }
+
+      void apiClient.memory.add({
+        type: "auto",
+        action: "chat.query",
+        summary: `向小妍提问：${rawText.slice(0, 60)}${rawText.length > 60 ? "..." : ""}`,
+      });
+
+      const userMsg: ChatMessage = {
+        id: Date.now().toString(),
+        role: "user",
+        content: submittedText,
+        images: imageAttachments.length
+          ? imageAttachments.map((a) => ({ data: a.imageData, mediaType: a.imageMediaType, name: a.name }))
+          : undefined,
+        created_at: new Date().toISOString(),
+      };
+
+      setInput("");
+      clearAttachments();
+      await runChatStream(submittedText, (prev) => [...prev, userMsg], images);
+    },
+    [attachments, clearAttachments, runChatStream],
+  );
+
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || sending) return;
     const rawText = input.trim() || DEFAULT_ATTACHMENT_PROMPT;
-    const selSkill = skills.find((s) => s.id === selectedSkillId);
-    const text = selSkill
-      ? `[技能指令 · ${selSkill.title}]\n${selSkill.prompt}\n\n---\n\n${rawText}`
-      : rawText;
-    const submittedText = buildCopilotMessageContent(text, attachments);
-    // 图片走多模态 images 通道：发送给后端用 {data,mediaType}，存进消息用带 name 的 ChatImageRef 供气泡缩略图展示。
-    const imageAttachments = attachments.filter(
-      (a): a is typeof a & { imageData: string; imageMediaType: string } =>
-        a.kind === "image" && !!a.imageData && !!a.imageMediaType,
-    );
-    const images = imageAttachments.map((a) => ({ data: a.imageData, mediaType: a.imageMediaType }));
-
-    // 发图前先确认已配置视觉模型；未配置则提示并保留输入/附件，不发送。
-    if (images.length > 0) {
-      try {
-        const settings = await apiClient.settings.get();
-        if (!settings.vision_model?.trim()) {
-          setLoadError("发送图片前请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。");
-          return;
-        }
-      } catch {
-        // 设置获取失败时不阻断，交由后端兜底校验。
+    const selSkill = skills.find((s) => s.id === selectedSkillId) ?? null;
+    // 技能含 {{变量}} 时先弹出填写表单，填好再发送。
+    if (selSkill) {
+      const variables = extractSkillVariables(selSkill.prompt);
+      if (variables.length > 0) {
+        setPendingSkillFill({ skill: selSkill, rawText, variables });
+        return;
       }
     }
+    await sendChat(rawText, selSkill, selSkill ? selSkill.prompt : null);
+  }, [input, attachments, sending, skills, selectedSkillId, sendChat]);
 
-    void apiClient.memory.add({
-      type: "auto",
-      action: "chat.query",
-      summary: `向小妍提问：${rawText.slice(0, 60)}${rawText.length > 60 ? "..." : ""}`,
-    });
+  // 变量填写确认：用填写值替换占位符后发送。
+  const confirmSkillFill = useCallback(
+    async (values: Record<string, string>) => {
+      const pending = pendingSkillFill;
+      if (!pending) return;
+      setPendingSkillFill(null);
+      const finalPrompt = applySkillVariables(pending.skill.prompt, values);
+      await sendChat(pending.rawText, pending.skill, finalPrompt);
+    },
+    [pendingSkillFill, sendChat],
+  );
 
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: submittedText,
-      images: imageAttachments.length
-        ? imageAttachments.map((a) => ({ data: a.imageData, mediaType: a.imageMediaType, name: a.name }))
-        : undefined,
-      created_at: new Date().toISOString(),
-    };
-
-    setInput("");
-    clearAttachments();
-    await runChatStream(submittedText, (prev) => [...prev, userMsg], images);
-  }, [input, attachments, sending, skills, selectedSkillId, clearAttachments, runChatStream]);
+  const cancelSkillFill = useCallback(() => setPendingSkillFill(null), []);
 
   // 重新生成：复用目标助手消息之前那条用户消息（其 content 即原始发送内容，已含附件上下文）。
   const retry = useCallback(
@@ -310,5 +351,8 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     handleSend,
     retry,
     editAndResend,
+    pendingSkillFill,
+    confirmSkillFill,
+    cancelSkillFill,
   };
 }

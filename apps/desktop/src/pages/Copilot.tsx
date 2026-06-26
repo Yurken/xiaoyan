@@ -4,6 +4,7 @@ import CopilotComposer from "../features/copilot/CopilotComposer";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
 import { CopilotChatArea } from "../features/copilot/CopilotChatArea";
 import { CopilotSessionSidebar } from "../features/copilot/CopilotSessionSidebar";
+import SkillVariableFillModal from "../features/copilot/SkillVariableFillModal";
 import { useCopilotSessions } from "../features/copilot/useCopilotSessions";
 import { useCopilotChat } from "../features/copilot/useCopilotChat";
 import { useCopilotAttachments } from "../features/copilot/useCopilotAttachments";
@@ -286,6 +287,14 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           onCollapsedChange={chat.setSidebarCollapsed}
         />
       </div>
+
+      {chat.pendingSkillFill && (
+        <SkillVariableFillModal
+          pending={chat.pendingSkillFill}
+          onConfirm={(values) => void chat.confirmSkillFill(values)}
+          onCancel={chat.cancelSkillFill}
+        />
+      )}
 
       {/* 会话右键菜单 */}
       {sessions.contextMenu && (

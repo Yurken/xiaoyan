@@ -6,6 +6,7 @@ import {
   Pencil,
   RefreshCw,
   X,
+  Zap,
 } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
 import { MAIN_ASSISTANT_WELCOME_DESCRIPTION, MAIN_ASSISTANT_WELCOME_TITLE } from "@research-copilot/types";
@@ -190,6 +191,17 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                     </div>
                   ) : (
                     <>
+                      {parsedUserMessage.skill && (
+                        <div className="mb-1.5 flex justify-end">
+                          <span
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium"
+                            style={{ background: "rgba(0,122,255,0.12)", color: "#007AFF" }}
+                          >
+                            <Zap className="w-3 h-3" />
+                            {parsedUserMessage.skill.title}
+                          </span>
+                        </div>
+                      )}
                       {parsedUserMessage.attachments.length > 0 && (
                         <div className="mb-2 flex flex-wrap gap-1.5 justify-end">
                           {parsedUserMessage.attachments.map((att, i) => (

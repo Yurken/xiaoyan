@@ -414,6 +414,7 @@ export default function SkillsSection() {
 
   const builtin = filtered.filter((skill) => skill.is_builtin);
   const custom = filtered.filter((skill) => !skill.is_builtin);
+  const builtinTotal = skills.filter((skill) => skill.is_builtin).length;
 
   const handleToggle = async (skill: Skill) => {
     try {
@@ -520,7 +521,7 @@ export default function SkillsSection() {
             <div>
               <h2 className="text-base font-semibold text-ink-primary">技能库</h2>
               <p className="text-xs text-ink-tertiary mt-0.5">
-                内置 15 条研究技能，也可新建自定义技能
+                {builtinTotal > 0 ? `内置 ${builtinTotal} 条研究技能，` : ""}支持 / 唤起、{"{{变量}}"} 占位，也可新建自定义技能
               </p>
             </div>
           </div>
