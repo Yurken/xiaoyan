@@ -97,7 +97,7 @@ export default function ConfigHistorySwitcher({
       .finally(() => setComposing(false));
   };
 
-  const triggerLabel = activeEntry?.name ?? "配置历史";
+  const triggerLabel = activeEntry?.name ?? (entries.length > 0 ? "未保存配置" : "配置历史");
 
   return (
     <div ref={containerRef} className="relative flex-shrink-0">

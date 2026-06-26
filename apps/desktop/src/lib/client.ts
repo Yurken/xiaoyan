@@ -167,6 +167,8 @@ export const settingsApi = {
   tokenUsage: (): Promise<TokenUsageStats> => invoke("token_usage_stats"),
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
+  listModels: (data: Partial<AppSettings>): Promise<string[]> =>
+    invoke("settings_list_models", { data }),
   appLock: {
     status: (): Promise<{ enabled: boolean; timeoutMinutes: number; hasSecurity: boolean; hasHint: boolean; hasEmail: boolean }> =>
       invoke("app_lock_status"),

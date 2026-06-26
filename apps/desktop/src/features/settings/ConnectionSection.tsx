@@ -1,10 +1,13 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
-import { Brain, ChevronDown, ChevronRight, Loader2, RefreshCw, Wifi } from "lucide-react";
+import type { Dispatch, SetStateAction } from "react";
+import { Brain, Loader2, Wifi } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppSettings, LlmProvider, PaperSearchEngine } from "@research-copilot/types";
 import { MASK, SectionIcon, SettingInput } from "./shared";
 import { ANTHROPIC_ENDPOINT, PROVIDER_PRESETS, type ProviderPresetId } from "./providerPresets";
 import ConfigHistorySwitcher, { type ConfigHistoryControls } from "./ConfigHistorySwitcher";
+import OllamaEmbeddingPanel from "./OllamaEmbeddingPanel";
+import ProviderIcon from "./ProviderIcon";
+import ModelCombobox from "./ModelCombobox";
 
 interface ConnectionSectionProps {
   contentUnavailable: boolean;
@@ -13,6 +16,10 @@ interface ConnectionSectionProps {
   form: AppSettings;
   ollamaModels: string[];
   loadingOllamaModels: boolean;
+  availableModels: string[];
+  loadingModels: boolean;
+  modelsError: string;
+  loadModels: () => Promise<void>;
   configHistory: ConfigHistoryControls;
   onManageConfigHistory: () => void;
   setForm: Dispatch<SetStateAction<AppSettings>>;
@@ -33,20 +40,20 @@ export interface ConnectionActions {
 
 function PresetCard({
   active,
+  id,
   label,
-  description,
   onClick,
 }: {
   active: boolean;
+  id: ProviderPresetId;
   label: string;
-  description: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="rounded-[22px] p-3 text-left transition-all duration-150"
+      className="flex items-center gap-2.5 rounded-[18px] px-3 py-2.5 text-left transition-all duration-150"
       style={
         active
           ? {
@@ -61,8 +68,11 @@ function PresetCard({
             }
       }
     >
-      <p className="text-sm font-semibold text-ink-primary">{label}</p>
-      <p className="mt-1.5 text-xs leading-5 text-ink-tertiary">{description}</p>
+      <ProviderIcon
+        id={id}
+        className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-[20px] text-ink-primary [&>svg]:h-[1em] [&>svg]:w-[1em]"
+      />
+      <span className="truncate text-sm font-semibold text-ink-primary">{label}</span>
     </button>
   );
 }
@@ -106,6 +116,10 @@ export default function ConnectionSection({
   form,
   ollamaModels,
   loadingOllamaModels,
+  availableModels,
+  loadingModels,
+  modelsError,
+  loadModels,
   configHistory,
   onManageConfigHistory,
   setForm,
@@ -115,7 +129,6 @@ export default function ConnectionSection({
   connectionActions,
 }: ConnectionSectionProps) {
   const { testState, testMsg, saveState, busy: actionsBusy, onTest } = connectionActions;
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const activePresetMeta = PROVIDER_PRESETS.find((preset) => preset.id === activePreset);
   const isOpenAI = provider === "openai";
   const isAnthropic = provider === "anthropic";
@@ -207,13 +220,13 @@ export default function ConnectionSection({
             <div className="flex items-center justify-between gap-3">
               <label className="ml-1 block text-xs font-medium text-ink-tertiary">常见厂商</label>
             </div>
-            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            <div className="flex flex-wrap gap-2">
               {PROVIDER_PRESETS.map((preset) => (
                 <PresetCard
                   key={preset.id}
                   active={activePreset === preset.id}
+                  id={preset.id}
                   label={preset.label}
-                  description={preset.description}
                   onClick={() => applyPreset(preset.id)}
                 />
               ))}
@@ -264,7 +277,7 @@ export default function ConnectionSection({
             />
 
             <div className="md:col-span-2">
-              <SettingInput
+              <ModelCombobox
                 label="默认对话模型"
                 value={chatModelValue}
                 onChange={set(
@@ -275,29 +288,26 @@ export default function ConnectionSection({
                       : "openai_compatible_chat_model",
                 )}
                 placeholder={activePresetMeta?.defaultChatModel || "模型名称"}
-                hint="小妍主对话默认模型；专项任务可在下方分工区单独指定。"
+                hint="小妍主对话默认模型；专项任务可在下方分工区单独指定。点右侧按钮查询可用模型。"
+                models={availableModels}
+                loading={loadingModels}
+                error={modelsError}
+                onQuery={() => void loadModels()}
               />
             </div>
-          </div>
 
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((value) => !value)}
-            className="flex items-center gap-1.5 text-xs text-ink-tertiary transition-colors hover:text-ink-secondary"
-          >
-            {showAdvanced ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            {showAdvanced ? "收起高级设置" : "展开高级设置"}
-          </button>
-
-          {showAdvanced ? (
-            <div className="space-y-3 rounded-[24px] border border-nm-dark/10 p-4">
+            <div className="md:col-span-2">
               {!isAnthropic ? (
-                <SettingInput
+                <ModelCombobox
                   label="默认向量模型"
                   value={embeddingModelValue}
                   onChange={set(isOpenAI ? "openai_embedding_model" : "openai_compatible_embedding_model")}
                   placeholder={activePresetMeta?.defaultEmbedModel || "text-embedding-3-small"}
                   hint={embeddingHint}
+                  models={availableModels}
+                  loading={loadingModels}
+                  error={modelsError}
+                  onQuery={() => void loadModels()}
                 />
               ) : (
                 <div
@@ -307,38 +317,23 @@ export default function ConnectionSection({
                   Anthropic 不提供向量模型。如需 embedding 请在下方分工区为溯源模型配置。
                 </div>
               )}
-
-              {activePreset === "ollama" ? (
-                <div className="space-y-3 rounded-2xl border border-green-200 bg-green-50/80 px-4 py-3">
-                  <p className="text-xs leading-5 text-green-800">
-                    默认地址 <code className="font-mono">http://localhost:11434/v1</code>。点击下方按钮获取本地模型列表。
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={loadingOllamaModels}
-                      onClick={() => void loadOllamaModels()}
-                      className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-150 disabled:opacity-60"
-                      style={{ background: "rgba(52,199,89,0.15)", color: "#1A7A2E" }}
-                    >
-                      {loadingOllamaModels ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                      获取本地模型
-                    </button>
-                    {ollamaModels.map((model) => (
-                      <button
-                        key={model}
-                        type="button"
-                        onClick={() => setForm((current) => ({ ...current, openai_compatible_chat_model: model }))}
-                        className="rounded-lg px-2.5 py-1 text-xs font-mono transition-colors hover:bg-green-100"
-                        style={{ color: "#1A7A2E" }}
-                      >
-                        {model}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </div>
+          </div>
+
+          {activePreset === "ollama" ? (
+            <OllamaEmbeddingPanel
+              ollamaModels={ollamaModels}
+              loadingOllamaModels={loadingOllamaModels}
+              loadOllamaModels={loadOllamaModels}
+              chatModel={form.openai_compatible_chat_model}
+              embeddingModel={form.openai_compatible_embedding_model}
+              onPickChat={(model) =>
+                setForm((current) => ({ ...current, openai_compatible_chat_model: model }))
+              }
+              onPickEmbedding={(model) =>
+                setForm((current) => ({ ...current, openai_compatible_embedding_model: model }))
+              }
+            />
           ) : null}
 
           <div className="space-y-3 border-t border-nm-dark/10 pt-1">

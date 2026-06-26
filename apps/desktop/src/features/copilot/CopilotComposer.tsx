@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUp, Bot, BrainCircuit, FileText, Paperclip, Plus, X, Zap } from "lucide-react";
+import { ArrowUp, Bot, BrainCircuit, FileText, Lock, LockOpen, Paperclip, Plus, X, Zap } from "lucide-react";
 import type { ChatMode, Skill } from "@research-copilot/types";
 import {
   COPILOT_CHAT_MODE_OPTIONS,
@@ -22,6 +22,8 @@ interface CopilotComposerProps {
   skills: Skill[];
   selectedSkillId: string | null;
   onSelectedSkillChange: (skillId: string | null) => void;
+  skillLocked: boolean;
+  onSkillLockedChange: (locked: boolean) => void;
 }
 
 const MODE_ICON = {
@@ -44,6 +46,8 @@ export default function CopilotComposer({
   skills,
   selectedSkillId,
   onSelectedSkillChange,
+  skillLocked,
+  onSkillLockedChange,
 }: CopilotComposerProps) {
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const [hoveredSkillId, setHoveredSkillId] = useState<string | null>(null);
@@ -410,8 +414,26 @@ export default function CopilotComposer({
                     style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}>
                     <Zap className="w-3 h-3" />
                     {skill.title}
-                    <button type="button" onClick={() => onSelectedSkillChange(null)}
-                      className="ml-0.5 hover:opacity-60 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => onSkillLockedChange(!skillLocked)}
+                      title={skillLocked ? "已锁定：连续多轮生效，点击解除" : "默认仅本条生效，点击锁定以连续使用"}
+                      aria-label={skillLocked ? "解除技能锁定" : "锁定技能"}
+                      aria-pressed={skillLocked}
+                      className="ml-0.5 transition-opacity hover:opacity-60"
+                      style={{ opacity: skillLocked ? 1 : 0.55 }}
+                    >
+                      {skillLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectedSkillChange(null);
+                        onSkillLockedChange(false);
+                      }}
+                      title="移除技能"
+                      className="hover:opacity-60 transition-opacity"
+                    >
                       <X className="w-3 h-3" />
                     </button>
                   </div>

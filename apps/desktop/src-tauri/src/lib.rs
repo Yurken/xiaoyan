@@ -100,8 +100,8 @@ use commands::{
     research_context::{research_context_get_recent_themes, research_context_get_theme_context},
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
-        settings_history_list, settings_history_save, settings_import, settings_list_ollama_models,
-        settings_test, settings_test_vision, settings_update,
+        settings_history_list, settings_history_save, settings_import, settings_list_models,
+        settings_list_ollama_models, settings_test, settings_test_vision, settings_update,
     },
     skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
     source::source_lookup,
@@ -593,6 +593,7 @@ pub fn run() {
             knowledge_web_clip,
             // Settings extras
             settings_list_ollama_models,
+            settings_list_models,
             // Misc
             planner_generate,
             survey_generate,

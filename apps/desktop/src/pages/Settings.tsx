@@ -225,12 +225,19 @@ export default function Settings() {
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [loadingOllamaModels, setLoadingOllamaModels] = useState(false);
 
+  // 主服务商可用模型（/models 查询）
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState("");
+
   const provider = form.llm_provider as LlmProvider;
   const activePreset = detectPreset(form);
   const activePresetMeta = PROVIDER_PRESETS.find((preset) => preset.id === activePreset);
 
   const applyPreset = (presetId: ProviderPresetId) => {
     setForm((current) => applyProviderPreset(current, presetId));
+    // 切换厂商后实时配置已偏离所选历史档，取消选中以反映为「未保存配置」。
+    settingsHistory.setSelectedId("");
   };
 
   const enabledAgents = form.multi_agent_enabled_agents
@@ -259,6 +266,23 @@ export default function Settings() {
       setOllamaModels([]);
     } finally {
       setLoadingOllamaModels(false);
+    }
+  };
+
+  const loadModels = async () => {
+    setLoadingModels(true);
+    setModelsError("");
+    try {
+      const models = await apiClient.settings.listModels(form);
+      setAvailableModels(models);
+      if (models.length === 0) {
+        setModelsError("未获取到模型，请检查接口地址与密钥。");
+      }
+    } catch (error) {
+      setAvailableModels([]);
+      setModelsError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoadingModels(false);
     }
   };
 
@@ -380,6 +404,10 @@ export default function Settings() {
             form={form}
             ollamaModels={ollamaModels}
             loadingOllamaModels={loadingOllamaModels}
+            availableModels={availableModels}
+            loadingModels={loadingModels}
+            modelsError={modelsError}
+            loadModels={loadModels}
             enabledAgents={enabledAgents}
             configHistory={{
               entries: settingsHistory.entries,

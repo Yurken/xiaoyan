@@ -782,6 +782,104 @@ pub async fn list_ollama_models(base_url: Option<String>) -> Result<Vec<String>,
         .collect())
 }
 
+/// 查询当前主服务商的可用模型列表（OpenAI / 兼容服务的 `/models`，Anthropic 的 `/v1/models`）。
+/// 复用 test_settings 的口径：以已保存的真实设置为底，再用前端传入的草稿覆盖（跳过掩码值），
+/// 从而拿到真实密钥而不需把掩码 key 在前后端来回传。
+pub async fn list_models(
+    state: &AppState,
+    data: &serde_json::Value,
+) -> Result<Vec<String>, String> {
+    let mut merged = state.settings.read().await.clone();
+    if let Some(map) = data.as_object() {
+        for (key, value) in map {
+            let next_value = value.as_str().unwrap_or("").trim().to_string();
+            if next_value != MASK {
+                merged.insert(key.clone(), next_value);
+            }
+        }
+    }
+
+    let provider = merged
+        .get("llm_provider")
+        .cloned()
+        .unwrap_or_else(|| "openai".to_string());
+
+    let (models_url, api_key, is_anthropic) = match provider.as_str() {
+        "anthropic" => (
+            "https://api.anthropic.com/v1/models".to_string(),
+            merged.get("anthropic_api_key").cloned().unwrap_or_default(),
+            true,
+        ),
+        "openai_compatible" => {
+            let base = merged
+                .get("openai_compatible_base_url")
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| "请先填写接口地址".to_string())?;
+            (
+                format!("{}/models", base.trim_end_matches('/')),
+                merged
+                    .get("openai_compatible_api_key")
+                    .cloned()
+                    .unwrap_or_default(),
+                false,
+            )
+        }
+        _ => {
+            let base = merged
+                .get("openai_base_url")
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+            (
+                format!("{}/models", base.trim_end_matches('/')),
+                merged.get("openai_api_key").cloned().unwrap_or_default(),
+                false,
+            )
+        }
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let request = if is_anthropic {
+        client
+            .get(&models_url)
+            .header("x-api-key", api_key)
+            .header("anthropic-version", "2023-06-01")
+    } else {
+        client
+            .get(&models_url)
+            .header("Authorization", format!("Bearer {api_key}"))
+    };
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("请求模型列表失败: {e}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        let detail = body.chars().take(160).collect::<String>();
+        return Err(format!("接口返回 {status}：{detail}"));
+    }
+
+    let json: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+
+    let mut models: Vec<String> = json["data"]
+        .as_array()
+        .unwrap_or(&vec![])
+        .iter()
+        .filter_map(|item| item["id"].as_str().map(|id| id.to_string()))
+        .collect();
+    models.sort();
+    models.dedup();
+    Ok(models)
+}
+
 pub async fn list_settings_history_entries(
     state: &AppState,
 ) -> Result<Vec<SettingsHistoryEntry>, String> {

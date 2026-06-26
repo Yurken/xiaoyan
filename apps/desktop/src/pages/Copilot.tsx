@@ -30,6 +30,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  // 技能锁定：关闭时（默认）发完一条即清除选中（one-shot）；开启时连续生效。
+  const [skillLocked, setSkillLocked] = useState(false);
   const [memoryInput, setMemoryInput] = useState("");
   const [savingMemory, setSavingMemory] = useState(false);
   const [memorySaved, setMemorySaved] = useState(false);
@@ -59,6 +61,9 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     selectedSkillId,
     attachments,
     clearAttachments,
+    onSkillConsumed: () => {
+      if (!skillLocked) setSelectedSkillId(null);
+    },
     onSessionCreated: async (sessionId: string) => {
       const updated = await apiClient.chat.listSessions();
       const nextSession = updated.find((s) => s.id === sessionId) ?? null;
@@ -94,7 +99,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   // Skills
   useEffect(() => {
     apiClient.skills.list().then((data) => {
-      setSkills(data.filter((s) => s.is_enabled && s.name !== "ppt-generate"));
+      // 对话技能选择器只收提示词技能；工具技能（如 PPT 生成）走工具页专用流程。
+      setSkills(data.filter((s) => s.is_enabled && s.kind !== "tool"));
     }).catch((err) => { console.warn("Failed to load skills:", err); });
   }, []);
 
@@ -267,6 +273,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               skills={skills}
               selectedSkillId={selectedSkillId}
               onSelectedSkillChange={setSelectedSkillId}
+              skillLocked={skillLocked}
+              onSkillLockedChange={setSkillLocked}
             />
           </div>
         </div>

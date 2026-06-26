@@ -56,6 +56,14 @@ pub async fn settings_list_ollama_models(base_url: Option<String>) -> Result<Vec
 }
 
 #[tauri::command]
+pub async fn settings_list_models(
+    state: State<'_, AppState>,
+    data: serde_json::Value,
+) -> Result<Vec<String>, String> {
+    settings_service::list_models(state.inner(), &data).await
+}
+
+#[tauri::command]
 pub async fn settings_history_list(
     state: State<'_, AppState>,
 ) -> Result<Vec<settings_service::SettingsHistoryEntry>, String> {

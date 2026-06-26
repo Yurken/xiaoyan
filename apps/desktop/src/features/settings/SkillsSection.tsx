@@ -299,6 +299,15 @@ function SkillCard({
             内置
           </span>
         ) : null}
+        {skill.kind === "tool" ? (
+          <span
+            className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-medium"
+            style={{ background: "rgba(255,149,0,0.12)", color: "#FF9500" }}
+            title="工具技能：在「工具」页使用，不出现在对话技能选择器"
+          >
+            工具
+          </span>
+        ) : null}
         <code
           className="text-xs font-mono px-1.5 py-0.5 rounded-md"
           style={{ background: "rgba(120,120,128,0.08)", color: "#8E8E93" }}

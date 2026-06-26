@@ -1,6 +1,7 @@
 import { useState, type ComponentType } from "react";
 import { AlertCircle, Check, ChevronDown, ChevronRight, Loader2, Wifi } from "lucide-react";
 import { MASK, SettingInput, SectionIcon } from "./shared";
+import ModelCombobox from "./ModelCombobox";
 
 interface CompactModelCardProps {
   icon: ComponentType<{ className?: string }>;
@@ -23,6 +24,11 @@ interface CompactModelCardProps {
   temperaturePlaceholder: string;
   secondaryFieldLabel?: string;
   secondaryFieldHint?: string;
+  /** 主服务商可用模型（用于「统一模型」下拉），来自 /models 查询 */
+  availableModels: string[];
+  loadingModels: boolean;
+  modelsError: string;
+  onQueryModels: () => void;
   /** 简短状态文本（外部计算） */
   statusSummary: string;
   /** 是否有自定义值 */
@@ -53,6 +59,10 @@ export function CompactModelCard({
   temperaturePlaceholder,
   secondaryFieldLabel,
   secondaryFieldHint,
+  availableModels,
+  loadingModels,
+  modelsError,
+  onQueryModels,
   statusSummary,
   isCustomized,
   roleTestState = "idle",
@@ -174,12 +184,16 @@ export function CompactModelCard({
 
           {/* Model + Temperature */}
           <div className="grid gap-2.5">
-            <SettingInput
+            <ModelCombobox
               label="统一模型"
               value={modelValue}
               onChange={onModelChange}
               placeholder={modelPlaceholder}
-              hint="留空则沿用上方主模型。"
+              hint="留空则沿用上方主模型。点右侧按钮查询主服务商可用模型。"
+              models={availableModels}
+              loading={loadingModels}
+              error={modelsError}
+              onQuery={onQueryModels}
             />
             <SettingInput
               label={secondaryFieldLabel ?? "统一温度"}

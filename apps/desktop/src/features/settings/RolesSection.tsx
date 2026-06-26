@@ -35,6 +35,11 @@ interface RolesSectionProps {
   toggleAgent: (agentName: string) => void;
   /** 批量设置多个 key（用于预设应用） */
   setManyFlat: (updates: Partial<Record<keyof AppSettings, string>>) => void;
+  /** 主服务商可用模型查询（供各角色「统一模型」下拉） */
+  availableModels: string[];
+  loadingModels: boolean;
+  modelsError: string;
+  loadModels: () => Promise<void>;
 }
 
 export default function RolesSection({
@@ -46,6 +51,10 @@ export default function RolesSection({
   hasMixedValue,
   toggleAgent,
   setManyFlat,
+  availableModels,
+  loadingModels,
+  modelsError,
+  loadModels,
 }: RolesSectionProps) {
   const [showAllCards, setShowAllCards] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -245,6 +254,10 @@ export default function RolesSection({
                 temperaturePlaceholder={item.temperaturePlaceholder}
                 secondaryFieldLabel={item.secondaryFieldLabel}
                 secondaryFieldHint={item.secondaryFieldHint}
+                availableModels={availableModels}
+                loadingModels={loadingModels}
+                modelsError={modelsError}
+                onQueryModels={() => void loadModels()}
                 statusSummary={getCardStatusSummary(form, item)}
                 isCustomized={customized}
                 roleTestState={roleTestStates[item.title] ?? "idle"}

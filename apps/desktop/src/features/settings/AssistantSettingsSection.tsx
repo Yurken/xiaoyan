@@ -17,6 +17,10 @@ interface AssistantSettingsSectionProps {
   form: AppSettings;
   ollamaModels: string[];
   loadingOllamaModels: boolean;
+  availableModels: string[];
+  loadingModels: boolean;
+  modelsError: string;
+  loadModels: () => Promise<void>;
   enabledAgents: string[];
   configHistory: ConfigHistoryControls;
   connectionActions: ConnectionActions;
@@ -70,6 +74,10 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
         form={props.form}
         ollamaModels={props.ollamaModels}
         loadingOllamaModels={props.loadingOllamaModels}
+        availableModels={props.availableModels}
+        loadingModels={props.loadingModels}
+        modelsError={props.modelsError}
+        loadModels={props.loadModels}
         configHistory={props.configHistory}
         connectionActions={props.connectionActions}
         onManageConfigHistory={props.onManageConfigHistory}
@@ -91,6 +99,10 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
           getSharedValue={props.getSharedValue}
           hasMixedValue={props.hasMixedValue}
           toggleAgent={props.toggleAgent}
+          availableModels={props.availableModels}
+          loadingModels={props.loadingModels}
+          modelsError={props.modelsError}
+          loadModels={props.loadModels}
         />
       ) : null}
     </div>

@@ -666,6 +666,8 @@ export interface SettingsHistoryEntry {
   enabled_agents_count: number;
 }
 
+export type SkillKind = "prompt" | "tool";
+
 export interface Skill {
   id: string;
   name: string;
@@ -673,6 +675,8 @@ export interface Skill {
   description: string;
   prompt: string;
   tags: string[];
+  /** prompt=提示词技能（对话注入）；tool=工具技能（如 PPT 生成，走专用流程，不在对话技能选择器出现）。 */
+  kind: SkillKind;
   is_builtin: boolean;
   is_enabled: boolean;
   created_at: string;

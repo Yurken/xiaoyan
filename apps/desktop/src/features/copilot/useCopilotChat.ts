@@ -26,6 +26,8 @@ export interface UseCopilotChatOptions {
   attachments: ReturnType<typeof import("./useCopilotAttachments").useCopilotAttachments>["attachments"];
   clearAttachments: () => void;
   onSessionCreated: (sessionId: string) => void;
+  /** 一次技能注入发送后回调；用于默认 one-shot 时清除选中技能（锁定时由调用方跳过清除）。 */
+  onSkillConsumed?: () => void;
 }
 
 export function useCopilotChat(options: UseCopilotChatOptions) {
@@ -38,6 +40,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     attachments,
     clearAttachments,
     onSessionCreated,
+    onSkillConsumed,
   } = options;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -259,9 +262,11 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
 
       setInput("");
       clearAttachments();
+      // 技能默认 one-shot：发完即通知调用方清除选中（锁定时调用方自行跳过）。
+      if (skill) onSkillConsumed?.();
       await runChatStream(submittedText, (prev) => [...prev, userMsg], images);
     },
-    [attachments, clearAttachments, runChatStream],
+    [attachments, clearAttachments, runChatStream, onSkillConsumed],
   );
 
   const handleSend = useCallback(async () => {

@@ -11,7 +11,6 @@ export const PROVIDER_PRESETS = [
     defaultChatModel: "deepseek-chat",
     defaultEmbedModel: "",
     apiKeyPlaceholder: "sk-...",
-    description: "自动填入官方兼容 OpenAI 的接口地址。",
   },
   {
     id: "qwen",
@@ -21,7 +20,6 @@ export const PROVIDER_PRESETS = [
     defaultChatModel: "qwen-plus",
     defaultEmbedModel: "text-embedding-v3",
     apiKeyPlaceholder: "sk-...",
-    description: "自动填入 DashScope 兼容模式地址。",
   },
   {
     id: "siliconflow",
@@ -31,7 +29,6 @@ export const PROVIDER_PRESETS = [
     defaultChatModel: "Qwen/Qwen2.5-72B-Instruct",
     defaultEmbedModel: "BAAI/bge-m3",
     apiKeyPlaceholder: "sk-...",
-    description: "适合统一接入开源模型与 embedding。",
   },
   {
     id: "moonshot",
@@ -41,7 +38,6 @@ export const PROVIDER_PRESETS = [
     defaultChatModel: "moonshot-v1-8k",
     defaultEmbedModel: "",
     apiKeyPlaceholder: "sk-...",
-    description: "自动填入 Moonshot 官方兼容地址。",
   },
   {
     id: "openai",
@@ -51,7 +47,6 @@ export const PROVIDER_PRESETS = [
     defaultChatModel: "gpt-4o-mini",
     defaultEmbedModel: "text-embedding-3-small",
     apiKeyPlaceholder: "sk-...",
-    description: "官方 OpenAI 接口，自动填入标准 `/v1` 地址。",
   },
   {
     id: "anthropic",
@@ -61,7 +56,6 @@ export const PROVIDER_PRESETS = [
     defaultChatModel: "claude-3-5-haiku-20241022",
     defaultEmbedModel: "",
     apiKeyPlaceholder: "sk-ant-...",
-    description: "原生 Messages API，当前主模型配置不支持自定义 URL。",
   },
   {
     id: "gemini",
@@ -71,7 +65,6 @@ export const PROVIDER_PRESETS = [
     defaultChatModel: "gemini-2.0-flash",
     defaultEmbedModel: "",
     apiKeyPlaceholder: "AIza...",
-    description: "使用 Google 提供的 OpenAI 兼容入口。",
   },
   {
     id: "ollama",
@@ -81,7 +74,6 @@ export const PROVIDER_PRESETS = [
     defaultChatModel: "qwen2.5:7b",
     defaultEmbedModel: "nomic-embed-text",
     apiKeyPlaceholder: "ollama",
-    description: "本地部署，自动填入 `localhost:11434/v1`。",
   },
   {
     id: "custom",
@@ -91,7 +83,6 @@ export const PROVIDER_PRESETS = [
     defaultChatModel: "",
     defaultEmbedModel: "",
     apiKeyPlaceholder: "sk-...",
-    description: "适用于代理转发、OpenRouter、One API 或其他兼容接口。",
   },
 ] as const;
 
