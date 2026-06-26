@@ -27,26 +27,37 @@ interface LogAttachment {
 // 递增序号，给粘贴的图片生成稳定 key。
 let imageSeq = 0;
 
+// 与服务端约束保持一致：最多 3 张截图。
+const MAX_IMAGES = 3;
+
 /**
  * 用户反馈区（升级页底部）。
  *
- * 支持粘贴文字与图片、一键附带应用当前运行日志。提交载荷已在 handleSubmit 内组装完成，
- * 服务器上报接口接入后，把标注 TODO(server) 的占位替换为真实请求即可。
+ * 支持粘贴文字与图片、填写联系方式、一键附带应用当前运行日志，
+ * 通过后端 feedback_submit 命令上报到官网反馈服务（POST /api/settings/feedback）。
  */
 export default function FeedbackSection() {
   const [text, setText] = useState("");
+  const [contact, setContact] = useState("");
   const [images, setImages] = useState<PastedImage[]>([]);
   const [log, setLog] = useState<LogAttachment | null>(null);
   const [loadingLog, setLoadingLog] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = event.clipboardData?.items;
     if (!items) return;
-    for (const item of Array.from(items)) {
-      if (!item.type.startsWith("image/")) continue;
-      const file = item.getAsFile();
-      if (!file) continue;
+    const files = Array.from(items)
+      .filter((item) => item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file != null);
+    if (files.length === 0) return;
+    if (images.length + files.length > MAX_IMAGES) {
+      setNotice({ ok: false, text: `最多上传 ${MAX_IMAGES} 张截图。` });
+      return;
+    }
+    for (const file of files) {
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === "string") {
@@ -86,22 +97,30 @@ export default function FeedbackSection() {
 
   const canSubmit = text.trim().length > 0 || images.length > 0 || log != null;
 
-  const handleSubmit = () => {
-    if (!canSubmit) return;
-    // 反馈上报载荷，已组装完成。
-    const payload = {
-      text: text.trim(),
-      images: images.map((item) => item.dataUrl),
-      log: log ? { name: log.name, content: log.content } : null,
-    };
-    // TODO(server): 反馈上报接口待接入。接入后替换为：
-    //   await apiClient.settings.feedback.submit(payload);
-    //   成功后清空草稿：setText(""); setImages([]); setLog(null);
-    void payload;
-    setNotice({
-      ok: true,
-      text: "反馈通道即将上线，草稿已为你保留；服务器接口接入后即可一键提交。感谢你的反馈！",
-    });
+  const handleSubmit = async () => {
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    setNotice(null);
+    try {
+      await apiClient.settings.feedback.submit({
+        text: text.trim(),
+        contact: contact.trim(),
+        images: images.map((item) => item.dataUrl),
+        log: log ? { name: log.name, content: log.content } : null,
+      });
+      setText("");
+      setContact("");
+      setImages([]);
+      setLog(null);
+      setNotice({ ok: true, text: "反馈已提交，感谢你的反馈！" });
+    } catch (error) {
+      setNotice({
+        ok: false,
+        text: error instanceof Error ? error.message : "提交失败，请稍后再试",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const inputStyle = {
@@ -133,6 +152,15 @@ export default function FeedbackSection() {
           rows={4}
           placeholder="描述你遇到的问题或建议；可直接 Ctrl/⌘+V 粘贴截图。"
           className="w-full resize-y rounded-2xl border px-4 py-2.5 text-sm outline-none text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]"
+          style={inputStyle}
+        />
+
+        <input
+          type="text"
+          value={contact}
+          onChange={(e) => setContact(e.target.value)}
+          placeholder="联系方式（可选）：邮箱 / 微信 / Telegram，方便我们回访"
+          className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]"
           style={inputStyle}
         />
 
@@ -197,21 +225,20 @@ export default function FeedbackSection() {
 
           <button
             type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
+            onClick={() => void handleSubmit()}
+            disabled={!canSubmit || submitting}
             className="ml-auto flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
             style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3)" }}
           >
-            <Send className="h-4 w-4" />
-            提交反馈
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {submitting ? "提交中…" : "提交反馈"}
           </button>
         </div>
 
         {notice && (
           <div
-            className={`flex items-start gap-1.5 rounded-xl px-4 py-2.5 text-xs ${
-              notice.ok ? "bg-apple-green/10 text-apple-green" : "bg-apple-red/10 text-apple-red"
-            }`}
+            className={`flex items-start gap-1.5 rounded-xl px-4 py-2.5 text-xs ${notice.ok ? "bg-apple-green/10 text-apple-green" : "bg-apple-red/10 text-apple-red"
+              }`}
           >
             {notice.ok ? (
               <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />

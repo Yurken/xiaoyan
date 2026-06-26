@@ -113,6 +113,16 @@ export const settingsApi = {
     invoke("settings_import", { data, password }),
   readDiagnosticLog: (): Promise<{ name: string; content: string }> =>
     invoke("read_diagnostic_log"),
+  feedback: {
+    submit: (payload: {
+      text?: string;
+      contact?: string;
+      category?: string;
+      images?: string[];
+      log?: { name: string; content: string } | null;
+    }): Promise<{ ok: boolean; id?: number; createdAt?: string }> =>
+      invoke("feedback_submit", { payload }),
+  },
   dataBackup: {
     export: (password: string): Promise<string> =>
       invoke("data_backup_export", { password }),

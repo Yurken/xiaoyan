@@ -197,6 +197,72 @@ fn read_diagnostic_log() -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({ "name": name, "content": tail }))
 }
 
+#[derive(serde::Deserialize)]
+pub struct FeedbackLog {
+    name: String,
+    content: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct FeedbackPayload {
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    contact: String,
+    category: Option<String>,
+    #[serde(default)]
+    images: Vec<String>,
+    log: Option<FeedbackLog>,
+}
+
+/// 提交用户反馈到官网反馈服务。
+/// 从后端 reqwest 直发（不带 Origin 头，绕过服务端 CORS 白名单）。
+#[tauri::command]
+async fn feedback_submit(payload: FeedbackPayload) -> Result<serde_json::Value, String> {
+    let endpoint = std::env::var("XIAOYAN_FEEDBACK_ENDPOINT")
+        .unwrap_or_else(|_| "https://xiaoyan.net.cn/api/settings/feedback".to_string());
+
+    // 操作系统类型 + 版本（+ 架构），写进服务端会落库的 client.platform 字段。
+    // 例：「Mac OS 15.5.0 (aarch64)」「Windows 11 Pro 10.0.22631 (x86_64)」。
+    let os = os_info::get();
+    let arch = std::env::consts::ARCH;
+    let platform = match os.edition() {
+        Some(edition) => format!("{edition} {} ({arch})", os.version()),
+        None => format!("{} {} ({arch})", os.os_type(), os.version()),
+    };
+
+    let body = serde_json::json!({
+        "source": "xiaoyan-desktop",
+        "category": payload.category.unwrap_or_else(|| "other".to_string()),
+        "text": payload.text,
+        "contact": payload.contact,
+        "images": payload.images,
+        "log": payload.log.map(|l| serde_json::json!({ "name": l.name, "content": l.content })),
+        "client": {
+            "platform": platform,
+            "userAgent": format!("xiaoyan-desktop/{}", env!("CARGO_PKG_VERSION")),
+        },
+    });
+
+    let resp = reqwest::Client::new()
+        .post(&endpoint)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("网络请求失败：{e}"))?;
+
+    let status = resp.status();
+    let value: serde_json::Value = resp.json().await.unwrap_or_else(|_| serde_json::json!({}));
+    if !status.is_success() {
+        let msg = value
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("提交失败，请稍后再试");
+        return Err(msg.to_string());
+    }
+    Ok(value)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     panic::set_hook(Box::new(|panic_info| {
@@ -357,6 +423,7 @@ pub fn run() {
             update_check,
             update_install,
             read_diagnostic_log,
+            feedback_submit,
             // Papers
             papers_list,
             papers_get,
