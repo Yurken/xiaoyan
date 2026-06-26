@@ -1,26 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Globe, Loader2, Pencil, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
-import { Badge, Button, Card, Input, Select } from "@research-copilot/ui";
+import { useMemo, useState } from "react";
+import { AlertCircle, CheckSquare, Download, Globe, Loader2, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
+import { Badge, Button, CapsuleTabs, Card, ConfirmDialog, Input } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 import { useKnowledgeNotesWorkspace } from "./useKnowledgeNotesWorkspace";
+import { useNotesExport } from "./useNotesExport";
 import { interestFolderName } from "../../lib/interestUtils";
-import MarkdownEditor from "./MarkdownEditor";
-import NoteDetailModal, { sourceLabel } from "./NoteDetailModal";
-
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .replace(/`{1,3}([^`\n]*)`{1,3}/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/^[-*+]\s+/gm, "")
-    .replace(/^\d+\.\s+/gm, "")
-    .replace(/^>\s+/gm, "")
-    .replace(/\n+/g, " ")
-    .trim();
-}
+import NoteCard from "./NoteCard";
+import NoteEditorModal from "./NoteEditorModal";
+import WebClipDialog from "./WebClipDialog";
+import { sourceLabel } from "./notesShared";
 
 export default function NotesPanel({
   hideFolders = false,
@@ -62,57 +51,25 @@ export default function NotesPanel({
   const [creating, setCreating] = useState(false);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
-  const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
-  const [noteTitle, setNoteTitle] = useState("");
-  const [noteContent, setNoteContent] = useState("");
-  const [selectedInterestId, setSelectedInterestId] = useState(researchInterestId ?? "");
-  const [saving, setSaving] = useState(false);
+  const [pendingDeleteNote, setPendingDeleteNote] = useState<KnowledgeNote | null>(null);
+  const [deletingNote, setDeletingNote] = useState(false);
   const [viewingNote, setViewingNote] = useState<KnowledgeNote | null>(null);
   const [showWebClip, setShowWebClip] = useState(false);
-  const [webClipUrl, setWebClipUrl] = useState("");
-  const [webClipLoading, setWebClipLoading] = useState(false);
-  const [webClipError, setWebClipError] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { exporting, exportError, clearExportError, exportMarkdown } = useNotesExport();
 
-  const resetDraft = () => {
-    setNoteTitle("");
-    setNoteContent("");
-    setSelectedInterestId(researchInterestId ?? "");
-  };
-
-  useEffect(() => {
-    setSelectedInterestId(researchInterestId ?? "");
-  }, [researchInterestId]);
-
-  const handleCreateNote = async () => {
-    if (!noteTitle.trim() || !noteContent.trim()) return;
-
-    setSaving(true);
-
+  const handleConfirmDeleteNote = async () => {
+    if (!pendingDeleteNote) return;
+    setDeletingNote(true);
     try {
-      await createNote({
-        title: noteTitle.trim(),
-        content: noteContent.trim(),
-        research_interest_id: selectedInterestId || undefined,
-      });
-      resetDraft();
-      setCreating(false);
+      await deleteNote(pendingDeleteNote.id);
+      setPendingDeleteNote(null);
     } catch {
       // Error state is handled in the workspace hook.
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (id: string, force = false) => {
-    if (!force && confirmDeleteNoteId !== id) {
-      setConfirmDeleteNoteId(id);
-      return;
-    }
-    try {
-      setConfirmDeleteNoteId(null);
-      await deleteNote(id);
-    } catch {
-      // Error state is handled in the workspace hook.
+      setDeletingNote(false);
     }
   };
 
@@ -122,6 +79,14 @@ export default function NotesPanel({
   ) => {
     const moved = await saveNote(id, draft);
     setViewingNote(moved);
+  };
+
+  const handleCreateNote = async (draft: { title: string; content: string; research_interest_id: string }) => {
+    return createNote({
+      title: draft.title.trim(),
+      content: draft.content.trim(),
+      research_interest_id: draft.research_interest_id || undefined,
+    });
   };
 
   const handleDeleteInterestGroup = async (interestId: string, deleteAll: boolean) => {
@@ -146,92 +111,69 @@ export default function NotesPanel({
     [linkedNoteClaimCounts, scopedNotes],
   );
 
-  const renderNoteCard = (note: KnowledgeNote) => {
-    const linkedClaimCount = linkedNoteClaimCounts?.[note.id] ?? 0;
+  const sourceTabs = useMemo(() => {
+    const present = Array.from(new Set(scopedNotes.map((note) => note.source_type)));
+    if (present.length <= 1) return [];
+    return [
+      { value: "all", label: "全部" },
+      ...present.map((source) => ({ value: source, label: sourceLabel(source) })),
+    ];
+  }, [scopedNotes]);
+  const activeSource = sourceTabs.some((tab) => tab.value === sourceFilter) ? sourceFilter : "all";
+  const bySource = (note: KnowledgeNote) => activeSource === "all" || note.source_type === activeSource;
 
-    return (
-      <Card key={note.id} padding="sm" className="group relative flex flex-col gap-3">
-        <div className="pr-10">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setViewingNote(note)}
-              className="line-clamp-2 text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
-            >
-              {note.title}
-            </button>
-            <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
-            {linkedClaimCount > 0 ? (
-              <Badge variant="info">图谱 {linkedClaimCount}</Badge>
-            ) : null}
-          </div>
-          {note.research_interest_id && interestMap[note.research_interest_id] && (
-            <p className="mt-1.5 text-[11px] text-apple-blue">
-              {interestFolderName(interestMap[note.research_interest_id])}
-            </p>
-          )}
-        </div>
+  const visibleNotes = scopedNotes.filter(bySource);
+  const selectedNotes = visibleNotes.filter((note) => selectedIds.has(note.id));
+  const allVisibleSelected = visibleNotes.length > 0 && selectedNotes.length === visibleNotes.length;
 
-        <p className="line-clamp-4 text-xs leading-relaxed text-ink-secondary">{stripMarkdown(note.content)}</p>
-
-        {note.source_type !== "manual" && note.tags && note.tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-500">小妍</span>
-            {note.tags.map((tag, index) => (
-              <span key={`${note.id}-${tag}-${index}`} className="rc-accent-chip rounded-full px-2 py-0.5 text-[11px]">
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <p className="mt-auto pt-1 text-xs text-ink-tertiary">
-          {new Date(note.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
-        </p>
-
-        <div className="absolute right-3 top-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          {confirmDeleteNoteId === note.id ? (
-            <>
-              <span className="text-[10px] text-ink-tertiary">确认删除？</span>
-              <button
-                type="button"
-                onClick={() => void handleDelete(note.id)}
-                className="rounded-lg bg-apple-red/10 px-2 py-0.5 text-[11px] font-medium text-apple-red hover:bg-apple-red/20"
-              >
-                确认
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteNoteId(null)}
-                className="text-ink-tertiary hover:text-ink-primary"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => setViewingNote(note)}
-                className="text-ink-tertiary hover:text-ink-primary"
-                aria-label={`编辑 ${note.title}`}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDelete(note.id)}
-                className="text-ink-tertiary hover:text-apple-red"
-                aria-label={`删除 ${note.title}`}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </>
-          )}
-        </div>
-      </Card>
-    );
+  const toggleSelect = (note: KnowledgeNote) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(note.id)) next.delete(note.id);
+      else next.add(note.id);
+      return next;
+    });
   };
+
+  const enterSelection = () => {
+    setSelectionMode(true);
+    setSelectedIds(new Set());
+    setCreating(false);
+    setShowWebClip(false);
+    clearError();
+    clearExportError();
+  };
+
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+    clearExportError();
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(visibleNotes.map((note) => note.id)));
+  };
+
+  const handleExportSelected = async () => {
+    const ok = await exportMarkdown(selectedNotes, interestMap);
+    if (ok) exitSelection();
+  };
+
+  const renderNoteCard = (note: KnowledgeNote) => (
+    <NoteCard
+      key={note.id}
+      note={note}
+      linkedClaimCount={linkedNoteClaimCounts?.[note.id] ?? 0}
+      interestName={note.research_interest_id && interestMap[note.research_interest_id]
+        ? interestFolderName(interestMap[note.research_interest_id])
+        : undefined}
+      onOpen={setViewingNote}
+      onDelete={setPendingDeleteNote}
+      selectionMode={selectionMode}
+      selected={selectedIds.has(note.id)}
+      onToggleSelect={toggleSelect}
+    />
+  );
 
   return (
     <>
@@ -262,76 +204,68 @@ export default function NotesPanel({
                 className="pl-10"
               />
             </div>
-            <Button size="sm" variant="secondary" onClick={() => {
-              clearError();
-              setShowWebClip((prev) => !prev);
-              setCreating(false);
-              setWebClipError("");
-              setWebClipUrl("");
-            }}>
-              <Globe className="h-4 w-4" />
-              剪辑网页
-            </Button>
-            <Button size="sm" onClick={() => {
-              clearError();
-              setCreating((prev) => !prev);
-              setShowWebClip(false);
-            }}>
-              <Plus className="h-4 w-4" />
-              {creating ? "收起" : "新建笔记"}
-            </Button>
+            {selectionMode ? (
+              <Button size="sm" variant="secondary" onClick={exitSelection}>
+                <X className="h-4 w-4" />
+                退出选择
+              </Button>
+            ) : (
+              <>
+                <Button size="sm" variant="secondary" onClick={enterSelection} disabled={scopedNotes.length === 0}>
+                  <CheckSquare className="h-4 w-4" />
+                  选择
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => {
+                  clearError();
+                  setShowWebClip(true);
+                  setCreating(false);
+                }}>
+                  <Globe className="h-4 w-4" />
+                  剪辑网页
+                </Button>
+                <Button size="sm" onClick={() => {
+                  clearError();
+                  setCreating(true);
+                  setShowWebClip(false);
+                }}>
+                  <Plus className="h-4 w-4" />
+                  新建笔记
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
-        {creating && (
-          <div className="grid gap-3 rounded-2xl border border-nm-dark/10 bg-white/30 p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-ink-primary">新建知识卡片</p>
-              <button type="button" onClick={() => setCreating(false)} className="text-ink-tertiary transition-colors hover:text-ink-primary">
-                <X className="h-4 w-4" />
+        {selectionMode && (
+          <div className="flex flex-col gap-2 rounded-2xl border border-apple-blue/20 bg-apple-blue/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 text-sm text-ink-secondary">
+              <span>已选 <span className="font-semibold text-apple-blue">{selectedNotes.length}</span> / {visibleNotes.length} 条</span>
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                disabled={visibleNotes.length === 0}
+                className="text-xs font-medium text-apple-blue transition-colors hover:text-apple-blue/80 disabled:opacity-40"
+              >
+                {allVisibleSelected ? "清空" : "全选"}
               </button>
+              {exportError && <span className="text-xs text-apple-red">{exportError}</span>}
             </div>
+            <Button
+              size="sm"
+              loading={exporting}
+              disabled={selectedNotes.length === 0}
+              onClick={() => void handleExportSelected()}
+            >
+              <Download className="h-4 w-4" />
+              导出 Markdown{selectedNotes.length > 0 ? `（${selectedNotes.length}）` : ""}
+            </Button>
+          </div>
+        )}
 
-            <Input
-              label="标题"
-              value={noteTitle}
-              onChange={(event) => setNoteTitle(event.target.value)}
-              placeholder="如：RLHF 中 reward model 的作用"
-            />
-
-            {!researchInterestId && (
-              <div className="space-y-1">
-                <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究主题</label>
-                <Select
-                  value={selectedInterestId}
-                  onChange={setSelectedInterestId}
-                  options={[{ value: "", label: "不关联" }, ...interests.map((item) => ({
-                    value: item.id,
-                    label: item.folder_name?.trim() || item.topic,
-                  }))]}
-                />
-              </div>
-            )}
-
-            <MarkdownEditor
-              label="内容"
-              value={noteContent}
-              onChange={setNoteContent}
-              placeholder="记录关键结论、方法差异、实验观察或待验证的问题。"
-              rows={6}
-            />
-
-            <div className="flex justify-end gap-2">
-              <Button size="sm" variant="secondary" onClick={() => {
-                resetDraft();
-                setCreating(false);
-              }}>
-                取消
-              </Button>
-              <Button size="sm" loading={saving} onClick={() => void handleCreateNote()}>
-                保存
-              </Button>
-            </div>
+        {sourceTabs.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-ink-tertiary">来源</span>
+            <CapsuleTabs compact options={sourceTabs} value={activeSource} onChange={setSourceFilter} />
           </div>
         )}
 
@@ -342,58 +276,6 @@ export default function NotesPanel({
           </div>
         )}
 
-        {showWebClip && (
-          <div className="grid gap-3 rounded-2xl border border-nm-dark/10 bg-white/30 p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-ink-primary">剪辑网页为笔记</p>
-              <button type="button" onClick={() => setShowWebClip(false)} className="text-ink-tertiary transition-colors hover:text-ink-primary">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <Input
-              label="网页 URL"
-              value={webClipUrl}
-              onChange={(event) => { setWebClipUrl(event.target.value); setWebClipError(""); }}
-              placeholder="https://arxiv.org/abs/2301.00001"
-            />
-            {!researchInterestId && (
-              <div className="space-y-1">
-                <label className="ml-1 block text-xs font-medium text-ink-tertiary">关联研究主题（可选）</label>
-                <Select
-                  value={selectedInterestId}
-                  onChange={setSelectedInterestId}
-                  options={[{ value: "", label: "不关联" }, ...interests.map((item) => ({
-                    value: item.id,
-                    label: item.folder_name?.trim() || item.topic,
-                  }))]}
-                />
-              </div>
-            )}
-            {webClipError && <p className="text-xs text-apple-red ml-1">{webClipError}</p>}
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                disabled={webClipLoading || !webClipUrl.trim()}
-                onClick={async () => {
-                  setWebClipLoading(true);
-                  setWebClipError("");
-                  try {
-                    await clipWebPage(webClipUrl.trim(), researchInterestId || selectedInterestId || undefined);
-                    setShowWebClip(false);
-                    setWebClipUrl("");
-                  } catch (nextError) {
-                    setWebClipError(nextError instanceof Error ? nextError.message : "网页剪辑失败。");
-                  } finally {
-                    setWebClipLoading(false);
-                  }
-                }}
-              >
-                {webClipLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
-                {webClipLoading ? "抓取中…" : "保存为笔记"}
-              </Button>
-            </div>
-          </div>
-        )}
       </Card>
 
       {loading ? (
@@ -417,11 +299,14 @@ export default function NotesPanel({
         </Card>
       ) : useFlatList ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {scopedNotes.map(renderNoteCard)}
+          {scopedNotes.filter(bySource).map(renderNoteCard)}
         </div>
       ) : (
         <div className="space-y-4">
-          {noteGroups.map((group) => (
+          {noteGroups
+            .map((group) => ({ ...group, notes: group.notes.filter(bySource) }))
+            .filter((group) => activeSource === "all" || group.notes.length > 0)
+            .map((group) => (
             <CollapsibleGroup
               key={group.key}
               title={group.title}
@@ -479,14 +364,14 @@ export default function NotesPanel({
             </CollapsibleGroup>
           ))}
 
-          {ungroupedNotes.length > 0 && (
+          {ungroupedNotes.filter(bySource).length > 0 && (
             <section className="space-y-3">
               <div className="px-1">
                 <p className="text-sm font-semibold text-ink-primary">未归档笔记</p>
                 <p className="mt-1 text-xs text-ink-tertiary">这些笔记暂未绑定主题，可直接编辑并移动到研究主题。</p>
               </div>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {ungroupedNotes.map(renderNoteCard)}
+                {ungroupedNotes.filter(bySource).map(renderNoteCard)}
               </div>
             </section>
           )}
@@ -494,15 +379,40 @@ export default function NotesPanel({
       )}
     </div>
 
-    {viewingNote && (
-      <NoteDetailModal
+    {(viewingNote || creating) && (
+      <NoteEditorModal
         note={viewingNote}
-        linkedClaimCount={linkedNoteClaimCounts?.[viewingNote.id] ?? 0}
+        defaultInterestId={researchInterestId ?? ""}
+        lockInterest={researchInterestId != null}
+        linkedClaimCount={viewingNote ? (linkedNoteClaimCounts?.[viewingNote.id] ?? 0) : 0}
         interests={interests}
         interestMap={interestMap}
-        onClose={() => setViewingNote(null)}
+        onClose={() => { setViewingNote(null); setCreating(false); }}
+        onCreate={handleCreateNote}
         onSave={handleModalSave}
-        onDelete={(id) => handleDelete(id, true)}
+        onDelete={(id) => deleteNote(id)}
+      />
+    )}
+
+    <ConfirmDialog
+      open={pendingDeleteNote != null}
+      title="删除知识卡片"
+      description={pendingDeleteNote ? `确认删除「${pendingDeleteNote.title}」？此操作不可撤销。` : ""}
+      confirmLabel="删除"
+      tone="danger"
+      loading={deletingNote}
+      onConfirm={() => void handleConfirmDeleteNote()}
+      onClose={() => { if (!deletingNote) setPendingDeleteNote(null); }}
+    />
+
+    {showWebClip && (
+      <WebClipDialog
+        interests={interests}
+        defaultInterestId={researchInterestId ?? ""}
+        lockInterest={researchInterestId != null}
+        onClip={clipWebPage}
+        onClipped={(note) => { setShowWebClip(false); setViewingNote(note); }}
+        onClose={() => setShowWebClip(false)}
       />
     )}
     </>
