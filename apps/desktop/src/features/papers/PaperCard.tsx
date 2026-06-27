@@ -19,7 +19,6 @@ import type { FolderSelectOption } from "./interestTree";
 import type { PaperDnd } from "./usePaperDnd";
 import { apiClient } from "../../lib/client";
 
-const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
 const IMPORTANCE_OPTIONS = [
   { color: "", label: "无" },
   { color: "#FF3B30", label: "极其重要" },
@@ -171,6 +170,7 @@ export default function PaperCard({
         canDrag && "cursor-grab active:cursor-grabbing",
         dnd.isDragging(paper.id) && "opacity-50",
       )}
+      style={{ borderTop: paper.importance_color ? `3px solid ${paper.importance_color}` : undefined }}
       draggable={canDrag}
       {...dnd.cardDragProps(paper.id, groupKey)}
       onContextMenu={(e) => {
@@ -213,10 +213,6 @@ export default function PaperCard({
             {paper.cas_quartile && paper.cas_quartile !== "N/A" && <CasQuartileBadge quartile={paper.cas_quartile} />}
             {paper.cas_top && <CasTopBadge top={paper.cas_top} />}
             {paper.ccf_rating && <CcfRatingBadge rating={paper.ccf_rating} />}
-            {paper.importance_color && (
-              <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ background: paper.importance_color }}
-                title={COLOR_PRIORITY.indexOf(paper.importance_color) >= 0 ? ["极其重要","非常重要","重要","较重要","一般","不重要"][COLOR_PRIORITY.indexOf(paper.importance_color)] : ""} />
-            )}
           </div>
           {paper.tags && paper.tags.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
