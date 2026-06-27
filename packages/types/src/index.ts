@@ -488,6 +488,10 @@ export interface AppSettings {
   // External
   paper_search_engine: PaperSearchEngine;
   semantic_scholar_api_key: string;
+  // 小妍联网搜索
+  web_search_enabled: string;
+  web_search_provider: string;
+  tavily_api_key: string;
   // Role-based model routing
   planner_hint_model: string;
   planner_hint_base_url: string;
@@ -664,6 +668,13 @@ export interface SettingsHistoryEntry {
   paper_search_engine: PaperSearchEngine;
   multi_agent_enabled: boolean;
   enabled_agents_count: number;
+}
+
+export interface TavilyKeyTest {
+  /** 脱敏后的 Key 标识 */
+  label: string;
+  ok: boolean;
+  message: string;
 }
 
 export type SkillKind = "prompt" | "tool";

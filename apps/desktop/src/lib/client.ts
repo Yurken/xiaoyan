@@ -26,6 +26,7 @@ import type {
   SettingsHistoryEntry,
   SurveySummary,
   SavedSurvey,
+  TavilyKeyTest,
 } from "@research-copilot/types";
 import { streamChat } from "./chatStream";
 export { streamChat } from "./chatStream";
@@ -169,6 +170,8 @@ export const settingsApi = {
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
   listModels: (data: Partial<AppSettings>): Promise<string[]> =>
     invoke("settings_list_models", { data }),
+  testTavily: (data: Partial<AppSettings>): Promise<TavilyKeyTest[]> =>
+    invoke("settings_test_tavily", { data }),
   appLock: {
     status: (): Promise<{ enabled: boolean; timeoutMinutes: number; hasSecurity: boolean; hasHint: boolean; hasEmail: boolean }> =>
       invoke("app_lock_status"),

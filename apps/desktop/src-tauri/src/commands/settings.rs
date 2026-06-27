@@ -64,6 +64,14 @@ pub async fn settings_list_models(
 }
 
 #[tauri::command]
+pub async fn settings_test_tavily(
+    state: State<'_, AppState>,
+    data: serde_json::Value,
+) -> Result<Vec<settings_service::TavilyKeyTest>, String> {
+    settings_service::test_tavily(state.inner(), &data).await
+}
+
+#[tauri::command]
 pub async fn settings_history_list(
     state: State<'_, AppState>,
 ) -> Result<Vec<settings_service::SettingsHistoryEntry>, String> {

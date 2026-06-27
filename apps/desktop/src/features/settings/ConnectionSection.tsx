@@ -8,6 +8,7 @@ import ConfigHistorySwitcher, { type ConfigHistoryControls } from "./ConfigHisto
 import OllamaEmbeddingPanel from "./OllamaEmbeddingPanel";
 import ProviderIcon from "./ProviderIcon";
 import ModelCombobox from "./ModelCombobox";
+import WebSearchSection from "./WebSearchSection";
 
 interface ConnectionSectionProps {
   contentUnavailable: boolean;
@@ -367,14 +368,18 @@ export default function ConnectionSection({
                 ))}
               </div>
             </div>
-            <SettingInput
-              label="Semantic Scholar 接口密钥"
-              value={form.semantic_scholar_api_key}
-              onChange={set("semantic_scholar_api_key")}
-              placeholder="留空使用免费限速额度"
-              sensitive
-              hint={`留空或输入 ${MASK} 表示不更改`}
-            />
+            {form.paper_search_engine === "semantic_scholar" ? (
+              <SettingInput
+                label="Semantic Scholar 接口密钥"
+                value={form.semantic_scholar_api_key}
+                onChange={set("semantic_scholar_api_key")}
+                placeholder="留空使用免费限速额度"
+                sensitive
+                hint={`留空或输入 ${MASK} 表示不更改`}
+              />
+            ) : null}
+
+            <WebSearchSection form={form} set={set} />
           </div>
         </>
       ) : null}

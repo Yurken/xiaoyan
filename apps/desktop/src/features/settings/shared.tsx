@@ -467,8 +467,8 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "探知 · 搜索",
-    description: "擅长全网搜索与信息收集，用于强外部信息依赖的场景。",
-    recommendation: "若服务商支持联网或内置搜索工具，优先接在这里；否则可填与“流光”相同的快模型。",
+    description: "为“文献侦察、综述检索规划”角色指定的推理模型，处理强外部信息依赖的场景。",
+    recommendation: "建议这里接一个自带联网/搜索能力的模型（API）效果最好；没有就留空不动即可（沿用默认模型）。接了能联网的模型后，它既可以替代“小妍联网搜索来源”（DuckDuckGo / Tavily），也可以与之互为补充。",
     affectedScopes: "文献侦察检索、综述检索规划",
     icon: Search,
     iconColor: "#FF9F0A",

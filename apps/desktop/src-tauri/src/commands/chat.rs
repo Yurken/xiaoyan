@@ -675,7 +675,7 @@ async fn run_simple(
                             continue;
                         }
 
-                        match web_search(&query).await {
+                        match web_search(&query, settings).await {
                             Ok(results) => {
                                 msgs.push(LlmMessage::tool(&tc.id, &results));
                             }

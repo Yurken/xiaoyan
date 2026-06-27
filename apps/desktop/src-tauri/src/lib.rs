@@ -101,7 +101,8 @@ use commands::{
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
         settings_history_list, settings_history_save, settings_import, settings_list_models,
-        settings_list_ollama_models, settings_test, settings_test_vision, settings_update,
+        settings_list_ollama_models, settings_test, settings_test_tavily, settings_test_vision,
+        settings_update,
     },
     skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
     source::source_lookup,
@@ -594,6 +595,7 @@ pub fn run() {
             // Settings extras
             settings_list_ollama_models,
             settings_list_models,
+            settings_test_tavily,
             // Misc
             planner_generate,
             survey_generate,

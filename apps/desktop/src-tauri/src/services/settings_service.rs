@@ -755,6 +755,62 @@ pub async fn test_vision_settings(
     Ok(reply.trim().to_string())
 }
 
+#[derive(serde::Serialize)]
+pub struct TavilyKeyTest {
+    /// 脱敏后的 Key 标识，仅用于在结果里区分是哪一个。
+    pub label: String,
+    pub ok: bool,
+    pub message: String,
+}
+
+/// 逐个测试 Tavily Key 是否可用。复用 test_settings 的「已保存设置 + 草稿覆盖」口径，
+/// 草稿里非掩码的 Key 优先，从而支持「填了还没保存就测试」。
+pub async fn test_tavily(
+    state: &AppState,
+    data: &serde_json::Value,
+) -> Result<Vec<TavilyKeyTest>, String> {
+    let mut merged = state.settings.read().await.clone();
+    if let Some(map) = data.as_object() {
+        for (key, value) in map {
+            let next_value = value.as_str().unwrap_or("").trim().to_string();
+            if next_value != MASK {
+                merged.insert(key.clone(), next_value);
+            }
+        }
+    }
+
+    let raw = merged.get("tavily_api_key").cloned().unwrap_or_default();
+    let keys = crate::web_search::parse_tavily_keys(&raw);
+    if keys.is_empty() {
+        return Err("请先填写至少一个 Tavily API Key。".to_string());
+    }
+
+    let mut results = Vec::with_capacity(keys.len());
+    for key in &keys {
+        let (ok, message) = match crate::web_search::tavily_check_key(key).await {
+            Ok(()) => (true, "可用".to_string()),
+            Err(e) => (false, e.to_string()),
+        };
+        results.push(TavilyKeyTest {
+            label: mask_tavily_key(key),
+            ok,
+            message,
+        });
+    }
+    Ok(results)
+}
+
+/// 脱敏展示 Key：保留前 6、后 4 位，中间省略。
+fn mask_tavily_key(key: &str) -> String {
+    let chars: Vec<char> = key.chars().collect();
+    if chars.len() <= 12 {
+        return "•".repeat(chars.len().max(1));
+    }
+    let head: String = chars[..6].iter().collect();
+    let tail: String = chars[chars.len() - 4..].iter().collect();
+    format!("{head}…{tail}")
+}
+
 pub async fn list_ollama_models(base_url: Option<String>) -> Result<Vec<String>, String> {
     let url = base_url
         .filter(|value| !value.trim().is_empty())
