@@ -26,6 +26,10 @@ mod state;
 mod token_usage;
 mod web_search;
 
+// 本地手动 AI 联通测试（全部 #[ignore]，CI 的 cargo test 自动跳过）。
+#[cfg(test)]
+mod ai_live_test;
+
 use tauri::Manager;
 
 use web_search::web_search_query;
