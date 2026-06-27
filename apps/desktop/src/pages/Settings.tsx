@@ -15,7 +15,8 @@ import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from
 import FeedbackSection from "../features/settings/FeedbackSection";
 import TaskSetupSection from "../features/settings/TaskSetupSection";
 import LayoutSettingsSection from "../features/settings/LayoutSettingsSection";
-import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
+import { DEFAULT_SETTINGS, SETTINGS_ACTIVE_SECTION_STORAGE_KEY, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
+import { computeQuickStartReadiness } from "../features/onboarding/quickStart";
 import { AgentChip, SectionIcon } from "../features/settings/shared";
 import { applyProviderPreset, detectPreset, PROVIDER_PRESETS, type ProviderPresetId } from "../features/settings/providerPresets";
 import { useDataBackup } from "../features/settings/useDataBackup";
@@ -152,7 +153,7 @@ export default function Settings() {
     handleInstallUpdate,
   } = useSettingsController(DEFAULT_SETTINGS);
   const [activeSection, setActiveSection] = usePersistentStringState<SettingsSectionKey>(
-    "rc:settings:active-section",
+    SETTINGS_ACTIVE_SECTION_STORAGE_KEY,
     "guided",
     SETTINGS_SECTION_KEYS,
   );
@@ -290,22 +291,7 @@ export default function Settings() {
   const displayVersion = updateInfo?.available ? updateInfo.version : appVersion || updateInfo?.current_version;
   const changelogPublishedAt = getChangelogReleaseDate(displayVersion);
   const updatePublishedAt = formatUpdateDate(updateInfo?.pub_date || changelogPublishedAt);
-  const connectionReady = provider === "openai"
-    ? Boolean(form.openai_api_key.trim() && form.openai_chat_model.trim())
-    : provider === "anthropic"
-      ? Boolean(form.anthropic_api_key.trim() && form.anthropic_chat_model.trim())
-      : Boolean(
-          form.openai_compatible_chat_model.trim()
-            && (activePreset === "ollama" || form.openai_compatible_base_url.trim() || form.openai_compatible_api_key.trim()),
-        );
-  const rolesReady = Boolean(
-    form.paper_analysis_model.trim()
-      || form.survey_writer_model.trim()
-      || form.paper_reproduction_model.trim()
-      || form.vision_model.trim()
-      || form.multi_agent_supervisor_model.trim(),
-  );
-  const multiAgentReady = form.multi_agent_enabled === "true" && enabledAgents.length > 0;
+  const { connectionReady, rolesReady, multiAgentReady } = computeQuickStartReadiness(form);
   const paperImportReady = [
     form.paper_import_recognize_title,
     form.paper_import_recognize_authors,

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Bot, CheckCircle2, Circle, FileSearch, Link2, Lock, Route, ShieldCheck, Unlock } from "lucide-react";
+import { ArrowRight, FileSearch, Lock, ShieldCheck, Unlock } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { apiClient } from "../../lib/client";
 import PasswordInput from "../../components/PasswordInput";
+import { buildQuickStartSteps } from "../onboarding/quickStart";
+import QuickStartStepList from "../onboarding/QuickStartStepList";
 
 interface TaskSetupSectionProps {
   currentProviderLabel: string;
@@ -19,14 +21,6 @@ interface TaskSetupSectionProps {
   onClearAppLock: () => Promise<void>;
   onSetAppLockTimeout: (minutes: string) => Promise<void>;
   onSetAppLockSecurity?: (question: string, answer: string) => Promise<void>;
-}
-
-function StatusDot({ ready }: { ready: boolean }) {
-  return ready ? (
-    <CheckCircle2 className="w-4 h-4 text-[#34C759]" />
-  ) : (
-    <Circle className="w-4 h-4 text-ink-tertiary" />
-  );
 }
 
 export default function TaskSetupSection({
@@ -65,38 +59,12 @@ export default function TaskSetupSection({
     }).catch((err) => { console.warn("Failed to load app lock status:", err); });
   }, [appLockEnabled]);
 
-  const steps = [
-    {
-      title: "先接通小妍",
-      description: connectionReady
-        ? `当前小妍默认模型已连到 ${currentProviderLabel}。没有单独指定的场景，会先回退到这里。`
-        : "先选服务商，填好 URL、API Key 和默认对话模型。先让小妍稳定可用，再看细分分工。",
-      ready: connectionReady,
-      action: "打开小妍设置",
-      onClick: onOpenAssistant,
-      icon: Link2,
-    },
-    {
-      title: "再按需要补任务分工",
-      description: rolesReady
-        ? "阅读、综述、复现或视觉识别里，至少有一类任务已经配置了专用模型。"
-        : "这一步不是必填。先从论文阅读、综述写作和视觉识别三类高频任务里挑需要单独提速的场景即可。",
-      ready: rolesReady,
-      action: "打开小妍设置",
-      onClick: onOpenAssistant,
-      icon: Route,
-    },
-    {
-      title: "最后决定是否启用小妍步骤协作",
-      description: multiAgentReady
-        ? "小妍步骤协作已启用。复杂任务会走调度和分工流程。"
-        : "如果你只想先稳定使用单模型对话，可以暂时关闭，等基础配置跑顺再打开。",
-      ready: multiAgentReady,
-      action: "去设置步骤协作",
-      onClick: onOpenAssistant,
-      icon: Bot,
-    },
-  ] as const;
+  const steps = buildQuickStartSteps({
+    connectionReady,
+    rolesReady,
+    multiAgentReady,
+    currentProviderLabel,
+  });
 
   const canSubmitPassword =
     lockPassword.trim().length > 0 &&
@@ -113,43 +81,7 @@ export default function TaskSetupSection({
           </p>
         </div>
 
-        <div className="grid gap-3">
-          {steps.map(({ title, description, ready, action, onClick, icon: Icon }) => (
-            <div
-              key={title}
-              className="rounded-3xl border px-4 py-4"
-              style={{ background: "var(--rc-surface)", borderColor: "var(--rc-border)" }}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
-                  >
-                    <Icon className="w-4.5 h-4.5 text-[#007AFF]" />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <StatusDot ready={ready} />
-                      <p className="text-sm font-semibold text-ink-primary">{title}</p>
-                    </div>
-                    <p className="text-xs leading-5 text-ink-secondary">{description}</p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={onClick}
-                  className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-150"
-                  style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
-                >
-                  {action}
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <QuickStartStepList steps={steps} onStepAction={() => onOpenAssistant()} />
 
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-3xl px-4 py-4" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>

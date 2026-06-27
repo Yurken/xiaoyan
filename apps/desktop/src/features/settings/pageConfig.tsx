@@ -11,6 +11,9 @@ import {
 import type { AppSettings } from "@research-copilot/types";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE } from "../../lib/paperTags";
 
+// 设置页当前分区的持久化 key，导航到「快速开始」分区时也会写入它。
+export const SETTINGS_ACTIVE_SECTION_STORAGE_KEY = "rc:settings:active-section";
+
 export type SettingsSectionKey =
   | "guided"
   | "assistant"
