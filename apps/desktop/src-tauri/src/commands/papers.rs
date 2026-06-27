@@ -799,6 +799,51 @@ pub async fn papers_open_pdf(
 }
 
 #[tauri::command]
+pub async fn papers_reveal_in_folder(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let file_path_str: Option<String> = sqlx::query("SELECT file_path FROM papers WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|row| row.try_get::<Option<String>, _>("file_path").ok().flatten());
+
+    let path = file_path_str
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| "该论文没有关联的本地文件".to_string())?;
+    let canonical = canonical_managed_pdf_path(&app, Path::new(&path))?;
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &canonical.to_string_lossy()])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .args(["/select,", &canonical.to_string_lossy()])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(parent) = canonical.parent() {
+            std::process::Command::new("xdg-open")
+                .arg(parent)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn papers_extract_pdf_text(
     file_path: tauri_plugin_fs::FilePath,
     max_chars: Option<usize>,

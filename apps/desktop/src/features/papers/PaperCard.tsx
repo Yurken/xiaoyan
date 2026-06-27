@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, FlaskConical, Loader2, Pencil, Quote, RotateCw, Trash2, X } from "lucide-react";
+import { Eye, FlaskConical, FolderOpen, Loader2, Pencil, Quote, RotateCw, Trash2, X } from "lucide-react";
 import { clsx } from "clsx";
 import { Badge, Button, Card, Input, Select } from "@research-copilot/ui";
 import type { Paper } from "@research-copilot/types";
@@ -17,6 +17,7 @@ import PaperTaskProgressPanel from "./PaperTaskProgressPanel";
 import type { PaperTaskProgress } from "./shared";
 import type { FolderSelectOption } from "./interestTree";
 import type { PaperDnd } from "./usePaperDnd";
+import { apiClient } from "../../lib/client";
 
 const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
 const IMPORTANCE_OPTIONS = [
@@ -390,6 +391,13 @@ export default function PaperCard({
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-black/5 disabled:opacity-40"
               onClick={() => { onReparse(paper.id); setMenu(null); }}>
               <RotateCw className="h-3.5 w-3.5" />重新解析
+            </button>
+          )}
+          {paper.file_path && (
+            <button type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-black/5"
+              onClick={() => { void apiClient.papers.revealInFolder(paper.id); setMenu(null); }}>
+              <FolderOpen className="h-3.5 w-3.5" />在访达中打开
             </button>
           )}
           <button type="button"

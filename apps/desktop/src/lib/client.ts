@@ -246,6 +246,8 @@ export const papersApi = {
     invoke("papers_merge", { keepId, deleteIds }),
   openFile: (id: string): Promise<void> =>
     invoke("papers_open_pdf", { id }),
+  revealInFolder: (id: string): Promise<void> =>
+    invoke("papers_reveal_in_folder", { id }),
   analyze: (id: string): Promise<void> =>
     invoke("papers_analyze", { id }),
   reparse: (id: string): Promise<void> =>
