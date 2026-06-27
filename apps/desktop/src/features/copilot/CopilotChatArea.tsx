@@ -9,13 +9,13 @@ import {
   Zap,
 } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
-import { MAIN_ASSISTANT_WELCOME_DESCRIPTION, MAIN_ASSISTANT_WELCOME_TITLE } from "@research-copilot/types";
+import { MAIN_ASSISTANT_WELCOME_DESCRIPTION, MAIN_ASSISTANT_WELCOME_DESCRIPTION_DIRECT, MAIN_ASSISTANT_WELCOME_TITLE } from "@research-copilot/types";
 import ThinkingProcessPanel from "./ThinkingProcessPanel";
 import { ToolActionCard } from "./ToolActionCard";
 import appLogo from "../../assets/xiaoyanv.svg";
 import { parseCopilotMessageContent } from "./shared";
 import { openLink } from "../../lib/links";
-import type { AgentPlanStep, AgentRun, ChatMessage, RoutingDecision } from "@research-copilot/types";
+import type { AgentPlanStep, AgentRun, ChatMessage, ChatMode, RoutingDecision } from "@research-copilot/types";
 
 const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
 
@@ -43,6 +43,7 @@ function splitThoughtFromContent(content: string) {
 
 interface CopilotChatAreaProps {
   messages: ChatMessage[];
+  chatMode: ChatMode;
   agentRuns: AgentRun[];
   plan: AgentPlanStep[];
   routingDecision: RoutingDecision | null;
@@ -64,7 +65,7 @@ interface CopilotChatAreaProps {
 
 export function CopilotChatArea(props: CopilotChatAreaProps) {
   const {
-    messages, agentRuns, plan, routingDecision, activeAssistantId, sending, searchingQuery,
+    messages, chatMode, agentRuns, plan, routingDecision, activeAssistantId, sending, searchingQuery,
     loadError, editingMessageId, editText, copiedId,
     onClearError, onCopy, onRetry, onStartEdit, onSaveEdit, onCancelEdit,
     onEditTextChange,
@@ -102,7 +103,7 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
           />
           <div className="text-center max-w-md">
             <p className="font-semibold text-ink-primary">{MAIN_ASSISTANT_WELCOME_TITLE}</p>
-            <p className="text-sm text-ink-tertiary mt-2 leading-6">{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</p>
+            <p className="text-sm text-ink-tertiary mt-2 leading-6">{chatMode === "direct" ? MAIN_ASSISTANT_WELCOME_DESCRIPTION_DIRECT : MAIN_ASSISTANT_WELCOME_DESCRIPTION}</p>
           </div>
         </div>
       )}
@@ -115,6 +116,16 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
             const planForBubble = isActiveAssistant ? plan : [];
             const runsForBubble = isActiveAssistant ? displayedRuns : [];
             const routingForBubble = isActiveAssistant ? routingDecision : null;
+            // 思考面板已渲染时（有推理/计划/运行/搜索/路由），它自带「思考中」指示，
+            // 答案区不再重复显示「小妍思考中…」，仅在面板尚未出现时用作占位提示。
+            const hasThinkingPanel =
+              parsed.thought.trim().length > 0 ||
+              planForBubble.length > 0 ||
+              runsForBubble.length > 0 ||
+              !!routingForBubble ||
+              (isActiveAssistant && !!searchingQuery);
+            const showThinkingPlaceholder =
+              sending && isActiveAssistant && !hasThinkingPanel;
 
             return (
               <>
@@ -131,7 +142,7 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                   style={{ color: "var(--rc-text)" }}
                 >
                   <MarkdownRenderer
-                    content={parsed.answer || (sending && isActiveAssistant ? "小妍思考中..." : "")}
+                    content={parsed.answer || (showThinkingPlaceholder ? "小妍思考中..." : "")}
                     className="rc-chat-markdown"
                     onLinkClick={openLink}
                   />

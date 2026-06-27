@@ -7,6 +7,8 @@ export const MAIN_ASSISTANT_BADGE = "主 AI：小妍";
 export const MAIN_ASSISTANT_WELCOME_TITLE = "你好，我是小妍";
 export const MAIN_ASSISTANT_WELCOME_DESCRIPTION =
   "我会先理解你的研究目标，再按需调度检索、规划、综述、论文解读与复现能力，给你可信、结构化、可执行的答复。";
+/** 直接对话模式下的欢迎语：不强调多智能体调度，回到轻量问答语气。 */
+export const MAIN_ASSISTANT_WELCOME_DESCRIPTION_DIRECT = "有什么我能帮你的吗？";
 export const MAIN_ASSISTANT_STATUS_DESCRIPTION =
   "小妍负责理解你的研究问题、调度合适的分析模型，并整合成完整的答复。";
 export const MAIN_ASSISTANT_INPUT_PLACEHOLDER =

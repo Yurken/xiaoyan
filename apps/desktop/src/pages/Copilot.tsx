@@ -65,10 +65,21 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       if (!skillLocked) setSelectedSkillId(null);
     },
     onSessionCreated: async (sessionId: string) => {
-      const updated = await apiClient.chat.listSessions();
-      const nextSession = updated.find((s) => s.id === sessionId) ?? null;
-      // Update sessions list via the session hook's internal sync
-      if (nextSession) sessions.syncSession(nextSession);
+      try {
+        const updated = await apiClient.chat.listSessions();
+        const nextSession = updated.find((s) => s.id === sessionId) ?? null;
+        if (nextSession) {
+          // 加入/置顶会话列表，并把新建会话设为当前会话。
+          sessions.syncSession(nextSession);
+          sessions.setCurrentSession(nextSession);
+          return;
+        }
+      } catch (err) {
+        console.warn("Failed to refresh sessions after creation:", err);
+      }
+      // 兜底：即便列表刷新失败，也要把当前会话锁定到新建的 id，否则下一条消息仍以
+      // session_id=null 发送，后端会再建一个新会话，导致同一段对话被拆成多条记录。
+      sessions.setCurrentSession((prev) => prev ?? ({ id: sessionId } as ChatSession));
     },
   });
 
@@ -77,11 +88,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     sessions.handleNewChat();
     chat.resetChat();
   }, [sessions, chat]);
-
-  // Restore last session and load agent runs
-  useEffect(() => {
-    sessions.restoreLastSession();
-  }, [sessions]);
 
   const handleLoadSession = useCallback(async (session: ChatSession) => {
     chat.cancelActiveStream();
@@ -104,13 +110,17 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     }).catch((err) => { console.warn("Failed to load skills:", err); });
   }, []);
 
-  // Cleanup
+  // Cleanup：仅在卸载时取消进行中的流。
+  // 注意 deps 必须是稳定的 cancelActiveStream，不能用整个 chat 对象——
+  // useCopilotChat 每次渲染都返回新对象，若依赖 [chat] 会在每次重渲染时执行上一次的清理，
+  // 把刚发起的请求 abort 掉（表现为只发 chat_cancel、不发 chat_stream）。
+  const cancelActiveStream = chat.cancelActiveStream;
   useEffect(() => {
     return () => {
-      chat.cancelActiveStream();
+      cancelActiveStream();
       if (memorySavedTimerRef.current) clearTimeout(memorySavedTimerRef.current);
     };
-  }, [chat]);
+  }, [cancelActiveStream]);
 
   // Copy handler
   const handleCopy = async (text: string, messageId: string) => {
@@ -234,6 +244,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
             <CopilotChatArea
               messages={chat.messages}
+              chatMode={chatMode}
               agentRuns={chat.agentRuns}
               plan={chat.plan}
               routingDecision={chat.routingDecision}
