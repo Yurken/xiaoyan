@@ -88,6 +88,16 @@ pub async fn settings_history_save(
 }
 
 #[tauri::command]
+pub async fn settings_history_update(
+    state: State<'_, AppState>,
+    id: String,
+    data: serde_json::Value,
+    name: Option<String>,
+) -> Result<settings_service::SettingsHistoryEntry, String> {
+    settings_service::update_settings_history_entry(state.inner(), &id, &data, name.as_deref()).await
+}
+
+#[tauri::command]
 pub async fn settings_history_apply(
     state: State<'_, AppState>,
     id: String,

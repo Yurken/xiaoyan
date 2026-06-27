@@ -401,6 +401,7 @@ export default function Settings() {
               selectedId: settingsHistory.selectedId,
               saving: settingsHistory.saving,
               applyingId: settingsHistory.applyingId,
+              updatingId: settingsHistory.updatingId,
               actionError: settingsHistory.actionError,
               actionMessage: settingsHistory.actionMessage,
               busy: settingsHistory.busy,
@@ -408,6 +409,7 @@ export default function Settings() {
               setDraftName: settingsHistory.setDraftName,
               onSaveCurrent: settingsHistory.saveCurrent,
               onApplyHistory: settingsHistory.applyHistory,
+              onUpdateHistory: settingsHistory.updateHistory,
             }}
             onManageConfigHistory={() => setConfigManageOpen(true)}
             connectionActions={{
@@ -622,10 +624,12 @@ export default function Settings() {
       loadError={settingsHistory.loadError}
       selectedId={settingsHistory.selectedId}
       applyingId={settingsHistory.applyingId}
+      updatingId={settingsHistory.updatingId}
       deletingId={settingsHistory.deletingId}
       busy={settingsHistory.busy}
       setSelectedId={settingsHistory.setSelectedId}
       onApplyHistory={settingsHistory.applyHistory}
+      onUpdateHistory={settingsHistory.updateHistory}
       onDeleteHistory={settingsHistory.deleteHistory}
       onReload={settingsHistory.reload}
       onClose={() => setConfigManageOpen(false)}

@@ -1,4 +1,4 @@
-use crate::assistant_prompts::{main_chat_system, today_str, web_search_decision_system};
+use crate::assistant_prompts::main_chat_system;
 use crate::commands::chat_tools::{build_chat_tools, dispatch_tool};
 use crate::commands::memory::is_long_term_memory_enabled;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMessage, StreamOutcome};
@@ -583,77 +583,6 @@ fn answer_text_is_empty(text: &str) -> bool {
     answer.trim().is_empty()
 }
 
-/// 联网搜索决策结果：由模型以 JSON 形式给出。
-#[derive(serde::Deserialize, Default)]
-struct WebSearchDecision {
-    #[serde(default)]
-    need_search: bool,
-    #[serde(default)]
-    query: String,
-}
-
-/// 解析模型返回的决策 JSON；模型可能包裹多余文字，故先直解、失败再截取首尾花括号区间。
-fn parse_web_search_decision(raw: &str) -> Option<WebSearchDecision> {
-    if let Ok(d) = serde_json::from_str::<WebSearchDecision>(raw.trim()) {
-        return Some(d);
-    }
-    let start = raw.find('{')?;
-    let end = raw.rfind('}')?;
-    serde_json::from_str::<WebSearchDecision>(&raw[start..=end]).ok()
-}
-
-/// 实时信息关键词：当决策模型调用失败（如服务商不稳定）时的兜底启发式，
-/// 保证明显的实时类问题在决策不可用时仍能触发联网检索。
-fn heuristic_needs_search(message: &str) -> bool {
-    const KEYWORDS: [&str; 22] = [
-        "天气", "气温", "今天", "今日", "现在", "最新", "新闻", "股价", "股票", "汇率",
-        "比分", "赛果", "票价", "上映", "最近", "实时", "近期", "weather", "today", "latest",
-        "news", "price",
-    ];
-    let lower = message.to_lowercase();
-    KEYWORDS.iter().any(|k| lower.contains(k))
-}
-
-/// 联网搜索第一段：让模型自主判断是否需要实时检索并给出查询词（不依赖 function calling）。
-/// 决策调用失败/空响应/解析失败时退回关键词启发式——避免因决策模型所在服务商不稳定而完全丧失联网能力。
-/// 返回 Some(query) 表示需要检索，None 表示不检索。
-async fn decide_web_search(
-    client: &LlmClient,
-    settings: &HashMap<String, String>,
-    message: &str,
-) -> Option<String> {
-    let msgs = vec![
-        LlmMessage::system(&web_search_decision_system()),
-        LlmMessage::user(&format!("用户的最新消息：\n{message}\n\n请仅输出 JSON。")),
-    ];
-    let model = resolve_model(settings, &["copilot_simple_model"]);
-
-    let decision = match client
-        .chat_with_max_tokens(&msgs, model.as_deref(), 0.0, 256)
-        .await
-    {
-        Ok(raw) => parse_web_search_decision(&raw),
-        Err(e) => {
-            crate::append_diagnostic_log(&format!(
-                "[chat][web_search] 决策调用失败，回退关键词启发式: {e}"
-            ));
-            None
-        }
-    };
-
-    match decision {
-        // 模型明确给出判断：需要检索则用其查询词（为空则退回原始消息）。
-        Some(d) if d.need_search => {
-            let q = d.query.trim();
-            Some(if q.is_empty() { message.to_string() } else { q.to_string() })
-        }
-        // 模型明确判断不需要联网：尊重其决定。
-        Some(_) => None,
-        // 决策不可用（调用失败或无法解析）：用关键词启发式兜底。
-        None => heuristic_needs_search(message).then(|| message.to_string()),
-    }
-}
-
 async fn run_simple(
     app: &tauri::AppHandle,
     client: &LlmClient,
@@ -665,41 +594,7 @@ async fn run_simple(
     history: &[LlmMessage],
     images: &[LlmImage],
 ) -> anyhow::Result<String> {
-    // 联网搜索（两段式，不依赖 function calling）：
-    // ① 模型自主判断是否需要实时检索并给出查询词 → ② 后端检索 → ③ 把结果并入系统提示，由下方回答调用总结。
-    // 决策/检索任一步失败都不阻断回答（降级为不联网）。
-    let web_search_enabled = settings
-        .get("web_search_enabled")
-        .map(|v| v == "true")
-        .unwrap_or(true);
-    let mut search_block = String::new();
-    if web_search_enabled {
-        if let Some(query) = decide_web_search(client, settings, message).await {
-            let _ = app.emit(
-                "chat:searching",
-                json!({ "request_id": request_id, "query": query }),
-            );
-            match web_search(&query, settings).await {
-                Ok(results) => {
-                    search_block = format!(
-                        "\n\n以下是为回答当前问题实时联网检索到的资料（今天是 {today}，查询词：{query}）。\
-请优先依据这些资料作答，并在合适处说明信息来自联网搜索。\
-注意核对资料时间：若检索到的内容明显早于今天，请明确标注其时间、不要当作最新；\
-若资料不足以回答或没有足够新的信息，请如实说明，不要编造：\n{results}",
-                        today = today_str()
-                    );
-                }
-                Err(e) => {
-                    crate::append_diagnostic_log(&format!(
-                        "[chat][web_search] 检索失败 query={query} error={e}"
-                    ));
-                }
-            }
-        }
-    }
-
-    // 检索结果并入首个 system 提示（而非新增第二条 system 消息），以兼容仅取首条 system 的 Anthropic 路径。
-    let system_prompt = format!("{}{}", main_chat_system(context_summary), search_block);
+    let system_prompt = main_chat_system(context_summary);
     let mut msgs = vec![LlmMessage::system(&system_prompt)];
     // 控制成本：历史只保留最近 MAX_HISTORY_IMAGE_MSGS 条带图消息的图片，更早的剥成纯文本，
     // 避免多轮追问把全部历史图片反复重发给视觉模型。
@@ -791,24 +686,53 @@ async fn run_simple(
                 tool_rounds += 1;
                 msgs.push(LlmMessage::assistant_with_tool_calls(tool_calls.clone()));
 
-                // 联网搜索已脱离 function calling（见本函数顶部两段式流程），这里只分发内置工具。
                 for tc in &tool_calls {
-                    match dispatch_tool(&app_ref, &db, settings, tc, &rid).await {
-                        Ok(result) => {
-                            msgs.push(LlmMessage::tool(&tc.id, &result));
+                    if tc.name == "web_search" {
+                        let query: String =
+                            serde_json::from_str::<serde_json::Value>(&tc.arguments)
+                                .ok()
+                                .and_then(|v| v["query"].as_str().map(|s| s.to_string()))
+                                .unwrap_or_default();
+
+                        let _ = app_ref.emit(
+                            "chat:searching",
+                            json!({ "request_id": rid, "query": query }),
+                        );
+
+                        if query.is_empty() {
+                            msgs.push(LlmMessage::tool(
+                                &tc.id,
+                                "搜索查询为空，请提供有效的搜索词。",
+                            ));
+                            continue;
                         }
-                        Err(e) => {
-                            let _ = app_ref.emit(
-                                "chat:tool_result",
-                                json!({
-                                    "request_id": rid,
-                                    "tool_name": tc.name,
-                                    "tool_id": tc.id,
-                                    "result": format!("执行失败: {}", e),
-                                    "result_id": ""
-                                }),
-                            );
-                            msgs.push(LlmMessage::tool(&tc.id, format!("工具执行失败：{}", e)));
+
+                        match web_search(&query, settings).await {
+                            Ok(results) => {
+                                msgs.push(LlmMessage::tool(&tc.id, &results));
+                            }
+                            Err(e) => {
+                                msgs.push(LlmMessage::tool(&tc.id, format!("搜索失败：{}", e)));
+                            }
+                        }
+                    } else {
+                        match dispatch_tool(&app_ref, &db, settings, tc, &rid).await {
+                            Ok(result) => {
+                                msgs.push(LlmMessage::tool(&tc.id, &result));
+                            }
+                            Err(e) => {
+                                let _ = app_ref.emit(
+                                    "chat:tool_result",
+                                    json!({
+                                        "request_id": rid,
+                                        "tool_name": tc.name,
+                                        "tool_id": tc.id,
+                                        "result": format!("执行失败: {}", e),
+                                        "result_id": ""
+                                    }),
+                                );
+                                msgs.push(LlmMessage::tool(&tc.id, format!("工具执行失败：{}", e)));
+                            }
                         }
                     }
                 }

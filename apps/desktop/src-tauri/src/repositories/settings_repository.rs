@@ -72,6 +72,25 @@ pub async fn insert_settings_history(
     Ok(())
 }
 
+pub async fn update_settings_history(
+    pool: &SqlitePool,
+    id: &str,
+    name: &str,
+    settings_json: &str,
+) -> Result<bool, String> {
+    let result = sqlx::query(
+        "UPDATE settings_history SET name = ?, settings_json = ? WHERE id = ?",
+    )
+    .bind(name)
+    .bind(settings_json)
+    .bind(id)
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn list_settings_history(pool: &SqlitePool) -> Result<Vec<SettingsHistoryRow>, String> {
     let rows = sqlx::query(
         "SELECT id, name, settings_json, created_at

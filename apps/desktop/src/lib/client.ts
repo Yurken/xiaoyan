@@ -199,6 +199,8 @@ export const settingsApi = {
       invoke("settings_history_list"),
     save: (data: Partial<AppSettings>, name?: string): Promise<SettingsHistoryEntry> =>
       invoke("settings_history_save", { data, name: name ?? null }),
+    update: (id: string, data: Partial<AppSettings>, name?: string): Promise<SettingsHistoryEntry> =>
+      invoke("settings_history_update", { id, data, name: name ?? null }),
     apply: (id: string): Promise<AppSettings> =>
       invoke("settings_history_apply", { id }),
     delete: (id: string): Promise<void> =>

@@ -262,22 +262,18 @@ fn all_tool_definitions() -> Vec<ToolDefinition> {
 pub fn build_chat_tools(
     settings: &std::collections::HashMap<String, String>,
 ) -> Vec<ToolDefinition> {
-    // 联网搜索已改为独立的「决策 → 检索 → 回答」两段式流程（见 chat.rs::run_simple），
-    // 不再作为 function-calling 工具注入，因此不依赖厂商对 tools 的支持。
-    //
-    // 内置工具（笔记/综述/规划等）仍依赖厂商 function calling。很多服务商/中转对
-    // 「流式 + tools」支持不完整，会返回空流导致“不回复”，故默认关闭以保证基础对话在
-    // 任意 OpenAI 兼容模型上可用；需要时设置 copilot_function_tools_enabled=true 开启。
-    let function_tools_enabled = settings
-        .get("copilot_function_tools_enabled")
+    let mut tools: Vec<ToolDefinition> = vec![];
+
+    let web_search_enabled = settings
+        .get("web_search_enabled")
         .map(|v| v == "true")
         .unwrap_or(false);
-
-    if function_tools_enabled {
-        all_tool_definitions()
-    } else {
-        vec![]
+    if web_search_enabled {
+        tools.push(crate::llm::web_search_tool_definition());
     }
+
+    tools.extend(all_tool_definitions());
+    tools
 }
 
 // ── Tool dispatcher ───────────────────────────────────────────

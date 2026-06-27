@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ConfirmDialog, Select } from "@research-copilot/ui";
-import { Loader2, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
+import { Loader2, RefreshCw, RotateCcw, Save, Trash2, X } from "lucide-react";
 import type { SettingsHistoryEntry } from "@research-copilot/types";
 
 interface ConfigHistoryManageModalProps {
@@ -10,10 +10,12 @@ interface ConfigHistoryManageModalProps {
   loadError: string;
   selectedId: string;
   applyingId: string | null;
+  updatingId: string | null;
   deletingId: string | null;
   busy?: boolean;
   setSelectedId: (value: string) => void;
   onApplyHistory: (id: string) => Promise<void> | void;
+  onUpdateHistory: (id: string) => Promise<void> | void;
   onDeleteHistory: (id: string) => Promise<void> | void;
   onReload: () => Promise<void> | void;
   onClose: () => void;
@@ -47,7 +49,10 @@ function MetaChip({ label }: { label: string }) {
   );
 }
 
-type PendingHistoryAction = { type: "apply"; id: string } | { type: "delete"; id: string };
+type PendingHistoryAction =
+  | { type: "apply"; id: string }
+  | { type: "update"; id: string }
+  | { type: "delete"; id: string };
 
 export default function ConfigHistoryManageModal({
   open,
@@ -56,10 +61,12 @@ export default function ConfigHistoryManageModal({
   loadError,
   selectedId,
   applyingId,
+  updatingId,
   deletingId,
   busy,
   setSelectedId,
   onApplyHistory,
+  onUpdateHistory,
   onDeleteHistory,
   onReload,
   onClose,
@@ -75,27 +82,50 @@ export default function ConfigHistoryManageModal({
     if (!id) return;
     setPendingAction({ type: "apply", id });
   };
+  const handleUpdate = (id: string) => {
+    if (!id) return;
+    setPendingAction({ type: "update", id });
+  };
   const handleDelete = (id: string) => setPendingAction({ type: "delete", id });
 
   const pendingEntry = pendingAction ? entries.find((item) => item.id === pendingAction.id) : undefined;
   const confirmLoading = pendingAction?.type === "apply"
     ? applyingId === pendingAction.id
-    : pendingAction?.type === "delete"
-      ? deletingId === pendingAction.id
-      : false;
-  const confirmTitle = pendingAction?.type === "delete" ? "删除配置历史" : "应用配置历史";
+    : pendingAction?.type === "update"
+      ? updatingId === pendingAction.id
+      : pendingAction?.type === "delete"
+        ? deletingId === pendingAction.id
+        : false;
+  const confirmTitle = pendingAction?.type === "delete"
+    ? "删除配置历史"
+    : pendingAction?.type === "update"
+      ? "更新这份配置"
+      : "应用配置历史";
   const confirmDescription = pendingAction?.type === "delete"
     ? pendingEntry
       ? `确定要删除“${pendingEntry.name}”这条配置历史吗？删除后将无法恢复。`
       : "确定要删除这条配置历史吗？删除后将无法恢复。"
-    : pendingEntry
-      ? `应用“${pendingEntry.name}”后，当前配置会被覆盖并立即生效。继续吗？`
-      : "应用这份历史配置后，当前配置会被覆盖并立即生效。继续吗？";
+    : pendingAction?.type === "update"
+      ? pendingEntry
+        ? `把当前生效配置保存到“${pendingEntry.name}”，原来的快照会被覆盖。继续吗？`
+        : "把当前生效配置保存到这条历史，原来的快照会被覆盖。继续吗？"
+      : pendingEntry
+        ? `应用“${pendingEntry.name}”后，当前配置会被覆盖并立即生效。继续吗？`
+        : "应用这份历史配置后，当前配置会被覆盖并立即生效。继续吗？";
+  const confirmLabel = pendingAction?.type === "delete"
+    ? "确认删除"
+    : pendingAction?.type === "update"
+      ? "确认更新"
+      : "确认应用";
 
   const confirmPendingAction = () => {
     if (!pendingAction || confirmLoading) return;
     const action = pendingAction;
-    const task = action.type === "apply" ? onApplyHistory(action.id) : onDeleteHistory(action.id);
+    const task = action.type === "apply"
+      ? onApplyHistory(action.id)
+      : action.type === "update"
+        ? onUpdateHistory(action.id)
+        : onDeleteHistory(action.id);
     void Promise.resolve(task)
       .catch(() => undefined)
       .finally(() => setPendingAction(null));
@@ -175,6 +205,7 @@ export default function ConfigHistoryManageModal({
               <div className="space-y-3">
                 {entries.map((entry) => {
                   const isApplying = applyingId === entry.id;
+                  const isUpdating = updatingId === entry.id;
                   const isDeleting = deletingId === entry.id;
                   const isSelected = selectedId === entry.id;
                   return (
@@ -216,6 +247,17 @@ export default function ConfigHistoryManageModal({
                           </button>
                           <button
                             type="button"
+                            onClick={() => handleUpdate(entry.id)}
+                            disabled={updatingId !== null || busy}
+                            className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
+                            style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
+                            title="把当前生效配置保存到这条历史"
+                          >
+                            {isUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                            更新
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleDelete(entry.id)}
                             disabled={deletingId !== null || busy}
                             className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
@@ -239,7 +281,7 @@ export default function ConfigHistoryManageModal({
         open={pendingAction !== null}
         title={confirmTitle}
         description={confirmDescription}
-        confirmLabel={pendingAction?.type === "delete" ? "确认删除" : "确认应用"}
+        confirmLabel={confirmLabel}
         cancelLabel="取消"
         tone={pendingAction?.type === "delete" ? "danger" : "default"}
         loading={confirmLoading}

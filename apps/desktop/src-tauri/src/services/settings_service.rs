@@ -1,7 +1,7 @@
 use crate::llm::{LlmClient, LlmMessage};
 use crate::repositories::settings_repository::{
     delete_settings_history, get_settings_history, insert_settings_history, list_settings_history,
-    load_all_settings, upsert_settings,
+    load_all_settings, update_settings_history, upsert_settings,
 };
 use crate::state::{default_settings, AppState, SENSITIVE_KEYS};
 use aes_gcm::aead::{Aead, KeyInit};
@@ -986,6 +986,36 @@ pub async fn save_settings_history_entry(
         id,
         normalized_name,
         created_at,
+        &settings,
+    ))
+}
+
+pub async fn update_settings_history_entry(
+    state: &AppState,
+    id: &str,
+    data: &serde_json::Value,
+    name: Option<&str>,
+) -> Result<SettingsHistoryEntry, String> {
+    let row = get_settings_history(&state.db, id)
+        .await?
+        .ok_or_else(|| ERR_SETTINGS_HISTORY_NOT_FOUND.to_string())?;
+    let settings = resolve_snapshot_settings(state, data).await?;
+    let normalized_name = name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or(row.name);
+    let settings_json = serde_json::to_string(&settings).map_err(|e| e.to_string())?;
+
+    let updated = update_settings_history(&state.db, id, &normalized_name, &settings_json).await?;
+    if !updated {
+        return Err(ERR_SETTINGS_HISTORY_NOT_FOUND.to_string());
+    }
+
+    Ok(settings_history_entry(
+        id.to_string(),
+        normalized_name,
+        row.created_at,
         &settings,
     ))
 }

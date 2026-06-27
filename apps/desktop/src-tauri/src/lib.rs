@@ -100,7 +100,8 @@ use commands::{
     research_context::{research_context_get_recent_themes, research_context_get_theme_context},
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
-        settings_history_list, settings_history_save, settings_import, settings_list_models,
+        settings_history_list, settings_history_save, settings_history_update, settings_import,
+        settings_list_models,
         settings_list_ollama_models, settings_test, settings_test_tavily, settings_test_vision,
         settings_update,
     },
@@ -444,6 +445,7 @@ pub fn run() {
             settings_import,
             settings_history_list,
             settings_history_save,
+            settings_history_update,
             settings_history_apply,
             settings_history_delete,
             token_usage_stats,
