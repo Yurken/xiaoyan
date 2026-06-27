@@ -123,23 +123,6 @@ impl LlmMessage {
     }
 }
 
-pub fn web_search_tool_definition() -> ToolDefinition {
-    ToolDefinition {
-        name: "web_search".into(),
-        description: "搜索互联网获取实时信息。当需要查找最新资料、事实核查、或用户询问近期事件、新闻、当前信息时使用此工具。搜索结果包含来自网络的相关摘要和链接。".into(),
-        parameters: json!({
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "搜索查询词，应简洁明确。建议使用关键词而非自然语言问题。"
-                }
-            },
-            "required": ["query"]
-        }),
-    }
-}
-
 #[derive(Clone)]
 pub enum LlmClient {
     OpenAI {
