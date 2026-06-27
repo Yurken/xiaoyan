@@ -28,6 +28,8 @@ mod web_search;
 
 use tauri::Manager;
 
+use web_search::web_search_query;
+
 use commands::{
     active_researcher::{
         active_researcher_findings, active_researcher_mark_read, active_researcher_scan,
@@ -489,6 +491,8 @@ pub fn run() {
             arxiv_search,
             // Paper search
             paper_search,
+            // Web search
+            web_search_query,
             // Knowledge
             knowledge_list_interests,
             knowledge_create_interest,

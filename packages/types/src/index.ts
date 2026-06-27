@@ -333,6 +333,19 @@ export interface ArxivSearchResponse {
   papers: ArxivRecommendation[];
 }
 
+export interface WebSearchItem {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+export interface WebSearchOutcome {
+  provider: string;
+  answer?: string | null;
+  note?: string | null;
+  items: WebSearchItem[];
+}
+
 export interface KnowledgeNote {
   id: string;
   title: string;

@@ -27,6 +27,7 @@ import type {
   SurveySummary,
   SavedSurvey,
   TavilyKeyTest,
+  WebSearchOutcome,
 } from "@research-copilot/types";
 import { streamChat } from "./chatStream";
 export { streamChat } from "./chatStream";
@@ -352,6 +353,10 @@ export const paperSearchApi = {
     ranking_mode: ArxivRankingMode = "relevance"
   ): Promise<ArxivSearchResponse> =>
     invoke("paper_search", { request, days, limit, rankingMode: ranking_mode }),
+};
+
+export const webSearchApi = {
+  query: (query: string): Promise<WebSearchOutcome> => invoke("web_search_query", { query }),
 };
 
 // ── Knowledge ─────────────────────────────────────────────────────
@@ -981,6 +986,7 @@ export const apiClient = {
   memory: memoryApi,
   arxiv: arxivApi,
   paperSearch: paperSearchApi,
+  webSearch: webSearchApi,
   ccf: ccfApi,
   journals: journalApi,
   sources: sourceApi,
