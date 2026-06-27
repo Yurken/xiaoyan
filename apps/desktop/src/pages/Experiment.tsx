@@ -212,11 +212,13 @@ export default function Experiment() {
                 <p className="text-xs text-ink-tertiary text-center pt-10 px-2">暂无记录，点击上方「新建」开始。</p>
               ) : (
                 experiments.map((exp) => (
-                  <button
+                  <div
                     key={exp.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedId(exp.id)}
-                    className="w-full text-left rounded-2xl px-3 py-2.5 transition-all duration-150 group"
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(exp.id); } }}
+                    className="w-full text-left rounded-2xl px-3 py-2.5 transition-all duration-150 group cursor-pointer"
                     style={
                       selectedId === exp.id
                         ? { background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)", borderLeft: "3px solid #007AFF" }
@@ -254,7 +256,7 @@ export default function Experiment() {
                         已关联投稿
                       </span>
                     )}
-                  </button>
+                  </div>
                 ))
               )}
             </div>
