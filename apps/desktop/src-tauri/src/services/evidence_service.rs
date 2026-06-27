@@ -179,7 +179,11 @@ impl EvidenceService {
 
         // Diagnosis reports
         let reports = sqlx::query(
-            "SELECT id, reviewer_name, report_json FROM submission_diagnosis_reports WHERE submission_id = ? LIMIT 5"
+            "SELECT id, risk_level, summary, report_json
+             FROM submission_diagnosis_reports
+             WHERE submission_id = ?
+             ORDER BY created_at DESC
+             LIMIT 5",
         )
         .bind(submission_id)
         .fetch_all(db)
@@ -188,13 +192,18 @@ impl EvidenceService {
 
         for report in reports {
             let report_id: String = report.get("id");
-            let reviewer_name: String = report.get("reviewer_name");
+            let risk_level: String = report.get("risk_level");
+            let summary: String = report.get("summary");
             let report_json: String = report.get("report_json");
-            let snippet = report_json.chars().take(200).collect::<String>();
+            let snippet = if summary.trim().is_empty() {
+                report_json.chars().take(200).collect::<String>()
+            } else {
+                summary
+            };
             links.push(EvidenceLink {
                 id: format!("ev_diag_{}", report_id),
                 link_type: "diagnosis".into(),
-                title: format!("诊断报告：{}", reviewer_name),
+                title: format!("诊断报告：{}", risk_level),
                 source_id: report_id,
                 summary: snippet,
             });
