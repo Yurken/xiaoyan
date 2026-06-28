@@ -105,7 +105,7 @@ export default function PaperNoteViewerModal({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl px-4 py-3 text-sm" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
-            <MarkdownRenderer content={note.content} />
+            <MarkdownRenderer content={note.content} highlightSourceTags />
           </div>
         </div>
       </div>

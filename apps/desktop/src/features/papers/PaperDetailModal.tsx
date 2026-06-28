@@ -275,7 +275,7 @@ export default function PaperDetailModal({
                           </button>
                         </div>
                         <div className="mt-3">
-                          <MarkdownRenderer content={section.content} />
+                          <MarkdownRenderer content={section.content} highlightSourceTags />
                         </div>
                         {section.figures.length > 0 ? (
                           <div
