@@ -9,19 +9,9 @@ import {
   X,
 } from "lucide-react";
 import { Button, Card, ConfirmDialog, Input, Select, Textarea } from "@research-copilot/ui";
+import type { ExperimentRecord } from "@research-copilot/types";
 import { experimentApi, submissionApi, formatErrorMessage } from "../lib/client";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
-
-interface ExperimentRecord {
-  id: string;
-  title: string;
-  config: Record<string, unknown>;
-  result: string;
-  notes: string;
-  linkedSubmissionId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface SubmissionItem {
   id: string;
@@ -43,6 +33,7 @@ function rowToExperiment(row: unknown): ExperimentRecord {
     result: String(r.result ?? ""),
     notes: String(r.notes ?? ""),
     linkedSubmissionId: r.linkedSubmissionId ? String(r.linkedSubmissionId) : null,
+    defaultWorkingDir: r.defaultWorkingDir ? String(r.defaultWorkingDir) : null,
     createdAt: String(r.createdAt ?? r.created_at ?? ""),
     updatedAt: String(r.updatedAt ?? r.updated_at ?? ""),
   };
@@ -118,7 +109,8 @@ export default function Experiment() {
       const res = await experimentApi.create({ title: "新实验记录" });
       const newExp: ExperimentRecord = {
         id: res.id, title: "新实验记录", config: {}, result: "", notes: "",
-        linkedSubmissionId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        linkedSubmissionId: null, defaultWorkingDir: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       setExperiments((prev) => [newExp, ...prev]);
       setSelectedId(res.id);

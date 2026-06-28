@@ -40,7 +40,7 @@ function pickDefaultTool(tools: CodeToolStatus[]): string | null {
   return tools.find((t) => t.installed)?.id ?? null;
 }
 
-export function useCodeWorkspace() {
+export function useCodeWorkspace(experimentId: string) {
   // ── File system ──────────────────────────────────────────────
   const fs = useCodeFileSystem();
   const [workingDir, setWorkingDir] = useState<string | null>(null);
@@ -160,12 +160,12 @@ export function useCodeWorkspace() {
   // ── Load sessions ────────────────────────────────────────────
   const loadSessions = useCallback(async () => {
     try {
-      const result = await codeApi.listSessions();
+      const result = await codeApi.listSessions(experimentId);
       setSessions(result.sessions ?? []);
     } catch (err) {
       console.warn("Failed to load code sessions:", err);
     }
-  }, []);
+  }, [experimentId]);
 
   useEffect(() => {
     setChatLoading(true);
@@ -250,7 +250,7 @@ export function useCodeWorkspace() {
   // ── Session operations ───────────────────────────────────────
   async function handleCreateSession() {
     try {
-      const session = await codeApi.createSession(undefined, workingDir ?? undefined);
+      const session = await codeApi.createSession(experimentId, undefined, workingDir ?? undefined);
       setSessions((prev) => [session, ...prev]);
       setSelectedId(session.id);
     } catch (err) {
@@ -297,7 +297,7 @@ export function useCodeWorkspace() {
     let targetId = selectedId;
     if (!targetId) {
       try {
-        const session = await codeApi.createSession(undefined, workingDir ?? undefined);
+        const session = await codeApi.createSession(experimentId, undefined, workingDir ?? undefined);
         setSessions((prev) => [session, ...prev]);
         setSelectedId(session.id);
         selectedIdRef.current = session.id; // 立即同步，避免流式事件被过滤掉

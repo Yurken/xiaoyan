@@ -59,6 +59,8 @@ pub(crate) const BACKUP_TABLES: &[&str] = &[
     "knowledge_graph_claims",
     "submissions",
     "experiment_records",
+    "experiment_code_sessions",
+    "experiment_snapshots",
     "chat_messages",
     "agent_runs",
     "paper_chunks",

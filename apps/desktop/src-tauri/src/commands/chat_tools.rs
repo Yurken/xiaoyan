@@ -570,7 +570,7 @@ async fn dispatch_create_experiment(
         return Err("实验标题不能为空。".into());
     }
 
-    match create_experiment_core(db, title.clone(), config, result_text, notes, None).await {
+    match create_experiment_core(db, title.clone(), config, result_text, notes, None, None).await {
         Ok(result) => {
             let exp_id = result["id"].as_str().unwrap_or("").to_string();
             let _ = app.emit(

@@ -16,7 +16,8 @@ import CodeChatPanel from "../features/code/CodeChatPanel";
 import CodeToolSwitcher from "../features/code/CodeToolSwitcher";
 
 export default function Code() {
-  const ws = useCodeWorkspace();
+  // 临时占位：Code 页面将在阶段 3 合并到 Experiment。
+  const ws = useCodeWorkspace("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [showSessions, setShowSessions] = useState(true);
 

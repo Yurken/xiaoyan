@@ -762,6 +762,57 @@ export interface Job {
   finished_at?: string;
 }
 
+// ── Experiment ────────────────────────────────────────────────
+
+export interface ExperimentRecord {
+  id: string;
+  title: string;
+  config: Record<string, unknown>;
+  result: string;
+  notes: string;
+  linkedSubmissionId: string | null;
+  defaultWorkingDir: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExperimentCodeSession {
+  id: string;
+  experiment_id: string;
+  title: string;
+  working_dir: string | null;
+  tool_id: string | null;
+  model: string | null;
+  messages: OpenCodeMessage[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExperimentSnapshot {
+  id: string;
+  experimentId: string;
+  title: string;
+  configSnapshot: Record<string, unknown>;
+  resultSnapshot: string;
+  notesSnapshot: string;
+  codeSessionId: string | null;
+  toolId: string | null;
+  model: string | null;
+  workingDir: string | null;
+  envSnapshot: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ExperimentAttachment {
+  id: string;
+  experimentId: string;
+  snapshotId: string | null;
+  filePath: string;
+  label: string;
+  dataUrl: string;
+  createdAt: string;
+}
+
 // ── OpenCode ──────────────────────────────────────────────────
 
 export interface OpenCodeMessage {

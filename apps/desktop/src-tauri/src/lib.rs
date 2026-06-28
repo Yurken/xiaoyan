@@ -63,9 +63,10 @@ use commands::{
         field_dynamics_scan,
     },
     experiment::{
-        experiment_add_attachment, experiment_create, experiment_delete,
-        experiment_delete_attachment, experiment_get, experiment_list, experiment_list_attachments,
-        experiment_update, experiment_update_attachment_label,
+        experiment_add_attachment, experiment_create, experiment_create_snapshot,
+        experiment_delete, experiment_delete_attachment, experiment_delete_snapshot,
+        experiment_get, experiment_get_snapshot, experiment_list, experiment_list_attachments,
+        experiment_list_snapshots, experiment_update, experiment_update_attachment_label,
     },
     export::export_to_obsidian,
     journal::{journal_lookup, journal_rank_filter},
@@ -623,6 +624,10 @@ pub fn run() {
             experiment_list_attachments,
             experiment_delete_attachment,
             experiment_update_attachment_label,
+            experiment_create_snapshot,
+            experiment_list_snapshots,
+            experiment_get_snapshot,
+            experiment_delete_snapshot,
             // Export
             export_to_obsidian,
             // Knowledge extras

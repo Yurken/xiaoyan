@@ -1,7 +1,6 @@
 //! 代码会话的本地持久化。
 //!
-//! 所有记录写入 SQLite 表 `code_sessions`，**仅落盘本地**：该表不在
-//! `BACKUP_TABLES` / `SYNC_MUTABLE_TABLES` 白名单内，故不参与 WebDAV 多平台同步。
+//! 所有记录写入 SQLite 表 `experiment_code_sessions`，归属于某个 experiment。
 
 use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
@@ -20,6 +19,7 @@ fn row_to_session(row: &sqlx::sqlite::SqliteRow) -> CodeSession {
     let messages_raw: String = row.get("messages_json");
     CodeSession {
         id: row.get("id"),
+        experiment_id: row.get("experiment_id"),
         title: row.get("title"),
         working_dir: row.get("working_dir"),
         tool_id: row.get("tool_id"),
@@ -32,16 +32,18 @@ fn row_to_session(row: &sqlx::sqlite::SqliteRow) -> CodeSession {
 
 pub async fn create_session(
     db: &SqlitePool,
+    experiment_id: &str,
     title: &str,
     working_dir: Option<&str>,
 ) -> anyhow::Result<CodeSession> {
     let id = Uuid::new_v4().to_string();
     let ts = now();
     sqlx::query(
-        "INSERT INTO code_sessions (id, title, working_dir, messages_json, created_at, updated_at)
-         VALUES (?, ?, ?, '[]', ?, ?)",
+        "INSERT INTO experiment_code_sessions (id, experiment_id, title, working_dir, messages_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, '[]', ?, ?)",
     )
     .bind(&id)
+    .bind(experiment_id)
     .bind(title)
     .bind(working_dir)
     .bind(&ts)
@@ -51,6 +53,7 @@ pub async fn create_session(
 
     Ok(CodeSession {
         id,
+        experiment_id: experiment_id.to_string(),
         title: title.to_string(),
         working_dir: working_dir.map(|s| s.to_string()),
         tool_id: None,
@@ -61,11 +64,15 @@ pub async fn create_session(
     })
 }
 
-pub async fn list_sessions(db: &SqlitePool) -> anyhow::Result<Vec<CodeSession>> {
+pub async fn list_sessions(
+    db: &SqlitePool,
+    experiment_id: &str,
+) -> anyhow::Result<Vec<CodeSession>> {
     let rows = sqlx::query(
-        "SELECT id, title, working_dir, tool_id, model, messages_json, created_at, updated_at
-         FROM code_sessions ORDER BY updated_at DESC",
+        "SELECT id, experiment_id, title, working_dir, tool_id, model, messages_json, created_at, updated_at
+         FROM experiment_code_sessions WHERE experiment_id = ? ORDER BY updated_at DESC",
     )
+    .bind(experiment_id)
     .fetch_all(db)
     .await?;
     Ok(rows.iter().map(row_to_session).collect())
@@ -73,8 +80,8 @@ pub async fn list_sessions(db: &SqlitePool) -> anyhow::Result<Vec<CodeSession>> 
 
 pub async fn get_session(db: &SqlitePool, session_id: &str) -> anyhow::Result<CodeSession> {
     let row = sqlx::query(
-        "SELECT id, title, working_dir, tool_id, model, messages_json, created_at, updated_at
-         FROM code_sessions WHERE id = ?",
+        "SELECT id, experiment_id, title, working_dir, tool_id, model, messages_json, created_at, updated_at
+         FROM experiment_code_sessions WHERE id = ?",
     )
     .bind(session_id)
     .fetch_optional(db)
@@ -87,7 +94,7 @@ pub async fn get_session(db: &SqlitePool, session_id: &str) -> anyhow::Result<Co
 }
 
 pub async fn delete_session(db: &SqlitePool, session_id: &str) -> anyhow::Result<()> {
-    sqlx::query("DELETE FROM code_sessions WHERE id = ?")
+    sqlx::query("DELETE FROM experiment_code_sessions WHERE id = ?")
         .bind(session_id)
         .execute(db)
         .await?;
@@ -129,7 +136,7 @@ pub async fn update_session(
     sets.push("updated_at = ?");
     binds.push(now());
 
-    let sql = format!("UPDATE code_sessions SET {} WHERE id = ?", sets.join(", "));
+    let sql = format!("UPDATE experiment_code_sessions SET {} WHERE id = ?", sets.join(", "));
     let mut query = sqlx::query(&sql);
     for b in &binds {
         query = query.bind(b);
@@ -144,7 +151,7 @@ pub async fn persist_message(
     session_id: &str,
     msg: &CodeMessage,
 ) -> anyhow::Result<()> {
-    let row = sqlx::query("SELECT messages_json FROM code_sessions WHERE id = ?")
+    let row = sqlx::query("SELECT messages_json FROM experiment_code_sessions WHERE id = ?")
         .bind(session_id)
         .fetch_optional(db)
         .await?;
@@ -160,7 +167,7 @@ pub async fn persist_message(
     // assistant 消息记录会话最近 tool/model，便于重开会话时恢复选择。
     if msg.role == "assistant" && msg.tool_id.is_some() {
         sqlx::query(
-            "UPDATE code_sessions SET messages_json = ?, tool_id = ?, model = ?, updated_at = ? WHERE id = ?",
+            "UPDATE experiment_code_sessions SET messages_json = ?, tool_id = ?, model = ?, updated_at = ? WHERE id = ?",
         )
         .bind(&json)
         .bind(&msg.tool_id)
@@ -170,7 +177,7 @@ pub async fn persist_message(
         .execute(db)
         .await?;
     } else {
-        sqlx::query("UPDATE code_sessions SET messages_json = ?, updated_at = ? WHERE id = ?")
+        sqlx::query("UPDATE experiment_code_sessions SET messages_json = ?, updated_at = ? WHERE id = ?")
             .bind(&json)
             .bind(&ts)
             .bind(session_id)
@@ -185,7 +192,7 @@ pub async fn maybe_autotitle(db: &SqlitePool, session_id: &str, content: &str) {
     if let Ok(session) = get_session(db, session_id).await {
         if session.messages.len() <= 1 && session.title == "新对话" {
             let truncated: String = content.chars().take(50).collect();
-            let _ = sqlx::query("UPDATE code_sessions SET title = ?, updated_at = ? WHERE id = ?")
+            let _ = sqlx::query("UPDATE experiment_code_sessions SET title = ?, updated_at = ? WHERE id = ?")
                 .bind(&truncated)
                 .bind(now())
                 .bind(session_id)

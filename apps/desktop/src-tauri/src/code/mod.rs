@@ -25,6 +25,7 @@ use store::now;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeSession {
     pub id: String,
+    pub experiment_id: String,
     pub title: String,
     pub working_dir: Option<String>,
     /// 最近使用的工具 id。

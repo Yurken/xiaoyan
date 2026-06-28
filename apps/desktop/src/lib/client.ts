@@ -30,6 +30,10 @@ import type {
   SavedSurvey,
   TavilyKeyTest,
   WebSearchOutcome,
+  ExperimentRecord,
+  ExperimentCodeSession,
+  ExperimentSnapshot,
+  ExperimentAttachment,
 } from "@research-copilot/types";
 import { streamChat } from "./chatStream";
 export { streamChat } from "./chatStream";
@@ -844,27 +848,38 @@ export const submissionApi = {
 
 // ── Experiment API ────────────────────────────────────────────────
 
-export interface ExperimentAttachment {
-  id: string;
-  experimentId: string;
-  filePath: string;
-  label: string;
-  dataUrl: string;
-  createdAt: string;
-}
+// ExperimentAttachment 已从 @research-copilot/types 导入。
 
 export const experimentApi = {
-  list: () => invoke<{ experiments: unknown[] }>("experiment_list"),
-  get: (id: string) => invoke<unknown>("experiment_get", { id }),
-  create: (params: { title: string; config?: Record<string, unknown>; result?: string; notes?: string; linkedSubmissionId?: string }) =>
+  list: () => invoke<{ experiments: ExperimentRecord[] }>("experiment_list"),
+  get: (id: string) => invoke<ExperimentRecord>("experiment_get", { id }),
+  create: (params: { title: string; config?: Record<string, unknown>; result?: string; notes?: string; linkedSubmissionId?: string; defaultWorkingDir?: string }) =>
     invoke<{ id: string }>("experiment_create", {
       title: params.title, config: params.config ?? null,
       result: params.result ?? null, notes: params.notes ?? null,
       linkedSubmissionId: params.linkedSubmissionId ?? null,
+      defaultWorkingDir: params.defaultWorkingDir ?? null,
     }),
-  update: (id: string, params: Partial<{ title: string; config: Record<string, unknown>; result: string; notes: string; linkedSubmissionId: string }>) =>
+  update: (id: string, params: Partial<{ title: string; config: Record<string, unknown>; result: string; notes: string; linkedSubmissionId: string; defaultWorkingDir: string }>) =>
     invoke<void>("experiment_update", { id, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, v ?? null])) }),
   delete: (id: string) => invoke<void>("experiment_delete", { id }),
+  snapshots: {
+    list: (experimentId: string) =>
+      invoke<{ snapshots: ExperimentSnapshot[] }>("experiment_list_snapshots", { experimentId }),
+    get: (snapshotId: string) =>
+      invoke<ExperimentSnapshot>("experiment_get_snapshot", { snapshotId }),
+    create: (experimentId: string, params: { title?: string; codeSessionId?: string; toolId?: string; model?: string; workingDir?: string }) =>
+      invoke<ExperimentSnapshot>("experiment_create_snapshot", {
+        experimentId,
+        title: params.title ?? null,
+        codeSessionId: params.codeSessionId ?? null,
+        toolId: params.toolId ?? null,
+        model: params.model ?? null,
+        workingDir: params.workingDir ?? null,
+      }),
+    delete: (snapshotId: string) =>
+      invoke<void>("experiment_delete_snapshot", { snapshotId }),
+  },
   attachments: {
     list: (experimentId: string) =>
       invoke<{ attachments: ExperimentAttachment[] }>("experiment_list_attachments", { experimentId }),
@@ -1029,16 +1044,7 @@ export interface CodeMessage {
   created_at: string;
 }
 
-export interface CodeSession {
-  id: string;
-  title: string;
-  working_dir: string | null;
-  tool_id: string | null;
-  model: string | null;
-  messages: CodeMessage[];
-  created_at: string;
-  updated_at: string;
-}
+export interface CodeSession extends ExperimentCodeSession {}
 
 export interface CodeToolStatus {
   id: string;
@@ -1074,14 +1080,14 @@ export const codeApi = {
   writeFile: (path: string, content: string): Promise<void> =>
     invoke("code_write_file", { path, content }),
 
-  listSessions: (): Promise<{ sessions: CodeSession[] }> =>
-    invoke("code_list_sessions"),
+  listSessions: (experimentId: string): Promise<{ sessions: CodeSession[] }> =>
+    invoke("code_list_sessions", { experimentId }),
 
   getSession: (sessionId: string): Promise<CodeSession> =>
     invoke("code_get_session", { sessionId }),
 
-  createSession: (title?: string, workingDir?: string): Promise<CodeSession> =>
-    invoke("code_create_session", { title: title ?? null, workingDir: workingDir ?? null }),
+  createSession: (experimentId: string, title?: string, workingDir?: string): Promise<CodeSession> =>
+    invoke("code_create_session", { experimentId, title: title ?? null, workingDir: workingDir ?? null }),
 
   deleteSession: (sessionId: string): Promise<void> =>
     invoke("code_delete_session", { sessionId }),
@@ -1100,6 +1106,11 @@ export const codeApi = {
       model: model ?? null,
       workingDir: workingDir ?? null,
     }),
+
+  setExperimentId: (experimentId: string) => {
+    // 占位：新架构下 codeApi 不保存 experimentId，调用方自行传入。
+    void experimentId;
+  },
 
   updateSession: (sessionId: string, input: CodeUpdateSessionInput): Promise<void> =>
     invoke("code_update_session", {
@@ -1141,3 +1152,10 @@ export const apiClient = {
   fieldDynamics: fieldDynamicsApi,
   code: codeApi,
 };
+
+export type {
+  ExperimentRecord,
+  ExperimentCodeSession,
+  ExperimentSnapshot,
+  ExperimentAttachment,
+} from "@research-copilot/types";

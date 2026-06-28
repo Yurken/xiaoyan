@@ -78,8 +78,11 @@ pub async fn code_detect_tools() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-pub async fn code_list_sessions(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    let sessions = code::store::list_sessions(&state.db)
+pub async fn code_list_sessions(
+    state: State<'_, AppState>,
+    experiment_id: String,
+) -> Result<serde_json::Value, String> {
+    let sessions = code::store::list_sessions(&state.db, &experiment_id)
         .await
         .map_err(|e| e.to_string())?;
     Ok(json!({ "sessions": sessions }))
@@ -99,11 +102,12 @@ pub async fn code_get_session(
 #[tauri::command]
 pub async fn code_create_session(
     state: State<'_, AppState>,
+    experiment_id: String,
     title: Option<String>,
     working_dir: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let title = title.unwrap_or_else(|| "新对话".to_string());
-    let session = code::store::create_session(&state.db, &title, working_dir.as_deref())
+    let session = code::store::create_session(&state.db, &experiment_id, &title, working_dir.as_deref())
         .await
         .map_err(|e| e.to_string())?;
     serde_json::to_value(&session).map_err(|e| e.to_string())
