@@ -1,7 +1,9 @@
 use crate::assistant_prompts::main_chat_system;
 use crate::commands::chat_tools::{build_chat_tools, dispatch_tool};
 use crate::commands::memory::is_long_term_memory_enabled;
-use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMessage, StreamOutcome};
+use crate::llm::{
+    resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMessage, StreamOutcome,
+};
 use crate::services::agent_runtime_service::{
     run_agent_runtime, AgentRuntimeKind, AgentRuntimeRequest,
 };
@@ -259,10 +261,14 @@ pub async fn chat_stream(
     }
 
     // 图片单独按字节上限校验，不与文本上限混算。
-    let images: Vec<LlmImage> = images.unwrap_or_default().into_iter().map(|img| LlmImage {
-        media_type: img.media_type,
-        data: img.data,
-    }).collect();
+    let images: Vec<LlmImage> = images
+        .unwrap_or_default()
+        .into_iter()
+        .map(|img| LlmImage {
+            media_type: img.media_type,
+            data: img.data,
+        })
+        .collect();
     let images_bytes: usize = images.iter().map(|img| img.data.len()).sum();
     if images_bytes > MAX_CHAT_IMAGE_BYTES {
         return Err(format!(
@@ -621,9 +627,13 @@ async fn run_simple(
     // 当前轮或历史含图都改用专用视觉模型（保证多轮追问能看到先前图片）；未配置则提示去设置。
     let needs_vision = !images.is_empty() || history.iter().any(|m| !m.images.is_empty());
     let vision = if needs_vision {
-        Some(LlmClient::vision_client_from_settings(settings).ok_or_else(|| {
-            anyhow::anyhow!("该对话包含图片，请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。")
-        })?)
+        Some(
+            LlmClient::vision_client_from_settings(settings).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "该对话包含图片，请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。"
+                )
+            })?,
+        )
     } else {
         None
     };

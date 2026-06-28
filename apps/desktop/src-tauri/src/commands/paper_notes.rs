@@ -163,12 +163,14 @@ pub async fn paper_notes_update(
             .map_err(|e| e.to_string())?;
     }
 
-    let row = sqlx::query(&format!("SELECT {SELECT_COLS} FROM paper_notes WHERE id = ?"))
-        .bind(&id)
-        .fetch_optional(&state.db)
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or("未找到对应笔记。")?;
+    let row = sqlx::query(&format!(
+        "SELECT {SELECT_COLS} FROM paper_notes WHERE id = ?"
+    ))
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("未找到对应笔记。")?;
 
     Ok(note_row_to_json(&row))
 }
@@ -176,10 +178,7 @@ pub async fn paper_notes_update(
 // ── Delete ────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn paper_notes_delete(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn paper_notes_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
     sqlx::query("SELECT id FROM paper_notes WHERE id = ?")
         .bind(&id)
         .fetch_optional(&state.db)

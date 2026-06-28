@@ -566,3 +566,44 @@
     background-position: 0% 50%;
   }
 }
+
+@keyframes rcTypingDot {
+  0%, 60%, 100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.rc-typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0;
+}
+
+.rc-typing-indicator > span {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: rcTypingDot 1.2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+}
+
+.rc-typing-indicator > span:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.rc-typing-indicator > span:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rc-typing-indicator > span {
+    animation: none;
+    opacity: 0.6;
+  }
+}

@@ -47,7 +47,7 @@ export default function WritingSidebar({
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
   return (
-    <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
+    <aside className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pr-1">
       <WritingSidebarSection
         title="论文大纲"
         icon={<ListTree className="h-4 w-4" />}

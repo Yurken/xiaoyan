@@ -10,7 +10,7 @@ use std::time::Duration;
 use tauri::State;
 
 const SEMANTIC_SCHOLAR_API_URL: &str = "https://api.semanticscholar.org/graph/v1/paper/search";
-const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.4.3";
+const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.4.4";
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", default)]
@@ -240,7 +240,12 @@ pub async fn paper_search(
     }
 
     // 对全部候选做启发式排序，既用于无 LLM 时的降级，也用于 LLM 返回不足时的兜底回填。
-    let heuristic = heuristic_rank_papers(&candidates, &request, mode, candidates.len().max(result_limit));
+    let heuristic = heuristic_rank_papers(
+        &candidates,
+        &request,
+        mode,
+        candidates.len().max(result_limit),
+    );
     let (llm_used, ranking_note, overall_summary, mut papers) =
         match rerank_with_xiaoyan(&settings, &query, &request, mode, result_limit, &candidates)
             .await

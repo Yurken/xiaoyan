@@ -37,7 +37,8 @@ use web_search::web_search_query;
 
 use commands::{
     active_researcher::{
-        active_researcher_findings, active_researcher_mark_read, active_researcher_scan,
+        active_researcher_findings, active_researcher_import_finding, active_researcher_mark_read,
+        active_researcher_scan,
     },
     app_lock::{
         app_lock_clear_password, app_lock_get_hint, app_lock_get_recovery_info,
@@ -107,16 +108,14 @@ use commands::{
     papers::{
         papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list,
         papers_list_parse_runs, papers_merge, papers_open_pdf, papers_reorder, papers_reparse,
-        papers_reveal_in_folder,
-        papers_reproduce, papers_update, papers_upload,
+        papers_reproduce, papers_reveal_in_folder, papers_update, papers_upload,
     },
     research_context::{research_context_get_recent_themes, research_context_get_theme_context},
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
         settings_history_list, settings_history_save, settings_history_update, settings_import,
-        settings_list_models,
-        settings_list_ollama_models, settings_test, settings_test_tavily, settings_test_vision,
-        settings_update,
+        settings_list_models, settings_list_ollama_models, settings_test, settings_test_tavily,
+        settings_test_vision, settings_update,
     },
     skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
     source::source_lookup,
@@ -672,6 +671,7 @@ pub fn run() {
             // Active Researcher
             active_researcher_scan,
             active_researcher_findings,
+            active_researcher_import_finding,
             active_researcher_mark_read,
             // Cross-paper Analysis
             papers_cross_analysis,

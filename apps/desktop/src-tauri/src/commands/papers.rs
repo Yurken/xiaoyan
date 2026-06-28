@@ -503,7 +503,10 @@ pub async fn papers_update(
             if tag.is_empty() {
                 continue;
             }
-            if !cleaned.iter().any(|existing| existing.eq_ignore_ascii_case(&tag)) {
+            if !cleaned
+                .iter()
+                .any(|existing| existing.eq_ignore_ascii_case(&tag))
+            {
                 cleaned.push(tag);
             }
             if cleaned.len() >= 16 {
@@ -925,6 +928,7 @@ pub async fn papers_upload(
     state: State<'_, AppState>,
     file_path: tauri_plugin_fs::FilePath,
     research_interest_id: Option<String>,
+    suggested_title: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let path = canonical_pdf_file(file_path.into_path().map_err(|e| e.to_string())?)?;
     let file_name = path
@@ -940,6 +944,17 @@ pub async fn papers_upload(
         .strip_suffix(".pdf")
         .unwrap_or(file_name)
         .replace(['_', '-'], " ");
+
+    // 调用方若提供了已知标题（如 arXiv 推荐导入），优先使用，
+    // 避免文件名推断把标题中的 `-`/`_` 误转成空格，同时让最终文件名以标题命名。
+    let (detected_title, desired_stem) = match suggested_title
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(title) => (title.to_string(), sanitize_file_stem(title)),
+        None => (title_guess.clone(), original_stem.clone()),
+    };
 
     let settings = state.settings.read().await.clone();
     let recognize_title = settings
@@ -963,8 +978,8 @@ pub async fn papers_upload(
         .map(|v| v.trim().eq_ignore_ascii_case("true"))
         .unwrap_or(true);
 
-    // 前台不再解析 PDF，只用文件名作为暂定标题，后台识别后更新
-    let detected_title = title_guess.clone();
+    // 前台不再解析 PDF，只用暂定标题，后台识别后更新
+    // detected_title / desired_stem 已在上方根据 suggested_title 或文件名确定
     let detected_authors: Option<String> = None;
     let detected_year: Option<i64> = None;
     let detected_venue: Option<String> = None;
@@ -980,7 +995,7 @@ pub async fn papers_upload(
     // Always copy into the app-managed papers directory so the file survives
     // even if the user deletes or moves the original in Finder.
     let copy_started_at = Instant::now();
-    let final_path = copy_to_managed_papers_dir(&app, &path, &original_stem)?;
+    let final_path = copy_to_managed_papers_dir(&app, &path, &desired_stem)?;
     eprintln!(
         "[paper-import] copy_pdf done: source={} target={} elapsed_ms={}",
         path.display(),
@@ -1641,8 +1656,11 @@ pub async fn papers_analyze(
         );
         let experiment_summary = format!("{}\n\n{}", experiment_design, experiment_results);
         let problem_summary_for_review = format!("{type_directive}{research_question}");
-        let prompt4 =
-            build_agent4_prompt(&problem_summary_for_review, &core_method, &experiment_summary);
+        let prompt4 = build_agent4_prompt(
+            &problem_summary_for_review,
+            &core_method,
+            &experiment_summary,
+        );
         let msgs4 = vec![
             LlmMessage::system(agent4_system()),
             LlmMessage::user(&prompt4),

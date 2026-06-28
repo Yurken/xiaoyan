@@ -99,6 +99,13 @@ updateText("apps/desktop/src-tauri/src/commands/arxiv.rs", (text) => {
   );
 }, touched);
 
+updateText("README.md", (text) => {
+  return text.replace(
+    /(badge\/release-v)[\d.]+(-)/,
+    `$1${version}$2`,
+  );
+}, touched);
+
 updateText("apps/desktop/src-tauri/src/commands/paper_search.rs", (text) => {
   return text.replace(
     /^(const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop\/)[\d.]+(")/m,

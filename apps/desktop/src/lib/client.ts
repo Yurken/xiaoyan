@@ -223,8 +223,8 @@ export const papersApi = {
     invoke("papers_get", { id }),
   listParseRuns: (paper_id: string): Promise<{ runs: unknown[] }> =>
     invoke("papers_list_parse_runs", { paperId: paper_id }),
-  upload: (filePath: string, research_interest_id?: string): Promise<{ paper_id: string; title: string }> =>
-    invoke("papers_upload", { filePath, researchInterestId: research_interest_id ?? null }),
+  upload: (filePath: string, research_interest_id?: string, suggested_title?: string): Promise<{ paper_id: string; title: string }> =>
+    invoke("papers_upload", { filePath, researchInterestId: research_interest_id ?? null, suggestedTitle: suggested_title ?? null }),
   update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string; research_interest_id?: string; importance_color?: string; notes?: string; tags?: string[] }): Promise<Paper> =>
     invoke("papers_update", {
       id,
@@ -980,6 +980,8 @@ export const activeResearcherApi = {
     invoke("active_researcher_scan", { days: days ?? null, maxPerInterest: maxPerInterest ?? null }),
   findings: (limit?: number): Promise<{ findings: ActiveResearcherFinding[]; unread_count: number }> =>
     invoke("active_researcher_findings", { limit: limit ?? null }),
+  importFinding: (id: string): Promise<{ paper_id: string; title: string; finding_id: string }> =>
+    invoke("active_researcher_import_finding", { id }),
   markRead: (id?: string): Promise<void> =>
     invoke("active_researcher_mark_read", { id: id ?? null }),
 };

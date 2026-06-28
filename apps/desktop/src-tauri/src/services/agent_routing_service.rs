@@ -56,7 +56,13 @@ pub async fn select_agents(
         RoutingPolicy::Rule => (rule_selected.clone(), None),
         RoutingPolicy::Llm => {
             match select_agents_by_llm(
-                client, settings, message, context_type, enabled, max_steps, &[],
+                client,
+                settings,
+                message,
+                context_type,
+                enabled,
+                max_steps,
+                &[],
             )
             .await
             {
@@ -66,13 +72,22 @@ pub async fn select_agents(
         }
         RoutingPolicy::Hybrid => {
             match select_agents_by_llm(
-                client, settings, message, context_type, enabled, max_steps, &rule_selected,
+                client,
+                settings,
+                message,
+                context_type,
+                enabled,
+                max_steps,
+                &rule_selected,
             )
             .await
             {
                 Ok((llm_selected, reasoning)) if !llm_selected.is_empty() => {
                     let merged = merge_selected_agents(
-                        rule_selected.clone(), llm_selected, enabled, max_steps,
+                        rule_selected.clone(),
+                        llm_selected,
+                        enabled,
+                        max_steps,
                     );
                     (merged, reasoning)
                 }
@@ -277,7 +292,10 @@ async fn select_agents_by_llm(
     let decision = parse_routing_decision(&response).unwrap_or_default();
     let reasoning = decision.reasoning;
     let selected = decision.agents;
-    Ok((normalize_selected_agents(selected, enabled, max_steps), reasoning))
+    Ok((
+        normalize_selected_agents(selected, enabled, max_steps),
+        reasoning,
+    ))
 }
 
 fn parse_routing_decision(raw: &str) -> Option<RoutingDecision> {

@@ -60,7 +60,11 @@ fn resolve_db_path() -> Option<PathBuf> {
             .ok()
             .filter(|v| !v.trim().is_empty())
             .map(PathBuf::from)
-            .or_else(|| std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".local/share")))?;
+            .or_else(|| {
+                std::env::var("HOME")
+                    .ok()
+                    .map(|h| PathBuf::from(h).join(".local/share"))
+            })?;
         base.join(APP_IDENTIFIER)
     };
 
@@ -105,7 +109,8 @@ async fn load_settings_readonly(db_path: &PathBuf) -> Result<HashMap<String, Str
 #[tokio::test]
 #[ignore = "本地手动运行：会真实调用 AI 接口，复用本地数据库里的 API 配置"]
 async fn ai_live_chat_smoke() {
-    let db_path = resolve_db_path().expect("无法解析数据库路径（请设置 HOME / APPDATA 或 RC_DB_PATH）");
+    let db_path =
+        resolve_db_path().expect("无法解析数据库路径（请设置 HOME / APPDATA 或 RC_DB_PATH）");
     eprintln!("[ai_live] 使用数据库：{}", db_path.display());
 
     let settings = load_settings_readonly(&db_path)

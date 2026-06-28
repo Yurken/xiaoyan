@@ -72,7 +72,11 @@ pub fn executable_candidates(name: &str) -> Vec<String> {
         return linux_executable_candidates(name);
     }
 
-    #[cfg(all(not(target_os = "windows"), not(target_os = "macos"), not(target_os = "linux")))]
+    #[cfg(all(
+        not(target_os = "windows"),
+        not(target_os = "macos"),
+        not(target_os = "linux")
+    ))]
     {
         dedupe_candidates(vec![name.to_string(), format!("/usr/local/bin/{name}")])
     }
@@ -96,7 +100,10 @@ fn linux_executable_candidates(name: &str) -> Vec<String> {
         format!("/usr/local/bin/{name}"),
     ];
 
-    candidates.extend(scan_texlive_installations(Path::new("/usr/local/texlive"), name));
+    candidates.extend(scan_texlive_installations(
+        Path::new("/usr/local/texlive"),
+        name,
+    ));
 
     if let Some(home) = std::env::var_os("HOME") {
         let tinytex_bin = PathBuf::from(home).join(".TinyTeX").join("bin");

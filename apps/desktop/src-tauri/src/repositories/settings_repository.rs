@@ -78,15 +78,14 @@ pub async fn update_settings_history(
     name: &str,
     settings_json: &str,
 ) -> Result<bool, String> {
-    let result = sqlx::query(
-        "UPDATE settings_history SET name = ?, settings_json = ? WHERE id = ?",
-    )
-    .bind(name)
-    .bind(settings_json)
-    .bind(id)
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    let result =
+        sqlx::query("UPDATE settings_history SET name = ?, settings_json = ? WHERE id = ?")
+            .bind(name)
+            .bind(settings_json)
+            .bind(id)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
 
     Ok(result.rows_affected() > 0)
 }

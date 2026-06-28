@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
 import {
   CheckCircle2,
+  ChevronLeft,
   Eye,
   FileCheck2,
   FileText,
@@ -42,6 +43,7 @@ export default function WritingWorkspace() {
   const [draftManagerOpen, setDraftManagerOpen] = useState(false);
   const [newDraftModalOpen, setNewDraftModalOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [assistantRequest, setAssistantRequest] = useState<{
     actionId: WritingAssistantActionId;
     nonce: number;
@@ -57,7 +59,7 @@ export default function WritingWorkspace() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
-      <header className="shrink-0 border-b px-6 py-4 app-header" style={{ borderColor: "var(--rc-border)", background: "var(--rc-header-bg)" }}>
+      <header className="shrink-0 border-b px-4 py-3 app-header" style={{ borderColor: "var(--rc-border)", background: "var(--rc-header-bg)" }}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-apple-blue/10 text-apple-blue">
@@ -159,24 +161,40 @@ export default function WritingWorkspace() {
       </header>
 
       <div
-        className={clsx(
-          "grid min-h-0 flex-1 gap-4 px-6 py-5",
-          workspace.viewMode === "split"
-            ? "grid-cols-[18rem_minmax(0,1fr)_24rem]"
-            : workspace.viewMode === "editor"
-              ? "grid-cols-[18rem_minmax(0,1fr)]"
-              : "grid-cols-[1fr]",
-        )}
+        className="grid min-h-0 flex-1 gap-3 px-4 py-3"
+        style={{
+          gridTemplateColumns:
+            workspace.viewMode === "split"
+              ? sidebarCollapsed
+                ? "minmax(0,1fr) 24rem"
+                : "18rem minmax(0,1fr) 24rem"
+              : workspace.viewMode === "editor"
+                ? sidebarCollapsed
+                  ? "minmax(0,1fr)"
+                  : "18rem minmax(0,1fr)"
+                : "1fr",
+        }}
       >
-        {workspace.viewMode !== "preview" && (
-          <WritingSidebar
-            outline={workspace.outline}
-            diagnostics={workspace.diagnostics}
-            stats={workspace.stats}
-            notes={workspace.notes}
-            onJumpToLine={workspace.jumpToLine}
-            onNotesChange={workspace.setNotes}
-          />
+        {workspace.viewMode !== "preview" && !sidebarCollapsed && (
+          <div className="relative min-h-0">
+            <WritingSidebar
+              outline={workspace.outline}
+              diagnostics={workspace.diagnostics}
+              stats={workspace.stats}
+              notes={workspace.notes}
+              onJumpToLine={workspace.jumpToLine}
+              onNotesChange={workspace.setNotes}
+            />
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(true)}
+              title="收起侧栏"
+              className="absolute -right-2 top-4 z-10 flex h-6 w-6 items-center justify-center rounded-full border text-ink-tertiary transition-colors hover:text-ink-primary"
+              style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-bg)" }}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+          </div>
         )}
 
         {showEditor ? (
@@ -192,6 +210,8 @@ export default function WritingWorkspace() {
             onInsertText={workspace.insertText}
             onInsertImage={workspace.insertImage}
             onAssistantAction={handleAssistantAction}
+            sidebarCollapsed={sidebarCollapsed}
+            onExpandSidebar={() => setSidebarCollapsed(false)}
           />
         ) : null}
 
@@ -205,7 +225,7 @@ export default function WritingWorkspace() {
       </div>
 
       {workspace.compileResult && (
-        <footer className="shrink-0 border-t px-6 py-2" style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}>
+        <footer className="shrink-0 border-t px-4 py-2" style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}>
           <details className="group">
             <summary className="flex cursor-pointer items-center gap-2 text-[11px] font-medium text-ink-tertiary hover:text-ink-secondary">
               <div className={clsx("h-1.5 w-1.5 rounded-full", workspace.compileResult.success ? "bg-[#34C759]" : "bg-apple-red")} />

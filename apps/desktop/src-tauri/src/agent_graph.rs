@@ -1,7 +1,7 @@
 use crate::agent_nodes::{agent_title, execute_agent_node};
 use crate::agent_workspace::{
-    compute_execution_waves, extract_summary, parse_agent_metadata, AgentOutput, SharedWorkspace,
-    worker_dependencies,
+    compute_execution_waves, extract_summary, parse_agent_metadata, worker_dependencies,
+    AgentOutput, SharedWorkspace,
 };
 use crate::assistant_prompts::synthesis_system;
 use crate::commands::memory::{
@@ -224,10 +224,18 @@ pub async fn run_agentic_graph(
         }
         step_count += 1;
         execute_serial_worker(
-            app, db, settings, client,
-            request_id, session_id, message,
-            context_type, context_id, history,
-            &mut state, long_term_memory_enabled,
+            app,
+            db,
+            settings,
+            client,
+            request_id,
+            session_id,
+            message,
+            context_type,
+            context_id,
+            history,
+            &mut state,
+            long_term_memory_enabled,
             AgentNode::Retrieval,
         )
         .await?;
@@ -323,7 +331,9 @@ pub async fn run_agentic_graph(
 
             // 如果有结构化输出，写入 workspace
             if let Some(agent_output) = &output.workspace_output {
-                workspace.outputs.insert(output.agent_name.clone(), agent_output.clone());
+                workspace
+                    .outputs
+                    .insert(output.agent_name.clone(), agent_output.clone());
                 workspace.context_parts.push(format!(
                     "[{}]\n{}",
                     agent_title(&output.agent_name),
@@ -362,16 +372,22 @@ pub async fn run_agentic_graph(
                         created_at: &output.started_at,
                         updated_at: &finished_at,
                         duration_ms: Some(output.duration_ms),
-                        upstream_agents: output.input_summary.as_ref().map_or_else(Vec::new, |_| {
-                            deps_map.get(output.agent_name.as_str())
-                                .map(|d| d.iter().map(|s| s.to_string()).collect())
-                                .unwrap_or_default()
-                        }),
+                        upstream_agents: output.input_summary.as_ref().map_or_else(
+                            Vec::new,
+                            |_| {
+                                deps_map
+                                    .get(output.agent_name.as_str())
+                                    .map(|d| d.iter().map(|s| s.to_string()).collect())
+                                    .unwrap_or_default()
+                            },
+                        ),
                     });
-                    run_event.output_summary = output.workspace_output.as_ref().map(|o| o.summary.clone());
-                    run_event.structured_output = output.workspace_output.as_ref().map(|o| {
-                        serde_json::to_value(&o.metadata).unwrap_or_default()
-                    });
+                    run_event.output_summary =
+                        output.workspace_output.as_ref().map(|o| o.summary.clone());
+                    run_event.structured_output = output
+                        .workspace_output
+                        .as_ref()
+                        .map(|o| serde_json::to_value(&o.metadata).unwrap_or_default());
 
                     let _ = emit_agent_event(
                         app,
@@ -410,7 +426,8 @@ pub async fn run_agentic_graph(
                                 created_at: &output.started_at,
                                 updated_at: &finished_at,
                                 duration_ms: Some(output.duration_ms),
-                                upstream_agents: deps_map.get(output.agent_name.as_str())
+                                upstream_agents: deps_map
+                                    .get(output.agent_name.as_str())
                                     .map(|d| d.iter().map(|s| s.to_string()).collect())
                                     .unwrap_or_default(),
                             }),
@@ -440,9 +457,7 @@ pub async fn run_agentic_graph(
 
     // Synthesis 节点 — 与原逻辑完全一致
     execute_synthesis_node(
-        app, db, settings, client,
-        request_id, session_id, message,
-        history, &mut state,
+        app, db, settings, client, request_id, session_id, message, history, &mut state,
     )
     .await
 }
@@ -481,7 +496,12 @@ fn spawn_worker(
             Some(
                 upstream_deps
                     .iter()
-                    .filter_map(|dep| workspace.outputs.get(dep).map(|o| format!("{}: {}", dep, &o.summary[..o.summary.len().min(200)])))
+                    .filter_map(|dep| {
+                        workspace
+                            .outputs
+                            .get(dep)
+                            .map(|o| format!("{}: {}", dep, &o.summary[..o.summary.len().min(200)]))
+                    })
                     .collect::<Vec<_>>()
                     .join("; "),
             )
@@ -509,20 +529,37 @@ fn spawn_worker(
             };
         }
 
-        let _ = emit_agent_event(&app, AgentEvent::RunStarted {
-            request_id: request_id.clone(),
-            run: agent_run_event(AgentRunEventInput {
-                id: &run_id, session_id: &session_id, request_id: &request_id,
-                agent_name: &agent_name, status: AgentRunStatus::Running,
-                order_index, summary: None, error: None,
-                created_at: &started_at, updated_at: &started_at,
-                duration_ms: None, upstream_agents: upstream_deps.clone(),
-            }),
-        });
+        let _ = emit_agent_event(
+            &app,
+            AgentEvent::RunStarted {
+                request_id: request_id.clone(),
+                run: agent_run_event(AgentRunEventInput {
+                    id: &run_id,
+                    session_id: &session_id,
+                    request_id: &request_id,
+                    agent_name: &agent_name,
+                    status: AgentRunStatus::Running,
+                    order_index,
+                    summary: None,
+                    error: None,
+                    created_at: &started_at,
+                    updated_at: &started_at,
+                    duration_ms: None,
+                    upstream_agents: upstream_deps.clone(),
+                }),
+            },
+        );
 
         let result = execute_agent_node(
-            &client, &db, &settings, &agent_name, &message,
-            &context_type, &context_id, &worker_context, &history,
+            &client,
+            &db,
+            &settings,
+            &agent_name,
+            &message,
+            &context_type,
+            &context_id,
+            &worker_context,
+            &history,
         )
         .await;
 
@@ -532,31 +569,45 @@ fn spawn_worker(
             match &result {
                 Ok(output) => {
                     let _ = record_agent_run_completion_event(
-                        &db, &session_id, &run_id, &agent_name, agent_title(&agent_name), output,
-                    ).await;
+                        &db,
+                        &session_id,
+                        &run_id,
+                        &agent_name,
+                        agent_title(&agent_name),
+                        output,
+                    )
+                    .await;
                 }
                 Err(e) => {
                     let _ = record_agent_run_failure_event(
-                        &db, &session_id, &run_id, &agent_name, agent_title(&agent_name), &e.to_string(),
-                    ).await;
+                        &db,
+                        &session_id,
+                        &run_id,
+                        &agent_name,
+                        agent_title(&agent_name),
+                        &e.to_string(),
+                    )
+                    .await;
                 }
             }
         }
 
         // 解析结构化输出，构建 AgentOutput 写入 workspace
-        let workspace_output = result.as_ref().ok().map(|content| {
-            AgentOutput {
-                agent_name: agent_name.clone(),
-                summary: extract_summary(content),
-                full_content: content.clone(),
-                metadata: parse_agent_metadata(&agent_name, content),
-                created_at: started_at.clone(),
-                duration_ms,
-            }
+        let workspace_output = result.as_ref().ok().map(|content| AgentOutput {
+            agent_name: agent_name.clone(),
+            summary: extract_summary(content),
+            full_content: content.clone(),
+            metadata: parse_agent_metadata(&agent_name, content),
+            created_at: started_at.clone(),
+            duration_ms,
         });
 
         WorkerOutput {
-            node, agent_name, run_id, order_index, started_at,
+            node,
+            agent_name,
+            run_id,
+            order_index,
+            started_at,
             result: result.map_err(|e| e.to_string()),
             workspace_output,
             input_summary,
@@ -582,12 +633,17 @@ async fn execute_serial_worker(
     long_term_memory_enabled: bool,
     node: AgentNode,
 ) -> Result<()> {
-    let Some(agent_name) = agent_from_node(node) else { return Ok(()) };
+    let Some(agent_name) = agent_from_node(node) else {
+        return Ok(());
+    };
     let timer = Instant::now();
 
     state.mark(node, NodeStatus::Running);
-    let order_index = state.selected_agents.iter()
-        .position(|a| a == agent_name).unwrap_or_default() as i64;
+    let order_index = state
+        .selected_agents
+        .iter()
+        .position(|a| a == agent_name)
+        .unwrap_or_default() as i64;
     let run_id = Uuid::new_v4().to_string();
     let started_at = chrono::Utc::now().to_rfc3339();
 
@@ -600,20 +656,39 @@ async fn execute_serial_worker(
     .bind(order_index).bind(&started_at).bind(&started_at)
     .execute(db).await?;
 
-    let _ = emit_agent_event(app, AgentEvent::RunStarted {
-        request_id: request_id.to_string(),
-        run: agent_run_event(AgentRunEventInput {
-            id: &run_id, session_id, request_id, agent_name,
-            status: AgentRunStatus::Running, order_index,
-            summary: None, error: None, created_at: &started_at, updated_at: &started_at,
-            duration_ms: None, upstream_agents: Vec::new(),
-        }),
-    });
+    let _ = emit_agent_event(
+        app,
+        AgentEvent::RunStarted {
+            request_id: request_id.to_string(),
+            run: agent_run_event(AgentRunEventInput {
+                id: &run_id,
+                session_id,
+                request_id,
+                agent_name,
+                status: AgentRunStatus::Running,
+                order_index,
+                summary: None,
+                error: None,
+                created_at: &started_at,
+                updated_at: &started_at,
+                duration_ms: None,
+                upstream_agents: Vec::new(),
+            }),
+        },
+    );
 
     let output = execute_agent_node(
-        client, db, settings, agent_name, message,
-        context_type, context_id, &state.context_parts, history,
-    ).await;
+        client,
+        db,
+        settings,
+        agent_name,
+        message,
+        context_type,
+        context_id,
+        &state.context_parts,
+        history,
+    )
+    .await;
 
     let duration_ms = timer.elapsed().as_millis() as u64;
     let finished_at = chrono::Utc::now().to_rfc3339();
@@ -621,44 +696,94 @@ async fn execute_serial_worker(
         Ok(result) => {
             if !result.trim().is_empty() {
                 state.outputs.insert(agent_name.to_string(), result.clone());
-                state.context_parts.push(format!("[{}]\n{}", agent_title(agent_name), result));
+                state
+                    .context_parts
+                    .push(format!("[{}]\n{}", agent_title(agent_name), result));
             }
             state.mark(node, NodeStatus::Done);
-            sqlx::query("UPDATE agent_runs SET status = 'done', summary = ?, updated_at = ? WHERE id = ?")
-                .bind(&result).bind(&finished_at).bind(&run_id)
-                .execute(db).await?;
+            sqlx::query(
+                "UPDATE agent_runs SET status = 'done', summary = ?, updated_at = ? WHERE id = ?",
+            )
+            .bind(&result)
+            .bind(&finished_at)
+            .bind(&run_id)
+            .execute(db)
+            .await?;
             if long_term_memory_enabled {
-                let _ = record_agent_run_completion_event(db, session_id, &run_id, agent_name, agent_title(agent_name), &result).await;
+                let _ = record_agent_run_completion_event(
+                    db,
+                    session_id,
+                    &run_id,
+                    agent_name,
+                    agent_title(agent_name),
+                    &result,
+                )
+                .await;
             }
-            let _ = emit_agent_event(app, AgentEvent::RunFinished {
-                request_id: request_id.to_string(),
-                run: agent_run_event(AgentRunEventInput {
-                    id: &run_id, session_id, request_id, agent_name,
-                    status: AgentRunStatus::Done, order_index,
-                    summary: Some(result), error: None, created_at: &started_at, updated_at: &finished_at,
-                    duration_ms: Some(duration_ms), upstream_agents: Vec::new(),
-                }),
-            });
+            let _ = emit_agent_event(
+                app,
+                AgentEvent::RunFinished {
+                    request_id: request_id.to_string(),
+                    run: agent_run_event(AgentRunEventInput {
+                        id: &run_id,
+                        session_id,
+                        request_id,
+                        agent_name,
+                        status: AgentRunStatus::Done,
+                        order_index,
+                        summary: Some(result),
+                        error: None,
+                        created_at: &started_at,
+                        updated_at: &finished_at,
+                        duration_ms: Some(duration_ms),
+                        upstream_agents: Vec::new(),
+                    }),
+                },
+            );
         }
         Err(error) => {
             let err_str = error.to_string();
             state.failures.push(format!("{}: {}", agent_name, err_str));
             state.mark(node, NodeStatus::Failed);
-            sqlx::query("UPDATE agent_runs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?")
-                .bind(&err_str).bind(&finished_at).bind(&run_id)
-                .execute(db).await?;
+            sqlx::query(
+                "UPDATE agent_runs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?",
+            )
+            .bind(&err_str)
+            .bind(&finished_at)
+            .bind(&run_id)
+            .execute(db)
+            .await?;
             if long_term_memory_enabled {
-                let _ = record_agent_run_failure_event(db, session_id, &run_id, agent_name, agent_title(agent_name), &err_str).await;
+                let _ = record_agent_run_failure_event(
+                    db,
+                    session_id,
+                    &run_id,
+                    agent_name,
+                    agent_title(agent_name),
+                    &err_str,
+                )
+                .await;
             }
-            let _ = emit_agent_event(app, AgentEvent::RunFinished {
-                request_id: request_id.to_string(),
-                run: agent_run_event(AgentRunEventInput {
-                    id: &run_id, session_id, request_id, agent_name,
-                    status: AgentRunStatus::Failed, order_index,
-                    summary: None, error: Some(err_str), created_at: &started_at, updated_at: &finished_at,
-                    duration_ms: Some(duration_ms), upstream_agents: Vec::new(),
-                }),
-            });
+            let _ = emit_agent_event(
+                app,
+                AgentEvent::RunFinished {
+                    request_id: request_id.to_string(),
+                    run: agent_run_event(AgentRunEventInput {
+                        id: &run_id,
+                        session_id,
+                        request_id,
+                        agent_name,
+                        status: AgentRunStatus::Failed,
+                        order_index,
+                        summary: None,
+                        error: Some(err_str),
+                        created_at: &started_at,
+                        updated_at: &finished_at,
+                        duration_ms: Some(duration_ms),
+                        upstream_agents: Vec::new(),
+                    }),
+                },
+            );
         }
     }
     Ok(())
@@ -679,7 +804,9 @@ async fn execute_synthesis_node(
     state.mark(AgentNode::Synthesis, NodeStatus::Running);
     let run_id = Uuid::new_v4().to_string();
     let started_at = chrono::Utc::now().to_rfc3339();
-    let order_index = state.selected_agents.iter()
+    let order_index = state
+        .selected_agents
+        .iter()
         .position(|item| item == "synthesis")
         .unwrap_or(state.selected_agents.len()) as i64;
 
@@ -692,15 +819,26 @@ async fn execute_synthesis_node(
     .bind(&started_at).bind(&started_at)
     .execute(db).await?;
 
-    let _ = emit_agent_event(app, AgentEvent::RunStarted {
-        request_id: request_id.to_string(),
-        run: agent_run_event(AgentRunEventInput {
-            id: &run_id, session_id, request_id, agent_name: "synthesis",
-            status: AgentRunStatus::Running, order_index,
-            summary: None, error: None, created_at: &started_at, updated_at: &started_at,
-            duration_ms: None, upstream_agents: Vec::new(),
-        }),
-    });
+    let _ = emit_agent_event(
+        app,
+        AgentEvent::RunStarted {
+            request_id: request_id.to_string(),
+            run: agent_run_event(AgentRunEventInput {
+                id: &run_id,
+                session_id,
+                request_id,
+                agent_name: "synthesis",
+                status: AgentRunStatus::Running,
+                order_index,
+                summary: None,
+                error: None,
+                created_at: &started_at,
+                updated_at: &started_at,
+                duration_ms: None,
+                upstream_agents: Vec::new(),
+            }),
+        },
+    );
 
     let synthesis_temp = resolve_temperature(settings, "multi_agent_synthesis_temperature", 0.4);
     let synthesis_model = resolve_model(settings, &["multi_agent_synthesis_model"]);
@@ -721,46 +859,87 @@ async fn execute_synthesis_node(
     let rid = request_id.to_string();
     let app_clone = app.clone();
     let result = client
-        .stream_chat(&synthesis_msgs, synthesis_model.as_deref(), synthesis_temp, move |delta| {
-            let _ = emit_agent_event(&app_clone, AgentEvent::TextDelta { request_id: rid.clone(), delta });
-        })
+        .stream_chat(
+            &synthesis_msgs,
+            synthesis_model.as_deref(),
+            synthesis_temp,
+            move |delta| {
+                let _ = emit_agent_event(
+                    &app_clone,
+                    AgentEvent::TextDelta {
+                        request_id: rid.clone(),
+                        delta,
+                    },
+                );
+            },
+        )
         .await;
 
     let finished_at = chrono::Utc::now().to_rfc3339();
     match result {
         Ok(output) => {
             state.mark(AgentNode::Synthesis, NodeStatus::Done);
-            sqlx::query("UPDATE agent_runs SET status = 'done', summary = ?, updated_at = ? WHERE id = ?")
-                .bind(&output).bind(&finished_at).bind(&run_id)
-                .execute(db).await?;
-            let _ = emit_agent_event(app, AgentEvent::RunFinished {
-                request_id: request_id.to_string(),
-                run: agent_run_event(AgentRunEventInput {
-                    id: &run_id, session_id, request_id, agent_name: "synthesis",
-                    status: AgentRunStatus::Done, order_index,
-                    summary: Some(output.clone()), error: None,
-                    created_at: &started_at, updated_at: &finished_at,
-                    duration_ms: None, upstream_agents: Vec::new(),
-                }),
-            });
+            sqlx::query(
+                "UPDATE agent_runs SET status = 'done', summary = ?, updated_at = ? WHERE id = ?",
+            )
+            .bind(&output)
+            .bind(&finished_at)
+            .bind(&run_id)
+            .execute(db)
+            .await?;
+            let _ = emit_agent_event(
+                app,
+                AgentEvent::RunFinished {
+                    request_id: request_id.to_string(),
+                    run: agent_run_event(AgentRunEventInput {
+                        id: &run_id,
+                        session_id,
+                        request_id,
+                        agent_name: "synthesis",
+                        status: AgentRunStatus::Done,
+                        order_index,
+                        summary: Some(output.clone()),
+                        error: None,
+                        created_at: &started_at,
+                        updated_at: &finished_at,
+                        duration_ms: None,
+                        upstream_agents: Vec::new(),
+                    }),
+                },
+            );
             Ok(output)
         }
         Err(error) => {
             state.mark(AgentNode::Synthesis, NodeStatus::Failed);
             let err_str = error.to_string();
-            sqlx::query("UPDATE agent_runs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?")
-                .bind(&err_str).bind(&finished_at).bind(&run_id)
-                .execute(db).await?;
-            let _ = emit_agent_event(app, AgentEvent::RunFinished {
-                request_id: request_id.to_string(),
-                run: agent_run_event(AgentRunEventInput {
-                    id: &run_id, session_id, request_id, agent_name: "synthesis",
-                    status: AgentRunStatus::Failed, order_index,
-                    summary: None, error: Some(err_str),
-                    created_at: &started_at, updated_at: &finished_at,
-                    duration_ms: None, upstream_agents: Vec::new(),
-                }),
-            });
+            sqlx::query(
+                "UPDATE agent_runs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?",
+            )
+            .bind(&err_str)
+            .bind(&finished_at)
+            .bind(&run_id)
+            .execute(db)
+            .await?;
+            let _ = emit_agent_event(
+                app,
+                AgentEvent::RunFinished {
+                    request_id: request_id.to_string(),
+                    run: agent_run_event(AgentRunEventInput {
+                        id: &run_id,
+                        session_id,
+                        request_id,
+                        agent_name: "synthesis",
+                        status: AgentRunStatus::Failed,
+                        order_index,
+                        summary: None,
+                        error: Some(err_str),
+                        created_at: &started_at,
+                        updated_at: &finished_at,
+                        duration_ms: None,
+                        upstream_agents: Vec::new(),
+                    }),
+                },
+            );
             Err(error)
         }
     }

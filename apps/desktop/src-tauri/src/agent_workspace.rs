@@ -232,10 +232,18 @@ fn extract_priority(text: &str) -> String {
 fn strip_priority_marker(text: &str) -> String {
     let mut result = text.to_string();
     for pattern in &[
-        r"\[高\]", r"\[中\]", r"\[低\]",
-        r"\[high\]", r"\[medium\]", r"\[low\]",
-        r"（高优先级）", r"（中优先级）", r"（低优先级）",
-        r"【高】", r"【中】", r"【低】",
+        r"\[高\]",
+        r"\[中\]",
+        r"\[低\]",
+        r"\[high\]",
+        r"\[medium\]",
+        r"\[low\]",
+        r"（高优先级）",
+        r"（中优先级）",
+        r"（低优先级）",
+        r"【高】",
+        r"【中】",
+        r"【低】",
     ] {
         if let Ok(re) = regex::Regex::new(pattern) {
             result = re.replace_all(&result, "").to_string();
@@ -260,9 +268,9 @@ fn extract_paper_references(content: &str) -> Vec<PaperReference> {
         }
 
         // 检测编号列表项（新的论文条目）
-        let is_numbered = trimmed
-            .split_once(". ")
-            .map_or(false, |(n, _)| n.chars().all(|c| c.is_ascii_digit()) && n.len() <= 2);
+        let is_numbered = trimmed.split_once(". ").map_or(false, |(n, _)| {
+            n.chars().all(|c| c.is_ascii_digit()) && n.len() <= 2
+        });
         let is_bulleted =
             trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("• ");
 
@@ -290,8 +298,7 @@ fn extract_paper_references(content: &str) -> Vec<PaperReference> {
                 .to_string();
 
             // 尝试从同一行提取年份
-            let year_re =
-                regex::Regex::new(r"\b(19|20)\d{2}\b").ok();
+            let year_re = regex::Regex::new(r"\b(19|20)\d{2}\b").ok();
             if let Some(re) = &year_re {
                 if let Some(m) = re.find(&current_title) {
                     // 不删除，保留标题完整性
@@ -351,17 +358,14 @@ fn extract_analysis_highlights(content: &str) -> AnalysisHighlights {
 
     AnalysisHighlights {
         research_question: find_section(&[
-            "研究问题", "核心问题", "Research Question", "Problem Statement",
+            "研究问题",
+            "核心问题",
+            "Research Question",
+            "Problem Statement",
         ]),
-        methods: find_section(&[
-            "方法", "Method", "Approach", "方法概述", "技术路线",
-        ]),
-        conclusions: find_section(&[
-            "结论", "Conclusion", "核心发现", "主要结论", "Key Findings",
-        ]),
-        limitations: find_section(&[
-            "局限", "Limitation", "不足", "局限与展望", "Future Work",
-        ]),
+        methods: find_section(&["方法", "Method", "Approach", "方法概述", "技术路线"]),
+        conclusions: find_section(&["结论", "Conclusion", "核心发现", "主要结论", "Key Findings"]),
+        limitations: find_section(&["局限", "Limitation", "不足", "局限与展望", "Future Work"]),
     }
 }
 
@@ -372,8 +376,13 @@ mod tests {
     #[test]
     fn wave_computation_basic() {
         let selected: Vec<String> = vec![
-            "retrieval", "planner", "literature_scout",
-            "survey", "paper_analyst", "reproduction", "synthesis",
+            "retrieval",
+            "planner",
+            "literature_scout",
+            "survey",
+            "paper_analyst",
+            "reproduction",
+            "synthesis",
         ]
         .into_iter()
         .map(String::from)
@@ -416,7 +425,8 @@ mod tests {
 
     #[test]
     fn extract_action_items_from_numbered_list() {
-        let content = "1. 梳理 Transformer 核心论文 [高]\n2. 对比训练策略 [中]\n3. 调研 MoE 进展 [低]";
+        let content =
+            "1. 梳理 Transformer 核心论文 [高]\n2. 对比训练策略 [中]\n3. 调研 MoE 进展 [低]";
         let items = extract_action_items(content);
         assert_eq!(items.len(), 3);
         assert_eq!(items[0].priority, "高");

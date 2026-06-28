@@ -141,11 +141,24 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                   className="rc-assistant-answer rc-selectable"
                   style={{ color: "var(--rc-text)" }}
                 >
-                  <MarkdownRenderer
-                    content={parsed.answer || (showThinkingPlaceholder ? "小妍思考中..." : "")}
-                    className="rc-chat-markdown"
-                    onLinkClick={openLink}
-                  />
+                  {parsed.answer ? (
+                    <MarkdownRenderer
+                      content={parsed.answer}
+                      className="rc-chat-markdown"
+                      onLinkClick={openLink}
+                    />
+                  ) : showThinkingPlaceholder ? (
+                    <div
+                      className="rc-typing-indicator"
+                      style={{ color: "var(--rc-text-tertiary)" }}
+                      role="status"
+                      aria-label="小妍思考中"
+                    >
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                  ) : null}
                 </div>
                 {message.tool_results && message.tool_results.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">

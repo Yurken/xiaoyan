@@ -47,7 +47,10 @@ pub async fn paper_corpus_list(
     }
     .map_err(|e| e.to_string())?;
 
-    Ok(json!(rows.iter().map(corpus_row_to_json).collect::<Vec<_>>()))
+    Ok(json!(rows
+        .iter()
+        .map(corpus_row_to_json)
+        .collect::<Vec<_>>()))
 }
 
 // ── Create ────────────────────────────────────────────────────

@@ -806,10 +806,20 @@ async fn ensure_papers_sort_order_column(pool: &SqlitePool) -> Result<()> {
 
 /// 为既有 DB 的 token_usage_daily 补齐字符统计列。
 async fn ensure_token_usage_char_columns(pool: &SqlitePool) -> Result<()> {
-    ensure_table_column(pool, "token_usage_daily", "input_chars", "INTEGER NOT NULL DEFAULT 0")
-        .await?;
-    ensure_table_column(pool, "token_usage_daily", "output_chars", "INTEGER NOT NULL DEFAULT 0")
-        .await
+    ensure_table_column(
+        pool,
+        "token_usage_daily",
+        "input_chars",
+        "INTEGER NOT NULL DEFAULT 0",
+    )
+    .await?;
+    ensure_table_column(
+        pool,
+        "token_usage_daily",
+        "output_chars",
+        "INTEGER NOT NULL DEFAULT 0",
+    )
+    .await
 }
 
 async fn ensure_papers_research_interest_column(pool: &SqlitePool) -> Result<()> {
@@ -1099,14 +1109,16 @@ pub async fn ensure_paper_notes_table(pool: &SqlitePool) -> Result<()> {
     .await?;
 
     // 兼容旧库：补充 style 列（highlight / underline）。列已存在时报错可忽略。
-    let _ = sqlx::query("ALTER TABLE paper_notes ADD COLUMN style TEXT NOT NULL DEFAULT 'highlight'")
-        .execute(pool)
-        .await;
+    let _ =
+        sqlx::query("ALTER TABLE paper_notes ADD COLUMN style TEXT NOT NULL DEFAULT 'highlight'")
+            .execute(pool)
+            .await;
 
     // 兼容旧库：补充 fill_color 列（形状内部填充色；'none' = 不填充）。
-    let _ = sqlx::query("ALTER TABLE paper_notes ADD COLUMN fill_color TEXT NOT NULL DEFAULT 'none'")
-        .execute(pool)
-        .await;
+    let _ =
+        sqlx::query("ALTER TABLE paper_notes ADD COLUMN fill_color TEXT NOT NULL DEFAULT 'none'")
+            .execute(pool)
+            .await;
 
     Ok(())
 }

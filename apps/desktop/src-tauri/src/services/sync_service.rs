@@ -247,7 +247,9 @@ async fn build_snapshot(
                     if !fp.is_empty() && !fp.starts_with("asset://") {
                         if let Some((hash, ext)) = hash_file(fp) {
                             assets.insert(hash.clone(), ext);
-                            asset_sources.entry(hash.clone()).or_insert_with(|| fp.to_string());
+                            asset_sources
+                                .entry(hash.clone())
+                                .or_insert_with(|| fp.to_string());
                             obj.insert(
                                 "file_path".into(),
                                 serde_json::Value::String(format!("asset://{hash}")),
@@ -728,7 +730,7 @@ async fn run_sync_inner(
         h.update(snapshot_json.as_bytes());
         format!("{:x}", h.finalize())
     };
-    let pushed = meta_get(db, "last_push_hash").await? .as_deref() != Some(push_hash.as_str());
+    let pushed = meta_get(db, "last_push_hash").await?.as_deref() != Some(push_hash.as_str());
     if pushed {
         let path = format!("{DEVICES_DIR}/{device}.rcstate");
         webdav_service::put_file(config, &path, encrypted.as_bytes()).await?;
@@ -800,7 +802,11 @@ mod tests {
         assert_eq!(ts_column("chat_messages"), "created_at");
     }
 
-    fn snap(device: &str, rows: Vec<(&str, serde_json::Value)>, tombs: Vec<Tombstone>) -> DeviceSnapshot {
+    fn snap(
+        device: &str,
+        rows: Vec<(&str, serde_json::Value)>,
+        tombs: Vec<Tombstone>,
+    ) -> DeviceSnapshot {
         let mut tables: BTreeMap<String, Vec<serde_json::Value>> = BTreeMap::new();
         for (t, r) in rows {
             tables.entry(t.to_string()).or_default().push(r);
@@ -940,12 +946,20 @@ mod tests {
             snap(
                 "a",
                 vec![],
-                vec![Tombstone { table: "papers".into(), id: "p1".into(), deleted_at: "2026-01-01 00:00:00".into() }],
+                vec![Tombstone {
+                    table: "papers".into(),
+                    id: "p1".into(),
+                    deleted_at: "2026-01-01 00:00:00".into(),
+                }],
             ),
             snap(
                 "b",
                 vec![],
-                vec![Tombstone { table: "papers".into(), id: "p1".into(), deleted_at: "2026-03-01 00:00:00".into() }],
+                vec![Tombstone {
+                    table: "papers".into(),
+                    id: "p1".into(),
+                    deleted_at: "2026-03-01 00:00:00".into(),
+                }],
             ),
         ]);
         assert_eq!(
