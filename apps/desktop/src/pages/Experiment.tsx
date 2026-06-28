@@ -12,6 +12,10 @@ import { Button, Card, ConfirmDialog, Input, Select, Textarea } from "@research-
 import type { ExperimentRecord } from "@research-copilot/types";
 import { experimentApi, submissionApi, formatErrorMessage } from "../lib/client";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
+import { ExperimentAttachmentPanel } from "../features/experiment/ExperimentAttachmentPanel";
+import { ExperimentCodeWorkspace } from "../features/experiment/ExperimentCodeWorkspace";
+
+type ExperimentTab = "overview" | "snapshots" | "code" | "attachments";
 
 interface SubmissionItem {
   id: string;
@@ -39,8 +43,6 @@ function rowToExperiment(row: unknown): ExperimentRecord {
   };
 }
 
-import { ExperimentAttachmentPanel } from "../features/experiment/ExperimentAttachmentPanel";
-
 export default function Experiment() {
   const [experiments, setExperiments] = useState<ExperimentRecord[]>([]);
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
@@ -59,6 +61,7 @@ export default function Experiment() {
   const [editNotes, setEditNotes] = useState("");
   const [editLinked, setEditLinked] = useState("");
   const [configError, setConfigError] = useState("");
+  const [activeTab, setActiveTab] = useState<ExperimentTab>("overview");
 
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const selected = experiments.find((e) => e.id === selectedId) ?? null;
@@ -88,6 +91,7 @@ export default function Experiment() {
   useEffect(() => {
     if (!selected) {
       setEditTitle(""); setEditConfig("{}"); setEditResult(""); setEditNotes(""); setEditLinked(""); setConfigError("");
+      setActiveTab("overview");
       return;
     }
     setEditTitle(selected.title);
@@ -255,9 +259,9 @@ export default function Experiment() {
           </div>
 
           {/* Right: detail */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-5 max-lg:p-4">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             {!selected ? (
-              <div className="flex h-full items-center justify-center">
+              <div className="flex h-full items-center justify-center p-5">
                 <div className="text-center space-y-2">
                   <div className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}>
                     <FlaskConical className="w-7 h-7 text-ink-tertiary/50" />
@@ -266,87 +270,136 @@ export default function Experiment() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-4 max-w-2xl mx-auto pb-6">
-                {/* Actions */}
-                <div className="flex justify-end gap-2">
-                  {newlyCreatedId === selected.id && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => requestDelete(selected.id)}
+              <>
+                {/* Tabs */}
+                <div className="flex-shrink-0 flex items-center gap-1 px-5 pt-4 pb-2 border-b border-nm-dark/10 max-lg:px-4">
+                  {[
+                    { key: "overview", label: "概览" },
+                    { key: "snapshots", label: "快照" },
+                    { key: "code", label: "代码" },
+                    { key: "attachments", label: "附件" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setActiveTab(tab.key as ExperimentTab)}
+                      className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                        activeTab === tab.key
+                          ? "bg-apple-blue text-white shadow-sm"
+                          : "text-ink-secondary hover:bg-black/5"
+                      }`}
                     >
-                      <X className="w-4 h-4" />
-                      取消
-                    </Button>
-                  )}
-                  <Button onClick={handleSave} disabled={saving}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    保存
-                  </Button>
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Title */}
-                <Input
-                  label="标题"
-                  ref={titleInputRef}
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  placeholder="实验名称"
-                />
+                {/* Tab content */}
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  {activeTab === "overview" && (
+                    <div className="h-full overflow-y-auto p-5 max-lg:p-4 space-y-4 max-w-2xl mx-auto pb-6">
+                      {/* Actions */}
+                      <div className="flex justify-end gap-2">
+                        {newlyCreatedId === selected.id && (
+                          <Button
+                            variant="secondary"
+                            onClick={() => requestDelete(selected.id)}
+                          >
+                            <X className="w-4 h-4" />
+                            取消
+                          </Button>
+                        )}
+                        <Button onClick={handleSave} disabled={saving}>
+                          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                          保存
+                        </Button>
+                      </div>
 
-                {/* Linked submission */}
-                <Select
-                  label="关联投稿（可选）"
-                  value={editLinked}
-                  onChange={setEditLinked}
-                  options={[
-                    { value: "", label: "— 不关联 —" },
-                    ...submissions.map((submission) => ({ value: submission.id, label: submission.title })),
-                  ]}
-                />
+                      {/* Title */}
+                      <Input
+                        label="标题"
+                        ref={titleInputRef}
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        placeholder="实验名称"
+                      />
 
-                {/* Config JSON */}
-                <Card variant="inset" padding="sm" className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-ink-primary">实验配置</p>
-                    <p className="text-[10px] text-ink-tertiary">JSON 格式，保存超参数、路径等信息</p>
-                  </div>
-                  <Textarea
-                    value={editConfig}
-                    onChange={(e) => { setEditConfig(e.target.value); setConfigError(""); }}
-                    rows={7}
-                    error={configError}
-                    placeholder={'{\n  "lr": 0.001,\n  "epochs": 100,\n  "batch_size": 32\n}'}
-                    style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: "12px" }}
-                  />
-                </Card>
+                      {/* Linked submission */}
+                      <Select
+                        label="关联投稿（可选）"
+                        value={editLinked}
+                        onChange={setEditLinked}
+                        options={[
+                          { value: "", label: "— 不关联 —" },
+                          ...submissions.map((submission) => ({ value: submission.id, label: submission.title })),
+                        ]}
+                      />
 
-                {/* Result */}
-                <Card variant="inset" padding="sm" className="space-y-2">
-                  <p className="text-xs font-semibold text-ink-primary">实验结果</p>
-                  <Textarea
-                    value={editResult}
-                    onChange={(e) => setEditResult(e.target.value)}
-                    rows={5}
-                    placeholder="记录实验指标、对比分析、图表说明…"
-                  />
-                </Card>
+                      {/* Config JSON */}
+                      <Card variant="inset" padding="sm" className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-ink-primary">实验配置</p>
+                          <p className="text-[10px] text-ink-tertiary">JSON 格式，保存超参数、路径等信息</p>
+                        </div>
+                        <Textarea
+                          value={editConfig}
+                          onChange={(e) => { setEditConfig(e.target.value); setConfigError(""); }}
+                          rows={7}
+                          error={configError}
+                          placeholder={'{\n  "lr": 0.001,\n  "epochs": 100,\n  "batch_size": 32\n}'}
+                          style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: "12px" }}
+                        />
+                      </Card>
 
-                {/* Screenshots */}
-                <Card variant="inset" padding="sm">
-                  <ExperimentAttachmentPanel experimentId={selected.id} onError={showToast} />
-                </Card>
+                      {/* Result */}
+                      <Card variant="inset" padding="sm" className="space-y-2">
+                        <p className="text-xs font-semibold text-ink-primary">实验结果</p>
+                        <Textarea
+                          value={editResult}
+                          onChange={(e) => setEditResult(e.target.value)}
+                          rows={5}
+                          placeholder="记录实验指标、对比分析、图表说明…"
+                        />
+                      </Card>
 
-                {/* Notes */}
-                <Card variant="inset" padding="sm" className="space-y-2">
-                  <p className="text-xs font-semibold text-ink-primary">备注与分析</p>
-                  <Textarea
-                    value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
-                    rows={4}
-                    placeholder="分析实验现象、后续改进计划、与其他实验的对比…"
-                  />
-                </Card>
-              </div>
+                      {/* Notes */}
+                      <Card variant="inset" padding="sm" className="space-y-2">
+                        <p className="text-xs font-semibold text-ink-primary">备注与分析</p>
+                        <Textarea
+                          value={editNotes}
+                          onChange={(e) => setEditNotes(e.target.value)}
+                          rows={4}
+                          placeholder="分析实验现象、后续改进计划、与其他实验的对比…"
+                        />
+                      </Card>
+                    </div>
+                  )}
+
+                  {activeTab === "snapshots" && (
+                    <div className="h-full overflow-y-auto p-5 max-lg:p-4">
+                      <div className="max-w-2xl mx-auto">
+                        <div className="flex items-center justify-between mb-4">
+                          <p className="text-sm text-ink-secondary">快照功能将在阶段 4 完整实现。</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "code" && (
+                    <div className="h-full p-2">
+                      <ExperimentCodeWorkspace experimentId={selected.id} />
+                    </div>
+                  )}
+
+                  {activeTab === "attachments" && (
+                    <div className="h-full overflow-y-auto p-5 max-lg:p-4">
+                      <Card variant="inset" padding="sm" className="max-w-2xl mx-auto">
+                        <ExperimentAttachmentPanel experimentId={selected.id} onError={showToast} />
+                      </Card>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
