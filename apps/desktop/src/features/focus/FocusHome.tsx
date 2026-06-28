@@ -41,7 +41,7 @@ function InterestCard({
         : "default";
 
   return (
-    <div className="rc-focus-card rounded-[28px] p-5 flex items-center justify-between gap-4">
+    <div className="rc-focus-card rounded-2xl p-5 flex items-center justify-between gap-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 mb-1">
           <Microscope className="w-4 h-4 text-apple-blue flex-shrink-0" />
@@ -79,7 +79,7 @@ function InterestCard({
 
 function FreeTopicCard({ onEnter }: { onEnter: () => void }) {
   return (
-    <div className="rc-focus-card rounded-[28px] p-5 flex items-center justify-between gap-4">
+    <div className="rc-focus-card rounded-2xl p-5 flex items-center justify-between gap-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="w-4 h-4 text-ink-tertiary flex-shrink-0" />
@@ -159,7 +159,7 @@ export default function FocusHome() {
           ) : (
             <>
               {/* 规划入口 */}
-              <div className="rc-focus-card rounded-[28px] overflow-hidden">
+              <div className="rc-focus-card rounded-2xl overflow-hidden">
                 {!creating && !discovering && (
                   <div className="flex items-center justify-between gap-4 px-5 py-4">
                     <div className="min-w-0">
@@ -249,7 +249,7 @@ export default function FocusHome() {
               </div>
 
               {visibleInterests.length === 0 ? (
-                <div className="rc-focus-card-inset rounded-[28px] p-10 text-center">
+                <div className="rc-focus-card-inset rounded-3xl p-10 text-center">
                   <Microscope className="w-10 h-10 text-ink-tertiary mx-auto mb-3" />
                   <p className="text-sm font-semibold text-ink-primary">
                     还没有研究主题
