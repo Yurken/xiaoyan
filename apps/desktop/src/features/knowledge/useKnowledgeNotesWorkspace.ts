@@ -5,7 +5,10 @@ import { apiClient, formatErrorMessage } from "../../lib/client";
 interface CreateKnowledgeNoteInput {
   title: string;
   content: string;
+  tags?: string[];
   research_interest_id?: string;
+  source_type?: string;
+  source_id?: string;
 }
 
 interface SaveKnowledgeNoteInput {
@@ -144,7 +147,9 @@ export function useKnowledgeNotesWorkspace({
     try {
       clearError();
       const note = await apiClient.knowledge.createNote(draft);
-      setNotes((prev) => [note, ...prev]);
+      const sourceType = draft.source_type || note.source_type || "manual";
+      const enriched: KnowledgeNote = { ...note, source_type: sourceType };
+      setNotes((prev) => [enriched, ...prev]);
       syncGraphSnapshot();
       void apiClient.memory.add({
         type: "auto",
