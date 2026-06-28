@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
-import type { Paper, ResearchInterest } from "@research-copilot/types";
+import type { KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 import { buildInterestForest, collectInterestSubtreeIds } from "./interestTree";
-import type { PaperSortKey } from "./shared";
+import { type PaperSortKey } from "./shared";
+import type { NoteDraft } from "../knowledge/NoteEditorModal";
 
 type SortKey = PaperSortKey;
 
@@ -20,6 +21,7 @@ export function usePapersList() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [selectedInterestId, setSelectedInterestId] = usePersistentState<string>("rc:papers:selected-interest-id", "");
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  const [paperNotes, setPaperNotes] = useState<KnowledgeNote[]>([]);
   const [sortKeys, setSortKeys] = usePersistentState<Record<string, SortKey>>("rc:papers:sort-keys", {});
   const [keywordFilters, setKeywordFilters] = usePersistentState<Record<string, string>>("rc:papers:keyword-filters", {});
   const [titleFilters, setTitleFilters] = usePersistentState<Record<string, string>>("rc:papers:title-filters", {});
@@ -32,6 +34,14 @@ export function usePapersList() {
       .then((data) => { if (!cancelled) setPapers(data); })
       .catch((error) => { if (!cancelled) { setLoadError(formatErrorMessage(error)); setPapers([]); } })
       .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient.knowledge.listNotesBySource("paper_note", "*")
+      .then((data) => { if (!cancelled) setPaperNotes(data); })
+      .catch(() => { if (!cancelled) setPaperNotes([]); });
     return () => { cancelled = true; };
   }, []);
 
@@ -138,6 +148,49 @@ export function usePapersList() {
       throw error;
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+  const handleCreateKnowledgeNote = async (paper: Paper, draft: NoteDraft) => {
+    try {
+      setLoadError("");
+      const note = await apiClient.knowledge.createNote({
+        title: draft.title.trim(),
+        content: draft.content.trim(),
+        tags: [],
+        research_interest_id: draft.research_interest_id || paper.research_interest_id,
+        source_type: "paper_note",
+        source_id: paper.id,
+      });
+      setPaperNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)]);
+      void apiClient.memory.add({
+        type: "auto",
+        action: "paper.create_note",
+        summary: `从论文「${paper.title}」创建了知识笔记「${note.title}」`,
+        detail: JSON.stringify({ paper_id: paper.id, note_id: note.id }),
+      });
+      return note;
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      throw error;
+    }
+  };
+
+  const handleGenerateNote = async (paper: Paper) => {
+    try {
+      setLoadError("");
+      const note = await apiClient.papers.generateNote(paper.id);
+      setPaperNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)]);
+      void apiClient.memory.add({
+        type: "auto",
+        action: "paper.generate_note",
+        summary: `小妍为论文「${paper.title}」生成了知识笔记「${note.title}」`,
+        detail: JSON.stringify({ paper_id: paper.id, note_id: note.id }),
+      });
+      return note;
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      throw error;
     }
   };
 
@@ -261,6 +314,15 @@ export function usePapersList() {
   };
 
   const interestMap = useMemo(() => Object.fromEntries(interests.map((i) => [i.id, i])), [interests]);
+  const paperNotesMap = useMemo(() => {
+    const map: Record<string, KnowledgeNote> = {};
+    for (const note of paperNotes) {
+      if (note.source_id && !(note.source_id in map)) {
+        map[note.source_id] = note;
+      }
+    }
+    return map;
+  }, [paperNotes]);
   const folderForest = useMemo(() => buildInterestForest(interests), [interests]);
 
   const paperGroups = useMemo(() => {
@@ -293,9 +355,9 @@ export function usePapersList() {
     sortKeys, getSortKey, setSortKey,
     keywordFilters, setKeywordFilter,
     titleFilters, setTitleFilter,
-    paperGroups, ungroupedPapers, folderForest,
+    paperGroups, ungroupedPapers, folderForest, interestMap, paperNotesMap,
     handleUpload, importPaths, handleAnalyze, handleReproduce, handleReparse,
     handleUpdatePaper, handleDeletePaper, handleMergePapers, handleDeleteInterestGroup, handleReorderPaper,
-    handleCreateFolder, handleMoveFolder,
+    handleCreateFolder, handleMoveFolder, handleCreateKnowledgeNote, handleGenerateNote,
   };
 }

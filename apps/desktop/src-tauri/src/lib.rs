@@ -80,8 +80,9 @@ use commands::{
         knowledge_graph_delete_claim, knowledge_graph_delete_evidence, knowledge_graph_snapshot,
     },
     knowledge_notes::{
-        knowledge_create_note, knowledge_delete_note, knowledge_list_notes, knowledge_move_note,
-        knowledge_search, knowledge_update_note,
+        knowledge_create_note, knowledge_delete_note, knowledge_list_notes,
+        knowledge_list_notes_by_source, knowledge_move_note, knowledge_search,
+        knowledge_update_note,
     },
     memory::{
         memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list,
@@ -110,9 +111,9 @@ use commands::{
     paper_notes::{paper_notes_create, paper_notes_delete, paper_notes_list, paper_notes_update},
     paper_search::paper_search,
     papers::{
-        papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list,
-        papers_list_parse_runs, papers_merge, papers_open_pdf, papers_reorder, papers_reparse,
-        papers_reproduce, papers_reveal_in_folder, papers_update, papers_upload,
+        papers_analyze, papers_delete, papers_extract_pdf_text, papers_generate_note, papers_get,
+        papers_list, papers_list_parse_runs, papers_merge, papers_open_pdf, papers_reorder,
+        papers_reparse, papers_reproduce, papers_reveal_in_folder, papers_update, papers_upload,
     },
     research_context::{research_context_get_recent_themes, research_context_get_theme_context},
     settings::{
@@ -494,6 +495,7 @@ pub fn run() {
             papers_reparse,
             papers_analyze,
             papers_reproduce,
+            papers_generate_note,
             papers_list_figures,
             // Paper notes (PDF reader annotations)
             paper_notes_list,
@@ -531,6 +533,7 @@ pub fn run() {
             knowledge_ideas_from_materials,
             knowledge_generate_plan,
             knowledge_list_notes,
+            knowledge_list_notes_by_source,
             knowledge_create_note,
             knowledge_update_note,
             knowledge_move_note,

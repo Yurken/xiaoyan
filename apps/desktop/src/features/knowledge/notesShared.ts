@@ -20,6 +20,10 @@ export function stripMarkdown(text: string): string {
 export function sourceLabel(sourceType: string): string {
   if (sourceType === "manual") return "手动";
   if (sourceType === "paper_analysis") return "论文分析";
+  if (sourceType === "paper_note") return "论文笔记";
+  if (sourceType === "web_clip") return "网页剪藏";
+  if (sourceType === "import") return "文件导入";
+  if (sourceType === "chat") return "对话";
   if (sourceType === "survey") return "综述";
   return sourceType || "未知来源";
 }
@@ -36,6 +40,24 @@ export function buildInterestOptions(
     { value: "", label: emptyLabel },
     ...interests.map((item) => ({ value: item.id, label: interestFolderName(item) })),
   ];
+}
+
+/** 从本地文件路径与原始文本解析出可导入的笔记标题与正文。 */
+export function parseNoteFromFile(filePath: string, raw: string): { fileName: string; title: string; content: string } {
+  const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
+  const baseName = fileName.replace(/\.(md|txt|markdown)$/i, "").trim();
+  let content = raw.replace(/\r\n/g, "\n").trim();
+  let title = baseName;
+
+  if (/\.md$/i.test(fileName) || /\.markdown$/i.test(fileName)) {
+    const firstLine = content.split("\n")[0]?.trim() ?? "";
+    if (firstLine.startsWith("# ")) {
+      title = firstLine.slice(2).trim();
+      content = content.slice(firstLine.length).trim();
+    }
+  }
+
+  return { fileName, title: title || baseName || "导入笔记", content };
 }
 
 /** 把文本清洗成安全的文件名（去掉路径分隔符等非法字符）。 */

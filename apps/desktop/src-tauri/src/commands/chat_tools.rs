@@ -512,6 +512,7 @@ async fn dispatch_create_note(
         tags,
         research_interest_id,
         "chat",
+        None,
     )
     .await
     {

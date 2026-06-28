@@ -122,19 +122,23 @@ pub async fn create_note_core(
     tags: Option<Vec<String>>,
     research_interest_id: Option<String>,
     source_type: &str,
+    source_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let next_tags = tags.unwrap_or_default();
     let tags_json = serde_json::to_string(&next_tags).unwrap_or_else(|_| "[]".into());
+    let next_source_type = if source_type.is_empty() { "manual" } else { source_type };
 
     sqlx::query(
-        "INSERT INTO knowledge_notes (id, title, content, tags, research_interest_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO knowledge_notes (id, title, content, tags, source_type, source_id, research_interest_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&title)
     .bind(&content)
     .bind(&tags_json)
+    .bind(next_source_type)
+    .bind(&source_id)
     .bind(&research_interest_id)
     .bind(&now)
     .bind(&now)
@@ -157,7 +161,7 @@ pub async fn create_note_core(
             &title,
             &content,
             research_interest_id.as_deref(),
-            source_type,
+            next_source_type,
         )
         .await;
     }
@@ -166,8 +170,8 @@ pub async fn create_note_core(
         "id": id,
         "title": title,
         "content": content,
-        "source_type": source_type,
-        "source_id": serde_json::Value::Null,
+        "source_type": next_source_type,
+        "source_id": source_id,
         "tags": next_tags,
         "research_interest_id": research_interest_id,
         "created_at": now,
@@ -182,6 +186,8 @@ pub async fn knowledge_create_note(
     content: String,
     tags: Option<Vec<String>>,
     research_interest_id: Option<String>,
+    source_type: Option<String>,
+    source_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let settings = state.settings.read().await.clone();
     create_note_core(
@@ -191,11 +197,45 @@ pub async fn knowledge_create_note(
         content,
         tags,
         research_interest_id,
-        "manual",
+        source_type.as_deref().unwrap_or("manual"),
+        source_id,
     )
     .await
 }
 
+
+#[tauri::command]
+pub async fn knowledge_list_notes_by_source(
+    state: State<'_, AppState>,
+    source_type: String,
+    source_id: String,
+) -> Result<serde_json::Value, String> {
+    let rows = if source_id.trim().is_empty() || source_id == "*" {
+        sqlx::query(
+            "SELECT id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at
+             FROM knowledge_notes
+             WHERE source_type = ?
+             ORDER BY created_at DESC",
+        )
+        .bind(&source_type)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| e.to_string())?
+    } else {
+        sqlx::query(
+            "SELECT id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at
+             FROM knowledge_notes
+             WHERE source_type = ? AND source_id = ?
+             ORDER BY created_at DESC",
+        )
+        .bind(&source_type)
+        .bind(&source_id)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| e.to_string())?
+    };
+    Ok(json!(rows.iter().map(note_row_to_json).collect::<Vec<_>>()))
+}
 #[tauri::command]
 pub async fn knowledge_update_note(
     state: State<'_, AppState>,

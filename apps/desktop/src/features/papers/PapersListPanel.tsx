@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { clsx } from "clsx";
 import { AlertCircle, FileText, Loader2 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
-import type { Paper, ResearchInterest } from "@research-copilot/types";
+import type { Paper, KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 import NewFolderButton from "./NewFolderButton";
 import PaperFolderSection, {
   CtxPaperCard,
@@ -13,6 +13,7 @@ import PaperFolderSection, {
 import { usePaperDnd } from "./usePaperDnd";
 import { buildFolderSelectOptions, type InterestTreeNode } from "./interestTree";
 import type { PaperSortKey, PaperTaskProgress } from "./shared";
+import type { NoteDraft } from "../knowledge/NoteEditorModal";
 
 interface PapersListPanelProps {
   papers: Paper[];
@@ -38,6 +39,10 @@ interface PapersListPanelProps {
   onDeleteInterestGroup: (id: string, deleteAll: boolean) => void;
   onOpenDetail: (id: string) => void;
   onCloseDetail: () => void;
+  interestMap: Record<string, ResearchInterest>;
+  paperNotesMap: Record<string, KnowledgeNote>;
+  onGenerateNote?: (paper: Paper) => Promise<KnowledgeNote>;
+  onCreateNote?: (paper: Paper, draft: NoteDraft) => Promise<KnowledgeNote>;
   onSortKeyChange: (groupId: string, key: PaperSortKey) => void;
   onKeywordFilterChange: (groupId: string, kw: string) => void;
   onTitleFilterChange: (groupId: string, q: string) => void;
@@ -49,11 +54,11 @@ interface PapersListPanelProps {
 
 export function PapersListPanel(props: PapersListPanelProps) {
   const {
-    papers, interests, loading, loadError, deletingPaperId, deletingGroupId, savingEdit,
+    papers, interests, interestMap, paperNotesMap, loading, loadError, deletingPaperId, deletingGroupId, savingEdit,
     folderForest, paperGroups, ungroupedPapers, detailPaperId, taskProgressByPaperId,
     keywordFilters, titleFilters, getSortKey,
     onAnalyze, onReproduce, onReparse, onUpdatePaper, onDeletePaper, onDeleteInterestGroup,
-    onOpenDetail, onCloseDetail, onSortKeyChange, onKeywordFilterChange, onTitleFilterChange,
+    onOpenDetail, onCloseDetail, onGenerateNote, onCreateNote, onSortKeyChange, onKeywordFilterChange, onTitleFilterChange,
     onMovePaper, onReorderPaper, onCreateFolder, onMoveFolder,
   } = props;
 
@@ -73,13 +78,13 @@ export function PapersListPanel(props: PapersListPanelProps) {
   });
 
   const ctx: PaperFolderContext = {
-    groupMap, interests, folderOptions, dnd,
+    groupMap, interests, interestMap, paperNotesMap, folderOptions, dnd,
     canDragPaper: Boolean(onMovePaper || onReorderPaper),
     detailPaperId, deletingPaperId, deletingGroupId, savingEdit, taskProgressByPaperId,
     getSortKey, keywordFilters, titleFilters,
     onSortKeyChange, onKeywordFilterChange, onTitleFilterChange,
     onAnalyze, onReproduce, onReparse, onUpdatePaper, onDeletePaper,
-    onOpenDetail, onCloseDetail, onDeleteInterestGroup, onCreateFolder, onMoveFolder,
+    onOpenDetail, onCloseDetail, onGenerateNote, onCreateNote, onDeleteInterestGroup, onCreateFolder, onMoveFolder,
   };
 
   const hasLoadedContent = papers.length > 0 || interests.length > 0;
