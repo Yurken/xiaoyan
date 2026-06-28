@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { ArrowDown, ArrowUp, Clipboard, Code2, FileText, ImagePlus, Replace, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, Clipboard, Code2, FileText, ImagePlus, Replace, Search, X } from "lucide-react";
 import type { MouseEvent, RefObject } from "react";
 import type { WritingAssistantActionId, WritingImageAsset } from "./shared";
 import WritingEditorContextMenu from "./WritingEditorContextMenu";
@@ -17,6 +17,8 @@ interface WritingEditorPanelProps {
   onInsertText: (before: string, after?: string) => void;
   onInsertImage: () => void;
   onAssistantAction: (actionId: WritingAssistantActionId) => void;
+  sidebarCollapsed?: boolean;
+  onExpandSidebar?: () => void;
 }
 
 export default function WritingEditorPanel({
@@ -31,6 +33,8 @@ export default function WritingEditorPanel({
   onInsertText,
   onInsertImage,
   onAssistantAction,
+  sidebarCollapsed,
+  onExpandSidebar,
 }: WritingEditorPanelProps) {
   const lineNumbersRef = useRef<HTMLPreElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -153,6 +157,16 @@ export default function WritingEditorPanel({
         className="flex h-11 items-center gap-1 border-b px-2"
         style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
       >
+        {sidebarCollapsed && (
+          <button
+            type="button"
+            onClick={() => onExpandSidebar?.()}
+            title="展开侧栏"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-primary"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onActiveSourceChange("main")}
@@ -183,12 +197,10 @@ export default function WritingEditorPanel({
             className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink-tertiary transition-colors hover:bg-white/5 hover:text-apple-blue"
           >
             <ImagePlus className="h-3.5 w-3.5" />
-            <span>{imageAssets.length > 0 ? `${imageAssets.length} 张图` : "插图"}</span>
+            {imageAssets.length > 0 && (
+              <span>{`${imageAssets.length} 张图`}</span>
+            )}
           </button>
-          <div className="h-3 w-px bg-white/10" />
-          <span className="font-mono text-[11px] text-ink-tertiary">
-            {value.split("\n").length} lines
-          </span>
           <div className="h-3 w-px bg-white/10" />
           <button
             type="button"

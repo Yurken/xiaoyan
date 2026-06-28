@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { clsx } from "clsx";
-import { BookOpen, Download, FileCheck2, ListTree, Loader2, Minus, Plus, RotateCcw } from "lucide-react";
+import { BookOpen, Download, FileCheck2, ListTree, Loader2, Maximize, Minimize, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { CapsuleTabs } from "@research-copilot/ui";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -63,7 +64,7 @@ export default function WritingPreviewPanel({
               <p className="text-xs">暂无内容预览。</p>
             </div>
           ) : previewMode === "pdf" ? (
-            <PdfPreview compileResult={compileResult} compact={compact} />
+            <PdfPreview compileResult={compileResult} />
           ) : (
             <StructurePreview blocks={blocks} />
           )}
@@ -74,17 +75,29 @@ export default function WritingPreviewPanel({
   );
 }
 
-function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileSummary | null, compact: boolean }) {
+function PdfPreview({ compileResult }: { compileResult: WritingCompileSummary | null }) {
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, scrollX: 0, scrollY: 0 });
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const renderTaskRef = useRef(new Map<number, pdfjsLib.RenderTask>());
+
+  const clampZoom = useCallback((value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value)), []);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isFullscreen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +139,27 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
       tasksOnMount.clear();
     };
   }, [compileResult?.pdfPath, compileResult?.success]);
+
+  // PDF 加载后自动 fill：取 fit-to-width 和 fit-to-height 的较大值
+  useEffect(() => {
+    if (!pdfDoc || numPages === 0) return;
+    let cancelled = false;
+    pdfDoc.getPage(1).then((page) => {
+      if (cancelled) return;
+      const viewport = page.getViewport({ scale: 1.5 });
+      const el = scrollRef.current;
+      const cw = el?.clientWidth ?? 0;
+      const ch = el?.clientHeight ?? 0;
+      if (cw > 0 && ch > 0) {
+        const fitW = cw / viewport.width;
+        const fitH = ch / viewport.height;
+        setZoomLevel(clampZoom(Math.max(fitW, fitH)));
+      } else if (cw > 0) {
+        setZoomLevel(clampZoom(cw / viewport.width));
+      }
+    });
+    return () => { cancelled = true; };
+  }, [pdfDoc, numPages, clampZoom]);
 
   useEffect(() => {
     if (!pdfDoc || numPages === 0) return;
@@ -169,9 +203,7 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
       currentTasks.forEach((task) => { try { task.cancel(); } catch { /* ignore */ } });
       currentTasks.clear();
     };
-  }, [pdfDoc, numPages]);
-
-  const clampZoom = useCallback((value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value)), []);
+  }, [pdfDoc, numPages, isFullscreen]);
 
   const prevZoomRef = useRef(zoomLevel);
   useEffect(() => {
@@ -276,16 +308,8 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
     );
   }
 
-  return (
-    <div
-      className="relative w-full overflow-hidden rounded-xl border shadow-lg"
-      style={{
-        borderColor: "var(--rc-border)",
-        background: "#525659",
-        height: compact ? "calc(100vh - 320px)" : "100%",
-        minHeight: compact ? "500px" : undefined,
-      }}
-    >
+  const pdfContent = (
+    <>
       {pdfLoading ? (
         <div className="flex h-full w-full items-center justify-center gap-2 text-white/60">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -298,11 +322,11 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
       ) : (
         <div
           ref={scrollRef}
-          className="h-full w-full overflow-auto select-none"
+          className="min-h-0 flex-1 w-full overflow-auto select-none"
           style={{ cursor: isDragging ? "grabbing" : "grab" }}
           onMouseDown={handleMouseDown}
         >
-          <div className="mx-auto flex flex-col items-center gap-1 py-2" style={{ zoom: zoomLevel }}>
+          <div className="mx-auto flex w-fit flex-col items-center gap-1 py-2" style={{ zoom: zoomLevel }}>
             {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
               <canvas
                 key={pageNum}
@@ -363,8 +387,58 @@ function PdfPreview({ compileResult, compact }: { compileResult: WritingCompileS
           >
             <Download className="h-3.5 w-3.5" />
           </button>
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded text-white/70 hover:bg-white/10 hover:text-white transition"
+            onClick={() => setIsFullscreen((prev) => !prev)}
+            title={isFullscreen ? "退出全屏" : "全屏预览"}
+          >
+            {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
+          </button>
         </div>
       )}
+    </>
+  );
+
+  if (isFullscreen) {
+    return createPortal(
+      <div
+        className="fixed inset-0 z-50 flex flex-col"
+        style={{ background: "rgba(0,0,0,0.92)" }}
+        onClick={() => setIsFullscreen(false)}
+      >
+        <button
+          type="button"
+          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white/80 transition-colors hover:bg-white/20 hover:text-white"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsFullscreen(false);
+          }}
+          title="退出全屏"
+        >
+          <X className="h-5 w-5" />
+        </button>
+        <div
+          className="relative flex min-h-0 flex-1 flex-col"
+          style={{ background: "#525659" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {pdfContent}
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
+  return (
+    <div
+      className="relative flex h-full w-full flex-col overflow-hidden rounded-xl border shadow-lg"
+      style={{
+        borderColor: "var(--rc-border)",
+        background: "#525659",
+      }}
+    >
+      {pdfContent}
     </div>
   );
 }
