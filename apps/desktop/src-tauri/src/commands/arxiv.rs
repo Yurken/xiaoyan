@@ -641,7 +641,10 @@ async fn rate_limit_arxiv() {
     if let Some(wait) = wait {
         tokio::time::sleep(StdDuration::from_secs_f64(wait)).await;
     }
-    LAST_ARXIV_REQUEST.lock().unwrap_or_else(|e| e.into_inner()).replace(Instant::now());
+    LAST_ARXIV_REQUEST
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .replace(Instant::now());
 }
 
 fn parse_arxiv_feed(xml: &str) -> anyhow::Result<Vec<ArxivPaper>> {

@@ -1647,11 +1647,7 @@ pub async fn knowledge_web_clip(
         let t = RE_WS.replace_all(&t, "\n");
         t.trim().chars().take(8000).collect::<String>()
     };
-    let content = format!(
-        "来源：{}\n\n{}",
-        url,
-        text
-    );
+    let content = format!("来源：{}\n\n{}", url, text);
 
     // Save as knowledge note
     let id = Uuid::new_v4().to_string();

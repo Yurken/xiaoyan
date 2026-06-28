@@ -165,7 +165,8 @@ fn score_candidate(
 
     // 语义相似度并入打分：让概念相关但字面不命中的观察也能被召回。
     // 仅在 query 与候选都有 embedding 时生效；否则保持纯关键词行为。
-    if let (Some(query_vec), Some(candidate_vec)) = (query_embedding, candidate.embedding.as_deref())
+    if let (Some(query_vec), Some(candidate_vec)) =
+        (query_embedding, candidate.embedding.as_deref())
     {
         let similarity = cosine_similarity(query_vec, candidate_vec);
         if similarity > 0.0 {
@@ -285,7 +286,8 @@ pub async fn search_relevant_observations(
     let mut scored = candidates
         .iter()
         .map(|candidate| {
-            let score = score_candidate(candidate, &normalized_query, &query_tokens, query_embedding);
+            let score =
+                score_candidate(candidate, &normalized_query, &query_tokens, query_embedding);
             RetrievedMemoryObservation {
                 id: candidate.id.clone(),
                 source: candidate.source.clone(),

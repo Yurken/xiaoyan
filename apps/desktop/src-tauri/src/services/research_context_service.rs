@@ -404,8 +404,7 @@ impl ResearchContextService {
                 .then(|| format!("已解读 {} 篇论文", p.analyzed_paper_count)),
             (p.note_count > 0).then(|| format!("已记录 {} 条笔记", p.note_count)),
             (p.session_count > 0).then(|| format!("已展开 {} 次主题对话", p.session_count)),
-            (p.experiment_count > 0)
-                .then(|| format!("已关联 {} 个实验记录", p.experiment_count)),
+            (p.experiment_count > 0).then(|| format!("已关联 {} 个实验记录", p.experiment_count)),
             (p.submission_count > 0).then(|| format!("已推进 {} 个投稿", p.submission_count)),
         ]
         .into_iter()
@@ -964,7 +963,10 @@ mod tests {
         .execute(&pool)
         .await?;
 
-        for (id, ts) in [("paper-a", "2026-06-08 09:00:00"), ("paper-b", "2026-06-08 09:30:00")] {
+        for (id, ts) in [
+            ("paper-a", "2026-06-08 09:00:00"),
+            ("paper-b", "2026-06-08 09:30:00"),
+        ] {
             sqlx::query(
                 "INSERT INTO papers (id, title, research_interest_id, created_at) VALUES (?, ?, ?, ?)",
             )

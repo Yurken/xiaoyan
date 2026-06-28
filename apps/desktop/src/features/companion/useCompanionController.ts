@@ -301,7 +301,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
     };
   }, [cancelIdleTimer, finishWork, showAction, startIdleTimer, startWork, triggerFeedback, wakeIfSleeping]);
 
-  const handleClick = useCallback((clientX: number, containerWidth: number) => {
+  const handleActivate = useCallback((clientX?: number, containerWidth?: number) => {
     // 小妍有论文通知 — 点击打开通知面板
     if (notificationCount > 0) {
       setNotificationOpen((prev) => !prev);
@@ -315,7 +315,13 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
     }
     if (isReacting.current) return;
 
-    const dir: "left" | "right" = clientX < containerWidth / 2 ? "left" : "right";
+    const dir: "left" | "right" = (
+      typeof clientX === "number"
+      && typeof containerWidth === "number"
+      && clientX < containerWidth / 2
+    )
+      ? "left"
+      : "right";
     clickCount.current += 1;
     if (clickCount.current === 1) firstClickDir.current = dir;
     clearTimer(clickTimer);
@@ -377,9 +383,9 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
       }, 500);
     } else {
       const rect = event.currentTarget.getBoundingClientRect();
-      handleClick(event.clientX - rect.left, event.currentTarget.offsetWidth);
+      handleActivate(event.clientX - rect.left, event.currentTarget.offsetWidth);
     }
-  }, [handleClick, resumeWork]);
+  }, [handleActivate, resumeWork]);
 
   return {
     visible,
@@ -392,6 +398,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
     isDragging,
     setNotificationCount,
     setNotificationOpen,
+    activate: handleActivate,
     onPointerDown,
     onPointerMove,
     onPointerUp,

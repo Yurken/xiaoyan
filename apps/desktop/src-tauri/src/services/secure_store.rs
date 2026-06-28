@@ -35,8 +35,8 @@ pub fn save(creds: &SyncCredentials) -> Result<(), String> {
 pub fn load() -> Result<Option<SyncCredentials>, String> {
     match entry()?.get_password() {
         Ok(json) => {
-            let creds = serde_json::from_str(&json)
-                .map_err(|e| format!("钥匙串凭据格式错误: {e}"))?;
+            let creds =
+                serde_json::from_str(&json).map_err(|e| format!("钥匙串凭据格式错误: {e}"))?;
             Ok(Some(creds))
         }
         Err(keyring::Error::NoEntry) => Ok(None),

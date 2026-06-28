@@ -879,7 +879,10 @@ pub async fn survey_list(state: State<'_, AppState>) -> Result<serde_json::Value
 
 /// 读取单条已保存综述的完整结构。
 #[tauri::command]
-pub async fn survey_get(state: State<'_, AppState>, id: String) -> Result<serde_json::Value, String> {
+pub async fn survey_get(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
     let row = sqlx::query("SELECT * FROM surveys WHERE id = ?")
         .bind(&id)
         .fetch_optional(&state.db)
@@ -1269,7 +1272,9 @@ pub async fn markdown_format_chunk(
     let (formatted, next_style) = match body.rfind(MARKDOWN_STYLE_SENTINEL) {
         Some(idx) => (
             body[..idx].trim_end().to_string(),
-            body[idx + MARKDOWN_STYLE_SENTINEL.len()..].trim().to_string(),
+            body[idx + MARKDOWN_STYLE_SENTINEL.len()..]
+                .trim()
+                .to_string(),
         ),
         // 模型未给分隔标记：整段视为正文，沿用上一块的风格摘要。
         None => (body.clone(), style_summary.trim().to_string()),

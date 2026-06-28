@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { getCompanionAnimationKey, getCompanionDefinition, getCompanionTooltip } from "./petRegistry";
 import type {
   CompanionActionKey,
@@ -13,7 +13,6 @@ import { useCompanionController } from "./useCompanionController";
 import { useCompanionPreference } from "./useCompanionPreference";
 import CompanionFindingsDrawer from "./CompanionFindingsDrawer";
 import { apiClient } from "../../lib/client";
-import { useEffect } from "react";
 
 function clampFrame(frame: number, frames: number) {
   return Math.min(Math.max(0, frame), Math.max(0, frames - 1));
@@ -328,30 +327,56 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
   const tooltipText = controller.notificationCount > 0
     ? `我帮你找到了 ${controller.notificationCount} 篇可能相关的论文，点我看看~`
     : getCompanionTooltip(definition, controller.shownAction);
+  const closeNotificationDrawer = () => {
+    controller.setNotificationOpen(false);
+  };
+  const markAllNotificationsRead = () => {
+    controller.setNotificationOpen(false);
+    controller.setNotificationCount(0);
+  };
+  const findingsDrawer = controller.notificationOpen ? (
+    <CompanionFindingsDrawer
+      onClose={closeNotificationDrawer}
+      onMarkAllRead={markAllNotificationsRead}
+      onFindingImported={() => {
+        controller.setNotificationCount((current) => Math.max(0, current - 1));
+      }}
+    />
+  ) : null;
 
   if (inline) {
     return (
-      <div
-        ref={controller.containerRef}
-        className="relative flex w-full select-none justify-center py-2 group"
-      >
-        <Tooltip text={tooltipText} inline />
+      <>
         <div
-          className="flex items-end justify-center"
-          style={{
-            width: COMPANION_BOX_SIZE.inline.width,
-            height: COMPANION_BOX_SIZE.inline.height,
-            overflow: "visible",
-          }}
+          ref={controller.containerRef}
+          className="relative flex w-full select-none justify-center py-2 group"
         >
-          <CompanionVisual
-            definition={definition}
-            actionKey={controller.shownAction}
-            inline
-            opacity={controller.opacity}
-          />
+          <Tooltip text={tooltipText} inline />
+          <button
+            type="button"
+            onClick={() => controller.activate()}
+            aria-label={controller.notificationCount > 0 ? "查看小妍找到的论文" : "和小妍互动"}
+            className="flex items-end justify-center rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/35"
+            style={{
+              width: COMPANION_BOX_SIZE.inline.width,
+              height: COMPANION_BOX_SIZE.inline.height,
+              overflow: "visible",
+              cursor: "pointer",
+              padding: 0,
+              border: "none",
+              background: "transparent",
+            }}
+          >
+            <CompanionVisual
+              definition={definition}
+              actionKey={controller.shownAction}
+              inline
+              opacity={controller.opacity}
+            />
+          </button>
         </div>
-      </div>
+        {findingsDrawer}
+      </>
     );
   }
 
@@ -389,14 +414,7 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
           opacity={controller.opacity}
         />
       </div>
-      {controller.notificationOpen ? (
-        <CompanionFindingsDrawer
-          onClose={() => {
-            controller.setNotificationOpen(false);
-            controller.setNotificationCount(0);
-          }}
-        />
-      ) : null}
+      {findingsDrawer}
     </div>
   );
 }
