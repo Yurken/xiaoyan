@@ -2,12 +2,13 @@ import { useState } from "react";
 import { clsx } from "clsx";
 import { FolderInput, Trash2, X } from "lucide-react";
 import { Button, Select } from "@research-copilot/ui";
-import type { Paper, ResearchInterest } from "@research-copilot/types";
+import type { KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import PaperCard from "./PaperCard";
 import NewFolderButton from "./NewFolderButton";
 import type { PaperDnd } from "./usePaperDnd";
 import type { PaperSortKey, PaperTaskProgress } from "./shared";
+import type { NoteDraft } from "../knowledge/NoteEditorModal";
 import type { FolderSelectOption, InterestTreeNode } from "./interestTree";
 import { buildFolderSelectOptions, collectInterestSubtreeIds } from "./interestTree";
 import { interestFolderName } from "../../lib/interestUtils";
@@ -28,6 +29,8 @@ const inputStyle = (active: boolean) => ({
 export interface PaperFolderContext {
   groupMap: Map<string, PaperGroup>;
   interests: ResearchInterest[];
+  interestMap: Record<string, ResearchInterest>;
+  paperNotesMap: Record<string, KnowledgeNote>;
   folderOptions: FolderSelectOption[];
   dnd: PaperDnd;
   canDragPaper: boolean;
@@ -49,6 +52,8 @@ export interface PaperFolderContext {
   onDeletePaper: (id: string) => void;
   onOpenDetail: (id: string) => void;
   onCloseDetail: () => void;
+  onGenerateNote?: (paper: Paper) => Promise<KnowledgeNote>;
+  onCreateNote?: (paper: Paper, draft: NoteDraft) => Promise<KnowledgeNote>;
   onDeleteInterestGroup: (id: string, deleteAll: boolean) => void;
   onCreateFolder: (name: string, parentId?: string | null) => Promise<unknown>;
   onMoveFolder: (id: string, parentId: string | null) => Promise<unknown>;
@@ -105,6 +110,9 @@ export function CtxPaperCard({ ctx, paper, groupKey }: { ctx: PaperFolderContext
       taskProgress={ctx.taskProgressByPaperId[paper.id]}
       draggable={ctx.canDragPaper}
       dnd={ctx.dnd}
+      interests={ctx.interests}
+      interestMap={ctx.interestMap}
+      paperNote={ctx.paperNotesMap[paper.id]}
       onAnalyze={ctx.onAnalyze}
       onReproduce={ctx.onReproduce}
       onReparse={ctx.onReparse}
@@ -112,6 +120,8 @@ export function CtxPaperCard({ ctx, paper, groupKey }: { ctx: PaperFolderContext
       onDeletePaper={ctx.onDeletePaper}
       onOpenDetail={ctx.onOpenDetail}
       onCloseDetail={ctx.onCloseDetail}
+      onGenerateNote={ctx.onGenerateNote}
+      onCreateNote={ctx.onCreateNote}
     />
   );
 }

@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS knowledge_notes (
     created_at           TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_knowledge_notes_source ON knowledge_notes(source_type, source_id);
 
 CREATE TABLE IF NOT EXISTS paper_notes (
     id                  TEXT PRIMARY KEY,

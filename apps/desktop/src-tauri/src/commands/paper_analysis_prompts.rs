@@ -352,3 +352,80 @@ fn is_method_figure_context(figure: &PaperFigureContext) -> bool {
 
     true
 }
+
+const PAPER_NOTE_PROMPT: &str = r#"请基于以下论文信息生成一条结构化的知识笔记，仅返回严格合法的 JSON，不输出任何其他内容。
+
+核心原则：
+- 笔记应面向「研究者后续回顾与写作引用」，不是简单复述摘要，而要提炼真正值得记住的内容。
+- 内容使用中文；专有名词、公式、变量名、代码可保留英文。
+- 公式使用 LaTeX：行内 $...$，独立 $$...$$。
+- 使用 Markdown 组织内容：标题用 ## / ###，要点用无序列表，关键术语用 **加粗**。
+- 不要编造论文没有的信息；若某部分确实没有相关内容，直接省略对应章节，不要写“暂无”。
+- 不要输出图片占位符或编造 Figure/Table 编号。
+- tags 应为 3-8 个中文或英文关键词/标签，便于后续检索。
+
+输入信息：
+
+论文标题：{title}
+作者：{authors}
+年份：{year}
+会议/期刊：{venue}
+DOI：{doi}
+
+摘要：
+{abstract}
+
+论文解读：
+{analysis}
+
+复现/验证指南：
+{reproduction_guide}
+
+用户已有备注：
+{notes}
+
+输出要求：
+- title：笔记标题，建议以「论文笔记：{title}」或更精炼的形式呈现。
+- content：结构化的 Markdown 笔记正文，建议包含以下章节（按论文实际情况取舍）：
+  - ## 一句话概括
+  - ## 核心问题
+  - ## 关键方法
+  - ## 主要发现/结论
+  - ## 创新点与价值
+  - ## 局限与待验证
+  - ## 与我工作的关系（留白给用户后续补充，可只写提示）
+- tags：字符串数组。
+
+返回格式（严格 JSON，不得有多余字符）：
+{"title": "...", "content": "...", "tags": ["...", "..."]"#;
+
+pub(crate) fn build_paper_note_prompt(
+    title: &str,
+    authors: &str,
+    year: &str,
+    venue: &str,
+    doi: &str,
+    abstract_text: &str,
+    analysis: &str,
+    reproduction_guide: &str,
+    notes: &str,
+) -> String {
+    PAPER_NOTE_PROMPT
+        .replace("{title}", title)
+        .replace("{authors}", authors)
+        .replace("{year}", year)
+        .replace("{venue}", venue)
+        .replace("{doi}", doi)
+        .replace("{abstract}", abstract_text)
+        .replace("{analysis}", analysis)
+        .replace("{reproduction_guide}", reproduction_guide)
+        .replace("{notes}", notes)
+}
+
+pub(crate) fn paper_note_system() -> String {
+    specialist_system(
+        "论文笔记整理助手",
+        "基于论文元数据、小妍解读和复现指南，生成结构化的知识笔记，突出核心问题、方法、结论、创新与局限。",
+        Some("只输出合法 JSON，不要任何解释、总结或 Markdown 代码块包裹。"),
+    )
+}

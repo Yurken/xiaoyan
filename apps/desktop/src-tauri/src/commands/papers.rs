@@ -1,9 +1,11 @@
 use crate::assistant_prompts::specialist_system;
 use crate::ccf::{infer_from_text, match_venue};
+use crate::commands::knowledge_notes::create_note_core;
 use crate::commands::paper_analysis_prompts::{
     agent1_system, agent2_system, agent3_system, agent4_system, build_agent1_prompt,
     build_agent2_prompt, build_agent3_prompt, build_agent4_prompt, build_method_figure_context,
-    build_reproduce_prompt, build_type_directive, reproduce_system,
+    build_paper_note_prompt, build_reproduce_prompt, build_type_directive, paper_note_system,
+    reproduce_system,
 };
 use crate::commands::paper_analysis_text::{
     build_analysis_slices, build_intro_slice, build_reproduction_context, PaperAnalysisLayout,
@@ -1943,7 +1945,199 @@ pub async fn papers_reproduce(
     Ok(())
 }
 
+// ── Generate Knowledge Note ──────────────────────────────────────
+
+#[tauri::command]
+pub async fn papers_generate_note(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let paper_row = sqlx::query(
+        "SELECT title, authors, year, venue, doi, abstract, full_text, notes, research_interest_id, status FROM papers WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("未找到对应论文。")?;
+
+    let full_text: String = paper_row
+        .get::<Option<String>, _>("full_text")
+        .unwrap_or_default();
+    let status = paper_row
+        .get::<Option<String>, _>("status")
+        .unwrap_or_default();
+    if full_text.trim().is_empty() {
+        return Err(missing_full_text_message(&status).to_string());
+    }
+
+    let title = paper_row.get::<Option<String>, _>("title").unwrap_or_default();
+    let authors = paper_row
+        .get::<Option<String>, _>("authors")
+        .unwrap_or_default();
+    let year = paper_row
+        .get::<Option<i64>, _>("year")
+        .map(|y| y.to_string())
+        .unwrap_or_default();
+    let venue = paper_row.get::<Option<String>, _>("venue").unwrap_or_default();
+    let doi = paper_row.get::<Option<String>, _>("doi").unwrap_or_default();
+    let abstract_text = paper_row
+        .get::<Option<String>, _>("abstract")
+        .unwrap_or_default();
+    let notes = paper_row.get::<Option<String>, _>("notes").unwrap_or_default();
+    let research_interest_id: Option<String> = paper_row.get("research_interest_id");
+
+    let analysis_row = sqlx::query(
+        "SELECT research_question, core_method, experiment_design, experiment_results, innovations, limitations, key_conclusions FROM paper_analyses WHERE paper_id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let analysis_text = analysis_row
+        .map(|row| {
+            let parts = [
+                ("研究问题", row.get::<Option<String>, _>("research_question")),
+                ("核心方法", row.get::<Option<String>, _>("core_method")),
+                ("实验设计", row.get::<Option<String>, _>("experiment_design")),
+                ("实验结果", row.get::<Option<String>, _>("experiment_results")),
+                ("创新点", row.get::<Option<String>, _>("innovations")),
+                ("局限", row.get::<Option<String>, _>("limitations")),
+                ("关键结论", row.get::<Option<String>, _>("key_conclusions")),
+            ];
+            parts
+                .iter()
+                .filter_map(|(label, value)| {
+                    value
+                        .as_ref()
+                        .filter(|v| !v.trim().is_empty())
+                        .map(|v| format!("## {}\n\n{}", label, v))
+                })
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        })
+        .unwrap_or_default();
+
+    let guide_row = sqlx::query(
+        "SELECT code_repository, environment_setup, dependencies, dataset_preparation, training_process, inference_process, evaluation_metrics, risks_and_notes FROM reproduction_guides WHERE paper_id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let guide_text = guide_row
+        .map(|row| {
+            let parts = [
+                ("代码仓库", row.get::<Option<String>, _>("code_repository")),
+                ("环境配置", row.get::<Option<String>, _>("environment_setup")),
+                ("依赖", row.get::<Option<String>, _>("dependencies")),
+                ("数据准备", row.get::<Option<String>, _>("dataset_preparation")),
+                ("训练流程", row.get::<Option<String>, _>("training_process")),
+                ("推理流程", row.get::<Option<String>, _>("inference_process")),
+                ("评估指标", row.get::<Option<String>, _>("evaluation_metrics")),
+                ("注意事项", row.get::<Option<String>, _>("risks_and_notes")),
+            ];
+            parts
+                .iter()
+                .filter_map(|(label, value)| {
+                    value
+                        .as_ref()
+                        .filter(|v| !v.trim().is_empty())
+                        .map(|v| format!("## {}\n\n{}", label, v))
+                })
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        })
+        .unwrap_or_default();
+
+    let settings = state.settings.read().await.clone();
+    let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
+    let model = resolve_model(
+        &settings,
+        &[
+            "paper_note_model",
+            "paper_analysis_model",
+            "multi_agent_paper_analyst_model",
+            "multi_agent_worker_model",
+        ],
+    );
+    let temperature = resolve_temperature(&settings, "paper_note_temperature", 0.3);
+    let max_tokens = resolve_max_tokens(
+        &settings,
+        &[
+            "paper_note_max_tokens",
+            "paper_analysis_max_tokens",
+            "multi_agent_paper_analyst_max_tokens",
+            "multi_agent_worker_max_tokens",
+        ],
+        16_384,
+    );
+
+    let prompt = build_paper_note_prompt(
+        &title,
+        &authors,
+        &year,
+        &venue,
+        &doi,
+        &abstract_text,
+        &analysis_text,
+        &guide_text,
+        &notes,
+    );
+    let msgs = vec![
+        LlmMessage::system(paper_note_system()),
+        LlmMessage::user(&prompt),
+    ];
+    log_llm_request("paper-note", &id, "generate", model.as_deref(), temperature, max_tokens, &msgs);
+
+    let response = client
+        .chat_with_max_tokens(&msgs, model.as_deref(), temperature, max_tokens)
+        .await
+        .map_err(|e| format!("生成笔记失败：{}", e))?;
+    log_llm_response("paper-note", &id, "generate", &response);
+
+    let value = parse_llm_json_value(&response).map_err(|e| format!("解析笔记结果失败：{}", e))?;
+    let note_title = value["title"]
+        .as_str()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| format!("论文笔记：{}", title));
+    let note_content = value["content"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    if note_content.trim().is_empty() {
+        return Err("小妍未能生成有效笔记内容，请检查模型配置或稍后重试。".to_string());
+    }
+    let note_tags: Vec<String> = value["tags"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|item| item.as_str().map(|s| s.trim().to_string()))
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let note = create_note_core(
+        &state.db,
+        &settings,
+        note_title,
+        note_content,
+        if note_tags.is_empty() { None } else { Some(note_tags) },
+        research_interest_id,
+        "paper_note",
+        Some(id.clone()),
+    )
+    .await?;
+
+    Ok(note)
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
+
 
 fn safe_text_preview(text: &str, max_bytes: usize) -> &str {
     if text.len() <= max_bytes {
