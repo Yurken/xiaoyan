@@ -264,8 +264,16 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [links, setLinks] = useState<PdfLink[]>([]);
+  const [hoveredNote, setHoveredNote] = useState<{ note: PaperNote; x: number; y: number } | null>(null);
+  const hoverTimeoutRef = useRef<number | null>(null);
   const renderedSignatureRef = useRef<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     renderedSignatureRef.current = null;
@@ -587,7 +595,16 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
                   key={note.id}
                   className="pdf-highlight-overlay absolute"
                   style={shapeStyle}
-                  title="拖拽移动 · 点击编辑"
+                  title={note.content?.trim() || "拖拽移动 · 点击编辑"}
+                  onMouseEnter={(event) => {
+                    if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+                    if (note.content?.trim()) {
+                      setHoveredNote({ note, x: event.currentTarget.offsetLeft, y: event.currentTarget.offsetTop });
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    hoverTimeoutRef.current = window.setTimeout(() => setHoveredNote(null), 120);
+                  }}
                   onMouseDown={(event) => startShapeMove(event, note, stored ?? box)}
                 />
               );
@@ -617,7 +634,16 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
                   key={`${note.id}-${i}`}
                   className="pdf-highlight-overlay absolute"
                   style={style}
-                  title="点击编辑批注"
+                  title={note.content?.trim() || "点击编辑批注"}
+                  onMouseEnter={(event) => {
+                    if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+                    if (note.content?.trim()) {
+                      setHoveredNote({ note, x: event.currentTarget.offsetLeft, y: event.currentTarget.offsetTop });
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    hoverTimeoutRef.current = window.setTimeout(() => setHoveredNote(null), 120);
+                  }}
                   onClick={(event) => {
                     const rect = event.currentTarget.getBoundingClientRect();
                     onNoteClick(note, { x: rect.left + rect.width / 2, y: rect.top });
@@ -639,6 +665,23 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
             />
           ))
         : null}
+
+      {hoveredNote ? (
+        <div
+          className="pointer-events-none absolute z-10 max-w-xs rounded-lg border px-3 py-2 text-xs leading-5"
+          style={{
+            left: hoveredNote.x,
+            top: hoveredNote.y,
+            transform: "translateY(-100%)",
+            background: "var(--rc-card-bg)",
+            borderColor: "var(--rc-border)",
+            color: "var(--rc-text)",
+            boxShadow: "var(--rc-card-shadow)",
+          }}
+        >
+          {hoveredNote.note.content}
+        </div>
+      ) : null}
 
       {pageSize && drawShape ? (
         <div
