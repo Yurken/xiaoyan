@@ -147,6 +147,7 @@ export default function LayoutSettingsSection({
         </div>
       </div>
 
+      <div>
         <p className="mb-2 ml-1 text-xs font-medium text-ink-tertiary">布局模式</p>
         <div className="grid gap-3 sm:grid-cols-2">
           {([
