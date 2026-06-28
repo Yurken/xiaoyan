@@ -1,11 +1,13 @@
 use crate::assistant_prompts::main_chat_system;
 use crate::commands::chat_tools::{build_chat_tools, dispatch_tool};
 use crate::commands::memory::is_long_term_memory_enabled;
-use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage, StreamOutcome};
+use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMessage, StreamOutcome};
 use crate::services::agent_runtime_service::{
     run_agent_runtime, AgentRuntimeKind, AgentRuntimeRequest,
 };
-use crate::services::chat_context_service::{build_chat_context_summary, collect_chat_sources};
+use crate::services::chat_context_service::{
+    build_chat_context_summary, collect_chat_sources, embed_query,
+};
 use crate::services::memory_checkpoint_service::{
     record_chat_checkpoint, record_chat_failure_checkpoint, ChatCheckpointInput,
     ChatFailureCheckpointInput,
@@ -17,6 +19,17 @@ use sqlx::Row;
 use std::collections::HashMap;
 use tauri::{Emitter, State};
 use uuid::Uuid;
+
+/// 前端 chat_stream 传入的图片块：data 为 base64（不含 data: 前缀），mediaType 为 MIME 类型。
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageInput {
+    pub data: String,
+    pub media_type: String,
+}
+
+/// 单次对话图片总 base64 体积上限（约 12MB 原图），超出直接拒绝，避免撑爆请求体。
+const MAX_CHAT_IMAGE_BYTES: usize = 16 * 1024 * 1024;
 
 // ── Session management ──────────────────────────────────────────
 
@@ -61,7 +74,7 @@ pub async fn chat_get_session(
     .ok_or("未找到对应会话。")?;
 
     let msgs = sqlx::query(
-        "SELECT id, role, content, sources, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
+        "SELECT id, role, content, sources, images, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
     )
     .bind(&id)
     .fetch_all(&state.db)
@@ -72,11 +85,13 @@ pub async fn chat_get_session(
         .iter()
         .map(|m| {
             let src: Option<String> = m.get("sources");
+            let imgs: Option<String> = m.get("images");
             json!({
                 "id": m.get::<String, _>("id"),
                 "role": m.get::<String, _>("role"),
                 "content": m.get::<String, _>("content"),
                 "sources": src.as_deref().and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()),
+                "images": imgs.as_deref().and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()),
                 "created_at": m.get::<String, _>("created_at"),
             })
         })
@@ -228,6 +243,7 @@ pub async fn chat_stream(
     chat_mode: Option<String>,
     tag: Option<String>,
     request_id: Option<String>,
+    images: Option<Vec<ImageInput>>,
 ) -> Result<serde_json::Value, String> {
     let request_id = request_id
         .filter(|value| !value.trim().is_empty())
@@ -239,6 +255,20 @@ pub async fn chat_stream(
             "消息过长（{}字符），请缩短后重试（上限{}字符）。",
             message.len(),
             MAX_CHAT_MESSAGE_LEN
+        ));
+    }
+
+    // 图片单独按字节上限校验，不与文本上限混算。
+    let images: Vec<LlmImage> = images.unwrap_or_default().into_iter().map(|img| LlmImage {
+        media_type: img.media_type,
+        data: img.data,
+    }).collect();
+    let images_bytes: usize = images.iter().map(|img| img.data.len()).sum();
+    if images_bytes > MAX_CHAT_IMAGE_BYTES {
+        return Err(format!(
+            "图片过大（编码后约{}MB），请压缩或减少图片后重试（上限约{}MB）。",
+            images_bytes / (1024 * 1024),
+            MAX_CHAT_IMAGE_BYTES / (1024 * 1024)
         ));
     }
 
@@ -292,15 +322,28 @@ pub async fn chat_stream(
         id
     };
 
-    // Save user message
-    let msg_id = Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?, ?, 'user', ?, ?)")
-        .bind(&msg_id).bind(&sid).bind(&message).bind(&now)
-        .execute(&state.db).await.map_err(|e| e.to_string())?;
-
+    // 先取历史（仅含之前轮次），再保存当前消息——否则历史会包含当前这条，
+    // run_simple/多智能体再 append 当前 message 时就会重复（模型会抱怨“用户问了两遍同样的问题”）。
     let history = fetch_history(&state.db, &sid, 10)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Save user message（含图片，供同会话多轮上下文回放）
+    let msg_id = Uuid::new_v4().to_string();
+    let images_json: Option<String> = if images.is_empty() {
+        None
+    } else {
+        serde_json::to_string(
+            &images
+                .iter()
+                .map(|i| json!({ "mediaType": i.media_type, "data": i.data }))
+                .collect::<Vec<_>>(),
+        )
+        .ok()
+    };
+    sqlx::query("INSERT INTO chat_messages (id, session_id, role, content, images, created_at) VALUES (?, ?, 'user', ?, ?, ?)")
+        .bind(&msg_id).bind(&sid).bind(&message).bind(&images_json).bind(&now)
+        .execute(&state.db).await.map_err(|e| e.to_string())?;
     let settings = state.settings.read().await.clone();
     let long_term_memory_enabled = is_long_term_memory_enabled(&settings);
     if long_term_memory_enabled {
@@ -333,6 +376,7 @@ pub async fn chat_stream(
             &normalized_context_id,
             chat_mode.as_deref().unwrap_or("task"),
             history,
+            images,
         )
         .await;
 
@@ -403,6 +447,7 @@ async fn run_chat(
     context_id: &Option<String>,
     chat_mode: &str,
     history: Vec<LlmMessage>,
+    images: Vec<LlmImage>,
 ) -> anyhow::Result<()> {
     let client = LlmClient::from_settings(settings)?;
     let multi_agent = settings
@@ -410,16 +455,31 @@ async fn run_chat(
         .map(|v| v == "true")
         .unwrap_or(true);
     let long_term_memory_enabled = is_long_term_memory_enabled(settings);
+    // 整轮对话只向量化一次 query：记忆检索与来源召回共用，避免重复 embed 调用。
+    let query_embedding = embed_query(settings, message).await;
     let context_summary = build_chat_context_summary(
         db,
         context_type,
         context_id,
         message,
         long_term_memory_enabled,
+        query_embedding.as_deref(),
     )
     .await;
 
-    let use_direct_chat = chat_mode == "direct";
+    // 后台回填观察的 embedding，使新写入的过程记忆很快可被语义检索；不阻塞回答。
+    {
+        let db = db.clone();
+        let settings = settings.clone();
+        tauri::async_runtime::spawn(async move {
+            crate::commands::memory::backfill_observation_embeddings(&db, &settings).await;
+        });
+    }
+
+    // 多模态图片仅在 run_simple（直答）路径支持；当前轮或历史含图都强制走直答，
+    // 既避免多智能体路径静默丢图，也保证带图历史的多轮追问仍走视觉模型。
+    let history_has_image = history.iter().any(|m| !m.images.is_empty());
+    let use_direct_chat = chat_mode == "direct" || !images.is_empty() || history_has_image;
 
     let full = if !use_direct_chat && multi_agent {
         let runtime_result = run_agent_runtime(
@@ -451,11 +511,12 @@ async fn run_chat(
             message,
             &context_summary,
             &history,
+            &images,
         )
         .await?
     };
 
-    let sources = collect_chat_sources(db, settings, message).await;
+    let sources = collect_chat_sources(db, settings, message, query_embedding.as_deref()).await;
     let sources_json = if sources.is_empty() {
         None
     } else {
@@ -503,6 +564,25 @@ async fn run_chat(
     Ok(())
 }
 
+/// 去掉所有 <think>…</think> 推理片段后，判断是否还剩可读回答。
+/// 未闭合的 <think>（流式中断）也整体视为推理，不计入正文。
+fn answer_text_is_empty(text: &str) -> bool {
+    let mut answer = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(open) = rest.find("<think>") {
+        answer.push_str(&rest[..open]);
+        match rest[open..].find("</think>") {
+            Some(close) => rest = &rest[open + close + "</think>".len()..],
+            None => {
+                rest = "";
+                break;
+            }
+        }
+    }
+    answer.push_str(rest);
+    answer.trim().is_empty()
+}
+
 async fn run_simple(
     app: &tauri::AppHandle,
     client: &LlmClient,
@@ -512,13 +592,45 @@ async fn run_simple(
     message: &str,
     context_summary: &str,
     history: &[LlmMessage],
+    images: &[LlmImage],
 ) -> anyhow::Result<String> {
     let system_prompt = main_chat_system(context_summary);
     let mut msgs = vec![LlmMessage::system(&system_prompt)];
-    msgs.extend_from_slice(history);
-    msgs.push(LlmMessage::user(message));
+    // 控制成本：历史只保留最近 MAX_HISTORY_IMAGE_MSGS 条带图消息的图片，更早的剥成纯文本，
+    // 避免多轮追问把全部历史图片反复重发给视觉模型。
+    const MAX_HISTORY_IMAGE_MSGS: usize = 2;
+    let mut history_msgs = history.to_vec();
+    let mut kept = 0usize;
+    for m in history_msgs.iter_mut().rev() {
+        if m.images.is_empty() {
+            continue;
+        }
+        if kept < MAX_HISTORY_IMAGE_MSGS {
+            kept += 1;
+        } else {
+            m.images.clear();
+        }
+    }
+    msgs.extend(history_msgs);
+    if images.is_empty() {
+        msgs.push(LlmMessage::user(message));
+    } else {
+        msgs.push(LlmMessage::user_with_images(message, images.to_vec()));
+    }
     let temperature = resolve_temperature(settings, "copilot_simple_temperature", 0.4);
-    let model = resolve_model(settings, &["copilot_simple_model"]);
+    // 当前轮或历史含图都改用专用视觉模型（保证多轮追问能看到先前图片）；未配置则提示去设置。
+    let needs_vision = !images.is_empty() || history.iter().any(|m| !m.images.is_empty());
+    let vision = if needs_vision {
+        Some(LlmClient::vision_client_from_settings(settings).ok_or_else(|| {
+            anyhow::anyhow!("该对话包含图片，请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。")
+        })?)
+    } else {
+        None
+    };
+    let (client, model): (&LlmClient, Option<String>) = match &vision {
+        Some((vision_client, vision_model)) => (vision_client, vision_model.clone()),
+        None => (client, resolve_model(settings, &["copilot_simple_model"])),
+    };
     let rid = request_id.to_string();
     let app_ref = app.clone();
 
@@ -558,7 +670,18 @@ async fn run_simple(
         };
 
         match outcome {
-            StreamOutcome::TextCompleted(text) => return Ok(text),
+            StreamOutcome::TextCompleted(text) => {
+                // 模型流式正常结束但没有任何可读回答（去掉 <think> 推理后为空）。
+                // 常见于服务商对 tools / 流式支持不完整：HTTP 200 却吐空内容流。
+                // 若静默返回空字符串，会保存一条看不见的空气泡、且前端无任何错误提示（“不回复”）。
+                // 这里改为显式报错，让 chat:error 兑现到前端，给用户可见、可操作的反馈。
+                if answer_text_is_empty(&text) {
+                    return Err(anyhow::anyhow!(
+                        "模型未返回任何内容。可能当前对话模型/服务商不支持工具调用（function calling）或流式输出，请在「设置 → 模型角色」更换对话模型，或确认该服务商兼容 OpenAI 接口。"
+                    ));
+                }
+                return Ok(text);
+            }
             StreamOutcome::ToolCalls(tool_calls) => {
                 tool_rounds += 1;
                 msgs.push(LlmMessage::assistant_with_tool_calls(tool_calls.clone()));
@@ -584,7 +707,7 @@ async fn run_simple(
                             continue;
                         }
 
-                        match web_search(&query).await {
+                        match web_search(&query, settings).await {
                             Ok(results) => {
                                 msgs.push(LlmMessage::tool(&tc.id, &results));
                             }
@@ -632,17 +755,34 @@ async fn fetch_history(
     limit: i64,
 ) -> anyhow::Result<Vec<LlmMessage>> {
     let rows = sqlx::query(
-        "SELECT role, content FROM (SELECT role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC",
+        "SELECT role, content, images FROM (SELECT role, content, images, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC",
     )
     .bind(session_id).bind(limit)
     .fetch_all(db).await?;
     Ok(rows
         .iter()
-        .map(|r| LlmMessage {
-            role: r.get("role"),
-            content: r.get("content"),
-            tool_call_id: None,
-            tool_calls: None,
+        .map(|r| {
+            let images = r
+                .get::<Option<String>, _>("images")
+                .and_then(|raw| serde_json::from_str::<Vec<serde_json::Value>>(&raw).ok())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| {
+                            Some(LlmImage {
+                                media_type: v.get("mediaType")?.as_str()?.to_string(),
+                                data: v.get("data")?.as_str()?.to_string(),
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            LlmMessage {
+                role: r.get("role"),
+                content: r.get("content"),
+                tool_call_id: None,
+                tool_calls: None,
+                images,
+            }
         })
         .collect())
 }

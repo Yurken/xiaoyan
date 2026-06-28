@@ -2,23 +2,15 @@ import { useState } from "react";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getLayoutMode, setLayoutMode, type LayoutMode } from "../../lib/layoutMode";
 import { getThemePreference, setTheme, type ThemePreference } from "../../lib/themeMode";
-import { getThemeStyle, setThemeStyle, type ThemeStyle } from "../../lib/themeStyle";
 
 export function useLayoutSettingsController() {
   const [pendingLayout, setPendingLayout] = useState<LayoutMode>(getLayoutMode());
   const [currentTheme, setCurrentTheme] = useState<ThemePreference>(getThemePreference());
-  const [currentStyle, setCurrentStyle] = useState<ThemeStyle>(getThemeStyle());
 
   const changeTheme = (mode: ThemePreference) => {
     if (mode === currentTheme) return;
     setCurrentTheme(mode);
     setTheme(mode);
-  };
-
-  const changeStyle = (style: ThemeStyle) => {
-    if (style === currentStyle) return;
-    setCurrentStyle(style);
-    setThemeStyle(style);
   };
 
   const changeLayout = (mode: LayoutMode) => {
@@ -40,11 +32,9 @@ export function useLayoutSettingsController() {
   };
 
   return {
-    currentStyle,
     currentTheme,
     pendingLayout,
     changeLayout,
-    changeStyle,
     changeTheme,
   };
 }

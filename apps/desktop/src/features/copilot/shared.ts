@@ -42,13 +42,25 @@ export interface CopilotAttachmentPayload {
   name: string;
   extension: string;
   mediaTypeLabel: string;
+  /** 文本类附件提取出的可读文本；图片附件为空。 */
   content: string;
+  /** 附件类型，默认 text；image 走多模态 images 通道，不嵌入消息文本。 */
+  kind?: "text" | "image";
+  /** 图片 base64（不含 data: 前缀）。 */
+  imageData?: string;
+  /** 图片 MIME 类型，如 image/png。 */
+  imageMediaType?: string;
 }
 
 export interface CopilotMessageAttachmentView {
   name: string;
   extension: string;
   mediaTypeLabel: string;
+}
+
+export interface CopilotMessageSkillView {
+  name: string;
+  title: string;
 }
 
 export interface CopilotChatModeOption {
@@ -76,7 +88,7 @@ export function getCopilotInputPlaceholder(mode: ChatMode) {
     : "告诉我你的研究任务，我会先拆解步骤，再逐步推进";
 }
 
-const NODE_ORDER: AgentGraphNodeKey[] = [
+const NODE_ORDER: Exclude<AgentGraphNodeKey, "start">[] = [
   "retrieval",
   "planner",
   "literature_scout",
@@ -134,24 +146,70 @@ export function upsertAgentRun(runs: AgentRun[], next: AgentRun) {
 
 const ATTACHMENT_META_REGEX = /<copilot-attachments data="([^"]+)"><\/copilot-attachments>/;
 const ATTACHMENT_CONTEXT_REGEX = /\n*<copilot-file-context>[\s\S]*?<\/copilot-file-context>/g;
+// 技能注入标记：尾随的隐藏标记，data 内含 {name,title,prefixLen}，供展示层剥离技能指令前缀。
+const SKILL_MARKER_REGEX = /\n?<copilot-skill data="([^"]*)"><\/copilot-skill>/;
+const SKILL_VARIABLE_REGEX = /\{\{\s*([^{}]+?)\s*\}\}/g;
+
+/** 提取技能提示词中的 {{变量}} 占位符（去重、保序）。内置技能不使用该语法，因此不会触发。 */
+export function extractSkillVariables(prompt: string): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  let match: RegExpExecArray | null = null;
+  SKILL_VARIABLE_REGEX.lastIndex = 0;
+  while ((match = SKILL_VARIABLE_REGEX.exec(prompt)) !== null) {
+    const name = match[1].trim();
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      result.push(name);
+    }
+  }
+  return result;
+}
+
+/** 用填写的值替换 {{变量}}；未填写的占位符原样保留。 */
+export function applySkillVariables(prompt: string, values: Record<string, string>): string {
+  return prompt.replace(SKILL_VARIABLE_REGEX, (whole, rawName) => {
+    const name = String(rawName).trim();
+    const value = values[name];
+    return value != null && value !== "" ? value : whole;
+  });
+}
+
+/**
+ * 构造带技能标记的发送文本：模型收到「干净指令 + 分隔符 + 用户输入」，
+ * 尾部追加隐藏标记记录技能元信息与前缀长度，供 parseCopilotMessageContent 精确剥离。
+ */
+export function buildSkillInjectedText(
+  rawText: string,
+  skill: { name: string; title: string },
+  finalPrompt: string,
+): string {
+  const prefix = `${finalPrompt}\n\n---\n\n`;
+  const data = encodeURIComponent(
+    JSON.stringify({ name: skill.name, title: skill.title, prefixLen: prefix.length }),
+  );
+  return `${prefix}${rawText}\n<copilot-skill data="${data}"></copilot-skill>`;
+}
 
 export function buildCopilotMessageContent(
   text: string,
   attachments: CopilotAttachmentPayload[],
 ) {
-  if (attachments.length === 0) {
+  // 图片走多模态 images 通道，不嵌入消息文本；这里只处理文本类附件。
+  const textAttachments = attachments.filter((attachment) => attachment.kind !== "image");
+  if (textAttachments.length === 0) {
     return text;
   }
 
   const metadata = encodeURIComponent(JSON.stringify({
-    attachments: attachments.map((attachment) => ({
+    attachments: textAttachments.map((attachment) => ({
       name: attachment.name,
       extension: attachment.extension,
       mediaTypeLabel: attachment.mediaTypeLabel,
     })),
   }));
 
-  const attachmentContext = attachments
+  const attachmentContext = textAttachments
     .map((attachment, index) => {
       const extensionLabel = attachment.extension ? `.${attachment.extension}` : "unknown";
       return [
@@ -179,6 +237,7 @@ export function buildCopilotMessageContent(
 export function parseCopilotMessageContent(content: string): {
   text: string;
   attachments: CopilotMessageAttachmentView[];
+  skill?: CopilotMessageSkillView;
 } {
   const metaMatch = content.match(ATTACHMENT_META_REGEX);
   let attachments: CopilotMessageAttachmentView[] = [];
@@ -194,12 +253,31 @@ export function parseCopilotMessageContent(content: string): {
     }
   }
 
-  const text = content
+  let working = content
     .replace(ATTACHMENT_META_REGEX, "")
-    .replace(ATTACHMENT_CONTEXT_REGEX, "")
-    .trim();
+    .replace(ATTACHMENT_CONTEXT_REGEX, "");
 
-  return { text, attachments };
+  // 剥离技能注入：先解析标记取得元信息与前缀长度，再移除标记并切掉指令前缀，只留用户原文。
+  let skill: CopilotMessageSkillView | undefined;
+  const skillMatch = working.match(SKILL_MARKER_REGEX);
+  if (skillMatch?.[1]) {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(skillMatch[1])) as {
+        name?: string;
+        title?: string;
+        prefixLen?: number;
+      };
+      if (parsed.title) skill = { name: parsed.name ?? "", title: parsed.title };
+      working = working.replace(SKILL_MARKER_REGEX, "");
+      if (typeof parsed.prefixLen === "number" && parsed.prefixLen > 0) {
+        working = working.slice(parsed.prefixLen);
+      }
+    } catch {
+      // 解析失败则保持原文，不剥离。
+    }
+  }
+
+  return { text: working.trim(), attachments, skill };
 }
 
 export function buildAgentExecutionGraph(

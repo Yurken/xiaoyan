@@ -6,12 +6,21 @@ use serde_json::{json, Value};
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 
+/// 把一句话向量化（best-effort）。未配置 embedding 客户端或调用失败时返回 None，
+/// 调用方据此优雅退回纯关键词逻辑。
+pub async fn embed_query(settings: &HashMap<String, String>, message: &str) -> Option<Vec<f32>> {
+    let client = LlmClient::embed_client_from_settings(settings).ok()?;
+    let embeddings = client.embed(&[message.to_string()]).await.ok()?;
+    embeddings.into_iter().next()
+}
+
 pub async fn build_chat_context_summary(
     db: &SqlitePool,
     context_type: &str,
     context_id: &Option<String>,
     user_message: &str,
     include_long_term_memory: bool,
+    query_embedding: Option<&[f32]>,
 ) -> String {
     let base_context = match context_type {
         "interest" => match context_id.as_deref() {
@@ -23,7 +32,7 @@ pub async fn build_chat_context_summary(
     };
 
     let memory_context = if include_long_term_memory {
-        memory::build_memory_context_for_query(db, user_message).await
+        memory::build_memory_context_for_query(db, user_message, query_embedding).await
     } else {
         String::new()
     };
@@ -41,20 +50,15 @@ pub async fn collect_chat_sources(
     db: &SqlitePool,
     settings: &HashMap<String, String>,
     message: &str,
+    query_embedding: Option<&[f32]>,
 ) -> Vec<Value> {
-    let embed_client = match LlmClient::embed_client_from_settings(settings) {
-        Ok(client) => client,
-        Err(_) => return Vec::new(),
-    };
-
-    let embeddings = match embed_client.embed(&[message.to_string()]).await {
-        Ok(value) => value,
-        Err(_) => return Vec::new(),
-    };
-
-    let embedding = match embeddings.into_iter().next() {
-        Some(value) => value,
-        None => return Vec::new(),
+    // 复用上游已算好的 query 向量；缺省时再自行 embed，避免一轮对话重复向量化。
+    let embedding = match query_embedding {
+        Some(value) => value.to_vec(),
+        None => match embed_query(settings, message).await {
+            Some(value) => value,
+            None => return Vec::new(),
+        },
     };
 
     let top_k = settings

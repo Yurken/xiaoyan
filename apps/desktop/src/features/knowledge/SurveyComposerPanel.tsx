@@ -8,8 +8,8 @@ import {
   LIT_TYPE_OPTIONS,
   SURVEY_PAPER_LIMIT_PRESETS,
   researchInterestDisplayName,
+  type SurveyGenerationController,
 } from "./shared";
-import type { SurveyGenerationController } from "./useSurveyGeneration";
 
 function ToggleChip({
   label,

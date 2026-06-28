@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
 export function useClickOutside<T extends HTMLElement = HTMLDivElement>(
   isOpen: boolean,
   onClose: () => void,
-): React.RefObject<T> {
+): React.RefObject<T | null> {
   const ref = useRef<T>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;

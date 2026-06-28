@@ -299,6 +299,15 @@ function SkillCard({
             内置
           </span>
         ) : null}
+        {skill.kind === "tool" ? (
+          <span
+            className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-medium"
+            style={{ background: "rgba(255,149,0,0.12)", color: "#FF9500" }}
+            title="工具技能：在「工具」页使用，不出现在对话技能选择器"
+          >
+            工具
+          </span>
+        ) : null}
         <code
           className="text-xs font-mono px-1.5 py-0.5 rounded-md"
           style={{ background: "rgba(120,120,128,0.08)", color: "#8E8E93" }}
@@ -414,6 +423,7 @@ export default function SkillsSection() {
 
   const builtin = filtered.filter((skill) => skill.is_builtin);
   const custom = filtered.filter((skill) => !skill.is_builtin);
+  const builtinTotal = skills.filter((skill) => skill.is_builtin).length;
 
   const handleToggle = async (skill: Skill) => {
     try {
@@ -520,7 +530,7 @@ export default function SkillsSection() {
             <div>
               <h2 className="text-base font-semibold text-ink-primary">技能库</h2>
               <p className="text-xs text-ink-tertiary mt-0.5">
-                内置 15 条研究技能，也可新建自定义技能
+                {builtinTotal > 0 ? `内置 ${builtinTotal} 条研究技能，` : ""}支持 / 唤起、{"{{变量}}"} 占位，也可新建自定义技能
               </p>
             </div>
           </div>

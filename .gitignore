@@ -221,6 +221,8 @@ apps/desktop/src-tauri/*.db
 # Frontend / monorepo
 node_modules/
 **/node_modules/
+.pnpm-store/
+**/.pnpm-store/
 upload/
 **/.next/
 **/.env.local

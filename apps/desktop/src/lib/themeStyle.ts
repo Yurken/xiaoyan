@@ -3,8 +3,7 @@ const KEY = "rc_style";
 export type ThemeStyle = "neumorphic" | "modern-minimal" | "liquid-glass";
 
 export function getThemeStyle(): ThemeStyle {
-  const stored = localStorage.getItem(KEY);
-  if (stored === "neumorphic" || stored === "modern-minimal" || stored === "liquid-glass") return stored;
+  // 界面风格已锁定为「拟态」：忽略历史存值，始终返回 neumorphic（设置页不再提供切换）。
   return "neumorphic";
 }
 

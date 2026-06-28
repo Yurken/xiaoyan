@@ -9,6 +9,7 @@ pub const SENSITIVE_KEYS: &[&str] = &[
     "openai_compatible_api_key",
     "embedding_api_key",
     "semantic_scholar_api_key",
+    "tavily_api_key",
     "planner_hint_api_key",
     "planner_analysis_api_key",
     "planner_generation_api_key",
@@ -142,6 +143,9 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("multi_agent_supervisor_model".into(), "".into());
     m.insert("web_search_enabled".into(), "true".into());
     m.insert("web_search_max_rounds".into(), "3".into());
+    // 联网搜索来源：duckduckgo（免费、默认）| tavily（需用户填 tavily_api_key）
+    m.insert("web_search_provider".into(), "duckduckgo".into());
+    m.insert("tavily_api_key".into(), "".into());
     m.insert("multi_agent_supervisor_base_url".into(), "".into());
     m.insert("multi_agent_supervisor_api_key".into(), "".into());
     m.insert("multi_agent_supervisor_temperature".into(), "0.1".into());

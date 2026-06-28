@@ -17,12 +17,21 @@ use self::transport::{
     format_openai_http_error as format_openai_http_error_impl, parse_json_response,
 };
 
+/// 多模态图片块：base64 编码（不含 data: 前缀）+ 媒体类型，复用 chat_with_image 的线格式。
+#[derive(Clone, Debug)]
+pub struct LlmImage {
+    pub media_type: String,
+    pub data: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct LlmMessage {
     pub role: String,
     pub content: String,
     pub tool_call_id: Option<String>,
     pub tool_calls: Option<Vec<ToolCall>>,
+    /// 该消息附带的图片（仅 user 消息有意义）；为空时按纯文本 content 发送，保持向后兼容。
+    pub images: Vec<LlmImage>,
 }
 
 #[derive(Clone, Debug)]
@@ -62,6 +71,7 @@ impl LlmMessage {
             content: content.into(),
             tool_call_id: None,
             tool_calls: None,
+            images: Vec::new(),
         }
     }
     pub fn user(content: impl Into<String>) -> Self {
@@ -70,6 +80,17 @@ impl LlmMessage {
             content: content.into(),
             tool_call_id: None,
             tool_calls: None,
+            images: Vec::new(),
+        }
+    }
+    /// 带图片的用户消息（多模态）；images 为空时等价于 user()。
+    pub fn user_with_images(content: impl Into<String>, images: Vec<LlmImage>) -> Self {
+        Self {
+            role: "user".into(),
+            content: content.into(),
+            tool_call_id: None,
+            tool_calls: None,
+            images,
         }
     }
     #[allow(dead_code)]
@@ -79,6 +100,7 @@ impl LlmMessage {
             content: content.into(),
             tool_call_id: None,
             tool_calls: None,
+            images: Vec::new(),
         }
     }
     pub fn assistant_with_tool_calls(tool_calls: Vec<ToolCall>) -> Self {
@@ -87,6 +109,7 @@ impl LlmMessage {
             content: String::new(),
             tool_call_id: None,
             tool_calls: Some(tool_calls),
+            images: Vec::new(),
         }
     }
     pub fn tool(tool_call_id: impl Into<String>, content: impl Into<String>) -> Self {
@@ -95,6 +118,7 @@ impl LlmMessage {
             content: content.into(),
             tool_call_id: Some(tool_call_id.into()),
             tool_calls: None,
+            images: Vec::new(),
         }
     }
 }
@@ -108,7 +132,7 @@ pub fn web_search_tool_definition() -> ToolDefinition {
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "搜索查询词，应简洁明确。建议使用关键词而非自然语言问题。"
+                    "description": "搜索查询词，应简洁明确，建议使用关键词而非自然语言问题。涉及时效性话题（最新/今天/近期）时，请在查询词中体现时间（如年份、月份或“最新”），以便检索到最新结果。"
                 }
             },
             "required": ["query"]
@@ -134,7 +158,17 @@ pub enum LlmClient {
 const DEFAULT_ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com/v1";
 
 fn normalize_base_url(url: &str) -> String {
-    url.trim().trim_end_matches('/').to_string()
+    let mut trimmed = url.trim().trim_end_matches('/');
+    // 容错：用户可能整段粘贴了完整 endpoint。剥掉我们会自行拼接的已知后缀，只保留 API 根地址，
+    // 避免出现 .../chat/completions/chat/completions 这类重复路径（自定义/兼容地址常见误填）。
+    let lower = trimmed.to_ascii_lowercase();
+    for suffix in ["/chat/completions", "/embeddings", "/messages"] {
+        if lower.ends_with(suffix) {
+            trimmed = trimmed[..trimmed.len() - suffix.len()].trim_end_matches('/');
+            break;
+        }
+    }
+    trimmed.to_string()
 }
 
 fn is_anthropic_compatible_base_url(base_url: &str) -> bool {
@@ -255,12 +289,22 @@ impl LlmClient {
             .unwrap_or_default();
 
         let client = if !base_url.is_empty() && !api_key.is_empty() {
-            // Dedicated vision endpoint (OpenAI-compatible)
-            LlmClient::OpenAI {
-                base_url,
-                api_key,
-                chat_model: model.clone(),
-                embed_model: String::new(),
+            let normalized_base_url = normalize_base_url(&base_url);
+            if is_anthropic_compatible_base_url(&normalized_base_url) {
+                // Anthropic-compatible endpoint (e.g. Kimi Coding)
+                LlmClient::Anthropic {
+                    base_url: normalized_base_url,
+                    api_key,
+                    chat_model: model.clone(),
+                }
+            } else {
+                // Dedicated vision endpoint (OpenAI-compatible)
+                LlmClient::OpenAI {
+                    base_url: normalized_base_url,
+                    api_key,
+                    chat_model: model.clone(),
+                    embed_model: String::new(),
+                }
             }
         } else if !api_key.is_empty() {
             // Likely Anthropic (api_key only, no base_url)
@@ -405,10 +449,23 @@ impl LlmClient {
                 })
                 .await?;
                 let json = parse_json_response(resp, "Vision API error").await?;
-                Ok(json["choices"][0]["message"]["content"]
+                let content = json["choices"][0]["message"]["content"]
                     .as_str()
                     .unwrap_or("")
-                    .to_string())
+                    .to_string();
+                let (i, o) = parse_openai_usage(&json).unwrap_or_else(|| {
+                    (
+                        crate::token_usage::estimate_tokens(text) + 256,
+                        crate::token_usage::estimate_tokens(&content),
+                    )
+                });
+                crate::token_usage::record(
+                    i,
+                    o,
+                    text.chars().count() as u64,
+                    content.chars().count() as u64,
+                );
+                Ok(content)
             }
             LlmClient::Anthropic {
                 base_url,
@@ -440,7 +497,20 @@ impl LlmClient {
                 })
                 .await?;
                 let json = parse_json_response(resp, "Anthropic vision error").await?;
-                extract_anthropic_response_text_impl(&json, "Anthropic vision error")
+                let text_out =
+                    extract_anthropic_response_text_impl(&json, "Anthropic vision error")?;
+                let (mut i, mut o) = parse_anthropic_usage(&json["usage"]);
+                if i == 0 && o == 0 {
+                    i = crate::token_usage::estimate_tokens(text) + 256;
+                    o = crate::token_usage::estimate_tokens(&text_out);
+                }
+                crate::token_usage::record(
+                    i,
+                    o,
+                    text.chars().count() as u64,
+                    text_out.chars().count() as u64,
+                );
+                Ok(text_out)
             }
         }
     }
@@ -645,7 +715,29 @@ pub fn resolve_max_tokens(settings: &HashMap<String, String>, keys: &[&str], def
 
 // ── OpenAI helpers ──────────────────────────────────────────────
 
-const USER_AGENT: &str = "xiaoyan-desktop/0.4.0";
+const USER_AGENT: &str = "xiaoyan-desktop/0.4.3";
+
+/// 从 OpenAI 响应（流式末帧或非流式整体）中提取 `usage`，缺失返回 None。
+fn parse_openai_usage(v: &serde_json::Value) -> Option<(u64, u64)> {
+    let u = &v["usage"];
+    if !u.is_object() {
+        return None;
+    }
+    let input = u["prompt_tokens"].as_u64();
+    let output = u["completion_tokens"].as_u64();
+    match (input, output) {
+        (Some(i), Some(o)) => Some((i, o)),
+        _ => None,
+    }
+}
+
+/// 从 Anthropic `usage` 对象中提取 (input, output)，任一缺失按 0 计。
+fn parse_anthropic_usage(u: &serde_json::Value) -> (u64, u64) {
+    (
+        u["input_tokens"].as_u64().unwrap_or(0),
+        u["output_tokens"].as_u64().unwrap_or(0),
+    )
+}
 
 async fn openai_chat(
     base_url: &str,
@@ -686,10 +778,12 @@ async fn openai_chat(
     })
     .await?;
     let json = parse_json_response(resp, "LLM API error").await?;
-    Ok(json["choices"][0]["message"]["content"]
+    let content = json["choices"][0]["message"]["content"]
         .as_str()
         .unwrap_or("")
-        .to_string())
+        .to_string();
+    crate::token_usage::record_chat(messages, &content, parse_openai_usage(&json));
+    Ok(content)
 }
 
 async fn stream_openai(
@@ -708,6 +802,7 @@ async fn stream_openai(
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": true,
+        "stream_options": { "include_usage": true },
     });
     let resp = client
         .post(format!(
@@ -730,6 +825,7 @@ async fn stream_openai(
     let mut buf = String::new();
     let mut stream = resp.bytes_stream();
     let mut in_think = false;
+    let mut api_usage: Option<(u64, u64)> = None;
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk?;
@@ -740,9 +836,13 @@ async fn stream_openai(
                     full.push_str("</think>");
                     on_delta("</think>".to_string());
                 }
+                crate::token_usage::record_chat(messages, &full, api_usage);
                 return Ok(full);
             }
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                if let Some(u) = parse_openai_usage(&v) {
+                    api_usage = Some(u);
+                }
                 let delta = &v["choices"][0]["delta"];
                 if let Some(r) = delta["reasoning_content"]
                     .as_str()
@@ -776,6 +876,7 @@ async fn stream_openai(
         full.push_str("</think>");
         on_delta("</think>".to_string());
     }
+    crate::token_usage::record_chat(messages, &full, api_usage);
     Ok(full)
 }
 
@@ -831,11 +932,9 @@ async fn anthropic_chat(
         .iter()
         .find(|m| m.role == "system")
         .map(|m| m.content.clone());
-    let user_msgs: Vec<_> = messages
-        .iter()
-        .filter(|m| m.role != "system")
-        .map(|m| json!({ "role": m.role, "content": m.content }))
-        .collect();
+    // 复用 build_anthropic_user_messages：统一处理 tool/tool_calls 与多模态图片块，
+    // 避免在非工具流式/非流式路径 inline 构造时丢弃 m.images。
+    let user_msgs = build_anthropic_user_messages(messages);
     let mut body = json!({
         "model": model,
         "max_tokens": max_tokens,
@@ -866,7 +965,11 @@ async fn anthropic_chat(
     })
     .await?;
     let json = parse_json_response(resp, "Anthropic error").await?;
-    extract_anthropic_response_text_impl(&json, "Anthropic error")
+    let text = extract_anthropic_response_text_impl(&json, "Anthropic error")?;
+    let (input, output) = parse_anthropic_usage(&json["usage"]);
+    let api_usage = (input != 0 || output != 0).then_some((input, output));
+    crate::token_usage::record_chat(messages, &text, api_usage);
+    Ok(text)
 }
 
 async fn stream_anthropic(
@@ -883,11 +986,9 @@ async fn stream_anthropic(
         .iter()
         .find(|m| m.role == "system")
         .map(|m| m.content.clone());
-    let user_msgs: Vec<_> = messages
-        .iter()
-        .filter(|m| m.role != "system")
-        .map(|m| json!({ "role": m.role, "content": m.content }))
-        .collect();
+    // 复用 build_anthropic_user_messages：统一处理 tool/tool_calls 与多模态图片块，
+    // 避免在非工具流式/非流式路径 inline 构造时丢弃 m.images。
+    let user_msgs = build_anthropic_user_messages(messages);
     let mut body = json!({
         "model": model,
         "max_tokens": max_tokens,
@@ -915,12 +1016,28 @@ async fn stream_anthropic(
     let mut buf = String::new();
     let mut stream = resp.bytes_stream();
     let mut in_think = false;
+    let mut usage_input: u64 = 0;
+    let mut usage_output: u64 = 0;
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk?;
         append_sse_chunk(&mut buf, &bytes);
         for data in drain_sse_payloads(&mut buf) {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                match v["type"].as_str() {
+                    // message_start 携带 input_tokens；message_delta 的 output_tokens 为累计值，覆盖即可。
+                    Some("message_start") => {
+                        let (i, _) = parse_anthropic_usage(&v["message"]["usage"]);
+                        usage_input = i;
+                    }
+                    Some("message_delta") => {
+                        let (_, o) = parse_anthropic_usage(&v["usage"]);
+                        if o > 0 {
+                            usage_output = o;
+                        }
+                    }
+                    _ => {}
+                }
                 if v["type"] == "content_block_delta" {
                     let delta = &v["delta"];
                     if let Some(t) = delta["thinking"].as_str() {
@@ -953,6 +1070,8 @@ async fn stream_anthropic(
         full.push_str("</think>");
         on_delta("</think>".to_string());
     }
+    let api_usage = (usage_input > 0 || usage_output > 0).then_some((usage_input, usage_output));
+    crate::token_usage::record_chat(messages, &full, api_usage);
     Ok(full)
 }
 
@@ -975,6 +1094,7 @@ async fn stream_openai_with_tools(
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": true,
+        "stream_options": { "include_usage": true },
     });
     if !tools.is_empty() {
         body["tools"] = json!(tools
@@ -1012,6 +1132,7 @@ async fn stream_openai_with_tools(
     let mut stream = resp.bytes_stream();
     let mut tool_calls_acc: Vec<serde_json::Value> = Vec::new();
     let mut in_think = false;
+    let mut api_usage: Option<(u64, u64)> = None;
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk?;
@@ -1021,6 +1142,9 @@ async fn stream_openai_with_tools(
                 break;
             }
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                if let Some(u) = parse_openai_usage(&v) {
+                    api_usage = Some(u);
+                }
                 let delta = &v["choices"][0]["delta"];
                 if let Some(r) = delta["reasoning_content"]
                     .as_str()
@@ -1077,6 +1201,13 @@ async fn stream_openai_with_tools(
         full.push_str("</think>");
         on_delta("</think>".to_string());
     }
+
+    let output_for_estimate = if full.is_empty() {
+        serde_json::to_string(&tool_calls_acc).unwrap_or_default()
+    } else {
+        full.clone()
+    };
+    crate::token_usage::record_chat(messages, &output_for_estimate, api_usage);
 
     if !tool_calls_acc.is_empty() {
         let calls: Vec<ToolCall> = tool_calls_acc
@@ -1149,6 +1280,8 @@ async fn stream_anthropic_with_tools(
     let mut tool_calls_acc: Vec<ToolCall> = Vec::new();
     let mut stop_reason = String::new();
     let mut in_think = false;
+    let mut usage_input: u64 = 0;
+    let mut usage_output: u64 = 0;
 
     while let Some(chunk) = stream.next().await {
         let bytes = chunk?;
@@ -1156,6 +1289,10 @@ async fn stream_anthropic_with_tools(
         for data in drain_sse_payloads(&mut buf) {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
                 match v["type"].as_str() {
+                    Some("message_start") => {
+                        let (i, _) = parse_anthropic_usage(&v["message"]["usage"]);
+                        usage_input = i;
+                    }
                     Some("content_block_start") => {
                         if v["content_block"]["type"].as_str() == Some("tool_use") {
                             let id = v["content_block"]["id"].as_str().unwrap_or("").to_string();
@@ -1208,6 +1345,10 @@ async fn stream_anthropic_with_tools(
                         if let Some(sr) = v["delta"]["stop_reason"].as_str() {
                             stop_reason = sr.to_string();
                         }
+                        let (_, o) = parse_anthropic_usage(&v["usage"]);
+                        if o > 0 {
+                            usage_output = o;
+                        }
                     }
                     _ => {}
                 }
@@ -1219,6 +1360,17 @@ async fn stream_anthropic_with_tools(
         full.push_str("</think>");
         on_delta("</think>".to_string());
     }
+
+    let output_for_estimate = if full.is_empty() {
+        tool_calls_acc
+            .iter()
+            .map(|c| format!("{}{}", c.name, c.arguments))
+            .collect::<String>()
+    } else {
+        full.clone()
+    };
+    let api_usage = (usage_input > 0 || usage_output > 0).then_some((usage_input, usage_output));
+    crate::token_usage::record_chat(messages, &output_for_estimate, api_usage);
 
     if stop_reason == "tool_use" && !tool_calls_acc.is_empty() {
         Ok(StreamOutcome::ToolCalls(tool_calls_acc))

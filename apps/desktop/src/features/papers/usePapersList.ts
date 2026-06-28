@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
 import type { Paper, ResearchInterest } from "@research-copilot/types";
+import { buildInterestForest, collectInterestSubtreeIds } from "./interestTree";
+import type { PaperSortKey } from "./shared";
 
-type SortKey = "created_at" | "title" | "importance" | "manual";
+type SortKey = PaperSortKey;
 
 const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
 
@@ -152,17 +154,63 @@ export function usePapersList() {
     }
   };
 
+  // 合并重复论文：保留 keepId，关联数据并入后删除副本；后端返回合并后的主论文。
+  const handleMergePapers = async (keepId: string, deleteIds: string[]) => {
+    try {
+      setLoadError("");
+      const merged = await apiClient.papers.merge(keepId, deleteIds);
+      setPapers((prev) =>
+        prev.filter((p) => !deleteIds.includes(p.id)).map((p) => (p.id === keepId ? { ...p, ...merged } : p)),
+      );
+      return merged;
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      throw error;
+    }
+  };
+
+  const handleCreateFolder = async (name: string, parentId?: string | null) => {
+    try {
+      setLoadError("");
+      const created = await apiClient.knowledge.createFolder(name, parentId ?? null);
+      setInterests((prev) => [created, ...prev]);
+      return created;
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      throw error;
+    }
+  };
+
+  const handleMoveFolder = async (id: string, parentId: string | null) => {
+    try {
+      setLoadError("");
+      const updated = await apiClient.knowledge.moveInterest(id, parentId);
+      setInterests((prev) => prev.map((i) => (i.id === id ? { ...i, parent_id: updated.parent_id } : i)));
+      return updated;
+    } catch (error) {
+      setLoadError(formatErrorMessage(error));
+      throw error;
+    }
+  };
+
   const handleDeleteInterestGroup = async (interestId: string, deleteAll: boolean) => {
     try {
       setDeletingGroupId(interestId);
       setLoadError("");
+      const subtreeIds = new Set(collectInterestSubtreeIds(interests, interestId));
+      const fallbackParent = interests.find((i) => i.id === interestId)?.parent_id?.trim() || undefined;
       if (deleteAll) {
         await apiClient.knowledge.deleteInterestBundle(interestId);
-        setPapers((prev) => prev.filter((p) => p.research_interest_id !== interestId));
+        setPapers((prev) => prev.filter((p) => !(p.research_interest_id && subtreeIds.has(p.research_interest_id))));
+        setInterests((prev) => prev.filter((i) => !subtreeIds.has(i.id)));
       } else {
         await apiClient.knowledge.deleteInterestOnly(interestId);
+        // 仅删该层：直接论文与子文件夹上提到父级（无父级则未归档 / 顶层）。
+        setPapers((prev) => prev.map((p) => (p.research_interest_id === interestId ? { ...p, research_interest_id: fallbackParent } : p)));
+        setInterests((prev) => prev
+          .filter((i) => i.id !== interestId)
+          .map((i) => (i.parent_id === interestId ? { ...i, parent_id: fallbackParent } : i)));
       }
-      setInterests((prev) => prev.filter((i) => i.id !== interestId));
     } catch (error) {
       setLoadError(formatErrorMessage(error));
     } finally {
@@ -213,6 +261,7 @@ export function usePapersList() {
   };
 
   const interestMap = useMemo(() => Object.fromEntries(interests.map((i) => [i.id, i])), [interests]);
+  const folderForest = useMemo(() => buildInterestForest(interests), [interests]);
 
   const paperGroups = useMemo(() => {
     return interests.map((interest) => {
@@ -244,8 +293,9 @@ export function usePapersList() {
     sortKeys, getSortKey, setSortKey,
     keywordFilters, setKeywordFilter,
     titleFilters, setTitleFilter,
-    paperGroups, ungroupedPapers,
+    paperGroups, ungroupedPapers, folderForest,
     handleUpload, importPaths, handleAnalyze, handleReproduce, handleReparse,
-    handleUpdatePaper, handleDeletePaper, handleDeleteInterestGroup, handleReorderPaper,
+    handleUpdatePaper, handleDeletePaper, handleMergePapers, handleDeleteInterestGroup, handleReorderPaper,
+    handleCreateFolder, handleMoveFolder,
   };
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { ArrowRight, CheckCircle2, Clock3, Loader2, Sparkles, XCircle } from "lucide-react";
 import { toCapabilityModelName, type AgentPlanStep, type AgentRun } from "@research-copilot/types";
-import { buildAgentExecutionGraph, type AgentExecutionGraphView, type AgentGraphEdgeStatus, type AgentGraphNodeStatus } from "./shared";
+import { buildAgentExecutionGraph, type AgentGraphEdgeStatus, type AgentGraphNodeStatus } from "./shared";
 import { AGENT_GRAPH_LAYOUT_PRESETS, buildAgentGraphLayout } from "./agentGraphLayout";
 
 interface AgentStateGraphPanelProps {

@@ -1,18 +1,25 @@
 import {
   ArrowLeft,
+  Ban,
+  Circle,
   ExternalLink,
   Highlighter,
   Minus,
   PanelLeft,
   Plus,
+  Square,
+  Squircle,
   Strikethrough,
   Underline,
 } from "lucide-react";
 import {
   HIGHLIGHT_COLORS,
+  isShapeStyle,
+  SHAPE_LABELS,
   type AnnotationStyle,
   type HighlightColor,
   type ReaderMode,
+  type ShapeStyle,
 } from "./readerTypes";
 
 interface ReaderToolbarProps {
@@ -28,6 +35,8 @@ interface ReaderToolbarProps {
   onToolChange: (tool: AnnotationStyle) => void;
   color: HighlightColor;
   onColorChange: (color: HighlightColor) => void;
+  fill: HighlightColor | null;
+  onFillChange: (fill: HighlightColor | null) => void;
   onOpenExternal?: () => void;
 }
 
@@ -39,9 +48,15 @@ const tools: Array<{ key: AnnotationStyle; icon: typeof Highlighter; label: stri
   { key: "strike", icon: Strikethrough, label: "删除线" },
 ];
 
+const shapes: Array<{ key: ShapeStyle; icon: typeof Square }> = [
+  { key: "rect", icon: Square },
+  { key: "rounded", icon: Squircle },
+  { key: "ellipse", icon: Circle },
+];
+
 const modes: Array<{ key: ReaderMode; label: string }> = [
   { key: "view", label: "阅读" },
-  { key: "annotate", label: "注释" },
+  { key: "annotate", label: "批注" },
 ];
 
 export default function ReaderToolbar({
@@ -57,16 +72,27 @@ export default function ReaderToolbar({
   onToolChange,
   color,
   onColorChange,
+  fill,
+  onFillChange,
   onOpenExternal,
 }: ReaderToolbarProps) {
-  const iconBtn =
-    "flex h-8 w-8 items-center justify-center rounded-lg text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-secondary";
+  const iconBtn = "rc-icon-button h-8 w-8";
+  // 拟态「凹槽」：分组控件放在内凹槽里，选中项再做凸起，符合整体新拟态语言。
+  const well = {
+    background: "var(--rc-chip-inset-bg)",
+    boxShadow: "var(--rc-chip-inset-shadow)",
+  };
+  const innerBtn =
+    "flex h-6 w-6 items-center justify-center rounded-lg text-ink-tertiary transition-colors hover:text-ink-primary";
 
   return (
     <header
       className="rc-reader-header flex min-h-[48px] shrink-0 flex-wrap items-center gap-2 border-b px-3 py-1.5"
       style={{ borderColor: "var(--rc-border)", background: "var(--rc-header-bg)" }}
     >
+      <button type="button" onClick={onBack} className={iconBtn} title="返回">
+        <ArrowLeft className="h-4 w-4" />
+      </button>
       <button
         type="button"
         onClick={onToggleLeft}
@@ -76,19 +102,16 @@ export default function ReaderToolbar({
       >
         <PanelLeft className="h-4 w-4" />
       </button>
-      <button type="button" onClick={onBack} className={iconBtn} title="返回">
-        <ArrowLeft className="h-4 w-4" />
-      </button>
 
       <div className="h-5 w-px" style={{ background: "var(--rc-border)" }} />
 
       {/* 缩放 */}
-      <div className="flex items-center gap-1 rounded-lg border px-1 py-0.5" style={{ borderColor: "var(--rc-border)" }}>
-        <button type="button" onClick={onZoomOut} className="flex h-6 w-6 items-center justify-center rounded text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-secondary" title="缩小">
+      <div className="flex items-center gap-1 rounded-2xl px-1.5 py-1" style={well}>
+        <button type="button" onClick={onZoomOut} className={innerBtn} title="缩小">
           <Minus className="h-3.5 w-3.5" />
         </button>
         <span className="w-11 text-center text-xs tabular-nums text-ink-secondary">{scalePercent}%</span>
-        <button type="button" onClick={onZoomIn} className="flex h-6 w-6 items-center justify-center rounded text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-secondary" title="放大">
+        <button type="button" onClick={onZoomIn} className={innerBtn} title="放大">
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -96,7 +119,7 @@ export default function ReaderToolbar({
       <div className="h-5 w-px" style={{ background: "var(--rc-border)" }} />
 
       {/* 模式切换 */}
-      <div className="flex items-center gap-0.5 rounded-lg border p-0.5" style={{ borderColor: "var(--rc-border)" }}>
+      <div className="flex items-center gap-1 rounded-2xl p-1" style={well}>
         {modes.map((m) => {
           const active = mode === m.key;
           return (
@@ -104,8 +127,12 @@ export default function ReaderToolbar({
               key={m.key}
               type="button"
               onClick={() => onModeChange(m.key)}
-              className="rounded-md px-3 py-1 text-xs font-semibold transition-colors"
-              style={active ? { background: "var(--rc-accent)", color: "#fff" } : { color: "var(--rc-text-secondary)" }}
+              className="rounded-xl px-3 py-1 text-xs font-semibold transition-all"
+              style={
+                active
+                  ? { background: "var(--rc-accent)", color: "#fff", boxShadow: "var(--rc-chip-shadow)" }
+                  : { color: "var(--rc-text-secondary)" }
+              }
             >
               {m.label}
             </button>
@@ -113,10 +140,10 @@ export default function ReaderToolbar({
         })}
       </div>
 
-      {/* 注释模式：工具 + 颜色 */}
+      {/* 批注模式：工具 + 形状 + 颜色 */}
       {mode === "annotate" ? (
-        <div className="flex items-center gap-2 rounded-lg border px-2 py-1" style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}>
-          <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-2 rounded-2xl px-2 py-1.5" style={well}>
+          <div className="flex items-center gap-1">
             {tools.map((t) => {
               const Icon = t.icon;
               const active = tool === t.key;
@@ -126,8 +153,12 @@ export default function ReaderToolbar({
                   type="button"
                   onClick={() => onToolChange(t.key)}
                   title={t.label}
-                  className="flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-                  style={active ? { background: "rgba(0,122,255,0.14)", color: "var(--rc-accent)" } : { color: "var(--rc-text-secondary)" }}
+                  className="flex h-7 w-7 items-center justify-center rounded-xl transition-all"
+                  style={
+                    active
+                      ? { background: "var(--rc-chip-bg)", color: "var(--rc-accent)", boxShadow: "var(--rc-chip-shadow)" }
+                      : { color: "var(--rc-text-secondary)" }
+                  }
                 >
                   <Icon className="h-4 w-4" />
                 </button>
@@ -136,17 +167,69 @@ export default function ReaderToolbar({
           </div>
           <div className="h-4 w-px" style={{ background: "var(--rc-border)" }} />
           <div className="flex items-center gap-1">
+            {shapes.map((s) => {
+              const Icon = s.icon;
+              const active = tool === s.key;
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => onToolChange(s.key)}
+                  title={`${SHAPE_LABELS[s.key]}框选`}
+                  className="flex h-7 w-7 items-center justify-center rounded-xl transition-all"
+                  style={
+                    active
+                      ? { background: "var(--rc-chip-bg)", color: "var(--rc-accent)", boxShadow: "var(--rc-chip-shadow)" }
+                      : { color: "var(--rc-text-secondary)" }
+                  }
+                >
+                  <Icon className="h-4 w-4" />
+                </button>
+              );
+            })}
+          </div>
+          <div className="h-4 w-px" style={{ background: "var(--rc-border)" }} />
+          <div className="flex items-center gap-1">
+            {isShapeStyle(tool) ? <span className="mr-0.5 text-[11px] text-ink-tertiary">边框</span> : null}
             {colorKeys.map((c) => (
               <button
                 key={c}
                 type="button"
                 onClick={() => onColorChange(c)}
-                title={HIGHLIGHT_COLORS[c].label}
+                title={isShapeStyle(tool) ? `边框${HIGHLIGHT_COLORS[c].label}` : HIGHLIGHT_COLORS[c].label}
                 className="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
                 style={{ background: HIGHLIGHT_COLORS[c].bg, borderColor: color === c ? HIGHLIGHT_COLORS[c].border : "transparent" }}
               />
             ))}
           </div>
+
+          {isShapeStyle(tool) ? (
+            <>
+              <div className="h-4 w-px" style={{ background: "var(--rc-border)" }} />
+              <div className="flex items-center gap-1">
+                <span className="mr-0.5 text-[11px] text-ink-tertiary">填充</span>
+                <button
+                  type="button"
+                  onClick={() => onFillChange(null)}
+                  title="无填充"
+                  className="flex h-5 w-5 items-center justify-center rounded-full border-2 transition-transform hover:scale-110"
+                  style={{ borderColor: fill == null ? "var(--rc-accent)" : "var(--rc-border)", color: "var(--rc-text-tertiary)" }}
+                >
+                  <Ban className="h-3 w-3" />
+                </button>
+                {colorKeys.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => onFillChange(c)}
+                    title={`填充${HIGHLIGHT_COLORS[c].label}`}
+                    className="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
+                    style={{ background: HIGHLIGHT_COLORS[c].bg, borderColor: fill === c ? HIGHLIGHT_COLORS[c].border : "transparent" }}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
       ) : null}
 

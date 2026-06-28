@@ -7,7 +7,7 @@ use crate::commands::knowledge_plan_status::{
 };
 use crate::commands::memory::{is_long_term_memory_enabled, record_knowledge_note_created_event};
 use crate::links::paper_search_url;
-use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
+use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMessage};
 use crate::state::AppState;
 use chrono;
 use serde::{Deserialize, Serialize};
@@ -48,7 +48,7 @@ pub async fn knowledge_list_interests(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let rows = sqlx::query(
-        "SELECT id, topic, folder_name, keywords, profile, learning_path, status, created_at FROM research_interests ORDER BY created_at DESC",
+        "SELECT id, topic, folder_name, parent_id, keywords, profile, learning_path, status, created_at FROM research_interests ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
     .await
@@ -93,6 +93,7 @@ pub async fn knowledge_create_interest(
         "id": id,
         "topic": trimmed_topic,
         "folder_name": folder_name,
+        "parent_id": null,
         "keywords": keywords,
         "profile": profile,
         "status": "active",
@@ -119,7 +120,7 @@ pub async fn knowledge_update_interest_folder(
         .map_err(|e| e.to_string())?;
 
     let row = sqlx::query(
-        "SELECT id, topic, folder_name, keywords, profile, learning_path, status, created_at FROM research_interests WHERE id = ?",
+        "SELECT id, topic, folder_name, parent_id, keywords, profile, learning_path, status, created_at FROM research_interests WHERE id = ?",
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -135,11 +136,9 @@ pub async fn knowledge_delete_interest_bundle(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<serde_json::Value, String> {
-    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
-
     let exists = sqlx::query("SELECT id FROM research_interests WHERE id = ?")
         .bind(&id)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&state.db)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -147,27 +146,119 @@ pub async fn knowledge_delete_interest_bundle(
         return Err("未找到对应研究方向。".to_string());
     }
 
-    let deleted_sessions =
-        sqlx::query("DELETE FROM chat_sessions WHERE context_type = 'interest' AND context_id = ?")
-            .bind(&id)
+    // 连同所有子孙文件夹一起删除。
+    let interest_ids = collect_interest_subtree_ids(&state.db, &id).await?;
+
+    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
+    let mut deleted_sessions = 0u64;
+    let mut deleted_notes = 0u64;
+    let mut deleted_papers = 0u64;
+
+    for interest_id in &interest_ids {
+        deleted_sessions += sqlx::query(
+            "DELETE FROM chat_sessions WHERE context_type = 'interest' AND context_id = ?",
+        )
+        .bind(interest_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected();
+
+        deleted_notes += sqlx::query("DELETE FROM knowledge_notes WHERE research_interest_id = ?")
+            .bind(interest_id)
             .execute(&mut *tx)
             .await
             .map_err(|e| e.to_string())?
             .rows_affected();
 
-    let deleted_notes = sqlx::query("DELETE FROM knowledge_notes WHERE research_interest_id = ?")
-        .bind(&id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| e.to_string())?
-        .rows_affected();
+        deleted_papers += sqlx::query("DELETE FROM papers WHERE research_interest_id = ?")
+            .bind(interest_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?
+            .rows_affected();
 
-    let deleted_papers = sqlx::query("DELETE FROM papers WHERE research_interest_id = ?")
+        sqlx::query("DELETE FROM research_interests WHERE id = ?")
+            .bind(interest_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+
+    Ok(json!({
+        "deleted_interest_id": id,
+        "deleted_interest_ids": interest_ids,
+        "deleted_sessions": deleted_sessions,
+        "deleted_notes": deleted_notes,
+        "deleted_papers": deleted_papers,
+    }))
+}
+
+/// 仅删除该文件夹本身，内容上提一层：
+/// - 直接论文、笔记移动到被删文件夹的父级（顶层文件夹则变为未归档）；
+/// - 直接子文件夹挂到被删文件夹的父级；
+/// - 关联会话回到通用上下文。
+#[tauri::command]
+pub async fn knowledge_delete_interest_only(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
+
+    let row = sqlx::query("SELECT parent_id FROM research_interests WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("未找到对应研究方向。")?;
+    let parent_id: Option<String> = row
+        .get::<Option<String>, _>("parent_id")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // 直接论文上提到父级（无父级则置为未归档）。
+    sqlx::query(
+        "UPDATE papers SET research_interest_id = ?, updated_at = ? WHERE research_interest_id = ?",
+    )
+    .bind(&parent_id)
+    .bind(&now)
+    .bind(&id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 直接笔记上提到父级。
+    sqlx::query(
+        "UPDATE knowledge_notes SET research_interest_id = ?, updated_at = ? WHERE research_interest_id = ?",
+    )
+    .bind(&parent_id)
+    .bind(&now)
+    .bind(&id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 直接子文件夹上提到父级。
+    sqlx::query("UPDATE research_interests SET parent_id = ? WHERE parent_id = ?")
+        .bind(&parent_id)
         .bind(&id)
         .execute(&mut *tx)
         .await
-        .map_err(|e| e.to_string())?
-        .rows_affected();
+        .map_err(|e| e.to_string())?;
+
+    // 关联会话回到通用上下文。
+    sqlx::query(
+        "UPDATE chat_sessions SET context_type = 'general', context_id = NULL \
+         WHERE context_type = 'interest' AND context_id = ?",
+    )
+    .bind(&id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
 
     sqlx::query("DELETE FROM research_interests WHERE id = ?")
         .bind(&id)
@@ -177,40 +268,117 @@ pub async fn knowledge_delete_interest_bundle(
 
     tx.commit().await.map_err(|e| e.to_string())?;
 
-    Ok(json!({
-        "deleted_interest_id": id,
-        "deleted_sessions": deleted_sessions,
-        "deleted_notes": deleted_notes,
-        "deleted_papers": deleted_papers,
-    }))
+    Ok(json!({ "deleted_interest_id": id, "reparented_to": parent_id }))
 }
 
-/// Deletes only the research interest record.
-/// Papers and notes lose their association (ON DELETE SET NULL).
-/// Chat sessions are moved back to the general context rather than deleted.
+/// 在论文库中创建整理文件夹（含子文件夹）。
+/// 区别于 `knowledge_create_interest`：这是轻量整理容器，`topic` 与 `folder_name`
+/// 同为传入名称，不附带关键词与学习路线。`parent_id` 为空表示顶层文件夹。
 #[tauri::command]
-pub async fn knowledge_delete_interest_only(
+pub async fn knowledge_create_folder(
     state: State<'_, AppState>,
-    id: String,
+    name: String,
+    parent_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    // Detach sessions from the interest (move to general)
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("文件夹名称不能为空".to_string());
+    }
+
+    let parent = parent_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if let Some(parent) = parent {
+        let exists = sqlx::query("SELECT id FROM research_interests WHERE id = ?")
+            .bind(parent)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+        if exists.is_none() {
+            return Err("未找到上级文件夹。".to_string());
+        }
+    }
+
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
-        "UPDATE chat_sessions SET context_type = 'general', context_id = NULL \
-         WHERE context_type = 'interest' AND context_id = ?",
+        "INSERT INTO research_interests (id, topic, folder_name, parent_id, created_at) VALUES (?, ?, ?, ?, ?)",
     )
     .bind(&id)
+    .bind(trimmed)
+    .bind(trimmed)
+    .bind(parent)
+    .bind(&now)
     .execute(&state.db)
     .await
     .map_err(|e| e.to_string())?;
 
-    // Delete the interest — ON DELETE SET NULL handles papers and notes automatically
-    sqlx::query("DELETE FROM research_interests WHERE id = ?")
+    let row = sqlx::query(
+        "SELECT id, topic, folder_name, parent_id, keywords, profile, learning_path, status, created_at FROM research_interests WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("文件夹创建失败。")?;
+
+    Ok(research_interest_row_to_json(&row))
+}
+
+/// 调整文件夹的父级。`parent_id` 为空表示移动到顶层。
+/// 校验：不能把文件夹移动到它自身或它的子孙之下（避免成环）。
+#[tauri::command]
+pub async fn knowledge_move_interest(
+    state: State<'_, AppState>,
+    id: String,
+    parent_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let target_parent = parent_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+
+    if let Some(parent) = target_parent.as_deref() {
+        if parent == id.as_str() {
+            return Err("不能把文件夹移动到它自己下面。".to_string());
+        }
+        let exists = sqlx::query("SELECT id FROM research_interests WHERE id = ?")
+            .bind(parent)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+        if exists.is_none() {
+            return Err("未找到上级文件夹。".to_string());
+        }
+        let subtree = collect_interest_subtree_ids(&state.db, &id).await?;
+        if subtree.iter().any(|item| item.as_str() == parent) {
+            return Err("不能把文件夹移动到它自己的子文件夹下面。".to_string());
+        }
+    }
+
+    let result = sqlx::query("UPDATE research_interests SET parent_id = ? WHERE id = ?")
+        .bind(&target_parent)
         .bind(&id)
         .execute(&state.db)
         .await
         .map_err(|e| e.to_string())?;
+    if result.rows_affected() == 0 {
+        return Err("未找到对应文件夹。".to_string());
+    }
 
-    Ok(json!({ "deleted_interest_id": id }))
+    let row = sqlx::query(
+        "SELECT id, topic, folder_name, parent_id, keywords, profile, learning_path, status, created_at FROM research_interests WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or("未找到对应文件夹。")?;
+
+    Ok(research_interest_row_to_json(&row))
 }
 
 const PLANNER_PROMPT: &str = r#"请为研究方向「{topic}」（关键词：{keywords}）设计系统化研究学习路线。
@@ -982,6 +1150,166 @@ pub async fn knowledge_suggest_topics(
     }
 }
 
+const IDEA_FROM_MATERIALS_PROMPT: &str = r#"你是一位资深研究导师。学生还没想好做什么，他提供了一些零散材料（可能是与导师讨论 idea 的记录/录音转写、会议笔记、灵感碎片、相关截图或图片等）。请基于这些材料，帮他提炼具体、可执行的研究 idea，并补充相关背景信息。
+
+要求：
+- 给出 4~6 个 idea，每个都必须具体可执行，不能是宽泛领域；体现近两年学术前沿或落地价值
+- title：一句话 idea（10~30 字，中文）
+- rationale：从材料里抓到的线索、为什么值得做（1~2 句）
+- background：相关背景信息——已有相关工作、关键概念、可能的数据/方法切入点（2~3 句）
+- keywords：3~5 个可用于文献检索的关键词
+- 紧扣材料内容，优先顺着材料里出现的线索发散，不要脱离材料凭空发挥；材料信息不足时也要给出最贴近的方向并说明依据
+
+仅返回合法 JSON 对象：
+{"ideas": [{"title": "...", "rationale": "...", "background": "...", "keywords": ["...", "..."]}]}
+
+学生提供的材料：
+{materials}"#;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ResearchIdeaSuggestion {
+    pub title: String,
+    pub rationale: String,
+    pub background: String,
+    pub keywords: Vec<String>,
+}
+
+/// 「没想好做什么」场景：学生给一些零散材料（文字/文档文本 + 可选图片），
+/// 小妍据此提炼可执行的研究 idea 与相关背景。含图片时走视觉模型。
+#[tauri::command]
+pub async fn knowledge_ideas_from_materials(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    materials: String,
+    images: Option<Vec<crate::commands::chat::ImageInput>>,
+) -> Result<Vec<ResearchIdeaSuggestion>, String> {
+    let images: Vec<LlmImage> = images
+        .unwrap_or_default()
+        .into_iter()
+        .map(|img| LlmImage {
+            media_type: img.media_type,
+            data: img.data,
+        })
+        .collect();
+
+    if materials.trim().is_empty() && images.is_empty() {
+        return Err("请先添加一些材料（文字、文档或图片）。".to_string());
+    }
+
+    let suggest_id = Uuid::new_v4().to_string();
+    let _ = app.emit(
+        "interest:agent_start",
+        json!({
+            "id": "suggest",
+            "agent": {
+                "id": suggest_id,
+                "name": "灵感提炼",
+                "role": "从材料中提炼研究 idea",
+                "status": "running"
+            }
+        }),
+    );
+
+    let outcome = async {
+        let settings = state.settings.read().await.clone();
+        let temperature = resolve_temperature(&settings, "planner_hint_temperature", 0.7);
+        // 含图片时改用专用视觉模型；未配置则提示去设置，避免把图发给不支持视觉的主模型。
+        let (client, model) = if images.is_empty() {
+            (
+                LlmClient::from_settings(&settings).map_err(|e| e.to_string())?,
+                resolve_model(&settings, &["planner_hint_model"]),
+            )
+        } else {
+            LlmClient::vision_client_from_settings(&settings).ok_or_else(|| {
+                "材料中包含图片，请先在「设置 → 模型角色 → 视界·视觉」中配置视觉模型。".to_string()
+            })?
+        };
+
+        let material_text = if materials.trim().is_empty() {
+            "（无文字材料，仅提供了图片，请基于图片内容分析）".to_string()
+        } else {
+            materials.trim().to_string()
+        };
+        let prompt = IDEA_FROM_MATERIALS_PROMPT.replace("{materials}", &material_text);
+
+        let user_msg = if images.is_empty() {
+            LlmMessage::user(&prompt)
+        } else {
+            LlmMessage::user_with_images(&prompt, images.clone())
+        };
+        let messages = vec![
+            LlmMessage::system(
+                "你是一位资深学术导师，擅长从零散材料中识别有价值、可执行的研究切入点。",
+            ),
+            user_msg,
+        ];
+        let response = client
+            .chat(&messages, model.as_deref(), temperature)
+            .await
+            .map_err(|e| e.to_string())?;
+        let clean = crate::commands::papers::extract_json_pub(&response);
+        let ideas: Vec<ResearchIdeaSuggestion> = serde_json::from_str::<serde_json::Value>(&clean)
+            .ok()
+            .and_then(|v| {
+                v.get("ideas").and_then(|arr| arr.as_array()).map(|arr| {
+                    arr.iter()
+                        .filter_map(|item| {
+                            let title = item
+                                .get("title")
+                                .and_then(|n| n.as_str())
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())?;
+                            let str_field = |key: &str| {
+                                item.get(key)
+                                    .and_then(|n| n.as_str())
+                                    .unwrap_or("")
+                                    .trim()
+                                    .to_string()
+                            };
+                            let keywords = item
+                                .get("keywords")
+                                .and_then(|k| k.as_array())
+                                .map(|ks| {
+                                    ks.iter()
+                                        .filter_map(|k| k.as_str().map(|s| s.trim().to_string()))
+                                        .filter(|s| !s.is_empty())
+                                        .collect::<Vec<_>>()
+                                })
+                                .unwrap_or_default();
+                            Some(ResearchIdeaSuggestion {
+                                title,
+                                rationale: str_field("rationale"),
+                                background: str_field("background"),
+                                keywords,
+                            })
+                        })
+                        .collect()
+                })
+            })
+            .unwrap_or_default();
+
+        if ideas.is_empty() {
+            return Err("没能从材料里提炼出可用的 idea，请补充更多信息后重试。".to_string());
+        }
+        Ok::<_, String>(ideas)
+    }
+    .await;
+
+    match outcome {
+        Ok(v) => {
+            let _ = app.emit(
+                "interest:agent_complete",
+                json!({ "id": "suggest", "agent": { "id": suggest_id } }),
+            );
+            Ok(v)
+        }
+        Err(e) => {
+            let _ = app.emit("interest:error", json!({ "id": "suggest", "error": &e }));
+            Err(e)
+        }
+    }
+}
+
 fn profile_to_analysis_context(profile: &ResearchInterestProfilePayload) -> String {
     let mut lines = Vec::new();
 
@@ -1225,6 +1553,7 @@ fn research_interest_row_to_json(r: &sqlx::sqlite::SqliteRow) -> serde_json::Val
         "id": r.get::<String, _>("id"),
         "topic": r.get::<String, _>("topic"),
         "folder_name": r.get::<Option<String>, _>("folder_name"),
+        "parent_id": r.get::<Option<String>, _>("parent_id"),
         "keywords": serde_json::from_str::<serde_json::Value>(&keywords).unwrap_or(json!([])),
         "profile": profile_str.and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok()),
         "learning_path": learning_path,
@@ -1240,6 +1569,30 @@ fn default_interest_folder_name(topic: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+/// 收集某文件夹及其全部子孙文件夹的 id（含自身），用于级联删除与移动防环校验。
+async fn collect_interest_subtree_ids(
+    pool: &sqlx::SqlitePool,
+    root_id: &str,
+) -> Result<Vec<String>, String> {
+    let mut ids = vec![root_id.to_string()];
+    let mut frontier = vec![root_id.to_string()];
+    while let Some(current) = frontier.pop() {
+        let children = sqlx::query("SELECT id FROM research_interests WHERE parent_id = ?")
+            .bind(&current)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        for row in children {
+            let child_id: String = row.get("id");
+            if !ids.contains(&child_id) {
+                ids.push(child_id.clone());
+                frontier.push(child_id);
+            }
+        }
+    }
+    Ok(ids)
 }
 
 // ── Web Clip ─────────────────────────────────────────────────────

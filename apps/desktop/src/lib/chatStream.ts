@@ -6,7 +6,6 @@ import type {
   ChatMessage,
   ChatMode,
   ChatStreamChunk,
-  RoutingDecision,
 } from "@research-copilot/types";
 
 function createChatRequestId() {
@@ -21,6 +20,7 @@ export async function* streamChat(
     context_id?: string;
     chat_mode?: ChatMode;
     tag?: string;
+    images?: Array<{ data: string; mediaType: string }>;
   },
   signal?: AbortSignal
 ): AsyncGenerator<ChatStreamChunk> {
@@ -158,6 +158,7 @@ export async function* streamChat(
       contextId: body.context_id ?? null,
       chatMode: body.chat_mode ?? null,
       tag: body.tag ?? null,
+      images: body.images ?? null,
     });
     backendStarted = true;
 

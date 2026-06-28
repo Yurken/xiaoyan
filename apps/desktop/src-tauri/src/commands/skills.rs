@@ -12,6 +12,8 @@ pub struct Skill {
     pub description: String,
     pub prompt: String,
     pub tags: Vec<String>,
+    /// 技能类型：prompt=提示词技能（对话里注入），tool=工具技能（如 PPT 生成，走专用流程）。
+    pub kind: String,
     pub is_builtin: bool,
     pub is_enabled: bool,
     pub created_at: String,
@@ -30,6 +32,7 @@ fn row_to_skill(row: &sqlx::sqlite::SqliteRow) -> Skill {
         description: row.get("description"),
         prompt: row.get("prompt"),
         tags,
+        kind: row.get("kind"),
         is_builtin: is_builtin != 0,
         is_enabled: is_enabled != 0,
         created_at: row.get("created_at"),
@@ -39,7 +42,7 @@ fn row_to_skill(row: &sqlx::sqlite::SqliteRow) -> Skill {
 
 async fn get_skill_by_id(db: &sqlx::SqlitePool, id: &str) -> Result<Skill, String> {
     let row = sqlx::query(
-        "SELECT id, name, title, description, prompt, tags, is_builtin, is_enabled, created_at, updated_at FROM skills WHERE id = ?",
+        "SELECT id, name, title, description, prompt, tags, kind, is_builtin, is_enabled, created_at, updated_at FROM skills WHERE id = ?",
     )
     .bind(id)
     .fetch_optional(db)
@@ -54,7 +57,7 @@ async fn get_skill_by_id(db: &sqlx::SqlitePool, id: &str) -> Result<Skill, Strin
 #[tauri::command]
 pub async fn skills_list(state: State<'_, AppState>) -> Result<Vec<Skill>, String> {
     let rows = sqlx::query(
-        "SELECT id, name, title, description, prompt, tags, is_builtin, is_enabled, created_at, updated_at FROM skills ORDER BY is_builtin DESC, title ASC",
+        "SELECT id, name, title, description, prompt, tags, kind, is_builtin, is_enabled, created_at, updated_at FROM skills ORDER BY is_builtin DESC, title ASC",
     )
     .fetch_all(&state.db)
     .await
@@ -94,7 +97,7 @@ pub async fn skills_create(
         serde_json::to_string(&tags.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string());
 
     sqlx::query(
-        "INSERT INTO skills (id, name, title, description, prompt, tags, is_builtin, is_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, 1, ?, ?)",
+        "INSERT INTO skills (id, name, title, description, prompt, tags, kind, is_builtin, is_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'prompt', 0, 1, ?, ?)",
     )
     .bind(&id)
     .bind(&name)
@@ -189,7 +192,7 @@ pub async fn skills_reset_builtins(state: State<'_, AppState>) -> Result<Vec<Ski
         .map_err(|e| e.to_string())?;
 
     let rows = sqlx::query(
-        "SELECT id, name, title, description, prompt, tags, is_builtin, is_enabled, created_at, updated_at FROM skills ORDER BY is_builtin DESC, title ASC",
+        "SELECT id, name, title, description, prompt, tags, kind, is_builtin, is_enabled, created_at, updated_at FROM skills ORDER BY is_builtin DESC, title ASC",
     )
     .fetch_all(&state.db)
     .await
@@ -207,6 +210,14 @@ struct BuiltinSkill {
     description: &'static str,
     prompt: &'static str,
     tags: &'static [&'static str],
+}
+
+/// 内置技能类型：除 PPT 生成等工具技能外均为提示词技能。
+fn builtin_skill_kind(name: &str) -> &'static str {
+    match name {
+        "ppt-generate" => "tool",
+        _ => "prompt",
+    }
 }
 
 fn builtin_skills() -> &'static [BuiltinSkill] {
@@ -346,8 +357,9 @@ pub async fn seed_builtin_skills(db: &sqlx::SqlitePool) -> anyhow::Result<()> {
     let now = chrono::Utc::now().to_rfc3339();
     for skill in builtin_skills() {
         let tags_json = serde_json::to_string(skill.tags)?;
+        let kind = builtin_skill_kind(skill.name);
         sqlx::query(
-            "INSERT OR IGNORE INTO skills (id, name, title, description, prompt, tags, is_builtin, is_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?, ?)",
+            "INSERT OR IGNORE INTO skills (id, name, title, description, prompt, tags, kind, is_builtin, is_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?)",
         )
         .bind(skill.id)
         .bind(skill.name)
@@ -355,10 +367,17 @@ pub async fn seed_builtin_skills(db: &sqlx::SqlitePool) -> anyhow::Result<()> {
         .bind(skill.description)
         .bind(skill.prompt)
         .bind(&tags_json)
+        .bind(kind)
         .bind(&now)
         .bind(&now)
         .execute(db)
         .await?;
+        // kind 属系统属性：即便用户改过标题/提示词（INSERT OR IGNORE 保留），也按内置定义校正。
+        sqlx::query("UPDATE skills SET kind = ? WHERE name = ? AND is_builtin = 1")
+            .bind(kind)
+            .bind(skill.name)
+            .execute(db)
+            .await?;
     }
     Ok(())
 }

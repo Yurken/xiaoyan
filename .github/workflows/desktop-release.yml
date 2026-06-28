@@ -63,6 +63,17 @@ jobs:
       - name: Lint workspace
         run: pnpm lint
 
+      - name: Run desktop unit and component tests
+        run: pnpm test
+
+      - name: Install Playwright browsers
+        run: pnpm --dir apps/desktop exec playwright install --with-deps chromium
+
+      - name: Run desktop end-to-end tests
+        run: pnpm test:e2e
+        env:
+          CI: "1"
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
@@ -71,6 +82,8 @@ jobs:
         with:
           workspaces: "./apps/desktop/src-tauri -> target"
 
+      # 仅机械功能：`cargo test` 默认跳过 #[ignore] 用例，
+      # 真实 AI 联通测试（ai_live_*）不进打包流水线，仅本地手动 `scripts/test-ai-local.sh`。
       - name: Run desktop Rust tests
         run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 

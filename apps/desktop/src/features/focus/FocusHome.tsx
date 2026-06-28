@@ -17,6 +17,7 @@ import {
   useInterestPlanSnapshots,
 } from "../knowledge/useInterestPlanRuns";
 import MacWindowDragStrip from "../../components/MacWindowDragStrip";
+import { safeListen } from "../../lib/tauriEvent";
 import { MACOS_WINDOW_DRAG_HEIGHT } from "../../lib/windowChrome";
 
 function InterestCard({
@@ -124,12 +125,20 @@ export default function FocusHome() {
 
   useEffect(() => {
     load();
-    const controller = new AbortController();
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      if (controller.signal.aborted) return;
-      void listen<{ id: string }>("interest:plan", () => load());
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
+    void safeListen<{ id: string }>("interest:plan", () => load()).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
+      unlisten = cleanup;
     });
-    return () => controller.abort();
+    return () => {
+      mounted = false;
+      unlisten?.();
+      unlisten = undefined;
+    };
   }, []);
 
   return (

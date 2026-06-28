@@ -1,19 +1,21 @@
 import { useState } from "react";
-import { Bot, Check, Route, Sparkles, Wand2 } from "lucide-react";
+import { Bot, Check, ChevronRight, Route, Sparkles, Wand2 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
-import type { AppSettings, MultiAgentRoutingMode } from "@research-copilot/types";
+import type { AppSettings } from "@research-copilot/types";
+import { apiClient } from "../../lib/client";
 import {
   AGENT_GUIDES,
   AGENT_OPTIONS,
   AgentChip,
   CHARACTERISTIC_MODEL_CARDS,
-  ProviderTab,
+  MASK,
   RecommendationList,
-  ROUTING_MODE_COPY,
   SectionIcon,
   SettingInput,
   ToggleRow,
 } from "./shared";
+
+export type RoleTestState = "idle" | "testing" | "ok" | "error";
 import { CompactModelCard } from "./CompactModelCard";
 import {
   MODEL_PRESETS,
@@ -21,12 +23,10 @@ import {
   applyModelPreset,
   isCardCustomized,
   getCardStatusSummary,
-  type ModelPresetId,
 } from "./modelPresets";
 
 interface RolesSectionProps {
   form: AppSettings;
-  routingMode: MultiAgentRoutingMode;
   enabledAgents: string[];
   set: (key: keyof AppSettings) => (value: string) => void;
   setMany: (keys: (keyof AppSettings)[]) => (value: string) => void;
@@ -35,11 +35,15 @@ interface RolesSectionProps {
   toggleAgent: (agentName: string) => void;
   /** 批量设置多个 key（用于预设应用） */
   setManyFlat: (updates: Partial<Record<keyof AppSettings, string>>) => void;
+  /** 主服务商可用模型查询（供各角色「统一模型」下拉） */
+  availableModels: string[];
+  loadingModels: boolean;
+  modelsError: string;
+  loadModels: () => Promise<void>;
 }
 
 export default function RolesSection({
   form,
-  routingMode,
   enabledAgents,
   set,
   setMany,
@@ -47,14 +51,69 @@ export default function RolesSection({
   hasMixedValue,
   toggleAgent,
   setManyFlat,
+  availableModels,
+  loadingModels,
+  modelsError,
+  loadModels,
 }: RolesSectionProps) {
   const [showAllCards, setShowAllCards] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [roleTestStates, setRoleTestStates] = useState<Record<string, RoleTestState>>({});
   const activePreset = detectModelPreset(form);
 
   // Count how many cards have custom values
   const customizedCount = CHARACTERISTIC_MODEL_CARDS.filter((card) =>
     isCardCustomized(form, card),
   ).length;
+
+  // 当前主服务商对应的「主聊天模型 / 地址 / 密钥」字段，用于把某角色的配置覆盖进去单独测试。
+  const providerChatModelKey = (): "openai_chat_model" | "anthropic_chat_model" | "openai_compatible_chat_model" =>
+    form.llm_provider === "openai" ? "openai_chat_model"
+      : form.llm_provider === "anthropic" ? "anthropic_chat_model"
+        : "openai_compatible_chat_model";
+  const providerBaseUrlKey = (): "openai_base_url" | "openai_compatible_base_url" | null =>
+    form.llm_provider === "openai" ? "openai_base_url"
+      : form.llm_provider === "anthropic" ? null
+        : "openai_compatible_base_url";
+  const providerApiKeyKey = (): "openai_api_key" | "anthropic_api_key" | "openai_compatible_api_key" =>
+    form.llm_provider === "openai" ? "openai_api_key"
+      : form.llm_provider === "anthropic" ? "anthropic_api_key"
+        : "openai_compatible_api_key";
+
+  // 测试某个角色：把该角色的模型（及独立地址/密钥，若有）覆盖进表单后调用 settings.test，
+  // 结果只反映到该角色卡片，不影响全局连接状态。
+  const handleTestRole = async (item: (typeof CHARACTERISTIC_MODEL_CARDS)[number]) => {
+    const key = item.title;
+    setRoleTestStates((prev) => ({ ...prev, [key]: "testing" }));
+    try {
+      // 视觉模型需发送真实测试图确认多模态能力，走专用的视觉连接测试（直接读 form 里的 vision_* 字段）。
+      if (item.modelKeys.includes("vision_model")) {
+        await apiClient.settings.testVision(form);
+      } else {
+        const testForm: Partial<AppSettings> = { ...form };
+        const roleModel = getSharedValue(item.modelKeys).trim();
+        if (roleModel) testForm[providerChatModelKey()] = roleModel;
+        const baseKey = providerBaseUrlKey();
+        const roleBaseUrl = baseKey ? getSharedValue(item.baseUrlKeys).trim() : "";
+        if (baseKey && roleBaseUrl) testForm[baseKey] = roleBaseUrl;
+        const roleApiKey = getSharedValue(item.apiKeyKeys).trim();
+        if (roleApiKey && roleApiKey !== MASK) testForm[providerApiKeyKey()] = roleApiKey;
+        await apiClient.settings.test(testForm);
+      }
+      setRoleTestStates((prev) => ({ ...prev, [key]: "ok" }));
+      window.setTimeout(
+        () => setRoleTestStates((prev) => (prev[key] === "ok" ? { ...prev, [key]: "idle" } : prev)),
+        4000,
+      );
+    } catch (error) {
+      console.error("Role test failed:", error);
+      setRoleTestStates((prev) => ({ ...prev, [key]: "error" }));
+      window.setTimeout(
+        () => setRoleTestStates((prev) => (prev[key] === "error" ? { ...prev, [key]: "idle" } : prev)),
+        5000,
+      );
+    }
+  };
 
   return (
     <Card padding="md" className="space-y-4">
@@ -195,8 +254,14 @@ export default function RolesSection({
                 temperaturePlaceholder={item.temperaturePlaceholder}
                 secondaryFieldLabel={item.secondaryFieldLabel}
                 secondaryFieldHint={item.secondaryFieldHint}
+                availableModels={availableModels}
+                loadingModels={loadingModels}
+                modelsError={modelsError}
+                onQueryModels={() => void loadModels()}
                 statusSummary={getCardStatusSummary(form, item)}
                 isCustomized={customized}
+                roleTestState={roleTestStates[item.title] ?? "idle"}
+                onTestRole={() => handleTestRole(item)}
               />
             );
           })}
@@ -230,13 +295,13 @@ export default function RolesSection({
               小妍步骤协作
             </h2>
             <p className="text-xs text-ink-tertiary mt-0.5">
-              控制复杂问题的协作方式与路由策略。
+              开启后，复杂问题会自动拆分成多步协作完成。
             </p>
           </div>
         </div>
 
         <ToggleRow
-          title="启用小妍步骤编排"
+          title="启用小妍步骤协作"
           description="关闭后仅使用默认模型直接回复，不拆分复杂任务。"
           checked={form.multi_agent_enabled === "true"}
           onToggle={() =>
@@ -246,87 +311,78 @@ export default function RolesSection({
           }
         />
 
-        <div className="space-y-2">
-          <label className="block text-xs font-medium text-ink-tertiary ml-1">
-            小妍路由判断模式
-          </label>
-          <div className="flex gap-2 flex-wrap">
-            {(["rule", "llm", "hybrid"] as const).map((value) => (
-              <ProviderTab
-                key={value}
-                label={ROUTING_MODE_COPY[value].label}
-                active={routingMode === value}
-                onClick={() => set("multi_agent_routing_mode")(value)}
-              />
-            ))}
-          </div>
-          <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
-            <p className="text-sm font-semibold text-ink-primary">
-              {ROUTING_MODE_COPY[routingMode].label}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-ink-secondary">
-              {ROUTING_MODE_COPY[routingMode].description}
-            </p>
-            <p className="mt-2 text-xs leading-5 text-ink-tertiary">
-              {ROUTING_MODE_COPY[routingMode].note}
-            </p>
-          </div>
-        </div>
-
+        {/* 高级设置：参与步骤与执行上限，默认折叠，普通用户无需关心 */}
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Route className="w-4 h-4 text-[#1A8AFF]" />
-            <p className="text-sm font-semibold text-ink-primary">
-              小妍步骤开关
-            </p>
-          </div>
-          <p className="text-xs text-ink-tertiary">
-            选择允许小妍调度的能力步骤，关闭后不会被纳入考量。
-          </p>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((prev) => !prev)}
+            className="flex items-center gap-1.5 text-xs font-medium text-ink-tertiary hover:text-ink-secondary transition-colors"
+          >
+            <ChevronRight
+              className={`w-3.5 h-3.5 transition-transform ${showAdvanced ? "rotate-90" : ""}`}
+            />
+            高级设置（参与步骤与执行上限）
+          </button>
 
-          <div className="flex gap-2 flex-wrap pb-2">
-            {AGENT_OPTIONS.map(([value, label]) => (
-              <AgentChip
-                key={value}
-                label={label}
-                active={enabledAgents.includes(value)}
-                onClick={() => toggleAgent(value)}
-              />
-            ))}
-          </div>
+          {showAdvanced && (
+            <div className="space-y-4 pt-1">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Route className="w-4 h-4 text-[#1A8AFF]" />
+                  <p className="text-sm font-semibold text-ink-primary">
+                    小妍步骤开关
+                  </p>
+                </div>
+                <p className="text-xs text-ink-tertiary">
+                  默认全部开启。如需限制小妍可调度的能力步骤，可在此关闭，关闭后不会被纳入考量。
+                </p>
 
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {AGENT_GUIDES.map((item) => (
-              <div
-                key={item.key}
-                className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3 shadow-sm"
-              >
-                <p className="text-xs font-semibold text-ink-primary">
-                  {item.label}
-                </p>
-                <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-                  {item.description}
-                </p>
+                <div className="flex gap-2 flex-wrap pb-2">
+                  {AGENT_OPTIONS.map(([value, label]) => (
+                    <AgentChip
+                      key={value}
+                      label={label}
+                      active={enabledAgents.includes(value)}
+                      onClick={() => toggleAgent(value)}
+                    />
+                  ))}
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {AGENT_GUIDES.map((item) => (
+                    <div
+                      key={item.key}
+                      className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3 shadow-sm"
+                    >
+                      <p className="text-xs font-semibold text-ink-primary">
+                        {item.label}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-ink-tertiary">
+                        {item.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <SettingInput
-            label="单次最多调用的小妍步骤上限"
-            value={form.multi_agent_max_steps}
-            onChange={set("multi_agent_max_steps")}
-            placeholder="6"
-            hint="超过该步数将强制中断小妍步骤流程。"
-          />
-          <SettingInput
-            label="文献检索模型抓取条数上限"
-            value={form.multi_agent_search_limit}
-            onChange={set("multi_agent_search_limit")}
-            placeholder="8"
-            hint="搜索接口每次返回的文献条数上限。"
-          />
+              <div className="grid gap-3 md:grid-cols-2">
+                <SettingInput
+                  label="单次最多调用的小妍步骤上限"
+                  value={form.multi_agent_max_steps}
+                  onChange={set("multi_agent_max_steps")}
+                  placeholder="6"
+                  hint="超过该步数将强制中断小妍步骤流程。"
+                />
+                <SettingInput
+                  label="文献检索模型抓取条数上限"
+                  value={form.multi_agent_search_limit}
+                  onChange={set("multi_agent_search_limit")}
+                  placeholder="8"
+                  hint="搜索接口每次返回的文献条数上限。"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Card>

@@ -15,12 +15,12 @@ interface BuildPptPromptInput {
 const JSON_SCHEMA = `{
   "title": "演示标题",
   "slides": [
-    { "layout": "title", "title": "主标题", "subtitle": "副标题" },
-    { "layout": "section", "title": "章节页标题", "subtitle": "章节说明（可选）" },
-    { "layout": "content", "title": "内容页标题", "bullets": ["要点1", "要点2", "要点3"] },
-    { "layout": "two_column", "title": "对比页标题", "left": ["左侧1", "左侧2"], "right": ["右侧1", "右侧2"] },
-    { "layout": "highlight", "title": "核心结论页标题", "highlight": "一句话关键结论", "bullets": ["支撑点1", "支撑点2"] },
-    { "layout": "timeline", "title": "流程页标题", "steps": ["阶段1", "阶段2", "阶段3"], "note": "流程说明（可选）" }
+    { "layout": "title", "title": "主标题", "subtitle": "副标题", "note": "开场演讲脚本（1-2 句口语化讲稿）" },
+    { "layout": "section", "title": "章节页标题", "subtitle": "章节说明（可选）", "note": "本章要讲什么、为什么重要" },
+    { "layout": "content", "title": "一句可断言的论点", "bullets": ["支撑论据1", "支撑论据2", "支撑论据3"], "note": "讲解该页的演讲脚本（1-3 句）" },
+    { "layout": "two_column", "title": "对比页标题", "left": ["左侧1", "左侧2"], "right": ["右侧1", "右侧2"], "note": "演讲脚本" },
+    { "layout": "highlight", "title": "核心结论页标题", "highlight": "一句话关键结论", "bullets": ["支撑点1", "支撑点2"], "note": "演讲脚本" },
+    { "layout": "timeline", "title": "流程页标题", "steps": ["阶段1", "阶段2", "阶段3"], "note": "流程讲解脚本" }
   ]
 }`;
 
@@ -64,16 +64,20 @@ function buildRules(styleHint: string, languageHint: string, pageHint: string) {
   return `风格：${styleHint}
 语言：${languageHint}
 页数：${pageHint}
+叙事与设计规则：
+- 整体要有叙事弧线：开篇 title 抛出研究问题/动机，中间按 section 递进组织逻辑，结尾用 highlight 或 title 收束核心 takeaway
+- 单页单核心观点；content 页的 title 写成一句“可断言的论点”而非泛泛的标签，bullets 是支撑该论点的论据
+- 每一页都必须给出 note：1-3 句口语化的演讲者脚本（写入 PowerPoint 备注栏，不显示在幻灯片上），可照着念，而不是重复 bullets
 布局规则：
 - layout 只能是 title / section / content / two_column / highlight / timeline
 - 第一页固定用 title，最后一页也用 title 作为致谢或总结页
 - 全文包含 2 到 3 个 section 分隔页
-- content 页 bullets 每条尽量不超过 22 个字，最多 5 条
+- content 页 bullets 每条尽量不超过 22 个字，最多 5 条；避免把整段文字塞进一页
 - two_column 只用于对比、并列方法或优缺点分析
 - highlight 用于核心贡献、主要结论、takeaway，总结语必须简洁有力
 - timeline 用于研究流程、方法步骤、实验阶段、时间线，steps 控制在 3 到 4 个
-- 不要输出 markdown 代码块，不要输出任何解释性文字，只返回一个 JSON 对象
-- 同一份 PPT 中优先使用多种布局，不要连续出现大量同构页面`;
+- 视觉节奏：相邻页避免同构，交替使用 content / two_column / highlight / timeline
+- 不要输出 markdown 代码块，不要输出任何解释性文字，只返回一个 JSON 对象`;
 }
 
 export function buildPptPrompt(input: BuildPptPromptInput) {

@@ -155,6 +155,29 @@ node scripts/sync-version.mjs --version 1.2.3
 
 安装包与自动更新统一从 R2 公共地址分发（见 `R2_PUBLIC_BASE_URL`），应用更新端点为 `<R2_PUBLIC_BASE_URL>/updaters/latest.json`，官网下载链接读取 `<R2_PUBLIC_BASE_URL>/releases/latest.json`。发布无需手工打包上传，全部走 CI。
 
+GitHub 流水线成功后，如需把旧服务器下载页和旧更新清单同步到最新版本，在 `xiaoyan` 根目录直接运行：
+
+```bash
+pnpm release:landing
+```
+
+这个命令默认读取当前 `package.json` 版本号，并自动调用 `page_xiaoyan` 仓库里的同步流程，完成这些动作：
+
+- 从当前仓库 `CHANGELOG.md` 生成下载页更新日志。
+- 从 Cloudflare R2 读取 `releases/latest.json` 和 `updaters/latest.json`。
+- 更新旧服务器 `http://111.231.56.208:18081/xiaoyan-updates/latest.json` 的版本、`notes` 和 `pub_date`。
+- 重建并同步旧服务器 `landing` 静态页面。
+- 回读公网 `latest.json` 和 `/landing/changelog/` 做校验。
+
+常用写法：
+
+```bash
+pnpm release:landing
+pnpm release:landing --version v0.4.4
+pnpm release:landing --dry-run
+pnpm release:landing --page-repo /path/to/page_xiaoyan
+```
+
 macOS 首次打开提示"已损坏"时执行 `xattr -cr /Applications/小妍.app` 后重新打开。
 
 ## 常见问题

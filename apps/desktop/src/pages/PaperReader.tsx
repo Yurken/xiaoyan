@@ -10,12 +10,14 @@ import ReaderToolbar from "../features/reader/ReaderToolbar";
 import SelectionPopup from "../features/reader/SelectionPopup";
 import { useReaderNotes } from "../features/reader/useReaderNotes";
 import { useReaderTranslation } from "../features/reader/useReaderTranslation";
-import type {
-  AnnotationStyle,
-  HighlightColor,
-  PaperNote,
-  ReaderMode,
-  ReaderSelection,
+import {
+  isShapeStyle,
+  type AnnotationStyle,
+  type HighlightColor,
+  type NormalizedRect,
+  type PaperNote,
+  type ReaderMode,
+  type ReaderSelection,
 } from "../features/reader/readerTypes";
 import { useCorpus } from "../features/papers/useCorpus";
 
@@ -40,10 +42,11 @@ export default function PaperReader() {
   const [mode, setMode] = useState<ReaderMode>("view");
   const [annotateTool, setAnnotateTool] = useState<AnnotationStyle>("highlight");
   const [annotateColor, setAnnotateColor] = useState<HighlightColor>("yellow");
+  const [annotateFill, setAnnotateFill] = useState<HighlightColor | null>(null);
   // 翻译栏展开即等于「自动翻译」：展开时划词自动翻译，收起则不翻译。
   const [translateOpen, setTranslateOpen] = useState(false);
 
-  const { notes, error: notesError, createAnnotation, updateColor, deleteAnnotation, undo } = useReaderNotes(id);
+  const { notes, error: notesError, createAnnotation, updateColor, updateFill, moveAnnotation, deleteAnnotation, undo } = useReaderNotes(id);
   const translation = useReaderTranslation();
   const corpus = useCorpus(id);
 
@@ -103,12 +106,27 @@ export default function PaperReader() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [undo]);
 
-  // 划词处理：注释模式直接套用预选工具；一直翻译开启则自动翻译；否则视图模式弹工具菜单。
+  // 翻译栏展开时，按 Shift+空格（未在输入框）快速开关「连续翻译」。
+  const toggleContinuous = translation.toggleContinuous;
+  useEffect(() => {
+    if (!translateOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || event.code !== "Space" || !event.shiftKey) return;
+      const target = document.activeElement as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      event.preventDefault(); // 阻止空格滚动 PDF
+      toggleContinuous();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [translateOpen, toggleContinuous]);
+
+  // 划词处理：批注模式直接套用预选工具；一直翻译开启则自动翻译；否则视图模式弹工具菜单。
   const handleTextSelected = useCallback(
     (next: ReaderSelection) => {
       setEditing(null);
 
-      if (translateOpen) {
+      if (translateOpen && !translation.locked) {
         void translation.translate(next.text, next.page);
       }
 
@@ -124,8 +142,9 @@ export default function PaperReader() {
         return;
       }
 
-      if (translateOpen) {
-        clearSelection();
+      // 自动翻译时不弹划词菜单，但保留 PDF 上的高亮选区（别 removeAllRanges），让用户看清译的是哪段。
+      if (translateOpen && !translation.locked) {
+        setSelection(null);
         return;
       }
 
@@ -186,6 +205,36 @@ export default function PaperReader() {
     clearSelection();
   }, [selection, translation, clearSelection]);
 
+  const handleInterpret = useCallback(() => {
+    if (!selection) return;
+    setTranslateOpen(true); // 解读结果显示在右侧栏，自动展开
+    translation.interpretText(selection.text);
+    clearSelection();
+  }, [selection, translation, clearSelection]);
+
+  // 形状绘制完成：把拖出的框存成形状批注（无原文），带边框色与填充色。
+  const handleShapeDrawn = useCallback(
+    (page: number, rect: NormalizedRect) => {
+      void createAnnotation({
+        page,
+        highlightText: "",
+        color: annotateColor,
+        style: annotateTool,
+        positions: [rect],
+        fillColor: annotateFill,
+      });
+    },
+    [createAnnotation, annotateColor, annotateTool, annotateFill],
+  );
+
+  const handleShapeMove = useCallback(
+    (note: PaperNote, rect: NormalizedRect) => void moveAnnotation(note.id, [rect]),
+    [moveAnnotation],
+  );
+
+  // 批注模式下选中形状工具即进入「绘制」模式：拖拽画框，不再划词。
+  const drawShape = mode === "annotate" && isShapeStyle(annotateTool) ? annotateTool : null;
+
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       <ReaderToolbar
@@ -201,6 +250,8 @@ export default function PaperReader() {
         onToolChange={setAnnotateTool}
         color={annotateColor}
         onColorChange={setAnnotateColor}
+        fill={annotateFill}
+        onFillChange={setAnnotateFill}
         onOpenExternal={id ? () => void papersApi.openFile(id) : undefined}
       />
 
@@ -237,14 +288,27 @@ export default function PaperReader() {
               onSelectionCleared={handlePopupsCleared}
               onNoteClick={handleNoteClick}
               onZoom={handleZoom}
+              drawShape={drawShape}
+              drawColor={annotateColor}
+              drawFill={annotateFill}
+              onShapeDrawn={handleShapeDrawn}
+              onShapeMove={handleShapeMove}
             />
           ) : null}
         </div>
 
         {translateOpen ? (
           <ReaderTranslationPanel
-            entries={translation.entries}
-            onRemove={translation.remove}
+            current={translation.current}
+            interpretation={translation.interpretation}
+            locked={translation.locked}
+            continuous={translation.continuous}
+            fontSize={translation.fontSize}
+            onToggleLock={translation.toggleLock}
+            onToggleContinuous={translation.toggleContinuous}
+            onFontSize={translation.setFontSize}
+            onInterpret={translation.interpret}
+            onEditSource={translation.editSource}
             onClear={translation.clear}
             onCollapse={() => setTranslateOpen(false)}
           />
@@ -270,16 +334,21 @@ export default function PaperReader() {
           onAnnotate={handleAnnotate}
           onSaveCorpus={handleSaveCorpus}
           onTranslate={handleTranslate}
+          onInterpret={handleInterpret}
           onClose={clearSelection}
         />
       ) : editing ? (
         <SelectionPopup
+          key={editing.note.id}
           mode="edit"
           x={editing.x}
           y={editing.y}
           selectedText={editing.note.highlight_text ?? ""}
           initialColor={editing.note.highlight_color}
+          isShape={isShapeStyle(editing.note.style)}
+          initialFill={editing.note.fill_color}
           onRecolor={(color) => void updateColor(editing.note.id, color)}
+          onRecolorFill={(fill) => void updateFill(editing.note.id, fill)}
           onDelete={() => {
             void deleteAnnotation(editing.note.id);
             setEditing(null);

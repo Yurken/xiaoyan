@@ -73,12 +73,13 @@ export function webdavRequest(
   });
 }
 
+// 按本地名（无命名空间前缀）提取标签文本，兼容任意前缀（D:/d:/lp1:）或无前缀，
+// 否则不同 WebDAV 服务端（Nextcloud 用 d:、部分用 lp1:）会导致解析不到任何文件。
 function extractXml(xml: string, tag: string): string {
-  const start = xml.indexOf(`<${tag}>`);
-  if (start === -1) return "";
-  const end = xml.indexOf(`</${tag}>`, start);
-  if (end === -1) return "";
-  return xml.slice(start + tag.length + 2, end).trim();
+  const match = xml.match(
+    new RegExp(`<(?:[A-Za-z0-9]+:)?${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[A-Za-z0-9]+:)?${tag}>`, "i"),
+  );
+  return match ? match[1].trim() : "";
 }
 
 const PROPFIND_BODY = `<?xml version="1.0" encoding="utf-8"?>
@@ -96,14 +97,14 @@ export async function propfindFiles(config: WebdavConfig, dir = ""): Promise<Web
   const resp = await webdavRequest(config, "PROPFIND", dir || "/", PROPFIND_BODY);
   if (resp.status >= 300) return [];
   const files: WebdavFile[] = [];
-  const responses = resp.body.split("<D:response");
+  const responses = resp.body.split(/<(?:[A-Za-z0-9]+:)?response(?=[\s>])/i);
   for (let i = 1; i < responses.length; i++) {
     const chunk = responses[i];
-    if (chunk.includes("<D:collection/>")) continue;
-    const href = extractXml(chunk, "D:href");
-    const name = extractXml(chunk, "D:displayname") || decodeURIComponent(href.split("/").filter(Boolean).pop() ?? href);
-    const size = parseInt(extractXml(chunk, "D:getcontentlength") || "0", 10);
-    const lastModified = extractXml(chunk, "D:getlastmodified") || "";
+    if (/<(?:[A-Za-z0-9]+:)?collection\s*\/>/i.test(chunk)) continue;
+    const href = extractXml(chunk, "href");
+    const name = extractXml(chunk, "displayname") || decodeURIComponent(href.split("/").filter(Boolean).pop() ?? href);
+    const size = parseInt(extractXml(chunk, "getcontentlength") || "0", 10);
+    const lastModified = extractXml(chunk, "getlastmodified") || "";
     if (size > 0 || name) files.push({ href, name, size, lastModified });
   }
   return files;

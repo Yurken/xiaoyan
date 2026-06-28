@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { safeOnDragDrop } from "../../lib/tauriEvent";
+import { useEffect, useRef } from "react";
 import {
   AlertCircle,
   Check,
@@ -7,15 +6,16 @@ import {
   Pencil,
   RefreshCw,
   X,
+  Zap,
 } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
-import { MAIN_ASSISTANT_WELCOME_DESCRIPTION, MAIN_ASSISTANT_WELCOME_TITLE } from "@research-copilot/types";
+import { MAIN_ASSISTANT_WELCOME_DESCRIPTION, MAIN_ASSISTANT_WELCOME_DESCRIPTION_DIRECT, MAIN_ASSISTANT_WELCOME_TITLE } from "@research-copilot/types";
 import ThinkingProcessPanel from "./ThinkingProcessPanel";
 import { ToolActionCard } from "./ToolActionCard";
 import appLogo from "../../assets/xiaoyanv.svg";
 import { parseCopilotMessageContent } from "./shared";
 import { openLink } from "../../lib/links";
-import type { AgentPlanStep, AgentRun, ChatMessage, RoutingDecision } from "@research-copilot/types";
+import type { AgentPlanStep, AgentRun, ChatMessage, ChatMode, RoutingDecision } from "@research-copilot/types";
 
 const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
 
@@ -27,14 +27,23 @@ function splitThoughtFromContent(content: string) {
     const text = (match[1] || "").trim();
     if (text) thoughts.push(text);
   }
+  let answer = content.replace(thinkTagPattern, "");
+  // 流式过程中 <think> 可能尚未闭合：把从未闭合标签到结尾的内容都归入思考，避免原始推理泄漏进回答气泡。
+  const openIndex = answer.search(/<think>/i);
+  if (openIndex !== -1) {
+    const pending = answer.slice(openIndex).replace(/<think>/i, "").trim();
+    if (pending) thoughts.push(pending);
+    answer = answer.slice(0, openIndex);
+  }
   return {
     thought: thoughts.join("\n\n"),
-    answer: content.replace(thinkTagPattern, "").trim(),
+    answer: answer.trim(),
   };
 }
 
 interface CopilotChatAreaProps {
   messages: ChatMessage[];
+  chatMode: ChatMode;
   agentRuns: AgentRun[];
   plan: AgentPlanStep[];
   routingDecision: RoutingDecision | null;
@@ -52,80 +61,26 @@ interface CopilotChatAreaProps {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onEditTextChange: (text: string) => void;
-  onPickFromDrop: (paths: string[]) => void;
 }
 
 export function CopilotChatArea(props: CopilotChatAreaProps) {
   const {
-    messages, agentRuns, plan, routingDecision, activeAssistantId, sending, searchingQuery,
+    messages, chatMode, agentRuns, plan, routingDecision, activeAssistantId, sending, searchingQuery,
     loadError, editingMessageId, editText, copiedId,
     onClearError, onCopy, onRetry, onStartEdit, onSaveEdit, onCancelEdit,
-    onEditTextChange, onPickFromDrop,
+    onEditTextChange,
   } = props;
 
   const bottomRef = useRef<HTMLDivElement>(null);
-  const [chatDragOver, setChatDragOver] = useState(false);
-  const chatDragCounterRef = useRef(0);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let mounted = true;
-    void safeOnDragDrop((event) => {
-      if (event.payload.type === "drop") onPickFromDrop(event.payload.paths);
-    }).then((cleanup) => {
-      if (!mounted) {
-        cleanup();
-        return;
-      }
-      unlisten = cleanup;
-    });
-    return () => {
-      mounted = false;
-      unlisten?.();
-      unlisten = undefined;
-    };
-  }, [onPickFromDrop]);
-
-  const handleChatDragEnter = (e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    chatDragCounterRef.current += 1;
-    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) setChatDragOver(true);
-  };
-  const handleChatDragLeave = (e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    chatDragCounterRef.current -= 1;
-    if (chatDragCounterRef.current <= 0) { chatDragCounterRef.current = 0; setChatDragOver(false); }
-  };
-  const handleChatDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
-  const handleChatDrop = (e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    setChatDragOver(false);
-    chatDragCounterRef.current = 0;
-  };
-
-  const displayedRuns = [...agentRuns].sort((a, b) => a.orderIndex - b.orderIndex);
+  const displayedRuns = [...agentRuns].sort((a, b) => a.order_index - b.order_index);
 
   return (
-    <div
-      className="flex-1 overflow-y-auto p-4 space-y-4 relative rc-copilot-chat-area"
-      onDragEnter={handleChatDragEnter}
-      onDragLeave={handleChatDragLeave}
-      onDragOver={handleChatDragOver}
-      onDrop={handleChatDrop}
-    >
-      {chatDragOver && (
-        <div
-          className="absolute inset-2 z-30 rounded-3xl flex items-center justify-center"
-          style={{ background: "rgba(0,122,255,0.08)", border: "2px dashed #007AFF", pointerEvents: "none" }}
-        >
-          <span className="text-lg font-semibold" style={{ color: "#007AFF" }}>释放文件以上传</span>
-        </div>
-      )}
-
+    <div className="flex-1 overflow-y-auto p-4 space-y-4 relative rc-copilot-chat-area">
       {loadError && (
         <div className="px-1 pt-2">
           <div
@@ -148,7 +103,7 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
           />
           <div className="text-center max-w-md">
             <p className="font-semibold text-ink-primary">{MAIN_ASSISTANT_WELCOME_TITLE}</p>
-            <p className="text-sm text-ink-tertiary mt-2 leading-6">{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</p>
+            <p className="text-sm text-ink-tertiary mt-2 leading-6">{chatMode === "direct" ? MAIN_ASSISTANT_WELCOME_DESCRIPTION_DIRECT : MAIN_ASSISTANT_WELCOME_DESCRIPTION}</p>
           </div>
         </div>
       )}
@@ -161,6 +116,16 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
             const planForBubble = isActiveAssistant ? plan : [];
             const runsForBubble = isActiveAssistant ? displayedRuns : [];
             const routingForBubble = isActiveAssistant ? routingDecision : null;
+            // 思考面板已渲染时（有推理/计划/运行/搜索/路由），它自带「思考中」指示，
+            // 答案区不再重复显示「小妍思考中…」，仅在面板尚未出现时用作占位提示。
+            const hasThinkingPanel =
+              parsed.thought.trim().length > 0 ||
+              planForBubble.length > 0 ||
+              runsForBubble.length > 0 ||
+              !!routingForBubble ||
+              (isActiveAssistant && !!searchingQuery);
+            const showThinkingPlaceholder =
+              sending && isActiveAssistant && !hasThinkingPanel;
 
             return (
               <>
@@ -172,9 +137,13 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                   searchingQuery={isActiveAssistant ? searchingQuery : null}
                   isThinking={sending && isActiveAssistant}
                 />
-                <div className="rc-selectable text-sm leading-relaxed" style={{ color: "var(--rc-text)" }}>
+                <div
+                  className="rc-assistant-answer rc-selectable"
+                  style={{ color: "var(--rc-text)" }}
+                >
                   <MarkdownRenderer
-                    content={parsed.answer || (sending && isActiveAssistant ? "小妍思考中..." : "")}
+                    content={parsed.answer || (showThinkingPlaceholder ? "小妍思考中..." : "")}
+                    className="rc-chat-markdown"
                     onLinkClick={openLink}
                   />
                 </div>
@@ -233,6 +202,17 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                     </div>
                   ) : (
                     <>
+                      {parsedUserMessage.skill && (
+                        <div className="mb-1.5 flex justify-end">
+                          <span
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium"
+                            style={{ background: "rgba(0,122,255,0.12)", color: "#007AFF" }}
+                          >
+                            <Zap className="w-3 h-3" />
+                            {parsedUserMessage.skill.title}
+                          </span>
+                        </div>
+                      )}
                       {parsedUserMessage.attachments.length > 0 && (
                         <div className="mb-2 flex flex-wrap gap-1.5 justify-end">
                           {parsedUserMessage.attachments.map((att, i) => (
@@ -241,6 +221,19 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                               style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}>
                               {att.name}
                             </span>
+                          ))}
+                        </div>
+                      )}
+                      {message.images && message.images.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5 justify-end">
+                          {message.images.map((img, i) => (
+                            <img
+                              key={`${img.name ?? "img"}-${i}`}
+                              src={`data:${img.mediaType};base64,${img.data}`}
+                              alt={img.name ?? "图片"}
+                              className="max-h-40 max-w-[12rem] rounded-xl object-cover"
+                              style={{ boxShadow: "var(--rc-chip-shadow)" }}
+                            />
                           ))}
                         </div>
                       )}

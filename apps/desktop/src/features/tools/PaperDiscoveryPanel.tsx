@@ -416,7 +416,7 @@ export function PaperDiscoveryPanel({
           label="返回篇数"
           type="number"
           min={1}
-          max={20}
+          max={50}
           value={limit}
           onChange={(event) => onLimitChange(event.target.value)}
           placeholder="6"

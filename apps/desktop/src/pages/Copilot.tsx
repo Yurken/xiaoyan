@@ -4,10 +4,13 @@ import CopilotComposer from "../features/copilot/CopilotComposer";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
 import { CopilotChatArea } from "../features/copilot/CopilotChatArea";
 import { CopilotSessionSidebar } from "../features/copilot/CopilotSessionSidebar";
+import SkillVariableFillModal from "../features/copilot/SkillVariableFillModal";
 import { useCopilotSessions } from "../features/copilot/useCopilotSessions";
 import { useCopilotChat } from "../features/copilot/useCopilotChat";
 import { useCopilotAttachments } from "../features/copilot/useCopilotAttachments";
 import { useCopilotChatMode } from "../features/copilot/useCopilotChatMode";
+import { useCopilotDropZone } from "../features/copilot/useCopilotDropZone";
+import { parseCopilotMessageContent } from "../features/copilot/shared";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
@@ -27,6 +30,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  // 技能锁定：关闭时（默认）发完一条即清除选中（one-shot）；开启时连续生效。
+  const [skillLocked, setSkillLocked] = useState(false);
   const [memoryInput, setMemoryInput] = useState("");
   const [savingMemory, setSavingMemory] = useState(false);
   const [memorySaved, setMemorySaved] = useState(false);
@@ -40,9 +45,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     uploading: uploadingAttachments,
     pickAttachments,
     pickFromDrop,
+    addImageFiles,
     removeAttachment,
     clearAttachments,
   } = useCopilotAttachments((err) => sessions.setLoadError(err));
+
+  // 拖拽文件到对话列即添加为附件（图片/文档由附件管线区分处理）。
+  const chatDropZone = useCopilotDropZone(pickFromDrop);
 
   const chat = useCopilotChat({
     currentSession: sessions.currentSession,
@@ -52,12 +61,25 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     selectedSkillId,
     attachments,
     clearAttachments,
-    onNewSession: () => {},
+    onSkillConsumed: () => {
+      if (!skillLocked) setSelectedSkillId(null);
+    },
     onSessionCreated: async (sessionId: string) => {
-      const updated = await apiClient.chat.listSessions();
-      const nextSession = updated.find((s) => s.id === sessionId) ?? null;
-      // Update sessions list via the session hook's internal sync
-      if (nextSession) sessions.syncSession(nextSession);
+      try {
+        const updated = await apiClient.chat.listSessions();
+        const nextSession = updated.find((s) => s.id === sessionId) ?? null;
+        if (nextSession) {
+          // 加入/置顶会话列表，并把新建会话设为当前会话。
+          sessions.syncSession(nextSession);
+          sessions.setCurrentSession(nextSession);
+          return;
+        }
+      } catch (err) {
+        console.warn("Failed to refresh sessions after creation:", err);
+      }
+      // 兜底：即便列表刷新失败，也要把当前会话锁定到新建的 id，否则下一条消息仍以
+      // session_id=null 发送，后端会再建一个新会话，导致同一段对话被拆成多条记录。
+      sessions.setCurrentSession((prev) => prev ?? ({ id: sessionId } as ChatSession));
     },
   });
 
@@ -66,11 +88,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     sessions.handleNewChat();
     chat.resetChat();
   }, [sessions, chat]);
-
-  // Restore last session and load agent runs
-  useEffect(() => {
-    sessions.restoreLastSession();
-  }, [sessions]);
 
   const handleLoadSession = useCallback(async (session: ChatSession) => {
     chat.cancelActiveStream();
@@ -88,17 +105,22 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   // Skills
   useEffect(() => {
     apiClient.skills.list().then((data) => {
-      setSkills(data.filter((s) => s.is_enabled && s.name !== "ppt-generate"));
+      // 对话技能选择器只收提示词技能；工具技能（如 PPT 生成）走工具页专用流程。
+      setSkills(data.filter((s) => s.is_enabled && s.kind !== "tool"));
     }).catch((err) => { console.warn("Failed to load skills:", err); });
   }, []);
 
-  // Cleanup
+  // Cleanup：仅在卸载时取消进行中的流。
+  // 注意 deps 必须是稳定的 cancelActiveStream，不能用整个 chat 对象——
+  // useCopilotChat 每次渲染都返回新对象，若依赖 [chat] 会在每次重渲染时执行上一次的清理，
+  // 把刚发起的请求 abort 掉（表现为只发 chat_cancel、不发 chat_stream）。
+  const cancelActiveStream = chat.cancelActiveStream;
   useEffect(() => {
     return () => {
-      chat.cancelActiveStream();
+      cancelActiveStream();
       if (memorySavedTimerRef.current) clearTimeout(memorySavedTimerRef.current);
     };
-  }, [chat]);
+  }, [cancelActiveStream]);
 
   // Copy handler
   const handleCopy = async (text: string, messageId: string) => {
@@ -109,12 +131,18 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     } catch (err) { console.warn("Clipboard write failed:", err); }
   };
 
-  // Edit handlers
+  // Edit handlers：编辑时只暴露可读正文（去掉附件编码），保存即截断其后消息并以新正文重发。
   const handleStartEdit = (message: { id: string; content: string }) => {
     setEditingMessageId(message.id);
-    setEditText(message.content);
+    setEditText(parseCopilotMessageContent(message.content).text);
   };
-  const handleSaveEdit = () => { setEditingMessageId(null); setEditText(""); };
+  const handleSaveEdit = () => {
+    const id = editingMessageId;
+    const text = editText;
+    setEditingMessageId(null);
+    setEditText("");
+    if (id && text.trim()) chat.editAndResend(id, text);
+  };
   const handleCancelEdit = () => { setEditingMessageId(null); setEditText(""); };
 
   // Save memory
@@ -153,7 +181,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   // Displayed runs for artifacts
   const displayedRuns = useMemo(() => {
-    return [...chat.agentRuns].sort((a, b) => a.orderIndex - b.orderIndex);
+    return [...chat.agentRuns].sort((a, b) => a.order_index - b.order_index);
   }, [chat.agentRuns]);
 
   const artifacts = useMemo(() => {
@@ -193,7 +221,15 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
         />
 
         <div className="flex-1 min-w-0 flex overflow-hidden">
-          <div className="flex-1 flex flex-col min-w-0 bg-nm-bg relative">
+          <div ref={chatDropZone.zoneRef} className="flex-1 flex flex-col min-w-0 bg-nm-bg relative">
+            {chatDropZone.isOver && (
+              <div
+                className="absolute inset-3 z-40 flex items-center justify-center rounded-3xl"
+                style={{ background: "rgba(0,122,255,0.08)", border: "2px dashed #007AFF", pointerEvents: "none" }}
+              >
+                <span className="text-lg font-semibold" style={{ color: "#007AFF" }}>释放文件，添加到对话</span>
+              </div>
+            )}
             {sessionListCollapsed && (
               <button
                 type="button"
@@ -208,6 +244,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
             <CopilotChatArea
               messages={chat.messages}
+              chatMode={chatMode}
               agentRuns={chat.agentRuns}
               plan={chat.plan}
               routingDecision={chat.routingDecision}
@@ -220,12 +257,11 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               copiedId={copiedId}
               onClearError={() => { sessions.setLoadError(""); chat.setLoadError(""); }}
               onCopy={handleCopy}
-              onRetry={() => {}}
+              onRetry={chat.retry}
               onStartEdit={handleStartEdit}
               onSaveEdit={handleSaveEdit}
               onCancelEdit={handleCancelEdit}
               onEditTextChange={setEditText}
-              onPickFromDrop={pickFromDrop}
             />
 
             <CopilotComposer
@@ -243,10 +279,13 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               uploadingAttachments={uploadingAttachments}
               attachments={attachments}
               pickAttachments={pickAttachments}
+              onPasteImages={addImageFiles}
               removeAttachment={removeAttachment}
               skills={skills}
               selectedSkillId={selectedSkillId}
               onSelectedSkillChange={setSelectedSkillId}
+              skillLocked={skillLocked}
+              onSkillLockedChange={setSkillLocked}
             />
           </div>
         </div>
@@ -267,6 +306,14 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           onCollapsedChange={chat.setSidebarCollapsed}
         />
       </div>
+
+      {chat.pendingSkillFill && (
+        <SkillVariableFillModal
+          pending={chat.pendingSkillFill}
+          onConfirm={(values) => void chat.confirmSkillFill(values)}
+          onCancel={chat.cancelSkillFill}
+        />
+      )}
 
       {/* 会话右键菜单 */}
       {sessions.contextMenu && (

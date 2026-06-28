@@ -24,9 +24,16 @@ mod rag;
 mod repositories;
 mod services;
 mod state;
+mod token_usage;
 mod web_search;
 
+// 本地手动 AI 联通测试（全部 #[ignore]，CI 的 cargo test 自动跳过）。
+#[cfg(test)]
+mod ai_live_test;
+
 use tauri::Manager;
+
+use web_search::web_search_query;
 
 use commands::{
     active_researcher::{
@@ -57,10 +64,10 @@ use commands::{
     export::export_to_obsidian,
     journal::{journal_lookup, journal_rank_filter},
     knowledge::{
-        knowledge_create_interest, knowledge_delete_interest_bundle,
+        knowledge_create_folder, knowledge_create_interest, knowledge_delete_interest_bundle,
         knowledge_delete_interest_only, knowledge_generate_interest_hints, knowledge_generate_plan,
-        knowledge_list_interests, knowledge_suggest_topics, knowledge_update_interest_folder,
-        knowledge_web_clip,
+        knowledge_ideas_from_materials, knowledge_list_interests, knowledge_move_interest,
+        knowledge_suggest_topics, knowledge_update_interest_folder, knowledge_web_clip,
     },
     knowledge_graph::{
         knowledge_graph_create_citation, knowledge_graph_create_claim,
@@ -99,14 +106,17 @@ use commands::{
     paper_search::paper_search,
     papers::{
         papers_analyze, papers_delete, papers_extract_pdf_text, papers_get, papers_list,
-        papers_list_parse_runs, papers_open_pdf, papers_reorder, papers_reparse, papers_reproduce,
-        papers_update, papers_upload,
+        papers_list_parse_runs, papers_merge, papers_open_pdf, papers_reorder, papers_reparse,
+        papers_reveal_in_folder,
+        papers_reproduce, papers_update, papers_upload,
     },
     research_context::{research_context_get_recent_themes, research_context_get_theme_context},
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
-        settings_history_list, settings_history_save, settings_import, settings_list_ollama_models,
-        settings_test, settings_update,
+        settings_history_list, settings_history_save, settings_history_update, settings_import,
+        settings_list_models,
+        settings_list_ollama_models, settings_test, settings_test_tavily, settings_test_vision,
+        settings_update,
     },
     skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
     source::source_lookup,
@@ -125,6 +135,7 @@ use commands::{
         submission_update_version, submission_upsert_round,
     },
     sync::{sync_configure, sync_disable, sync_get_config, sync_now, sync_status},
+    token_usage::token_usage_stats,
     update::{update_check, update_install, PendingUpdate},
     webdav_sync::{
         webdav_delete_backup, webdav_download_backup, webdav_list_backups, webdav_test_connection,
@@ -178,6 +189,97 @@ pub fn append_diagnostic_log(message: &str) {
     }
 }
 
+/// 读取应用当前诊断日志，供「附带本地日志」一键附带。
+/// 仅返回尾部（最多 ~200KB）——最近的日志最有用，也避免反馈载荷过大。
+#[tauri::command]
+fn read_diagnostic_log() -> Result<serde_json::Value, String> {
+    const MAX_BYTES: usize = 200_000;
+    let path = diagnostic_log_path();
+    let content = fs::read_to_string(&path).map_err(|e| format!("读取日志失败：{e}"))?;
+    let tail = if content.len() > MAX_BYTES {
+        // 从字符边界安全截断，保留最新的一段。
+        let mut start = content.len() - MAX_BYTES;
+        while start < content.len() && !content.is_char_boundary(start) {
+            start += 1;
+        }
+        format!("……（已省略较早日志）\n{}", &content[start..])
+    } else {
+        content
+    };
+    let name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("xiaoyan-desktop.log")
+        .to_string();
+    Ok(serde_json::json!({ "name": name, "content": tail }))
+}
+
+#[derive(serde::Deserialize)]
+pub struct FeedbackLog {
+    name: String,
+    content: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct FeedbackPayload {
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    contact: String,
+    category: Option<String>,
+    #[serde(default)]
+    images: Vec<String>,
+    log: Option<FeedbackLog>,
+}
+
+/// 提交用户反馈到官网反馈服务。
+/// 从后端 reqwest 直发（不带 Origin 头，绕过服务端 CORS 白名单）。
+#[tauri::command]
+async fn feedback_submit(payload: FeedbackPayload) -> Result<serde_json::Value, String> {
+    let endpoint = std::env::var("XIAOYAN_FEEDBACK_ENDPOINT")
+        .unwrap_or_else(|_| "https://xiaoyan.net.cn/api/settings/feedback".to_string());
+
+    // 操作系统类型 + 版本（+ 架构），写进服务端会落库的 client.platform 字段。
+    // 例：「Mac OS 15.5.0 (aarch64)」「Windows 11 Pro 10.0.22631 (x86_64)」。
+    let os = os_info::get();
+    let arch = std::env::consts::ARCH;
+    let platform = match os.edition() {
+        Some(edition) => format!("{edition} {} ({arch})", os.version()),
+        None => format!("{} {} ({arch})", os.os_type(), os.version()),
+    };
+
+    let body = serde_json::json!({
+        "source": "xiaoyan-desktop",
+        "category": payload.category.unwrap_or_else(|| "other".to_string()),
+        "text": payload.text,
+        "contact": payload.contact,
+        "images": payload.images,
+        "log": payload.log.map(|l| serde_json::json!({ "name": l.name, "content": l.content })),
+        "client": {
+            "platform": platform,
+            "userAgent": format!("xiaoyan-desktop/{}", env!("CARGO_PKG_VERSION")),
+        },
+    });
+
+    let resp = reqwest::Client::new()
+        .post(&endpoint)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("网络请求失败：{e}"))?;
+
+    let status = resp.status();
+    let value: serde_json::Value = resp.json().await.unwrap_or_else(|_| serde_json::json!({}));
+    if !status.is_success() {
+        let msg = value
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("提交失败，请稍后再试");
+        return Err(msg.to_string());
+    }
+    Ok(value)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     panic::set_hook(Box::new(|panic_info| {
@@ -214,6 +316,9 @@ pub fn run() {
             tauri::async_runtime::block_on(async move {
                 // Init SQLite
                 let pool = db::init_db(&app_data_dir).await.expect("failed to init DB");
+
+                // 注入全局 token 用量落库连接池（供所有 LLM 调用累加用量）
+                token_usage::init(pool.clone());
 
                 // Load persisted settings, merge with defaults
                 let mut settings = default_settings();
@@ -277,6 +382,26 @@ pub fn run() {
                     });
                 }
 
+                // 后台回填过程记忆的 embedding（语义检索用）：启动后稍延迟，分批直到清空。
+                // 未配置 embedding 模型时单批即返回 0、立即结束，开销可忽略。
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                        let settings = state.settings.read().await.clone();
+                        loop {
+                            let written = commands::memory::backfill_observation_embeddings(
+                                &state.db, &settings,
+                            )
+                            .await;
+                            if written == 0 {
+                                break;
+                            }
+                            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                        }
+                    });
+                }
+
                 // Backfill keywords for existing papers that have full_text but empty tags
                 tauri::async_runtime::spawn(async move {
                     use sqlx::Row;
@@ -328,14 +453,19 @@ pub fn run() {
             settings_get,
             settings_update,
             settings_test,
+            settings_test_vision,
             settings_export,
             settings_import,
             settings_history_list,
             settings_history_save,
+            settings_history_update,
             settings_history_apply,
             settings_history_delete,
+            token_usage_stats,
             update_check,
             update_install,
+            read_diagnostic_log,
+            feedback_submit,
             // Papers
             papers_list,
             papers_get,
@@ -344,7 +474,9 @@ pub fn run() {
             papers_update,
             papers_reorder,
             papers_delete,
+            papers_merge,
             papers_open_pdf,
+            papers_reveal_in_folder,
             papers_extract_pdf_text,
             papers_reparse,
             papers_analyze,
@@ -371,14 +503,19 @@ pub fn run() {
             arxiv_search,
             // Paper search
             paper_search,
+            // Web search
+            web_search_query,
             // Knowledge
             knowledge_list_interests,
             knowledge_create_interest,
             knowledge_update_interest_folder,
             knowledge_delete_interest_bundle,
             knowledge_delete_interest_only,
+            knowledge_create_folder,
+            knowledge_move_interest,
             knowledge_generate_interest_hints,
             knowledge_suggest_topics,
+            knowledge_ideas_from_materials,
             knowledge_generate_plan,
             knowledge_list_notes,
             knowledge_create_note,
@@ -475,6 +612,8 @@ pub fn run() {
             knowledge_web_clip,
             // Settings extras
             settings_list_ollama_models,
+            settings_list_models,
+            settings_test_tavily,
             // Misc
             planner_generate,
             survey_generate,

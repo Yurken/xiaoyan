@@ -88,7 +88,10 @@ fn ts_column(table: &str) -> &'static str {
 fn is_excluded_column(table: &str, column: &str) -> bool {
     matches!(
         (table, column),
-        ("paper_chunks", "embedding") | ("knowledge_notes", "embedding")
+        ("paper_chunks", "embedding")
+            | ("knowledge_notes", "embedding")
+            // 对话图片为 base64 大字段，仅本地多轮上下文用，不进全量同步快照，避免快照体积暴涨。
+            | ("chat_messages", "images")
     )
 }
 

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
   FileText,
@@ -48,6 +48,10 @@ import MacWindowDragStrip from "./components/MacWindowDragStrip";
 import UpdateNotification from "./components/UpdateNotification";
 import XiaoYanPet from "./components/XiaoYanPet";
 import { useInterestPlanEventBridge } from "./features/knowledge/useInterestPlanRuns";
+import QuickStartDialog from "./features/onboarding/QuickStartDialog";
+import { useFirstRunQuickStart } from "./features/onboarding/useFirstRunQuickStart";
+import { SETTINGS_ACTIVE_SECTION_STORAGE_KEY } from "./features/settings/pageConfig";
+import { writePersistentValue } from "./hooks/usePersistentStringState";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "首页" },
@@ -75,8 +79,26 @@ export default function App() {
   useThemeInit();
   useKeyboardShortcuts();
   const location = useLocation();
+  const navigate = useNavigate();
   const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());
   const { locked, setLocked, lockChecked } = useAppLock();
+  const quickStart = useFirstRunQuickStart({ enabled: lockChecked && !locked });
+
+  const openQuickStartSettings = () => {
+    // 首次引导跳转到设置时，确保落在「快速开始」分区。
+    writePersistentValue(SETTINGS_ACTIVE_SECTION_STORAGE_KEY, "guided");
+    quickStart.dismiss();
+    navigate("/settings");
+  };
+
+  const quickStartDialog = (
+    <QuickStartDialog
+      open={quickStart.open}
+      steps={quickStart.steps}
+      onGotoSettings={openQuickStartSettings}
+      onClose={quickStart.dismiss}
+    />
+  );
 
   // 论文阅读页沉浸式：隐藏全局侧边导航，腾出空间给阅读器自带的论文库/工具栏。
   const immersiveReader = /^\/papers\/[^/]+\/reader\/?$/.test(location.pathname);
@@ -137,6 +159,7 @@ export default function App() {
         <FocusApp />
         <UpdateNotification {...autoUpdate} />
         <XiaoYanPet />
+        {quickStartDialog}
       </Suspense>
     );
   }
@@ -200,6 +223,7 @@ export default function App() {
         </Suspense>
       </main>
       <UpdateNotification {...autoUpdate} />
+      {quickStartDialog}
     </div>
   );
 }

@@ -3,7 +3,18 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import * as pdfjsLib from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask, TextLayer } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { HIGHLIGHT_COLORS, mergeNormalizedRects, type PaperNote, type ReaderSelection } from "./readerTypes";
+import {
+  boundingRect,
+  HIGHLIGHT_COLORS,
+  isShapeStyle,
+  mergeNormalizedRects,
+  SHAPE_BORDER_RADIUS,
+  type HighlightColor,
+  type NormalizedRect,
+  type PaperNote,
+  type ReaderSelection,
+  type ShapeStyle,
+} from "./readerTypes";
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
 import { usePdfTextSelection } from "./usePdfTextSelection";
 import { registerTextLayer } from "./textLayerSelection";
@@ -15,8 +26,6 @@ const MAX_CANVAS_SIDE = 4096;
 const MAX_CANVAS_PIXELS = 12_000_000;
 const MIN_CANVAS_OUTPUT_SCALE = 2;
 const MAX_CANVAS_OUTPUT_SCALE = 2;
-// 加载后在这些时刻强制重绘，把 WKWebView 首屏偏糊的前几页刷清晰（双缓冲下无感）。
-const SETTLE_RERENDER_DELAYS = [250, 700, 1500] as const;
 
 interface PdfReaderViewerProps {
   data: Uint8Array;
@@ -27,6 +36,13 @@ interface PdfReaderViewerProps {
   onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
   /** Cmd/Ctrl + 滚轮缩放：factor > 1 放大、< 1 缩小。 */
   onZoom: (factor: number) => void;
+  /** 形状绘制模式：非空时在页面上拖拽画框，而非划词选择。 */
+  drawShape?: ShapeStyle | null;
+  drawColor?: HighlightColor;
+  drawFill?: HighlightColor | null;
+  onShapeDrawn?: (page: number, rect: NormalizedRect) => void;
+  /** 拖动已有形状批注到新位置。 */
+  onShapeMove?: (note: PaperNote, rect: NormalizedRect) => void;
 }
 
 export interface PdfReaderViewerHandle {
@@ -34,14 +50,16 @@ export interface PdfReaderViewerHandle {
 }
 
 const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
-  function PdfReaderViewer({ data, notes, scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom }, ref) {
+  function PdfReaderViewer(
+    { data, notes, scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
+    ref,
+  ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [numPages, setNumPages] = useState(0);
     const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
-    const [renderRevision, setRenderRevision] = useState(0);
     const [linkMode, setLinkMode] = useState(false);
     const devicePixelRatio = useDevicePixelRatio();
 
@@ -85,7 +103,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
     usePdfTextSelection({
       containerRef,
-      enabled: Boolean(pdfDoc),
+      enabled: Boolean(pdfDoc) && !drawShape, // 形状绘制时关闭划词选择
       onTextSelected,
       onSelectionCleared,
     });
@@ -118,45 +136,6 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
         window.removeEventListener("blur", reset);
       };
     }, []);
-
-    // WKWebView 首屏常把画布栅格化得偏糊（与手动“放大再缩小”能变清晰是同一现象：
-    // 都是等视图稳定后重新栅格一次）。因此在加载后做几次强制重绘把首屏几页刷清晰。
-    // 关键：现在每页都是“离屏渲染完成后再整帧贴回”，重绘对用户是无感的（不会白闪、
-    // 不会留下被拉伸的模糊底图），所以恢复这套 settle 重绘是安全的。
-    useEffect(() => {
-      if (!pdfDoc) return;
-
-      let resizeTimer = 0;
-      const timers: number[] = [];
-      const bumpRevision = () => setRenderRevision((revision) => revision + 1);
-      const scheduleResizeRevision = () => {
-        window.clearTimeout(resizeTimer);
-        resizeTimer = window.setTimeout(bumpRevision, 160);
-      };
-
-      for (const delay of SETTLE_RERENDER_DELAYS) {
-        timers.push(window.setTimeout(bumpRevision, delay));
-      }
-
-      const container = containerRef.current;
-      const resizeObserver = typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(scheduleResizeRevision)
-        : null;
-      if (container) {
-        resizeObserver?.observe(container);
-      }
-      window.addEventListener("resize", scheduleResizeRevision);
-      window.visualViewport?.addEventListener("resize", scheduleResizeRevision);
-
-      return () => {
-        window.clearTimeout(resizeTimer);
-        timers.forEach((timer) => window.clearTimeout(timer));
-        resizeObserver?.disconnect();
-        window.removeEventListener("resize", scheduleResizeRevision);
-        window.visualViewport?.removeEventListener("resize", scheduleResizeRevision);
-      };
-      // 不依赖 scale：缩放由页面渲染 effect 处理，避免每次缩放都重挂这批定时器。
-    }, [pdfDoc, devicePixelRatio]);
 
     // 懒渲染：进入视口的页才渲染
     useEffect(() => {
@@ -213,11 +192,15 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
             pdfDoc={pdfDoc}
             scale={scale}
             devicePixelRatio={devicePixelRatio}
-            renderRevision={renderRevision}
             shouldRender={renderedPages.has(pageNum) || pageNum <= 4}
             pageNotes={notesByPage.get(pageNum) ?? []}
             onNoteClick={onNoteClick}
             onScrollToPage={scrollToPage}
+            drawShape={drawShape}
+            drawColor={drawColor}
+            drawFill={drawFill}
+            onShapeDrawn={onShapeDrawn}
+            onShapeMove={onShapeMove}
             ref={(el) => {
               pageRefs.current[pageNum - 1] = el;
             }}
@@ -229,41 +212,6 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 );
 
 export default PdfReaderViewer;
-
-/**
- * 强制 WKWebView 以当前 DPR 重建 <canvas> 合成层的 raster backing。
- *
- * 根因：首屏 DPR=1 时图层按 1x 合成，2x 位图被降采样上屏 → 发虚；而“同尺寸重绘”只更新
- * 图层内容、不会重建图层，所以 settle 重绘修不好。唯有 canvas 的 backing 尺寸真正变化时，
- * WebView 才会丢弃旧图层、按【当前】设备像素密度（settle 时已稳定为 2x）重建 backing——
- * 这正是“放大再缩小”能修复的机制（缩放改变了尺寸）。
- *
- * 这里用 backing 高度 +1 再复位来复刻该机制：canvas.width/height 属性 React 不接管、不会被
- * 回滚，且改尺寸的变化必须跨帧才会被 WebView 观察到，因此用两帧完成、每帧都从离屏缓冲重贴，
- * 全程显示完整位图（仅 1 个设备像素行差、单帧），无白闪、无跳动；canvas 绝对定位，不影响
- * 文本层/高亮层/页码坐标。
- */
-function forceLayerRebuild(
-  canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
-  buffer: HTMLCanvasElement,
-  pixelWidth: number,
-  pixelHeight: number,
-  isStale: () => boolean,
-) {
-  requestAnimationFrame(() => {
-    if (isStale()) return;
-    canvas.width = pixelWidth;
-    canvas.height = pixelHeight + 1; // 改成不同值 → 强制 WebView 按当前 DPR 重建图层
-    ctx.drawImage(buffer, 0, 0, pixelWidth, pixelHeight + 1); // 拉满，避免底部 1px 黑边
-    requestAnimationFrame(() => {
-      if (isStale()) return;
-      canvas.width = pixelWidth;
-      canvas.height = pixelHeight; // 复位为正确尺寸（再次重建，仍是当前 DPR）
-      ctx.drawImage(buffer, 0, 0);
-    });
-  });
-}
 
 function resolveCanvasOutputScale(viewport: { width: number; height: number }, devicePixelRatio: number) {
   // WKWebView 首屏偶尔长期把 DPR 报成 1；PDF 是矢量内容，至少 2x 超采样才能避免文字发虚。
@@ -294,28 +242,49 @@ interface PdfPageProps {
   pdfDoc: PDFDocumentProxy;
   scale: number;
   devicePixelRatio: number;
-  renderRevision: number;
   shouldRender: boolean;
   pageNotes: PaperNote[];
   onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
   onScrollToPage: (page: number) => void;
+  drawShape?: ShapeStyle | null;
+  drawColor?: HighlightColor;
+  drawFill?: HighlightColor | null;
+  onShapeDrawn?: (page: number, rect: NormalizedRect) => void;
+  onShapeMove?: (note: PaperNote, rect: NormalizedRect) => void;
 }
 
 const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, devicePixelRatio, renderRevision, shouldRender, pageNotes, onNoteClick, onScrollToPage },
+  { pageNum, pdfDoc, scale, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
   ref,
 ) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
+  const drawLayerRef = useRef<HTMLDivElement>(null);
+  const [draftRect, setDraftRect] = useState<NormalizedRect | null>(null);
+  const [movingShape, setMovingShape] = useState<{ id: string; rect: NormalizedRect } | null>(null);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [links, setLinks] = useState<PdfLink[]>([]);
   const renderedSignatureRef = useRef<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     renderedSignatureRef.current = null;
     setPageSize(null);
+    setImgSrc(null);
     setLinks([]);
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
   }, [pdfDoc, pageNum]);
+
+  // 组件卸载时回收最后一张位图 URL。
+  useEffect(
+    () => () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!shouldRender) return;
@@ -349,21 +318,15 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
             cssHeight,
             pixelWidth,
             pixelHeight,
-            renderRevision,
           ].join(":");
 
           if (renderedSignatureRef.current === renderSignature) {
             return;
           }
 
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-
-          // 离屏渲染，完成后再一次性把「尺寸 + 位图」提交到可见画布。
-          // 渲染未完成前完全不动可见画布，因此：
-          //  - 首屏只会在清晰页就绪后整页出现，不存在先模糊后变清晰；
-          //  - 缩放时若中途被新的缩放打断，可见画布仍保持上一次的清晰画面，
-          //    不会出现“小底图被拉伸成新尺寸”的永久模糊。
+          // 离屏渲染到 buffer，再导出成位图用 <img> 显示。
+          // WKWebView 会把 live <canvas> 合成层按首屏 DPR（常误报为 1）栅格化 → 前几页发虚；
+          // <img> 则按图片自身的自然分辨率（这里是 2x）合成，首帧即清晰，无需 settle/图层重建补丁。
           const buffer = document.createElement("canvas");
           buffer.width = pixelWidth;
           buffer.height = pixelHeight;
@@ -380,25 +343,16 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           await renderTask.promise;
           if (cancelled) return;
 
-          const ctx = canvas.getContext("2d", { alpha: false });
-          if (!ctx) return;
-          // 渲染完成后才提交：原子地设置 backing 像素、CSS 尺寸并贴图，三者一致 → 始终清晰。
-          canvas.width = pixelWidth;
-          canvas.height = pixelHeight;
-          canvas.style.width = `${cssWidth}px`;
-          canvas.style.height = `${cssHeight}px`;
-          ctx.drawImage(buffer, 0, 0);
+          const blob = await new Promise<Blob | null>((resolve) => buffer.toBlob(resolve, "image/png"));
+          if (cancelled || !blob) return;
+          const url = URL.createObjectURL(blob);
+          // 替换旧图前回收上一张的 objectURL，避免内存泄漏。
+          if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+          objectUrlRef.current = url;
 
-          // 根因：WKWebView 首屏常以 DPR=1 合成该 <canvas> 图层（位图是 2x 但被降采样上屏 → 发虚），
-          // 且“同尺寸重绘”只更新图层内容、不会按当前 DPR 重建图层 raster backing；只有几何/合成属性
-          // 变化才会触发重建（这正是“放大再缩小”能修复、而 settle 同尺寸重绘修不好的原因）。
-          // 这里在每次提交后做一次 backing 尺寸微扰，强制 WebView 以当前已稳定的 DPR 重建该图层——
-          // 配合 settle 重绘（250/700/1500ms，此时 DPR 已稳定），前几页会被刷成 2x 合成 → 清晰。
-          // 双缓冲 + 每帧重贴保证可见画布全程显示完整位图，故无白闪、无跳动。
-          forceLayerRebuild(canvas, ctx, buffer, pixelWidth, pixelHeight, () => cancelled || canvasRef.current !== canvas);
-
-          // 渲染成功后再锁定签名并提交页面尺寸，保证“清晰就绪”后整页一次性出现。
+          // 渲染成功后才锁定签名、提交位图与页面尺寸，保证“清晰就绪”后整页一次性出现。
           renderedSignatureRef.current = renderSignature;
+          setImgSrc(url);
           setPageSize({ w: cssWidth, h: cssHeight });
 
           // 文本层（划词选择/批注/翻译依赖它）尽力渲染，失败不影响画布显示。
@@ -475,7 +429,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       }
       cancelAnimationFrame(raf);
     };
-  }, [shouldRender, pdfDoc, pageNum, scale, devicePixelRatio, renderRevision]);
+  }, [shouldRender, pdfDoc, pageNum, scale, devicePixelRatio]);
 
   const handleLinkClick = useCallback(
     async (event: React.MouseEvent, link: PdfLink) => {
@@ -502,6 +456,77 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     [pdfDoc, onScrollToPage],
   );
 
+  // 形状绘制：在页面上按下并拖拽，松手得到一个归一化矩形 → 新建形状批注。
+  const startDraw = useCallback(
+    (event: React.MouseEvent) => {
+      if (!drawShape || !onShapeDrawn) return;
+      const layer = drawLayerRef.current;
+      if (!layer) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const bounds = layer.getBoundingClientRect();
+      if (bounds.width === 0 || bounds.height === 0) return;
+      const toPoint = (clientX: number, clientY: number) => ({
+        x: Math.min(1, Math.max(0, (clientX - bounds.left) / bounds.width)),
+        y: Math.min(1, Math.max(0, (clientY - bounds.top) / bounds.height)),
+      });
+      const start = toPoint(event.clientX, event.clientY);
+      const rectFrom = (cur: { x: number; y: number }): NormalizedRect => ({
+        x: Math.min(start.x, cur.x),
+        y: Math.min(start.y, cur.y),
+        w: Math.abs(cur.x - start.x),
+        h: Math.abs(cur.y - start.y),
+      });
+      setDraftRect({ x: start.x, y: start.y, w: 0, h: 0 });
+
+      const onMove = (e: MouseEvent) => setDraftRect(rectFrom(toPoint(e.clientX, e.clientY)));
+      const onUp = (e: MouseEvent) => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        const rect = rectFrom(toPoint(e.clientX, e.clientY));
+        setDraftRect(null);
+        if (rect.w > 0.01 && rect.h > 0.01) onShapeDrawn(pageNum, rect); // 太小视为误触
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [drawShape, onShapeDrawn, pageNum],
+  );
+
+  // 形状批注：按住拖动改位置；没怎么动（视为点击）则打开编辑弹窗。
+  const startShapeMove = useCallback(
+    (event: React.MouseEvent, note: PaperNote, box: NormalizedRect) => {
+      event.stopPropagation();
+      event.preventDefault(); // 拖动时不要触发原生文字选择
+      const size = pageSize;
+      if (!size) return;
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const elRect = event.currentTarget.getBoundingClientRect();
+      let moved = false;
+      const rectAt = (clientX: number, clientY: number): NormalizedRect => ({
+        x: Math.min(1 - box.w, Math.max(0, box.x + (clientX - startX) / size.w)),
+        y: Math.min(1 - box.h, Math.max(0, box.y + (clientY - startY) / size.h)),
+        w: box.w,
+        h: box.h,
+      });
+      const onMove = (e: MouseEvent) => {
+        if (Math.abs(e.clientX - startX) > 3 || Math.abs(e.clientY - startY) > 3) moved = true;
+        setMovingShape({ id: note.id, rect: rectAt(e.clientX, e.clientY) });
+      };
+      const onUp = (e: MouseEvent) => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        setMovingShape(null);
+        if (moved) onShapeMove?.(note, rectAt(e.clientX, e.clientY));
+        else onNoteClick(note, { x: elRect.left + elRect.width / 2, y: elRect.top });
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [pageSize, onShapeMove, onNoteClick],
+  );
+
   const containerStyle: React.CSSProperties = pageSize
     ? ({
         width: pageSize.w,
@@ -521,11 +546,15 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       className="rc-selectable relative mx-auto select-text"
       style={{ ...containerStyle, background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", borderRadius: 4 }}
     >
-      <canvas
-        ref={canvasRef}
-        className="pointer-events-none absolute left-0 top-0 block"
-        style={pageSize ? { width: pageSize.w, height: pageSize.h } : undefined}
-      />
+      {imgSrc ? (
+        <img
+          src={imgSrc}
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute left-0 top-0 block"
+          style={pageSize ? { width: pageSize.w, height: pageSize.h } : undefined}
+        />
+      ) : null}
       <div
         ref={textLayerRef}
         className="textLayer rc-selectable absolute left-0 top-0"
@@ -534,9 +563,38 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
 
       {pageSize
         ? pageNotes.map((note) => {
+            const color = HIGHLIGHT_COLORS[note.highlight_color];
+
+            // 形状：整段套一个外框（矩形/圆角/椭圆），只用颜色描边、内部不填充。
+            if (isShapeStyle(note.style)) {
+              const stored = boundingRect(note.highlight_positions ?? []);
+              const box = movingShape?.id === note.id ? movingShape.rect : stored;
+              if (!box) return null;
+              const pad = 3; // 略微外扩，避免框线压住文字
+              const shapeStyle: React.CSSProperties = {
+                left: box.x * pageSize.w - pad,
+                top: box.y * pageSize.h - pad,
+                width: box.w * pageSize.w + pad * 2,
+                height: box.h * pageSize.h + pad * 2,
+                border: `2px solid ${color.border}`,
+                borderRadius: SHAPE_BORDER_RADIUS[note.style],
+                background: note.fill_color ? HIGHLIGHT_COLORS[note.fill_color].bg : "transparent",
+                zIndex: 2,
+                cursor: "move",
+              };
+              return (
+                <div
+                  key={note.id}
+                  className="pdf-highlight-overlay absolute"
+                  style={shapeStyle}
+                  title="拖拽移动 · 点击编辑"
+                  onMouseDown={(event) => startShapeMove(event, note, stored ?? box)}
+                />
+              );
+            }
+
             const positions = mergeNormalizedRects(note.highlight_positions ?? []);
             if (positions.length === 0) return null;
-            const color = HIGHLIGHT_COLORS[note.highlight_color];
             return positions.map((pos, i) => {
               const style: React.CSSProperties = {
                 left: pos.x * pageSize.w,
@@ -581,6 +639,30 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
             />
           ))
         : null}
+
+      {pageSize && drawShape ? (
+        <div
+          ref={drawLayerRef}
+          className="absolute left-0 top-0"
+          style={{ width: pageSize.w, height: pageSize.h, zIndex: 5, cursor: "crosshair" }}
+          onMouseDown={startDraw}
+        >
+          {draftRect ? (
+            <div
+              className="pointer-events-none absolute"
+              style={{
+                left: draftRect.x * pageSize.w,
+                top: draftRect.y * pageSize.h,
+                width: draftRect.w * pageSize.w,
+                height: draftRect.h * pageSize.h,
+                border: `2px solid ${(drawColor ? HIGHLIGHT_COLORS[drawColor] : HIGHLIGHT_COLORS.yellow).border}`,
+                borderRadius: SHAPE_BORDER_RADIUS[drawShape],
+                background: drawFill ? HIGHLIGHT_COLORS[drawFill].bg : "transparent",
+              }}
+            />
+          ) : null}
+        </div>
+      ) : null}
 
       <div
         className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]"

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   clearPersistentValue,
   readPersistentValue,
@@ -22,7 +22,6 @@ export function useCopilotSessions() {
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
-  const restoredSessionRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,16 +192,6 @@ export function useCopilotSessions() {
     }
   };
 
-  const restoreLastSession = useCallback(() => {
-    if (restoredSessionRef.current || currentSession || sessions.length === 0) return;
-    restoredSessionRef.current = true;
-    const storedSessionId = readPersistentValue(COPILOT_LAST_SESSION_KEY);
-    if (!storedSessionId) return;
-    const targetSession = sessions.find((s) => s.id === storedSessionId);
-    if (!targetSession) { clearPersistentValue(COPILOT_LAST_SESSION_KEY); return; }
-    void loadSession(targetSession);
-  }, [currentSession, loadSession, sessions]);
-
   return {
     sessions,
     interests,
@@ -234,6 +223,5 @@ export function useCopilotSessions() {
     commitRename,
     cancelRename,
     handleDeleteInterestGroup,
-    restoreLastSession,
   };
 }

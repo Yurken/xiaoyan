@@ -10,6 +10,7 @@ import InterestProfilePanel, { type InterestProfileHighlight } from "./InterestP
 import PlannerComposer from "./PlannerComposer";
 import ResearchWorkbench from "./ResearchWorkbench";
 import TopicDiscoveryWizard from "./TopicDiscoveryWizard";
+import IdeaFromMaterialsPanel from "./IdeaFromMaterialsPanel";
 import {
   applyInterestPlanSnapshots,
   failInterestPlanRun,
@@ -218,6 +219,7 @@ export default function InterestsPanel() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [discovering, setDiscovering] = useState(false);
+  const [discoverMode, setDiscoverMode] = useState<"questions" | "materials">("questions");
   const [wizardTopic, setWizardTopic] = useState("");
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [folderDraft, setFolderDraft] = useState("");
@@ -370,14 +372,49 @@ export default function InterestsPanel() {
         </div>
 
         {discovering && (
-          <TopicDiscoveryWizard
-            onSelect={(topic) => {
-              setWizardTopic(topic);
-              setDiscovering(false);
-              setCreating(true);
-            }}
-            onClose={() => setDiscovering(false)}
-          />
+          <div className="space-y-3">
+            <div className="flex gap-1.5">
+              {([
+                { key: "questions", label: "回答几个问题" },
+                { key: "materials", label: "给小妍资料" },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setDiscoverMode(opt.key)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
+                  style={{
+                    background: discoverMode === opt.key ? "#007AFF" : "var(--rc-surface)",
+                    color: discoverMode === opt.key ? "#fff" : "var(--rc-text-soft)",
+                    boxShadow: discoverMode === opt.key
+                      ? "inset 1px 1px 3px rgba(0,0,0,0.2)"
+                      : "var(--rc-chip-shadow)",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {discoverMode === "questions" ? (
+              <TopicDiscoveryWizard
+                onSelect={(topic) => {
+                  setWizardTopic(topic);
+                  setDiscovering(false);
+                  setCreating(true);
+                }}
+                onClose={() => setDiscovering(false)}
+              />
+            ) : (
+              <IdeaFromMaterialsPanel
+                onSelect={(topic) => {
+                  setWizardTopic(topic);
+                  setDiscovering(false);
+                  setCreating(true);
+                }}
+                onClose={() => setDiscovering(false)}
+              />
+            )}
+          </div>
         )}
 
         {creating && (

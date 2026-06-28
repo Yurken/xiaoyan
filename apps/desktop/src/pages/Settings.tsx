@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  AlertCircle,
-  CheckCircle,
-  FileSearch,
-  Layers3,
-  Loader2,
-  Wifi,
-} from "lucide-react";
+import { AlertCircle, FileSearch, Layers3, Loader2 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { apiClient } from "../lib/client";
 import AboutSection from "../features/settings/AboutSection";
@@ -16,11 +9,14 @@ import CryptoConfigModal from "../features/settings/CryptoConfigModal";
 import { emitAppLockStatusChange } from "../features/appLock/shared";
 import MemorySection from "../features/settings/MemorySection";
 import SettingsHistorySection from "../features/settings/SettingsHistorySection";
+import ConfigHistoryManageModal from "../features/settings/ConfigHistoryManageModal";
 import SkillsSection from "../features/settings/SkillsSection";
 import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from "../features/settings/SettingsChangelogCard";
+import FeedbackSection from "../features/settings/FeedbackSection";
 import TaskSetupSection from "../features/settings/TaskSetupSection";
 import LayoutSettingsSection from "../features/settings/LayoutSettingsSection";
-import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
+import { DEFAULT_SETTINGS, SETTINGS_ACTIVE_SECTION_STORAGE_KEY, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
+import { computeQuickStartReadiness } from "../features/onboarding/quickStart";
 import { AgentChip, SectionIcon } from "../features/settings/shared";
 import { applyProviderPreset, detectPreset, PROVIDER_PRESETS, type ProviderPresetId } from "../features/settings/providerPresets";
 import { useDataBackup } from "../features/settings/useDataBackup";
@@ -30,7 +26,7 @@ import { useSettingsHistory } from "../features/settings/useSettingsHistory";
 import { useSettingsMemories } from "../features/settings/useSettingsMemories";
 import { useLayoutSettingsController } from "../features/settings/useLayoutSettingsController";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
-import type { LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
+import type { LlmProvider } from "@research-copilot/types";
 
 const SETTINGS_SECTION_KEYS = SETTINGS_SECTIONS.map((section) => section.key);
 
@@ -40,8 +36,8 @@ function SettingsTabBar({
   onSelect,
 }: {
   sections: typeof SETTINGS_SECTIONS;
-  activeSection: string;
-  onSelect: (key: string) => void;
+  activeSection: SettingsSectionKey;
+  onSelect: (key: SettingsSectionKey) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -152,22 +148,21 @@ export default function Settings() {
     downloadProgress,
     appVersion,
     markSaved,
-    handleSaveSettings,
     handleTestConnection,
     handleCheckUpdate,
     handleInstallUpdate,
   } = useSettingsController(DEFAULT_SETTINGS);
   const [activeSection, setActiveSection] = usePersistentStringState<SettingsSectionKey>(
-    "rc:settings:active-section",
+    SETTINGS_ACTIVE_SECTION_STORAGE_KEY,
     "guided",
     SETTINGS_SECTION_KEYS,
   );
+  // 「切换与管理」弹窗（由小妍配置弹层的「更多管理」触发）。
+  const [configManageOpen, setConfigManageOpen] = useState(false);
   const {
-    currentStyle,
     currentTheme,
     pendingLayout,
     changeLayout,
-    changeStyle,
     changeTheme,
   } = useLayoutSettingsController();
   const {
@@ -194,12 +189,12 @@ export default function Settings() {
     openImportPicker: openConfigImportPicker,
     handleConfirm: handleCryptoConfirm,
   } = useSettingsCrypto({
-    onImported: replaceForm,
+    onImported: (next) => replaceForm(next, true),
     onSaved: () => markSaved(),
   });
   const settingsHistory = useSettingsHistory({
     form,
-    onApplied: replaceForm,
+    onApplied: (next) => replaceForm(next, true),
     onMarkedSaved: () => markSaved(),
   });
   const {
@@ -217,7 +212,7 @@ export default function Settings() {
   } = useDataBackup({
     onImported: async () => {
       const fresh = await apiClient.settings.get();
-      replaceForm(fresh);
+      replaceForm(fresh, true);
       markSaved();
       await settingsHistory.reload();
       emitAppLockStatusChange({
@@ -231,15 +226,21 @@ export default function Settings() {
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [loadingOllamaModels, setLoadingOllamaModels] = useState(false);
 
+  // 主服务商可用模型（/models 查询）
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState("");
+
   const provider = form.llm_provider as LlmProvider;
   const activePreset = detectPreset(form);
   const activePresetMeta = PROVIDER_PRESETS.find((preset) => preset.id === activePreset);
 
   const applyPreset = (presetId: ProviderPresetId) => {
     setForm((current) => applyProviderPreset(current, presetId));
+    // 切换厂商后实时配置已偏离所选历史档，取消选中以反映为「未保存配置」。
+    settingsHistory.setSelectedId("");
   };
 
-  const routingMode = form.multi_agent_routing_mode as MultiAgentRoutingMode;
   const enabledAgents = form.multi_agent_enabled_agents
     .split(",")
     .map((item) => item.trim())
@@ -269,26 +270,28 @@ export default function Settings() {
     }
   };
 
+  const loadModels = async () => {
+    setLoadingModels(true);
+    setModelsError("");
+    try {
+      const models = await apiClient.settings.listModels(form);
+      setAvailableModels(models);
+      if (models.length === 0) {
+        setModelsError("未获取到模型，请检查接口地址与密钥。");
+      }
+    } catch (error) {
+      setAvailableModels([]);
+      setModelsError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
   const contentUnavailable = loading || Boolean(loadError);
   const displayVersion = updateInfo?.available ? updateInfo.version : appVersion || updateInfo?.current_version;
   const changelogPublishedAt = getChangelogReleaseDate(displayVersion);
   const updatePublishedAt = formatUpdateDate(updateInfo?.pub_date || changelogPublishedAt);
-  const connectionReady = provider === "openai"
-    ? Boolean(form.openai_api_key.trim() && form.openai_chat_model.trim())
-    : provider === "anthropic"
-      ? Boolean(form.anthropic_api_key.trim() && form.anthropic_chat_model.trim())
-      : Boolean(
-          form.openai_compatible_chat_model.trim()
-            && (activePreset === "ollama" || form.openai_compatible_base_url.trim() || form.openai_compatible_api_key.trim()),
-        );
-  const rolesReady = Boolean(
-    form.paper_analysis_model.trim()
-      || form.survey_writer_model.trim()
-      || form.paper_reproduction_model.trim()
-      || form.vision_model.trim()
-      || form.multi_agent_supervisor_model.trim(),
-  );
-  const multiAgentReady = form.multi_agent_enabled === "true" && enabledAgents.length > 0;
+  const { connectionReady, rolesReady, multiAgentReady } = computeQuickStartReadiness(form);
   const paperImportReady = [
     form.paper_import_recognize_title,
     form.paper_import_recognize_authors,
@@ -301,88 +304,18 @@ export default function Settings() {
     <>
     <div className="h-full flex flex-col" style={{ background: "var(--rc-surface)" }}>
       <div
-        className="flex-shrink-0 flex items-center justify-between px-6 pt-5 pb-4 border-b rc-settings-header"
+        className="flex-shrink-0 px-6 pt-5 pb-4 border-b rc-settings-header"
         style={{ borderColor: "var(--rc-border)" }}
       >
-        <div>
-          <h1 className="text-2xl font-bold text-ink-primary">设置</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={handleTestConnection}
-              disabled={testState === "testing" || loading}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
-              style={{
-                background:
-                  testState === "ok"
-                    ? "linear-gradient(145deg,#40D466,#28A844)"
-                    : testState === "error"
-                      ? "linear-gradient(145deg,#FF5555,#CC2200)"
-                      : "var(--rc-chip-bg)",
-                color: testState === "ok" || testState === "error" ? "#fff" : "var(--rc-text-soft)",
-                boxShadow:
-                  testState === "idle" || testState === "testing"
-                    ? "var(--rc-chip-shadow)"
-                    : "none",
-              }}
-            >
-              {testState === "testing" ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Wifi className="w-3.5 h-3.5" />
-              )}
-              {testState === "testing"
-                ? "测试中…"
-                : testState === "ok"
-                  ? "连接正常"
-                  : testState === "error"
-                    ? "连接失败"
-                    : "测试连接"}
-            </button>
-            {testState === "error" && testMsg ? (
-              <span className="absolute top-full left-0 mt-0.5 text-xs whitespace-nowrap text-red-500">
-                {testMsg.slice(0, 30)}
-              </span>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={handleSaveSettings}
-            disabled={saveState === "saving" || loading}
-            className="flex items-center gap-1.5 px-5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-            style={{
-              background:
-                saveState === "saved"
-                  ? "linear-gradient(145deg,#40D466,#28A844)"
-                  : saveState === "error"
-                    ? "linear-gradient(145deg,#FF5555,#CC2200)"
-                    : "linear-gradient(145deg,#1A8AFF,#0062CC)",
-              boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
-            }}
-          >
-            {saveState === "saving" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-            {saveState === "saved" ? <CheckCircle className="w-3.5 h-3.5" /> : null}
-            {saveState === "error" ? <AlertCircle className="w-3.5 h-3.5" /> : null}
-            {saveState === "saving"
-              ? "保存中…"
-              : saveState === "saved"
-                ? "已保存"
-                : saveState === "error"
-                  ? "保存失败"
-                  : "保存"}
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        {/* 「设置」标题已移除，胶囊导航上移到此处；测试连接/保存在小妍卡片头部。 */}
         <SettingsTabBar
           sections={SETTINGS_SECTIONS}
           activeSection={activeSection}
           onSelect={setActiveSection}
         />
+      </div>
 
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
         {/* 当前分区摘要卡与上方导航重复，先注释掉。 */}
         {/*
         <Card padding="md" className="space-y-3">
@@ -457,7 +390,10 @@ export default function Settings() {
             form={form}
             ollamaModels={ollamaModels}
             loadingOllamaModels={loadingOllamaModels}
-            routingMode={routingMode}
+            availableModels={availableModels}
+            loadingModels={loadingModels}
+            modelsError={modelsError}
+            loadModels={loadModels}
             enabledAgents={enabledAgents}
             configHistory={{
               entries: settingsHistory.entries,
@@ -465,6 +401,7 @@ export default function Settings() {
               selectedId: settingsHistory.selectedId,
               saving: settingsHistory.saving,
               applyingId: settingsHistory.applyingId,
+              updatingId: settingsHistory.updatingId,
               actionError: settingsHistory.actionError,
               actionMessage: settingsHistory.actionMessage,
               busy: settingsHistory.busy,
@@ -472,8 +409,16 @@ export default function Settings() {
               setDraftName: settingsHistory.setDraftName,
               onSaveCurrent: settingsHistory.saveCurrent,
               onApplyHistory: settingsHistory.applyHistory,
+              onUpdateHistory: settingsHistory.updateHistory,
             }}
-            onManageConfigHistory={() => setActiveSection("history")}
+            onManageConfigHistory={() => setConfigManageOpen(true)}
+            connectionActions={{
+              testState,
+              testMsg,
+              saveState,
+              busy: loading,
+              onTest: handleTestConnection,
+            }}
             setForm={setForm}
             set={set}
             setMany={setMany}
@@ -568,39 +513,27 @@ export default function Settings() {
         {activeSection === "layout" ? (
           <LayoutSettingsSection
             currentTheme={currentTheme}
-            currentStyle={currentStyle}
             pendingLayout={pendingLayout}
             onThemeChange={changeTheme}
-            onStyleChange={changeStyle}
             onLayoutChange={changeLayout}
           />
         ) : null}
 
         {activeSection === "history" ? (
           <SettingsHistorySection
-            entries={settingsHistory.entries}
-            loading={settingsHistory.loading}
-            loadError={settingsHistory.loadError}
             draftName={settingsHistory.draftName}
-            selectedId={settingsHistory.selectedId}
             saving={settingsHistory.saving}
-            applyingId={settingsHistory.applyingId}
-            deletingId={settingsHistory.deletingId}
             actionError={settingsHistory.actionError}
             actionMessage={settingsHistory.actionMessage}
             busy={settingsHistory.busy}
             settingsTransferBusy={cryptoBusy}
             dataTransferBusy={backupBusy}
             setDraftName={settingsHistory.setDraftName}
-            setSelectedId={settingsHistory.setSelectedId}
             onExportSettings={openConfigExportModal}
             onImportSettings={openConfigImportPicker}
             onExportAllData={openBackupExportModal}
             onImportAllData={openBackupImportPicker}
             onSaveCurrent={settingsHistory.saveCurrent}
-            onApplyHistory={settingsHistory.applyHistory}
-            onDeleteHistory={settingsHistory.deleteHistory}
-            onReload={settingsHistory.reload}
           />
         ) : null}
 
@@ -636,6 +569,7 @@ export default function Settings() {
               onInstallUpdate={handleInstallUpdate}
             />
             <SettingsChangelogCard />
+            <FeedbackSection />
           </div>
         ) : null}
       </div>
@@ -682,6 +616,24 @@ export default function Settings() {
         onSubmit={handleBackupConfirm}
       />
     )}
+
+    <ConfigHistoryManageModal
+      open={configManageOpen}
+      entries={settingsHistory.entries}
+      loading={settingsHistory.loading}
+      loadError={settingsHistory.loadError}
+      selectedId={settingsHistory.selectedId}
+      applyingId={settingsHistory.applyingId}
+      updatingId={settingsHistory.updatingId}
+      deletingId={settingsHistory.deletingId}
+      busy={settingsHistory.busy}
+      setSelectedId={settingsHistory.setSelectedId}
+      onApplyHistory={settingsHistory.applyHistory}
+      onUpdateHistory={settingsHistory.updateHistory}
+      onDeleteHistory={settingsHistory.deleteHistory}
+      onReload={settingsHistory.reload}
+      onClose={() => setConfigManageOpen(false)}
+    />
     </>
   );
 }

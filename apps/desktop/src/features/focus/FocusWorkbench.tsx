@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, type Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  type Sparkles,
+} from "lucide-react";
 import { Button } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { ResearchInterest } from "@research-copilot/types";

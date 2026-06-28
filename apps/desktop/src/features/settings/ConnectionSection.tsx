@@ -1,10 +1,14 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
-import { Brain, ChevronDown, ChevronRight, Loader2, RefreshCw } from "lucide-react";
+import type { Dispatch, SetStateAction } from "react";
+import { Brain, Loader2, Wifi } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppSettings, LlmProvider, PaperSearchEngine } from "@research-copilot/types";
 import { MASK, SectionIcon, SettingInput } from "./shared";
 import { ANTHROPIC_ENDPOINT, PROVIDER_PRESETS, type ProviderPresetId } from "./providerPresets";
 import ConfigHistorySwitcher, { type ConfigHistoryControls } from "./ConfigHistorySwitcher";
+import OllamaEmbeddingPanel from "./OllamaEmbeddingPanel";
+import ProviderIcon from "./ProviderIcon";
+import ModelCombobox from "./ModelCombobox";
+import WebSearchSection from "./WebSearchSection";
 
 interface ConnectionSectionProps {
   contentUnavailable: boolean;
@@ -13,30 +17,44 @@ interface ConnectionSectionProps {
   form: AppSettings;
   ollamaModels: string[];
   loadingOllamaModels: boolean;
+  availableModels: string[];
+  loadingModels: boolean;
+  modelsError: string;
+  loadModels: () => Promise<void>;
   configHistory: ConfigHistoryControls;
   onManageConfigHistory: () => void;
   setForm: Dispatch<SetStateAction<AppSettings>>;
   set: (key: keyof AppSettings) => (value: string) => void;
   applyPreset: (presetId: ProviderPresetId) => void;
   loadOllamaModels: () => Promise<void>;
+  connectionActions: ConnectionActions;
+}
+
+/** 全局「测试连接」操作 + 自动保存状态（按钮从设置页头移到小妍卡片头部；保存改为自动）。 */
+export interface ConnectionActions {
+  testState: "idle" | "testing" | "ok" | "error";
+  testMsg: string;
+  saveState: "idle" | "saving" | "saved" | "error";
+  busy: boolean;
+  onTest: () => void;
 }
 
 function PresetCard({
   active,
+  id,
   label,
-  description,
   onClick,
 }: {
   active: boolean;
+  id: ProviderPresetId;
   label: string;
-  description: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="rounded-[22px] p-3 text-left transition-all duration-150"
+      className="flex items-center gap-2.5 rounded-[18px] px-3 py-2.5 text-left transition-all duration-150"
       style={
         active
           ? {
@@ -51,8 +69,11 @@ function PresetCard({
             }
       }
     >
-      <p className="text-sm font-semibold text-ink-primary">{label}</p>
-      <p className="mt-1.5 text-xs leading-5 text-ink-tertiary">{description}</p>
+      <ProviderIcon
+        id={id}
+        className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-[20px] text-ink-primary [&>svg]:h-[1em] [&>svg]:w-[1em]"
+      />
+      <span className="truncate text-sm font-semibold text-ink-primary">{label}</span>
     </button>
   );
 }
@@ -96,14 +117,19 @@ export default function ConnectionSection({
   form,
   ollamaModels,
   loadingOllamaModels,
+  availableModels,
+  loadingModels,
+  modelsError,
+  loadModels,
   configHistory,
   onManageConfigHistory,
   setForm,
   set,
   applyPreset,
   loadOllamaModels,
+  connectionActions,
 }: ConnectionSectionProps) {
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const { testState, testMsg, saveState, busy: actionsBusy, onTest } = connectionActions;
   const activePresetMeta = PROVIDER_PRESETS.find((preset) => preset.id === activePreset);
   const isOpenAI = provider === "openai";
   const isAnthropic = provider === "anthropic";
@@ -148,9 +174,45 @@ export default function ConnectionSection({
             </p>
           </div>
         </div>
-        {!contentUnavailable ? (
-          <ConfigHistorySwitcher {...configHistory} onManage={onManageConfigHistory} />
-        ) : null}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={onTest}
+              disabled={testState === "testing" || actionsBusy}
+              className="flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
+              style={{
+                background:
+                  testState === "ok"
+                    ? "linear-gradient(145deg,#40D466,#28A844)"
+                    : testState === "error"
+                      ? "linear-gradient(145deg,#FF5555,#CC2200)"
+                      : "var(--rc-chip-bg)",
+                color: testState === "ok" || testState === "error" ? "#fff" : "var(--rc-text-soft)",
+                boxShadow: testState === "idle" || testState === "testing" ? "var(--rc-chip-shadow)" : "none",
+              }}
+            >
+              {testState === "testing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
+              {testState === "testing" ? "测试中…" : testState === "ok" ? "连接正常" : testState === "error" ? "连接失败" : "测试连接"}
+            </button>
+            {testState === "error" && testMsg ? (
+              <span className="absolute right-0 top-full z-10 mt-0.5 whitespace-nowrap text-xs text-red-500">
+                {testMsg.slice(0, 30)}
+              </span>
+            ) : null}
+          </div>
+          <span
+            className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-ink-tertiary"
+            style={saveState === "saved" ? { color: "#1f9d4d" } : saveState === "error" ? { color: "#D92D20" } : undefined}
+            title="设置改动会自动保存"
+          >
+            {saveState === "saving" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "error" ? "保存失败" : "自动保存"}
+          </span>
+          {!contentUnavailable ? (
+            <ConfigHistorySwitcher {...configHistory} onManage={onManageConfigHistory} />
+          ) : null}
+        </div>
       </div>
 
       {!contentUnavailable ? (
@@ -159,13 +221,13 @@ export default function ConnectionSection({
             <div className="flex items-center justify-between gap-3">
               <label className="ml-1 block text-xs font-medium text-ink-tertiary">常见厂商</label>
             </div>
-            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            <div className="flex flex-wrap gap-2">
               {PROVIDER_PRESETS.map((preset) => (
                 <PresetCard
                   key={preset.id}
                   active={activePreset === preset.id}
+                  id={preset.id}
                   label={preset.label}
-                  description={preset.description}
                   onClick={() => applyPreset(preset.id)}
                 />
               ))}
@@ -192,7 +254,7 @@ export default function ConnectionSection({
                 value={baseUrlValue}
                 onChange={set(isOpenAI ? "openai_base_url" : "openai_compatible_base_url")}
                 placeholder={activePresetMeta?.baseUrl || "https://api.example.com/v1"}
-                hint={activePreset === "custom" ? "填写兼容 OpenAI 接口格式的地址。" : undefined}
+                hint={activePreset === "custom" ? "填写 OpenAI 兼容接口的根地址，通常以 /v1 结尾（如 https://api.example.com/v1）。" : undefined}
               />
             )}
 
@@ -216,7 +278,7 @@ export default function ConnectionSection({
             />
 
             <div className="md:col-span-2">
-              <SettingInput
+              <ModelCombobox
                 label="默认对话模型"
                 value={chatModelValue}
                 onChange={set(
@@ -227,29 +289,26 @@ export default function ConnectionSection({
                       : "openai_compatible_chat_model",
                 )}
                 placeholder={activePresetMeta?.defaultChatModel || "模型名称"}
-                hint="小妍主对话默认模型；专项任务可在下方分工区单独指定。"
+                hint="小妍主对话默认模型；专项任务可在下方分工区单独指定。点右侧按钮查询可用模型。"
+                models={availableModels}
+                loading={loadingModels}
+                error={modelsError}
+                onQuery={() => void loadModels()}
               />
             </div>
-          </div>
 
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((value) => !value)}
-            className="flex items-center gap-1.5 text-xs text-ink-tertiary transition-colors hover:text-ink-secondary"
-          >
-            {showAdvanced ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            {showAdvanced ? "收起高级设置" : "展开高级设置"}
-          </button>
-
-          {showAdvanced ? (
-            <div className="space-y-3 rounded-[24px] border border-nm-dark/10 p-4">
+            <div className="md:col-span-2">
               {!isAnthropic ? (
-                <SettingInput
+                <ModelCombobox
                   label="默认向量模型"
                   value={embeddingModelValue}
                   onChange={set(isOpenAI ? "openai_embedding_model" : "openai_compatible_embedding_model")}
                   placeholder={activePresetMeta?.defaultEmbedModel || "text-embedding-3-small"}
                   hint={embeddingHint}
+                  models={availableModels}
+                  loading={loadingModels}
+                  error={modelsError}
+                  onQuery={() => void loadModels()}
                 />
               ) : (
                 <div
@@ -259,38 +318,23 @@ export default function ConnectionSection({
                   Anthropic 不提供向量模型。如需 embedding 请在下方分工区为溯源模型配置。
                 </div>
               )}
-
-              {activePreset === "ollama" ? (
-                <div className="space-y-3 rounded-2xl border border-green-200 bg-green-50/80 px-4 py-3">
-                  <p className="text-xs leading-5 text-green-800">
-                    默认地址 <code className="font-mono">http://localhost:11434/v1</code>。点击下方按钮获取本地模型列表。
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={loadingOllamaModels}
-                      onClick={() => void loadOllamaModels()}
-                      className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-150 disabled:opacity-60"
-                      style={{ background: "rgba(52,199,89,0.15)", color: "#1A7A2E" }}
-                    >
-                      {loadingOllamaModels ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                      获取本地模型
-                    </button>
-                    {ollamaModels.map((model) => (
-                      <button
-                        key={model}
-                        type="button"
-                        onClick={() => setForm((current) => ({ ...current, openai_compatible_chat_model: model }))}
-                        className="rounded-lg px-2.5 py-1 text-xs font-mono transition-colors hover:bg-green-100"
-                        style={{ color: "#1A7A2E" }}
-                      >
-                        {model}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </div>
+          </div>
+
+          {activePreset === "ollama" ? (
+            <OllamaEmbeddingPanel
+              ollamaModels={ollamaModels}
+              loadingOllamaModels={loadingOllamaModels}
+              loadOllamaModels={loadOllamaModels}
+              chatModel={form.openai_compatible_chat_model}
+              embeddingModel={form.openai_compatible_embedding_model}
+              onPickChat={(model) =>
+                setForm((current) => ({ ...current, openai_compatible_chat_model: model }))
+              }
+              onPickEmbedding={(model) =>
+                setForm((current) => ({ ...current, openai_compatible_embedding_model: model }))
+              }
+            />
           ) : null}
 
           <div className="space-y-3 border-t border-nm-dark/10 pt-1">
@@ -324,14 +368,18 @@ export default function ConnectionSection({
                 ))}
               </div>
             </div>
-            <SettingInput
-              label="Semantic Scholar 接口密钥"
-              value={form.semantic_scholar_api_key}
-              onChange={set("semantic_scholar_api_key")}
-              placeholder="留空使用免费限速额度"
-              sensitive
-              hint={`留空或输入 ${MASK} 表示不更改`}
-            />
+            {form.paper_search_engine === "semantic_scholar" ? (
+              <SettingInput
+                label="Semantic Scholar 接口密钥"
+                value={form.semantic_scholar_api_key}
+                onChange={set("semantic_scholar_api_key")}
+                placeholder="留空使用免费限速额度"
+                sensitive
+                hint={`留空或输入 ${MASK} 表示不更改`}
+              />
+            ) : null}
+
+            <WebSearchSection form={form} set={set} />
           </div>
         </>
       ) : null}

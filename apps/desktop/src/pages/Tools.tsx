@@ -16,6 +16,8 @@ import { usePptGenerator } from "../features/tools/usePptGenerator";
 import { useSourceLookup } from "../features/tools/useSourceLookup";
 import { useTranslationTool } from "../features/tools/useTranslationTool";
 import { TranslationPanel } from "../features/tools/TranslationPanel";
+import { WebSupplementPanel } from "../features/tools/WebSupplementPanel";
+import { useWebSupplement } from "../features/tools/useWebSupplement";
 
 const TOOL_TABS = [
   { key: "arxiv", icon: <Sparkles className="h-4 w-4" />, label: "论文检索" },
@@ -40,7 +42,18 @@ export default function Tools() {
     submit: handleSourceLookup,
   } = useSourceLookup();
   const paperDiscovery = usePaperDiscoverySearch();
+  const webSupplement = useWebSupplement();
   const arxivFieldSearch = useArxivFieldSearch();
+
+  const webSupplementSeed = [
+    paperDiscovery.panelProps.allTerms,
+    paperDiscovery.panelProps.titleTerms,
+    paperDiscovery.panelProps.abstractTerms,
+    paperDiscovery.panelProps.topic,
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(", ");
   const friendLinks = useFriendLinks();
   const [activeTab, setActiveTab] = usePersistentStringState<ToolTabKey>(
     "rc:tools:active-tab",
@@ -138,6 +151,15 @@ export default function Tools() {
         detailActionTitle="打开论文详情页"
         pdfActionLabel="PDF"
         pdfActionTitle="打开论文 PDF"
+      />
+
+      <WebSupplementPanel
+        seedQuery={webSupplementSeed}
+        outcome={webSupplement.outcome}
+        loading={webSupplement.loading}
+        error={webSupplement.error}
+        searched={webSupplement.searched}
+        onRun={() => webSupplement.run(webSupplementSeed)}
       />
 
       <ArxivFieldSearchPanel {...arxivFieldSearch.panelProps} />

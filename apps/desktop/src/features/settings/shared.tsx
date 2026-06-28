@@ -3,7 +3,6 @@ import {
   Brain,
   ChevronDown,
   ChevronRight,
-  Compass,
   Database,
   Eye,
   EyeOff,
@@ -14,7 +13,7 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import type { AppSettings, MultiAgentRoutingMode } from "@research-copilot/types";
+import type { AppSettings } from "@research-copilot/types";
 
 export const MASK = "***";
 
@@ -371,24 +370,6 @@ export const AGENT_OPTIONS = [
   ["synthesis", "整合模型"],
 ] as const;
 
-export const ROUTING_MODE_COPY: Record<MultiAgentRoutingMode, { label: string; description: string; note: string }> = {
-  rule: {
-    label: "规则判断",
-    description: "根据关键词和上下文类型固定选择小妍步骤，最稳定，也最容易复现。",
-    note: "这一模式不会调用调度模型，适合你想严格控制成本和行为边界时使用。",
-  },
-  llm: {
-    label: "模型判断",
-    description: "由调度模型实时决定该启用哪些小妍步骤，更灵活，也更依赖模型本身。",
-    note: "适合复杂提问和开放式任务。建议给调度模型配置快一些、判断力强一些的模型。",
-  },
-  hybrid: {
-    label: "混合判断",
-    description: "先用规则确定基础班底，再由调度模型补充和重排，兼顾稳定性和灵活性。",
-    note: "这是当前最推荐的模式。研究路线、选题调研这类复合任务会保留关键小妍步骤，再由模型补充额外分工。",
-  },
-};
-
 export const AGENT_GUIDES = [
   { key: "planner", label: "谋策模型", description: "拆解研究主题、学习路径和阶段目标。" },
   { key: "retrieval", label: "溯源模型", description: "先从知识库和论文库找证据，适合需要依据的问题。" },
@@ -461,28 +442,6 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
     temperaturePlaceholder: "0.1",
   },
   {
-    title: "小妍 · 默认回退",
-    description: "没有单独指定时，作为各专项任务的统一执行回退。",
-    recommendation: "如果上方的小妍默认模型已经足够稳定，这里可以留空；只有想让工作节点统一切到另一模型时再单独设置。",
-    affectedScopes: "小妍步骤通用工作节点",
-    icon: Compass,
-    iconColor: "#34C759",
-    modelKeys: [
-      "multi_agent_worker_model",
-    ],
-    temperatureKeys: [
-      "multi_agent_worker_temperature",
-    ],
-    baseUrlKeys: [
-      "multi_agent_worker_base_url",
-    ],
-    apiKeyKeys: [
-      "multi_agent_worker_api_key",
-    ],
-    modelPlaceholder: "例如：gpt-4o / qwen-plus / deepseek-chat",
-    temperaturePlaceholder: "0.3",
-  },
-  {
     title: "溯源 · 向量化与检索",
     description: "负责知识库向量化、语义检索与 RAG 证据回溯。",
     recommendation: "优先选稳定的 embedding 模型；检索数量建议 5-8。",
@@ -508,8 +467,8 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "探知 · 搜索",
-    description: "擅长全网搜索与信息收集，用于强外部信息依赖的场景。",
-    recommendation: "若服务商支持联网或内置搜索工具，优先接在这里；否则可填与“流光”相同的快模型。",
+    description: "为“文献侦察、综述检索规划”角色指定的推理模型，处理强外部信息依赖的场景。",
+    recommendation: "建议这里接一个自带联网/搜索能力的模型（API）效果最好；没有就留空不动即可（沿用默认模型）。接了能联网的模型后，它既可以替代“小妍联网搜索来源”（DuckDuckGo / Tavily），也可以与之互为补充。",
     affectedScopes: "文献侦察检索、综述检索规划",
     icon: Search,
     iconColor: "#FF9F0A",
@@ -616,9 +575,9 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "视界 · 视觉",
-    description: "扫描 PDF 中的图表、架构图与公式截图。",
+    description: "扫描 PDF 图表，以及在小妍对话中读取你发送的图片。",
     recommendation: "需要多模态能力，推荐 GPT-4o / Gemini / Claude Sonnet 等支持图像输入的模型。",
-    affectedScopes: "论文解读时的图表扫描（矢量图、表格补充识别）",
+    affectedScopes: "论文图表扫描、小妍对话发送图片（未配置时无法在对话中发图）",
     icon: Eye,
     iconColor: "#30B0C7",
     modelKeys: ["vision_model"],

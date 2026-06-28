@@ -76,6 +76,12 @@ export function PptPreviewPanel({ data, fileBaseName }: PptPreviewPanelProps) {
             <p className="mt-2 break-words text-xs leading-6 text-ink-muted">
               {summarizeSlideContent(slide) || "该页将由小妍自动补齐内容。"}
             </p>
+            {slide.note && (
+              <p className="mt-2 break-words text-[11px] leading-5 text-ink-muted/80" title={slide.note}>
+                <span className="font-medium">备注：</span>
+                {slide.note}
+              </p>
+            )}
           </div>
         ))}
       </div>

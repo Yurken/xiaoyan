@@ -43,8 +43,32 @@ pub async fn settings_test(
 }
 
 #[tauri::command]
+pub async fn settings_test_vision(
+    state: State<'_, AppState>,
+    data: serde_json::Value,
+) -> Result<String, String> {
+    settings_service::test_vision_settings(state.inner(), &data).await
+}
+
+#[tauri::command]
 pub async fn settings_list_ollama_models(base_url: Option<String>) -> Result<Vec<String>, String> {
     settings_service::list_ollama_models(base_url).await
+}
+
+#[tauri::command]
+pub async fn settings_list_models(
+    state: State<'_, AppState>,
+    data: serde_json::Value,
+) -> Result<Vec<String>, String> {
+    settings_service::list_models(state.inner(), &data).await
+}
+
+#[tauri::command]
+pub async fn settings_test_tavily(
+    state: State<'_, AppState>,
+    data: serde_json::Value,
+) -> Result<Vec<settings_service::TavilyKeyTest>, String> {
+    settings_service::test_tavily(state.inner(), &data).await
 }
 
 #[tauri::command]
@@ -61,6 +85,16 @@ pub async fn settings_history_save(
     name: Option<String>,
 ) -> Result<settings_service::SettingsHistoryEntry, String> {
     settings_service::save_settings_history_entry(state.inner(), &data, name.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn settings_history_update(
+    state: State<'_, AppState>,
+    id: String,
+    data: serde_json::Value,
+    name: Option<String>,
+) -> Result<settings_service::SettingsHistoryEntry, String> {
+    settings_service::update_settings_history_entry(state.inner(), &id, &data, name.as_deref()).await
 }
 
 #[tauri::command]

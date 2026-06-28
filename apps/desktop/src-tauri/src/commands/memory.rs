@@ -1,3 +1,5 @@
+use crate::llm::LlmClient;
+use crate::rag::serialize_embedding;
 use crate::services::memory_retrieval_service;
 use crate::state::AppState;
 use anyhow::Result as AnyhowResult;
@@ -6,6 +8,12 @@ use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use tauri::State;
 use uuid::Uuid;
+
+/// 过程记忆（events/observations）的总量上限。超出后按「重要度升序、时间升序」
+/// 裁掉最旧最不重要的；高重要度观察因此能保留更久。
+const MAX_OBSERVATIONS: i64 = 5000;
+/// 单批回填的 embedding 数量上限，避免一次 LLM 调用过大。
+const EMBED_BACKFILL_BATCH: i64 = 64;
 
 /// Safely truncate a UTF-8 string to at most `max_bytes` bytes,
 /// never splitting a multi-byte character.
@@ -65,6 +73,24 @@ async fn insert_memory_event_and_observation(
     observation_narrative: &str,
     importance: i64,
 ) -> AnyhowResult<()> {
+    // 写入去重：最近 24h 内已有相同 source+event_type+summary 的观察则跳过，
+    // 避免「反复打开同一论文 / 重复提问」刷屏并撑爆检索预算。
+    let duplicate: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM memory_observations
+         WHERE source = ? AND event_type = ? AND summary = ?
+           AND created_at >= datetime('now', '-1 day')
+         LIMIT 1",
+    )
+    .bind(source)
+    .bind(event_type)
+    .bind(observation_summary)
+    .fetch_optional(db)
+    .await
+    .unwrap_or(None);
+    if duplicate.is_some() {
+        return Ok(());
+    }
+
     let event_id = Uuid::new_v4().to_string();
     let observation_id = Uuid::new_v4().to_string();
     let now = sqlite_now();
@@ -105,7 +131,105 @@ async fn insert_memory_event_and_observation(
     .execute(db)
     .await?;
 
+    prune_memory_pipeline(db).await;
+
     Ok(())
+}
+
+/// 控制过程记忆膨胀：先删「低重要度且超 90 天」的，再在总量超上限时
+/// 按「重要度升序、时间升序」裁掉最旧最不重要的。
+///
+/// 统一以删除 `memory_events` 为入口——`memory_observations.event_id` 与
+/// `memory_links.observation_id` 均为 `ON DELETE CASCADE`，删事件会级联清掉
+/// 对应观察与关联，避免悬挂。
+async fn prune_memory_pipeline(db: &SqlitePool) {
+    let _ = sqlx::query(
+        "DELETE FROM memory_events WHERE id IN (
+             SELECT event_id FROM memory_observations
+             WHERE importance <= 1 AND created_at < datetime('now', '-90 days')
+         )",
+    )
+    .execute(db)
+    .await;
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM memory_observations")
+        .fetch_one(db)
+        .await
+        .unwrap_or(0);
+    if count > MAX_OBSERVATIONS {
+        let excess = count - MAX_OBSERVATIONS;
+        let _ = sqlx::query(
+            "DELETE FROM memory_events WHERE id IN (
+                 SELECT event_id FROM memory_observations
+                 ORDER BY importance ASC, created_at ASC
+                 LIMIT ?
+             )",
+        )
+        .bind(excess)
+        .execute(db)
+        .await;
+    }
+}
+
+/// 后台回填观察的 embedding：取一批 `embedding IS NULL` 的观察，
+/// 调用 embedding 模型生成向量并写回。返回本批写入的条数。
+/// 未配置 embedding 客户端 / 调用失败时静默返回 0，不影响记忆其它功能。
+pub async fn backfill_observation_embeddings(
+    db: &SqlitePool,
+    settings: &HashMap<String, String>,
+) -> usize {
+    let Ok(client) = LlmClient::embed_client_from_settings(settings) else {
+        return 0;
+    };
+
+    let rows = sqlx::query(
+        "SELECT id, title, summary, narrative FROM memory_observations
+         WHERE embedding IS NULL
+         ORDER BY created_at DESC
+         LIMIT ?",
+    )
+    .bind(EMBED_BACKFILL_BATCH)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+    if rows.is_empty() {
+        return 0;
+    }
+
+    let ids: Vec<String> = rows.iter().map(|row| row.get::<String, _>("id")).collect();
+    let texts: Vec<String> = rows
+        .iter()
+        .map(|row| {
+            format!(
+                "{}\n{}\n{}",
+                row.get::<String, _>("title"),
+                row.get::<String, _>("summary"),
+                row.get::<String, _>("narrative"),
+            )
+        })
+        .collect();
+
+    let Ok(vectors) = client.embed(&texts).await else {
+        return 0;
+    };
+    if vectors.len() != ids.len() {
+        return 0;
+    }
+
+    let mut written = 0usize;
+    for (id, vector) in ids.iter().zip(vectors.iter()) {
+        let serialized = serialize_embedding(vector);
+        if sqlx::query("UPDATE memory_observations SET embedding = ? WHERE id = ?")
+            .bind(&serialized)
+            .bind(id)
+            .execute(db)
+            .await
+            .is_ok()
+        {
+            written += 1;
+        }
+    }
+    written
 }
 
 pub async fn record_chat_prompt_event(
@@ -573,8 +697,16 @@ pub async fn memory_search_observations(
     limit: Option<i64>,
 ) -> Result<serde_json::Value, String> {
     let lim = limit.unwrap_or(6).clamp(1, 20) as usize;
-    let items =
-        memory_retrieval_service::search_relevant_observations(&state.db, &query, lim).await;
+    let settings = state.settings.read().await.clone();
+    let query_embedding =
+        crate::services::chat_context_service::embed_query(&settings, &query).await;
+    let items = memory_retrieval_service::search_relevant_observations(
+        &state.db,
+        &query,
+        query_embedding.as_deref(),
+        lim,
+    )
+    .await;
     Ok(json!(items))
 }
 
@@ -605,8 +737,12 @@ pub async fn build_memory_context(db: &SqlitePool) -> String {
     memory_retrieval_service::build_memory_context(db).await
 }
 
-pub async fn build_memory_context_for_query(db: &SqlitePool, query: &str) -> String {
-    memory_retrieval_service::build_memory_context_for_query(db, query).await
+pub async fn build_memory_context_for_query(
+    db: &SqlitePool,
+    query: &str,
+    query_embedding: Option<&[f32]>,
+) -> String {
+    memory_retrieval_service::build_memory_context_for_query(db, query, query_embedding).await
 }
 
 #[tauri::command]

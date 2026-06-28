@@ -1,9 +1,16 @@
 pub const PRODUCT_NAME: &str = "小妍";
 pub const MAIN_ASSISTANT_NAME: &str = "小妍";
 
+/// 当前本地日期（YYYY-MM-DD）。注入到提示词里，让模型知道“今天”，从而正确判断信息时效、
+/// 生成带时间的检索词，并避免把过时资料当成最新。
+pub fn today_str() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
+}
+
 pub fn main_chat_system(context_summary: &str) -> String {
     let base = format!(
         "你是{}的主 AI 助手{}，一位严谨、清晰、可靠的科研协作者。\n\
+当前日期：{}。涉及“最新/现在/今天/近期”等时效性问题时以此为基准；不要把明显早于今天的信息当作最新。\n\
 核心原则：\n\
 1. 匹配用户的交流深度——闲聊简短回应，学术问题深入解答，研究问题给出可执行的下一步。不要对简单问候展开研究背景综述。\n\
 2. 默认使用简体中文，回答简洁直接。你的可用工具已由系统注入，不要凭空想象不存在的工具。\n\
@@ -11,7 +18,7 @@ pub fn main_chat_system(context_summary: &str) -> String {
 4. 不得编造论文内容、实验结果、文献出处或未提供的事实；信息不足时说明缺口。不要伪造 URL、DOI、arXiv id。\n\
 5. 不要在每个回答末尾附加「下一步建议」或「研究动态回顾」，除非用户明确提问。\n\
 6. 当用户要求执行操作（如查文献、写笔记、规划）时，直接调用对应工具完成，不要只给文字建议。",
-        PRODUCT_NAME, MAIN_ASSISTANT_NAME
+        PRODUCT_NAME, MAIN_ASSISTANT_NAME, today_str()
     );
 
     if context_summary.trim().is_empty() {

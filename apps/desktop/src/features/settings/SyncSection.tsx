@@ -7,10 +7,11 @@ import {
   AlertCircle,
   Power,
   FolderSync,
+  Link2,
 } from "lucide-react";
 import { SectionIcon } from "./shared";
 import { useSync } from "./useSync";
-import type { SyncSummary } from "../../lib/client";
+import { apiClient, type SyncSummary } from "../../lib/client";
 
 /** 把同步结果转成给用户看的中文说明，重点强调本地数据已保留。 */
 function describeSummary(s: SyncSummary): string {
@@ -25,10 +26,10 @@ function describeSummary(s: SyncSummary): string {
 }
 
 /**
- * 无冲突自动同步设置区。
+ * WebDAV 同步设置区（无冲突自动同步）。
  *
- * 与「WebDAV 备份」不同，这里是基于每设备状态文件的记录级合并同步：
- * 配置一次后，应用会在启动 / 切回前台 / 定时 自动后台同步，多设备不冲突、不丢数据。
+ * 基于每设备状态文件的记录级合并同步：配置一次 WebDAV 账号后，
+ * 应用会在启动 / 切回前台 / 定时 自动后台同步，多设备不冲突、不丢数据。
  */
 export default function SyncSection() {
   const {
@@ -47,10 +48,26 @@ export default function SyncSection() {
   } = useSync();
 
   const [password, setPassword] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const handleEnable = async () => {
     const ok = await configure(password);
     if (ok) setPassword("");
+  };
+
+  const handleTestConnection = async () => {
+    if (!url.trim() || !username.trim() || !password.trim()) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      await apiClient.settings.webdav.testConnection(url, username, password);
+      setTestResult({ ok: true, text: "连接成功，账号可用" });
+    } catch (e) {
+      setTestResult({ ok: false, text: `连接失败：${e instanceof Error ? e.message : "请检查地址与账号密码"}` });
+    } finally {
+      setTesting(false);
+    }
   };
 
   const inputStyle = {
@@ -64,9 +81,17 @@ export default function SyncSection() {
       <div className="flex items-center gap-3">
         <SectionIcon icon={FolderSync} color="#34C759" />
         <div className="flex-1">
-          <h2 className="text-base font-semibold text-ink-primary">自动同步（无冲突）</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-ink-primary">
+            WebDAV 同步
+            <span
+              className="rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+              style={{ background: "rgba(255,159,10,0.15)", color: "#FF9F0A" }}
+            >
+              beta
+            </span>
+          </h2>
           <p className="mt-0.5 text-xs text-ink-tertiary">
-            基于 WebDAV 的多设备实时合并：启动、切回前台、定时自动同步，删除会传播，且不会互相覆盖。
+            填一次账号即可多设备自动同步：启动、切回前台、定时在后台静默合并，删除会传播，且不会互相覆盖。
           </p>
         </div>
         {status.configured && (
@@ -134,6 +159,27 @@ export default function SyncSection() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
+            onClick={handleTestConnection}
+            disabled={busy || testing || !url.trim() || !username.trim() || !password.trim()}
+            className="flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
+            style={{
+              background: testResult?.ok ? "rgba(52,199,89,0.12)" : "var(--rc-chip-bg)",
+              color: testResult?.ok ? "#34C759" : "var(--rc-text-soft)",
+              boxShadow: testResult?.ok ? "none" : "var(--rc-chip-shadow)",
+            }}
+          >
+            {testing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : testResult?.ok ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <Link2 className="h-4 w-4" />
+            )}
+            {testing ? "测试中…" : testResult?.ok ? "连接正常" : "测试连接"}
+          </button>
+
+          <button
+            type="button"
             onClick={handleEnable}
             disabled={busy || !url.trim() || !username.trim() || !password.trim()}
             className="flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
@@ -168,6 +214,22 @@ export default function SyncSection() {
             </>
           )}
         </div>
+
+        {/* 测试连接结果 */}
+        {testResult && (
+          <div
+            className={`flex items-start gap-1.5 rounded-xl px-4 py-2.5 text-xs ${
+              testResult.ok ? "bg-apple-green/10 text-apple-green" : "bg-apple-red/10 text-apple-red"
+            }`}
+          >
+            {testResult.ok ? (
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            )}
+            <span>{testResult.text}</span>
+          </div>
+        )}
 
         {/* 首次配置 / 手动同步后的合并结果说明 */}
         {lastSummary && !error && (

@@ -13,13 +13,6 @@ function statusColor(status: AgentRun["status"]): string {
   return "#C7C7CC";
 }
 
-function statusBg(status: AgentRun["status"]): string {
-  if (status === "done") return "rgba(52,199,89,0.15)";
-  if (status === "failed") return "rgba(255,59,48,0.15)";
-  if (status === "running") return "rgba(255,149,0,0.15)";
-  return "rgba(199,199,204,0.15)";
-}
-
 function formatMs(ms?: number | null): string {
   if (ms == null || ms <= 0) return "";
   if (ms < 1000) return `${ms}ms`;
@@ -195,7 +188,6 @@ function TimelineBar({
   const duration = run.duration_ms ?? 0;
   const pct = duration > 0 ? Math.max((duration / maxDuration) * 100, 8) : 0;
   const color = statusColor(run.status);
-  const bg = statusBg(run.status);
 
   return (
     <div

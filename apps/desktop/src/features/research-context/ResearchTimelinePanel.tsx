@@ -1,5 +1,12 @@
-import { CheckCircle2, FileText, ListTodo } from "lucide-react";
+import { CheckCircle2, FileText, FlaskConical, ListTodo, Send } from "lucide-react";
 import type { ResearchActivityEvent } from "./shared";
+
+const EVENT_LABELS: Record<string, string> = {
+  paper_read: "导入论文",
+  note_added: "新增笔记",
+  experiment_logged: "实验记录",
+  submission_updated: "投稿推进",
+};
 
 interface ResearchTimelinePanelProps {
   events: ResearchActivityEvent[];
@@ -29,15 +36,23 @@ export default function ResearchTimelinePanel({ events }: ResearchTimelinePanelP
           } else if (event.eventType === "note_added") {
             Icon = ListTodo;
             iconColor = "text-apple-green";
+          } else if (event.eventType === "experiment_logged") {
+            Icon = FlaskConical;
+            iconColor = "text-apple-orange";
+          } else if (event.eventType === "submission_updated") {
+            Icon = Send;
+            iconColor = "text-apple-blue";
           }
+          const label = EVENT_LABELS[event.eventType];
 
           return (
-            <div key={event.id} className="relative pl-6">
+            <div key={`${event.eventType}-${event.id}`} className="relative pl-6">
               <div className="absolute left-[-11px] top-0.5 flex h-[21px] w-[21px] items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-black/[0.08]">
                 <Icon className={`h-3 w-3 ${iconColor}`} />
               </div>
               <div className="flex flex-col">
                 <span className="text-xs text-ink-tertiary mb-0.5">
+                  {label ? `${label} · ` : ""}
                   {new Date(event.timestamp).toLocaleString()}
                 </span>
                 <span className="text-sm text-ink-primary font-medium">

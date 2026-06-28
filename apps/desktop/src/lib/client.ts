@@ -26,6 +26,8 @@ import type {
   SettingsHistoryEntry,
   SurveySummary,
   SavedSurvey,
+  TavilyKeyTest,
+  WebSearchOutcome,
 } from "@research-copilot/types";
 import { streamChat } from "./chatStream";
 export { streamChat } from "./chatStream";
@@ -99,16 +101,44 @@ export interface SyncConfigView {
   username: string;
 }
 
+export interface TokenUsageBucket {
+  input: number;
+  output: number;
+  total: number;
+  chars: number;
+  requests: number;
+}
+
+export interface TokenUsageStats {
+  total: TokenUsageBucket;
+  today: TokenUsageBucket;
+  month: TokenUsageBucket;
+}
+
 export const settingsApi = {
   get: (): Promise<AppSettings> => invoke("settings_get"),
   update: (data: Partial<AppSettings>): Promise<{ ok: boolean; updated: string[] }> =>
     invoke("settings_update", { data }),
   test: (data: Partial<AppSettings>): Promise<string> =>
     invoke("settings_test", { data }),
+  testVision: (data: Partial<AppSettings>): Promise<string> =>
+    invoke("settings_test_vision", { data }),
   export: (password: string): Promise<string> =>
     invoke("settings_export", { password }),
   import: (data: string, password: string): Promise<string[]> =>
     invoke("settings_import", { data, password }),
+  readDiagnosticLog: (): Promise<{ name: string; content: string }> =>
+    invoke("read_diagnostic_log"),
+  feedback: {
+    submit: (payload: {
+      text?: string;
+      contact?: string;
+      category?: string;
+      images?: string[];
+      log?: { name: string; content: string } | null;
+    }): Promise<{ ok: boolean; id?: number; createdAt?: string }> =>
+      invoke("feedback_submit", { payload }),
+  },
   dataBackup: {
     export: (password: string): Promise<string> =>
       invoke("data_backup_export", { password }),
@@ -136,8 +166,13 @@ export const settingsApi = {
     now: (): Promise<SyncSummary | null> => invoke("sync_now"),
     disable: (): Promise<void> => invoke("sync_disable"),
   },
+  tokenUsage: (): Promise<TokenUsageStats> => invoke("token_usage_stats"),
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
+  listModels: (data: Partial<AppSettings>): Promise<string[]> =>
+    invoke("settings_list_models", { data }),
+  testTavily: (data: Partial<AppSettings>): Promise<TavilyKeyTest[]> =>
+    invoke("settings_test_tavily", { data }),
   appLock: {
     status: (): Promise<{ enabled: boolean; timeoutMinutes: number; hasSecurity: boolean; hasHint: boolean; hasEmail: boolean }> =>
       invoke("app_lock_status"),
@@ -165,6 +200,8 @@ export const settingsApi = {
       invoke("settings_history_list"),
     save: (data: Partial<AppSettings>, name?: string): Promise<SettingsHistoryEntry> =>
       invoke("settings_history_save", { data, name: name ?? null }),
+    update: (id: string, data: Partial<AppSettings>, name?: string): Promise<SettingsHistoryEntry> =>
+      invoke("settings_history_update", { id, data, name: name ?? null }),
     apply: (id: string): Promise<AppSettings> =>
       invoke("settings_history_apply", { id }),
     delete: (id: string): Promise<void> =>
@@ -205,8 +242,12 @@ export const papersApi = {
     invoke("papers_reorder", { orderedIds }),
   delete: (id: string): Promise<void> =>
     invoke("papers_delete", { id }),
+  merge: (keepId: string, deleteIds: string[]): Promise<Paper> =>
+    invoke("papers_merge", { keepId, deleteIds }),
   openFile: (id: string): Promise<void> =>
     invoke("papers_open_pdf", { id }),
+  revealInFolder: (id: string): Promise<void> =>
+    invoke("papers_reveal_in_folder", { id }),
   analyze: (id: string): Promise<void> =>
     invoke("papers_analyze", { id }),
   reparse: (id: string): Promise<void> =>
@@ -230,6 +271,7 @@ export const paperNotesApi = {
     highlight_color?: string;
     highlight_positions?: unknown[];
     style?: string;
+    fill_color?: string;
   }): Promise<unknown> =>
     invoke("paper_notes_create", {
       paperId: data.paper_id,
@@ -239,12 +281,15 @@ export const paperNotesApi = {
       highlightColor: data.highlight_color ?? null,
       highlightPositions: data.highlight_positions ?? null,
       style: data.style ?? null,
+      fillColor: data.fill_color ?? null,
     }),
-  update: (id: string, data: { content?: string; highlight_color?: string }): Promise<unknown> =>
+  update: (id: string, data: { content?: string; highlight_color?: string; highlight_positions?: unknown[]; fill_color?: string }): Promise<unknown> =>
     invoke("paper_notes_update", {
       id,
       content: data.content ?? null,
       highlightColor: data.highlight_color ?? null,
+      highlightPositions: data.highlight_positions ?? null,
+      fillColor: data.fill_color ?? null,
     }),
   delete: (id: string): Promise<void> =>
     invoke("paper_notes_delete", { id }),
@@ -312,7 +357,18 @@ export const paperSearchApi = {
     invoke("paper_search", { request, days, limit, rankingMode: ranking_mode }),
 };
 
+export const webSearchApi = {
+  query: (query: string): Promise<WebSearchOutcome> => invoke("web_search_query", { query }),
+};
+
 // ── Knowledge ─────────────────────────────────────────────────────
+
+export interface ResearchIdeaSuggestion {
+  title: string;
+  rationale: string;
+  background: string;
+  keywords: string[];
+}
 
 export const knowledgeApi = {
   listInterests: (): Promise<ResearchInterest[]> =>
@@ -323,6 +379,10 @@ export const knowledgeApi = {
     profile?: ResearchInterestProfile
   ): Promise<ResearchInterest> =>
     invoke("knowledge_create_interest", { topic, keywords, profile: profile ?? null }),
+  createFolder: (name: string, parentId?: string | null): Promise<ResearchInterest> =>
+    invoke("knowledge_create_folder", { name, parentId: parentId ?? null }),
+  moveInterest: (id: string, parentId: string | null): Promise<ResearchInterest> =>
+    invoke("knowledge_move_interest", { id, parentId: parentId ?? null }),
   updateInterestFolder: (id: string, folder_name: string): Promise<ResearchInterest> =>
     invoke("knowledge_update_interest_folder", { id, folderName: folder_name }),
   deleteInterestBundle: (id: string): Promise<{ deleted_interest_id: string; deleted_sessions: number; deleted_notes: number; deleted_papers: number }> =>
@@ -342,6 +402,11 @@ export const knowledgeApi = {
     }),
   suggestTopics: (field: string, goalType: string, background: string): Promise<string[]> =>
     invoke("knowledge_suggest_topics", { field, goalType: goalType, background }),
+  ideasFromMaterials: (
+    materials: string,
+    images: { data: string; mediaType: string }[],
+  ): Promise<ResearchIdeaSuggestion[]> =>
+    invoke("knowledge_ideas_from_materials", { materials, images }),
   generatePlan: (id: string, startStep?: number): Promise<void> =>
     invoke("knowledge_generate_plan", { id, startStep: startStep ?? null }),
   listNotes: (search?: string): Promise<KnowledgeNote[]> =>
@@ -757,10 +822,10 @@ export const submissionApi = {
       submissionId: params.submissionId, content: params.content,
       reviewerCount: params.reviewerCount, strictness: params.strictness,
     }),
-  polishAbstract: (submissionId: string, text: string) =>
-    invoke<void>("submission_polish_abstract", { submissionId, text }),
-  generateCoverLetter: (submissionId: string) =>
-    invoke<void>("submission_generate_cover_letter", { submissionId }),
+  polishAbstract: (submissionId: string, text: string, requestId?: string) =>
+    invoke<void>("submission_polish_abstract", { submissionId, text, requestId: requestId ?? null }),
+  generateCoverLetter: (submissionId: string, requestId?: string) =>
+    invoke<void>("submission_generate_cover_letter", { submissionId, requestId: requestId ?? null }),
   syncCcfDdl: () =>
     invoke<{ fetched: number; updated: number }>("submission_sync_ccfddl"),
   syncCcfDdlLocal: () =>
@@ -1017,6 +1082,7 @@ export const apiClient = {
   memory: memoryApi,
   arxiv: arxivApi,
   paperSearch: paperSearchApi,
+  webSearch: webSearchApi,
   ccf: ccfApi,
   journals: journalApi,
   sources: sourceApi,

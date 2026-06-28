@@ -1,15 +1,12 @@
 import { useState } from "react";
 import {
   Brain,
-  CheckCircle2,
   ChevronDown,
   Clock3,
   Loader2,
   Search,
-  XCircle,
 } from "lucide-react";
 import {
-  toCapabilityModelName,
   type AgentPlanStep,
   type AgentRun,
   type RoutingDecision,
@@ -35,7 +32,8 @@ export default function ThinkingProcessPanel({
   searchingQuery,
   isThinking,
 }: ThinkingProcessPanelProps) {
-  const [expanded, setExpanded] = useState(true);
+  // 默认折叠：只展示「思考中 / 已思考」概览，用户需要时再点开看推理与步骤。
+  const [expanded, setExpanded] = useState(false);
 
   const hasReasoning = thought.trim().length > 0;
   const hasPlan = plan.length > 0;

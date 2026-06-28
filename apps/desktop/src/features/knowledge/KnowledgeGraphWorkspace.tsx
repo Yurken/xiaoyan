@@ -352,7 +352,7 @@ export default function KnowledgeGraphWorkspace({
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <p className="text-base font-semibold text-ink-primary">关系总览</p>
-                <p className="mt-1 text-xs text-ink-tertiary">滚轮缩放，拖动画布平移。</p>
+                <p className="mt-1 text-xs text-ink-tertiary">Ctrl/⌘ + 滚轮缩放，拖动画布平移。</p>
               </div>
               <IconButton
                 onClick={() => setIsCanvasExpanded(false)}

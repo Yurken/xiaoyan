@@ -20,6 +20,7 @@ export function useSettingsHistory({
   const [selectedId, setSelectedId] = useState("");
   const [saving, setSaving] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
@@ -104,6 +105,27 @@ export function useSettingsHistory({
     }
   };
 
+  const updateHistory = async (id: string) => {
+    if (!id || !beginAction()) return;
+
+    setUpdatingId(id);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const entry = await apiClient.settings.history.update(id, form);
+      setEntries((current) => current.map((item) => (item.id === id ? entry : item)));
+      setSelectedId(id);
+      onMarkedSaved?.();
+      setActionMessage(`已把当前配置保存到“${entry.name}”。`);
+    } catch (error) {
+      setActionError(formatErrorMessage(error));
+    } finally {
+      setUpdatingId(null);
+      endAction();
+    }
+  };
+
   const deleteHistory = async (id: string) => {
     if (!beginAction()) return;
     setDeletingId(id);
@@ -134,6 +156,7 @@ export function useSettingsHistory({
     selectedId,
     saving,
     applyingId,
+    updatingId,
     deletingId,
     actionError,
     actionMessage,
@@ -142,6 +165,7 @@ export function useSettingsHistory({
     setSelectedId,
     saveCurrent,
     applyHistory,
+    updateHistory,
     deleteHistory,
     reload: loadHistory,
   };

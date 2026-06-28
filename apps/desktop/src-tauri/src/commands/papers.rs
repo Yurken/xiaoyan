@@ -591,6 +591,186 @@ pub async fn papers_delete(
     Ok(())
 }
 
+// ── Merge duplicates ─────────────────────────────────────────────
+
+/// 合并重复论文：保留 `keep_id`，把 `delete_ids` 的关联数据并入后删除这些副本。
+/// 迁移策略（与前端约定一致）：
+///   - 语料库片段：paper_id 改指主论文；
+///   - 解读补位：主论文无解读、某副本有 → 把该解读迁到主论文（UNIQUE(paper_id) 安全）；
+///   - 知识图谱证据链/引用：两端重指主论文（source_id 是纯文本无外键，不重指会悬空）；
+///   - 副本的批注、分块、图表、解析记录、残留解读/引用：随 DELETE papers 级联清除。
+/// 整个数据库操作在单事务内完成；托管 PDF 与产物目录在提交后清理（与 papers_delete 一致）。
+#[tauri::command]
+pub async fn papers_merge(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    keep_id: String,
+    delete_ids: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    // 过滤掉主论文自身、空值并去重
+    let mut targets: Vec<String> = Vec::new();
+    for id in delete_ids {
+        let trimmed = id.trim().to_string();
+        if trimmed.is_empty() || trimmed == keep_id || targets.contains(&trimmed) {
+            continue;
+        }
+        targets.push(trimmed);
+    }
+    if targets.is_empty() {
+        return Err("没有要合并的论文".to_string());
+    }
+
+    let keep_exists: Option<String> = sqlx::query_scalar("SELECT id FROM papers WHERE id = ?")
+        .bind(&keep_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+    if keep_exists.is_none() {
+        return Err("保留的主论文不存在".to_string());
+    }
+
+    // 删除前取出各副本的 file_path，事务提交后清理托管文件
+    let mut file_paths: Vec<String> = Vec::new();
+    for did in &targets {
+        if let Ok(Some(row)) = sqlx::query("SELECT file_path FROM papers WHERE id = ?")
+            .bind(did)
+            .fetch_optional(&state.db)
+            .await
+        {
+            if let Ok(Some(fp)) = row.try_get::<Option<String>, _>("file_path") {
+                if !fp.trim().is_empty() {
+                    file_paths.push(fp);
+                }
+            }
+        }
+    }
+
+    let keep_has_analysis: Option<String> =
+        sqlx::query_scalar("SELECT id FROM paper_analyses WHERE paper_id = ?")
+            .bind(&keep_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
+
+    // 解读补位：主论文没有解读、某副本有 → 把其中一条迁到主论文
+    if keep_has_analysis.is_none() {
+        let mut donor: Option<String> = None;
+        for did in &targets {
+            let found: Option<String> =
+                sqlx::query_scalar("SELECT paper_id FROM paper_analyses WHERE paper_id = ?")
+                    .bind(did)
+                    .fetch_optional(&mut *tx)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            if found.is_some() {
+                donor = found;
+                break;
+            }
+        }
+        if let Some(donor_id) = donor {
+            sqlx::query("UPDATE paper_analyses SET paper_id = ? WHERE paper_id = ?")
+                .bind(&keep_id)
+                .bind(&donor_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    for did in &targets {
+        // 语料库片段迁移
+        sqlx::query("UPDATE paper_corpus SET paper_id = ? WHERE paper_id = ?")
+            .bind(&keep_id)
+            .bind(did)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        // 知识图谱证据链：source_id 是纯文本无外键，必须重指否则删库后悬空。
+        // UNIQUE(claim_id, source_kind, source_id, relation_kind) 冲突时 OR IGNORE 跳过，残留随后删除。
+        sqlx::query(
+            "UPDATE OR IGNORE knowledge_graph_evidence_links SET source_id = ? \
+             WHERE source_kind = 'paper' AND source_id = ?",
+        )
+        .bind(&keep_id)
+        .bind(did)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+        sqlx::query(
+            "DELETE FROM knowledge_graph_evidence_links WHERE source_kind = 'paper' AND source_id = ?",
+        )
+        .bind(did)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        // 引用关系：两端重指主论文（UNIQUE 冲突 OR IGNORE，残留交由 FK 级联删除）
+        sqlx::query(
+            "UPDATE OR IGNORE knowledge_paper_citations SET citing_paper_id = ? WHERE citing_paper_id = ?",
+        )
+        .bind(&keep_id)
+        .bind(did)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+        sqlx::query(
+            "UPDATE OR IGNORE knowledge_paper_citations SET cited_paper_id = ? WHERE cited_paper_id = ?",
+        )
+        .bind(&keep_id)
+        .bind(did)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+
+    // 重指后可能出现主论文自引用，清掉
+    sqlx::query("DELETE FROM knowledge_paper_citations WHERE citing_paper_id = cited_paper_id")
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // 删除各副本（FK 级联清除其批注/分块/图表/解析记录/残留解读与引用）
+    for did in &targets {
+        sqlx::query("DELETE FROM papers WHERE id = ?")
+            .bind(did)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    // 刷新主论文 updated_at，让同步感知本次合并
+    sqlx::query("UPDATE papers SET updated_at = ? WHERE id = ?")
+        .bind(&now)
+        .bind(&keep_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+
+    // 提交后清理副本的托管 PDF 与产物目录（与 papers_delete 一致）
+    for fp in file_paths {
+        let file_path = PathBuf::from(&fp);
+        if let Ok(papers_dir) = managed_papers_dir(&app) {
+            if let Ok(managed_path) = canonical_path_within(&papers_dir, &file_path, "PDF 文件") {
+                let _ = std::fs::remove_file(managed_path);
+            }
+        }
+    }
+    if let Ok(data_dir) = app.path().app_data_dir() {
+        for did in &targets {
+            let figures_dir = data_dir.join("papers").join(did);
+            let _ = std::fs::remove_dir_all(&figures_dir);
+        }
+    }
+
+    papers_get(state, keep_id).await
+}
+
 // ── Open PDF ─────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -616,6 +796,51 @@ pub async fn papers_open_pdf(
     app.opener()
         .open_path(path, None::<&str>)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn papers_reveal_in_folder(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let file_path_str: Option<String> = sqlx::query("SELECT file_path FROM papers WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|row| row.try_get::<Option<String>, _>("file_path").ok().flatten());
+
+    let path = file_path_str
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| "该论文没有关联的本地文件".to_string())?;
+    let canonical = canonical_managed_pdf_path(&app, Path::new(&path))?;
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &canonical.to_string_lossy()])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .args(["/select,", &canonical.to_string_lossy()])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(parent) = canonical.parent() {
+            std::process::Command::new("xdg-open")
+                .arg(parent)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

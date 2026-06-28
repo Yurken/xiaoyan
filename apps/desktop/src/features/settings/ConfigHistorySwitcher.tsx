@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "@research-copilot/ui";
-import { Check, ChevronDown, History, Loader2, Plus, RotateCcw, Settings2 } from "lucide-react";
+import { Check, ChevronDown, History, Loader2, Plus, RotateCcw, Save, Settings2 } from "lucide-react";
 import type { SettingsHistoryEntry } from "@research-copilot/types";
 
 export interface ConfigHistorySwitcherProps {
@@ -9,6 +9,7 @@ export interface ConfigHistorySwitcherProps {
   selectedId: string;
   saving: boolean;
   applyingId: string | null;
+  updatingId: string | null;
   actionError: string;
   actionMessage: string;
   busy?: boolean;
@@ -16,6 +17,7 @@ export interface ConfigHistorySwitcherProps {
   setDraftName: (value: string) => void;
   onSaveCurrent: () => Promise<void> | void;
   onApplyHistory: (id: string) => Promise<void> | void;
+  onUpdateHistory: (id: string) => Promise<void> | void;
   onManage?: () => void;
 }
 
@@ -38,6 +40,7 @@ export default function ConfigHistorySwitcher({
   selectedId,
   saving,
   applyingId,
+  updatingId,
   actionError,
   actionMessage,
   busy,
@@ -45,11 +48,13 @@ export default function ConfigHistorySwitcher({
   setDraftName,
   onSaveCurrent,
   onApplyHistory,
+  onUpdateHistory,
   onManage,
 }: ConfigHistorySwitcherProps) {
   const [open, setOpen] = useState(false);
   const [composing, setComposing] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [pendingUpdateId, setPendingUpdateId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const activeEntry = useMemo(
@@ -61,6 +66,11 @@ export default function ConfigHistorySwitcher({
     [entries, pendingId],
   );
   const confirmLoading = pendingId !== null && applyingId === pendingId;
+  const updateEntry = useMemo(
+    () => (pendingUpdateId ? entries.find((item) => item.id === pendingUpdateId) : undefined),
+    [entries, pendingUpdateId],
+  );
+  const updateConfirmLoading = pendingUpdateId !== null && updatingId === pendingUpdateId;
 
   useEffect(() => {
     if (!open) return;
@@ -91,13 +101,20 @@ export default function ConfigHistorySwitcher({
       .finally(() => setPendingId(null));
   };
 
+  const confirmUpdate = () => {
+    if (!pendingUpdateId || updateConfirmLoading) return;
+    void Promise.resolve(onUpdateHistory(pendingUpdateId))
+      .catch(() => undefined)
+      .finally(() => setPendingUpdateId(null));
+  };
+
   const handleSave = () => {
     void Promise.resolve(onSaveCurrent())
       .catch(() => undefined)
       .finally(() => setComposing(false));
   };
 
-  const triggerLabel = activeEntry?.name ?? "配置历史";
+  const triggerLabel = activeEntry?.name ?? (entries.length > 0 ? "未保存配置" : "配置历史");
 
   return (
     <div ref={containerRef} className="relative flex-shrink-0">
@@ -237,15 +254,32 @@ export default function ConfigHistorySwitcher({
                 </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setComposing(true)}
-                disabled={busy}
-                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-ink-secondary transition-colors duration-150 hover:bg-[var(--rc-chip-bg)] disabled:opacity-50"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                保存当前为新方案
-              </button>
+              <>
+                {activeEntry ? (
+                  <button
+                    type="button"
+                    onClick={() => setPendingUpdateId(activeEntry.id)}
+                    disabled={busy}
+                    className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-ink-secondary transition-colors duration-150 hover:bg-[var(--rc-chip-bg)] disabled:opacity-50"
+                  >
+                    {updatingId === activeEntry.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5" />
+                    )}
+                    <span className="min-w-0 truncate">保存修改到「{activeEntry.name}」</span>
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setComposing(true)}
+                  disabled={busy}
+                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-ink-secondary transition-colors duration-150 hover:bg-[var(--rc-chip-bg)] disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  保存当前为新方案
+                </button>
+              </>
             )}
 
             {onManage ? (
@@ -280,6 +314,23 @@ export default function ConfigHistorySwitcher({
           if (!confirmLoading) setPendingId(null);
         }}
         onConfirm={confirmApply}
+      />
+
+      <ConfirmDialog
+        open={pendingUpdateId !== null}
+        title="更新这份方案"
+        description={
+          updateEntry
+            ? `把当前小妍配置保存到“${updateEntry.name}”，原来的快照会被覆盖。继续吗？`
+            : "把当前小妍配置保存到所选方案，原来的快照会被覆盖。继续吗？"
+        }
+        confirmLabel="确认更新"
+        cancelLabel="取消"
+        loading={updateConfirmLoading}
+        onClose={() => {
+          if (!updateConfirmLoading) setPendingUpdateId(null);
+        }}
+        onConfirm={confirmUpdate}
       />
     </div>
   );

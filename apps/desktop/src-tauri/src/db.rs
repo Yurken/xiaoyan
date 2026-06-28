@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS research_interests (
     id            TEXT PRIMARY KEY,
     topic         TEXT NOT NULL,
     folder_name   TEXT,
+    parent_id     TEXT,
     keywords      TEXT NOT NULL DEFAULT '[]',
     profile       TEXT,
     learning_path TEXT,
@@ -126,6 +127,7 @@ CREATE TABLE IF NOT EXISTS paper_notes (
     highlight_color     TEXT NOT NULL DEFAULT 'yellow',
     highlight_positions TEXT,
     style               TEXT NOT NULL DEFAULT 'highlight',
+    fill_color          TEXT NOT NULL DEFAULT 'none',
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -147,6 +149,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     role       TEXT NOT NULL,
     content    TEXT NOT NULL,
     sources    TEXT,
+    images     TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -196,6 +199,7 @@ CREATE TABLE IF NOT EXISTS skills (
     description TEXT NOT NULL DEFAULT '',
     prompt      TEXT NOT NULL DEFAULT '',
     tags        TEXT NOT NULL DEFAULT '[]',
+    kind        TEXT NOT NULL DEFAULT 'prompt',
     is_builtin  INTEGER NOT NULL DEFAULT 0,
     is_enabled  INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -379,7 +383,17 @@ CREATE TABLE IF NOT EXISTS code_sessions (
     created_at     TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_code_sessions_updated ON code_sessions(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_opencode_sessions_updated ON opencode_sessions(updated_at DESC);
+
+-- 本地 token 用量按日聚合（仅本地统计，不参与同步）
+CREATE TABLE IF NOT EXISTS token_usage_daily (
+    day            TEXT PRIMARY KEY,
+    input_tokens   INTEGER NOT NULL DEFAULT 0,
+    output_tokens  INTEGER NOT NULL DEFAULT 0,
+    input_chars    INTEGER NOT NULL DEFAULT 0,
+    output_chars   INTEGER NOT NULL DEFAULT 0,
+    request_count  INTEGER NOT NULL DEFAULT 0
+);
 ";
 
 // ── WebDAV 无冲突同步所需的本地元数据 ─────────────────────────────
@@ -442,6 +456,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_research_interest_profile_column(&pool).await?;
     ensure_research_interest_folder_name_column(&pool).await?;
     ensure_research_interest_partial_plan_column(&pool).await?;
+    ensure_research_interest_parent_id_column(&pool).await?;
     ensure_papers_research_interest_column(&pool).await?;
     ensure_paper_analyses_experiment_results_column(&pool).await?;
     ensure_reproduction_guides_code_repository_column(&pool).await?;
@@ -464,6 +479,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_paper_notes_table(&pool).await?;
     ensure_code_tables(&pool).await?;
     ensure_paper_corpus_table(&pool).await?;
+    ensure_token_usage_char_columns(&pool).await?;
     ensure_sync_tables(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
 
@@ -571,6 +587,7 @@ async fn ensure_schema(pool: &SqlitePool) -> Result<()> {
     ensure_research_interest_profile_column(pool).await?;
     ensure_research_interest_folder_name_column(pool).await?;
     ensure_research_interest_partial_plan_column(pool).await?;
+    ensure_research_interest_parent_id_column(pool).await?;
     ensure_papers_research_interest_column(pool).await?;
     ensure_paper_analyses_experiment_results_column(pool).await?;
     ensure_reproduction_guides_code_repository_column(pool).await?;
@@ -620,6 +637,8 @@ async fn ensure_paper_figures_table(pool: &SqlitePool) -> Result<()> {
     ensure_table_column(pool, "paper_figures", "page_number", "INTEGER").await?;
     ensure_table_column(pool, "paper_figures", "bbox", "TEXT").await?;
     ensure_table_column(pool, "paper_figures", "source", "TEXT").await?;
+    // 对话多模态：用户消息附带的图片（JSON 数组 [{mediaType,data}]），供多轮上下文回放。
+    ensure_table_column(pool, "chat_messages", "images", "TEXT").await?;
     Ok(())
 }
 
@@ -775,8 +794,22 @@ async fn ensure_research_interest_partial_plan_column(pool: &SqlitePool) -> Resu
     ensure_table_column(pool, "research_interests", "partial_plan", "TEXT").await
 }
 
+/// 子文件夹层级：research_interests 自引用父节点。`NULL` 表示顶层文件夹。
+/// 不加外键约束，删除/上提语义统一由 knowledge 命令在应用层控制（见 knowledge.rs）。
+async fn ensure_research_interest_parent_id_column(pool: &SqlitePool) -> Result<()> {
+    ensure_table_column(pool, "research_interests", "parent_id", "TEXT").await
+}
+
 async fn ensure_papers_sort_order_column(pool: &SqlitePool) -> Result<()> {
     ensure_table_column(pool, "papers", "sort_order", "INTEGER NOT NULL DEFAULT 0").await
+}
+
+/// 为既有 DB 的 token_usage_daily 补齐字符统计列。
+async fn ensure_token_usage_char_columns(pool: &SqlitePool) -> Result<()> {
+    ensure_table_column(pool, "token_usage_daily", "input_chars", "INTEGER NOT NULL DEFAULT 0")
+        .await?;
+    ensure_table_column(pool, "token_usage_daily", "output_chars", "INTEGER NOT NULL DEFAULT 0")
+        .await
 }
 
 async fn ensure_papers_research_interest_column(pool: &SqlitePool) -> Result<()> {
@@ -830,6 +863,7 @@ pub async fn ensure_skills_table(pool: &SqlitePool) -> Result<()> {
             description TEXT NOT NULL DEFAULT '',
             prompt      TEXT NOT NULL DEFAULT '',
             tags        TEXT NOT NULL DEFAULT '[]',
+            kind        TEXT NOT NULL DEFAULT 'prompt',
             is_builtin  INTEGER NOT NULL DEFAULT 0,
             is_enabled  INTEGER NOT NULL DEFAULT 1,
             created_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -838,6 +872,9 @@ pub async fn ensure_skills_table(pool: &SqlitePool) -> Result<()> {
     )
     .execute(pool)
     .await?;
+
+    // 既有 DB 补齐 kind 列（prompt=提示词技能 / tool=工具技能，如 PPT 生成）
+    ensure_table_column(pool, "skills", "kind", "TEXT NOT NULL DEFAULT 'prompt'").await?;
 
     // Seed built-in skills (INSERT OR IGNORE so existing customizations are preserved)
     crate::commands::skills::seed_builtin_skills(pool).await?;
@@ -852,6 +889,8 @@ pub async fn ensure_user_memories_table(pool: &SqlitePool) -> Result<()> {
 
 pub async fn ensure_memory_pipeline_tables(pool: &SqlitePool) -> Result<()> {
     sqlx::raw_sql(MEMORY_PIPELINE_DDL).execute(pool).await?;
+    // 语义检索所需：为既有库补 observation 的 embedding 列（JSON 向量，NULL = 尚未回填）。
+    ensure_table_column(pool, "memory_observations", "embedding", "TEXT").await?;
     Ok(())
 }
 
@@ -1050,6 +1089,7 @@ pub async fn ensure_paper_notes_table(pool: &SqlitePool) -> Result<()> {
             highlight_color     TEXT NOT NULL DEFAULT 'yellow',
             highlight_positions TEXT,
             style               TEXT NOT NULL DEFAULT 'highlight',
+            fill_color          TEXT NOT NULL DEFAULT 'none',
             created_at          TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -1060,6 +1100,11 @@ pub async fn ensure_paper_notes_table(pool: &SqlitePool) -> Result<()> {
 
     // 兼容旧库：补充 style 列（highlight / underline）。列已存在时报错可忽略。
     let _ = sqlx::query("ALTER TABLE paper_notes ADD COLUMN style TEXT NOT NULL DEFAULT 'highlight'")
+        .execute(pool)
+        .await;
+
+    // 兼容旧库：补充 fill_color 列（形状内部填充色；'none' = 不填充）。
+    let _ = sqlx::query("ALTER TABLE paper_notes ADD COLUMN fill_color TEXT NOT NULL DEFAULT 'none'")
         .execute(pool)
         .await;
 
@@ -1191,6 +1236,7 @@ mod tests {
         for (table, column) in [
             ("research_interests", "profile"),
             ("research_interests", "folder_name"),
+            ("research_interests", "parent_id"),
             ("papers", "research_interest_id"),
             ("papers", "importance_color"),
             ("papers", "notes"),

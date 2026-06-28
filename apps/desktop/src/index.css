@@ -322,6 +322,160 @@
       animation: none !important;
     }
   }
+
+  .rc-assistant-answer {
+    max-width: min(56rem, calc(100vw - 7rem));
+    padding-right: clamp(0.25rem, 1.4vw, 1.5rem);
+  }
+
+  .rc-chat-markdown.prose {
+    font-size: 14px;
+    line-height: 1.68;
+    letter-spacing: -0.012em;
+    color: var(--rc-text-secondary);
+  }
+
+  .rc-chat-markdown.prose :where(* + *) {
+    margin-top: 0.6rem;
+  }
+
+  .rc-chat-markdown.prose :where(h1, h2, h3, h4) {
+    margin-top: 1rem;
+    margin-bottom: 0.2rem;
+    color: var(--rc-text);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.16;
+  }
+
+  .rc-chat-markdown.prose :where(h1) {
+    font-size: clamp(1.75rem, 1.2rem + 1.2vw, 2.25rem);
+  }
+
+  .rc-chat-markdown.prose :where(h2) {
+    font-size: clamp(1.25rem, 1.05rem + 0.45vw, 1.6rem);
+  }
+
+  .rc-chat-markdown.prose :where(h3) {
+    font-size: clamp(1.02rem, 0.96rem + 0.24vw, 1.18rem);
+  }
+
+  .rc-chat-markdown.prose :where(h4) {
+    font-size: 0.95rem;
+  }
+
+  .rc-chat-markdown.prose :where(p) {
+    margin-top: 0.48rem;
+    color: var(--rc-text-secondary);
+  }
+
+  .rc-chat-markdown.prose :where(strong) {
+    color: var(--rc-text);
+    font-weight: 700;
+  }
+
+  .rc-chat-markdown.prose :where(ul, ol) {
+    margin-top: 0.5rem;
+    margin-bottom: 0.15rem;
+    padding-left: 1.2rem;
+  }
+
+  .rc-chat-markdown.prose :where(li) {
+    margin-top: 0.34rem;
+    padding-left: 0.14rem;
+  }
+
+  .rc-chat-markdown.prose :where(li)::marker {
+    color: color-mix(in srgb, var(--rc-accent) 46%, var(--rc-text-muted));
+    font-weight: 700;
+  }
+
+  .rc-chat-markdown.prose :where(hr) {
+    margin: 1.1rem 0 0.9rem;
+    border: 0;
+    height: 1px;
+    background:
+      linear-gradient(
+        90deg,
+        transparent 0%,
+        color-mix(in srgb, var(--rc-accent) 34%, white 66%) 10%,
+        color-mix(in srgb, var(--rc-border) 76%, var(--rc-accent) 24%) 48%,
+        color-mix(in srgb, var(--rc-accent) 18%, transparent) 100%
+      );
+  }
+
+  .rc-chat-markdown.prose :where(table) {
+    width: 100%;
+    margin: 0.8rem 0 0.95rem;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-size: 0.98em;
+  }
+
+  .rc-chat-markdown.prose :where(thead th) {
+    padding: 0 0 0.7rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--rc-border) 82%, var(--rc-accent) 18%);
+    text-align: left;
+    color: var(--rc-text);
+    font-size: 0.94em;
+    font-weight: 700;
+  }
+
+  .rc-chat-markdown.prose :where(tbody td) {
+    padding: 0.72rem 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--rc-border) 88%, transparent);
+    vertical-align: top;
+    color: var(--rc-text-secondary);
+  }
+
+  .rc-chat-markdown.prose :where(th:first-child, td:first-child) {
+    width: 24%;
+    padding-right: 1rem;
+    color: var(--rc-text);
+    font-weight: 650;
+  }
+
+  .rc-chat-markdown.prose :where(th:last-child, td:last-child) {
+    padding-left: 0.35rem;
+  }
+
+  .rc-chat-markdown.prose :where(blockquote) {
+    margin: 0.8rem 0;
+    padding: 0.2rem 0 0.2rem 0.9rem;
+    border-left: 2px solid color-mix(in srgb, var(--rc-accent) 55%, white 45%);
+    color: var(--rc-text-muted);
+  }
+
+  .rc-chat-markdown.prose :where(pre) {
+    margin: 0.9rem 0;
+  }
+
+  .rc-chat-markdown.prose :where(pre code) {
+    line-height: 1.55;
+  }
+
+  .rc-chat-markdown.prose :where(.katex-display) {
+    margin: 0.9rem 0 0.7rem;
+  }
+
+  @media (max-width: 768px) {
+    .rc-assistant-answer {
+      max-width: 100%;
+      padding-right: 0;
+    }
+
+    .rc-chat-markdown.prose :where(table) {
+      display: block;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .rc-chat-markdown.prose :where(th:first-child, td:first-child) {
+      width: auto;
+      min-width: 9rem;
+    }
+  }
 }
 
 @keyframes agentPulse {

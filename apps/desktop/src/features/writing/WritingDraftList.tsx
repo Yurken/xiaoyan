@@ -30,7 +30,6 @@ interface DraftGroup {
 export default function WritingDraftList({
   drafts,
   activeDraftId,
-  activeResearchInterestId,
   interests,
   className,
   listClassName,

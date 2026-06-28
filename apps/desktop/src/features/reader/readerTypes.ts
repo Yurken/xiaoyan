@@ -1,7 +1,30 @@
 /** PDF 阅读器 / 批注类型定义（桌面端） */
 
 export type HighlightColor = "yellow" | "green" | "blue" | "pink" | "purple";
-export type AnnotationStyle = "highlight" | "underline" | "strike";
+/** 行内样式（逐行渲染）：高亮/下划线/删除线。 */
+export type LineStyle = "highlight" | "underline" | "strike";
+/** 形状框选样式（整段外接一个形状）：矩形/圆角矩形/椭圆。 */
+export type ShapeStyle = "rect" | "rounded" | "ellipse";
+export type AnnotationStyle = LineStyle | ShapeStyle;
+
+/** 可选的形状（顺序即 UI 展示顺序）。 */
+export const SHAPE_STYLES: readonly ShapeStyle[] = ["rect", "rounded", "ellipse"];
+export const SHAPE_LABELS: Record<ShapeStyle, string> = {
+  rect: "矩形",
+  rounded: "圆角矩形",
+  ellipse: "椭圆",
+};
+/** 形状外框的 CSS 圆角：矩形≈直角、圆角矩形、椭圆=全圆。 */
+export const SHAPE_BORDER_RADIUS: Record<ShapeStyle, number | string> = {
+  rect: 2,
+  rounded: 10,
+  ellipse: "50%",
+};
+
+const SHAPE_SET = new Set<string>(SHAPE_STYLES);
+export function isShapeStyle(style: AnnotationStyle): style is ShapeStyle {
+  return SHAPE_SET.has(style);
+}
 
 /** 阅读器顶部工具栏的模式：view=正常阅读；annotate=预选工具持续批注。 */
 export type ReaderMode = "view" | "annotate";
@@ -60,6 +83,23 @@ export function mergeNormalizedRects(rects: NormalizedRect[]): NormalizedRect[] 
   return lines;
 }
 
+/** 取一组矩形的并集外接框（「形状」类批注用：整段套一个外框）。无有效矩形返回 null。 */
+export function boundingRect(rects: NormalizedRect[]): NormalizedRect | null {
+  const valid = rects.filter((rect) => rect.w > 0 && rect.h > 0);
+  if (valid.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const rect of valid) {
+    minX = Math.min(minX, rect.x);
+    minY = Math.min(minY, rect.y);
+    maxX = Math.max(maxX, rect.x + rect.w);
+    maxY = Math.max(maxY, rect.y + rect.h);
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
 export interface ReaderSelection {
   text: string;
   page: number;
@@ -77,11 +117,14 @@ export interface PaperNote {
   highlight_color: HighlightColor;
   highlight_positions?: NormalizedRect[] | null;
   style: AnnotationStyle;
+  /** 形状内部填充色；null = 不填充（仅描边）。 */
+  fill_color: HighlightColor | null;
   created_at: string;
   updated_at: string;
 }
 
 const VALID_COLORS = new Set<string>(["yellow", "green", "blue", "pink", "purple"]);
+const VALID_STYLES = new Set<string>(["highlight", "underline", "strike", "rect", "rounded", "ellipse"]);
 
 /** 把后端返回的原始记录规整成 PaperNote */
 export function normalizePaperNote(raw: unknown): PaperNote | null {
@@ -93,7 +136,9 @@ export function normalizePaperNote(raw: unknown): PaperNote | null {
     ? (record.highlight_color as HighlightColor)
     : "yellow";
   const style: AnnotationStyle =
-    record.style === "underline" ? "underline" : record.style === "strike" ? "strike" : "highlight";
+    typeof record.style === "string" && VALID_STYLES.has(record.style)
+      ? (record.style as AnnotationStyle)
+      : "highlight";
   const positions = Array.isArray(record.highlight_positions)
     ? (record.highlight_positions as NormalizedRect[]).filter(
         (rect) =>
@@ -105,6 +150,11 @@ export function normalizePaperNote(raw: unknown): PaperNote | null {
       )
     : null;
 
+  const fillColor: HighlightColor | null =
+    typeof record.fill_color === "string" && VALID_COLORS.has(record.fill_color)
+      ? (record.fill_color as HighlightColor)
+      : null;
+
   return {
     id: record.id,
     paper_id: record.paper_id,
@@ -114,6 +164,7 @@ export function normalizePaperNote(raw: unknown): PaperNote | null {
     highlight_color: color,
     highlight_positions: positions,
     style,
+    fill_color: fillColor,
     created_at: typeof record.created_at === "string" ? record.created_at : "",
     updated_at: typeof record.updated_at === "string" ? record.updated_at : "",
   };

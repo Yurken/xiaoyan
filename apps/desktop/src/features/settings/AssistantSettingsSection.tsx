@@ -1,13 +1,14 @@
 import { Database } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { Dispatch, SetStateAction } from "react";
-import type { AppSettings, LlmProvider, MultiAgentRoutingMode } from "@research-copilot/types";
+import type { AppSettings, LlmProvider } from "@research-copilot/types";
 import type { ProviderPresetId } from "./providerPresets";
-import ConnectionSection from "./ConnectionSection";
+import ConnectionSection, { type ConnectionActions } from "./ConnectionSection";
 import RolesSection from "./RolesSection";
 import { SectionIcon, ToggleRow } from "./shared";
 import type { ConfigHistoryControls } from "./ConfigHistorySwitcher";
 import CompanionSettingsSection from "../companion/CompanionSettingsSection";
+import TokenUsageSection from "./TokenUsageSection";
 
 interface AssistantSettingsSectionProps {
   contentUnavailable: boolean;
@@ -16,9 +17,13 @@ interface AssistantSettingsSectionProps {
   form: AppSettings;
   ollamaModels: string[];
   loadingOllamaModels: boolean;
-  routingMode: MultiAgentRoutingMode;
+  availableModels: string[];
+  loadingModels: boolean;
+  modelsError: string;
+  loadModels: () => Promise<void>;
   enabledAgents: string[];
   configHistory: ConfigHistoryControls;
+  connectionActions: ConnectionActions;
   onManageConfigHistory: () => void;
   setForm: Dispatch<SetStateAction<AppSettings>>;
   set: (key: keyof AppSettings) => (value: string) => void;
@@ -69,19 +74,24 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
         form={props.form}
         ollamaModels={props.ollamaModels}
         loadingOllamaModels={props.loadingOllamaModels}
+        availableModels={props.availableModels}
+        loadingModels={props.loadingModels}
+        modelsError={props.modelsError}
+        loadModels={props.loadModels}
         configHistory={props.configHistory}
+        connectionActions={props.connectionActions}
         onManageConfigHistory={props.onManageConfigHistory}
         setForm={props.setForm}
         set={props.set}
         applyPreset={props.applyPreset}
         loadOllamaModels={props.loadOllamaModels}
       />
+      <TokenUsageSection />
       <LongTermMemorySection form={props.form} set={props.set} />
       <CompanionSettingsSection form={props.form} set={props.set} />
       {!props.contentUnavailable ? (
         <RolesSection
           form={props.form}
-          routingMode={props.routingMode}
           enabledAgents={props.enabledAgents}
           set={props.set}
           setMany={props.setMany}
@@ -89,6 +99,10 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
           getSharedValue={props.getSharedValue}
           hasMixedValue={props.hasMixedValue}
           toggleAgent={props.toggleAgent}
+          availableModels={props.availableModels}
+          loadingModels={props.loadingModels}
+          modelsError={props.modelsError}
+          loadModels={props.loadModels}
         />
       ) : null}
     </div>

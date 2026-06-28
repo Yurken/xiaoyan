@@ -25,3 +25,9 @@ dist-ssr
 
 # Tauri generated schemas
 src-tauri/gen/
+
+# Playwright generated artifacts
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/

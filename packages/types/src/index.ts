@@ -7,6 +7,8 @@ export const MAIN_ASSISTANT_BADGE = "主 AI：小妍";
 export const MAIN_ASSISTANT_WELCOME_TITLE = "你好，我是小妍";
 export const MAIN_ASSISTANT_WELCOME_DESCRIPTION =
   "我会先理解你的研究目标，再按需调度检索、规划、综述、论文解读与复现能力，给你可信、结构化、可执行的答复。";
+/** 直接对话模式下的欢迎语：不强调多智能体调度，回到轻量问答语气。 */
+export const MAIN_ASSISTANT_WELCOME_DESCRIPTION_DIRECT = "有什么我能帮你的吗？";
 export const MAIN_ASSISTANT_STATUS_DESCRIPTION =
   "小妍负责理解你的研究问题、调度合适的分析模型，并整合成完整的答复。";
 export const MAIN_ASSISTANT_INPUT_PLACEHOLDER =
@@ -121,6 +123,7 @@ export interface ResearchInterest {
   id: string;
   topic: string;
   folder_name?: string;
+  parent_id?: string;
   keywords?: string[];
   profile?: ResearchInterestProfile;
   learning_path?: LearningPath;
@@ -330,6 +333,19 @@ export interface ArxivSearchResponse {
   papers: ArxivRecommendation[];
 }
 
+export interface WebSearchItem {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+export interface WebSearchOutcome {
+  provider: string;
+  answer?: string | null;
+  note?: string | null;
+  items: WebSearchItem[];
+}
+
 export interface KnowledgeNote {
   id: string;
   title: string;
@@ -360,12 +376,22 @@ export interface ChatToolResult {
   result_id?: string;
 }
 
+/** 多模态图片引用：data 为 base64（不含 data: 前缀），mediaType 为 MIME（如 image/png）。 */
+export interface ChatImageRef {
+  data: string;
+  mediaType: string;
+  /** 可选原始文件名，仅用于 UI 展示。 */
+  name?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   sources?: Array<{ content: string; source: string; url?: string }>;
   tool_results?: ChatToolResult[];
+  /** 用户消息附带的图片（多模态）；当前仅桌面端在本轮发送/展示，未持久化。 */
+  images?: ChatImageRef[];
   created_at: string;
 }
 
@@ -477,6 +503,10 @@ export interface AppSettings {
   // External
   paper_search_engine: PaperSearchEngine;
   semantic_scholar_api_key: string;
+  // 小妍联网搜索
+  web_search_enabled: string;
+  web_search_provider: string;
+  tavily_api_key: string;
   // Role-based model routing
   planner_hint_model: string;
   planner_hint_base_url: string;
@@ -655,6 +685,15 @@ export interface SettingsHistoryEntry {
   enabled_agents_count: number;
 }
 
+export interface TavilyKeyTest {
+  /** 脱敏后的 Key 标识 */
+  label: string;
+  ok: boolean;
+  message: string;
+}
+
+export type SkillKind = "prompt" | "tool";
+
 export interface Skill {
   id: string;
   name: string;
@@ -662,6 +701,8 @@ export interface Skill {
   description: string;
   prompt: string;
   tags: string[];
+  /** prompt=提示词技能（对话注入）；tool=工具技能（如 PPT 生成，走专用流程，不在对话技能选择器出现）。 */
+  kind: SkillKind;
   is_builtin: boolean;
   is_enabled: boolean;
   created_at: string;

@@ -11,6 +11,9 @@ import {
 import type { AppSettings } from "@research-copilot/types";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE } from "../../lib/paperTags";
 
+// 设置页当前分区的持久化 key，导航到「快速开始」分区时也会写入它。
+export const SETTINGS_ACTIVE_SECTION_STORAGE_KEY = "rc:settings:active-section";
+
 export type SettingsSectionKey =
   | "guided"
   | "assistant"
@@ -326,4 +329,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   app_lock_password_salt: "",
   app_lock_password_hash: "",
   app_lock_timeout_minutes: "0",
+  web_search_enabled: "false",
+  web_search_provider: "duckduckgo",
+  tavily_api_key: "",
 };

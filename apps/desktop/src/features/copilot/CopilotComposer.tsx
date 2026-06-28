@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Bot, BrainCircuit, FileText, Paperclip, Plus, X, Zap } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowUp, Bot, BrainCircuit, FileText, Lock, LockOpen, Paperclip, Plus, X, Zap } from "lucide-react";
 import type { ChatMode, Skill } from "@research-copilot/types";
 import {
   COPILOT_CHAT_MODE_OPTIONS,
@@ -17,10 +17,13 @@ interface CopilotComposerProps {
   uploadingAttachments: boolean;
   attachments: PendingCopilotAttachment[];
   pickAttachments: () => void | Promise<void>;
+  onPasteImages: (files: File[]) => void | Promise<void>;
   removeAttachment: (attachmentId: string) => void;
   skills: Skill[];
   selectedSkillId: string | null;
   onSelectedSkillChange: (skillId: string | null) => void;
+  skillLocked: boolean;
+  onSkillLockedChange: (locked: boolean) => void;
 }
 
 const MODE_ICON = {
@@ -38,15 +41,42 @@ export default function CopilotComposer({
   uploadingAttachments,
   attachments,
   pickAttachments,
+  onPasteImages,
   removeAttachment,
   skills,
   selectedSkillId,
   onSelectedSkillChange,
+  skillLocked,
+  onSkillLockedChange,
 }: CopilotComposerProps) {
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const [hoveredSkillId, setHoveredSkillId] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const dragCounterRef = useRef(0);
+  const [slashIndex, setSlashIndex] = useState(0);
+
+  // 斜杠唤起：当输入恰为单个 /token（无空格）时，弹出技能自动补全。
+  const slashQuery = useMemo(() => {
+    const match = input.match(/^\/(\S*)$/);
+    return match ? match[1] : null;
+  }, [input]);
+  const slashMatches = useMemo(() => {
+    if (slashQuery === null) return [];
+    const query = slashQuery.toLowerCase();
+    if (!query) return skills;
+    return skills.filter(
+      (skill) =>
+        skill.name.toLowerCase().includes(query) || skill.title.toLowerCase().includes(query),
+    );
+  }, [slashQuery, skills]);
+  const slashOpen = slashQuery !== null && slashMatches.length > 0;
+
+  useEffect(() => {
+    setSlashIndex(0);
+  }, [slashQuery]);
+
+  const selectSlashSkill = (skillId: string) => {
+    onSelectedSkillChange(skillId);
+    onInputChange("");
+  };
 
   useEffect(() => {
     if (!skillPickerOpen) return undefined;
@@ -59,38 +89,6 @@ export default function CopilotComposer({
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [skillPickerOpen]);
-
-  const handleDragEnter = (event: React.DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dragCounterRef.current += 1;
-    if (event.dataTransfer.items && event.dataTransfer.items.length > 0) {
-      setDragOver(true);
-    }
-  };
-
-  const handleDragLeave = (event: React.DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dragCounterRef.current -= 1;
-    if (dragCounterRef.current <= 0) {
-      dragCounterRef.current = 0;
-      setDragOver(false);
-    }
-  };
-
-  const handleDragOver = (event: React.DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  const handleDrop = (event: React.DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dragCounterRef.current = 0;
-    setDragOver(false);
-    // 文件路径由 Tauri onDragDropEvent 获取
-  };
 
   const hoveredSkill = useMemo(
     () => skills.find((item) => item.id === hoveredSkillId) ?? null,
@@ -107,37 +105,27 @@ export default function CopilotComposer({
 
   const canSubmit = (input.trim() || attachments.length > 0) && !sending && !uploadingAttachments;
 
+  // 粘贴图片：从剪贴板取出图片文件并添加为附件（阻止其作为乱码/二进制贴入文本框）。
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    const files = Array.from(items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+    if (files.length > 0) {
+      event.preventDefault();
+      void onPasteImages(files);
+    }
+  };
+
   const attachmentIcon = (ext: string) => {
     if (ext === "pdf") return <FileText className="w-4 h-4 flex-shrink-0" />;
     return <Paperclip className="w-4 h-4 flex-shrink-0" />;
   };
 
   return (
-    <div
-      className="px-3 pb-3 pt-2 relative"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      {dragOver && (
-        <div
-          className="absolute inset-0 z-30 rounded-2xl flex items-center justify-center"
-          style={{
-            background: "rgba(0,122,255,0.08)",
-            border: "2px dashed #007AFF",
-            pointerEvents: "none",
-          }}
-        >
-          <span
-            className="text-sm font-medium"
-            style={{ color: "#007AFF" }}
-          >
-            释放以添加文件
-          </span>
-        </div>
-      )}
-
+    <div className="px-3 pb-3 pt-2 relative">
       <div className="space-y-2.5">
         {/* 附件卡片 - 固定尺寸，在输入框上方 */}
         {attachments.length > 0 && (
@@ -164,7 +152,15 @@ export default function CopilotComposer({
                   <X className="w-2.5 h-2.5" />
                 </button>
                 <div className="flex-shrink-0" style={{ color: attachment.extension === "pdf" ? "#FF3B30" : "#007AFF" }}>
-                  {attachmentIcon(attachment.extension)}
+                  {attachment.kind === "image" && attachment.imageData ? (
+                    <img
+                      src={`data:${attachment.imageMediaType};base64,${attachment.imageData}`}
+                      alt={attachment.name}
+                      className="w-5 h-5 rounded object-cover"
+                    />
+                  ) : (
+                    attachmentIcon(attachment.extension)
+                  )}
                 </div>
                 <span
                   className="text-[11px] font-medium truncate"
@@ -186,17 +182,79 @@ export default function CopilotComposer({
             boxShadow: "var(--rc-inset-shadow)",
           }}
         >
-          <div className="rounded-t-3xl overflow-hidden">
+          <div className="relative rounded-t-3xl overflow-visible">
+            {slashOpen && (
+              <div
+                className="rc-dropdown-menu absolute bottom-full mb-2 left-3 z-30 w-64 max-h-72 overflow-y-auto rounded-2xl py-1.5"
+                onMouseDown={(event) => event.preventDefault()}
+              >
+                <p className="px-3 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">
+                  技能 · 回车选择
+                </p>
+                {slashMatches.map((skill, index) => (
+                  <button
+                    key={skill.id}
+                    type="button"
+                    onMouseEnter={() => setSlashIndex(index)}
+                    onClick={() => selectSlashSkill(skill.id)}
+                    className="w-full text-left px-3 py-2 transition-colors duration-100 flex items-center gap-2"
+                    style={{
+                      background: index === slashIndex ? "rgba(0,122,255,0.1)" : "transparent",
+                    }}
+                  >
+                    <Zap
+                      className="w-3 h-3 flex-shrink-0"
+                      style={{ color: index === slashIndex ? "#007AFF" : "#8E8E93" }}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className="block truncate text-xs font-medium"
+                        style={{ color: index === slashIndex ? "#007AFF" : "var(--rc-text-soft)" }}
+                      >
+                        {skill.title}
+                      </span>
+                      <span className="block truncate text-[10px] font-mono text-ink-tertiary">
+                        /{skill.name}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             <textarea
               rows={3}
               value={input}
               onChange={(event) => onInputChange(event.target.value)}
               onKeyDown={(event) => {
+                if (slashOpen) {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setSlashIndex((i) => (i + 1) % slashMatches.length);
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+                    return;
+                  }
+                  if (event.key === "Enter" || event.key === "Tab") {
+                    event.preventDefault();
+                    const picked = slashMatches[slashIndex];
+                    if (picked) selectSlashSkill(picked.id);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    onInputChange("");
+                    return;
+                  }
+                }
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
                   void onSubmit();
                 }
               }}
+              onPaste={handlePaste}
               placeholder={getCopilotInputPlaceholder(chatMode)}
               className="w-full px-5 pt-4 pb-2 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none"
               style={{ background: "transparent" }}
@@ -356,8 +414,26 @@ export default function CopilotComposer({
                     style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}>
                     <Zap className="w-3 h-3" />
                     {skill.title}
-                    <button type="button" onClick={() => onSelectedSkillChange(null)}
-                      className="ml-0.5 hover:opacity-60 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => onSkillLockedChange(!skillLocked)}
+                      title={skillLocked ? "已锁定：连续多轮生效，点击解除" : "默认仅本条生效，点击锁定以连续使用"}
+                      aria-label={skillLocked ? "解除技能锁定" : "锁定技能"}
+                      aria-pressed={skillLocked}
+                      className="ml-0.5 transition-opacity hover:opacity-60"
+                      style={{ opacity: skillLocked ? 1 : 0.55 }}
+                    >
+                      {skillLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectedSkillChange(null);
+                        onSkillLockedChange(false);
+                      }}
+                      title="移除技能"
+                      className="hover:opacity-60 transition-opacity"
+                    >
                       <X className="w-3 h-3" />
                     </button>
                   </div>

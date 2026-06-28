@@ -10,7 +10,7 @@ use std::time::Duration;
 use tauri::State;
 
 const SEMANTIC_SCHOLAR_API_URL: &str = "https://api.semanticscholar.org/graph/v1/paper/search";
-const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.4.2";
+const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.4.3";
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", default)]
@@ -202,7 +202,7 @@ pub async fn paper_search(
     }
 
     let day_window = days.unwrap_or(14).clamp(1, 3650);
-    let result_limit = limit.unwrap_or(6).clamp(1, 30) as usize;
+    let result_limit = limit.unwrap_or(6).clamp(1, 50) as usize;
     let mode = RankingMode::from_value(ranking_mode.as_deref());
     let settings = state.settings.read().await.clone();
 
@@ -239,8 +239,9 @@ pub async fn paper_search(
         return Ok(json!(empty));
     }
 
-    let heuristic = heuristic_rank_papers(&candidates, &request, mode, result_limit);
-    let (llm_used, ranking_note, overall_summary, papers) =
+    // 对全部候选做启发式排序，既用于无 LLM 时的降级，也用于 LLM 返回不足时的兜底回填。
+    let heuristic = heuristic_rank_papers(&candidates, &request, mode, candidates.len().max(result_limit));
+    let (llm_used, ranking_note, overall_summary, mut papers) =
         match rerank_with_xiaoyan(&settings, &query, &request, mode, result_limit, &candidates)
             .await
         {
@@ -249,9 +250,22 @@ pub async fn paper_search(
                 false,
                 fallback_ranking_note(mode).to_string(),
                 fallback_overall_summary(mode, candidates.len(), result_limit),
-                heuristic,
+                heuristic.iter().take(result_limit).cloned().collect(),
             ),
         };
+
+    // LLM 仅对前若干候选重排，返回不足目标篇数时用启发式结果按相关性补齐，尽量凑满 limit。
+    if papers.len() < result_limit {
+        let existing: HashSet<String> = papers.iter().map(|paper| paper.arxiv_id.clone()).collect();
+        for candidate in &heuristic {
+            if papers.len() >= result_limit {
+                break;
+            }
+            if !existing.contains(&candidate.arxiv_id) {
+                papers.push(candidate.clone());
+            }
+        }
+    }
 
     let response = PaperSearchResponse {
         query,
@@ -509,7 +523,7 @@ async fn rerank_with_xiaoyan(
 
     let payload = candidates
         .iter()
-        .take(24)
+        .take(40)
         .map(|paper| {
             json!({
                 "id": paper.id,
@@ -807,7 +821,8 @@ fn normalize_term_list(values: Vec<String>) -> Vec<String> {
 }
 
 fn candidate_pool_size(limit: usize) -> usize {
-    (limit.saturating_mul(4)).clamp(12, 60)
+    // Semantic Scholar 单次 limit 上限约 100，取候选池上限 100 以支撑更大的返回篇数。
+    (limit.saturating_mul(4)).clamp(12, 100)
 }
 
 fn fallback_ranking_note(mode: RankingMode) -> &'static str {

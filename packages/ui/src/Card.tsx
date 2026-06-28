@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { HTMLAttributes } from "react";
+import type { HTMLAttributes } from "react";
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   padding?: "sm" | "md" | "lg" | "none";

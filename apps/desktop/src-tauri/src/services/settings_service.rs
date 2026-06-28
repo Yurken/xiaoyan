@@ -1,7 +1,7 @@
 use crate::llm::{LlmClient, LlmMessage};
 use crate::repositories::settings_repository::{
     delete_settings_history, get_settings_history, insert_settings_history, list_settings_history,
-    load_all_settings, upsert_settings,
+    load_all_settings, update_settings_history, upsert_settings,
 };
 use crate::state::{default_settings, AppState, SENSITIVE_KEYS};
 use aes_gcm::aead::{Aead, KeyInit};
@@ -719,6 +719,98 @@ pub async fn test_settings(state: &AppState, data: &serde_json::Value) -> Result
     Ok(reply.trim().to_string())
 }
 
+/// 视觉模型连接测试：不同于普通文本测试，发送一张 1x1 测试图 + 文本，
+/// 确认所配模型真正接受图片输入（即支持视觉），而不仅仅是 API 可达。
+pub async fn test_vision_settings(
+    state: &AppState,
+    data: &serde_json::Value,
+) -> Result<String, String> {
+    let saved = state.settings.read().await.clone();
+    let mut merged = saved;
+    if let Some(map) = data.as_object() {
+        for (key, value) in map {
+            let next_value = value.as_str().unwrap_or("").trim().to_string();
+            if next_value != MASK {
+                merged.insert(key.clone(), next_value);
+            }
+        }
+    }
+
+    let (client, model) = LlmClient::vision_client_from_settings(&merged)
+        .ok_or_else(|| "请先填写视觉模型名称。".to_string())?;
+    // 64x64 蓝色 PNG（base64）。Kimi Coding 等端点会拒绝 1x1 极小图，
+    // 因此用一个正常尺寸但足够小的测试图来确认端点接受 image 输入。
+    const TEST_PNG_B64: &str =
+        "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAY0lEQVR4nO3PQQ3AIADAQEArlpCJh4ngcVnSU9DOfe74s6UDXjWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgfdt0Aman/hOaAAAAAElFTkSuQmCC";
+    let reply = client
+        .chat_with_image(
+            TEST_PNG_B64,
+            "image/png",
+            "请用一个词描述这张图片。",
+            model.as_deref(),
+            0.0,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(reply.trim().to_string())
+}
+
+#[derive(serde::Serialize)]
+pub struct TavilyKeyTest {
+    /// 脱敏后的 Key 标识，仅用于在结果里区分是哪一个。
+    pub label: String,
+    pub ok: bool,
+    pub message: String,
+}
+
+/// 逐个测试 Tavily Key 是否可用。复用 test_settings 的「已保存设置 + 草稿覆盖」口径，
+/// 草稿里非掩码的 Key 优先，从而支持「填了还没保存就测试」。
+pub async fn test_tavily(
+    state: &AppState,
+    data: &serde_json::Value,
+) -> Result<Vec<TavilyKeyTest>, String> {
+    let mut merged = state.settings.read().await.clone();
+    if let Some(map) = data.as_object() {
+        for (key, value) in map {
+            let next_value = value.as_str().unwrap_or("").trim().to_string();
+            if next_value != MASK {
+                merged.insert(key.clone(), next_value);
+            }
+        }
+    }
+
+    let raw = merged.get("tavily_api_key").cloned().unwrap_or_default();
+    let keys = crate::web_search::parse_tavily_keys(&raw);
+    if keys.is_empty() {
+        return Err("请先填写至少一个 Tavily API Key。".to_string());
+    }
+
+    let mut results = Vec::with_capacity(keys.len());
+    for key in &keys {
+        let (ok, message) = match crate::web_search::tavily_check_key(key).await {
+            Ok(()) => (true, "可用".to_string()),
+            Err(e) => (false, e.to_string()),
+        };
+        results.push(TavilyKeyTest {
+            label: mask_tavily_key(key),
+            ok,
+            message,
+        });
+    }
+    Ok(results)
+}
+
+/// 脱敏展示 Key：保留前 6、后 4 位，中间省略。
+fn mask_tavily_key(key: &str) -> String {
+    let chars: Vec<char> = key.chars().collect();
+    if chars.len() <= 12 {
+        return "•".repeat(chars.len().max(1));
+    }
+    let head: String = chars[..6].iter().collect();
+    let tail: String = chars[chars.len() - 4..].iter().collect();
+    format!("{head}…{tail}")
+}
+
 pub async fn list_ollama_models(base_url: Option<String>) -> Result<Vec<String>, String> {
     let url = base_url
         .filter(|value| !value.trim().is_empty())
@@ -744,6 +836,104 @@ pub async fn list_ollama_models(base_url: Option<String>) -> Result<Vec<String>,
         .iter()
         .filter_map(|model| model["name"].as_str().map(|name| name.to_string()))
         .collect())
+}
+
+/// 查询当前主服务商的可用模型列表（OpenAI / 兼容服务的 `/models`，Anthropic 的 `/v1/models`）。
+/// 复用 test_settings 的口径：以已保存的真实设置为底，再用前端传入的草稿覆盖（跳过掩码值），
+/// 从而拿到真实密钥而不需把掩码 key 在前后端来回传。
+pub async fn list_models(
+    state: &AppState,
+    data: &serde_json::Value,
+) -> Result<Vec<String>, String> {
+    let mut merged = state.settings.read().await.clone();
+    if let Some(map) = data.as_object() {
+        for (key, value) in map {
+            let next_value = value.as_str().unwrap_or("").trim().to_string();
+            if next_value != MASK {
+                merged.insert(key.clone(), next_value);
+            }
+        }
+    }
+
+    let provider = merged
+        .get("llm_provider")
+        .cloned()
+        .unwrap_or_else(|| "openai".to_string());
+
+    let (models_url, api_key, is_anthropic) = match provider.as_str() {
+        "anthropic" => (
+            "https://api.anthropic.com/v1/models".to_string(),
+            merged.get("anthropic_api_key").cloned().unwrap_or_default(),
+            true,
+        ),
+        "openai_compatible" => {
+            let base = merged
+                .get("openai_compatible_base_url")
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| "请先填写接口地址".to_string())?;
+            (
+                format!("{}/models", base.trim_end_matches('/')),
+                merged
+                    .get("openai_compatible_api_key")
+                    .cloned()
+                    .unwrap_or_default(),
+                false,
+            )
+        }
+        _ => {
+            let base = merged
+                .get("openai_base_url")
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+            (
+                format!("{}/models", base.trim_end_matches('/')),
+                merged.get("openai_api_key").cloned().unwrap_or_default(),
+                false,
+            )
+        }
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let request = if is_anthropic {
+        client
+            .get(&models_url)
+            .header("x-api-key", api_key)
+            .header("anthropic-version", "2023-06-01")
+    } else {
+        client
+            .get(&models_url)
+            .header("Authorization", format!("Bearer {api_key}"))
+    };
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("请求模型列表失败: {e}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        let detail = body.chars().take(160).collect::<String>();
+        return Err(format!("接口返回 {status}：{detail}"));
+    }
+
+    let json: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+
+    let mut models: Vec<String> = json["data"]
+        .as_array()
+        .unwrap_or(&vec![])
+        .iter()
+        .filter_map(|item| item["id"].as_str().map(|id| id.to_string()))
+        .collect();
+    models.sort();
+    models.dedup();
+    Ok(models)
 }
 
 pub async fn list_settings_history_entries(
@@ -796,6 +986,36 @@ pub async fn save_settings_history_entry(
         id,
         normalized_name,
         created_at,
+        &settings,
+    ))
+}
+
+pub async fn update_settings_history_entry(
+    state: &AppState,
+    id: &str,
+    data: &serde_json::Value,
+    name: Option<&str>,
+) -> Result<SettingsHistoryEntry, String> {
+    let row = get_settings_history(&state.db, id)
+        .await?
+        .ok_or_else(|| ERR_SETTINGS_HISTORY_NOT_FOUND.to_string())?;
+    let settings = resolve_snapshot_settings(state, data).await?;
+    let normalized_name = name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or(row.name);
+    let settings_json = serde_json::to_string(&settings).map_err(|e| e.to_string())?;
+
+    let updated = update_settings_history(&state.db, id, &normalized_name, &settings_json).await?;
+    if !updated {
+        return Err(ERR_SETTINGS_HISTORY_NOT_FOUND.to_string());
+    }
+
+    Ok(settings_history_entry(
+        id.to_string(),
+        normalized_name,
+        row.created_at,
         &settings,
     ))
 }

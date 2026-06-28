@@ -1,22 +1,26 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { ChevronDown, FileDown, Upload } from "lucide-react";
+import { ChevronDown, FileDown, GitMerge, Upload } from "lucide-react";
 import { safeOnDragDrop } from "../lib/tauriEvent";
 import { Button, CapsuleTabs, Select } from "@research-copilot/ui";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { usePapersList } from "../features/papers/usePapersList";
 import { PapersListPanel } from "../features/papers/PapersListPanel";
 import CorpusPanel from "../features/papers/CorpusPanel";
+import MergeDuplicatesDialog from "../features/papers/MergeDuplicatesDialog";
+import { findDuplicateGroups } from "../features/papers/duplicatePapers";
 import PaperDetailModal from "../features/papers/PaperDetailModal";
 import { usePaperDetailRoute } from "../features/papers/usePaperDetailRoute";
 import { usePaperTaskProgress } from "../features/papers/usePaperTaskProgress";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { PaperFigure } from "../features/papers/shared";
-import { interestFolderName } from "../lib/interestUtils";
+import { buildFolderSelectOptions } from "../features/papers/interestTree";
 
 export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
   const papers = usePapersList();
   const [view, setView] = useState<"papers" | "corpus">("papers");
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [detailPaperId, setDetailPaperId] = useState<string | null>(null);
   const [paperFigures, setPaperFigures] = useState<Record<string, PaperFigure[]>>({});
   const [recognizeOpen, setRecognizeOpen] = useState(false);
@@ -126,6 +130,19 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
     }
   };
 
+  const duplicateGroups = useMemo(() => findDuplicateGroups(papers.papers), [papers.papers]);
+
+  const handleMerge = async (keepId: string, deleteIds: string[]) => {
+    setMerging(true);
+    try {
+      await papers.handleMergePapers(keepId, deleteIds);
+    } catch {
+      // 错误已由 hook 写入 loadError
+    } finally {
+      setMerging(false);
+    }
+  };
+
   return (
     <div
       className="rc-app-page space-y-5"
@@ -153,17 +170,15 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
 
       <div className={clsx("mx-auto w-full space-y-5", hideFolders && "max-w-5xl px-4 pb-10")}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between shrink-0">
-          {!hideFolders && (
-            <div>
-              <h1 className="text-2xl font-bold text-ink-primary">论文库</h1>
-              <p className="mt-1 text-sm text-ink-tertiary">
-                {`共 ${papers.papers.length} 篇论文 · ${papers.interests.length} 个主题分组`}
-              </p>
-              <p className="mt-1 text-sm text-ink-tertiary">
-                上传 PDF，小妍会按论文类型精读内容；需要时可单独生成复现/验证指南。
-              </p>
-            </div>
-          )}
+          <div>
+            <h1 className="text-2xl font-bold text-ink-primary">论文库</h1>
+            <p className="mt-1 text-sm text-ink-tertiary">
+              {`共 ${papers.papers.length} 篇论文 · ${papers.interests.length} 个主题分组`}
+            </p>
+            {/* <p className="mt-1 text-sm text-ink-tertiary">
+              上传 PDF，小妍会按论文类型精读内容；需要时可单独生成复现/验证指南。
+            </p> */}
+          </div>
           <div className={clsx("w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap", view === "papers" ? "flex" : "hidden")}>
             <div ref={recognizeRef} className="relative flex-shrink-0">
               <button type="button" onClick={() => setRecognizeOpen((v) => !v)} data-open={recognizeOpen}
@@ -191,8 +206,18 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             {!hideFolders && (
               <Select className="min-w-[200px]" prefix="文件夹：" value={papers.selectedInterestId}
                 onChange={papers.setSelectedInterestId}
-                options={[{ value: "", label: "未归档" }, ...papers.interests.map((i) => ({ value: i.id, label: interestFolderName(i) }))]} />
+                options={[{ value: "", label: "未归档" }, ...buildFolderSelectOptions(papers.interests)]} />
             )}
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setMergeOpen(true)}
+              disabled={duplicateGroups.length === 0}
+              title={duplicateGroups.length === 0 ? "未发现重复论文" : "合并疑似重复的论文"}
+            >
+              <GitMerge className="w-4 h-4" />
+              {duplicateGroups.length > 0 ? `合并重复 (${duplicateGroups.length})` : "合并重复"}
+            </Button>
             <Button onClick={papers.handleUpload} loading={papers.uploading} size="md">
               <Upload className="w-4 h-4" />
               {papers.batchProgress ? `导入中 (${papers.batchProgress.done}/${papers.batchProgress.total})` : "导入 PDF"}
@@ -216,46 +241,48 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           papers={papers.papers}
           interests={papers.interests}
           loading={papers.loading}
-          uploading={papers.uploading}
-          batchProgress={papers.batchProgress}
           loadError={papers.loadError}
           deletingPaperId={papers.deletingPaperId}
-          savingEdit={papers.savingEdit}
-          selectedInterestId={papers.selectedInterestId}
           deletingGroupId={papers.deletingGroupId}
+          savingEdit={papers.savingEdit}
+          folderForest={papers.folderForest}
           paperGroups={papers.paperGroups}
           ungroupedPapers={papers.ungroupedPapers}
           detailPaperId={detailPaperId}
-          paperFigures={paperFigures}
           taskProgressByPaperId={taskProgressByPaperId}
-          sortKeys={papers.sortKeys}
           keywordFilters={papers.keywordFilters}
           titleFilters={papers.titleFilters}
-          onUpload={papers.handleUpload}
+          getSortKey={papers.getSortKey}
           onAnalyze={handleAnalyze}
           onReproduce={papers.handleReproduce}
           onReparse={papers.handleReparse}
           onUpdatePaper={papers.handleUpdatePaper}
           onDeletePaper={papers.handleDeletePaper}
           onDeleteInterestGroup={papers.handleDeleteInterestGroup}
-          onSelectInterest={papers.setSelectedInterestId}
           onOpenDetail={openPaperDetail}
           onCloseDetail={closePaperDetail}
-          onSetDetailPaperId={setDetailPaperId}
           onSortKeyChange={papers.setSortKey}
           onKeywordFilterChange={papers.setKeywordFilter}
           onTitleFilterChange={papers.setTitleFilter}
-          getSortKey={papers.getSortKey}
-          hideFolders={hideFolders}
           onMovePaper={(paperId, interestId) =>
             void papers.handleUpdatePaper(paperId, { research_interest_id: interestId || undefined })
           }
           onReorderPaper={(groupId, orderedIds) => void papers.handleReorderPaper(groupId, orderedIds)}
+          onCreateFolder={papers.handleCreateFolder}
+          onMoveFolder={papers.handleMoveFolder}
         />
         )}
       </div>
       <PaperDetailModal paper={detailPaper} figures={detailPaper ? (paperFigures[detailPaper.id] ?? []) : []}
         onClose={closePaperDetail} />
+      {mergeOpen ? (
+        <MergeDuplicatesDialog
+          groups={duplicateGroups}
+          busy={merging}
+          onMerge={handleMerge}
+          onClose={() => setMergeOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

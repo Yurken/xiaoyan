@@ -1,8 +1,11 @@
-import { Download, Loader2, RefreshCw } from "lucide-react";
+import { Download, Globe, Loader2, RefreshCw } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppUpdateInfo } from "@research-copilot/types";
 import type { UpdateState } from "./useSettingsController";
 import type { DownloadProgress } from "../../lib/useAutoUpdate";
+import { openLink } from "../../lib/links";
+
+const OFFICIAL_SITE_URL = "https://xiaoyan.net.cn/";
 
 interface AboutSectionProps {
   appVersion: string;
@@ -73,12 +76,27 @@ export default function AboutSection({
   return (
     <div className="space-y-4">
       <Card padding="md" className="space-y-4">
-        <div className="flex items-center gap-3">
-          <SectionIcon icon={RefreshCw} color="#5AC8FA" />
-          <div>
-            <h2 className="text-base font-semibold text-ink-primary">桌面端升级</h2>
-            <p className="text-xs text-ink-tertiary mt-0.5">发布版会从已配置的更新源检查新版本，并支持一键安装。</p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <SectionIcon icon={RefreshCw} color="#5AC8FA" />
+            <div>
+              <h2 className="text-base font-semibold text-ink-primary">桌面端升级</h2>
+              <p className="text-xs text-ink-tertiary mt-0.5">发布版会从已配置的更新源检查新版本，并支持一键安装。</p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => void openLink(OFFICIAL_SITE_URL)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 flex-shrink-0"
+            style={{
+              background: "var(--rc-chip-bg)",
+              color: "var(--rc-text-soft)",
+              boxShadow: "var(--rc-chip-shadow)",
+            }}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            官网
+          </button>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr),auto] lg:items-center">

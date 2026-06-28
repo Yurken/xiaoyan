@@ -189,6 +189,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   app_lock_password_salt: "",
   app_lock_password_hash: "",
   app_lock_timeout_minutes: "0",
+  web_search_enabled: "false",
+  web_search_provider: "duckduckgo",
+  tavily_api_key: "",
 };
 
 const AGENT_OPTIONS = [
