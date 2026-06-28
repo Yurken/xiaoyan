@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlaskConical,
   Loader2,
-  Plus,
   Save,
   Trash2,
 } from "lucide-react";
@@ -41,10 +40,8 @@ export default function Experiment() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState("");
-  const [newlyCreatedId, setNewlyCreatedId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const [editTitle, setEditTitle] = useState("");
@@ -84,27 +81,6 @@ export default function Experiment() {
     setTimeout(() => setToast(""), 2500);
   }
 
-  async function handleCreate() {
-    setCreating(true);
-    try {
-      const res = await experimentApi.create({ title: "新实验记录" });
-      const newExp: ExperimentRecord = {
-        id: res.id, title: "新实验记录", config: {}, result: "", notes: "",
-        linkedSubmissionId: null, defaultWorkingDir: null,
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      };
-      setExperiments((prev) => [newExp, ...prev]);
-      setSelectedId(res.id);
-      setNewlyCreatedId(res.id);
-      setActiveTab("code");
-      setTimeout(() => titleInputRef.current?.select(), 50);
-    } catch (err) {
-      showToast(formatErrorMessage(err));
-    } finally {
-      setCreating(false);
-    }
-  }
-
   async function handleSaveTitle() {
     if (!selectedId) return;
     setSaving(true);
@@ -114,7 +90,6 @@ export default function Experiment() {
         ? { ...e, title: editTitle, updatedAt: new Date().toISOString() }
         : e
       ));
-      setNewlyCreatedId(null);
       showToast("已保存");
     } catch (err) {
       showToast(formatErrorMessage(err));
@@ -134,7 +109,6 @@ export default function Experiment() {
       await experimentApi.delete(pendingDeleteId);
       setExperiments((prev) => prev.filter((e) => e.id !== pendingDeleteId));
       if (selectedId === pendingDeleteId) setSelectedId(null);
-      if (newlyCreatedId === pendingDeleteId) setNewlyCreatedId(null);
       setPendingDeleteId(null);
     } catch (err) {
       showToast(formatErrorMessage(err));
@@ -155,24 +129,12 @@ export default function Experiment() {
         <div className="flex flex-1 min-h-0 overflow-hidden max-lg:flex-col">
           {/* Left: list */}
           <div className="w-60 flex-shrink-0 flex flex-col overflow-hidden border-r border-nm-dark/20 max-lg:h-52 max-lg:w-full max-lg:border-r-0 max-lg:border-b">
-            {/* New button */}
-            <div className="p-3 flex-shrink-0 border-b border-nm-dark/10">
-              <Button
-                variant="secondary"
-                onClick={handleCreate}
-                disabled={creating}
-                className="w-full"
-              >
-                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                新建记录
-              </Button>
-            </div>
             {/* List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-1 max-lg:grid max-lg:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] max-lg:gap-2 max-lg:space-y-0">
               {loading ? (
                 <div className="flex justify-center pt-10"><Loader2 className="w-5 h-5 animate-spin text-ink-tertiary" /></div>
               ) : experiments.length === 0 ? (
-                <p className="text-xs text-ink-tertiary text-center pt-10 px-2">暂无记录，点击上方「新建」开始。</p>
+                <p className="text-xs text-ink-tertiary text-center pt-10 px-2">暂无记录。</p>
               ) : (
                 experiments.map((exp) => (
                   <div
