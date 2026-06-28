@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  ArrowLeft,
-  Loader2,
-  Sparkles,
-} from "lucide-react";
+import { ArrowLeft, Loader2, type Sparkles } from "lucide-react";
 import { Button } from "@research-copilot/ui";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { ResearchInterest } from "@research-copilot/types";
@@ -200,21 +196,18 @@ export default function FocusWorkbench() {
         <MacWindowDragStrip
           style={{ height: `${MACOS_WINDOW_DRAG_HEIGHT}px` }}
         />
-        <div
-          className="flex items-center gap-2 px-4 min-h-12"
-          style={{
-            paddingBottom: IS_MACOS_DESKTOP ? "10px" : undefined,
-          }}
-        >
+        {/* 身份行：返回 + 标题 + 统计 + 自由主题入口 */}
+        <div className="flex items-center gap-3 px-4 h-11">
           <button
             type="button"
             onClick={() => navigate("/")}
             className="rc-focus-back-btn"
+            aria-label="返回主题列表"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <p className="text-sm font-semibold text-ink-primary truncate flex-shrink min-w-0 max-w-[200px]">
+          <p className="text-[15px] font-semibold text-ink-primary truncate flex-1 min-w-0">
             {title}
           </p>
 
@@ -226,23 +219,27 @@ export default function FocusWorkbench() {
             </div>
           )}
 
-          <div className="flex-1" />
-
-          <div className="flex items-center gap-0.5">{tabButtons}</div>
-
           {!isFree && (
             <button
               type="button"
               onClick={() => navigate("/workbench/free/survey")}
-              className="rc-focus-btn-secondary flex-shrink-0 ml-1"
+              className="rc-focus-btn-secondary flex-shrink-0"
             >
               自由主题
             </button>
           )}
         </div>
+
+        {/* 导航行：tab 横向滚动 */}
+        <div
+          className="rc-focus-tabbar flex items-center gap-1 px-3 pt-1.5"
+          style={{ paddingBottom: IS_MACOS_DESKTOP ? "8px" : "6px" }}
+        >
+          {tabButtons}
+        </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden pt-2">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {isFree ? (
           FreePage
         ) : loadingInterest ? (
@@ -252,7 +249,7 @@ export default function FocusWorkbench() {
           </div>
         ) : interestError ? (
           <div className="flex h-full items-center justify-center p-6">
-            <div className="rc-focus-card rounded-[28px] w-full max-w-md p-6 text-center">
+            <div className="rc-focus-card rounded-3xl w-full max-w-md p-6 text-center">
               <p className="text-sm font-semibold text-ink-primary">
                 无法打开主题工作台
               </p>
