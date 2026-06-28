@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookMarked, Check, Copy, FileText, Pencil, RefreshCw, Search, Sparkles, Trash2, Wand2, X } from "lucide-react";
+import { BookMarked, Check, Copy, FileText, Languages, Pencil, RefreshCw, Search, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { useCorpus } from "./useCorpus";
 import { useCorpusRewrite } from "./useCorpusRewrite";
+import { useCorpusTranslation } from "./useCorpusTranslation";
 import type { CorpusEntry } from "./corpusTypes";
 
 function formatDate(value: string): string {
@@ -17,11 +18,13 @@ export default function CorpusPanel() {
   const navigate = useNavigate();
   const { entries, loading, error, updateNote, deleteEntry } = useCorpus();
   const { rewrites, rewrite, clearRewrite } = useCorpusRewrite();
+  const { translations, translate, clearTranslation } = useCorpusTranslation();
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftNote, setDraftNote] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedRewriteId, setCopiedRewriteId] = useState<string | null>(null);
+  const [copiedTranslationId, setCopiedTranslationId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -44,6 +47,12 @@ export default function CorpusPanel() {
     await navigator.clipboard.writeText(text);
     setCopiedRewriteId(id);
     window.setTimeout(() => setCopiedRewriteId((current) => (current === id ? null : current)), 1200);
+  };
+
+  const copyTranslation = async (id: string, text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedTranslationId(id);
+    window.setTimeout(() => setCopiedTranslationId((current) => (current === id ? null : current)), 1200);
   };
 
   const startEdit = (entry: CorpusEntry) => {
@@ -169,6 +178,55 @@ export default function CorpusPanel() {
                 </div>
               ) : null}
 
+              {translations[entry.id] ? (
+                <div
+                  className="mt-2 rounded-lg border p-2.5"
+                  style={{ borderColor: "rgba(0,122,255,0.35)", background: "rgba(0,122,255,0.07)" }}
+                >
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <Languages className="h-3 w-3 text-apple-blue" />
+                    <span className="text-[11px] font-semibold text-apple-blue">翻译结果</span>
+                    <div className="ml-auto flex items-center gap-1">
+                      {translations[entry.id].status === "done" ? (
+                        <button
+                          type="button"
+                          onClick={() => void copyTranslation(entry.id, translations[entry.id].text)}
+                          className="rounded p-0.5 text-ink-tertiary hover:text-apple-blue"
+                          title="复制译文"
+                        >
+                          {copiedTranslationId === entry.id ? <Check className="h-3.5 w-3.5 text-[#34C759]" /> : <Copy className="h-3.5 w-3.5" />}
+                        </button>
+                      ) : null}
+                      {translations[entry.id].status !== "loading" ? (
+                        <button
+                          type="button"
+                          onClick={() => void translate(entry.id, entry.text)}
+                          className="rounded p-0.5 text-ink-tertiary hover:text-apple-blue"
+                          title="重新翻译"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => clearTranslation(entry.id)}
+                        className="rounded p-0.5 text-ink-tertiary hover:text-ink-secondary"
+                        title="关闭"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  {translations[entry.id].status === "loading" && !translations[entry.id].text ? (
+                    <p className="text-xs text-ink-tertiary">翻译中…</p>
+                  ) : translations[entry.id].status === "error" ? (
+                    <p className="text-xs text-apple-red">{translations[entry.id].error}</p>
+                  ) : (
+                    <p className="rc-selectable whitespace-pre-wrap text-sm leading-6 text-ink-primary">{translations[entry.id].text}</p>
+                  )}
+                </div>
+              ) : null}
+
               <div className="mt-2 flex items-center gap-3 border-t pt-2 text-xs text-ink-tertiary" style={{ borderColor: "var(--rc-border)" }}>
                 {entry.paper_id ? (
                   <button
@@ -187,6 +245,16 @@ export default function CorpusPanel() {
                 <span>{formatDate(entry.created_at)}</span>
 
                 <div className="ml-auto flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => void translate(entry.id, entry.text)}
+                    disabled={translations[entry.id]?.status === "loading"}
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold text-apple-blue transition-colors hover:text-brand-600 disabled:opacity-50"
+                    title="翻译成中文"
+                  >
+                    <Languages className="h-3.5 w-3.5" />
+                    翻译
+                  </button>
                   <button
                     type="button"
                     onClick={() => void rewrite(entry.id, entry.text)}
