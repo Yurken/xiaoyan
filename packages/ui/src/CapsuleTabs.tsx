@@ -48,14 +48,14 @@ export function CapsuleTabs({ options, value, onChange, compact }: CapsuleTabsPr
   return (
     <div
       ref={containerRef}
-      className="relative inline-flex rounded-2xl p-1 gap-0.5"
+      className="rc-capsule-tabs relative inline-flex rounded-2xl p-1 gap-0.5"
       style={{
         background: "var(--rc-surface)",
         boxShadow: "var(--rc-inset-shadow)",
       }}
     >
       <div
-        className={`absolute top-1 rounded-xl ${
+        className={`rc-capsule-tabs__indicator absolute top-1 rounded-xl ${
           ready ? "transition-all duration-300 ease-out" : ""
         }`}
         style={{

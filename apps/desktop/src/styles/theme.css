@@ -378,6 +378,198 @@ html[data-style="modern-minimal"][data-theme="light"] {
   --rc-nm-elevated-bg: #ffffff;
 }
 
+/* ── Liquid Glass · 暗色（参照 macOS 26 玻璃材质）─────────────────── */
+html[data-style="liquid-glass"] {
+  color-scheme: dark;
+  --rc-accent: #0A84FF;
+  --rc-bg: #07090f;
+  --rc-bg-rgb: 7 9 15;
+  --rc-surface: rgba(28, 33, 48, 0.72);
+  --rc-surface-rgb: 28 33 48;
+  --rc-elevated: rgba(44, 52, 72, 0.62);
+  --rc-elevated-rgb: 44 52 72;
+  --rc-border: rgba(255, 255, 255, 0.14);
+  --rc-border-rgb: 150 170 210;
+  --rc-border-strong-rgb: 200 215 255;
+  --rc-sidebar-divider-rgb: 150 170 210;
+  --rc-sidebar-shadow-rgb: 0 0 0;
+  --rc-text: #f3f6ff;
+  --rc-text-rgb: 243 246 255;
+  --rc-text-soft: #c3cde2;
+  --rc-text-soft-rgb: 195 205 226;
+  --rc-text-muted: #8a93ab;
+  --rc-text-muted-rgb: 138 147 171;
+  --rc-page-wash: none;
+  --rc-inset-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+  --rc-raised-shadow: 0 16px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --rc-flat-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --rc-card-bg: rgba(30, 36, 48, 0.5);
+  --rc-card-inset-bg: rgba(0, 0, 0, 0.2);
+  --rc-chip-bg: rgba(255, 255, 255, 0.1);
+  --rc-chip-shadow: none;
+  --rc-chip-inset-bg: rgba(0, 0, 0, 0.25);
+  --rc-chip-inset-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  --rc-header-bg: rgba(28, 33, 44, 0.55);
+  --rc-sidebar-bg: rgba(20, 24, 32, 0.5);
+  --rc-card-outline: transparent;
+  --rc-card-inset-outline: transparent;
+  --rc-card-shadow: var(--rc-raised-shadow);
+  --rc-card-flat-shadow: var(--rc-flat-shadow);
+  --rc-card-inset-shadow: var(--rc-inset-shadow);
+  --rc-panel-bg-soft: rgba(36, 42, 56, 0.5);
+  --rc-panel-border: rgba(255, 255, 255, 0.06);
+  --rc-panel-shadow: var(--rc-flat-shadow);
+  --rc-control-bg: rgba(255, 255, 255, 0.08);
+  --rc-control-border: transparent;
+  --rc-control-shadow: none;
+  --rc-control-focus-shadow:
+    0 0 0 1px rgba(10, 132, 255, 0.55),
+    0 0 0 4px rgba(10, 132, 255, 0.18);
+  --rc-dropdown-trigger-bg: rgba(255, 255, 255, 0.08);
+  --rc-dropdown-trigger-border: transparent;
+  --rc-dropdown-trigger-shadow: none;
+  --rc-dropdown-trigger-shadow-active: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  --rc-dropdown-menu-bg: rgba(30, 36, 48, 0.7);
+  --rc-dropdown-menu-border: rgba(255, 255, 255, 0.08);
+  --rc-dropdown-menu-shadow: var(--rc-raised-shadow);
+  --rc-button-primary-bg: #0A84FF;
+  --rc-button-primary-bg-hover: #148CFF;
+  --rc-button-primary-border: transparent;
+  --rc-button-primary-shadow: 0 2px 8px rgba(10, 132, 255, 0.3);
+  --rc-button-primary-shadow-hover: 0 4px 12px rgba(10, 132, 255, 0.4);
+  --rc-button-secondary-bg: rgba(255, 255, 255, 0.1);
+  --rc-button-secondary-bg-hover: rgba(255, 255, 255, 0.16);
+  --rc-button-secondary-border: transparent;
+  --rc-button-secondary-shadow: none;
+  --rc-button-secondary-shadow-hover: none;
+  --rc-button-secondary-text: var(--rc-text-soft);
+  --rc-button-ghost-bg-hover: rgba(255, 255, 255, 0.08);
+  --rc-button-ghost-shadow-hover: none;
+  --rc-button-ghost-text: var(--rc-text-muted);
+  --rc-icon-button-bg: rgba(255, 255, 255, 0.08);
+  --rc-icon-button-border: transparent;
+  --rc-icon-button-shadow: none;
+  --rc-icon-button-shadow-hover: none;
+  --rc-icon-button-shadow-active: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  --rc-icon-button-color: var(--rc-text-soft);
+  --rc-badge-bg: rgba(255, 255, 255, 0.10);
+  --rc-badge-text: var(--rc-text-soft);
+  --rc-badge-shadow: var(--rc-chip-shadow);
+  --rc-badge-border: var(--rc-badge-outline);
+  --rc-badge-outline: rgba(255, 255, 255, 0.12);
+  --rc-info-chip-bg: rgba(10, 132, 255, 0.20);
+  --rc-info-chip-text: #6fb6ff;
+  --rc-info-chip-border: rgba(10, 132, 255, 0.30);
+  --rc-info-chip-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --rc-info-chip-bg-hover: rgba(10, 132, 255, 0.28);
+  --rc-info-chip-shadow-hover: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --rc-nav-item-hover-bg: rgba(255, 255, 255, 0.06);
+  --rc-nav-item-active-text: #ffffff;
+  --rc-nav-item-active-bg: rgba(255, 255, 255, 0.12);
+  --rc-nav-item-active-border: rgba(255, 255, 255, 0.16);
+  --rc-nav-item-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 16px rgba(0, 0, 0, 0.32);
+  --rc-modal-backdrop: rgba(5, 7, 13, 0.5);
+  --rc-nm-card-bg: linear-gradient(155deg, rgba(58, 68, 96, 0.60), rgba(26, 31, 46, 0.46));
+  --rc-nm-surface-bg: linear-gradient(155deg, rgba(34, 40, 58, 0.55), rgba(16, 20, 30, 0.42));
+  --rc-nm-elevated-bg: linear-gradient(155deg, rgba(64, 74, 102, 0.58), rgba(34, 40, 58, 0.46));
+}
+
+/* ── Liquid Glass · 浅色 ──────────────────────────────────────────── */
+html[data-style="liquid-glass"][data-theme="light"] {
+  color-scheme: light;
+  --rc-accent: #007aff;
+  --rc-bg: #ffffff;
+  --rc-bg-rgb: 255 255 255;
+  --rc-surface: rgba(255, 255, 255, 0.62);
+  --rc-surface-rgb: 255 255 255;
+  --rc-elevated: rgba(255, 255, 255, 0.72);
+  --rc-elevated-rgb: 255 255 255;
+  --rc-border: rgba(255, 255, 255, 0.75);
+  --rc-border-rgb: 120 140 180;
+  --rc-border-strong-rgb: 96 116 156;
+  --rc-sidebar-divider-rgb: 120 140 180;
+  --rc-sidebar-shadow-rgb: 90 110 150;
+  --rc-text: #15203c;
+  --rc-text-rgb: 21 32 60;
+  --rc-text-soft: #3f4d6b;
+  --rc-text-soft-rgb: 63 77 107;
+  --rc-text-muted: #69748f;
+  --rc-text-muted-rgb: 105 116 143;
+  --rc-page-wash: none;
+  --rc-inset-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  --rc-raised-shadow: 0 16px 40px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --rc-flat-shadow: 0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --rc-card-bg: rgba(255, 255, 255, 0.65);
+  --rc-card-inset-bg: rgba(0, 0, 0, 0.04);
+  --rc-chip-bg: rgba(0, 0, 0, 0.06);
+  --rc-chip-shadow: none;
+  --rc-chip-inset-bg: rgba(0, 0, 0, 0.1);
+  --rc-chip-inset-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  --rc-header-bg: rgba(255, 255, 255, 0.65);
+  --rc-sidebar-bg: rgba(255, 255, 255, 0.55);
+  --rc-card-outline: transparent;
+  --rc-card-inset-outline: transparent;
+  --rc-card-shadow: var(--rc-raised-shadow);
+  --rc-card-flat-shadow: var(--rc-flat-shadow);
+  --rc-card-inset-shadow: var(--rc-inset-shadow);
+  --rc-panel-bg-soft: rgba(255, 255, 255, 0.65);
+  --rc-panel-border: rgba(0, 0, 0, 0.05);
+  --rc-panel-shadow: var(--rc-flat-shadow);
+  --rc-control-bg: rgba(0, 0, 0, 0.06);
+  --rc-control-border: transparent;
+  --rc-control-shadow: none;
+  --rc-control-focus-shadow:
+    0 0 0 1px rgba(0, 122, 255, 0.55),
+    0 0 0 4px rgba(0, 122, 255, 0.2);
+  --rc-dropdown-trigger-bg: rgba(0, 0, 0, 0.06);
+  --rc-dropdown-trigger-border: transparent;
+  --rc-dropdown-trigger-shadow: none;
+  --rc-dropdown-trigger-shadow-active: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  --rc-dropdown-menu-bg: rgba(255, 255, 255, 0.75);
+  --rc-dropdown-menu-border: rgba(0, 0, 0, 0.05);
+  --rc-dropdown-menu-shadow: var(--rc-raised-shadow);
+  --rc-button-primary-bg: #007AFF;
+  --rc-button-primary-bg-hover: #0066D6;
+  --rc-button-primary-border: transparent;
+  --rc-button-primary-shadow: 0 2px 8px rgba(0, 122, 255, 0.2);
+  --rc-button-primary-shadow-hover: 0 4px 12px rgba(0, 122, 255, 0.3);
+  --rc-button-secondary-bg: rgba(0, 0, 0, 0.06);
+  --rc-button-secondary-bg-hover: rgba(0, 0, 0, 0.1);
+  --rc-button-secondary-border: transparent;
+  --rc-button-secondary-shadow: none;
+  --rc-button-secondary-shadow-hover: none;
+  --rc-button-secondary-text: var(--rc-text-soft);
+  --rc-button-ghost-bg-hover: rgba(0, 0, 0, 0.06);
+  --rc-button-ghost-shadow-hover: none;
+  --rc-button-ghost-text: var(--rc-text-muted);
+  --rc-icon-button-bg: rgba(0, 0, 0, 0.06);
+  --rc-icon-button-border: transparent;
+  --rc-icon-button-shadow: none;
+  --rc-icon-button-shadow-hover: none;
+  --rc-icon-button-shadow-active: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  --rc-icon-button-color: var(--rc-text-soft);
+  --rc-badge-bg: rgba(255, 255, 255, 0.6);
+  --rc-badge-text: var(--rc-text-soft);
+  --rc-badge-shadow: var(--rc-chip-shadow);
+  --rc-badge-border: var(--rc-badge-outline);
+  --rc-badge-outline: rgba(255, 255, 255, 0.7);
+  --rc-info-chip-bg: rgba(0, 122, 255, 0.14);
+  --rc-info-chip-text: #0067d6;
+  --rc-info-chip-border: rgba(0, 122, 255, 0.22);
+  --rc-info-chip-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --rc-info-chip-bg-hover: rgba(0, 122, 255, 0.2);
+  --rc-info-chip-shadow-hover: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --rc-nav-item-hover-bg: rgba(255, 255, 255, 0.5);
+  --rc-nav-item-active-text: #0062cc;
+  --rc-nav-item-active-bg: rgba(255, 255, 255, 0.78);
+  --rc-nav-item-active-border: rgba(255, 255, 255, 0.8);
+  --rc-nav-item-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 6px 16px rgba(54, 84, 150, 0.16);
+  --rc-modal-backdrop: rgba(180, 200, 235, 0.4);
+  --rc-nm-card-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.56));
+  --rc-nm-surface-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.4));
+  --rc-nm-elevated-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.6));
+}
+
 @layer base {
   html,
   body,
@@ -694,6 +886,176 @@ html[data-style="modern-minimal"][data-theme="light"] {
   html[data-style="modern-minimal"][data-theme="light"] [style*="#F2F6FA"]:not([style*="border"]),
   html[data-style="modern-minimal"][data-theme="light"] [style*="#E0E5EA"]:not([style*="border"]) {
     border: 1px solid var(--rc-border) !important;
+  }
+
+  /* ── Liquid Glass · 玻璃材质（参照 macOS 26）──────────────────────── */
+
+  /* 让彩色壁纸沉到最底层，玻璃面板才有可折射的背景 */
+  html[data-style="liquid-glass"] #root {
+    background-color: transparent;
+  }
+
+  html[data-style="liquid-glass"] body {
+    background:
+      radial-gradient(120% 100% at 6% -12%, rgba(58, 120, 245, 0.42), transparent 56%),
+      radial-gradient(110% 92% at 99% -4%, rgba(150, 72, 232, 0.34), transparent 52%),
+      radial-gradient(130% 120% at 52% 120%, rgba(26, 182, 202, 0.30), transparent 60%),
+      linear-gradient(165deg, #0b0f1c 0%, #07090f 58%, #0a0816 100%);
+  }
+
+  html[data-style="liquid-glass"][data-theme="light"] body {
+    background: var(--rc-bg);
+  }
+
+  /* 磨砂玻璃面板：把卡片 / 面板 / 下拉 / 代码壳层做成毛玻璃 */
+  html[data-style="liquid-glass"] [style*="--rc-card-bg"],
+  html[data-style="liquid-glass"] [style*="--rc-card-inset-bg"],
+  html[data-style="liquid-glass"] [style*="--rc-elevated"],
+  html[data-style="liquid-glass"] [style*="--rc-panel-bg-soft"],
+  html[data-style="liquid-glass"] .bg-nm-card,
+  html[data-style="liquid-glass"] .bg-nm-surface,
+  html[data-style="liquid-glass"] .bg-nm-elevated,
+  html[data-style="liquid-glass"] .bg-nm-bg,
+  html[data-style="liquid-glass"] [class*="bg-white/"],
+  html[data-style="liquid-glass"] .rc-panel-soft,
+  html[data-style="liquid-glass"] .rc-icon-button,
+  html[data-style="liquid-glass"] .rc-dropdown-trigger,
+  html[data-style="liquid-glass"] .rc-dropdown-menu,
+  html[data-style="liquid-glass"] .rc-accent-chip,
+  html[data-style="liquid-glass"] .rc-muted-panel,
+  html[data-style="liquid-glass"] .rc-focus-header,
+  html[data-style="liquid-glass"] .rc-focus-card,
+  html[data-style="liquid-glass"] .rc-focus-card-inset,
+  html[data-style="liquid-glass"] .rc-focus-stat-chip,
+  html[data-style="liquid-glass"] .shadow-nm-card,
+  html[data-style="liquid-glass"] .shadow-nm-raised,
+  html[data-style="liquid-glass"] .shadow-nm-flat,
+  html[data-style="liquid-glass"] .shadow-nm-sm,
+  html[data-style="liquid-glass"] .code-header,
+  html[data-style="liquid-glass"] .code-editor__header,
+  html[data-style="liquid-glass"] .code-chat-panel,
+  html[data-style="liquid-glass"] .code-chat-panel__header,
+  html[data-style="liquid-glass"] .code-dialog,
+  html[data-style="liquid-glass"] .code-input-wrap,
+  html[data-style="liquid-glass"] .code-chat-input-wrap,
+  html[data-style="liquid-glass"] .code-msg-user__content,
+  html[data-style="liquid-glass"] .code-chat-msg__user-content {
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+  }
+
+  /* 侧边栏与模态遮罩用更强的磨砂 */
+  html[data-style="liquid-glass"] .app-sidebar {
+    backdrop-filter: blur(60px) saturate(220%);
+    -webkit-backdrop-filter: blur(60px) saturate(220%);
+  }
+
+  html[data-style="liquid-glass"] .code-overlay {
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+  }
+
+  /* macOS overlay 模式下让壁纸铺满主区域 */
+  html[data-style="liquid-glass"] .app-shell--macos-overlay .app-main {
+    background: transparent;
+  }
+
+  /* 暗色玻璃：把硬编码的半透明白面板改回磨砂玻璃 */
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/25,
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/30,
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/35,
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/40,
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/45,
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/50,
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/55,
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/70,
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/75,
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/80,
+  html[data-style="liquid-glass"][data-theme="dark"] .bg-white\/85 {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+  }
+
+  /* 玻璃滚动条 */
+  html[data-style="liquid-glass"] ::-webkit-scrollbar-thumb {
+    background: rgba(150, 170, 210, 0.4);
+    border-radius: 999px;
+  }
+
+  html[data-style="liquid-glass"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(150, 170, 210, 0.6);
+  }
+
+  html[data-style="liquid-glass"][data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: rgba(90, 110, 150, 0.35);
+  }
+
+  html[data-style="liquid-glass"][data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(90, 110, 150, 0.55);
+  }
+
+  /* 选中态：导航 / 页签的高亮块做成"从磨砂底上浮起的玻璃" */
+
+  /* 侧边导航 */
+  html[data-style="liquid-glass"] .app-nav-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  html[data-style="liquid-glass"] .app-nav-item.is-active {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  html[data-style="liquid-glass"][data-theme="light"] .app-nav-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  html[data-style="liquid-glass"][data-theme="light"] .app-nav-item.is-active {
+    background: rgba(0, 0, 0, 0.08);
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  /* CapsuleTabs：磨砂凹槽 + 浮起的玻璃滑块（滑块自带 300ms 滑动过渡） */
+  html[data-style="liquid-glass"] .rc-capsule-tabs {
+    background: rgba(0, 0, 0, 0.2) !important;
+    border: none;
+    box-shadow: none !important;
+  }
+
+  html[data-style="liquid-glass"] .rc-capsule-tabs__indicator {
+    background: rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+  }
+
+  html[data-style="liquid-glass"][data-theme="light"] .rc-capsule-tabs {
+    background: rgba(0, 0, 0, 0.05) !important;
+    border: none;
+    box-shadow: none !important;
+  }
+
+  html[data-style="liquid-glass"][data-theme="light"] .rc-capsule-tabs__indicator {
+    background: rgba(255, 255, 255, 0.8) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  /* 聚焦模式页签 */
+  html[data-style="liquid-glass"] .rc-focus-tab--active {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--rc-text);
+    box-shadow: none;
+  }
+
+  html[data-style="liquid-glass"][data-theme="light"] .rc-focus-tab--active {
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--rc-text);
+    box-shadow: none;
+  }
+
+  /* 分段控件的凹槽（设置页分区导航等）也做磨砂 */
+  html[data-style="liquid-glass"] [style*="--rc-chip-inset-bg"] {
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
   }
 
   .rc-panel-soft {
