@@ -20,6 +20,9 @@ export function stripMarkdown(text: string): string {
 export function sourceLabel(sourceType: string): string {
   if (sourceType === "manual") return "手动";
   if (sourceType === "paper_analysis") return "论文分析";
+  if (sourceType === "paper_note") return "论文笔记";
+  if (sourceType === "web_clip") return "网页剪藏";
+  if (sourceType === "chat") return "对话";
   if (sourceType === "survey") return "综述";
   return sourceType || "未知来源";
 }

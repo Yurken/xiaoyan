@@ -180,7 +180,7 @@ export function createClient(config: ClientConfig) {
         r(`/api/knowledge/interests/${id}/plan`, { method: "POST" }),
       listNotes: (search?: string) =>
         r<KnowledgeNote[]>(`/api/knowledge/notes${search ? `?search=${encodeURIComponent(search)}` : ""}`),
-      createNote: (data: { title: string; content: string; tags?: string[]; research_interest_id?: string }) =>
+      createNote: (data: { title: string; content: string; tags?: string[]; research_interest_id?: string; source_type?: string; source_id?: string }) =>
         r<KnowledgeNote>("/api/knowledge/notes", { method: "POST", body: JSON.stringify(data) }),
       updateNote: (id: string, data: { title?: string; content?: string; tags?: string[] }) =>
         r<KnowledgeNote>(`/api/knowledge/notes/${id}`, { method: "PUT", body: JSON.stringify(data) }),

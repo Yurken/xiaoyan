@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, FlaskConical, FolderOpen, Loader2, Pencil, Quote, RotateCw, Trash2, X } from "lucide-react";
+import { BookOpen, Eye, FlaskConical, FolderOpen, Loader2, NotebookPen, Pencil, Quote, RotateCw, Trash2, X } from "lucide-react";
 import { clsx } from "clsx";
 import { Badge, Button, Card, Input, Select } from "@research-copilot/ui";
-import type { Paper } from "@research-copilot/types";
+import type { KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 import {
   CasQuartileBadge,
   CasTopBadge,
@@ -13,11 +13,13 @@ import {
   WosIndexBadge,
 } from "../../components/CcfBadges";
 import PaperCitationPanel from "./PaperCitationPanel";
+import PaperNoteViewerModal from "./PaperNoteViewerModal";
 import PaperTaskProgressPanel from "./PaperTaskProgressPanel";
 import type { PaperTaskProgress } from "./shared";
 import type { FolderSelectOption } from "./interestTree";
 import type { PaperDnd } from "./usePaperDnd";
 import { apiClient } from "../../lib/client";
+import NoteEditorModal, { type NoteDraft } from "../knowledge/NoteEditorModal";
 
 const IMPORTANCE_OPTIONS = [
   { color: "", label: "无" },
@@ -39,6 +41,9 @@ interface PaperCardProps {
   taskProgress?: PaperTaskProgress;
   draggable: boolean;
   dnd: PaperDnd;
+  interests: ResearchInterest[];
+  interestMap: Record<string, ResearchInterest>;
+  paperNote?: KnowledgeNote;
   onAnalyze: (id: string) => void;
   onReproduce: (id: string) => void;
   onReparse: (id: string) => void;
@@ -46,6 +51,8 @@ interface PaperCardProps {
   onDeletePaper: (id: string) => void;
   onOpenDetail: (id: string) => void;
   onCloseDetail: () => void;
+  onGenerateNote?: (paper: Paper) => Promise<KnowledgeNote>;
+  onCreateNote?: (paper: Paper, draft: NoteDraft) => Promise<KnowledgeNote>;
 }
 
 function statusBadge(status: string) {
@@ -70,6 +77,9 @@ export default function PaperCard({
   taskProgress,
   draggable,
   dnd,
+  interests,
+  interestMap,
+  paperNote,
   onAnalyze,
   onReproduce,
   onReparse,
@@ -77,12 +87,21 @@ export default function PaperCard({
   onDeletePaper,
   onOpenDetail,
   onCloseDetail,
+  onGenerateNote,
+  onCreateNote,
 }: PaperCardProps) {
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmReanalyze, setConfirmReanalyze] = useState(false);
   const [citationOpen, setCitationOpen] = useState(false);
+  const [noteOptionsOpen, setNoteOptionsOpen] = useState(false);
+  const [noteEditorOpen, setNoteEditorOpen] = useState(false);
+  const [noteViewerOpen, setNoteViewerOpen] = useState(false);
+  const [generatingNote, setGeneratingNote] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [localNote, setLocalNote] = useState<KnowledgeNote | undefined>(paperNote);
+  const [noteToast, setNoteToast] = useState<{ message: string; noteId?: string } | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [editDraft, setEditDraft] = useState({
@@ -159,8 +178,64 @@ export default function PaperCard({
   const editYearText = editDraft.year.trim();
   const editYearError = editing && editYearText && !/^\d{4}$/.test(editYearText) ? "年份需填写 4 位数字" : "";
 
+  useEffect(() => {
+    setLocalNote(paperNote);
+  }, [paperNote]);
+
   const canDrag = draggable && !editing;
   const insertion = dnd.dragInsertion(paper.id);
+
+  function showNoteToast(message: string, noteId?: string) {
+    setNoteToast({ message, noteId });
+    setTimeout(() => setNoteToast(null), 3000);
+  }
+
+  const openNoteUI = () => {
+    if (localNote) {
+      setNoteViewerOpen(true);
+    } else {
+      setNoteOptionsOpen(true);
+    }
+  };
+
+  const handleGenerateNote = async () => {
+    if (!onGenerateNote || generatingNote) return;
+    setNoteOptionsOpen(false);
+    setGeneratingNote(true);
+    try {
+      const note = await onGenerateNote(paper);
+      setLocalNote(note);
+      setNoteViewerOpen(true);
+      showNoteToast("小妍已生成笔记", note.id);
+    } catch {
+      showNoteToast("生成笔记失败");
+    } finally {
+      setGeneratingNote(false);
+    }
+  };
+
+  const handleOpenManualEditor = () => {
+    setNoteOptionsOpen(false);
+    setNoteEditorOpen(true);
+  };
+
+  const handleSaveManualNote = async (draft: NoteDraft) => {
+    if (!onCreateNote || savingNote) throw new Error("无法保存");
+    setSavingNote(true);
+    try {
+      const note = await onCreateNote(paper, draft);
+      setLocalNote(note);
+      setNoteEditorOpen(false);
+      setNoteViewerOpen(true);
+      showNoteToast("已保存到知识笔记", note.id);
+      return note;
+    } catch (error) {
+      showNoteToast("保存笔记失败");
+      throw error;
+    } finally {
+      setSavingNote(false);
+    }
+  };
 
   return (
     <Card
@@ -224,7 +299,7 @@ export default function PaperCard({
           )}
         </div>
 
-        {/* 右上角操作：解读 / 复现 / 引用 / 详情；编辑·重解析·删除见右键菜单 */}
+        {/* 右上角操作：解读 / 复现 / 笔记 / 引用 / 详情；编辑·重解析·删除见右键菜单 */}
         <div className="flex flex-shrink-0 items-center gap-1.5">
           <Button size="sm" onClick={() => {
             if (requiresReanalyzeConfirm(paper)) { setConfirmReanalyze((prev) => !prev); return; }
@@ -238,6 +313,12 @@ export default function PaperCard({
             style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" }}
             title="生成复现/验证指南">
             <FlaskConical className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={() => openNoteUI()} disabled={generatingNote || (!localNote && !onGenerateNote && !onCreateNote)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:opacity-40"
+            style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: localNote ? "#007AFF" : "var(--rc-text-secondary)" }}
+            title={localNote ? "查看论文笔记" : "创建论文笔记"}>
+            {generatingNote ? <Loader2 className="h-4 w-4 animate-spin" /> : localNote ? <BookOpen className="h-4 w-4" /> : <NotebookPen className="h-4 w-4" />}
           </button>
           <button type="button" onClick={() => setCitationOpen((prev) => !prev)}
             className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
@@ -365,6 +446,94 @@ export default function PaperCard({
         <p className="mt-2 border-t border-black/5 pt-2 text-[11px] leading-relaxed text-ink-tertiary/80">{paper.notes}</p>
       )}
 
+      {noteToast && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(0,122,255,0.08)" }}>
+          <span className="text-xs text-[#0A62D0]">{noteToast.message}</span>
+          {noteToast.noteId && (
+            <button
+              type="button"
+              onClick={() => { setNoteToast(null); navigate("/knowledge"); }}
+              className="text-xs font-medium text-[#007AFF] transition-colors hover:underline"
+            >
+              查看
+            </button>
+          )}
+        </div>
+      )}
+
+
+      {noteOptionsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(23, 25, 29, 0.32)", backdropFilter: "blur(6px)" }}
+          onClick={(event) => { if (event.target === event.currentTarget) setNoteOptionsOpen(false); }}
+        >
+          <div
+            className="w-full max-w-sm space-y-4 rounded-[24px] border p-6"
+            style={{ background: "var(--rc-surface)", borderColor: "var(--rc-border)", boxShadow: "0 24px 64px rgba(0,0,0,0.22)" }}
+          >
+            <div>
+              <h3 className="text-base font-semibold text-ink-primary">创建论文笔记</h3>
+              <p className="mt-1 text-xs text-ink-tertiary">选择一种方式记录这篇论文的要点。</p>
+            </div>
+            <div className="grid gap-3">
+              <button
+                type="button"
+                onClick={() => void handleGenerateNote()}
+                disabled={generatingNote || !onGenerateNote}
+                className="flex items-center gap-3 rounded-2xl border p-4 text-left transition-colors hover:bg-black/[0.02] disabled:opacity-50"
+                style={{ borderColor: "var(--rc-border)" }}
+              >
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(0,122,255,0.1)" }}>
+                  {generatingNote ? <Loader2 className="h-5 w-5 animate-spin text-apple-blue" /> : <NotebookPen className="h-5 w-5 text-apple-blue" />}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-ink-primary">让小妍做笔记</p>
+                  <p className="text-xs text-ink-tertiary">基于论文内容与解读自动生成结构化笔记</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenManualEditor}
+                disabled={!onCreateNote}
+                className="flex items-center gap-3 rounded-2xl border p-4 text-left transition-colors hover:bg-black/[0.02] disabled:opacity-50"
+                style={{ borderColor: "var(--rc-border)" }}
+              >
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(175,82,222,0.1)" }}>
+                  <Pencil className="h-5 w-5" style={{ color: "#AF52DE" }} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-ink-primary">自己整理笔记</p>
+                  <p className="text-xs text-ink-tertiary">打开编辑器，按自己的思路整理要点</p>
+                </div>
+              </button>
+            </div>
+            <div className="flex justify-end">
+              <Button size="sm" variant="secondary" onClick={() => setNoteOptionsOpen(false)}>取消</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {noteEditorOpen && (
+        <NoteEditorModal
+          note={null}
+          defaultInterestId={paper.research_interest_id ?? ""}
+          interests={interests}
+          interestMap={interestMap}
+          onClose={() => setNoteEditorOpen(false)}
+          onCreate={handleSaveManualNote}
+        />
+      )}
+
+      {noteViewerOpen && localNote && (
+        <PaperNoteViewerModal
+          note={localNote}
+          interestMap={interestMap}
+          onClose={() => setNoteViewerOpen(false)}
+          onOpenInKnowledge={() => { setNoteViewerOpen(false); navigate("/knowledge"); }}
+        />
+      )}
       {menu && (
         <div
           className="fixed z-[60] min-w-[160px] overflow-hidden rounded-xl py-1"

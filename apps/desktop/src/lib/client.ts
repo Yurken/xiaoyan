@@ -254,6 +254,8 @@ export const papersApi = {
     invoke("papers_reparse", { id }),
   reproduce: (id: string): Promise<void> =>
     invoke("papers_reproduce", { id }),
+  generateNote: (id: string): Promise<KnowledgeNote> =>
+    invoke("papers_generate_note", { id }),
   listFigures: (paper_id: string): Promise<Array<{ id: string; paper_id: string; fig_index: number; kind?: string; caption: string | null; data_url: string }>> =>
     invoke("papers_list_figures", { paperId: paper_id }),
   extractPdfText: (filePath: string, max_chars = 32000): Promise<string> =>
@@ -411,17 +413,23 @@ export const knowledgeApi = {
     invoke("knowledge_generate_plan", { id, startStep: startStep ?? null }),
   listNotes: (search?: string): Promise<KnowledgeNote[]> =>
     invoke("knowledge_list_notes", { search: search ?? null }),
+  listNotesBySource: (source_type: string, source_id: string): Promise<KnowledgeNote[]> =>
+    invoke("knowledge_list_notes_by_source", { sourceType: source_type, sourceId: source_id }),
   createNote: (data: {
     title: string;
     content: string;
     tags?: string[];
     research_interest_id?: string;
+    source_type?: string;
+    source_id?: string;
   }): Promise<KnowledgeNote> =>
     invoke("knowledge_create_note", {
       title: data.title,
       content: data.content,
       tags: data.tags ?? null,
       researchInterestId: data.research_interest_id ?? null,
+      sourceType: data.source_type ?? null,
+      sourceId: data.source_id ?? null,
     }),
   updateNote: (id: string, data: { title?: string; content?: string; tags?: string[] }): Promise<KnowledgeNote> =>
     invoke("knowledge_update_note", {
