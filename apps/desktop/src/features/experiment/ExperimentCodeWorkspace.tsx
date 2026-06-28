@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Loader2,
   Plus,
@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
+import type { ExperimentCodeSession } from "@research-copilot/types";
 import { useCodeWorkspace } from "../code/useCodeWorkspace";
 import CodeFileTree from "../code/CodeFileTree";
 import CodeEditor from "../code/CodeEditor";
@@ -17,10 +18,15 @@ import CodeToolSwitcher from "../code/CodeToolSwitcher";
 
 interface ExperimentCodeWorkspaceProps {
   experimentId: string;
+  onActiveSessionChange?: (session: ExperimentCodeSession | null) => void;
 }
 
-export function ExperimentCodeWorkspace({ experimentId }: ExperimentCodeWorkspaceProps) {
+export function ExperimentCodeWorkspace({ experimentId, onActiveSessionChange }: ExperimentCodeWorkspaceProps) {
   const ws = useCodeWorkspace(experimentId);
+
+  useEffect(() => {
+    onActiveSessionChange?.(ws.selected);
+  }, [ws.selected, onActiveSessionChange]);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [showSessions, setShowSessions] = useState(true);
 

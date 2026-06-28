@@ -9,11 +9,12 @@ import {
   X,
 } from "lucide-react";
 import { Button, Card, ConfirmDialog, Input, Select, Textarea } from "@research-copilot/ui";
-import type { ExperimentRecord } from "@research-copilot/types";
+import type { ExperimentRecord, ExperimentCodeSession } from "@research-copilot/types";
 import { experimentApi, submissionApi, formatErrorMessage } from "../lib/client";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 import { ExperimentAttachmentPanel } from "../features/experiment/ExperimentAttachmentPanel";
 import { ExperimentCodeWorkspace } from "../features/experiment/ExperimentCodeWorkspace";
+import { ExperimentSnapshotPanel } from "../features/experiment/ExperimentSnapshotPanel";
 
 type ExperimentTab = "overview" | "snapshots" | "code" | "attachments";
 
@@ -62,6 +63,7 @@ export default function Experiment() {
   const [editLinked, setEditLinked] = useState("");
   const [configError, setConfigError] = useState("");
   const [activeTab, setActiveTab] = useState<ExperimentTab>("overview");
+  const [activeCodeSession, setActiveCodeSession] = useState<ExperimentCodeSession | null>(null);
 
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const selected = experiments.find((e) => e.id === selectedId) ?? null;
@@ -377,17 +379,20 @@ export default function Experiment() {
 
                   {activeTab === "snapshots" && (
                     <div className="h-full overflow-y-auto p-5 max-lg:p-4">
-                      <div className="max-w-2xl mx-auto">
-                        <div className="flex items-center justify-between mb-4">
-                          <p className="text-sm text-ink-secondary">快照功能将在阶段 4 完整实现。</p>
-                        </div>
-                      </div>
+                      <ExperimentSnapshotPanel
+                        experimentId={selected.id}
+                        activeSession={activeCodeSession}
+                        onError={showToast}
+                      />
                     </div>
                   )}
 
                   {activeTab === "code" && (
                     <div className="h-full p-2">
-                      <ExperimentCodeWorkspace experimentId={selected.id} />
+                      <ExperimentCodeWorkspace
+                        experimentId={selected.id}
+                        onActiveSessionChange={setActiveCodeSession}
+                      />
                     </div>
                   )}
 
