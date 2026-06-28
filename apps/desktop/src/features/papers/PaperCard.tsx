@@ -304,9 +304,9 @@ export default function PaperCard({
           <Button size="sm" onClick={() => {
             if (requiresReanalyzeConfirm(paper)) { setConfirmReanalyze((prev) => !prev); return; }
             onAnalyze(paper.id);
-          }} disabled={!canStartAnalyze(paper.status)}>
+          }} disabled={!canStartAnalyze(paper.status)} style={paper.status === "analyzed" || paper.status === "reproduced" ? { background: "#34C759", borderColor: "#34C759" } : undefined}>
             {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {paper.status === "analyzing" ? "分析中…" : paper.status === "parsing" ? "解析中…" : "小妍解读"}
+            {paper.status === "analyzing" ? "分析中…" : paper.status === "parsing" ? "解析中…" : paper.status === "analyzed" || paper.status === "reproduced" ? "已解读" : "小妍解读"}
           </Button>
           <button type="button" onClick={() => onReproduce(paper.id)} disabled={!canStartAnalyze(paper.status)}
             className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:opacity-40"
