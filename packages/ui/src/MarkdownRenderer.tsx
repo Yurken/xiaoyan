@@ -1,3 +1,4 @@
+import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -8,9 +9,22 @@ interface MarkdownRendererProps {
   content: string;
   className?: string;
   onLinkClick?: (href: string) => void | Promise<void>;
+  highlightSourceTags?: boolean;
 }
 
-export default function MarkdownRenderer({ content, className, onLinkClick }: MarkdownRendererProps) {
+function nodeToText(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(nodeToText).join("");
+  if (React.isValidElement(node)) {
+    const props = node.props as { children?: React.ReactNode };
+    if (props.children) {
+      return nodeToText(props.children);
+    }
+  }
+  return "";
+}
+
+export default function MarkdownRenderer({ content, className, onLinkClick, highlightSourceTags }: MarkdownRendererProps) {
   return (
     <div
       className={clsx(
@@ -48,6 +62,23 @@ export default function MarkdownRenderer({ content, className, onLinkClick }: Ma
                 {children}
               </a>
             );
+          },
+          strong({ children, ...props }) {
+            if (highlightSourceTags) {
+              const text = nodeToText(children);
+              if (text.startsWith("来源：")) {
+                return (
+                  <span
+                    className="inline-flex items-center rounded-full bg-apple-blue/10 px-2 py-0.5 text-xs font-medium text-apple-blue"
+                    title={text}
+                    {...props}
+                  >
+                    {children}
+                  </span>
+                );
+              }
+            }
+            return <strong {...props}>{children}</strong>;
           },
           code({ className, children, ...props }) {
             const isBlock = Boolean(className?.includes("language-"));

@@ -60,18 +60,6 @@ export function useWritingAssistant({
     if (sending) return;
 
     const selectedText = getSelectedText();
-    const prompt = buildWritingAssistantPrompt({
-      actionId,
-      userInstruction,
-      projectName,
-      mainTex,
-      bibtex,
-      notes,
-      selectedText,
-      outline,
-      diagnostics,
-      stats,
-    });
     const assistantId = createWritingAssistantMessageId("assistant");
     const userMessage: WritingAssistantMessage = {
       id: createWritingAssistantMessageId("user"),
@@ -97,6 +85,37 @@ export function useWritingAssistant({
 
     let assistantText = "";
     try {
+      if (actionId === "polish") {
+        if (!selectedText.trim()) {
+          throw new Error("请先选中要润色的文本，再点击润色。");
+        }
+        const result = await apiClient.writing.polish({
+          text: selectedText,
+          section: "free",
+          direction: userInstruction.trim() || "polish",
+        });
+        assistantText = formatPolishResult(result);
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === assistantId ? { ...message, content: assistantText } : message,
+          ),
+        );
+        setSending(false);
+        return;
+      }
+
+      const prompt = buildWritingAssistantPrompt({
+        actionId,
+        userInstruction,
+        projectName,
+        mainTex,
+        bibtex,
+        notes,
+        selectedText,
+        outline,
+        diagnostics,
+        stats,
+      });
       for await (const chunk of apiClient.chat.stream(
         {
           session_id: sessionId,
@@ -202,4 +221,16 @@ function actionLabel(actionId: WritingAssistantActionId): string {
     default:
       return "问小妍";
   }
+}
+
+function formatPolishResult(result: { polished: string; revision_notes: string[]; warnings: string[] }): string {
+  const parts: string[] = [];
+  parts.push("## 润色结果\n\n" + result.polished.trim());
+  if (result.revision_notes && result.revision_notes.length > 0) {
+    parts.push("\n\n## 修改说明\n\n" + result.revision_notes.map((note) => `- ${note}`).join("\n"));
+  }
+  if (result.warnings && result.warnings.length > 0) {
+    parts.push("\n\n## ⚠️ 需要注意\n\n" + result.warnings.map((warning) => `- ${warning}`).join("\n"));
+  }
+  return parts.join("");
 }

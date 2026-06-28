@@ -922,6 +922,8 @@ export interface WritingImageAssetPayload {
 }
 
 export const writingApi = {
+  polish: (request: { text: string; section?: string; direction?: string }) =>
+    invoke<{ polished: string; revision_notes: string[]; warnings: string[] }>("writing_polish_text", { request }),
   importImage: (draftId: string, filePath: string) =>
     invoke<WritingImageAssetPayload>("writing_import_image", { draftId, filePath }),
   compilePdf: (project: {

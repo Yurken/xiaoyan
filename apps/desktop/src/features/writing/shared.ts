@@ -148,7 +148,7 @@ export const EXPORT_TARGET_LABELS: Record<WritingExportTarget, string> = {
 
 export const WRITING_ASSISTANT_ACTIONS: WritingAssistantAction[] = [
   { id: "freeform", title: "问小妍", description: "围绕当前文稿自由提问或改写。" },
-  { id: "polish", title: "润色", description: "改进选区的学术表达和流畅度。" },
+  { id: "polish", title: "润色", description: "基于 nature-polishing 规则，对选区进行 Nature 风格学术润色、中译英或结构调整。" },
   { id: "continue", title: "续写", description: "按当前上下文续写一段正文。" },
   { id: "abstract", title: "摘要", description: "根据全文生成或重写摘要。" },
   { id: "review", title: "检查", description: "从审稿视角指出结构和内容问题。" },

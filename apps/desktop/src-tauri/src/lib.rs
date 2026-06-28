@@ -35,6 +35,7 @@ use tauri::Manager;
 use web_search::web_search_query;
 
 use commands::{
+    academic_writing::writing_polish_text,
     active_researcher::{
         active_researcher_findings, active_researcher_import_finding, active_researcher_mark_read,
         active_researcher_scan,
@@ -649,6 +650,7 @@ pub fn run() {
             workbench_get_overview_text_cache,
             workbench_generate_overview_text,
             // Writing
+            writing_polish_text,
             writing_import_image,
             writing_compile_pdf,
             writing_copy_pdf,

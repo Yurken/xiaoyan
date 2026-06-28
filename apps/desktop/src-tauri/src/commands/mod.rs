@@ -1,3 +1,4 @@
+pub mod academic_writing;
 pub mod active_researcher;
 pub mod app_lock;
 pub mod arxiv;
