@@ -1,10 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  FlaskConical,
-  Loader2,
-  Save,
-  Trash2,
-} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, Save, Trash2 } from "lucide-react";
 import { Button, ConfirmDialog, Input } from "@research-copilot/ui";
 import type { ExperimentRecord, ExperimentCodeSession } from "@research-copilot/types";
 import { experimentApi, formatErrorMessage } from "../lib/client";
@@ -35,9 +30,12 @@ function rowToExperiment(row: unknown): ExperimentRecord {
   };
 }
 
-export default function Experiment() {
-  const [experiments, setExperiments] = useState<ExperimentRecord[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+interface ExperimentProps {
+  experimentId?: string;
+}
+
+export default function Experiment({ experimentId }: ExperimentProps) {
+  const [experiment, setExperiment] = useState<ExperimentRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -48,33 +46,31 @@ export default function Experiment() {
   const [activeTab, setActiveTab] = useState<ExperimentTab>("code");
   const [activeCodeSession, setActiveCodeSession] = useState<ExperimentCodeSession | null>(null);
 
-  const titleInputRef = useRef<HTMLInputElement | null>(null);
-  const selected = experiments.find((e) => e.id === selectedId) ?? null;
-
-  const loadExperiments = useCallback(async () => {
+  const loadExperiment = useCallback(async () => {
     try {
-      const expResult = await experimentApi.list();
-      const expRaw = (expResult as { experiments: unknown[] }).experiments ?? [];
-      setExperiments(expRaw.map(rowToExperiment));
+      if (experimentId) {
+        const result = await experimentApi.get(experimentId);
+        setExperiment(rowToExperiment(result));
+      } else {
+        const result = await experimentApi.list();
+        const experiments = (result.experiments ?? []).map(rowToExperiment);
+        setExperiment(experiments[0] ?? null);
+      }
     } catch {
       // keep existing data on refresh failure
     }
-  }, []);
+  }, [experimentId]);
 
   useEffect(() => {
     setLoading(true);
-    loadExperiments().finally(() => setLoading(false));
-  }, [loadExperiments]);
+    loadExperiment().finally(() => setLoading(false));
+  }, [loadExperiment]);
 
-  useDomainEventRefresh("experiment:created", () => { loadExperiments(); });
+  useDomainEventRefresh("experiment:created", () => { loadExperiment(); });
 
   useEffect(() => {
-    if (!selected) {
-      setEditTitle("");
-      return;
-    }
-    setEditTitle(selected.title);
-  }, [selected]);
+    setEditTitle(experiment?.title ?? "");
+  }, [experiment]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -82,14 +78,11 @@ export default function Experiment() {
   }
 
   async function handleSaveTitle() {
-    if (!selectedId) return;
+    if (!experiment) return;
     setSaving(true);
     try {
-      await experimentApi.update(selectedId, { title: editTitle });
-      setExperiments((prev) => prev.map((e) => e.id === selectedId
-        ? { ...e, title: editTitle, updatedAt: new Date().toISOString() }
-        : e
-      ));
+      await experimentApi.update(experiment.id, { title: editTitle });
+      setExperiment((prev) => prev ? { ...prev, title: editTitle, updatedAt: new Date().toISOString() } : null);
       showToast("已保存");
     } catch (err) {
       showToast(formatErrorMessage(err));
@@ -98,8 +91,9 @@ export default function Experiment() {
     }
   }
 
-  function requestDelete(id: string) {
-    setPendingDeleteId(id);
+  function requestDelete() {
+    if (!experiment) return;
+    setPendingDeleteId(experiment.id);
   }
 
   async function confirmDelete() {
@@ -107,8 +101,7 @@ export default function Experiment() {
     try {
       setDeleting(true);
       await experimentApi.delete(pendingDeleteId);
-      setExperiments((prev) => prev.filter((e) => e.id !== pendingDeleteId));
-      if (selectedId === pendingDeleteId) setSelectedId(null);
+      setExperiment(null);
       setPendingDeleteId(null);
     } catch (err) {
       showToast(formatErrorMessage(err));
@@ -119,146 +112,95 @@ export default function Experiment() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
-      <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-nm-dark/10 app-header">
-          <h1 className="text-2xl font-bold text-ink-primary">实验记录</h1>
-          <p className="mt-1 text-sm text-ink-tertiary">代码调试与快照封存一体化，小妍帮你追踪实验脉络。</p>
-        </div>
+      {/* Header */}
+      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-nm-dark/10 app-header">
+        <h1 className="text-2xl font-bold text-ink-primary">实验记录</h1>
+        <p className="mt-1 text-sm text-ink-tertiary">代码调试与快照封存一体化，小妍帮你追踪实验脉络。</p>
+      </div>
 
-        <div className="flex flex-1 min-h-0 overflow-hidden max-lg:flex-col">
-          {/* Left: list */}
-          <div className="w-60 flex-shrink-0 flex flex-col overflow-hidden border-r border-nm-dark/20 max-lg:h-52 max-lg:w-full max-lg:border-r-0 max-lg:border-b">
-            {/* List */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-1 max-lg:grid max-lg:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] max-lg:gap-2 max-lg:space-y-0">
-              {loading ? (
-                <div className="flex justify-center pt-10"><Loader2 className="w-5 h-5 animate-spin text-ink-tertiary" /></div>
-              ) : experiments.length === 0 ? (
-                <p className="text-xs text-ink-tertiary text-center pt-10 px-2">暂无记录。</p>
-              ) : (
-                experiments.map((exp) => (
-                  <div
-                    key={exp.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedId(exp.id)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(exp.id); } }}
-                    className="w-full text-left rounded-2xl px-3 py-2.5 transition-all duration-150 group cursor-pointer"
-                    style={
-                      selectedId === exp.id
-                        ? { background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)", borderLeft: "3px solid #007AFF" }
-                        : { background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)" }
-                    }
-                    onMouseEnter={(e) => {
-                      if (exp.id !== selectedId) {
-                        e.currentTarget.style.boxShadow = "var(--rc-inset-shadow)";
-                        e.currentTarget.style.background = "var(--rc-card-inset-bg)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (exp.id !== selectedId) {
-                        e.currentTarget.style.boxShadow = "var(--rc-chip-shadow)";
-                        e.currentTarget.style.background = "var(--rc-surface)";
-                      }
-                    }}
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <p className="text-sm font-semibold text-ink-primary truncate leading-5">{exp.title}</p>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); requestDelete(exp.id); }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-ink-tertiary hover:text-apple-red flex-shrink-0 mt-0.5"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-ink-secondary mt-0.5">
-                      {new Date(exp.updatedAt).toLocaleDateString("zh-CN")}
-                    </p>
-                  </div>
-                ))
-              )}
+      {/* Main workspace */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {loading ? (
+          <div className="flex h-full items-center justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-ink-tertiary" />
+          </div>
+        ) : !experiment ? (
+          <div className="flex h-full items-center justify-center p-5">
+            <div className="text-center space-y-2">
+              <p className="text-sm text-ink-tertiary">暂无实验记录</p>
             </div>
           </div>
-
-          {/* Right: detail */}
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            {!selected ? (
-              <div className="flex h-full items-center justify-center p-5">
-                <div className="text-center space-y-2">
-                  <div className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}>
-                    <FlaskConical className="w-7 h-7 text-ink-tertiary/50" />
-                  </div>
-                  <p className="text-sm text-ink-tertiary">从左侧选择记录，或新建一条</p>
-                </div>
+        ) : (
+          <>
+            {/* Title + segmented tabs */}
+            <div className="flex-shrink-0 flex items-center justify-between gap-4 px-5 pt-4 pb-3 border-b border-nm-dark/10 max-lg:px-4">
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                <Input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="实验名称"
+                  className="flex-1"
+                />
+                <Button onClick={handleSaveTitle} disabled={saving} variant="secondary" className="flex-shrink-0">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                </Button>
               </div>
-            ) : (
-              <>
-                {/* Title + segmented tabs */}
-                <div className="flex-shrink-0 flex items-center justify-between gap-4 px-5 pt-4 pb-3 border-b border-nm-dark/10 max-lg:px-4">
-                  <div className="flex-1 min-w-0 flex items-center gap-2">
-                    <Input
-                      ref={titleInputRef}
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      placeholder="实验名称"
-                      className="flex-1"
-                    />
-                    <Button onClick={handleSaveTitle} disabled={saving} variant="secondary" className="flex-shrink-0">
-                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    </Button>
-                  </div>
 
-                  {/* Segmented control */}
-                  <div
-                    className="flex-shrink-0 inline-flex items-center p-1 rounded-2xl"
-                    style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
+              <div
+                className="flex-shrink-0 inline-flex items-center p-1 rounded-2xl"
+                style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
+              >
+                {[
+                  { key: "code", label: "代码" },
+                  { key: "snapshots", label: "快照" },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveTab(tab.key as ExperimentTab)}
+                    className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                      activeTab === tab.key
+                        ? "bg-white text-ink-primary shadow-sm"
+                        : "text-ink-tertiary hover:text-ink-primary"
+                    }`}
                   >
-                    {[
-                      { key: "code", label: "代码" },
-                      { key: "snapshots", label: "快照" },
-                    ].map((tab) => (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        onClick={() => setActiveTab(tab.key as ExperimentTab)}
-                        className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-all ${
-                          activeTab === tab.key
-                            ? "bg-white text-ink-primary shadow-sm"
-                            : "text-ink-tertiary hover:text-ink-primary"
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-                {/* Tab content */}
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  {activeTab === "code" && (
-                    <div className="h-full p-2">
-                      <ExperimentCodeWorkspace
-                        experimentId={selected.id}
-                        onActiveSessionChange={setActiveCodeSession}
-                      />
-                    </div>
-                  )}
+              <Button
+                variant="secondary"
+                onClick={requestDelete}
+                className="flex-shrink-0 text-apple-red hover:text-apple-red"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
 
-                  {activeTab === "snapshots" && (
-                    <div className="h-full overflow-y-auto p-5 max-lg:p-4">
-                      <ExperimentSnapshotPanel
-                        experimentId={selected.id}
-                        activeSession={activeCodeSession}
-                        onError={showToast}
-                      />
-                    </div>
-                  )}
+            {/* Tab content */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {activeTab === "code" && (
+                <div className="h-full p-2">
+                  <ExperimentCodeWorkspace
+                    experimentId={experiment.id}
+                    onActiveSessionChange={setActiveCodeSession}
+                  />
                 </div>
-              </>
-            )}
-          </div>
-        </div>
+              )}
+
+              {activeTab === "snapshots" && (
+                <div className="h-full overflow-y-auto p-5 max-lg:p-4">
+                  <ExperimentSnapshotPanel
+                    experimentId={experiment.id}
+                    activeSession={activeCodeSession}
+                    onError={showToast}
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Toast */}
@@ -274,7 +216,7 @@ export default function Experiment() {
       <ConfirmDialog
         open={Boolean(pendingDeleteId)}
         title="删除实验记录"
-        description={`确认删除「${experiments.find((item) => item.id === pendingDeleteId)?.title ?? "该实验记录"}」？此操作无法撤销。`}
+        description={`确认删除「${experiment?.title ?? "该实验记录"}」？此操作无法撤销。`}
         confirmLabel="确认删除"
         cancelLabel="取消"
         tone="danger"
