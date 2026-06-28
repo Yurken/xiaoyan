@@ -8,11 +8,6 @@ vi.mock("../../hooks/useDomainEventRefresh", () => ({
   useDomainEventRefresh: () => {},
 }));
 
-// Mock ExperimentAttachmentPanel
-vi.mock("../../features/experiment/ExperimentAttachmentPanel", () => ({
-  ExperimentAttachmentPanel: () => <div data-testid="attachment-panel">附件面板</div>,
-}));
-
 describe("Experiment 页面", () => {
   beforeEach(() => {
     resetInvokeMock();
@@ -25,7 +20,7 @@ describe("Experiment 页面", () => {
     });
     render(<Experiment />);
     expect(screen.getByText("实验记录")).toBeInTheDocument();
-    expect(screen.getByText(/记录实验配置与结果/)).toBeInTheDocument();
+    expect(screen.getByText(/代码调试与快照封存一体化/)).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText("暂无记录，点击上方「新建」开始。")).toBeInTheDocument();
     });

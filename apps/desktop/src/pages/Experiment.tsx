@@ -1,27 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlaskConical,
-  Link2,
   Loader2,
   Plus,
   Save,
   Trash2,
-  X,
 } from "lucide-react";
-import { Button, Card, ConfirmDialog, Input, Select, Textarea } from "@research-copilot/ui";
+import { Button, ConfirmDialog, Input } from "@research-copilot/ui";
 import type { ExperimentRecord, ExperimentCodeSession } from "@research-copilot/types";
-import { experimentApi, submissionApi, formatErrorMessage } from "../lib/client";
+import { experimentApi, formatErrorMessage } from "../lib/client";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
-import { ExperimentAttachmentPanel } from "../features/experiment/ExperimentAttachmentPanel";
 import { ExperimentCodeWorkspace } from "../features/experiment/ExperimentCodeWorkspace";
 import { ExperimentSnapshotPanel } from "../features/experiment/ExperimentSnapshotPanel";
 
-type ExperimentTab = "overview" | "snapshots" | "code" | "attachments";
-
-interface SubmissionItem {
-  id: string;
-  title: string;
-}
+type ExperimentTab = "code" | "snapshots";
 
 function rowToExperiment(row: unknown): ExperimentRecord {
   const r = row as Record<string, unknown>;
@@ -46,7 +38,6 @@ function rowToExperiment(row: unknown): ExperimentRecord {
 
 export default function Experiment() {
   const [experiments, setExperiments] = useState<ExperimentRecord[]>([]);
-  const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -57,12 +48,7 @@ export default function Experiment() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const [editTitle, setEditTitle] = useState("");
-  const [editConfig, setEditConfig] = useState("{}");
-  const [editResult, setEditResult] = useState("");
-  const [editNotes, setEditNotes] = useState("");
-  const [editLinked, setEditLinked] = useState("");
-  const [configError, setConfigError] = useState("");
-  const [activeTab, setActiveTab] = useState<ExperimentTab>("overview");
+  const [activeTab, setActiveTab] = useState<ExperimentTab>("code");
   const [activeCodeSession, setActiveCodeSession] = useState<ExperimentCodeSession | null>(null);
 
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -70,14 +56,9 @@ export default function Experiment() {
 
   const loadExperiments = useCallback(async () => {
     try {
-      const [expResult, subResult] = await Promise.all([
-        experimentApi.list(),
-        submissionApi.list(),
-      ]);
+      const expResult = await experimentApi.list();
       const expRaw = (expResult as { experiments: unknown[] }).experiments ?? [];
       setExperiments(expRaw.map(rowToExperiment));
-      const subRaw = ((subResult as { submissions?: unknown[] }).submissions ?? []) as Record<string, unknown>[];
-      setSubmissions(subRaw.map((s) => ({ id: String(s.id ?? ""), title: String(s.title ?? "") })));
     } catch {
       // keep existing data on refresh failure
     }
@@ -92,16 +73,10 @@ export default function Experiment() {
 
   useEffect(() => {
     if (!selected) {
-      setEditTitle(""); setEditConfig("{}"); setEditResult(""); setEditNotes(""); setEditLinked(""); setConfigError("");
-      setActiveTab("overview");
+      setEditTitle("");
       return;
     }
     setEditTitle(selected.title);
-    setEditConfig(JSON.stringify(selected.config, null, 2));
-    setEditResult(selected.result);
-    setEditNotes(selected.notes);
-    setEditLinked(selected.linkedSubmissionId ?? "");
-    setConfigError("");
   }, [selected]);
 
   function showToast(msg: string) {
@@ -121,6 +96,7 @@ export default function Experiment() {
       setExperiments((prev) => [newExp, ...prev]);
       setSelectedId(res.id);
       setNewlyCreatedId(res.id);
+      setActiveTab("code");
       setTimeout(() => titleInputRef.current?.select(), 50);
     } catch (err) {
       showToast(formatErrorMessage(err));
@@ -129,24 +105,13 @@ export default function Experiment() {
     }
   }
 
-  async function handleSave() {
+  async function handleSaveTitle() {
     if (!selectedId) return;
-    let parsedConfig: Record<string, unknown> = {};
-    try {
-      parsedConfig = JSON.parse(editConfig);
-      setConfigError("");
-    } catch {
-      setConfigError("JSON 格式错误，请检查配置内容");
-      return;
-    }
     setSaving(true);
     try {
-      await experimentApi.update(selectedId, {
-        title: editTitle, config: parsedConfig, result: editResult,
-        notes: editNotes, linkedSubmissionId: editLinked || undefined,
-      });
+      await experimentApi.update(selectedId, { title: editTitle });
       setExperiments((prev) => prev.map((e) => e.id === selectedId
-        ? { ...e, title: editTitle, config: parsedConfig, result: editResult, notes: editNotes, linkedSubmissionId: editLinked || null, updatedAt: new Date().toISOString() }
+        ? { ...e, title: editTitle, updatedAt: new Date().toISOString() }
         : e
       ));
       setNewlyCreatedId(null);
@@ -184,7 +149,7 @@ export default function Experiment() {
         {/* Header */}
         <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-nm-dark/10 app-header">
           <h1 className="text-2xl font-bold text-ink-primary">实验记录</h1>
-          <p className="mt-1 text-sm text-ink-tertiary">记录实验配置与结果，上传截图。小妍帮你追踪实验脉络，关联投稿同步进度。</p>
+          <p className="mt-1 text-sm text-ink-tertiary">代码调试与快照封存一体化，小妍帮你追踪实验脉络。</p>
         </div>
 
         <div className="flex flex-1 min-h-0 overflow-hidden max-lg:flex-col">
@@ -248,12 +213,6 @@ export default function Experiment() {
                     <p className="text-[11px] text-ink-secondary mt-0.5">
                       {new Date(exp.updatedAt).toLocaleDateString("zh-CN")}
                     </p>
-                    {exp.linkedSubmissionId && (
-                      <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium" style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}>
-                        <Link2 className="w-2.5 h-2.5" />
-                        已关联投稿
-                      </span>
-                    )}
                   </div>
                 ))
               )}
@@ -273,107 +232,54 @@ export default function Experiment() {
               </div>
             ) : (
               <>
-                {/* Tabs */}
-                <div className="flex-shrink-0 flex items-center gap-1 px-5 pt-4 pb-2 border-b border-nm-dark/10 max-lg:px-4">
-                  {[
-                    { key: "overview", label: "概览" },
-                    { key: "snapshots", label: "快照" },
-                    { key: "code", label: "代码" },
-                    { key: "attachments", label: "附件" },
-                  ].map((tab) => (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => setActiveTab(tab.key as ExperimentTab)}
-                      className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
-                        activeTab === tab.key
-                          ? "bg-apple-blue text-white shadow-sm"
-                          : "text-ink-secondary hover:bg-black/5"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
+                {/* Title + segmented tabs */}
+                <div className="flex-shrink-0 flex items-center justify-between gap-4 px-5 pt-4 pb-3 border-b border-nm-dark/10 max-lg:px-4">
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <Input
+                      ref={titleInputRef}
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      placeholder="实验名称"
+                      className="flex-1"
+                    />
+                    <Button onClick={handleSaveTitle} disabled={saving} variant="secondary" className="flex-shrink-0">
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    </Button>
+                  </div>
+
+                  {/* Segmented control */}
+                  <div
+                    className="flex-shrink-0 inline-flex items-center p-1 rounded-2xl"
+                    style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
+                  >
+                    {[
+                      { key: "code", label: "代码" },
+                      { key: "snapshots", label: "快照" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setActiveTab(tab.key as ExperimentTab)}
+                        className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                          activeTab === tab.key
+                            ? "bg-white text-ink-primary shadow-sm"
+                            : "text-ink-tertiary hover:text-ink-primary"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Tab content */}
                 <div className="flex-1 min-h-0 overflow-hidden">
-                  {activeTab === "overview" && (
-                    <div className="h-full overflow-y-auto p-5 max-lg:p-4 space-y-4 max-w-2xl mx-auto pb-6">
-                      {/* Actions */}
-                      <div className="flex justify-end gap-2">
-                        {newlyCreatedId === selected.id && (
-                          <Button
-                            variant="secondary"
-                            onClick={() => requestDelete(selected.id)}
-                          >
-                            <X className="w-4 h-4" />
-                            取消
-                          </Button>
-                        )}
-                        <Button onClick={handleSave} disabled={saving}>
-                          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                          保存
-                        </Button>
-                      </div>
-
-                      {/* Title */}
-                      <Input
-                        label="标题"
-                        ref={titleInputRef}
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        placeholder="实验名称"
+                  {activeTab === "code" && (
+                    <div className="h-full p-2">
+                      <ExperimentCodeWorkspace
+                        experimentId={selected.id}
+                        onActiveSessionChange={setActiveCodeSession}
                       />
-
-                      {/* Linked submission */}
-                      <Select
-                        label="关联投稿（可选）"
-                        value={editLinked}
-                        onChange={setEditLinked}
-                        options={[
-                          { value: "", label: "— 不关联 —" },
-                          ...submissions.map((submission) => ({ value: submission.id, label: submission.title })),
-                        ]}
-                      />
-
-                      {/* Config JSON */}
-                      <Card variant="inset" padding="sm" className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold text-ink-primary">实验配置</p>
-                          <p className="text-[10px] text-ink-tertiary">JSON 格式，保存超参数、路径等信息</p>
-                        </div>
-                        <Textarea
-                          value={editConfig}
-                          onChange={(e) => { setEditConfig(e.target.value); setConfigError(""); }}
-                          rows={7}
-                          error={configError}
-                          placeholder={'{\n  "lr": 0.001,\n  "epochs": 100,\n  "batch_size": 32\n}'}
-                          style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: "12px" }}
-                        />
-                      </Card>
-
-                      {/* Result */}
-                      <Card variant="inset" padding="sm" className="space-y-2">
-                        <p className="text-xs font-semibold text-ink-primary">实验结果</p>
-                        <Textarea
-                          value={editResult}
-                          onChange={(e) => setEditResult(e.target.value)}
-                          rows={5}
-                          placeholder="记录实验指标、对比分析、图表说明…"
-                        />
-                      </Card>
-
-                      {/* Notes */}
-                      <Card variant="inset" padding="sm" className="space-y-2">
-                        <p className="text-xs font-semibold text-ink-primary">备注与分析</p>
-                        <Textarea
-                          value={editNotes}
-                          onChange={(e) => setEditNotes(e.target.value)}
-                          rows={4}
-                          placeholder="分析实验现象、后续改进计划、与其他实验的对比…"
-                        />
-                      </Card>
                     </div>
                   )}
 
@@ -384,23 +290,6 @@ export default function Experiment() {
                         activeSession={activeCodeSession}
                         onError={showToast}
                       />
-                    </div>
-                  )}
-
-                  {activeTab === "code" && (
-                    <div className="h-full p-2">
-                      <ExperimentCodeWorkspace
-                        experimentId={selected.id}
-                        onActiveSessionChange={setActiveCodeSession}
-                      />
-                    </div>
-                  )}
-
-                  {activeTab === "attachments" && (
-                    <div className="h-full overflow-y-auto p-5 max-lg:p-4">
-                      <Card variant="inset" padding="sm" className="max-w-2xl mx-auto">
-                        <ExperimentAttachmentPanel experimentId={selected.id} onError={showToast} />
-                      </Card>
                     </div>
                   )}
                 </div>
