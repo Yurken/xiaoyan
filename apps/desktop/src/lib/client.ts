@@ -10,6 +10,8 @@ import type {
   ArxivSearchResponse,
   CcfListResponse,
   CcfLookupResponse,
+  FieldDynamicsListResult,
+  FieldDynamicsScanResult,
   JournalLookupResponse,
   SourceLookupResponse,
   Paper,
@@ -986,6 +988,25 @@ export const activeResearcherApi = {
     invoke("active_researcher_mark_read", { id: id ?? null }),
 };
 
+export const fieldDynamicsApi = {
+  scan: (days?: number, maxPerInterest?: number): Promise<FieldDynamicsScanResult> =>
+    invoke("field_dynamics_scan", { days: days ?? null, maxPerInterest: maxPerInterest ?? null }),
+  list: (interestId?: string): Promise<FieldDynamicsListResult> =>
+    invoke("field_dynamics_list", { interestId: interestId ?? null }),
+  importPaper: (
+    briefingId: string,
+    paperExternalId: string,
+    paperSource: string,
+  ): Promise<{ paper_id: string; title: string; briefing_id: string; paper_external_id: string }> =>
+    invoke("field_dynamics_import_paper", {
+      briefingId,
+      paperExternalId,
+      paperSource,
+    }),
+  markRead: (id?: string): Promise<void> =>
+    invoke("field_dynamics_mark_read", { id: id ?? null }),
+};
+
 // ── Code（多工具壳）────────────────────────────────────────────
 
 export interface CodeMessage {
@@ -1107,5 +1128,6 @@ export const apiClient = {
   evidence: evidenceApi,
   crossAnalysis: crossAnalysisApi,
   activeResearcher: activeResearcherApi,
+  fieldDynamics: fieldDynamicsApi,
   code: codeApi,
 };

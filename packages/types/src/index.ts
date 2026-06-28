@@ -333,6 +333,49 @@ export interface ArxivSearchResponse {
   papers: ArxivRecommendation[];
 }
 
+export interface BriefingPaper {
+  external_id: string;
+  source: "arxiv" | "semantic_scholar";
+  title: string;
+  authors: string;
+  published_at: string;
+  url: string;
+  pdf_url: string;
+  relevance_score: number;
+  relevance_reason: string;
+}
+
+export interface BriefingDeadline {
+  external_id: string;
+  name: string;
+  deadline: string;
+  url: string;
+  days_remaining: number;
+}
+
+export interface ResearchFieldBriefing {
+  id: string;
+  interest_id: string;
+  interest_topic: string;
+  period_start: string;
+  period_end: string;
+  summary: string;
+  trends: string[];
+  key_papers: BriefingPaper[];
+  upcoming_deadlines: BriefingDeadline[];
+  generated_at: string;
+  is_read: boolean;
+}
+
+export interface FieldDynamicsListResult {
+  briefings: ResearchFieldBriefing[];
+  unread_count: number;
+}
+
+export interface FieldDynamicsScanResult extends FieldDynamicsListResult {
+  scanned_interests: number;
+}
+
 export interface WebSearchItem {
   title: string;
   url: string;
