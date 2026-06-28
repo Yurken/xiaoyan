@@ -595,7 +595,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
                   key={note.id}
                   className="pdf-highlight-overlay absolute"
                   style={shapeStyle}
-                  title={note.content?.trim() || "拖拽移动 · 点击编辑"}
+                  title={note.content?.trim() ? undefined : "拖拽移动 · 点击编辑"}
                   onMouseEnter={(event) => {
                     if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
                     if (note.content?.trim()) {
@@ -634,7 +634,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
                   key={`${note.id}-${i}`}
                   className="pdf-highlight-overlay absolute"
                   style={style}
-                  title={note.content?.trim() || "点击编辑批注"}
+                  title={note.content?.trim() ? undefined : "点击编辑批注"}
                   onMouseEnter={(event) => {
                     if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
                     if (note.content?.trim()) {
