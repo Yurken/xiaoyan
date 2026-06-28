@@ -57,6 +57,10 @@ use commands::{
     },
     data_backup::{data_backup_export, data_backup_import},
     evidence::evidence_get_links,
+    field_dynamics::{
+        field_dynamics_import_paper, field_dynamics_list, field_dynamics_mark_read,
+        field_dynamics_scan,
+    },
     experiment::{
         experiment_add_attachment, experiment_create, experiment_delete,
         experiment_delete_attachment, experiment_get, experiment_list, experiment_list_attachments,
@@ -360,6 +364,16 @@ pub fn run() {
                         // Delay to avoid blocking startup
                         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                         commands::active_researcher::auto_researcher_scan_on_startup(&state, &app_handle).await;
+                    });
+                }
+
+                // Auto-scan for research-field dynamics — fires after active researcher
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    let app_handle = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+                        commands::field_dynamics::auto_field_dynamics_scan_on_startup(&state, &app_handle).await;
                     });
                 }
 
@@ -673,6 +687,11 @@ pub fn run() {
             active_researcher_findings,
             active_researcher_import_finding,
             active_researcher_mark_read,
+            // Field Dynamics
+            field_dynamics_scan,
+            field_dynamics_list,
+            field_dynamics_import_paper,
+            field_dynamics_mark_read,
             // Cross-paper Analysis
             papers_cross_analysis,
             // Research Context

@@ -119,17 +119,17 @@ struct SemanticScholarSearchResponse {
 }
 
 #[derive(Debug, Clone)]
-struct PaperCandidate {
-    id: String,
-    title: String,
-    authors: String,
-    venue: String,
-    year: Option<i32>,
-    published_at: String,
-    abstract_text: String,
-    detail_url: String,
-    pdf_url: String,
-    citation_count: i32,
+pub struct PaperCandidate {
+    pub id: String,
+    pub title: String,
+    pub authors: String,
+    pub venue: String,
+    pub year: Option<i32>,
+    pub published_at: String,
+    pub abstract_text: String,
+    pub detail_url: String,
+    pub pdf_url: String,
+    pub citation_count: i32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -378,7 +378,7 @@ pub async fn search_survey_candidates(
         .collect())
 }
 
-async fn fetch_semantic_scholar_candidates(
+pub async fn fetch_semantic_scholar_candidates(
     settings: &HashMap<String, String>,
     query: &str,
     exclude_terms: &[String],

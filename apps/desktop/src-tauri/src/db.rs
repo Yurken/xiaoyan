@@ -480,6 +480,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_code_tables(&pool).await?;
     ensure_paper_corpus_table(&pool).await?;
     ensure_token_usage_char_columns(&pool).await?;
+    ensure_field_dynamics_tables(&pool).await?;
     ensure_sync_tables(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
 
@@ -562,6 +563,35 @@ pub async fn ensure_paper_corpus_table(pool: &SqlitePool) -> Result<()> {
     )
     .execute(pool)
     .await?;
+    Ok(())
+}
+
+pub async fn ensure_field_dynamics_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS research_field_briefings (
+            id              TEXT PRIMARY KEY,
+            interest_id     TEXT NOT NULL UNIQUE,
+            interest_topic  TEXT NOT NULL,
+            period_start    TEXT NOT NULL,
+            period_end      TEXT NOT NULL,
+            summary         TEXT NOT NULL DEFAULT '',
+            trends          TEXT NOT NULL DEFAULT '[]',
+            key_papers      TEXT NOT NULL DEFAULT '[]',
+            upcoming_deadlines TEXT NOT NULL DEFAULT '[]',
+            generated_at    TEXT NOT NULL,
+            is_read         INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_field_briefings_interest ON research_field_briefings(interest_id);
+        CREATE INDEX IF NOT EXISTS idx_field_briefings_generated ON research_field_briefings(generated_at DESC);",
+    )
+    .execute(pool)
+    .await?;
+
+    // 旧版开发表（如存在）清理，避免字段冲突
+    let _ = sqlx::query("DROP TABLE IF EXISTS research_field_updates")
+        .execute(pool)
+        .await;
+
     Ok(())
 }
 
