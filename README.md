@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/promo/out/research-copilot-poster.png" alt="小妍 Research Copilot" width="720" />
+  <img src="apps/desktop/public/xiaoyan_poster.png" alt="小妍" width="720" />
 </p>
 
 <p align="center">
