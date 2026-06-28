@@ -1,6 +1,7 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { type KnowledgeGraphCanvasEdge } from "./graphView";
-import { computeKnowledgeGraphCanvasHeight, type KnowledgeGraphCanvasNode } from "./knowledgeGraphLayout";
+import { computeKnowledgeGraphCanvasHeight, computeKnowledgeGraphEdgeGeometry, type KnowledgeGraphCanvasNode } from "./knowledgeGraphLayout";
+import { useElementWidth } from "../../hooks/useElementWidth";
 
 const KIND_STYLES = {
   interest: { fill: "rgba(0, 122, 255, 0.12)", border: "rgba(0, 122, 255, 0.26)", color: "#0F4FA8" },
@@ -30,6 +31,7 @@ export default function KnowledgeGraphCanvas({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
+  const [containerRef, containerWidth] = useElementWidth<HTMLDivElement>();
   const nodeMap = new Map(nodes.map((item) => [item.id, item]));
   const height = computeKnowledgeGraphCanvasHeight(nodes);
   const viewWidth = 1000;
@@ -84,6 +86,9 @@ export default function KnowledgeGraphCanvas({
   };
 
   const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    // 只在按住 Ctrl/⌘ 时缩放（macOS 触控板 pinch 也会带 ctrlKey），
+    // 普通滚轮放行，让外层页面正常滚动。
+    if (!(event.ctrlKey || event.metaKey)) return;
     event.preventDefault();
     event.stopPropagation();
     const delta = event.deltaY < 0 ? 0.08 : -0.08;
@@ -92,6 +97,7 @@ export default function KnowledgeGraphCanvas({
 
   return (
     <div
+      ref={containerRef}
       className="relative overflow-hidden rounded-[28px] border select-none"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -136,20 +142,12 @@ export default function KnowledgeGraphCanvas({
             const from = nodeMap.get(edge.from);
             const to = nodeMap.get(edge.to);
             if (!from || !to) return null;
-
-            const startX = (from.x / 100) * viewWidth;
-            const startY = from.y + from.height / 2;
-            const endX = (to.x / 100) * viewWidth;
-            const endY = to.y + to.height / 2;
-            const controlX = ((from.x + to.x) / 200) * viewWidth;
-            const controlY = from.kind === "paper" && to.kind === "paper"
-              ? Math.min(startY, endY) - 36
-              : (startY + endY) / 2;
+            const geo = computeKnowledgeGraphEdgeGeometry(from, to, containerWidth, viewWidth);
 
             return (
               <path
                 key={edge.id}
-                d={`M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`}
+                d={`M ${geo.startX} ${geo.startY} Q ${geo.controlX} ${geo.controlY} ${geo.endX} ${geo.endY}`}
                 fill="none"
                 stroke={edgeColor(edge.kind)}
                 strokeWidth={edge.kind === "citation" ? 1.4 : 1.8}
