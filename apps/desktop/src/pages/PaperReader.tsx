@@ -46,7 +46,7 @@ export default function PaperReader() {
   // 翻译栏展开即等于「自动翻译」：展开时划词自动翻译，收起则不翻译。
   const [translateOpen, setTranslateOpen] = useState(false);
 
-  const { notes, error: notesError, createAnnotation, updateColor, updateFill, moveAnnotation, deleteAnnotation, undo } = useReaderNotes(id);
+  const { notes, error: notesError, createAnnotation, updateColor, updateFill, updateContent, moveAnnotation, deleteAnnotation, undo } = useReaderNotes(id);
   const translation = useReaderTranslation();
   const corpus = useCorpus(id);
 
@@ -347,8 +347,10 @@ export default function PaperReader() {
           initialColor={editing.note.highlight_color}
           isShape={isShapeStyle(editing.note.style)}
           initialFill={editing.note.fill_color}
+          noteContent={editing.note.content}
           onRecolor={(color) => void updateColor(editing.note.id, color)}
           onRecolorFill={(fill) => void updateFill(editing.note.id, fill)}
+          onUpdateNote={(content) => void updateContent(editing.note.id, content)}
           onDelete={() => {
             void deleteAnnotation(editing.note.id);
             setEditing(null);

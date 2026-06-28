@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Ban,
   BookMarked,
@@ -33,6 +33,8 @@ interface SelectionPopupProps {
   onSaveCorpus?: (note?: string) => void;
   onRecolor?: (color: HighlightColor) => void;
   onRecolorFill?: (fill: HighlightColor | null) => void;
+  onUpdateNote?: (content: string) => void;
+  noteContent?: string;
   onDelete?: () => void;
   onTranslate: () => void;
   onInterpret?: () => void;
@@ -55,6 +57,8 @@ export default function SelectionPopup({
   onSaveCorpus,
   onRecolor,
   onRecolorFill,
+  onUpdateNote,
+  noteContent = "",
   onDelete,
   onTranslate,
   onInterpret,
@@ -65,7 +69,12 @@ export default function SelectionPopup({
   const [activeFill, setActiveFill] = useState<HighlightColor | null>(initialFill);
   const [panel, setPanel] = useState<Panel>("none");
   const [noteText, setNoteText] = useState("");
+  const [editNoteText, setEditNoteText] = useState(noteContent);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setEditNoteText(noteContent);
+  }, [noteContent]);
 
   const copy = async () => {
     await navigator.clipboard.writeText(selectedText);
@@ -216,6 +225,29 @@ export default function SelectionPopup({
             >
               {panel === "note" ? <StickyNote className="h-3.5 w-3.5" /> : <BookMarked className="h-3.5 w-3.5" />}
               {panel === "note" ? "保存为高亮批注" : "收入语料库"}
+            </button>
+          </div>
+        ) : null}
+
+        {isEdit ? (
+          <div className="mt-2 space-y-2 border-t pt-2" style={{ borderColor: "var(--rc-border)" }}>
+            <textarea
+              value={editNoteText}
+              onChange={(event) => setEditNoteText(event.target.value)}
+              placeholder="写下你的批注想法…（可留空）"
+              rows={2}
+              autoFocus
+              className="rc-selectable w-full resize-none rounded-lg border px-2.5 py-1.5 text-xs leading-5 text-ink-primary outline-none"
+              style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
+            />
+            <button
+              type="button"
+              onClick={() => onUpdateNote?.(editNoteText.trim())}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold text-white"
+              style={{ background: "var(--rc-accent)" }}
+            >
+              <StickyNote className="h-3.5 w-3.5" />
+              更新批注
             </button>
           </div>
         ) : null}

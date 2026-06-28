@@ -25,7 +25,8 @@ type UndoEntry =
   | { kind: "restore"; note: PaperNote } // 撤销“删除” → 重新创建
   | { kind: "recolor"; id: string; color: HighlightColor } // 撤销“改色” → 还原边框色
   | { kind: "refill"; id: string; fill: HighlightColor | null } // 撤销“改填充” → 还原填充
-  | { kind: "reposition"; id: string; positions: NormalizedRect[] }; // 撤销“移动” → 还原位置
+  | { kind: "reposition"; id: string; positions: NormalizedRect[] } // 撤销“移动” → 还原位置
+  | { kind: "recontent"; id: string; content: string }; // 撤销“改笔记” → 还原笔记内容
 
 const MAX_UNDO = 100;
 
@@ -112,6 +113,20 @@ export function useReaderNotes(paperId: string | undefined) {
     [pushUndo],
   );
 
+  const updateContent = useCallback(
+    async (id: string, content: string) => {
+      const prev = notesRef.current.find((note) => note.id === id)?.content;
+      if (prev !== content) pushUndo({ kind: "recontent", id, content: prev ?? "" });
+      setNotes((current) => current.map((note) => (note.id === id ? { ...note, content } : note)));
+      try {
+        await paperNotesApi.update(id, { content });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "更新笔记失败");
+      }
+    },
+    [pushUndo],
+  );
+
   const updateFill = useCallback(
     async (id: string, fill: HighlightColor | null) => {
       const prev = notesRef.current.find((note) => note.id === id)?.fill_color ?? null;
@@ -179,6 +194,11 @@ export function useReaderNotes(paperId: string | undefined) {
           current.map((note) => (note.id === entry.id ? { ...note, highlight_positions: entry.positions } : note)),
         );
         await paperNotesApi.update(entry.id, { highlight_positions: entry.positions });
+      } else if (entry.kind === "recontent") {
+        setNotes((current) =>
+          current.map((note) => (note.id === entry.id ? { ...note, content: entry.content } : note)),
+        );
+        await paperNotesApi.update(entry.id, { content: entry.content });
       } else {
         const { note } = entry;
         const created = await paperNotesApi.create({
@@ -201,5 +221,5 @@ export function useReaderNotes(paperId: string | undefined) {
     }
   }, [reload]);
 
-  return { notes, loading, error, reload, createAnnotation, updateColor, updateFill, moveAnnotation, deleteAnnotation, undo };
+  return { notes, loading, error, reload, createAnnotation, updateColor, updateFill, updateContent, moveAnnotation, deleteAnnotation, undo };
 }
