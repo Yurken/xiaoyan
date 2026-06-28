@@ -221,8 +221,8 @@ export default function NotesPanel({
               ) : null}
             </div>
           </div>
-          <div className="flex w-full flex-col gap-2 lg:w-[520px] lg:flex-row">
-            <div className="relative flex-1">
+          <div className="flex w-full flex-col gap-2 lg:w-auto lg:max-w-[680px] lg:flex-row">
+            <div className="relative min-w-[220px] flex-1">
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
               <Input
                 value={search}
@@ -245,7 +245,7 @@ export default function NotesPanel({
                 退出选择
               </Button>
             ) : (
-              <>
+              <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
                 <Button size="sm" variant="secondary" onClick={enterSelection} disabled={scopedNotes.length === 0}>
                   <CheckSquare className="h-4 w-4" />
                   选择
@@ -254,6 +254,7 @@ export default function NotesPanel({
                   clearError();
                   setShowWebClip(true);
                   setCreating(false);
+                  setShowImport(false);
                 }}>
                   <Globe className="h-4 w-4" />
                   剪辑网页
@@ -271,7 +272,7 @@ export default function NotesPanel({
                   <Plus className="h-4 w-4" />
                   新建笔记
                 </Button>
-              </>
+              </div>
             )}
           </div>
         </div>
