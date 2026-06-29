@@ -1,18 +1,26 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
   Plus,
   Trash2,
   FolderOpen,
-  ClipboardCheck,
-  GitBranch,
+  ChevronRight,
+  ChevronDown,
+  ChevronLeft,
+  ChevronLast,
+  PanelLeft,
+  PanelRight,
 } from "lucide-react";
 import type { ExperimentCodeSession } from "@research-copilot/types";
 import { useCodeWorkspace } from "../code/useCodeWorkspace";
+import { useCodeGit } from "../code/useCodeGit";
 import CodeFileTree from "../code/CodeFileTree";
 import CodeEditor from "../code/CodeEditor";
 import CodeChatPanel from "../code/CodeChatPanel";
+import CodeReviewPanel from "../code/CodeReviewPanel";
+import CodeGitPanel from "../code/CodeGitPanel";
 import { codeToolLabel } from "../code/shared";
+import { usePersistentState } from "../../hooks/usePersistentStringState";
 
 type RightTab = "files" | "editor" | "review" | "git";
 
@@ -37,6 +45,7 @@ export function ExperimentCodeWorkspace({
   onActiveSessionChange,
 }: ExperimentCodeWorkspaceProps) {
   const ws = useCodeWorkspace(experimentId, { workingDir, onWorkingDirChange });
+  const git = useCodeGit(ws.workingDir);
 
   useEffect(() => {
     onActiveSessionChange?.(ws.selected);
@@ -44,6 +53,59 @@ export function ExperimentCodeWorkspace({
 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<RightTab>("files");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // 左右侧边栏宽度与折叠状态
+  const [leftWidth, setLeftWidth] = usePersistentState<number>(
+    `rc:experiment:${experimentId}:code:left-width`,
+    260,
+  );
+  const [rightWidth, setRightWidth] = usePersistentState<number>(
+    `rc:experiment:${experimentId}:code:right-width`,
+    300,
+  );
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const resizingRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number } | null>(null);
+
+  const startResize = useCallback((side: "left" | "right", e: React.MouseEvent) => {
+    e.preventDefault();
+    const startWidth = side === "left" ? leftWidth : rightWidth;
+    resizingRef.current = { side, startX: e.clientX, startWidth };
+    setIsResizing(true);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, [leftWidth, rightWidth]);
+
+  useEffect(() => {
+    function handleMouseMove(e: MouseEvent) {
+      if (!resizingRef.current) return;
+      const { side, startX, startWidth } = resizingRef.current;
+      const delta = side === "left" ? e.clientX - startX : startX - e.clientX;
+      const nextWidth = Math.max(180, Math.min(480, startWidth + delta));
+      if (side === "left") {
+        setLeftWidth(nextWidth);
+      } else {
+        setRightWidth(nextWidth);
+      }
+    }
+
+    function handleMouseUp() {
+      resizingRef.current = null;
+      setIsResizing(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [setLeftWidth, setRightWidth]);
 
   // 打开文件时自动切换到编辑器标签。
   useEffect(() => {
@@ -51,6 +113,14 @@ export function ExperimentCodeWorkspace({
       setActiveTab("editor");
     }
   }, [ws.openFile?.path]);
+
+  const refreshGit = git.refresh;
+
+  useEffect(() => {
+    if (activeTab === "review" || activeTab === "git") {
+      void refreshGit();
+    }
+  }, [activeTab, refreshGit]);
 
   async function onConfirmDelete() {
     if (!pendingDeleteId) return;
@@ -65,61 +135,160 @@ export function ExperimentCodeWorkspace({
     }
   }
 
+  const groupedSessions = useMemo(() => {
+    const groups = new Map<string, ExperimentCodeSession[]>();
+    for (const s of ws.sessions) {
+      const key = s.working_dir ?? "未选择目录";
+      const list = groups.get(key) ?? [];
+      list.push(s);
+      groups.set(key, list);
+    }
+    for (const list of groups.values()) {
+      list.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    }
+    return Array.from(groups.entries()).sort((a, b) => {
+      const aTime = Math.max(...a[1].map((s) => new Date(s.updated_at).getTime()));
+      const bTime = Math.max(...b[1].map((s) => new Date(s.updated_at).getTime()));
+      return bTime - aTime;
+    });
+  }, [ws.sessions]);
+
+  // 新分组默认展开
+  useEffect(() => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      for (const [dir] of groupedSessions) {
+        next.add(dir);
+      }
+      return next;
+    });
+  }, [groupedSessions]);
+
+  function projectLabel(dir: string) {
+    if (dir === "未选择目录") return dir;
+    return dir.split(/[/\\]/).pop() || dir;
+  }
+
+  function toggleGroup(dir: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(dir)) {
+        next.delete(dir);
+      } else {
+        next.add(dir);
+      }
+      return next;
+    });
+  }
+
   return (
     <div className="code-root code-root--opencode">
-      <div className="code-opencode-body">
-        <aside className="code-opencode-sidebar" aria-label="会话">
+      <div className={`code-opencode-body${isResizing ? " code-opencode-body--resizing" : ""}`}>
+        {leftCollapsed ? (
           <button
             type="button"
-            className="code-opencode-new-session"
-            onClick={ws.handleCreateSession}
+            className="code-opencode-expand-bar"
+            onClick={() => setLeftCollapsed(false)}
+            aria-label="展开会话栏"
+            title="展开会话栏"
           >
-            <Plus size={14} />
-            <span>新建会话</span>
+            <PanelLeft size={14} />
           </button>
-
-          <div className="code-opencode-session-list">
-              {ws.chatLoading ? (
-                <div className="code-opencode-session-empty">
-                  <Loader2 size={16} className="animate-spin" />
-                </div>
-              ) : ws.sessions.length === 0 ? (
-                <div className="code-opencode-session-empty">
-                  <span>暂无会话</span>
-                </div>
-              ) : (
-                ws.sessions.map((s) => (
-                  <div
-                    key={s.id}
-                    className={`code-opencode-session-item ${s.id === ws.selectedId ? "is-active" : ""}`}
-                  >
-                    <button
-                      type="button"
-                      className="code-opencode-session-item__main"
-                      onClick={() => ws.selectSession(s)}
-                    >
-                      <div className="code-opencode-session-item__text">
-                        <span className="code-opencode-session-item__title">{s.title}</span>
-                        <span className="code-opencode-session-item__meta">
-                          {new Date(s.updated_at).toLocaleDateString("zh-CN", { month: "short", day: "numeric" })}
-                          {s.messages.length > 0 && ` · ${s.messages.length} 条`}
-                          {s.tool_id && ` · ${codeToolLabel(s.tool_id)}`}
-                        </span>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      className="code-opencode-session-item__del"
-                      onClick={() => setPendingDeleteId(s.id)}
-                      aria-label="删除"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                ))
-              )}
+        ) : (
+          <aside
+            className="code-opencode-sidebar"
+            aria-label="会话"
+            style={{ width: leftWidth, minWidth: leftWidth }}
+          >
+            <div className="code-opencode-sidebar__header">
+              <button
+                type="button"
+                className="code-opencode-new-session"
+                onClick={ws.handleCreateSession}
+              >
+                <Plus size={14} />
+                <span>新建会话</span>
+              </button>
+              <button
+                type="button"
+                className="code-opencode-collapse-btn"
+                onClick={() => setLeftCollapsed(true)}
+                aria-label="收起会话栏"
+                title="收起会话栏"
+              >
+                <ChevronLeft size={14} />
+              </button>
             </div>
+
+            <div className="code-opencode-session-list">
+            {ws.chatLoading ? (
+              <div className="code-opencode-session-empty">
+                <Loader2 size={16} className="animate-spin" />
+              </div>
+            ) : ws.sessions.length === 0 ? (
+              <div className="code-opencode-session-empty">
+                <span>暂无会话</span>
+              </div>
+            ) : (
+              groupedSessions.map(([dir, sessions]) => {
+                const isExpanded = expandedGroups.has(dir);
+                return (
+                  <div key={dir} className="code-opencode-session-group">
+                    <button
+                      type="button"
+                      className="code-opencode-session-group__title"
+                      title={dir}
+                      onClick={() => toggleGroup(dir)}
+                      aria-expanded={isExpanded}
+                    >
+                      {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                      <FolderOpen size={12} />
+                      <span>{projectLabel(dir)}</span>
+                    </button>
+                    {isExpanded && sessions.map((s) => (
+                    <div
+                      key={s.id}
+                      className={`code-opencode-session-item ${s.id === ws.selectedId ? "is-active" : ""}`}
+                    >
+                      <button
+                        type="button"
+                        className="code-opencode-session-item__main"
+                        onClick={() => ws.selectSession(s)}
+                      >
+                        <div className="code-opencode-session-item__text">
+                          <span className="code-opencode-session-item__title">{s.title}</span>
+                          <span className="code-opencode-session-item__meta">
+                            {new Date(s.updated_at).toLocaleDateString("zh-CN", { month: "short", day: "numeric" })}
+                            {s.messages.length > 0 && ` · ${s.messages.length} 条`}
+                            {s.tool_id && ` · ${codeToolLabel(s.tool_id)}`}
+                          </span>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        className="code-opencode-session-item__del"
+                        onClick={() => setPendingDeleteId(s.id)}
+                        aria-label="删除"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )
+            })
+          )}
+          </div>
         </aside>
+        )}
+
+        {!leftCollapsed && (
+          <div
+            className="code-opencode-resizer"
+            onMouseDown={(e) => startResize("left", e)}
+            aria-hidden="true"
+          />
+        )}
 
         <main className="code-opencode-main">
           <CodeChatPanel
@@ -140,19 +309,51 @@ export function ExperimentCodeWorkspace({
           />
         </main>
 
-        <aside className="code-opencode-tools" aria-label="工具">
-          <div className="code-opencode-tabs">
-            {TAB_DEFS.map((tab) => (
+        {!rightCollapsed && (
+          <div
+            className="code-opencode-resizer"
+            onMouseDown={(e) => startResize("right", e)}
+            aria-hidden="true"
+          />
+        )}
+
+        {rightCollapsed ? (
+          <button
+            type="button"
+            className="code-opencode-expand-bar"
+            onClick={() => setRightCollapsed(false)}
+            aria-label="展开工具栏"
+            title="展开工具栏"
+          >
+            <PanelRight size={14} />
+          </button>
+        ) : (
+          <aside
+            className="code-opencode-tools"
+            aria-label="工具"
+            style={{ width: rightWidth, minWidth: rightWidth }}
+          >
+            <div className="code-opencode-tabs">
+              {TAB_DEFS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`code-opencode-tab ${activeTab === tab.id ? "is-active" : ""}`}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
               <button
-                key={tab.id}
                 type="button"
-                className={`code-opencode-tab ${activeTab === tab.id ? "is-active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
+                className="code-opencode-collapse-btn code-opencode-collapse-btn--right"
+                onClick={() => setRightCollapsed(true)}
+                aria-label="收起工具栏"
+                title="收起工具栏"
               >
-                {tab.label}
+                <ChevronLast size={14} />
               </button>
-            ))}
-          </div>
+            </div>
 
           <div className="code-opencode-tab-content">
             {activeTab === "files" && ws.workingDir && (
@@ -183,19 +384,35 @@ export function ExperimentCodeWorkspace({
               />
             )}
             {activeTab === "review" && (
-              <div className="code-opencode-tab-placeholder">
-                <ClipboardCheck size={24} />
-                <p>代码审查面板（即将上线）</p>
-              </div>
+              <CodeReviewPanel
+                workingDir={ws.workingDir}
+                snapshot={git.snapshot}
+                loading={git.loading}
+                reviewing={git.reviewing}
+                review={git.review}
+                error={git.error}
+                onRefresh={git.refresh}
+                onRunReview={git.runReview}
+              />
             )}
             {activeTab === "git" && (
-              <div className="code-opencode-tab-placeholder">
-                <GitBranch size={24} />
-                <p>Git changes 面板（即将上线）</p>
-              </div>
+              <CodeGitPanel
+                workingDir={ws.workingDir}
+                snapshot={git.snapshot}
+                loading={git.loading}
+                actionLoading={git.actionLoading}
+                error={git.error}
+                commitMessage={git.commitMessage}
+                onCommitMessageChange={git.setCommitMessage}
+                onRefresh={git.refresh}
+                onStage={git.stage}
+                onUnstage={git.unstage}
+                onCommit={git.commit}
+              />
             )}
           </div>
         </aside>
+        )}
       </div>
 
       {ws.toast && <div className="code-toast">{ws.toast}</div>}

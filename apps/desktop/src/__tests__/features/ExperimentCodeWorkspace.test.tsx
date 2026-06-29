@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "../helpers/render";
+import { render, screen, userEvent, within } from "../helpers/render";
 import { ExperimentCodeWorkspace } from "../../features/experiment/ExperimentCodeWorkspace";
 
 const { useCodeWorkspaceMock } = vi.hoisted(() => ({
@@ -94,6 +94,9 @@ describe("ExperimentCodeWorkspace", () => {
     // Left sidebar
     expect(screen.getByText("新建会话")).toBeInTheDocument();
     expect(screen.getByText("复现实验脚本")).toBeInTheDocument();
+    // 会话按工作目录（项目）分组显示
+    const sidebar = screen.getByLabelText("会话");
+    expect(within(sidebar).getByText("xiaoyan")).toBeInTheDocument();
     // 会话列表始终展开，不再显示折叠标题
     expect(screen.queryByText("会话列表")).not.toBeInTheDocument();
 
@@ -113,5 +116,29 @@ describe("ExperimentCodeWorkspace", () => {
     // 不再提供旧版工作面板与终端条
     expect(screen.queryByText("工作面板")).not.toBeInTheDocument();
     expect(screen.queryByText("终端 ⌘J")).not.toBeInTheDocument();
+  });
+
+  it("可收起并重新展开左右侧边栏", async () => {
+    render(<ExperimentCodeWorkspace experimentId="exp-1" />);
+
+    const collapseLeft = screen.getByRole("button", { name: "收起会话栏" });
+    const collapseRight = screen.getByRole("button", { name: "收起工具栏" });
+
+    // 收起左侧
+    await userEvent.click(collapseLeft);
+    expect(screen.queryByLabelText("会话")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "展开会话栏" })).toBeInTheDocument();
+
+    // 收起右侧
+    await userEvent.click(collapseRight);
+    expect(screen.queryByLabelText("工具")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "展开工具栏" })).toBeInTheDocument();
+
+    // 重新展开
+    await userEvent.click(screen.getByRole("button", { name: "展开会话栏" }));
+    expect(screen.getByLabelText("会话")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "展开工具栏" }));
+    expect(screen.getByLabelText("工具")).toBeInTheDocument();
   });
 });
