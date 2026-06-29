@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUp, Bot, BrainCircuit, FileText, Lock, LockOpen, Paperclip, Plus, X, Zap } from "lucide-react";
+import { ArrowUp, Bot, BrainCircuit, ChevronDown, FileText, Lock, LockOpen, Paperclip, Plus, X, Zap } from "lucide-react";
 import type { ChatMode, Skill } from "@research-copilot/types";
 import {
   COPILOT_CHAT_MODE_OPTIONS,
@@ -24,6 +24,10 @@ interface CopilotComposerProps {
   onSelectedSkillChange: (skillId: string | null) => void;
   skillLocked: boolean;
   onSkillLockedChange: (locked: boolean) => void;
+  copilotModel: string;
+  copilotModelOptions: { id: string; label: string }[];
+  copilotModelsLoading: boolean;
+  onChangeCopilotModel: (model: string) => void;
 }
 
 const MODE_ICON = {
@@ -48,6 +52,10 @@ export default function CopilotComposer({
   onSelectedSkillChange,
   skillLocked,
   onSkillLockedChange,
+  copilotModel,
+  copilotModelOptions,
+  copilotModelsLoading: _copilotModelsLoading,
+  onChangeCopilotModel,
 }: CopilotComposerProps) {
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const [hoveredSkillId, setHoveredSkillId] = useState<string | null>(null);
@@ -439,6 +447,31 @@ export default function CopilotComposer({
                   </div>
                 );
               })()}
+
+              {/* Model switcher */}
+              {copilotModelOptions.length > 0 ? (
+                <div className="relative inline-flex items-center rounded-xl flex-shrink-0"
+                  style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}>
+                  <select
+                    value={copilotModel}
+                    onChange={(e) => onChangeCopilotModel(e.target.value)}
+                    className="appearance-none bg-transparent pl-2.5 pr-7 py-1 text-xs font-medium outline-none cursor-pointer"
+                    style={{ color: "var(--rc-text-soft)", maxWidth: 140 }}
+                  >
+                    {copilotModelOptions.map((opt) => (
+                      <option key={opt.id} value={opt.id}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2 pointer-events-none w-3 h-3" style={{ color: "var(--rc-text-muted)" }} />
+                </div>
+              ) : (
+                copilotModel ? (
+                  <span className="inline-flex items-center rounded-xl px-2.5 py-1 text-xs font-medium flex-shrink-0"
+                    style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}>
+                    {copilotModel}
+                  </span>
+                ) : null
+              )}
 
               <button
                 type="button"

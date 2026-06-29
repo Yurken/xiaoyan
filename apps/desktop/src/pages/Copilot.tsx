@@ -12,7 +12,7 @@ import { useCopilotChatMode } from "../features/copilot/useCopilotChatMode";
 import { useCopilotDropZone } from "../features/copilot/useCopilotDropZone";
 import { parseCopilotMessageContent } from "../features/copilot/shared";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
-import { apiClient, formatErrorMessage } from "../lib/client";
+import { apiClient, formatErrorMessage, settingsApi } from "../lib/client";
 import { openLink } from "../lib/links";
 import type { ChatSession, Skill } from "@research-copilot/types";
 import { interestFolderName } from "../lib/interestUtils";
@@ -108,6 +108,41 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       // 对话技能选择器只收提示词技能；工具技能（如 PPT 生成）走工具页专用流程。
       setSkills(data.filter((s) => s.is_enabled && s.kind !== "tool"));
     }).catch((err) => { console.warn("Failed to load skills:", err); });
+  }, []);
+
+  // ── 流光模型 ──────────────────────────────────────────────────
+  const [copilotModel, setCopilotModel] = useState("");
+  const [copilotModelOptions, setCopilotModelOptions] = useState<{ id: string; label: string }[]>([]);
+  const [copilotModelsLoading, setCopilotModelsLoading] = useState(false);
+
+  const loadCopilotModels = useCallback(async () => {
+    setCopilotModelsLoading(true);
+    try {
+      const s = await settingsApi.get();
+      const current = s.copilot_simple_model || "";
+      const remote = await settingsApi.listModels(s);
+      const opts = remote.map((m) => ({ id: m, label: m }));
+      setCopilotModel(current);
+      setCopilotModelOptions(opts);
+    } catch {
+      // keep defaults on error
+    } finally {
+      setCopilotModelsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCopilotModels();
+  }, [loadCopilotModels]);
+
+  const changeCopilotModel = useCallback(async (model: string) => {
+    if (!model) return;
+    setCopilotModel(model);
+    try {
+      await settingsApi.update({ copilot_simple_model: model });
+    } catch (err) {
+      console.warn("Failed to update copilot model:", err);
+    }
   }, []);
 
   // Cleanup：仅在卸载时取消进行中的流。
@@ -286,6 +321,10 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               onSelectedSkillChange={setSelectedSkillId}
               skillLocked={skillLocked}
               onSkillLockedChange={setSkillLocked}
+              copilotModel={copilotModel}
+              copilotModelOptions={copilotModelOptions}
+              copilotModelsLoading={copilotModelsLoading}
+              onChangeCopilotModel={changeCopilotModel}
             />
           </div>
         </div>
