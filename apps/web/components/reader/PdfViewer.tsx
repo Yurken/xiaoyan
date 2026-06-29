@@ -12,10 +12,12 @@ import {
 } from "react";
 import type { PaperNote } from "@/lib/reader-types";
 import { HIGHLIGHT_COLORS } from "@/lib/reader-types";
+import { useReaderState, clampScale, loadReaderState } from "./useReaderState";
 
 // ── Types ──────────────────────────────────────────────────
 
 interface PdfViewerProps {
+  paperId: string;
   url: string;
   notes: PaperNote[];
   onTextSelected: (data: {
@@ -49,7 +51,7 @@ function loadPdfJs() {
 // ── Component ──────────────────────────────────────────────
 
 const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
-  { url, notes, onTextSelected, onSelectionCleared },
+  { paperId, url, notes, onTextSelected, onSelectionCleared },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,9 +59,13 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [numPages, setNumPages] = useState(0);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [scale, setScale] = useState(1.5);
+  const scaleRef = useRef(scale);
   const [containerWidth, setContainerWidth] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
+  const restoredRef = useRef(false);
+
+  const { saveState } = useReaderState(paperId);
 
   // Notes indexed by page for quick lookup
   const notesByPageRef = useRef<Map<number, PaperNote[]>>(new Map());
@@ -93,6 +99,11 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     };
   }, [url]);
 
+  // Keep ref in sync with latest scale for reliable unmount persistence.
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
+
   // Observe container width → fit scale
   useEffect(() => {
     const container = containerRef.current;
@@ -105,9 +116,18 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     return () => ro.disconnect();
   }, []);
 
-  // Calculate fit-width scale from first page
+  // Restore saved scale on first load; otherwise auto-fit to container width.
   useEffect(() => {
     if (!pdfDoc || !containerWidth) return;
+    if (restoredRef.current) return;
+
+    const saved = loadReaderState(paperId);
+    if (saved?.scale) {
+      setScale(clampScale(saved.scale));
+      restoredRef.current = true;
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       const page = await pdfDoc.getPage(1);
@@ -115,12 +135,40 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       const viewport = page.getViewport({ scale: 1 });
       const padding = 48; // 24px each side
       const fitScale = (containerWidth - padding) / viewport.width;
-      setScale(Math.max(0.5, Math.min(fitScale, 3)));
+      setScale(clampScale(fitScale));
     })();
     return () => {
       cancelled = true;
     };
-  }, [pdfDoc, containerWidth]);
+  }, [pdfDoc, containerWidth, paperId]);
+
+  // Restore scroll position after the document/pages are ready.
+  useEffect(() => {
+    if (!pdfDoc || numPages === 0) return;
+    const saved = loadReaderState(paperId);
+    if (!saved?.scrollTop) return;
+
+    let rafId = 0;
+    const timer = window.setTimeout(() => {
+      rafId = requestAnimationFrame(() => {
+        containerRef.current?.scrollTo(0, saved.scrollTop);
+      });
+    }, 50);
+
+    return () => {
+      window.clearTimeout(timer);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [pdfDoc, numPages, paperId]);
+
+  // Persist state when the paper changes or the component unmounts.
+  useEffect(() => {
+    const container = containerRef.current;
+    return () => {
+      const scrollTop = container?.scrollTop ?? 0;
+      saveState({ scale: scaleRef.current, scrollTop });
+    };
+  }, [paperId, saveState]);
 
   // Scroll to page
   const scrollToPage = useCallback(

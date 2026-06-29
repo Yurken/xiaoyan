@@ -294,6 +294,7 @@ export default function ReaderPage({ params }: { params: Promise<{ id: string }>
         >
           <PdfViewer
             ref={pdfViewerRef}
+            paperId={id}
             url={pdfUrl}
             notes={allNotes}
             onTextSelected={handleTextSelected}
