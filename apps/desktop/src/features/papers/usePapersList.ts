@@ -30,7 +30,7 @@ export function usePapersList() {
     let cancelled = false;
     setLoading(true);
     setLoadError("");
-    apiClient.papers.list()
+    apiClient.papers.list(0, 500)
       .then((data) => { if (!cancelled) setPapers(data); })
       .catch((error) => { if (!cancelled) { setLoadError(formatErrorMessage(error)); setPapers([]); } })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -75,7 +75,7 @@ export function usePapersList() {
         }
         setBatchProgress({ done: i + 1, total: pdfs.length });
       }
-      const updated = await apiClient.papers.list();
+      const updated = await apiClient.papers.list(0, 500);
       setPapers(updated);
       if (failures.length > 0) setLoadError(failures.join("\n"));
     } catch (error) {
@@ -308,7 +308,7 @@ export function usePapersList() {
       await apiClient.papers.reorder(orderedIds);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
-      const fresh = await apiClient.papers.list().catch(() => null);
+      const fresh = await apiClient.papers.list(0, 500).catch(() => null);
       if (fresh) setPapers(fresh);
     }
   };
