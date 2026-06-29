@@ -13,7 +13,8 @@ import {
 } from "../../lib/client";
 import type { AppSettings } from "@research-copilot/types";
 import { useCodeFileSystem } from "./useCodeFileSystem";
-import type { CodeAgentMode, CodeModelOption, OpenFile } from "./shared";
+import type { CodeAgentMode, CodeFileAttachment, CodeModelOption, OpenFile } from "./shared";
+import { readAttachmentFile } from "./shared";
 
 interface StreamEvent {
   session_id: string;
@@ -77,6 +78,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   const [input, setInput] = useState("");
   const [toast, setToast] = useState("");
   const [agentMode, setAgentMode] = useState<CodeAgentMode>("build");
+  const [attachments, setAttachments] = useState<CodeFileAttachment[]>([]);
 
   const streamingRef = useRef("");
   const unlistenersRef = useRef<UnlistenFn[]>([]);
@@ -422,6 +424,39 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     }
   }
 
+  // ── File attachments ────────────────────────────────────────
+  async function pickAttachments() {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const picked = await open({ multiple: true, directory: false });
+      if (!picked) return;
+      const paths = Array.isArray(picked) ? picked : [picked];
+      const MAX_ATTACH = 5;
+      const remaining = MAX_ATTACH - attachments.length;
+      if (remaining <= 0) {
+        showToast(`最多附加 ${MAX_ATTACH} 个文件`);
+        return;
+      }
+      const toAdd = paths.slice(0, remaining);
+      const newAttachments: CodeFileAttachment[] = [];
+      for (const p of toAdd) {
+        const result = await readAttachmentFile(p);
+        if (result) {
+          newAttachments.push({ id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, ...result });
+        }
+      }
+      if (newAttachments.length > 0) {
+        setAttachments((prev) => [...prev, ...newAttachments]);
+      }
+    } catch (err) {
+      showToast(formatErrorMessage(err));
+    }
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }
+
   // ── Send ─────────────────────────────────────────────────────
   async function handleSend(skillPrompt?: string) {
     if (!input.trim() || sending) return;
@@ -442,8 +477,21 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     }
 
     const rawContent = input.trim();
-    const content = skillPrompt ? `${skillPrompt}\n\n---\n\n${rawContent}` : rawContent;
+    let content = skillPrompt ? `${skillPrompt}\n\n---\n\n${rawContent}` : rawContent;
+
+    // 注入附件文件内容
+    if (attachments.length > 0) {
+      const fileContext = attachments
+        .map((a, i) => {
+          const trunc = a.truncated ? "\n[内容已截断]" : "";
+          return `[文件 ${i + 1}] ${a.name}\n路径：${a.path}\n\`\`\`\n${a.content}${trunc}\n\`\`\``;
+        })
+        .join("\n\n---\n\n");
+      content = `${content}\n\n<file-context>\n以下是用户附加的文件内容，请结合这些内容回答问题：\n\n${fileContext}\n</file-context>`;
+    }
+
     setInput("");
+    setAttachments([]);
     setSending(true);
     streamingRef.current = "";
     setStreamingContent("");
@@ -504,6 +552,9 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     handleSend,
     agentMode,
     setAgentMode,
+    attachments,
+    pickAttachments,
+    removeAttachment,
 
     // Settings / model
     currentModel,

@@ -357,6 +357,9 @@ export function ExperimentCodeWorkspace({
             onChooseWorkingDir={ws.chooseWorkingDir}
             agentMode={ws.agentMode}
             onAgentModeChange={ws.setAgentMode}
+            attachments={ws.attachments}
+            onPickAttachments={ws.pickAttachments}
+            onRemoveAttachment={ws.removeAttachment}
             skills={skills}
             selectedSkillId={selectedSkillId}
             onSelectedSkillChange={setSelectedSkillId}
@@ -392,7 +395,7 @@ export function ExperimentCodeWorkspace({
             <div className="code-opencode-tabs">
               <CapsuleTabs
                 compact
-                iconOnly={rightWidth < 260}
+                display={rightWidth < 200 ? "icon" : rightWidth < 298 ? "text" : "full"}
                 options={TAB_DEFS.map((t) => ({ value: t.id, label: t.label, icon: t.icon }))}
                 value={activeTab}
                 onChange={(v) => setActiveTab(v as RightTab)}

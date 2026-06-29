@@ -4,6 +4,31 @@ import type { LlmProvider } from "@research-copilot/types";
 
 export type { DirEntry };
 
+// ── Code File Attachments ─────────────────────────────────────
+export interface CodeFileAttachment {
+  id: string;
+  path: string;
+  name: string;
+  content: string;
+  truncated: boolean;
+}
+
+const MAX_ATTACH_FILE_CHARS = 15_000;
+
+/** 读取文件内容，截断到上限。返回 null 表示读取失败。 */
+export async function readAttachmentFile(filePath: string): Promise<Omit<CodeFileAttachment, "id"> | null> {
+  try {
+    const { readTextFile } = await import("@tauri-apps/plugin-fs");
+    const raw = await readTextFile(filePath);
+    const truncated = raw.length > MAX_ATTACH_FILE_CHARS;
+    const content = truncated ? raw.slice(0, MAX_ATTACH_FILE_CHARS) : raw;
+    const name = filePath.split(/[/\\]/).pop() ?? filePath;
+    return { path: filePath, name, content, truncated };
+  } catch {
+    return null;
+  }
+}
+
 // ── Code Agent Modes ─────────────────────────────────────────
 export type CodeAgentMode = "build" | "plan" | "general" | "explore" | "scout";
 
