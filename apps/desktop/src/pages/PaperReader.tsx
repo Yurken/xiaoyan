@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ExternalLink, Languages } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, Languages, Search, X } from "lucide-react";
 import { Button } from "@research-copilot/ui";
 import { papersApi } from "../lib/client";
 import PdfReaderViewer, { type PdfReaderViewerHandle } from "../features/reader/PdfReaderViewer";
@@ -22,6 +22,7 @@ import {
 import { useCorpus } from "../features/papers/useCorpus";
 import { useResizableWidth } from "../hooks/useResizableWidth";
 import { readPersistentValue, writePersistentValue } from "../hooks/usePersistentStringState";
+import { usePdfSearch } from "../features/reader/usePdfSearch";
 
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 3;
@@ -80,6 +81,15 @@ export default function PaperReader() {
   const { notes, error: notesError, createAnnotation, updateColor, updateFill, updateContent, moveAnnotation, deleteAnnotation, undo } = useReaderNotes(id);
   const translation = useReaderTranslation();
   const corpus = useCorpus(id);
+
+  // ── PDF 搜索 ────────────────────────────────────────────────
+  const [searchPdfDoc, setSearchPdfDoc] = useState<import("pdfjs-dist").PDFDocumentProxy | null>(null);
+  const [searchNumPages, setSearchNumPages] = useState(0);
+  const search = usePdfSearch({
+    pdfDoc: searchPdfDoc,
+    scale,
+    numPages: searchNumPages,
+  });
 
   const flashToast = useCallback((message: string) => {
     setToast(message);
@@ -143,6 +153,22 @@ export default function PaperReader() {
     }
   }, [loading, pdfData, id]);
 
+  // PDF 加载完成后同步搜索所需的 pdfDoc 引用
+  useEffect(() => {
+    if (!loading && pdfData) {
+      // Small delay to let imperative handle settle
+      const timer = setTimeout(() => {
+        const doc = viewerRef.current?.getPdfDoc() ?? null;
+        const np = viewerRef.current?.getNumPages() ?? 0;
+        if (doc) {
+          setSearchPdfDoc(doc);
+          setSearchNumPages(np);
+        }
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, pdfData]);
+
   // 组件卸载时保存当前论文状态
   useEffect(() => {
     return () => {
@@ -185,6 +211,33 @@ export default function PaperReader() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [translateOpen, toggleContinuous]);
+
+  // ── 搜索快捷键 ──────────────────────────────────────────────
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Ctrl/Cmd+F：打开搜索
+      if (event.key.toLowerCase() === "f" && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
+        event.preventDefault();
+        search.openSearch();
+        return;
+      }
+      // Escape：关闭搜索
+      if (event.key === "Escape" && search.open) {
+        event.preventDefault();
+        search.closeSearch();
+        return;
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [search.openSearch, search.closeSearch, search.open]);
+
+  // 激活匹配项变更时滚动到对应页面
+  useEffect(() => {
+    if (search.activeMatch && viewerRef.current) {
+      viewerRef.current.scrollToPage(search.activeMatch.pageNum);
+    }
+  }, [search.activeMatch]);
 
   // 划词处理：批注模式直接套用预选工具；翻译栏开启则自动翻译；否则视图模式弹工具菜单。
   const handleTextSelected = useCallback(
@@ -318,6 +371,65 @@ export default function PaperReader() {
         <div className="shrink-0 bg-apple-red/10 px-4 py-1.5 text-xs text-apple-red">{notesError}</div>
       ) : null}
 
+      {/* ── 搜索栏 ─────────────────────────────────────────── */}
+      {search.open && (
+        <div className="flex shrink-0 items-center gap-2 border-b px-4 py-2" style={{ background: "var(--rc-card-inset-bg)", borderColor: "var(--rc-border)" }}>
+          <Search className="w-4 h-4 flex-shrink-0" style={{ color: "var(--rc-text-muted)" }} />
+          <input
+            autoFocus
+            type="text"
+            value={search.query}
+            onChange={(e) => search.setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                search.goNext();
+              } else if (e.key === "Enter" && e.shiftKey) {
+                e.preventDefault();
+                search.goPrev();
+              }
+            }}
+            placeholder="在 PDF 中搜索…"
+            className="flex-1 bg-transparent text-sm outline-none"
+            style={{ color: "var(--rc-text)" }}
+          />
+          {search.matches.length > 0 && (
+            <span className="text-xs flex-shrink-0" style={{ color: "var(--rc-text-muted)" }}>
+              {search.activeIndex + 1}/{search.matches.length}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={search.goPrev}
+            disabled={search.matches.length === 0}
+            className="p-1 rounded-lg flex-shrink-0 transition-colors disabled:opacity-30"
+            style={{ color: "var(--rc-text-muted)" }}
+            title="上一个 (Shift+Enter)"
+          >
+            <ChevronUp className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={search.goNext}
+            disabled={search.matches.length === 0}
+            className="p-1 rounded-lg flex-shrink-0 transition-colors disabled:opacity-30"
+            style={{ color: "var(--rc-text-muted)" }}
+            title="下一个 (Enter)"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={search.closeSearch}
+            className="p-1 rounded-lg flex-shrink-0 transition-colors"
+            style={{ color: "var(--rc-text-muted)" }}
+            title="关闭 (Esc)"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1">
         {leftOpen ? (
           <ReaderPaperList
@@ -366,6 +478,8 @@ export default function PaperReader() {
               drawFill={annotateFill}
               onShapeDrawn={handleShapeDrawn}
               onShapeMove={handleShapeMove}
+              searchMatches={search.matches}
+              activeSearchIndex={search.activeIndex}
             />
           ) : null}
         </div>
