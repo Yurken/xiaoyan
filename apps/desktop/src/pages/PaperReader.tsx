@@ -21,14 +21,40 @@ import {
 } from "../features/reader/readerTypes";
 import { useCorpus } from "../features/papers/useCorpus";
 import { useResizableWidth } from "../hooks/useResizableWidth";
+import { readPersistentValue, writePersistentValue } from "../hooks/usePersistentStringState";
 
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 3;
+
+interface ReaderState {
+  scale: number;
+  scrollTop: number;
+}
+
+function getReaderStateKey(paperId: string) {
+  return `rc:reader:state:${paperId}`;
+}
+
+function loadReaderState(paperId: string): ReaderState | null {
+  const raw = readPersistentValue(getReaderStateKey(paperId));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ReaderState;
+  } catch {
+    return null;
+  }
+}
+
+function saveReaderState(paperId: string, state: ReaderState) {
+  writePersistentValue(getReaderStateKey(paperId), JSON.stringify(state));
+}
 
 export default function PaperReader() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const viewerRef = useRef<PdfReaderViewerHandle>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const prevIdRef = useRef<string | undefined>(undefined);
 
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -63,11 +89,23 @@ export default function PaperReader() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+
+    // 切换论文时，保存前一篇论文的状态
+    if (prevIdRef.current && prevIdRef.current !== id) {
+      const scrollTop = containerRef.current?.scrollTop ?? 0;
+      saveReaderState(prevIdRef.current, { scale, scrollTop });
+    }
+    prevIdRef.current = id;
+
     setLoading(true);
     setLoadError("");
     setPdfData(null);
     setSelection(null);
     setEditing(null);
+
+    // 恢复新论文的缩放比例
+    const saved = loadReaderState(id);
+    setScale(saved?.scale ?? 1.4);
 
     (async () => {
       try {
@@ -92,6 +130,28 @@ export default function PaperReader() {
       cancelled = true;
     };
   }, [id]);
+
+  // PDF 加载完成后恢复滚动位置
+  useEffect(() => {
+    if (!loading && pdfData && id) {
+      const saved = loadReaderState(id);
+      if (saved?.scrollTop) {
+        requestAnimationFrame(() => {
+          containerRef.current?.scrollTo(0, saved.scrollTop);
+        });
+      }
+    }
+  }, [loading, pdfData, id]);
+
+  // 组件卸载时保存当前论文状态
+  useEffect(() => {
+    return () => {
+      if (id) {
+        const scrollTop = containerRef.current?.scrollTop ?? 0;
+        saveReaderState(id, { scale, scrollTop });
+      }
+    };
+  }, [id, scale]);
 
   const clearSelection = useCallback(() => {
     setSelection(null);
@@ -268,7 +328,16 @@ export default function PaperReader() {
           />
         ) : null}
 
-        <div className="min-w-0 flex-1">
+        <div
+          ref={containerRef}
+          className="min-w-0 flex-1 overflow-auto"
+          onScroll={() => {
+            if (id) {
+              const scrollTop = containerRef.current?.scrollTop ?? 0;
+              saveReaderState(id, { scale, scrollTop });
+            }
+          }}
+        >
           {loading ? (
             <div className="flex h-full items-center justify-center text-sm text-ink-tertiary">正在打开论文…</div>
           ) : loadError ? (

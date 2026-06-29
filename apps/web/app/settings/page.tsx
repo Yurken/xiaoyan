@@ -92,6 +92,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   copilot_simple_frequency_penalty: "",
   xiaoyan_long_term_memory_enabled: "true",
   xiaoyan_companion_id: "xiaoyan",
+  xiaoyan_active_researcher_enabled: "true",
   multi_agent_enabled: "true",
   multi_agent_routing_mode: "hybrid",
   multi_agent_enabled_agents: "retrieval,planner,literature_scout,survey,paper_analyst,reproduction,synthesis",
