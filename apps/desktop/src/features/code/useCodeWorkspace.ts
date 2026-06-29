@@ -5,11 +5,13 @@ import {
   codeApi,
   experimentApi,
   formatErrorMessage,
+  settingsApi,
   type CodeSession,
   type CodeMessage,
 } from "../../lib/client";
+import type { AppSettings } from "@research-copilot/types";
 import { useCodeFileSystem } from "./useCodeFileSystem";
-import type { OpenFile } from "./shared";
+import type { CodeModelOption, OpenFile } from "./shared";
 
 interface StreamEvent {
   session_id: string;
@@ -30,15 +32,25 @@ interface ErrorEvent {
   error: string;
 }
 
-export function useCodeWorkspace(experimentId: string) {
+interface UseCodeWorkspaceOptions {
+  workingDir?: string | null;
+  onWorkingDirChange?: (dir: string) => void;
+}
+
+export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspaceOptions) {
   // ── File system ──────────────────────────────────────────────
   const fs = useCodeFileSystem();
-  const [workingDir, setWorkingDir] = usePersistentState<string | null>(
+  const isControlled = options?.workingDir !== undefined;
+  const [internalWorkingDir, setInternalWorkingDir] = usePersistentState<string | null>(
     `rc:experiment:${experimentId}:code:working-dir`,
     null,
   );
+  const workingDir = isControlled ? options.workingDir : internalWorkingDir;
+  const setWorkingDir = isControlled
+    ? (dir: string) => options.onWorkingDirChange?.(dir)
+    : setInternalWorkingDir;
   const [openFile, setOpenFile] = useState<OpenFile | null>(null);
-  const workingDirRestoredRef = useRef(false);
+  const workingDirRestoredRef = useRef<string | null>(null);
 
   // ── Chat ─────────────────────────────────────────────────────
   const [sessions, setSessions] = useState<CodeSession[]>([]);
@@ -54,6 +66,46 @@ export function useCodeWorkspace(experimentId: string) {
   const selectedIdRef = useRef<string | null>(null);
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
+
+  // ── Settings / model ─────────────────────────────────────────
+  const [currentModel, setCurrentModel] = useState<string>("");
+  const [modelOptions, setModelOptions] = useState<CodeModelOption[]>([]);
+  const [activeModelOptionId, setActiveModelOptionId] = useState("");
+
+  useEffect(() => {
+    settingsApi
+      .get()
+      .then((settings) => {
+        applySettingsModelState(settings);
+      })
+      .catch(() => setCurrentModel(""));
+  }, []);
+
+  function applySettingsModelState(settings: AppSettings) {
+    const options = buildCodeModelOptions(settings);
+    const active = optionIdForProvider(settings.llm_provider, resolveCurrentModel(settings));
+    setCurrentModel(resolveCurrentModel(settings));
+    setModelOptions(options);
+    setActiveModelOptionId(active);
+  }
+
+  async function changeModelOption(optionId: string) {
+    const option = modelOptions.find((item) => item.id === optionId);
+    if (!option) return;
+
+    setCurrentModel(option.model);
+    setActiveModelOptionId(option.id);
+
+    const modelKey = modelKeyForProvider(option.provider);
+    try {
+      await settingsApi.update({
+        llm_provider: option.provider,
+        [modelKey]: option.model,
+      });
+    } catch (err) {
+      showToast(formatErrorMessage(err));
+    }
+  }
 
   // ── UI ───────────────────────────────────────────────────────
   const [treeOpen, setTreeOpen] = useState(true);
@@ -129,22 +181,25 @@ export function useCodeWorkspace(experimentId: string) {
     };
   }, []);
 
-  // 恢复持久化的工作目录：优先使用 localStorage，否则回退到 experiment 的 defaultWorkingDir。
+  // 恢复/同步工作目录：当 workingDir 变化时重新加载文件树；
+  // 非受控模式下还会从 experiment 的 defaultWorkingDir 自动恢复。
   useEffect(() => {
-    if (workingDirRestoredRef.current) return;
+    if (workingDirRestoredRef.current === workingDir) return;
 
     async function restore() {
       if (workingDir) {
-        workingDirRestoredRef.current = true;
+        workingDirRestoredRef.current = workingDir;
         await fs.listDir(workingDir);
         return;
       }
 
+      if (isControlled) return;
+
       try {
         const exp = await experimentApi.get(experimentId);
         if (exp.defaultWorkingDir) {
-          workingDirRestoredRef.current = true;
-          setWorkingDir(exp.defaultWorkingDir);
+          workingDirRestoredRef.current = exp.defaultWorkingDir;
+          setInternalWorkingDir(exp.defaultWorkingDir);
           await fs.listDir(exp.defaultWorkingDir);
         }
       } catch {
@@ -153,7 +208,7 @@ export function useCodeWorkspace(experimentId: string) {
     }
 
     void restore();
-  }, [experimentId, workingDir, fs, setWorkingDir]);
+  }, [isControlled, experimentId, workingDir, fs, setInternalWorkingDir]);
 
   // ── Load sessions ────────────────────────────────────────────
   const loadSessions = useCallback(async () => {
@@ -324,10 +379,65 @@ export function useCodeWorkspace(experimentId: string) {
     handleDeleteSession,
     handleSend,
 
+    // Settings / model
+    currentModel,
+    modelOptions,
+    activeModelOptionId,
+    changeModelOption,
+
     // UI
     treeOpen,
     setTreeOpen,
     chatCollapsed,
     setChatCollapsed,
   };
+}
+
+function resolveCurrentModel(settings: AppSettings): string {
+  switch (settings.llm_provider) {
+    case "openai":
+      return settings.openai_chat_model || "OpenAI";
+    case "anthropic":
+      return settings.anthropic_chat_model || "Anthropic";
+    case "openai_compatible":
+      return settings.openai_compatible_chat_model || "OpenAI Compatible";
+    default:
+      return "小妍";
+  }
+}
+
+function buildCodeModelOptions(settings: AppSettings): CodeModelOption[] {
+  return [
+    {
+      provider: "openai" as const,
+      providerLabel: "OpenAI",
+      model: settings.openai_chat_model || "gpt-4o-mini",
+    },
+    {
+      provider: "anthropic" as const,
+      providerLabel: "Anthropic",
+      model: settings.anthropic_chat_model || "claude-3-5-haiku-20241022",
+    },
+    {
+      provider: "openai_compatible" as const,
+      providerLabel: "OpenAI-Compatible",
+      model: settings.openai_compatible_chat_model || "deepseek-chat",
+    },
+  ].map((item) => ({
+    ...item,
+    id: optionIdForProvider(item.provider, item.model),
+    label: `${item.providerLabel} · ${item.model}`,
+  }));
+}
+
+function optionIdForProvider(provider: AppSettings["llm_provider"], model: string): string {
+  return `${provider}:${model}`;
+}
+
+function modelKeyForProvider(
+  provider: AppSettings["llm_provider"],
+): "openai_chat_model" | "anthropic_chat_model" | "openai_compatible_chat_model" {
+  if (provider === "openai") return "openai_chat_model";
+  if (provider === "anthropic") return "anthropic_chat_model";
+  return "openai_compatible_chat_model";
 }

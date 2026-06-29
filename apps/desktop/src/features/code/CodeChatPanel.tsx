@@ -1,8 +1,9 @@
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
-import { Loader2, Send, Sparkles, PanelTopClose, PanelTopOpen } from "lucide-react";
+import { useRef, type KeyboardEvent } from "react";
+import { ArrowUp, ChevronDown, Loader2, Plus, Sparkles, PanelTopClose, PanelTopOpen } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
 import type { CodeMessage } from "../../lib/client";
 import { codeToolLabel } from "./shared";
+import type { CodeModelOption } from "./shared";
 
 interface CodeChatPanelProps {
   messages: CodeMessage[];
@@ -14,8 +15,11 @@ interface CodeChatPanelProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   currentFileName: string | null;
-  /** 工具/模型切换器，渲染在面板头部下方。 */
-  toolbar?: ReactNode;
+  currentModel: string;
+  modelOptions: CodeModelOption[];
+  activeModelOptionId: string;
+  onModelOptionChange: (optionId: string) => void;
+  onAddFile: () => void;
 }
 
 export default function CodeChatPanel({
@@ -28,7 +32,11 @@ export default function CodeChatPanel({
   collapsed,
   onToggleCollapse,
   currentFileName,
-  toolbar,
+  currentModel,
+  modelOptions,
+  activeModelOptionId,
+  onModelOptionChange,
+  onAddFile,
 }: CodeChatPanelProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -84,8 +92,6 @@ export default function CodeChatPanel({
           <PanelTopClose size={14} />
         </button>
       </div>
-
-      {toolbar && <div className="code-chat-panel__toolbar">{toolbar}</div>}
 
       <div className="code-chat-panel__messages">
         {messages.length === 0 && !streamingContent && (
@@ -152,31 +158,66 @@ export default function CodeChatPanel({
       </div>
 
       <div className="code-chat-panel__input-area">
-        <div className={`code-chat-input-wrap ${sending ? "is-sending" : ""}`}>
+        <div className={`code-chat-composer ${sending ? "is-sending" : ""}`}>
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onInput={handleInput}
-            placeholder="描述你的代码需求… Enter 发送 · Shift+Enter 换行"
-            rows={1}
+            placeholder={'随便问点什么… "创建一个 CLI 命令用于…"'}
+            rows={2}
             className="code-chat-input"
             disabled={sending}
           />
-          <button
-            type="button"
-            className={`code-chat-send-btn ${!input.trim() || sending ? "is-disabled" : ""}`}
-            onClick={onSend}
-            disabled={!input.trim() || sending}
-            aria-label="发送"
-          >
-            {sending ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Send size={14} />
-            )}
-          </button>
+
+          <div className="code-chat-composer__toolbar">
+            <div className="code-chat-composer__toolbar-left">
+              <button
+                type="button"
+                className="code-chat-attach-btn"
+                onClick={onAddFile}
+                aria-label="添加文件"
+                title={currentFileName ? `当前文件：${currentFileName}` : "添加文件"}
+              >
+                <Plus size={16} />
+              </button>
+
+              <label className="code-chat-model-select" aria-label="切换模型">
+                <span className="code-chat-model-select__prefix">模型</span>
+                <select
+                  value={activeModelOptionId}
+                  onChange={(e) => onModelOptionChange(e.target.value)}
+                  disabled={modelOptions.length === 0}
+                >
+                  {modelOptions.length === 0 ? (
+                    <option value="">{currentModel || "默认模型"}</option>
+                  ) : (
+                    modelOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <ChevronDown size={14} className="code-chat-model-select__chevron" />
+              </label>
+            </div>
+
+            <button
+              type="button"
+              className={`code-chat-send-btn ${!input.trim() || sending ? "is-disabled" : ""}`}
+              onClick={onSend}
+              disabled={!input.trim() || sending}
+              aria-label="发送"
+            >
+              {sending ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <ArrowUp size={16} />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
