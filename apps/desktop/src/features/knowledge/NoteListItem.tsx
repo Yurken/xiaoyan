@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { clsx } from "clsx";
 import { Check, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@research-copilot/ui";
@@ -8,7 +9,6 @@ interface NoteListItemProps {
   note: KnowledgeNote;
   linkedClaimCount?: number;
   interestName?: string;
-  onOpen: (note: KnowledgeNote) => void;
   onDelete: (note: KnowledgeNote) => void;
   selectionMode?: boolean;
   selected?: boolean;
@@ -19,16 +19,17 @@ export default function NoteListItem({
   note,
   linkedClaimCount = 0,
   interestName,
-  onOpen,
   onDelete,
   selectionMode = false,
   selected = false,
   onToggleSelect,
 }: NoteListItemProps) {
-  const activate = (event?: { stopPropagation: () => void }) => {
+  const navigate = useNavigate();
+
+  const openNote = (event?: { stopPropagation: () => void }) => {
     event?.stopPropagation();
     if (selectionMode) onToggleSelect?.(note);
-    else onOpen(note);
+    else navigate(`/notes/${note.id}`, { state: { note, linkedClaimCount } });
   };
 
   return (
@@ -43,13 +44,13 @@ export default function NoteListItem({
         borderColor: "var(--rc-card-outline)",
         boxShadow: "var(--rc-card-shadow)",
       }}
-      onClick={selectionMode ? activate : undefined}
+      onClick={selectionMode ? openNote : undefined}
     >
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={activate}
+            onClick={openNote}
             className="truncate text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
           >
             {note.title}
@@ -60,7 +61,7 @@ export default function NoteListItem({
             <span className="text-[11px] text-apple-blue">{interestName}</span>
           )}
         </div>
-        <button type="button" onClick={activate} className="block w-full text-left">
+        <button type="button" onClick={openNote} className="block w-full text-left">
           <p className="mt-1 truncate text-xs leading-relaxed text-ink-secondary">
             {stripMarkdown(note.content)}
           </p>
@@ -87,7 +88,7 @@ export default function NoteListItem({
           <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
             <button
               type="button"
-              onClick={() => onOpen(note)}
+              onClick={openNote}
               className="rounded-lg p-1.5 text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary"
               aria-label={`编辑 ${note.title}`}
             >
