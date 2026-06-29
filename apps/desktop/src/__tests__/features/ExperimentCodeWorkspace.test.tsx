@@ -52,17 +52,6 @@ function createWorkspace(overrides: Record<string, unknown> = {}) {
     handleCreateSession: vi.fn(),
     handleDeleteSession: vi.fn(),
     handleSend: vi.fn(),
-    tools: [
-      { id: "claude", label: "Claude Code", installed: true, binary_path: "/bin/claude", version: "1.0.0" },
-      { id: "codex", label: "Codex", installed: true, binary_path: "/bin/codex", version: "1.0.0" },
-      { id: "gemini", label: "Gemini CLI", installed: false, binary_path: null, version: null },
-    ],
-    toolsLoaded: true,
-    anyToolInstalled: true,
-    activeTool: "claude",
-    setActiveTool: vi.fn(),
-    activeModel: "sonnet",
-    setActiveModel: vi.fn(),
     treeOpen: true,
     setTreeOpen: vi.fn(),
     chatCollapsed: false,
@@ -76,15 +65,16 @@ describe("ExperimentCodeWorkspace", () => {
     useCodeWorkspaceMock.mockReturnValue(createWorkspace());
   });
 
-  it("renders the Codex-like code workspace with selectable AI tools", () => {
+  it("renders the Xiaoyan-native code workspace without tool switcher", () => {
     render(<ExperimentCodeWorkspace experimentId="exp-1" />);
 
     expect(screen.getByText("实验代码")).toBeInTheDocument();
-    expect(screen.getByText("AI 工具")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Claude Code" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Codex" })).toBeInTheDocument();
+    expect(screen.getAllByText("AI 助手").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("小妍代码助手").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("工作面板")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "终端 ⌘J" })).toBeInTheDocument();
-    expect(screen.getByLabelText("终端状态")).toHaveTextContent("Claude Code");
+    expect(screen.getByLabelText("终端状态")).toHaveTextContent("小妍代码助手");
+    // 不再提供本地 AI 工具切换下拉框。
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 });

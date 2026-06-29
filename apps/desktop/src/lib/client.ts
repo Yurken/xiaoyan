@@ -1032,27 +1032,20 @@ export const fieldDynamicsApi = {
     invoke("field_dynamics_mark_read", { id: id ?? null }),
 };
 
-// ── Code（多工具壳）────────────────────────────────────────────
+// ── Code（小妍原生代码助手）────────────────────────────────────
 
 export interface CodeMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  /** 产出该消息的工具/模型（仅 assistant 消息有值）。 */
+  /** @deprecated 历史字段，代码助手不再依赖外部工具。 */
   tool_id?: string | null;
+  /** @deprecated 历史字段，代码助手直接使用小妍设置中的模型。 */
   model?: string | null;
   created_at: string;
 }
 
 export interface CodeSession extends ExperimentCodeSession {}
-
-export interface CodeToolStatus {
-  id: string;
-  label: string;
-  installed: boolean;
-  binary_path: string | null;
-  version: string | null;
-}
 
 export interface DirEntry {
   name: string;
@@ -1063,14 +1056,9 @@ export interface DirEntry {
 export interface CodeUpdateSessionInput {
   title?: string;
   workingDir?: string;
-  toolId?: string;
-  model?: string;
 }
 
 export const codeApi = {
-  detectTools: (): Promise<{ tools: CodeToolStatus[] }> =>
-    invoke("code_detect_tools"),
-
   listDir: (path: string): Promise<{ entries: DirEntry[] }> =>
     invoke("code_list_dir", { path }),
 
@@ -1095,16 +1083,14 @@ export const codeApi = {
   sendMessage: (
     sessionId: string,
     content: string,
-    toolId: string,
-    model?: string,
     workingDir?: string,
+    currentFile?: string,
   ): Promise<void> =>
     invoke("code_send_message", {
       sessionId,
       content,
-      toolId,
-      model: model ?? null,
       workingDir: workingDir ?? null,
+      currentFile: currentFile ?? null,
     }),
 
   setExperimentId: (experimentId: string) => {
@@ -1117,8 +1103,6 @@ export const codeApi = {
       sessionId,
       title: input.title ?? null,
       workingDir: input.workingDir ?? null,
-      toolId: input.toolId ?? null,
-      model: input.model ?? null,
     }),
 };
 

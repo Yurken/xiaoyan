@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
@@ -7,10 +7,8 @@ import {
   formatErrorMessage,
   type CodeSession,
   type CodeMessage,
-  type CodeToolStatus,
 } from "../../lib/client";
 import { useCodeFileSystem } from "./useCodeFileSystem";
-import { CODE_TOOLS } from "./shared";
 import type { OpenFile } from "./shared";
 
 interface StreamEvent {
@@ -24,22 +22,12 @@ interface DoneEvent {
   request_id: string;
   message_id: string;
   full_content: string;
-  tool_id: string;
-  model: string | null;
 }
 
 interface ErrorEvent {
   session_id: string;
   request_id: string;
   error: string;
-}
-
-/** 按 CODE_TOOLS 顺序挑选第一个已安装的工具作为默认。 */
-function pickDefaultTool(tools: CodeToolStatus[]): string | null {
-  for (const def of CODE_TOOLS) {
-    if (tools.find((t) => t.id === def.id && t.installed)) return def.id;
-  }
-  return tools.find((t) => t.installed)?.id ?? null;
 }
 
 export function useCodeWorkspace(experimentId: string) {
@@ -61,18 +49,11 @@ export function useCodeWorkspace(experimentId: string) {
   const [input, setInput] = useState("");
   const [toast, setToast] = useState("");
 
-  // ── Tools / model ────────────────────────────────────────────
-  const [tools, setTools] = useState<CodeToolStatus[]>([]);
-  const [toolsLoaded, setToolsLoaded] = useState(false);
-  const [activeTool, setActiveToolState] = useState<string | null>(null);
-  const [activeModel, setActiveModel] = useState("");
-
   const streamingRef = useRef("");
   const unlistenersRef = useRef<UnlistenFn[]>([]);
   const selectedIdRef = useRef<string | null>(null);
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
-  const anyToolInstalled = useMemo(() => tools.some((t) => t.installed), [tools]);
 
   // ── UI ───────────────────────────────────────────────────────
   const [treeOpen, setTreeOpen] = useState(true);
@@ -101,14 +82,14 @@ export function useCodeWorkspace(experimentId: string) {
 
       const unlistenDone = await listen<DoneEvent>("code:done", (event) => {
         if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
-        const { session_id, message_id, full_content, tool_id, model } = event.payload;
+        const { session_id, message_id, full_content } = event.payload;
 
         const assistantMsg: CodeMessage = {
           id: message_id,
           role: "assistant",
           content: full_content,
-          tool_id,
-          model,
+          tool_id: null,
+          model: null,
           created_at: new Date().toISOString(),
         };
 
@@ -118,8 +99,6 @@ export function useCodeWorkspace(experimentId: string) {
               ? {
                   ...s,
                   messages: [...s.messages, assistantMsg],
-                  tool_id,
-                  model,
                   updated_at: new Date().toISOString(),
                 }
               : s,
@@ -148,19 +127,6 @@ export function useCodeWorkspace(experimentId: string) {
       unlistenersRef.current.forEach((fn) => fn());
       unlistenersRef.current = [];
     };
-  }, []);
-
-  // ── Detect tools ─────────────────────────────────────────────
-  useEffect(() => {
-    codeApi
-      .detectTools()
-      .then((result) => {
-        const list = result.tools ?? [];
-        setTools(list);
-        setActiveToolState((cur) => cur ?? pickDefaultTool(list));
-      })
-      .catch(() => setTools([]))
-      .finally(() => setToolsLoaded(true));
   }, []);
 
   // 恢复持久化的工作目录：优先使用 localStorage，否则回退到 experiment 的 defaultWorkingDir。
@@ -203,35 +169,6 @@ export function useCodeWorkspace(experimentId: string) {
     setChatLoading(true);
     loadSessions().finally(() => setChatLoading(false));
   }, [loadSessions]);
-
-  // ── Tool / model selection ───────────────────────────────────
-  const persistSelection = useCallback(
-    (toolId: string | null, model: string) => {
-      if (!selectedId) return;
-      void codeApi
-        .updateSession(selectedId, { toolId: toolId ?? undefined, model })
-        .catch(() => {});
-    },
-    [selectedId],
-  );
-
-  const setActiveTool = useCallback(
-    (toolId: string) => {
-      // 切换工具时重置模型为「默认」，因为模型与工具一一对应。
-      setActiveToolState(toolId);
-      setActiveModel("");
-      persistSelection(toolId, "");
-    },
-    [persistSelection],
-  );
-
-  const changeActiveModel = useCallback(
-    (model: string) => {
-      setActiveModel(model);
-      persistSelection(activeTool, model);
-    },
-    [activeTool, persistSelection],
-  );
 
   // ── Working directory ────────────────────────────────────────
   async function chooseWorkingDir() {
@@ -306,25 +243,11 @@ export function useCodeWorkspace(experimentId: string) {
     if (session.working_dir) {
       void applyWorkingDir(session.working_dir);
     }
-    // 恢复该会话最近使用、且当前仍安装的工具/模型。
-    if (session.tool_id && tools.find((t) => t.id === session.tool_id && t.installed)) {
-      setActiveToolState(session.tool_id);
-      setActiveModel(session.model ?? "");
-    }
   }
 
   // ── Send ─────────────────────────────────────────────────────
   async function handleSend() {
     if (!input.trim() || sending) return;
-    if (!activeTool) {
-      showToast("未检测到可用的代码工具，请先在本机安装。");
-      return;
-    }
-    const toolStatus = tools.find((t) => t.id === activeTool);
-    if (!toolStatus?.installed) {
-      showToast("当前工具未安装，请切换到已安装的工具。");
-      return;
-    }
 
     // 没有会话时自动新建一个，保证「选目录 → 输入 → 发送」开箱即用。
     let targetId = selectedId;
@@ -347,9 +270,6 @@ export function useCodeWorkspace(experimentId: string) {
     streamingRef.current = "";
     setStreamingContent("");
 
-    // 若打开了文件，附带当前文件名作为上下文提示。
-    const effectiveContent = openFile ? `[当前文件: ${openFile.name}]\n\n${content}` : content;
-
     const userMsg: CodeMessage = {
       id: `temp-${Date.now()}`,
       role: "user",
@@ -367,10 +287,9 @@ export function useCodeWorkspace(experimentId: string) {
     try {
       await codeApi.sendMessage(
         targetId,
-        effectiveContent,
-        activeTool,
-        activeModel || undefined,
+        content,
         workingDir ?? undefined,
+        openFile?.name ?? undefined,
       );
     } catch (err) {
       showToast(formatErrorMessage(err));
@@ -404,15 +323,6 @@ export function useCodeWorkspace(experimentId: string) {
     handleCreateSession,
     handleDeleteSession,
     handleSend,
-
-    // Tools / model
-    tools,
-    toolsLoaded,
-    anyToolInstalled,
-    activeTool,
-    setActiveTool,
-    activeModel,
-    setActiveModel: changeActiveModel,
 
     // UI
     treeOpen,

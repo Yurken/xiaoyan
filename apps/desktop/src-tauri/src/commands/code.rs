@@ -1,5 +1,7 @@
-//! 代码功能 Tauri 命令层。文件系统命令与会话 CRUD 都是工具无关的；
-//! `code_send_message` 负责用选定工具+模型在工作目录下跑一轮对话。
+//! 代码功能 Tauri 命令层。
+//!
+//! 所有命令均围绕「小妍原生代码助手」工作区：文件系统、会话 CRUD、
+//! 以及基于小妍 LLM 设置的流式代码对话。
 
 use crate::code;
 use crate::state::AppState;
@@ -70,13 +72,6 @@ pub async fn code_write_file(path: String, content: String) -> Result<(), String
     Ok(())
 }
 
-/// 探测本机已安装的代码工具。
-#[tauri::command]
-pub async fn code_detect_tools() -> Result<serde_json::Value, String> {
-    let tools = code::tools::detect_all().await;
-    Ok(json!({ "tools": tools }))
-}
-
 #[tauri::command]
 pub async fn code_list_sessions(
     state: State<'_, AppState>,
@@ -129,16 +124,14 @@ pub async fn code_update_session(
     session_id: String,
     title: Option<String>,
     working_dir: Option<String>,
-    tool_id: Option<String>,
-    model: Option<String>,
 ) -> Result<(), String> {
     code::store::update_session(
         &state.db,
         &session_id,
         title.as_deref(),
         working_dir.as_deref(),
-        tool_id.as_deref(),
-        model.as_deref(),
+        None,
+        None,
     )
     .await
     .map_err(|e| e.to_string())
@@ -150,29 +143,21 @@ pub async fn code_send_message(
     state: State<'_, AppState>,
     session_id: String,
     content: String,
-    tool_id: String,
-    model: Option<String>,
     working_dir: Option<String>,
+    current_file: Option<String>,
 ) -> Result<(), String> {
     if content.trim().is_empty() {
         return Err("消息不能为空".into());
     }
 
     let db = state.db.clone();
-
-    // 工作目录：显式参数 > HOME。
-    let effective_dir = working_dir.or_else(|| {
-        std::env::var("HOME")
-            .ok()
-            .or_else(|| std::env::var("USERPROFILE").ok())
-    });
+    let settings = state.settings.read().await.clone();
 
     code::store::maybe_autotitle(&db, &session_id, &content).await;
 
     // fire-and-forget，流式结果走事件回传。
     tauri::async_runtime::spawn(async move {
-        code::send_message_stream(app, db, session_id, content, effective_dir, tool_id, model)
-            .await;
+        code::send_message_stream(app, db, settings, session_id, content, working_dir, current_file).await;
     });
 
     Ok(())

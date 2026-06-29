@@ -21,7 +21,6 @@ import { useCodeWorkspace } from "../code/useCodeWorkspace";
 import CodeFileTree from "../code/CodeFileTree";
 import CodeEditor from "../code/CodeEditor";
 import CodeChatPanel from "../code/CodeChatPanel";
-import CodeToolSwitcher from "../code/CodeToolSwitcher";
 import { codeToolLabel } from "../code/shared";
 
 interface ExperimentCodeWorkspaceProps {
@@ -44,7 +43,7 @@ export function ExperimentCodeWorkspace({ experimentId, onActiveSessionChange }:
     setPendingDeleteId(null);
   }
 
-  const activeToolLabel = codeToolLabel(ws.activeTool) || "未选择工具";
+  const assistantLabel = "小妍代码助手";
   const workspaceName = ws.workingDir
     ? ws.workingDir.split(/[/\\]/).pop() || ws.workingDir
     : "未选择工作目录";
@@ -152,7 +151,7 @@ export function ExperimentCodeWorkspace({ experimentId, onActiveSessionChange }:
           <div className="code-sidebar__project-title">{workspaceName}</div>
           <div className="code-sidebar__project-meta">
             <GitBranch size={12} />
-            <span>实验分支 · {activeToolLabel}</span>
+            <span>实验分支 · {assistantLabel}</span>
           </div>
         </div>
       </aside>
@@ -176,16 +175,12 @@ export function ExperimentCodeWorkspace({ experimentId, onActiveSessionChange }:
           <section className="code-codex-tool-card code-codex-tool-card--primary">
             <div className="code-codex-tool-card__title">
               <Bot size={15} />
-              <span>AI 工具</span>
+              <span>AI 助手</span>
             </div>
-            <CodeToolSwitcher
-              tools={ws.tools}
-              toolsLoaded={ws.toolsLoaded}
-              activeTool={ws.activeTool}
-              onSelectTool={ws.setActiveTool}
-              activeModel={ws.activeModel}
-              onModelChange={ws.setActiveModel}
-            />
+            <div className="code-codex-assistant-info">
+              <span className="code-codex-assistant-name">{assistantLabel}</span>
+              <span className="code-codex-assistant-desc">直接复用小妍设置中的模型</span>
+            </div>
           </section>
 
           <section className="code-codex-tool-card">
@@ -267,7 +262,7 @@ export function ExperimentCodeWorkspace({ experimentId, onActiveSessionChange }:
           <div className="code-codex-terminal__body">
             <span className="code-codex-terminal__path">~/ {ws.workingDir ?? "请选择工作目录"}</span>
             <span className="code-codex-terminal__branch">本地工作区</span>
-            <span className="code-codex-terminal__tool">{activeToolLabel}</span>
+            <span className="code-codex-terminal__tool">{assistantLabel}</span>
             <span className={`code-codex-terminal__prompt ${ws.sending ? "is-running" : ""}`}>›</span>
           </div>
         </div>

@@ -104,9 +104,9 @@ use commands::{
         paper_corpus_create, paper_corpus_delete, paper_corpus_list, paper_corpus_update,
     },
     code::{
-        code_create_session, code_delete_session, code_detect_tools, code_get_session,
-        code_list_dir, code_list_sessions, code_read_file, code_send_message,
-        code_update_session, code_write_file,
+        code_create_session, code_delete_session, code_get_session, code_list_dir,
+        code_list_sessions, code_read_file, code_send_message, code_update_session,
+        code_write_file,
     },
     paper_cross_analysis::papers_cross_analysis,
     paper_figures::papers_list_figures,
@@ -648,7 +648,6 @@ pub fn run() {
             // Code（多工具壳）
             code_create_session,
             code_delete_session,
-            code_detect_tools,
             code_get_session,
             code_list_dir,
             code_list_sessions,

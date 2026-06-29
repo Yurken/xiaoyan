@@ -1,22 +1,18 @@
-//! 代码功能后端 — 把用户本地已安装的各类 code CLI 统一成「壳」，
-//! 在同一工作目录下可自由切换工具与模型继续对话。
+//! 代码功能后端 —— 小妍原生代码助手。
 //!
-//! 设计要点：
-//! - 仅调用本地工具自身的鉴权/模型配置，**不使用**小妍配置的 API。
-//! - 每轮对话以非交互（headless）方式 spawn 选定工具，流式回传 stdout。
-//! - 会话记录仅落盘本地（见 [`store`]），不参与多平台同步。
+//! 不再调用用户本机安装的各类 code CLI，而是直接复用小妍设置里配置好的 LLM，
+//! 在工作目录上下文中与用户进行代码对话。当前为 MVP 阶段：提供代码建议、解释、
+//! 重构思路，暂不提供自动文件修改/命令执行等 Agent 工具能力。
 
 pub mod store;
-pub mod tools;
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use std::path::PathBuf;
-use std::process::Stdio;
+use std::collections::HashMap;
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::process::Command;
 use uuid::Uuid;
+
+use crate::llm::{LlmClient, LlmMessage, resolve_model, resolve_temperature_chain};
 
 use store::now;
 
@@ -28,9 +24,9 @@ pub struct CodeSession {
     pub experiment_id: String,
     pub title: String,
     pub working_dir: Option<String>,
-    /// 最近使用的工具 id。
+    /// 历史字段，保留以兼容旧数据，不再写入新值。
     pub tool_id: Option<String>,
-    /// 最近使用的模型（空表示工具自带默认）。
+    /// 历史字段，保留以兼容旧数据，不再写入新值。
     pub model: Option<String>,
     pub messages: Vec<CodeMessage>,
     pub created_at: String,
@@ -42,7 +38,7 @@ pub struct CodeMessage {
     pub id: String,
     pub role: String,
     pub content: String,
-    /// 产出该消息的工具（仅 assistant 消息有值）。
+    /// 历史字段，保留以兼容旧数据。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -65,8 +61,6 @@ struct DoneEvent {
     request_id: String,
     message_id: String,
     full_content: String,
-    tool_id: String,
-    model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -78,17 +72,16 @@ struct ErrorEvent {
 
 // ── 核心：发送一轮消息并流式返回 ──────────────────────────────
 
-/// 用选定工具+模型在 `working_dir` 下执行一轮对话。fire-and-forget，
-/// 结果通过 `code:stream` / `code:done` / `code:error` 事件回传。
-#[allow(clippy::too_many_arguments)]
+/// 使用小妍设置中的 LLM 在 `working_dir` 上下文中执行一轮代码对话。
+/// fire-and-forget，结果通过 `code:stream` / `code:done` / `code:error` 事件回传。
 pub async fn send_message_stream(
     app: AppHandle,
     db: SqlitePool,
+    settings: HashMap<String, String>,
     session_id: String,
     content: String,
     working_dir: Option<String>,
-    tool_id: String,
-    model: Option<String>,
+    current_file: Option<String>,
 ) {
     let request_id = Uuid::new_v4().to_string();
 
@@ -105,32 +98,66 @@ pub async fn send_message_stream(
         crate::append_diagnostic_log(&format!("code: persist user msg error: {e}"));
     }
 
-    // 2. 解析工具与二进制
-    let Some(spec) = tools::spec(&tool_id) else {
-        emit_error(&app, &session_id, &request_id, format!("未知的代码工具：{tool_id}"));
-        return;
+    // 2. 构建 LLM 客户端
+    let client = match LlmClient::from_settings(&settings) {
+        Ok(c) => c,
+        Err(e) => {
+            emit_error(&app, &session_id, &request_id, format!("LLM 配置错误：{e}"));
+            return;
+        }
     };
-    let Some(binary) = tools::find_in_path(spec.bin) else {
-        emit_error(
-            &app,
-            &session_id,
-            &request_id,
-            format!("未检测到 {}，请先在本机安装并配置该工具。", spec.label),
-        );
-        return;
+    let model = resolve_model(&settings, &["code_assistant_model", "copilot_simple_model", "paper_analysis_model"]);
+    let temperature = resolve_temperature_chain(&settings, &["code_assistant_temperature", "copilot_simple_temperature"], 0.3);
+
+    // 3. 组装消息上下文
+    let session = match store::get_session(&db, &session_id).await {
+        Ok(s) => s,
+        Err(e) => {
+            emit_error(&app, &session_id, &request_id, format!("读取会话失败：{e}"));
+            return;
+        }
     };
 
-    // 3. 执行并流式回传
-    let run = tools::build_run_spec(&tool_id, &binary, &content, model.as_deref());
-    match run_stream(&app, &session_id, &request_id, run, working_dir.as_deref()).await {
+    let system_prompt = build_code_system_prompt(working_dir.as_deref(), current_file.as_deref());
+    let mut messages = vec![LlmMessage::system(system_prompt)];
+
+    // 只保留最近若干轮对话作为上下文，避免 token 爆炸。
+    const MAX_CONTEXT_MESSAGES: usize = 20;
+    let history_start = session.messages.len().saturating_sub(MAX_CONTEXT_MESSAGES);
+    for msg in &session.messages[history_start..] {
+        if msg.role == "user" {
+            messages.push(LlmMessage::user(msg.content.clone()));
+        } else if msg.role == "assistant" {
+            messages.push(LlmMessage::assistant(msg.content.clone()));
+        }
+    }
+
+    // 4. 流式调用并回传
+    let app_for_delta = app.clone();
+    let sid_for_delta = session_id.clone();
+    let rid_for_delta = request_id.clone();
+
+    let result = client
+        .stream_chat(&messages, model.as_deref(), temperature, move |delta| {
+            let _ = app_for_delta.emit(
+                "code:stream",
+                StreamEvent {
+                    session_id: sid_for_delta.clone(),
+                    request_id: rid_for_delta.clone(),
+                    chunk: delta,
+                },
+            );
+        })
+        .await;
+
+    match result {
         Ok(full) => {
-            let cleaned = strip_ansi_codes(&full);
             let assistant_msg = CodeMessage {
                 id: Uuid::new_v4().to_string(),
                 role: "assistant".to_string(),
-                content: cleaned.clone(),
-                tool_id: Some(tool_id.clone()),
-                model: model.clone().filter(|m| !m.trim().is_empty()),
+                content: full.clone(),
+                tool_id: None,
+                model: model.clone(),
                 created_at: now(),
             };
             let _ = store::persist_message(&db, &session_id, &assistant_msg).await;
@@ -140,13 +167,11 @@ pub async fn send_message_stream(
                     session_id,
                     request_id,
                     message_id: assistant_msg.id,
-                    full_content: cleaned,
-                    tool_id,
-                    model: assistant_msg.model,
+                    full_content: full,
                 },
             );
         }
-        Err(e) => emit_error(&app, &session_id, &request_id, format!("{e}")),
+        Err(e) => emit_error(&app, &session_id, &request_id, format!("LLM 调用失败：{e}")),
     }
 }
 
@@ -161,90 +186,29 @@ fn emit_error(app: &AppHandle, session_id: &str, request_id: &str, error: String
     );
 }
 
-/// 以子进程流式执行一次工具调用，返回完整 stdout（未清理）。
-async fn run_stream(
-    app: &AppHandle,
-    session_id: &str,
-    request_id: &str,
-    run: tools::RunSpec,
-    working_dir: Option<&str>,
-) -> anyhow::Result<String> {
-    let mut cmd = Command::new(&run.program);
-    cmd.args(&run.args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .stdin(if run.stdin.is_some() { Stdio::piped() } else { Stdio::null() })
-        .env("NO_COLOR", "1")
-        .env("TERM", "dumb")
-        .kill_on_drop(true);
+/// 构建代码助手的 system prompt，注入工作目录与当前文件上下文。
+fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str>) -> String {
+    let dir_line = working_dir
+        .map(|d| format!("当前工作目录：{d}"))
+        .unwrap_or_else(|| "当前未选择工作目录。".to_string());
+    let file_line = current_file
+        .map(|f| format!("用户当前打开的文件：{f}"))
+        .unwrap_or_else(|| "用户当前没有打开特定文件。".to_string());
 
-    if let Some(dir) = working_dir {
-        let path = PathBuf::from(dir);
-        if path.is_dir() {
-            cmd.current_dir(&path);
-        }
-    }
-
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| anyhow::anyhow!("无法启动 {}：{e}", run.program))?;
-
-    // 需要时把提示词写入 stdin 后关闭，让工具读到 EOF。
-    if let Some(input) = run.stdin {
-        if let Some(mut stdin) = child.stdin.take() {
-            let _ = stdin.write_all(input.as_bytes()).await;
-            let _ = stdin.shutdown().await;
-        }
-    }
-
-    let mut stdout = child.stdout.take().ok_or_else(|| anyhow::anyhow!("no stdout"))?;
-    let mut full = String::new();
-    let mut buf = [0u8; 4096];
-
-    loop {
-        let n = stdout.read(&mut buf).await?;
-        if n == 0 {
-            break;
-        }
-        let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
-        full.push_str(&chunk);
-        // 流式片段做一次 best-effort 清理（NO_COLOR 下多数工具已无 ANSI）。
-        let _ = app.emit(
-            "code:stream",
-            StreamEvent {
-                session_id: session_id.to_string(),
-                request_id: request_id.to_string(),
-                chunk: strip_ansi_codes(&chunk),
-            },
-        );
-    }
-
-    let status = child.wait().await?;
-    if !status.success() {
-        let mut stderr_buf = Vec::new();
-        if let Some(mut stderr) = child.stderr.take() {
-            let _ = stderr.read_to_end(&mut stderr_buf).await;
-        }
-        let stderr_text = String::from_utf8_lossy(&stderr_buf);
-        let trimmed = stderr_text.trim();
-        if !trimmed.is_empty() {
-            anyhow::bail!("工具执行出错：{trimmed}");
-        }
-        anyhow::bail!("工具异常退出（状态码 {status}）");
-    }
-
-    Ok(full)
-}
-
-// ── 工具函数 ──────────────────────────────────────────────────
-
-/// 去除 ANSI 转义序列。
-fn strip_ansi_codes(s: &str) -> String {
-    let re = regex::Regex::new(
-        r"\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[()][AB012]|\x1b\[[\?]?[0-9;]*[hlm]",
+    format!(
+        "你是小妍代码助手，一位面向科研实验场景的编程助手。你帮助用户理解、编写、调试和重构代码。\n\
+        \n\
+        当前上下文：\n\
+        - {dir_line}\n\
+        - {file_line}\n\
+        \n\
+        请遵循以下原则：\n\
+        1. 回答简洁、准确，优先给出可运行的代码或清晰的修改建议。\n\
+        2. 如需修改文件，请在回复中给出完整的 diff 或代码块，并说明应放到哪个路径。\n\
+        3. 不要主动执行任何命令或写入文件；当前阶段只提供建议。\n\
+        4. 使用 Markdown 格式化代码块，必要时用中文注释说明关键步骤。\n\
+        5. 如果用户问题与当前文件或工作目录有关，请结合上下文作答，不要编造文件内容。"
     )
-    .expect("invalid ANSI regex");
-    re.replace_all(s, "").to_string()
 }
 
 #[cfg(test)]
@@ -252,9 +216,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_strip_ansi_codes() {
-        assert_eq!(strip_ansi_codes("\x1b[32mhello\x1b[0m"), "hello");
-        assert_eq!(strip_ansi_codes("no codes here"), "no codes here");
-        assert_eq!(strip_ansi_codes("\x1b[1;34mblue bold\x1b[0m end"), "blue bold end");
+    fn test_build_code_system_prompt_contains_context() {
+        let prompt = build_code_system_prompt(Some("/tmp/project"), Some("main.py"));
+        assert!(prompt.contains("/tmp/project"));
+        assert!(prompt.contains("main.py"));
+        assert!(prompt.contains("小妍代码助手"));
     }
 }
