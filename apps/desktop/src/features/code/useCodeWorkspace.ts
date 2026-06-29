@@ -87,23 +87,48 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   const [currentModel, setCurrentModel] = useState<string>("");
   const [modelOptions, setModelOptions] = useState<CodeModelOption[]>([]);
   const [activeModelOptionId, setActiveModelOptionId] = useState("");
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState("");
+
+  const loadModelOptions = useCallback(async (provider: AppSettings["llm_provider"], settings: AppSettings) => {
+    setModelsLoading(true);
+    setModelsError("");
+    try {
+      const remoteModels = await settingsApi.listModels(settings);
+      const options: CodeModelOption[] = remoteModels.map((model) => ({
+        id: `${provider}:${model}`,
+        provider,
+        providerLabel: providerLabelForProvider(provider),
+        model,
+        label: model,
+      }));
+      setModelOptions(options);
+
+      const current = resolveCurrentModel(settings);
+      const matchId = options.find((o) => o.model === current)?.id ?? options[0]?.id ?? "";
+      setCurrentModel(current || (options[0]?.model ?? ""));
+      setActiveModelOptionId(matchId);
+    } catch (err) {
+      setModelsError(formatErrorMessage(err));
+      // Fallback: build from settings keys if API list fails
+      const options = buildCodeModelOptions(settings);
+      setModelOptions(options);
+      const current = resolveCurrentModel(settings);
+      setCurrentModel(current || (options[0]?.model ?? ""));
+      setActiveModelOptionId(options.find((o) => o.model === current)?.id ?? options[0]?.id ?? "");
+    } finally {
+      setModelsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     settingsApi
       .get()
       .then((settings) => {
-        applySettingsModelState(settings);
+        loadModelOptions(settings.llm_provider, settings);
       })
       .catch(() => setCurrentModel(""));
-  }, []);
-
-  function applySettingsModelState(settings: AppSettings) {
-    const options = buildCodeModelOptions(settings);
-    const active = optionIdForProvider(settings.llm_provider, resolveCurrentModel(settings));
-    setCurrentModel(resolveCurrentModel(settings));
-    setModelOptions(options);
-    setActiveModelOptionId(active);
-  }
+  }, [loadModelOptions]);
 
   async function changeModelOption(optionId: string) {
     const option = modelOptions.find((item) => item.id === optionId);
@@ -112,11 +137,13 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     setCurrentModel(option.model);
     setActiveModelOptionId(option.id);
 
-    const modelKey = modelKeyForProvider(option.provider);
     try {
       await settingsApi.update({
         llm_provider: option.provider,
-        [modelKey]: option.model,
+        [modelKeyForProvider(option.provider)]: option.model,
+        // Also sync to the code reproduction role so 构域 stays in sync
+        paper_reproduction_model: option.model,
+        multi_agent_reproduction_model: option.model,
       });
     } catch (err) {
       showToast(formatErrorMessage(err));
@@ -395,7 +422,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   }
 
   // ── Send ─────────────────────────────────────────────────────
-  async function handleSend() {
+  async function handleSend(skillPrompt?: string) {
     if (!input.trim() || sending) return;
 
     // 没有会话时自动新建一个，保证「选目录 → 输入 → 发送」开箱即用。
@@ -413,7 +440,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       }
     }
 
-    const content = input.trim();
+    const rawContent = input.trim();
+    const content = skillPrompt ? `${skillPrompt}\n\n---\n\n${rawContent}` : rawContent;
     setInput("");
     setSending(true);
     streamingRef.current = "";
@@ -422,7 +450,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     const userMsg: CodeMessage = {
       id: `temp-${Date.now()}`,
       role: "user",
-      content,
+      content: rawContent,
       created_at: new Date().toISOString(),
     };
     setSessions((prev) =>
@@ -478,6 +506,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     modelOptions,
     activeModelOptionId,
     changeModelOption,
+    modelsLoading,
+    modelsError,
 
     // UI
     treeOpen,
@@ -490,42 +520,41 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
 function resolveCurrentModel(settings: AppSettings): string {
   switch (settings.llm_provider) {
     case "openai":
-      return settings.openai_chat_model || "OpenAI";
+      return settings.openai_chat_model;
     case "anthropic":
-      return settings.anthropic_chat_model || "Anthropic";
+      return settings.anthropic_chat_model;
     case "openai_compatible":
-      return settings.openai_compatible_chat_model || "OpenAI Compatible";
+      return settings.openai_compatible_chat_model;
     default:
-      return "小妍";
+      return "";
+  }
+}
+
+function providerLabelForProvider(provider: AppSettings["llm_provider"]): string {
+  switch (provider) {
+    case "openai": return "OpenAI";
+    case "anthropic": return "Anthropic";
+    case "openai_compatible": return "OpenAI-Compatible";
+    default: return provider;
   }
 }
 
 function buildCodeModelOptions(settings: AppSettings): CodeModelOption[] {
-  return [
-    {
-      provider: "openai" as const,
-      providerLabel: "OpenAI",
-      model: settings.openai_chat_model || "gpt-4o-mini",
-    },
-    {
-      provider: "anthropic" as const,
-      providerLabel: "Anthropic",
-      model: settings.anthropic_chat_model || "claude-3-5-haiku-20241022",
-    },
-    {
-      provider: "openai_compatible" as const,
-      providerLabel: "OpenAI-Compatible",
-      model: settings.openai_compatible_chat_model || "deepseek-chat",
-    },
-  ].map((item) => ({
-    ...item,
-    id: optionIdForProvider(item.provider, item.model),
-    label: `${item.providerLabel} · ${item.model}`,
-  }));
-}
+  const candidates: { provider: AppSettings["llm_provider"]; providerLabel: string; model: string }[] = [
+    { provider: "openai", providerLabel: "OpenAI", model: settings.openai_chat_model },
+    { provider: "anthropic", providerLabel: "Anthropic", model: settings.anthropic_chat_model },
+    { provider: "openai_compatible", providerLabel: "OpenAI-Compatible", model: settings.openai_compatible_chat_model },
+  ];
 
-function optionIdForProvider(provider: AppSettings["llm_provider"], model: string): string {
-  return `${provider}:${model}`;
+  return candidates
+    .filter((c) => c.model)
+    .map((item) => ({
+      id: `${item.provider}:${item.model}`,
+      provider: item.provider,
+      providerLabel: item.providerLabel,
+      model: item.model,
+      label: item.model,
+    }));
 }
 
 function modelKeyForProvider(
