@@ -75,8 +75,8 @@ use commands::{
         knowledge_graph_delete_claim, knowledge_graph_delete_evidence, knowledge_graph_snapshot,
     },
     knowledge_notes::{
-        knowledge_create_note, knowledge_delete_note, knowledge_list_notes, knowledge_move_note,
-        knowledge_search, knowledge_update_note,
+        knowledge_create_note, knowledge_delete_note, knowledge_import_zip, knowledge_list_notes,
+        knowledge_move_note, knowledge_search, knowledge_update_note,
     },
     memory::{
         memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list,
@@ -516,6 +516,7 @@ pub fn run() {
             knowledge_move_note,
             knowledge_delete_note,
             knowledge_search,
+            knowledge_import_zip,
             knowledge_graph_snapshot,
             knowledge_graph_create_claim,
             knowledge_graph_delete_claim,

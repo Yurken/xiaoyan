@@ -6,9 +6,11 @@ use crate::commands::memory::{
 use crate::llm::LlmClient;
 use crate::rag::{combined_search, serialize_embedding};
 use crate::state::AppState;
+use regex::Regex;
 use serde_json::json;
 use sqlx::Row;
-use tauri::State;
+use std::path::{Path, PathBuf};
+use tauri::{Manager, State};
 use uuid::Uuid;
 
 fn note_embedding_text(title: &str, content: &str) -> String {
@@ -399,4 +401,285 @@ pub async fn knowledge_search(
             "score": result.score
         }))
         .collect::<Vec<_>>()))
+}
+
+// ── Markdown/Zip import helpers ──────────────────────────────────
+
+#[derive(Debug, Default, serde::Deserialize)]
+struct NoteFrontmatter {
+    title: Option<String>,
+    tags: Option<Vec<String>>,
+}
+
+fn parse_frontmatter(content: &str) -> (NoteFrontmatter, &str) {
+    let trimmed = content.trim_start();
+    if !trimmed.starts_with("---") {
+        return (NoteFrontmatter::default(), content);
+    }
+    let after_first = &trimmed[3..];
+    let Some(pos) = after_first.find("\n---") else {
+        return (NoteFrontmatter::default(), content);
+    };
+    let yaml_text = &after_first[..pos];
+    let rest = &after_first[pos + 4..];
+    let body = rest.strip_prefix('\n').unwrap_or(rest);
+    let frontmatter: NoteFrontmatter =
+        serde_yaml::from_str(yaml_text).unwrap_or_else(|_| NoteFrontmatter::default());
+    (frontmatter, body)
+}
+
+fn is_markdown_file_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".md") || lower.ends_with(".markdown")
+}
+
+fn file_stem_from_path(path: &str) -> String {
+    Path::new(path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "imported-note".to_string())
+}
+
+fn sanitize_asset_file_name(name: &str) -> String {
+    let mut out = String::new();
+    for ch in name.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '.' || ch == '_' || ch == '-' {
+            out.push(ch);
+        } else {
+            out.push('_');
+        }
+    }
+    out
+}
+
+fn extract_zip_archive(zip_path: &Path, dest_dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let file = std::fs::File::open(zip_path).map_err(|e| format!("无法打开压缩包：{e}"))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| format!("无法解析压缩包：{e}"))?;
+
+    let mut md_files = Vec::new();
+
+    for i in 0..archive.len() {
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| format!("读取压缩包条目失败：{e}"))?;
+        let raw_name = entry.name().replace("\\", "/");
+        if raw_name.contains("..") || raw_name.starts_with('/') {
+            continue;
+        }
+        let out_path = dest_dir.join(&raw_name);
+        if entry.is_dir() {
+            std::fs::create_dir_all(&out_path)
+                .map_err(|e| format!("创建解压目录失败：{e}"))?;
+            continue;
+        }
+        if let Some(parent) = out_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("创建解压目录失败：{e}"))?;
+        }
+        let mut out_file = std::fs::File::create(&out_path)
+            .map_err(|e| format!("创建解压文件失败：{e}"))?;
+        std::io::copy(&mut entry, &mut out_file)
+            .map_err(|e| format!("解压文件失败：{e}"))?;
+
+        if is_markdown_file_name(&raw_name) {
+            md_files.push(out_path);
+        }
+    }
+
+    Ok(md_files)
+}
+
+fn collect_image_refs(content: &str) -> Vec<(String, usize, usize)> {
+    let mut refs = Vec::new();
+    let md_re = Regex::new(r#"!\[[^\]]*\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)"#).unwrap();
+    let html_re = Regex::new(r#"<img[^>]+src=["']([^"']+)["'][^>]*>"#).unwrap();
+    for cap in md_re.captures_iter(content) {
+        let m = cap.get(1).unwrap();
+        refs.push((m.as_str().to_string(), m.start(), m.end()));
+    }
+    for cap in html_re.captures_iter(content) {
+        let m = cap.get(1).unwrap();
+        refs.push((m.as_str().to_string(), m.start(), m.end()));
+    }
+    refs.sort_by_key(|r| r.1);
+    refs
+}
+
+fn is_remote_or_absolute_path(src: &str) -> bool {
+    src.starts_with("http://")
+        || src.starts_with("https://")
+        || src.starts_with("file://")
+        || src.starts_with('/')
+        || src.starts_with('\\')
+        || src.starts_with("xynoteasset://")
+}
+
+fn rewrite_image_refs(
+    content: &str,
+    md_dir: &Path,
+    note_assets_dir: &Path,
+    note_id: &str,
+    extracted_root: &Path,
+) -> Result<(String, Vec<(String, String)>), String> {
+    let refs = collect_image_refs(content);
+    if refs.is_empty() {
+        return Ok((content.to_string(), Vec::new()));
+    }
+
+    std::fs::create_dir_all(note_assets_dir)
+        .map_err(|e| format!("无法创建笔记资源目录：{e}"))?;
+
+    let mut assets: Vec<(String, String)> = Vec::new();
+    let mut rewritten = String::with_capacity(content.len());
+    let mut last_end = 0;
+
+    for (src, start, end) in refs {
+        rewritten.push_str(&content[last_end..start]);
+        if is_remote_or_absolute_path(&src) {
+            rewritten.push_str(&src);
+            last_end = end;
+            continue;
+        }
+
+        let resolved_path = match md_dir.join(&src).canonicalize() {
+            Ok(p) if p.is_file() && p.starts_with(extracted_root) => p,
+            _ => match extracted_root.join(&src).canonicalize() {
+                Ok(p) if p.is_file() && p.starts_with(extracted_root) => p,
+                _ => {
+                    rewritten.push_str(&src);
+                    last_end = end;
+                    continue;
+                }
+            },
+        };
+
+        let file_name = resolved_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("asset");
+        let safe_name = sanitize_asset_file_name(file_name);
+        let unique_name = if assets.iter().any(|(name, _)| name == &safe_name) {
+            let short = &Uuid::new_v4().to_string()[..8];
+            format!("{short}-{safe_name}")
+        } else {
+            safe_name
+        };
+
+        let dest = note_assets_dir.join(&unique_name);
+        std::fs::copy(&resolved_path, &dest).map_err(|e| format!("复制图片资源失败：{e}"))?;
+
+        let token = format!("xynoteasset://{note_id}/{unique_name}");
+        assets.push((token.clone(), dest.to_string_lossy().to_string()));
+        rewritten.push_str(&token);
+        last_end = end;
+    }
+    rewritten.push_str(&content[last_end..]);
+
+    Ok((rewritten, assets))
+}
+
+#[tauri::command]
+pub async fn knowledge_import_zip(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    file_path: tauri_plugin_fs::FilePath,
+    research_interest_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let source = file_path
+        .into_path()
+        .map_err(|e| e.to_string())?
+        .canonicalize()
+        .map_err(|e| format!("压缩包路径不可访问：{e}"))?;
+    if !source.is_file() {
+        return Err("请选择一个压缩包文件。".to_string());
+    }
+
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let assets_root = app_data_dir.join("notes_assets");
+    std::fs::create_dir_all(&assets_root)
+        .map_err(|e| format!("无法创建笔记资源目录：{e}"))?;
+
+    let temp_dir = app_data_dir.join(format!("import_zip_temp_{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("无法创建临时解压目录：{e}"))?;
+
+    let extracted_root = temp_dir.clone();
+    let md_files = tauri::async_runtime::spawn_blocking(move || {
+        extract_zip_archive(&source, &extracted_root)
+    })
+    .await
+    .map_err(|e| format!("解压任务异常：{e}"))??;
+
+    if md_files.is_empty() {
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        return Err("压缩包内未找到 Markdown 文件。".to_string());
+    }
+
+    let normalized_interest_id = research_interest_id.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    });
+
+    let settings = state.settings.read().await.clone();
+    let mut imported_notes = Vec::new();
+    let mut errors = Vec::new();
+
+    for md_path in md_files {
+        let text = match tokio::fs::read_to_string(&md_path).await {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(format!("{}：读取失败：{e}", md_path.display()));
+                continue;
+            }
+        };
+        let (frontmatter, body) = parse_frontmatter(&text);
+        let title = frontmatter
+            .title
+            .unwrap_or_else(|| file_stem_from_path(md_path.to_string_lossy().as_ref()));
+        let note_id = Uuid::new_v4().to_string();
+        let note_assets_dir = assets_root.join(&note_id);
+        let md_dir = md_path.parent().unwrap_or(Path::new(&temp_dir));
+        let (content, assets) = match rewrite_image_refs(
+            body,
+            md_dir,
+            &note_assets_dir,
+            &note_id,
+            &temp_dir,
+        ) {
+            Ok(c) => c,
+            Err(e) => {
+                errors.push(format!("{}：处理图片失败：{e}", md_path.display()));
+                continue;
+            }
+        };
+
+        match create_note_core(
+            &state.db,
+            &settings,
+            title,
+            content,
+            frontmatter.tags,
+            normalized_interest_id.clone(),
+            "import_zip",
+        )
+        .await
+        {
+            Ok(note) => imported_notes.push(json!({ "note": note, "assets": assets })),
+            Err(e) => errors.push(format!("{}：创建笔记失败：{e}", md_path.display())),
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+
+    Ok(json!({
+        "imported": imported_notes.len(),
+        "errors": errors,
+        "notes": imported_notes,
+    }))
 }

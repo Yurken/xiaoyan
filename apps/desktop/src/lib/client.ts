@@ -370,6 +370,15 @@ export interface ResearchIdeaSuggestion {
   keywords: string[];
 }
 
+export interface KnowledgeImportZipResult {
+  imported: number;
+  errors: string[];
+  notes: Array<{
+    note: KnowledgeNote;
+    assets: Array<[string, string]>;
+  }>;
+}
+
 export const knowledgeApi = {
   listInterests: (): Promise<ResearchInterest[]> =>
     invoke("knowledge_list_interests"),
@@ -441,6 +450,8 @@ export const knowledgeApi = {
     invoke("knowledge_search", { q, topK }),
   webClip: (url: string, researchInterestId?: string): Promise<KnowledgeNote> =>
     invoke("knowledge_web_clip", { url, researchInterestId: researchInterestId ?? null }),
+  importZip: (filePath: string, researchInterestId?: string): Promise<KnowledgeImportZipResult> =>
+    invoke("knowledge_import_zip", { filePath, researchInterestId: researchInterestId ?? null }),
   graph: {
     snapshot: (): Promise<KnowledgeGraphSnapshot> =>
       invoke("knowledge_graph_snapshot"),

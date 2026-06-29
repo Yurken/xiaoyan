@@ -55,6 +55,8 @@ rand = "0.8"
 regex = "1"
 petgraph = "0.6"
 serde_yaml = "0.9"
+# ZIP archive extraction for note import
+zip = "2"
 # 跨平台系统钥匙串（macOS Keychain / Windows Credential Manager / Linux Secret Service）
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 # 跨平台操作系统类型与版本（用于反馈上报的客户端信息）
