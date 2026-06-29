@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePersistentState } from "../../hooks/usePersistentStringState";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   codeApi,
+  experimentApi,
   formatErrorMessage,
   type CodeSession,
   type CodeMessage,
@@ -43,8 +45,12 @@ function pickDefaultTool(tools: CodeToolStatus[]): string | null {
 export function useCodeWorkspace(experimentId: string) {
   // ── File system ──────────────────────────────────────────────
   const fs = useCodeFileSystem();
-  const [workingDir, setWorkingDir] = useState<string | null>(null);
+  const [workingDir, setWorkingDir] = usePersistentState<string | null>(
+    `rc:experiment:${experimentId}:code:working-dir`,
+    null,
+  );
   const [openFile, setOpenFile] = useState<OpenFile | null>(null);
+  const workingDirRestoredRef = useRef(false);
 
   // ── Chat ─────────────────────────────────────────────────────
   const [sessions, setSessions] = useState<CodeSession[]>([]);
@@ -157,6 +163,32 @@ export function useCodeWorkspace(experimentId: string) {
       .finally(() => setToolsLoaded(true));
   }, []);
 
+  // 恢复持久化的工作目录：优先使用 localStorage，否则回退到 experiment 的 defaultWorkingDir。
+  useEffect(() => {
+    if (workingDirRestoredRef.current) return;
+
+    async function restore() {
+      if (workingDir) {
+        workingDirRestoredRef.current = true;
+        await fs.listDir(workingDir);
+        return;
+      }
+
+      try {
+        const exp = await experimentApi.get(experimentId);
+        if (exp.defaultWorkingDir) {
+          workingDirRestoredRef.current = true;
+          setWorkingDir(exp.defaultWorkingDir);
+          await fs.listDir(exp.defaultWorkingDir);
+        }
+      } catch {
+        // 离线或 experiment 不存在时忽略
+      }
+    }
+
+    void restore();
+  }, [experimentId, workingDir, fs, setWorkingDir]);
+
   // ── Load sessions ────────────────────────────────────────────
   const loadSessions = useCallback(async () => {
     try {
@@ -220,6 +252,7 @@ export function useCodeWorkspace(experimentId: string) {
     if (selectedId) {
       await codeApi.updateSession(selectedId, { workingDir: dir }).catch(() => {});
     }
+    await experimentApi.update(experimentId, { defaultWorkingDir: dir }).catch(() => {});
   }
 
   // ── File operations ──────────────────────────────────────────
