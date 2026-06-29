@@ -2,13 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, userEvent, within } from "../helpers/render";
 import { ExperimentCodeWorkspace } from "../../features/experiment/ExperimentCodeWorkspace";
 
-const { useCodeWorkspaceMock } = vi.hoisted(() => ({
+const { useCodeWorkspaceMock, skillsApiMock } = vi.hoisted(() => ({
   useCodeWorkspaceMock: vi.fn(),
+  skillsApiMock: { list: vi.fn().mockResolvedValue([]) },
 }));
 
 vi.mock("../../features/code/useCodeWorkspace", () => ({
   useCodeWorkspace: useCodeWorkspaceMock,
 }));
+
+vi.mock("../../lib/client", async () => {
+  const actual = await vi.importActual("../../lib/client");
+  return { ...actual, skillsApi: skillsApiMock };
+});
 
 function createWorkspace(overrides: Record<string, unknown> = {}) {
   return {
@@ -59,14 +65,14 @@ function createWorkspace(overrides: Record<string, unknown> = {}) {
         provider: "openai_compatible",
         providerLabel: "OpenAI-Compatible",
         model: "deepseek-chat",
-        label: "OpenAI-Compatible · deepseek-chat",
+        label: "deepseek-chat",
       },
       {
         id: "anthropic:claude-3-5-haiku-20241022",
         provider: "anthropic",
         providerLabel: "Anthropic",
         model: "claude-3-5-haiku-20241022",
-        label: "Anthropic · claude-3-5-haiku-20241022",
+        label: "claude-3-5-haiku-20241022",
       },
     ],
     activeModelOptionId: "openai_compatible:deepseek-chat",
@@ -110,7 +116,7 @@ describe("ExperimentCodeWorkspace", () => {
     expect(screen.getByPlaceholderText(/随便问点什么/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "添加文件" })).toBeInTheDocument();
     expect(screen.getByLabelText("切换模型")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "OpenAI-Compatible · deepseek-chat" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "deepseek-chat" })).toBeInTheDocument();
     expect(screen.queryByText("当前模型")).not.toBeInTheDocument();
 
     // 不再提供旧版工作面板与终端条
