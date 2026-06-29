@@ -206,7 +206,7 @@ impl LlmClient {
                     chat_model: s
                         .get("anthropic_chat_model")
                         .cloned()
-                        .unwrap_or_else(|| "claude-3-5-haiku-20241022".into()),
+                        .unwrap_or_default(),
                 })
             }
             "openai_compatible" => {
@@ -229,7 +229,7 @@ impl LlmClient {
                         chat_model: s
                             .get("openai_compatible_chat_model")
                             .cloned()
-                            .unwrap_or_else(|| "claude-3-5-haiku-20241022".into()),
+                            .unwrap_or_default(),
                     });
                 }
                 Ok(LlmClient::OpenAI {
@@ -238,11 +238,11 @@ impl LlmClient {
                     chat_model: s
                         .get("openai_compatible_chat_model")
                         .cloned()
-                        .unwrap_or_else(|| "deepseek-chat".into()),
+                        .unwrap_or_default(),
                     embed_model: s
                         .get("openai_compatible_embedding_model")
                         .cloned()
-                        .unwrap_or_else(|| "BAAI/bge-m3".into()),
+                        .unwrap_or_default(),
                 })
             }
             _ => {
@@ -260,11 +260,11 @@ impl LlmClient {
                     chat_model: s
                         .get("openai_chat_model")
                         .cloned()
-                        .unwrap_or_else(|| "gpt-4o-mini".into()),
+                        .unwrap_or_default(),
                     embed_model: s
                         .get("openai_embedding_model")
                         .cloned()
-                        .unwrap_or_else(|| "text-embedding-3-small".into()),
+                        .unwrap_or_default(),
                 })
             }
         }
@@ -384,7 +384,7 @@ impl LlmClient {
                 base_url: normalized_base_url,
                 api_key,
                 chat_model: if model.is_empty() {
-                    "claude-3-5-haiku-20241022".into()
+                    "".into()
                 } else {
                     model
                 },
@@ -394,7 +394,7 @@ impl LlmClient {
                 base_url: normalized_base_url,
                 api_key,
                 chat_model: if model.is_empty() {
-                    "deepseek-chat".into()
+                    "".into()
                 } else {
                     model
                 },

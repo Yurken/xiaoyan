@@ -38,7 +38,7 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("llm_provider".into(), "openai_compatible".into());
     m.insert("openai_api_key".into(), "".into());
     m.insert("openai_base_url".into(), "https://api.openai.com/v1".into());
-    m.insert("openai_chat_model".into(), "gpt-4o-mini".into());
+    m.insert("openai_chat_model".into(), "".into());
     m.insert(
         "openai_embedding_model".into(),
         "text-embedding-3-small".into(),
@@ -46,13 +46,13 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("anthropic_api_key".into(), "".into());
     m.insert(
         "anthropic_chat_model".into(),
-        "claude-3-5-haiku-20241022".into(),
+        "".into(),
     );
     m.insert("openai_compatible_base_url".into(), "".into());
     m.insert("openai_compatible_api_key".into(), "".into());
     m.insert(
         "openai_compatible_chat_model".into(),
-        "deepseek-chat".into(),
+        "".into(),
     );
     m.insert(
         "openai_compatible_embedding_model".into(),
