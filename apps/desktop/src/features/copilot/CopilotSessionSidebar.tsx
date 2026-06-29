@@ -50,12 +50,12 @@ export function CopilotSessionSidebar(props: CopilotSessionSidebarProps) {
     return (
       <div
         key={session.id}
-        className="group relative flex items-center gap-2 rounded-2xl px-3 py-2.5 text-xs transition-all duration-150"
+        className="group relative flex items-center gap-2 rounded-2xl px-2.5 py-1.5 text-xs transition-all duration-150"
         onContextMenu={(e) => onContextMenu(e, session)}
         style={
           currentSession?.id === session.id
-            ? { background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)", color: "#007AFF" }
-            : { background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-soft)" }
+            ? { background: "var(--rc-accent-alpha, rgba(0,122,255,0.08))", color: "var(--rc-accent, #007AFF)" }
+            : { color: "var(--rc-text-soft)" }
         }
       >
         {isRenaming ? (
@@ -161,7 +161,7 @@ export function CopilotSessionSidebar(props: CopilotSessionSidebarProps) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
+      <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
         {sessions.length === 0 && interests.length === 0 && (
           <div className="flex flex-col items-center py-8 gap-2">
             <MessageSquare className="w-8 h-8 text-ink-tertiary opacity-40" />
@@ -170,7 +170,7 @@ export function CopilotSessionSidebar(props: CopilotSessionSidebarProps) {
         )}
 
         {hideFolders ? (
-          <div className="space-y-1.5">{sessions.map(renderSessionItem)}</div>
+          <div className="space-y-0.5">{sessions.map(renderSessionItem)}</div>
         ) : selectedInterestId ? (
           (() => {
             const group = sessionGroups.find((g) => g.key === selectedInterestId);
@@ -178,13 +178,13 @@ export function CopilotSessionSidebar(props: CopilotSessionSidebarProps) {
             return groupSessions.length === 0 ? (
               <div className="px-3 py-6 text-center text-xs text-ink-tertiary">该主题下暂无对话</div>
             ) : (
-              <div className="space-y-1.5">{groupSessions.map(renderSessionItem)}</div>
+              <div className="space-y-0.5">{groupSessions.map(renderSessionItem)}</div>
             );
           })()
         ) : ungroupedSessions.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-ink-tertiary">没有未归类的对话</div>
         ) : (
-          <div className="space-y-1.5">{ungroupedSessions.map(renderSessionItem)}</div>
+          <div className="space-y-0.5">{ungroupedSessions.map(renderSessionItem)}</div>
         )}
       </div>
 
