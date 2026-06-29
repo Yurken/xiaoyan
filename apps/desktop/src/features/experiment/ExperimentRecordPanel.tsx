@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Save } from "lucide-react";
+import { Button, Card, Input, Select, Textarea } from "@research-copilot/ui";
 import type { ExperimentRecord } from "@research-copilot/types";
-import { Button, Card } from "@research-copilot/ui";
-import { experimentApi, formatErrorMessage } from "../../lib/client";
+import { experimentApi, submissionApi, formatErrorMessage } from "../../lib/client";
+import { ExperimentAttachmentPanel } from "./ExperimentAttachmentPanel";
+
+interface SubmissionItem {
+  id: string;
+  title: string;
+}
 
 interface ExperimentRecordPanelProps {
   experiment: ExperimentRecord;
@@ -11,122 +17,143 @@ interface ExperimentRecordPanelProps {
 }
 
 export function ExperimentRecordPanel({ experiment, onUpdate, onError }: ExperimentRecordPanelProps) {
-  const [title, setTitle] = useState(experiment.title);
-  const [result, setResult] = useState(experiment.result);
-  const [notes, setNotes] = useState(experiment.notes);
-  const [configText, setConfigText] = useState(() => JSON.stringify(experiment.config, null, 2));
-  const [saving, setSaving] = useState(false);
+  const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
+  const [editTitle, setEditTitle] = useState(experiment.title);
+  const [editConfig, setEditConfig] = useState("{}");
+  const [editResult, setEditResult] = useState(experiment.result);
+  const [editNotes, setEditNotes] = useState(experiment.notes);
+  const [editLinked, setEditLinked] = useState(experiment.linkedSubmissionId ?? "");
   const [configError, setConfigError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    setTitle(experiment.title);
-    setResult(experiment.result);
-    setNotes(experiment.notes);
-    setConfigText(JSON.stringify(experiment.config, null, 2));
+    setEditTitle(experiment.title);
+    setEditConfig(JSON.stringify(experiment.config, null, 2));
+    setEditResult(experiment.result);
+    setEditNotes(experiment.notes);
+    setEditLinked(experiment.linkedSubmissionId ?? "");
     setConfigError("");
   }, [experiment]);
 
+  useEffect(() => {
+    submissionApi
+      .list()
+      .then((result) => {
+        const list = ((result as { submissions?: unknown[] }).submissions ?? []) as Record<string, unknown>[];
+        setSubmissions(list.map((s) => ({ id: String(s.id ?? ""), title: String(s.title ?? "") })));
+      })
+      .catch(() => setSubmissions([]));
+  }, []);
+
   const handleSave = useCallback(async () => {
-    let config: Record<string, unknown>;
+    let parsedConfig: Record<string, unknown> = {};
     try {
-      config = JSON.parse(configText) as Record<string, unknown>;
+      parsedConfig = JSON.parse(editConfig);
+      setConfigError("");
     } catch {
-      setConfigError("配置 JSON 格式无效");
+      setConfigError("JSON 格式错误，请检查配置内容");
       return;
     }
-    setConfigError("");
+
     setSaving(true);
     try {
-      await experimentApi.update(experiment.id, { title, result, notes, config });
-      const updated: ExperimentRecord = { ...experiment, title, result, notes, config };
+      await experimentApi.update(experiment.id, {
+        title: editTitle,
+        config: parsedConfig,
+        result: editResult,
+        notes: editNotes,
+        linkedSubmissionId: editLinked || undefined,
+      });
+      const updated: ExperimentRecord = {
+        ...experiment,
+        title: editTitle,
+        config: parsedConfig,
+        result: editResult,
+        notes: editNotes,
+        linkedSubmissionId: editLinked || null,
+        updatedAt: new Date().toISOString(),
+      };
       onUpdate?.(updated);
     } catch (err) {
       onError?.(formatErrorMessage(err));
     } finally {
       setSaving(false);
     }
-  }, [experiment, title, result, notes, configText, onUpdate, onError]);
-
-  const dirty =
-    title !== experiment.title ||
-    result !== experiment.result ||
-    notes !== experiment.notes ||
-    configText !== JSON.stringify(experiment.config, null, 2);
+  }, [experiment, editTitle, editConfig, editResult, editNotes, editLinked, onUpdate, onError]);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-ink-primary">实验记录</p>
-          <p className="text-xs text-ink-tertiary mt-0.5">编辑当前实验的基本信息、结果与配置。</p>
-        </div>
-        <Button onClick={handleSave} disabled={!dirty || saving} variant="secondary">
+    <div className="space-y-4 max-w-2xl mx-auto pb-6">
+      {/* Actions */}
+      <div className="flex justify-end gap-2">
+        <Button onClick={handleSave} disabled={saving}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           保存
         </Button>
       </div>
 
-      <Card variant="inset" padding="md" className="space-y-4">
-        <div className="space-y-1.5">
-          <label htmlFor="exp-title" className="text-xs font-medium text-ink-secondary">
-            标题
-          </label>
-          <input
-            id="exp-title"
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-xl px-3 py-2 text-sm bg-white/5 border border-black/5 outline-none focus:border-apple-blue transition-colors"
-            placeholder="实验标题"
-          />
-        </div>
+      {/* Title */}
+      <Input
+        label="标题"
+        ref={titleInputRef}
+        value={editTitle}
+        onChange={(e) => setEditTitle(e.target.value)}
+        placeholder="实验名称"
+      />
 
-        <div className="space-y-1.5">
-          <label htmlFor="exp-result" className="text-xs font-medium text-ink-secondary">
-            结果
-          </label>
-          <textarea
-            id="exp-result"
-            value={result}
-            onChange={(e) => setResult(e.target.value)}
-            rows={6}
-            className="w-full rounded-xl px-3 py-2 text-sm bg-white/5 border border-black/5 outline-none focus:border-apple-blue transition-colors resize-none"
-            placeholder="记录实验结果"
-          />
-        </div>
+      {/* Linked submission */}
+      <Select
+        label="关联投稿（可选）"
+        value={editLinked}
+        onChange={setEditLinked}
+        options={[
+          { value: "", label: "— 不关联 —" },
+          ...submissions.map((submission) => ({ value: submission.id, label: submission.title })),
+        ]}
+      />
 
-        <div className="space-y-1.5">
-          <label htmlFor="exp-notes" className="text-xs font-medium text-ink-secondary">
-            备注
-          </label>
-          <textarea
-            id="exp-notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={4}
-            className="w-full rounded-xl px-3 py-2 text-sm bg-white/5 border border-black/5 outline-none focus:border-apple-blue transition-colors resize-none"
-            placeholder="补充说明、心得或待办事项"
-          />
+      {/* Config JSON */}
+      <Card variant="inset" padding="sm" className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-ink-primary">实验配置</p>
+          <p className="text-[10px] text-ink-tertiary">JSON 格式，保存超参数、路径等信息</p>
         </div>
+        <Textarea
+          value={editConfig}
+          onChange={(e) => { setEditConfig(e.target.value); setConfigError(""); }}
+          rows={7}
+          error={configError}
+          placeholder={'{\n  "lr": 0.001,\n  "epochs": 100,\n  "batch_size": 32\n}'}
+          style={{ fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace", fontSize: "12px" }}
+        />
+      </Card>
 
-        <div className="space-y-1.5">
-          <label htmlFor="exp-config" className="text-xs font-medium text-ink-secondary">
-            配置（JSON）
-          </label>
-          <textarea
-            id="exp-config"
-            value={configText}
-            onChange={(e) => {
-              setConfigText(e.target.value);
-              setConfigError("");
-            }}
-            rows={10}
-            spellCheck={false}
-            className="w-full rounded-xl px-3 py-2 text-sm font-mono bg-white/5 border border-black/5 outline-none focus:border-apple-blue transition-colors resize-none"
-            placeholder='{"key": "value"}'
-          />
-          {configError && <p className="text-xs text-apple-red">{configError}</p>}
-        </div>
+      {/* Result */}
+      <Card variant="inset" padding="sm" className="space-y-2">
+        <p className="text-xs font-semibold text-ink-primary">实验结果</p>
+        <Textarea
+          value={editResult}
+          onChange={(e) => setEditResult(e.target.value)}
+          rows={5}
+          placeholder="记录实验指标、对比分析、图表说明…"
+        />
+      </Card>
+
+      {/* Screenshots */}
+      <Card variant="inset" padding="sm">
+        <ExperimentAttachmentPanel experimentId={experiment.id} onError={onError ?? (() => {})} />
+      </Card>
+
+      {/* Notes */}
+      <Card variant="inset" padding="sm" className="space-y-2">
+        <p className="text-xs font-semibold text-ink-primary">备注与分析</p>
+        <Textarea
+          value={editNotes}
+          onChange={(e) => setEditNotes(e.target.value)}
+          rows={4}
+          placeholder="分析实验现象、后续改进计划、与其他实验的对比…"
+        />
       </Card>
     </div>
   );
