@@ -11,15 +11,19 @@ import {
   PanelLeft,
   PanelRight,
 } from "lucide-react";
-import type { ExperimentCodeSession } from "@research-copilot/types";
+import type { ExperimentCodeSession, Skill } from "@research-copilot/types";
 import { useCodeWorkspace } from "../code/useCodeWorkspace";
 import { useCodeGit } from "../code/useCodeGit";
+import { extractSkillVariables, applySkillVariables } from "../copilot/shared";
+import SkillVariableFillModal from "../copilot/SkillVariableFillModal";
+import type { PendingSkillFill } from "../copilot/useCopilotChat";
 import CodeFileTree from "../code/CodeFileTree";
 import CodeEditor from "../code/CodeEditor";
 import CodeChatPanel from "../code/CodeChatPanel";
 import CodeReviewPanel from "../code/CodeReviewPanel";
 import CodeGitPanel from "../code/CodeGitPanel";
 import { codeToolLabel } from "../code/shared";
+import { skillsApi } from "../../lib/client";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
 
 type RightTab = "files" | "editor" | "review" | "git";
@@ -50,6 +54,45 @@ export function ExperimentCodeWorkspace({
   useEffect(() => {
     onActiveSessionChange?.(ws.selected);
   }, [ws.selected, onActiveSessionChange]);
+
+  // ── Skills ──────────────────────────────────────────────────
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  const [skillLocked, setSkillLocked] = useState(false);
+  const [pendingFill, setPendingFill] = useState<PendingSkillFill | null>(null);
+
+  useEffect(() => {
+    skillsApi.list().then((data) => {
+      setSkills(data.filter((s) => s.is_enabled && s.kind !== "tool"));
+    });
+  }, []);
+
+  const selectedSkill = useMemo(
+    () => skills.find((s) => s.id === selectedSkillId) ?? null,
+    [skills, selectedSkillId],
+  );
+
+  function handleSendWithSkill() {
+    if (!selectedSkill) {
+      ws.handleSend();
+      return;
+    }
+    const variables = extractSkillVariables(selectedSkill.prompt);
+    if (variables.length > 0) {
+      setPendingFill({ skill: selectedSkill, rawText: ws.input, variables });
+    } else {
+      doSendWithSkill(selectedSkill.prompt);
+    }
+  }
+
+  function doSendWithSkill(finalPrompt: string) {
+    ws.handleSend(finalPrompt);
+    if (!skillLocked) {
+      setSelectedSkillId(null);
+      setSkillLocked(false);
+    }
+    setPendingFill(null);
+  }
 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<RightTab>("files");
@@ -297,7 +340,7 @@ export function ExperimentCodeWorkspace({
             sending={ws.sending}
             input={ws.input}
             onInputChange={ws.setInput}
-            onSend={ws.handleSend}
+            onSend={handleSendWithSkill}
             collapsed={false}
             onToggleCollapse={() => {}}
             currentFileName={ws.openFile?.name ?? null}
@@ -306,6 +349,11 @@ export function ExperimentCodeWorkspace({
             activeModelOptionId={ws.activeModelOptionId}
             onModelOptionChange={ws.changeModelOption}
             onAddFile={handleAddFile}
+            skills={skills}
+            selectedSkillId={selectedSkillId}
+            onSelectedSkillChange={setSelectedSkillId}
+            skillLocked={skillLocked}
+            onSkillLockedChange={setSkillLocked}
           />
         </main>
 
@@ -430,6 +478,17 @@ export function ExperimentCodeWorkspace({
             </div>
           </div>
         </div>
+      )}
+
+      {pendingFill && (
+        <SkillVariableFillModal
+          pending={pendingFill}
+          onConfirm={(values) => {
+            const finalPrompt = applySkillVariables(pendingFill.skill.prompt, values);
+            doSendWithSkill(finalPrompt);
+          }}
+          onCancel={() => setPendingFill(null)}
+        />
       )}
     </div>
   );
