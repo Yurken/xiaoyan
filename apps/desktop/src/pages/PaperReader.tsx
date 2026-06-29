@@ -20,6 +20,7 @@ import {
   type ReaderSelection,
 } from "../features/reader/readerTypes";
 import { useCorpus } from "../features/papers/useCorpus";
+import { useResizableWidth } from "../hooks/useResizableWidth";
 
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 3;
@@ -36,6 +37,10 @@ export default function PaperReader() {
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
   const [editing, setEditing] = useState<{ note: PaperNote; x: number; y: number } | null>(null);
   const [toast, setToast] = useState("");
+
+  // 可拖拽宽度
+  const leftPanel = useResizableWidth({ initialWidth: 256, minWidth: 180, maxWidth: 400 });
+  const rightPanel = useResizableWidth({ initialWidth: 320, minWidth: 240, maxWidth: 500 });
 
   // 工具栏状态
   const [leftOpen, setLeftOpen] = useState(true);
@@ -261,7 +266,12 @@ export default function PaperReader() {
 
       <div className="flex min-h-0 flex-1">
         {leftOpen ? (
-          <ReaderPaperList currentId={id} onSelect={(pid) => navigate(`/papers/${pid}/reader`)} />
+          <ReaderPaperList
+            currentId={id}
+            onSelect={(pid) => navigate(`/papers/${pid}/reader`)}
+            width={leftPanel.width}
+            onDragStart={(e) => leftPanel.onDragStart(e, "right")}
+          />
         ) : null}
 
         <div className="min-w-0 flex-1">
@@ -311,6 +321,8 @@ export default function PaperReader() {
             onEditSource={translation.editSource}
             onClear={translation.clear}
             onCollapse={() => setTranslateOpen(false)}
+            width={rightPanel.width}
+            onDragStart={(e) => rightPanel.onDragStart(e, "left")}
           />
         ) : (
           <button

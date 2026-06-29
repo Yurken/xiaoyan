@@ -20,6 +20,8 @@ interface ReaderTranslationPanelProps {
   onEditSource: (text: string) => void;
   onClear: () => void;
   onCollapse: () => void;
+  width?: number;
+  onDragStart?: (event: React.MouseEvent) => void;
 }
 
 type CopyKey = "result" | "source" | "interpret";
@@ -40,6 +42,8 @@ export default function ReaderTranslationPanel({
   onEditSource,
   onClear,
   onCollapse,
+  width,
+  onDragStart,
 }: ReaderTranslationPanelProps) {
   const [copied, setCopied] = useState<CopyKey | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
@@ -61,8 +65,8 @@ export default function ReaderTranslationPanel({
 
   return (
     <aside
-      className="flex h-full w-80 shrink-0 flex-col border-l"
-      style={{ background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }}
+      className="relative flex h-full shrink-0 flex-col border-l"
+      style={{ width, background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }}
     >
       {/* 控件栏 */}
       <div
@@ -318,6 +322,13 @@ export default function ReaderTranslationPanel({
           </>
         )}
       </div>
+
+      {onDragStart ? (
+        <div
+          className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize transition-colors hover:bg-apple-blue/30"
+          onMouseDown={onDragStart}
+        />
+      ) : null}
     </aside>
   );
 }

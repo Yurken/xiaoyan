@@ -6,10 +6,12 @@ import { papersApi } from "../../lib/client";
 interface ReaderPaperListProps {
   currentId?: string;
   onSelect: (id: string) => void;
+  width?: number;
+  onDragStart?: (event: React.MouseEvent) => void;
 }
 
 /** 阅读页左侧的库内论文列表，点击切换到另一篇论文阅读。 */
-export default function ReaderPaperList({ currentId, onSelect }: ReaderPaperListProps) {
+export default function ReaderPaperList({ currentId, onSelect, width, onDragStart }: ReaderPaperListProps) {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState("");
@@ -43,8 +45,8 @@ export default function ReaderPaperList({ currentId, onSelect }: ReaderPaperList
 
   return (
     <aside
-      className="flex h-full w-64 shrink-0 flex-col border-r"
-      style={{ background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }}
+      className="relative flex h-full shrink-0 flex-col border-r"
+      style={{ width, background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }}
     >
       <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3" style={{ borderColor: "var(--rc-border)" }}>
         <FileText className="h-4 w-4 text-apple-blue" />
@@ -106,6 +108,13 @@ export default function ReaderPaperList({ currentId, onSelect }: ReaderPaperList
           </ul>
         )}
       </div>
+
+      {onDragStart ? (
+        <div
+          className="absolute right-0 top-0 z-10 h-full w-1.5 cursor-col-resize transition-colors hover:bg-apple-blue/30"
+          onMouseDown={onDragStart}
+        />
+      ) : null}
     </aside>
   );
 }
