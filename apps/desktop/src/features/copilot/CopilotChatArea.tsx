@@ -15,6 +15,7 @@ import { ToolActionCard } from "./ToolActionCard";
 import appLogo from "../../assets/xiaoyanv.svg";
 import { parseCopilotMessageContent } from "./shared";
 import { openLink } from "../../lib/links";
+import { Link } from "react-router-dom";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatMode, RoutingDecision } from "@research-copilot/types";
 
 const DEFAULT_ATTACHMENT_PROMPT = "请先阅读我上传的文件，并给我一个简洁的重点概览。";
@@ -89,6 +90,15 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
           >
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span className="rc-selectable min-w-0 flex-1 break-all">{loadError}</span>
+            {loadError.includes("视界·视觉") && (
+              <Link
+                to="/settings"
+                onClick={() => localStorage.setItem("rc:settings:active-section", "assistant")}
+                className="flex-shrink-0 text-xs font-medium text-apple-red underline underline-offset-2 hover:opacity-80 transition-opacity ml-2"
+              >
+                去配置 →
+              </Link>
+            )}
             <button type="button" aria-label="关闭错误提示" onClick={onClearError} className="rounded-lg p-0.5 text-apple-red/70 transition-colors hover:bg-apple-red/10 hover:text-apple-red">
               <X className="h-3.5 w-3.5" />
             </button>
