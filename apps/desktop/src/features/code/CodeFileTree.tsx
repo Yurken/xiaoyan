@@ -1,7 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ChevronRight,
   ChevronDown,
+  ChevronsUp,
   Folder,
   FolderOpen,
   FileCode,
@@ -34,6 +35,16 @@ export default function CodeFileTree({
   activePath,
 }: CodeFileTreeProps) {
   const [nodeStates, setNodeStates] = useState<Map<string, TreeNodeState>>(new Map());
+  const [currentPath, setCurrentPath] = useState(rootPath);
+  const [currentEntries, setCurrentEntries] = useState<DirEntry[]>(entries);
+  const [navLoading, setNavLoading] = useState(false);
+
+  // 当 rootPath 变化时重置导航状态
+  const prevRootRef = useCallback(() => rootPath, [rootPath]);
+  if (prevRootRef() !== rootPath) {
+    setCurrentPath(rootPath);
+    setCurrentEntries(entries);
+  }
 
   const getState = useCallback(
     (path: string): TreeNodeState => {
@@ -78,22 +89,60 @@ export default function CodeFileTree({
     [getState, onListDir]
   );
 
+  // 获取父目录路径
+  function getParentPath(p: string): string | null {
+    const parts = p.replace(/[/\\]+$/, "").split(/[/\\]/);
+    if (parts.length <= 1) return null;
+    parts.pop();
+    return parts.join("/");
+  }
+
+  // 导航到指定目录（替换当前视图为该目录内容）
+  async function navigateTo(dirPath: string) {
+    setNavLoading(true);
+    try {
+      const newEntries = await onListDir(dirPath);
+      setCurrentPath(dirPath);
+      setCurrentEntries(newEntries);
+      setNodeStates(new Map());
+    } finally {
+      setNavLoading(false);
+    }
+  }
+
+  const parentPath = getParentPath(currentPath);
+  const displayEntries = currentPath === rootPath ? entries : currentEntries;
+  const isLoading = currentPath === rootPath ? loading : navLoading;
+
   return (
     <div className="code-file-tree">
       <div className="code-file-tree__root">
         <FolderOpen size={14} className="code-file-tree__root-icon" />
-        <span className="code-file-tree__root-label" title={rootPath}>
-          {rootPath.split(/[/\\]/).pop() || rootPath}
+        <span className="code-file-tree__root-label" title={currentPath}>
+          {currentPath.split(/[/\\]/).pop() || currentPath}
         </span>
       </div>
 
-      {loading && entries.length === 0 ? (
+      {/* 返回上级目录 */}
+      {parentPath && (
+        <button
+          type="button"
+          className="code-file-tree__parent"
+          onClick={() => navigateTo(parentPath)}
+          title={`返回上级：${parentPath}`}
+        >
+          <ChevronsUp size={14} />
+          <span>..</span>
+        </button>
+      )}
+
+      {isLoading && displayEntries.length === 0 ? (
         <div className="code-file-tree__loading">
           <Loader2 size={14} className="animate-spin" />
         </div>
       ) : (
         <div className="code-file-tree__list">
-          {entries.map((entry) => (
+          {displayEntries.map((entry) => (
             <TreeItem
               key={entry.path}
               entry={entry}
@@ -101,6 +150,7 @@ export default function CodeFileTree({
               state={getState(entry.path)}
               activePath={activePath}
               onToggle={toggleExpand}
+              onNavigate={navigateTo}
               onOpenFile={onOpenFile}
               onListDir={onListDir}
               nodeStates={nodeStates}
@@ -119,6 +169,7 @@ interface TreeItemProps {
   state: TreeNodeState;
   activePath: string | null;
   onToggle: (entry: DirEntry) => void;
+  onNavigate: (path: string) => void;
   onOpenFile: (path: string, name: string) => void;
   onListDir: (path: string) => Promise<DirEntry[]>;
   nodeStates: Map<string, TreeNodeState>;
@@ -131,6 +182,7 @@ function TreeItem({
   state,
   activePath,
   onToggle,
+  onNavigate,
   onOpenFile,
   onListDir,
   nodeStates,
@@ -138,13 +190,29 @@ function TreeItem({
 }: TreeItemProps) {
   const isActive = activePath === entry.path;
   const isDir = entry.is_dir;
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleClick() {
     if (isDir) {
-      onToggle(entry);
+      // 单击延时执行，等待双击；双击时取消单击
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = setTimeout(() => {
+        onToggle(entry);
+        clickTimerRef.current = null;
+      }, 250);
     } else {
       onOpenFile(entry.path, entry.name);
     }
+  }
+
+  function handleDoubleClick() {
+    if (!isDir) return;
+    // 双击取消单击的展开，改为进入目录
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+    onNavigate(entry.path);
   }
 
   function getFileIcon() {
@@ -168,6 +236,7 @@ function TreeItem({
         className={`code-file-tree__item ${isActive ? "is-active" : ""}`}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
       >
         {isDir && (
           <span className="code-file-tree__chevron">
@@ -195,6 +264,7 @@ function TreeItem({
               state={getState(child.path)}
               activePath={activePath}
               onToggle={onToggle}
+              onNavigate={onNavigate}
               onOpenFile={onOpenFile}
               onListDir={onListDir}
               nodeStates={nodeStates}
