@@ -8,6 +8,8 @@ import {
   settingsApi,
   type CodeSession,
   type CodeMessage,
+  type CodeToolCall,
+  type CodeToolResult,
 } from "../../lib/client";
 import type { AppSettings } from "@research-copilot/types";
 import { useCodeFileSystem } from "./useCodeFileSystem";
@@ -30,6 +32,20 @@ interface ErrorEvent {
   session_id: string;
   request_id: string;
   error: string;
+}
+
+interface ToolCallEvent {
+  session_id: string;
+  request_id: string;
+  message_id: string;
+  tool_call: CodeToolCall;
+}
+
+interface ToolResultEvent {
+  session_id: string;
+  request_id: string;
+  message_id: string;
+  result: CodeToolResult;
 }
 
 interface UseCodeWorkspaceOptions {
@@ -140,6 +156,9 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
           id: message_id,
           role: "assistant",
           content: full_content,
+          tool_calls: undefined,
+          tool_results: undefined,
+          tool_call_id: null,
           tool_id: null,
           model: null,
           created_at: new Date().toISOString(),
@@ -162,6 +181,75 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         setSending(false);
       });
 
+      const unlistenToolCall = await listen<ToolCallEvent>("code:tool_call", (event) => {
+        if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
+        const { session_id, message_id, tool_call } = event.payload;
+
+        streamingRef.current = "";
+        setStreamingContent("");
+
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== session_id) return s;
+            const messages = [...s.messages];
+            const existingIndex = messages.findIndex((msg) => msg.id === message_id);
+
+            if (existingIndex >= 0) {
+              const existing = messages[existingIndex];
+              const toolCalls = existing.tool_calls ?? [];
+              const alreadyPresent = toolCalls.some((item) => item.id === tool_call.id);
+              messages[existingIndex] = {
+                ...existing,
+                tool_calls: alreadyPresent ? toolCalls : [...toolCalls, tool_call],
+              };
+            } else {
+              messages.push({
+                id: message_id,
+                role: "assistant",
+                content: "",
+                tool_calls: [tool_call],
+                tool_results: undefined,
+                tool_call_id: null,
+                tool_id: null,
+                model: null,
+                created_at: new Date().toISOString(),
+              });
+            }
+
+            return { ...s, messages, updated_at: new Date().toISOString() };
+          }),
+        );
+      });
+
+      const unlistenToolResult = await listen<ToolResultEvent>("code:tool_result", (event) => {
+        if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
+        const { session_id, message_id, result } = event.payload;
+
+        const toolMsg: CodeMessage = {
+          id: message_id,
+          role: "tool",
+          content: result.output,
+          tool_calls: undefined,
+          tool_results: [result],
+          tool_call_id: result.tool_call_id,
+          tool_id: null,
+          model: null,
+          created_at: new Date().toISOString(),
+        };
+
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === session_id
+              ? {
+                  ...s,
+                  messages: [...s.messages, toolMsg],
+                  updated_at: new Date().toISOString(),
+                }
+              : s,
+          ),
+        );
+      });
+
       const unlistenError = await listen<ErrorEvent>("code:error", (event) => {
         if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
         showToast(event.payload.error);
@@ -170,7 +258,13 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         setSending(false);
       });
 
-      unlistenersRef.current = [unlistenStream, unlistenDone, unlistenError];
+      unlistenersRef.current = [
+        unlistenStream,
+        unlistenDone,
+        unlistenToolCall,
+        unlistenToolResult,
+        unlistenError,
+      ];
     }
 
     setup();

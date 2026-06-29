@@ -1,9 +1,10 @@
-import { useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import { ArrowUp, ChevronDown, Loader2, Plus, Sparkles, PanelTopClose, PanelTopOpen } from "lucide-react";
-import { MarkdownRenderer } from "@research-copilot/ui";
 import type { CodeMessage } from "../../lib/client";
 import { codeToolLabel } from "./shared";
 import type { CodeModelOption } from "./shared";
+import CodeAssistantMessage from "./CodeAssistantMessage";
+import { CodeToolCallCard, CodeToolResultCard } from "./CodeToolMessage";
 
 interface CodeChatPanelProps {
   messages: CodeMessage[];
@@ -39,6 +40,16 @@ export default function CodeChatPanel({
   onAddFile,
 }: CodeChatPanelProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const latestMessageKey = messages
+    .map((msg) => `${msg.id}:${msg.content.length}:${msg.tool_calls?.length ?? 0}:${msg.tool_results?.length ?? 0}`)
+    .join("|");
+
+  useEffect(() => {
+    const node = messagesRef.current;
+    if (!node) return;
+    node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
+  }, [latestMessageKey, streamingContent, sending]);
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -93,7 +104,7 @@ export default function CodeChatPanel({
         </button>
       </div>
 
-      <div className="code-chat-panel__messages">
+      <div ref={messagesRef} className="code-chat-panel__messages">
         {messages.length === 0 && !streamingContent && (
           <div className="code-chat-panel__empty">
             <Sparkles size={20} />
@@ -108,13 +119,27 @@ export default function CodeChatPanel({
                 <div className="code-chat-msg__user-avatar">你</div>
                 <div className="code-chat-msg__user-content">{msg.content}</div>
               </div>
+            ) : msg.role === "tool" ? (
+              <div className="code-chat-msg__assistant">
+                <div className="code-chat-msg__assistant-avatar">
+                  <Sparkles size={12} />
+                </div>
+                <div className="code-chat-msg__assistant-content">
+                  {msg.tool_results?.map((result) => (
+                    <CodeToolResultCard key={result.tool_call_id} result={result} />
+                  ))}
+                </div>
+              </div>
             ) : (
               <div className="code-chat-msg__assistant">
                 <div className="code-chat-msg__assistant-avatar">
                   <Sparkles size={12} />
                 </div>
                 <div className="code-chat-msg__assistant-content">
-                  <MarkdownRenderer content={msg.content} className="code-chat-md" />
+                  {msg.content && <CodeAssistantMessage content={msg.content} />}
+                  {msg.tool_calls?.map((toolCall) => (
+                    <CodeToolCallCard key={toolCall.id} toolCall={toolCall} />
+                  ))}
                   {msg.tool_id && (
                     <div className="code-chat-msg__meta">
                       {codeToolLabel(msg.tool_id)}
@@ -134,7 +159,7 @@ export default function CodeChatPanel({
                 <Sparkles size={12} />
               </div>
               <div className="code-chat-msg__assistant-content">
-                <MarkdownRenderer content={streamingContent} className="code-chat-md" />
+                <CodeAssistantMessage content={streamingContent} streaming />
                 <span className="code-chat-cursor" />
               </div>
             </div>

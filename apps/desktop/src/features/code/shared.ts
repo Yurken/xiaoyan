@@ -1,4 +1,5 @@
 import type { DirEntry } from "../../lib/client";
+import type { LlmProvider } from "@research-copilot/types";
 
 export type { DirEntry };
 
@@ -13,6 +14,14 @@ export interface FileNode {
   entry: DirEntry;
   expanded: boolean;
   children: FileNode[];
+}
+
+export interface CodeModelOption {
+  id: string;
+  provider: LlmProvider;
+  providerLabel: string;
+  model: string;
+  label: string;
 }
 
 /** 一个代码工具的前端展示定义。与后端 `code::tools::TOOLS` 的顺序、id 保持一致。 */
