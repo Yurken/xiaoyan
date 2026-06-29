@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "../helpers/render";
-import { mockInvoke, resetInvokeMock, createMockExperiment } from "../mocks/tauri";
+import { mockInvoke, resetInvokeMock, createMockExperiment, getInvokeMock } from "../mocks/tauri";
 import Experiment from "../../pages/Experiment";
 
 vi.mock("../../hooks/useDomainEventRefresh", () => ({
@@ -43,7 +43,6 @@ describe("Experiment 页面", () => {
     mockInvoke({ "experiment_list": { experiments: [exp] } });
     render(<Experiment />);
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Test Experiment")).toBeInTheDocument();
       expect(screen.getByTestId("code-workspace")).toBeInTheDocument();
     });
   });
@@ -55,7 +54,7 @@ describe("Experiment 页面", () => {
     await waitFor(() => {
       expect(screen.getByTestId("code-workspace")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("快照"));
+    fireEvent.click(screen.getByTestId("tab-snapshots"));
     await waitFor(() => {
       expect(screen.getByTestId("snapshot-panel")).toBeInTheDocument();
     });
@@ -66,7 +65,8 @@ describe("Experiment 页面", () => {
     mockInvoke({ "experiment_get": exp });
     render(<Experiment experimentId="exp-1" />);
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Test Experiment")).toBeInTheDocument();
+      expect(screen.getByTestId("code-workspace")).toBeInTheDocument();
     });
+    expect(getInvokeMock()).toHaveBeenCalledWith("experiment_get", { id: "exp-1" });
   });
 });

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Input } from "@research-copilot/ui";
 import type { ExperimentRecord, ExperimentCodeSession } from "@research-copilot/types";
-import { experimentApi, formatErrorMessage } from "../lib/client";
+import { experimentApi } from "../lib/client";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 import { ExperimentCodeWorkspace } from "../features/experiment/ExperimentCodeWorkspace";
 import { ExperimentSnapshotPanel } from "../features/experiment/ExperimentSnapshotPanel";
@@ -39,7 +38,6 @@ export default function Experiment({ experimentId }: ExperimentProps) {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
 
-  const [editTitle, setEditTitle] = useState("");
   const [activeTab, setActiveTab] = useState<ExperimentTab>("code");
   const [activeCodeSession, setActiveCodeSession] = useState<ExperimentCodeSession | null>(null);
 
@@ -65,23 +63,9 @@ export default function Experiment({ experimentId }: ExperimentProps) {
 
   useDomainEventRefresh("experiment:created", () => { loadExperiment(); });
 
-  useEffect(() => {
-    setEditTitle(experiment?.title ?? "");
-  }, [experiment]);
-
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(""), 2500);
-  }
-
-  async function handleSaveTitle(nextTitle: string) {
-    if (!experiment || nextTitle === experiment.title) return;
-    try {
-      await experimentApi.update(experiment.id, { title: nextTitle });
-      setExperiment((prev) => prev ? { ...prev, title: nextTitle, updatedAt: new Date().toISOString() } : null);
-    } catch (err) {
-      showToast(formatErrorMessage(err));
-    }
   }
 
   return (
@@ -93,7 +77,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
       </div>
 
       {/* Main workspace */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <Loader2 className="w-5 h-5 animate-spin text-ink-tertiary" />
@@ -105,24 +89,14 @@ export default function Experiment({ experimentId }: ExperimentProps) {
             </div>
           </div>
         ) : (
-          <>
-            {/* Title + segmented tabs */}
-            <div className="flex-shrink-0 flex items-center justify-between gap-4 px-5 pt-4 pb-3 border-b border-nm-dark/10 max-lg:px-4">
-              <Input
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                onBlur={() => handleSaveTitle(editTitle)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.currentTarget.blur();
-                  }
-                }}
-                placeholder="实验名称"
-                className="flex-1"
-              />
-
+          <div className="flex h-full">
+            {/* Left: vertical segmented tabs */}
+            <div
+              className="w-16 flex-shrink-0 flex flex-col items-center py-4 gap-2 border-r border-nm-dark/10 max-lg:hidden"
+              style={{ background: "var(--rc-surface)" }}
+            >
               <div
-                className="flex-shrink-0 inline-flex items-center p-1 rounded-2xl"
+                className="flex flex-col items-center p-1 rounded-2xl gap-1"
                 style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
               >
                 {[
@@ -132,6 +106,34 @@ export default function Experiment({ experimentId }: ExperimentProps) {
                   <button
                     key={tab.key}
                     type="button"
+                    data-testid={`tab-${tab.key}`}
+                    onClick={() => setActiveTab(tab.key as ExperimentTab)}
+                    className={`w-12 py-2 rounded-xl text-xs font-medium transition-all ${
+                      activeTab === tab.key
+                        ? "bg-white text-ink-primary shadow-sm"
+                        : "text-ink-tertiary hover:text-ink-primary"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Mobile tabs */}
+            <div className="hidden max-lg:flex-shrink-0 max-lg:flex max-lg:items-center max-lg:justify-center max-lg:p-2 max-lg:border-b max-lg:border-nm-dark/10">
+              <div
+                className="inline-flex items-center p-1 rounded-2xl"
+                style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
+              >
+                {[
+                  { key: "code", label: "代码" },
+                  { key: "snapshots", label: "快照" },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    data-testid={`mobile-tab-${tab.key}`}
                     onClick={() => setActiveTab(tab.key as ExperimentTab)}
                     className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-all ${
                       activeTab === tab.key
@@ -143,7 +145,6 @@ export default function Experiment({ experimentId }: ExperimentProps) {
                   </button>
                 ))}
               </div>
-
             </div>
 
             {/* Tab content */}
@@ -167,7 +168,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
 
@@ -180,8 +181,6 @@ export default function Experiment({ experimentId }: ExperimentProps) {
           {toast}
         </div>
       )}
-
-
     </div>
   );
 }
