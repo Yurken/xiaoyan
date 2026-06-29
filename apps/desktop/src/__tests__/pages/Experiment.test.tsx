@@ -20,11 +20,9 @@ describe("Experiment 页面", () => {
     resetInvokeMock();
   });
 
-  it("应渲染页面标题和描述", async () => {
+  it("应渲染空状态", async () => {
     mockInvoke({ "experiment_list": { experiments: [] } });
     render(<Experiment />);
-    expect(screen.getByText("实验记录")).toBeInTheDocument();
-    expect(screen.getByText(/代码调试与快照封存一体化/)).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText("暂无实验记录")).toBeInTheDocument();
     });

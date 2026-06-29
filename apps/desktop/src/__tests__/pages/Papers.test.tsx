@@ -131,11 +131,6 @@ describe("Papers 页面", () => {
     });
   });
 
-  it("应渲染页面标题", () => {
-    renderWithRouter(<Papers />);
-    expect(screen.getByRole("heading", { name: "论文库" })).toBeInTheDocument();
-  });
-
   it("应显示论文列表面板", () => {
     renderWithRouter(<Papers />);
     expect(screen.getByTestId("papers-list-panel")).toBeInTheDocument();

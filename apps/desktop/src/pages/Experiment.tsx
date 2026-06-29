@@ -71,10 +71,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       {/* Header + horizontal segmented tabs */}
-      <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-nm-dark/10 app-header">
-        <h1 className="text-2xl font-bold text-ink-primary">实验记录</h1>
-        <p className="mt-1 text-sm text-ink-tertiary">代码调试与快照封存一体化，小妍帮你追踪实验脉络。</p>
-
+      <div className="flex-shrink-0 px-6 pt-4 pb-3 border-b border-nm-dark/10 app-header">
         <div
           className="inline-flex items-center p-1 rounded-2xl mt-4"
           style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}

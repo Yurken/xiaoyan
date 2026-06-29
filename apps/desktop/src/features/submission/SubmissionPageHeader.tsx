@@ -30,10 +30,7 @@ export default function SubmissionPageHeader({
     // 直接置于 rc-app-page 的标准内边距下，与论文库/规划/综述等页面对齐（不再叠加 px-6/app-header 造成双重缩进）。
     <div>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-ink-primary">投稿管理</h1>
-          <p className="mt-1 text-sm text-ink-tertiary">追踪会议和期刊的截稿日期，小妍陪你走完论文投稿的每一步。</p>
-        </div>
+        <div className="min-w-0" />
 
         <div className="grid grid-cols-2 gap-2 sm:flex">
           {statItems.map((stat) => (

@@ -21,14 +21,7 @@ export function PlannerWorkspace() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
-      <div className="shrink-0 px-6 pt-5 pb-4">
-        <h1 className="text-2xl font-bold text-ink-primary">研究主题规划</h1>
-        <p className="mt-1 text-sm text-ink-tertiary">
-          管理你的研究兴趣，跟踪领域最新动态，让小妍帮你梳理学习路线和关键进展。
-        </p>
-      </div>
-
-      <div className="shrink-0 px-6 pb-3">
+      <div className="shrink-0 px-6 pt-4 pb-3">
         <CapsuleTabs
           options={PLANNER_TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
           value={activeTab}

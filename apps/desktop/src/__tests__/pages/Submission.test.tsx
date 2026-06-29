@@ -91,16 +91,6 @@ describe("Submission 页面", () => {
     localStorage.clear();
   });
 
-  it("应渲染投稿管理页面标题", () => {
-    renderWithRouter(<Submission />);
-    expect(screen.getByText("投稿管理")).toBeInTheDocument();
-  });
-
-  it("应显示页面描述", () => {
-    renderWithRouter(<Submission />);
-    expect(screen.getByText(/截稿日期/)).toBeInTheDocument();
-  });
-
   it("应显示标签页切换", () => {
     renderWithRouter(<Submission />);
     expect(screen.getByText("DDL 日历")).toBeInTheDocument();
