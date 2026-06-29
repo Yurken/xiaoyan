@@ -169,8 +169,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       ) : null}
 
       <div className={clsx("mx-auto w-full space-y-5", hideFolders && "max-w-5xl px-4 pb-10")}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between shrink-0">
-          <div className={clsx("w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap", view === "papers" ? "flex" : "hidden")}>
+        <div className={clsx("flex flex-wrap items-center justify-end gap-2 shrink-0", view === "papers" ? "flex" : "hidden")}>
             <div ref={recognizeRef} className="relative flex-shrink-0">
               <button type="button" onClick={() => setRecognizeOpen((v) => !v)} data-open={recognizeOpen}
                 className="rc-dropdown-trigger flex items-center gap-1.5 rounded-2xl px-3 py-2 transition-all duration-150"
@@ -214,7 +213,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               {papers.batchProgress ? `导入中 (${papers.batchProgress.done}/${papers.batchProgress.total})` : "导入 PDF"}
             </Button>
           </div>
-        </div>
 
         <CapsuleTabs
           value={view}
