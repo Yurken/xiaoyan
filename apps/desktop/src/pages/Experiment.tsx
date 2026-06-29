@@ -70,10 +70,34 @@ export default function Experiment({ experimentId }: ExperimentProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
-      {/* Header */}
+      {/* Header + horizontal segmented tabs */}
       <div className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-nm-dark/10 app-header">
         <h1 className="text-2xl font-bold text-ink-primary">实验记录</h1>
         <p className="mt-1 text-sm text-ink-tertiary">代码调试与快照封存一体化，小妍帮你追踪实验脉络。</p>
+
+        <div
+          className="inline-flex items-center p-1 rounded-2xl mt-4"
+          style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
+        >
+          {[
+            { key: "code", label: "代码" },
+            { key: "snapshots", label: "快照" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              data-testid={`tab-${tab.key}`}
+              onClick={() => setActiveTab(tab.key as ExperimentTab)}
+              className={`px-5 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                activeTab === tab.key
+                  ? "bg-white text-ink-primary shadow-sm"
+                  : "text-ink-tertiary hover:text-ink-primary"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Main workspace */}
@@ -89,85 +113,25 @@ export default function Experiment({ experimentId }: ExperimentProps) {
             </div>
           </div>
         ) : (
-          <div className="flex h-full">
-            {/* Left: vertical segmented tabs */}
-            <div
-              className="w-16 flex-shrink-0 flex flex-col items-center py-4 gap-2 border-r border-nm-dark/10 max-lg:hidden"
-              style={{ background: "var(--rc-surface)" }}
-            >
-              <div
-                className="flex flex-col items-center p-1 rounded-2xl gap-1"
-                style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
-              >
-                {[
-                  { key: "code", label: "代码" },
-                  { key: "snapshots", label: "快照" },
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    data-testid={`tab-${tab.key}`}
-                    onClick={() => setActiveTab(tab.key as ExperimentTab)}
-                    className={`w-12 py-2 rounded-xl text-xs font-medium transition-all ${
-                      activeTab === tab.key
-                        ? "bg-white text-ink-primary shadow-sm"
-                        : "text-ink-tertiary hover:text-ink-primary"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+          <div className="h-full overflow-hidden">
+            {activeTab === "code" && (
+              <div className="h-full p-2">
+                <ExperimentCodeWorkspace
+                  experimentId={experiment.id}
+                  onActiveSessionChange={setActiveCodeSession}
+                />
               </div>
-            </div>
+            )}
 
-            {/* Mobile tabs */}
-            <div className="hidden max-lg:flex-shrink-0 max-lg:flex max-lg:items-center max-lg:justify-center max-lg:p-2 max-lg:border-b max-lg:border-nm-dark/10">
-              <div
-                className="inline-flex items-center p-1 rounded-2xl"
-                style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
-              >
-                {[
-                  { key: "code", label: "代码" },
-                  { key: "snapshots", label: "快照" },
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    data-testid={`mobile-tab-${tab.key}`}
-                    onClick={() => setActiveTab(tab.key as ExperimentTab)}
-                    className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-all ${
-                      activeTab === tab.key
-                        ? "bg-white text-ink-primary shadow-sm"
-                        : "text-ink-tertiary hover:text-ink-primary"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+            {activeTab === "snapshots" && (
+              <div className="h-full overflow-y-auto p-5 max-lg:p-4">
+                <ExperimentSnapshotPanel
+                  experimentId={experiment.id}
+                  activeSession={activeCodeSession}
+                  onError={showToast}
+                />
               </div>
-            </div>
-
-            {/* Tab content */}
-            <div className="flex-1 min-h-0 overflow-hidden">
-              {activeTab === "code" && (
-                <div className="h-full p-2">
-                  <ExperimentCodeWorkspace
-                    experimentId={experiment.id}
-                    onActiveSessionChange={setActiveCodeSession}
-                  />
-                </div>
-              )}
-
-              {activeTab === "snapshots" && (
-                <div className="h-full overflow-y-auto p-5 max-lg:p-4">
-                  <ExperimentSnapshotPanel
-                    experimentId={experiment.id}
-                    activeSession={activeCodeSession}
-                    onError={showToast}
-                  />
-                </div>
-              )}
-            </div>
+            )}
           </div>
         )}
       </div>
