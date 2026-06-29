@@ -15,6 +15,7 @@ import {
   type ReaderSelection,
   type ShapeStyle,
 } from "./readerTypes";
+import type { SearchMatch } from "./usePdfSearch";
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
 import { usePdfTextSelection } from "./usePdfTextSelection";
 import { registerTextLayer } from "./textLayerSelection";
@@ -43,15 +44,21 @@ interface PdfReaderViewerProps {
   onShapeDrawn?: (page: number, rect: NormalizedRect) => void;
   /** 拖动已有形状批注到新位置。 */
   onShapeMove?: (note: PaperNote, rect: NormalizedRect) => void;
+  /** 搜索匹配结果（所有页面）。 */
+  searchMatches?: SearchMatch[];
+  /** 当前激活的搜索匹配项索引（-1 表示无激活项）。 */
+  activeSearchIndex?: number;
 }
 
 export interface PdfReaderViewerHandle {
   scrollToPage: (page: number) => void;
+  getPdfDoc: () => PDFDocumentProxy | null;
+  getNumPages: () => number;
 }
 
 const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
   function PdfReaderViewer(
-    { data, notes, scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
+    { data, notes, scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove, searchMatches, activeSearchIndex },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -99,7 +106,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     }, []);
 
-    useImperativeHandle(ref, () => ({ scrollToPage }), [scrollToPage]);
+    useImperativeHandle(ref, () => ({ scrollToPage, getPdfDoc: () => pdfDoc, getNumPages: () => numPages }), [scrollToPage, pdfDoc, numPages]);
 
     usePdfTextSelection({
       containerRef,
@@ -185,27 +192,35 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
         ref={containerRef}
         className={`h-full space-y-4 overflow-y-auto px-6 py-4${linkMode ? " pdf-links-active" : ""}`}
       >
-        {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
-          <PdfPage
-            key={pageNum}
-            pageNum={pageNum}
-            pdfDoc={pdfDoc}
-            scale={scale}
-            devicePixelRatio={devicePixelRatio}
-            shouldRender={renderedPages.has(pageNum) || pageNum <= 4}
-            pageNotes={notesByPage.get(pageNum) ?? []}
-            onNoteClick={onNoteClick}
-            onScrollToPage={scrollToPage}
-            drawShape={drawShape}
-            drawColor={drawColor}
-            drawFill={drawFill}
-            onShapeDrawn={onShapeDrawn}
-            onShapeMove={onShapeMove}
-            ref={(el) => {
-              pageRefs.current[pageNum - 1] = el;
-            }}
-          />
-        ))}
+        {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => {
+          const pageMatches = searchMatches?.filter((m) => m.pageNum === pageNum) ?? [];
+          const activeOnPage = activeSearchIndex != null && activeSearchIndex >= 0
+            ? searchMatches?.[activeSearchIndex]
+            : null;
+          return (
+            <PdfPage
+              key={pageNum}
+              pageNum={pageNum}
+              pdfDoc={pdfDoc}
+              scale={scale}
+              devicePixelRatio={devicePixelRatio}
+              shouldRender={renderedPages.has(pageNum) || pageNum <= 4}
+              pageNotes={notesByPage.get(pageNum) ?? []}
+              onNoteClick={onNoteClick}
+              onScrollToPage={scrollToPage}
+              drawShape={drawShape}
+              drawColor={drawColor}
+              drawFill={drawFill}
+              onShapeDrawn={onShapeDrawn}
+              onShapeMove={onShapeMove}
+              searchMatches={pageMatches}
+              activeSearchItem={activeOnPage && activeOnPage.pageNum === pageNum ? activeOnPage : null}
+              ref={(el) => {
+                pageRefs.current[pageNum - 1] = el;
+              }}
+            />
+          );
+        })}
       </div>
     );
   },
@@ -251,10 +266,12 @@ interface PdfPageProps {
   drawFill?: HighlightColor | null;
   onShapeDrawn?: (page: number, rect: NormalizedRect) => void;
   onShapeMove?: (note: PaperNote, rect: NormalizedRect) => void;
+  searchMatches?: SearchMatch[];
+  activeSearchItem?: SearchMatch | null;
 }
 
 const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
+  { pageNum, pdfDoc, scale, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove, searchMatches, activeSearchItem },
   ref,
 ) {
   const textLayerRef = useRef<HTMLDivElement>(null);
@@ -682,6 +699,35 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           {hoveredNote.note.content}
         </div>
       ) : null}
+
+      {pageSize && searchMatches && searchMatches.length > 0
+        ? searchMatches.map((match, mi) => {
+            const isActive = activeSearchItem != null
+              && activeSearchItem.pageNum === pageNum
+              && match.text === activeSearchItem.text
+              && match.rects.length > 0
+              && activeSearchItem.rects.length > 0
+              && Math.abs(match.rects[0].x - activeSearchItem.rects[0].x) < 0.001
+              && Math.abs(match.rects[0].y - activeSearchItem.rects[0].y) < 0.001;
+
+            return match.rects.map((rect, ri) => (
+              <div
+                key={`search-${mi}-${ri}`}
+                className="pointer-events-none absolute rounded-sm"
+                style={{
+                  left: rect.x * pageSize.w,
+                  top: rect.y * pageSize.h,
+                  width: rect.w * pageSize.w,
+                  height: rect.h * pageSize.h,
+                  zIndex: 4,
+                  background: isActive ? "rgba(255,149,0,0.55)" : "rgba(0,122,255,0.25)",
+                  border: isActive ? "1px solid rgba(255,149,0,0.8)" : "1px solid rgba(0,122,255,0.35)",
+                  borderRadius: 2,
+                }}
+              />
+            ));
+          })
+        : null}
 
       {pageSize && drawShape ? (
         <div
