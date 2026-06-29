@@ -824,6 +824,109 @@
   pointer-events: none;
 }
 
+/* Slash command dropdown */
+.code-chat-slash-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: 30;
+  width: 260px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  padding: 6px 0;
+  border: 1px solid var(--rc-card-inset-outline);
+  border-radius: 14px;
+  background: var(--rc-surface);
+  box-shadow: var(--rc-raised-shadow);
+}
+
+.code-chat-slash-dropdown__label {
+  padding: 4px 14px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rc-text-muted);
+}
+
+.code-chat-slash-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.code-chat-slash-dropdown__item:hover,
+.code-chat-slash-dropdown__item.is-active {
+  background: rgba(0, 122, 255, 0.08);
+}
+
+.code-chat-slash-dropdown__item-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.code-chat-slash-dropdown__item-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--rc-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-chat-slash-dropdown__item.is-active .code-chat-slash-dropdown__item-title {
+  color: #007AFF;
+}
+
+.code-chat-slash-dropdown__item-name {
+  display: block;
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+  color: var(--rc-text-muted);
+}
+
+/* Skill chip */
+.code-chat-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(0, 122, 255, 0.1);
+  color: #007AFF;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.code-chat-skill-chip__lock,
+.code-chat-skill-chip__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.code-chat-skill-chip__lock:hover,
+.code-chat-skill-chip__close:hover {
+  opacity: 1;
+}
+
 /* Right tools */
 .code-opencode-tools {
   display: flex;
