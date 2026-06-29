@@ -141,12 +141,8 @@ export default function Experiment({ experimentId }: ExperimentProps) {
             )}
 
             {activeTab === "records" && (
-              <div className="h-full overflow-y-auto p-5 max-lg:p-4">
-                <ExperimentRecordPanel
-                  experiment={experiment}
-                  onUpdate={setExperiment}
-                  onError={showToast}
-                />
+              <div className="h-full overflow-hidden">
+                <ExperimentRecordPanel onError={showToast} />
               </div>
             )}
           </div>
