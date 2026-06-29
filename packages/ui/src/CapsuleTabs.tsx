@@ -13,9 +13,10 @@ interface CapsuleTabsProps {
   value: string;
   onChange: (value: string) => void;
   compact?: boolean;
+  iconOnly?: boolean;
 }
 
-export function CapsuleTabs({ options, value, onChange, compact }: CapsuleTabsProps) {
+export function CapsuleTabs({ options, value, onChange, compact, iconOnly }: CapsuleTabsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [ready, setReady] = useState(false);
@@ -75,15 +76,16 @@ export function CapsuleTabs({ options, value, onChange, compact }: CapsuleTabsPr
           }}
           type="button"
           onClick={() => onChange(tab.value)}
-          className={`relative z-10 inline-flex items-center gap-1.5 rounded-xl font-medium transition-colors duration-200 ${
-            compact ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"
+          className={`relative z-10 inline-flex items-center rounded-xl font-medium transition-colors duration-200 ${
+            iconOnly ? "p-2" : compact ? "px-3 py-1.5 text-xs gap-1.5" : "px-4 py-2 text-sm gap-1.5"
           }`}
           style={{
             color: value === tab.value ? "var(--rc-text)" : "var(--rc-text-muted)",
           }}
+          title={tab.label}
         >
           {tab.icon}
-          {tab.label}
+          {!iconOnly && tab.label}
         </button>
       ))}
     </div>
