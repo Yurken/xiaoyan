@@ -67,7 +67,7 @@ export default function InterpretationContent({ text, loading }: InterpretationC
         <MarkdownRenderer
           content={answer}
           onLinkClick={openLink}
-          className="text-xs leading-6 text-ink-primary"
+          className="text-xs leading-6 text-ink-primary prose-p:my-1 prose-hr:my-2"
         />
       ) : thinking && !thought ? (
         <p className="text-xs text-ink-tertiary">小妍解读中…</p>
