@@ -34,11 +34,15 @@ export default function NoteListItem({
   return (
     <div
       className={clsx(
-        "group relative flex items-center gap-3 rounded-xl border border-nm-dark/10 bg-white/50 px-4 py-3 transition-colors",
+        "group relative flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-150",
         selectionMode && "cursor-pointer",
         selected && "ring-2 ring-apple-blue",
-        !selectionMode && "hover:bg-white/70",
       )}
+      style={{
+        background: "var(--rc-card-bg)",
+        borderColor: "var(--rc-card-outline)",
+        boxShadow: "var(--rc-card-shadow)",
+      }}
       onClick={selectionMode ? activate : undefined}
     >
       <div className="flex-1 min-w-0">
@@ -73,8 +77,9 @@ export default function NoteListItem({
               "flex h-5 w-5 items-center justify-center rounded-md border transition-colors",
               selected
                 ? "border-apple-blue bg-apple-blue text-white"
-                : "border-nm-dark/25 bg-white/60 text-transparent",
+                : "text-transparent",
             )}
+            style={selected ? undefined : { borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
           >
             <Check className="h-3.5 w-3.5" strokeWidth={3} />
           </span>
@@ -83,7 +88,7 @@ export default function NoteListItem({
             <button
               type="button"
               onClick={() => onOpen(note)}
-              className="rounded-lg p-1.5 text-ink-tertiary transition-colors hover:bg-black/5 hover:text-ink-primary"
+              className="rounded-lg p-1.5 text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary"
               aria-label={`编辑 ${note.title}`}
             >
               <Pencil className="h-3.5 w-3.5" />
@@ -91,7 +96,7 @@ export default function NoteListItem({
             <button
               type="button"
               onClick={() => onDelete(note)}
-              className="rounded-lg p-1.5 text-ink-tertiary transition-colors hover:bg-apple-red/10 hover:text-apple-red"
+              className="rounded-lg p-1.5 text-ink-tertiary transition-colors hover:text-[var(--rc-apple-red,#FF3B30)]"
               aria-label={`删除 ${note.title}`}
             >
               <Trash2 className="h-3.5 w-3.5" />

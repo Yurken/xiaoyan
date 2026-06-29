@@ -121,6 +121,15 @@ export default function NotesPanel({
     [linkedNoteClaimCounts, scopedNotes],
   );
 
+  const linkedCountForGroup = useMemo(
+    () => (groupKey: string) => {
+      if (!linkedNoteClaimCounts) return 0;
+      const groupNotes = scopedNotes.filter((n) => n.research_interest_id === groupKey);
+      return groupNotes.filter((n) => (linkedNoteClaimCounts[n.id] ?? 0) > 0).length;
+    },
+    [linkedNoteClaimCounts, scopedNotes],
+  );
+
   const sourceTabs = useMemo(() => {
     const present = Array.from(new Set(scopedNotes.map((note) => note.source_type)));
     if (present.length <= 1) return [];
@@ -212,22 +221,9 @@ export default function NotesPanel({
     <>
     <div className="space-y-4">
       <Card padding="sm" className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-ink-primary">知识卡片库</p>
-            <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-              支持语义搜索、标签归档，并可把笔记关联到具体研究主题。
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {researchInterestId ? <Badge variant="default">已按研究主题聚焦</Badge> : null}
-              {hasGraphCoverage && scopedNotes.length > 0 ? (
-                <Badge variant={linkedVisibleNoteCount > 0 ? "info" : "default"}>
-                  图谱关联 {linkedVisibleNoteCount}/{scopedNotes.length}
-                </Badge>
-              ) : null}
-            </div>
-          </div>
-          <div className="flex w-full flex-col gap-2 lg:w-auto lg:max-w-[680px] lg:flex-row">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          {/* Left: search + view toggle + selection/action buttons */}
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
             <div className="relative min-w-[220px] flex-1">
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
               <Input
@@ -240,7 +236,7 @@ export default function NotesPanel({
             <button
               type="button"
               onClick={() => setViewMode((prev) => (prev === "card" ? "list" : "card"))}
-              className="flex items-center justify-center rounded-xl px-2.5 py-1.5 text-ink-tertiary transition-colors hover:bg-white/50 hover:text-ink-primary"
+              className="flex items-center justify-center rounded-xl px-2.5 py-1.5 text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary"
               title={viewMode === "card" ? "切换为列表视图" : "切换为卡片视图"}
             >
               {viewMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
@@ -251,45 +247,52 @@ export default function NotesPanel({
                 退出选择
               </Button>
             ) : (
-              <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+              <>
                 <Button size="sm" variant="secondary" onClick={enterSelection} disabled={scopedNotes.length === 0}>
                   <CheckSquare className="h-4 w-4" />
                   选择
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => {
-                  clearError();
-                  setShowWebClip(true);
-                  setCreating(false);
-                  setShowImport(false);
-                }}>
-                  <Globe className="h-4 w-4" />
-                  剪辑网页
-                </Button>
-                <NoteImportZip
-                  interests={interests}
-                  researchInterestId={researchInterestId}
-                  onImport={importZip}
-                />
-                <Button size="sm" variant="secondary" onClick={() => {
-                  clearError();
-                  setShowImport(true);
-                  setCreating(false);
-                  setShowWebClip(false);
-                }} loading={importing}>
-                  <Upload className="h-4 w-4" />
-                  导入笔记
-                </Button>
-                <Button size="sm" onClick={() => {
-                  clearError();
-                  setCreating(true);
-                  setShowWebClip(false);
-                  setShowImport(false);
-                }}>
-                  <Plus className="h-4 w-4" />
-                  新建笔记
-                </Button>
-              </div>
+              </>
             )}
+          </div>
+
+          {/* Right: badges + action buttons */}
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            {researchInterestId ? <Badge variant="default">已按研究主题聚焦</Badge> : null}
+            <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+              <Button size="sm" variant="secondary" onClick={() => {
+                clearError();
+                setShowWebClip(true);
+                setCreating(false);
+                setShowImport(false);
+              }}>
+                <Globe className="h-4 w-4" />
+                剪辑网页
+              </Button>
+              <NoteImportZip
+                interests={interests}
+                researchInterestId={researchInterestId}
+                onImport={importZip}
+              />
+              <Button size="sm" variant="secondary" onClick={() => {
+                clearError();
+                setShowImport(true);
+                setCreating(false);
+                setShowWebClip(false);
+              }} loading={importing}>
+                <Upload className="h-4 w-4" />
+                导入笔记
+              </Button>
+              <Button size="sm" onClick={() => {
+                clearError();
+                setCreating(true);
+                setShowWebClip(false);
+                setShowImport(false);
+              }}>
+                <Plus className="h-4 w-4" />
+                新建笔记
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -323,6 +326,24 @@ export default function NotesPanel({
           <div className="flex items-center gap-2">
             <span className="text-xs text-ink-tertiary">来源</span>
             <CapsuleTabs compact options={sourceTabs} value={activeSource} onChange={setSourceFilter} />
+          </div>
+        )}
+
+        {/* 图谱关联 badge — when no source tabs are present, show it standalone */}
+        {sourceTabs.length === 0 && hasGraphCoverage && scopedNotes.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Badge variant={linkedVisibleNoteCount > 0 ? "info" : "default"}>
+              图谱关联 {linkedVisibleNoteCount}/{scopedNotes.length}
+            </Badge>
+          </div>
+        )}
+
+        {/* 图谱关联 badge — when no source tabs are present, show it standalone */}
+        {sourceTabs.length === 0 && hasGraphCoverage && scopedNotes.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Badge variant={linkedVisibleNoteCount > 0 ? "info" : "default"}>
+              图谱关联 {linkedVisibleNoteCount}/{scopedNotes.length}
+            </Badge>
           </div>
         )}
 
@@ -366,7 +387,10 @@ export default function NotesPanel({
               key={group.key}
               title={group.title}
               subtitle={group.subtitle !== group.title ? `研究主题：${group.subtitle}` : undefined}
-              countLabel={`${group.notes.length} 条`}
+              countLabel={(() => {
+                const linked = linkedCountForGroup(group.key);
+                return linked > 0 ? `${group.notes.length} 条 · 图谱 ${linked}` : `${group.notes.length} 条`;
+              })()}
               defaultOpen={group.notes.length > 0}
               actions={
                 confirmDeleteGroupId === group.key ? (
