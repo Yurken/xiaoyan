@@ -111,7 +111,7 @@ pub async fn code_create_session(
     title: Option<String>,
     working_dir: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let title = title.unwrap_or_else(|| "新对话".to_string());
+    let title = title.unwrap_or_else(|| "新会话".to_string());
     let session =
         code::store::create_session(&state.db, &experiment_id, &title, working_dir.as_deref())
             .await

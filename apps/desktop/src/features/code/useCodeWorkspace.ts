@@ -288,12 +288,18 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         setSending(false);
       });
 
+      const unlistenTitle = await listen<{ session_id: string }>("code:title_changed", (_event) => {
+        if (!mounted) return;
+        loadSessions();
+      });
+
       unlistenersRef.current = [
         unlistenStream,
         unlistenDone,
         unlistenToolCall,
         unlistenToolResult,
         unlistenError,
+        unlistenTitle,
       ];
     }
 

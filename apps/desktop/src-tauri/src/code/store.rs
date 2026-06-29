@@ -201,3 +201,14 @@ pub async fn maybe_autotitle(db: &SqlitePool, session_id: &str, content: &str) {
         }
     }
 }
+
+/// 更新会话标题（用于 AI 自动标题生成）
+pub async fn update_session_title(db: &SqlitePool, session_id: &str, title: &str) -> anyhow::Result<()> {
+    sqlx::query("UPDATE experiment_code_sessions SET title = ?, updated_at = ? WHERE id = ?")
+        .bind(title)
+        .bind(now())
+        .bind(session_id)
+        .execute(db)
+        .await?;
+    Ok(())
+}

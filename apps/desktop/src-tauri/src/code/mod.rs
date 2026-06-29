@@ -258,12 +258,26 @@ pub async fn send_message_stream(
                 let _ = app.emit(
                     "code:done",
                     DoneEvent {
-                        session_id,
+                        session_id: session_id.clone(),
                         request_id,
-                        message_id: assistant_msg.id,
+                        message_id: assistant_msg.id.clone(),
                         full_content: full,
                     },
                 );
+
+                // 首次用户消息+AI回复 → 异步生成标题
+                if is_first_exchange(&session) {
+                    let db2 = db.clone();
+                    let settings2 = settings.clone();
+                    let sid2 = session_id.clone();
+                    let app2 = app.clone();
+                    let title_content = build_title_prompt(&user_msg.content, &assistant_msg.content);
+                    tokio::spawn(async move {
+                        auto_generate_title(db2, settings2, sid2.clone(), title_content).await;
+                        let _ = app2.emit("code:title_changed", serde_json::json!({ "session_id": sid2 }));
+                    });
+                }
+
                 return;
             }
             Ok(StreamOutcome::ToolCalls(tool_calls)) => {
@@ -457,6 +471,54 @@ fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str
         4. 使用 Markdown 格式化代码块，必要时用中文注释说明关键步骤。\n\
         5. 如果没有选择工作目录，请先提醒用户选择目录，再给出能基于现有上下文回答的部分。"
     )
+}
+
+/// 判断是否是第一个用户-助手交换（会话刚创建，需要自动生成标题）
+fn is_first_exchange(session: &CodeSession) -> bool {
+    // messages: [user_msg, ..., assistant_msg]
+    // 如果只有 2 条消息且第一条是 user、第二条未持久化（即当前这条），则为首次交换
+    // 但这里 session 是发送前读取的，消息还没有我们刚持久化的那两条
+    // 所以判断：刚发送的消息是 user + 当前正在生成 assistant → session 原有消息=0 即为新建
+    session.messages.is_empty()
+}
+
+fn build_title_prompt(user_text: &str, assistant_text: &str) -> String {
+    let trunc_user = if user_text.len() > 200 { &user_text[..200] } else { user_text };
+    let trunc_assistant = if assistant_text.len() > 300 { &assistant_text[..300] } else { assistant_text };
+    format!(
+        "根据以下对话，生成一个简短的中文标题（不超过20个字，只返回标题本身，不要引号或解释）：\n\
+         用户：{trunc_user}\n\
+         助手：{trunc_assistant}"
+    )
+}
+
+async fn auto_generate_title(
+    db: SqlitePool,
+    settings: HashMap<String, String>,
+    session_id: String,
+    prompt: String,
+) {
+    let client = match LlmClient::from_settings(&settings) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let model = resolve_model(
+        &settings,
+        &["copilot_simple_model"],
+    );
+    let messages = vec![LlmMessage::user(prompt)];
+    match client.chat(&messages, model.as_deref(), 0.4).await {
+        Ok(title) => {
+            let title = title.trim().replace(['"', '\''], "").trim().to_string();
+            let title = if title.is_empty() || title.len() > 40 {
+                title.chars().take(40).collect::<String>()
+            } else {
+                title
+            };
+            let _ = store::update_session_title(&db, &session_id, &title).await;
+        }
+        Err(_) => {}
+    }
 }
 
 #[cfg(test)]
