@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Save, Trash2 } from "lucide-react";
-import { Button, ConfirmDialog, Input } from "@research-copilot/ui";
+import { Loader2 } from "lucide-react";
+import { Input } from "@research-copilot/ui";
 import type { ExperimentRecord, ExperimentCodeSession } from "@research-copilot/types";
 import { experimentApi, formatErrorMessage } from "../lib/client";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
@@ -37,10 +37,7 @@ interface ExperimentProps {
 export default function Experiment({ experimentId }: ExperimentProps) {
   const [experiment, setExperiment] = useState<ExperimentRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState("");
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const [editTitle, setEditTitle] = useState("");
   const [activeTab, setActiveTab] = useState<ExperimentTab>("code");
@@ -77,36 +74,13 @@ export default function Experiment({ experimentId }: ExperimentProps) {
     setTimeout(() => setToast(""), 2500);
   }
 
-  async function handleSaveTitle() {
-    if (!experiment) return;
-    setSaving(true);
+  async function handleSaveTitle(nextTitle: string) {
+    if (!experiment || nextTitle === experiment.title) return;
     try {
-      await experimentApi.update(experiment.id, { title: editTitle });
-      setExperiment((prev) => prev ? { ...prev, title: editTitle, updatedAt: new Date().toISOString() } : null);
-      showToast("已保存");
+      await experimentApi.update(experiment.id, { title: nextTitle });
+      setExperiment((prev) => prev ? { ...prev, title: nextTitle, updatedAt: new Date().toISOString() } : null);
     } catch (err) {
       showToast(formatErrorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function requestDelete() {
-    if (!experiment) return;
-    setPendingDeleteId(experiment.id);
-  }
-
-  async function confirmDelete() {
-    if (!pendingDeleteId) return;
-    try {
-      setDeleting(true);
-      await experimentApi.delete(pendingDeleteId);
-      setExperiment(null);
-      setPendingDeleteId(null);
-    } catch (err) {
-      showToast(formatErrorMessage(err));
-    } finally {
-      setDeleting(false);
     }
   }
 
@@ -134,17 +108,18 @@ export default function Experiment({ experimentId }: ExperimentProps) {
           <>
             {/* Title + segmented tabs */}
             <div className="flex-shrink-0 flex items-center justify-between gap-4 px-5 pt-4 pb-3 border-b border-nm-dark/10 max-lg:px-4">
-              <div className="flex-1 min-w-0 flex items-center gap-2">
-                <Input
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  placeholder="实验名称"
-                  className="flex-1"
-                />
-                <Button onClick={handleSaveTitle} disabled={saving} variant="secondary" className="flex-shrink-0">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                </Button>
-              </div>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onBlur={() => handleSaveTitle(editTitle)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur();
+                  }
+                }}
+                placeholder="实验名称"
+                className="flex-1"
+              />
 
               <div
                 className="flex-shrink-0 inline-flex items-center p-1 rounded-2xl"
@@ -169,13 +144,6 @@ export default function Experiment({ experimentId }: ExperimentProps) {
                 ))}
               </div>
 
-              <Button
-                variant="secondary"
-                onClick={requestDelete}
-                className="flex-shrink-0 text-apple-red hover:text-apple-red"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
             </div>
 
             {/* Tab content */}
@@ -213,21 +181,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
         </div>
       )}
 
-      <ConfirmDialog
-        open={Boolean(pendingDeleteId)}
-        title="删除实验记录"
-        description={`确认删除「${experiment?.title ?? "该实验记录"}」？此操作无法撤销。`}
-        confirmLabel="确认删除"
-        cancelLabel="取消"
-        tone="danger"
-        loading={deleting}
-        onClose={() => {
-          if (!deleting) setPendingDeleteId(null);
-        }}
-        onConfirm={() => {
-          void confirmDelete();
-        }}
-      />
+
     </div>
   );
 }
