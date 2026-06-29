@@ -91,6 +91,52 @@ pub fn code_tool_definitions() -> Vec<ToolDefinition> {
     ]
 }
 
+/// 根据模式返回对应的工具集定义。
+/// - build/general: 全部工具
+/// - plan: 全部工具（system prompt 会要求确认写操作）
+/// - explore/scout: 仅只读工具
+pub fn code_tool_definitions_for_mode(mode: &str) -> Vec<ToolDefinition> {
+    match mode {
+        "explore" | "scout" => vec![
+            ToolDefinition {
+                name: "read_file".into(),
+                description: "读取工作目录内指定文件的文本内容。用于查看代码、配置文件、日志等。".into(),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "file_path": { "type": "string", "description": "相对于工作目录的文件路径" }
+                    },
+                    "required": ["file_path"]
+                }),
+            },
+            ToolDefinition {
+                name: "list_dir".into(),
+                description: "列出工作目录内指定目录的文件和子目录。用于探索项目结构。".into(),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string", "description": "相对于工作目录的目录路径，默认为当前工作目录" }
+                    },
+                    "required": []
+                }),
+            },
+            ToolDefinition {
+                name: "search_files".into(),
+                description: "在工作目录下搜索匹配关键词的文件内容，返回匹配行及其文件路径。".into(),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "pattern": { "type": "string", "description": "搜索关键词或正则表达式" },
+                        "path": { "type": "string", "description": "相对于工作目录的搜索根目录，默认为工作目录" }
+                    },
+                    "required": ["pattern"]
+                }),
+            },
+        ],
+        _ => code_tool_definitions(),
+    }
+}
+
 /// 判断某个工具是否具有写入或命令副作用。
 #[allow(dead_code)]
 pub fn requires_permission(name: &str) -> bool {

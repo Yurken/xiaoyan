@@ -1,7 +1,81 @@
+import { Bot, BrainCircuit, Compass, Globe, Search } from "lucide-react";
 import type { DirEntry } from "../../lib/client";
 import type { LlmProvider } from "@research-copilot/types";
 
 export type { DirEntry };
+
+// ── Code Agent Modes ─────────────────────────────────────────
+export type CodeAgentMode = "build" | "plan" | "general" | "explore" | "scout";
+
+export interface CodeModeConfig {
+  id: CodeAgentMode;
+  label: string;
+  description: string;
+  icon: typeof Bot;
+  /** 是否为主模式（显示在切换器左侧） */
+  primary: boolean;
+  /** 是否默认需要确认写操作 */
+  confirmWrites: boolean;
+  /** 是否只读（禁止写入/执行） */
+  readOnly: boolean;
+  /** 工具集过滤：null=全部，否则只包含列出的类别 */
+  toolCategories: "all" | "readonly" | "research";
+}
+
+export const CODE_MODES: CodeModeConfig[] = [
+  {
+    id: "build",
+    label: "Build",
+    description: "编写代码、修改文件、运行命令、测试",
+    icon: Bot,
+    primary: true,
+    confirmWrites: false,
+    readOnly: false,
+    toolCategories: "all",
+  },
+  {
+    id: "plan",
+    label: "Plan",
+    description: "分析代码、制定方案、Code Review",
+    icon: BrainCircuit,
+    primary: true,
+    confirmWrites: true,
+    readOnly: false,
+    toolCategories: "all",
+  },
+  {
+    id: "general",
+    label: "General",
+    description: "通用任务，可并行处理复杂工作",
+    icon: Globe,
+    primary: false,
+    confirmWrites: false,
+    readOnly: false,
+    toolCategories: "all",
+  },
+  {
+    id: "explore",
+    label: "Explore",
+    description: "只读探索代码库、搜索、理解架构",
+    icon: Compass,
+    primary: false,
+    confirmWrites: false,
+    readOnly: true,
+    toolCategories: "readonly",
+  },
+  {
+    id: "scout",
+    label: "Scout",
+    description: "查询外部文档、依赖源码、上游仓库",
+    icon: Search,
+    primary: false,
+    confirmWrites: false,
+    readOnly: true,
+    toolCategories: "research",
+  },
+];
+
+export const CODE_MODE_MAP = Object.fromEntries(CODE_MODES.map((m) => [m.id, m])) as Record<CodeAgentMode, CodeModeConfig>;
 
 export interface OpenFile {
   path: string;

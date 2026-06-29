@@ -156,6 +156,7 @@ pub async fn code_send_message(
     content: String,
     working_dir: Option<String>,
     current_file: Option<String>,
+    mode: Option<String>,
 ) -> Result<(), String> {
     if content.trim().is_empty() {
         return Err("消息不能为空".into());
@@ -176,6 +177,7 @@ pub async fn code_send_message(
             content,
             working_dir,
             current_file,
+            mode,
         )
         .await;
     });

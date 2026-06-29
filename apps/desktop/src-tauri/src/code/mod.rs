@@ -123,6 +123,7 @@ pub async fn send_message_stream(
     content: String,
     working_dir: Option<String>,
     current_file: Option<String>,
+    mode: Option<String>,
 ) {
     let request_id = Uuid::new_v4().to_string();
     let working_dir = working_dir.and_then(|dir| {
@@ -181,7 +182,8 @@ pub async fn send_message_stream(
         }
     };
 
-    let system_prompt = build_code_system_prompt(working_dir.as_deref(), current_file.as_deref());
+    let mode_str = mode.as_deref().unwrap_or("build");
+    let system_prompt = build_code_system_prompt(working_dir.as_deref(), current_file.as_deref(), mode_str);
     let mut messages = vec![LlmMessage::system(system_prompt)];
 
     // 只保留最近若干轮对话作为上下文，避免 token 爆炸。
@@ -193,7 +195,7 @@ pub async fn send_message_stream(
 
     // 4. Agent 工具循环：模型请求工具 -> 后端执行 -> 工具结果回填 -> 继续生成。
     let tool_definitions = if working_dir.is_some() {
-        tools::code_tool_definitions()
+        tools::code_tool_definitions_for_mode(mode_str)
     } else {
         Vec::new()
     };
@@ -408,8 +410,8 @@ async fn execute_code_tool(tc: &ToolCall, working_dir: Option<&str>) -> CodeTool
     }
 }
 
-/// 构建代码助手的 system prompt，注入工作目录与当前文件上下文。
-fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str>) -> String {
+/// 构建代码助手的 system prompt，注入工作目录、当前文件上下文和模式指令。
+fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str>, mode: &str) -> String {
     let dir_line = working_dir
         .map(|d| format!("当前工作目录：{d}"))
         .unwrap_or_else(|| "当前未选择工作目录。".to_string());
@@ -417,12 +419,31 @@ fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str
         .map(|f| format!("用户当前打开的文件：{f}"))
         .unwrap_or_else(|| "用户当前没有打开特定文件。".to_string());
 
+    let mode_instruction = match mode {
+        "build" => "你处于 Build 模式：你可以自由编写代码、修改文件、运行命令和测试。无需每次确认即可执行写操作。",
+        "plan" => "你处于 Plan 模式：你的主要职责是分析代码、制定方案和进行 Code Review。\
+            在执行任何写操作（编辑文件、运行命令）之前，必须先向用户说明计划并获得确认。\
+            优先使用只读工具（搜索、查看）来理解代码，然后给出清晰的分析和建议。",
+        "general" => "你处于 General 模式：你可以处理通用任务，包括代码编写和分析。\
+            对于复杂的多步骤任务，可以将其拆解为子任务逐步完成。",
+        "explore" => "你处于 Explore 模式：你只能进行只读操作——搜索、查看、分析代码。\
+            禁止编辑文件、写入文件或执行任何可能修改系统的命令。\
+            专注于帮助用户理解代码架构、查找问题和梳理逻辑。",
+        "scout" => "你处于 Scout 模式：你专注于查询外部资源——文档、依赖源码、上游仓库。\
+            可以使用搜索和网络工具获取信息，但不能修改本地文件。\
+            帮助用户了解第三方库的用法、API 文档和最佳实践。",
+        _ => "你处于 Build 模式：你可以自由编写代码、修改文件、运行命令和测试。",
+    };
+
     format!(
         "你是小妍代码助手，一位面向科研实验场景的编程助手。你帮助用户理解、编写、调试和重构代码。\n\
         \n\
         当前上下文：\n\
         - {dir_line}\n\
         - {file_line}\n\
+        \n\
+        模式指令：\n\
+        - {mode_instruction}\n\
         \n\
         可用能力：\n\
         - 选择了工作目录时，你可以用工具列目录、搜索、读取、写入/编辑文件，并运行命令。\n\
