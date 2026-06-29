@@ -56,12 +56,14 @@ use commands::{
         knowledge_graph_citation_centrality, knowledge_graph_citation_shortest_path,
         knowledge_graph_citation_subgraph,
     },
+    code::{
+        code_create_session, code_delete_session, code_get_session, code_git_commit,
+        code_git_snapshot, code_git_stage_path, code_git_unstage_path, code_list_dir,
+        code_list_sessions, code_read_file, code_review_changes, code_send_message,
+        code_update_session, code_write_file,
+    },
     data_backup::{data_backup_export, data_backup_import},
     evidence::evidence_get_links,
-    field_dynamics::{
-        field_dynamics_import_paper, field_dynamics_list, field_dynamics_mark_read,
-        field_dynamics_scan,
-    },
     experiment::{
         experiment_add_attachment, experiment_create, experiment_create_snapshot,
         experiment_delete, experiment_delete_attachment, experiment_delete_snapshot,
@@ -69,6 +71,10 @@ use commands::{
         experiment_list_snapshots, experiment_update, experiment_update_attachment_label,
     },
     export::export_to_obsidian,
+    field_dynamics::{
+        field_dynamics_import_paper, field_dynamics_list, field_dynamics_mark_read,
+        field_dynamics_scan,
+    },
     journal::{journal_lookup, journal_rank_filter},
     knowledge::{
         knowledge_create_folder, knowledge_create_interest, knowledge_delete_interest_bundle,
@@ -102,11 +108,6 @@ use commands::{
     },
     paper_corpus::{
         paper_corpus_create, paper_corpus_delete, paper_corpus_list, paper_corpus_update,
-    },
-    code::{
-        code_create_session, code_delete_session, code_get_session, code_list_dir,
-        code_list_sessions, code_read_file, code_send_message, code_update_session,
-        code_write_file,
     },
     paper_cross_analysis::papers_cross_analysis,
     paper_figures::papers_list_figures,
@@ -649,9 +650,14 @@ pub fn run() {
             code_create_session,
             code_delete_session,
             code_get_session,
+            code_git_commit,
+            code_git_snapshot,
+            code_git_stage_path,
+            code_git_unstage_path,
             code_list_dir,
             code_list_sessions,
             code_read_file,
+            code_review_changes,
             code_send_message,
             code_update_session,
             code_write_file,

@@ -1,10 +1,11 @@
 //! 代码功能后端 —— 小妍原生代码助手。
 //!
 //! 不再调用用户本机安装的各类 code CLI，而是直接复用小妍设置里配置好的 LLM，
-//! 在工作目录上下文中与用户进行代码对话。当前为 MVP 阶段：提供代码建议、解释、
-//! 重构思路，暂不提供自动文件修改/命令执行等 Agent 工具能力。
+//! 在工作目录上下文中与用户进行代码对话，并通过受限本地工具读取、修改文件与执行命令。
 
+pub mod git;
 pub mod store;
+pub mod tools;
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -12,7 +13,9 @@ use std::collections::HashMap;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
-use crate::llm::{LlmClient, LlmMessage, resolve_model, resolve_temperature_chain};
+use crate::llm::{
+    resolve_model, resolve_temperature_chain, LlmClient, LlmMessage, StreamOutcome, ToolCall,
+};
 
 use store::now;
 
@@ -34,10 +37,32 @@ pub struct CodeSession {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeToolResult {
+    pub tool_call_id: String,
+    pub name: String,
+    pub output: String,
+    #[serde(default)]
+    pub is_error: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeMessage {
     pub id: String,
     pub role: String,
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<CodeToolCall>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_results: Option<Vec<CodeToolResult>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
     /// 历史字段，保留以兼容旧数据。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_id: Option<String>,
@@ -70,6 +95,22 @@ struct ErrorEvent {
     error: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct ToolCallEvent {
+    session_id: String,
+    request_id: String,
+    message_id: String,
+    tool_call: CodeToolCall,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ToolResultEvent {
+    session_id: String,
+    request_id: String,
+    message_id: String,
+    result: CodeToolResult,
+}
+
 // ── 核心：发送一轮消息并流式返回 ──────────────────────────────
 
 /// 使用小妍设置中的 LLM 在 `working_dir` 上下文中执行一轮代码对话。
@@ -84,12 +125,23 @@ pub async fn send_message_stream(
     current_file: Option<String>,
 ) {
     let request_id = Uuid::new_v4().to_string();
+    let working_dir = working_dir.and_then(|dir| {
+        let trimmed = dir.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    });
 
     // 1. 落盘用户消息
     let user_msg = CodeMessage {
         id: Uuid::new_v4().to_string(),
         role: "user".to_string(),
         content: content.clone(),
+        tool_calls: None,
+        tool_results: None,
+        tool_call_id: None,
         tool_id: None,
         model: None,
         created_at: now(),
@@ -106,8 +158,19 @@ pub async fn send_message_stream(
             return;
         }
     };
-    let model = resolve_model(&settings, &["code_assistant_model", "copilot_simple_model", "paper_analysis_model"]);
-    let temperature = resolve_temperature_chain(&settings, &["code_assistant_temperature", "copilot_simple_temperature"], 0.3);
+    let model = resolve_model(
+        &settings,
+        &[
+            "code_assistant_model",
+            "copilot_simple_model",
+            "paper_analysis_model",
+        ],
+    );
+    let temperature = resolve_temperature_chain(
+        &settings,
+        &["code_assistant_temperature", "copilot_simple_temperature"],
+        0.3,
+    );
 
     // 3. 组装消息上下文
     let session = match store::get_session(&db, &session_id).await {
@@ -125,54 +188,162 @@ pub async fn send_message_stream(
     const MAX_CONTEXT_MESSAGES: usize = 20;
     let history_start = session.messages.len().saturating_sub(MAX_CONTEXT_MESSAGES);
     for msg in &session.messages[history_start..] {
-        if msg.role == "user" {
-            messages.push(LlmMessage::user(msg.content.clone()));
-        } else if msg.role == "assistant" {
-            messages.push(LlmMessage::assistant(msg.content.clone()));
-        }
+        push_code_message_as_llm(&mut messages, msg);
     }
 
-    // 4. 流式调用并回传
-    let app_for_delta = app.clone();
-    let sid_for_delta = session_id.clone();
-    let rid_for_delta = request_id.clone();
+    // 4. Agent 工具循环：模型请求工具 -> 后端执行 -> 工具结果回填 -> 继续生成。
+    let tool_definitions = if working_dir.is_some() {
+        tools::code_tool_definitions()
+    } else {
+        Vec::new()
+    };
+    let max_tool_rounds: usize = settings
+        .get("code_tool_max_rounds")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8);
+    let mut tool_rounds = 0usize;
 
-    let result = client
-        .stream_chat(&messages, model.as_deref(), temperature, move |delta| {
-            let _ = app_for_delta.emit(
-                "code:stream",
-                StreamEvent {
-                    session_id: sid_for_delta.clone(),
-                    request_id: rid_for_delta.clone(),
-                    chunk: delta,
-                },
-            );
-        })
-        .await;
+    loop {
+        let app_for_delta = app.clone();
+        let sid_for_delta = session_id.clone();
+        let rid_for_delta = request_id.clone();
 
-    match result {
-        Ok(full) => {
-            let assistant_msg = CodeMessage {
-                id: Uuid::new_v4().to_string(),
-                role: "assistant".to_string(),
-                content: full.clone(),
-                tool_id: None,
-                model: model.clone(),
-                created_at: now(),
-            };
-            let _ = store::persist_message(&db, &session_id, &assistant_msg).await;
-            let _ = app.emit(
-                "code:done",
-                DoneEvent {
-                    session_id,
-                    request_id,
-                    message_id: assistant_msg.id,
-                    full_content: full,
-                },
-            );
+        let outcome = if tool_definitions.is_empty() || tool_rounds >= max_tool_rounds {
+            client
+                .stream_chat(&messages, model.as_deref(), temperature, move |delta| {
+                    emit_stream_delta(&app_for_delta, &sid_for_delta, &rid_for_delta, delta);
+                })
+                .await
+                .map(StreamOutcome::TextCompleted)
+        } else {
+            client
+                .stream_chat_with_tools(
+                    &messages,
+                    &tool_definitions,
+                    model.as_deref(),
+                    temperature,
+                    move |delta| {
+                        emit_stream_delta(&app_for_delta, &sid_for_delta, &rid_for_delta, delta);
+                    },
+                )
+                .await
+        };
+
+        match outcome {
+            Ok(StreamOutcome::TextCompleted(full)) => {
+                if full.trim().is_empty() {
+                    emit_error(
+                        &app,
+                        &session_id,
+                        &request_id,
+                        "模型未返回任何内容。请检查当前代码模型是否支持流式输出或工具调用。".into(),
+                    );
+                    return;
+                }
+
+                let assistant_msg = CodeMessage {
+                    id: Uuid::new_v4().to_string(),
+                    role: "assistant".to_string(),
+                    content: full.clone(),
+                    tool_calls: None,
+                    tool_results: None,
+                    tool_call_id: None,
+                    tool_id: None,
+                    model: model.clone(),
+                    created_at: now(),
+                };
+                let _ = store::persist_message(&db, &session_id, &assistant_msg).await;
+                let _ = app.emit(
+                    "code:done",
+                    DoneEvent {
+                        session_id,
+                        request_id,
+                        message_id: assistant_msg.id,
+                        full_content: full,
+                    },
+                );
+                return;
+            }
+            Ok(StreamOutcome::ToolCalls(tool_calls)) => {
+                tool_rounds += 1;
+                let tool_message_id = Uuid::new_v4().to_string();
+                let code_tool_calls: Vec<CodeToolCall> =
+                    tool_calls.iter().map(tools::to_code_tool_call).collect();
+                let tool_call_msg = CodeMessage {
+                    id: tool_message_id.clone(),
+                    role: "assistant".to_string(),
+                    content: String::new(),
+                    tool_calls: Some(code_tool_calls.clone()),
+                    tool_results: None,
+                    tool_call_id: None,
+                    tool_id: None,
+                    model: model.clone(),
+                    created_at: now(),
+                };
+                let _ = store::persist_message(&db, &session_id, &tool_call_msg).await;
+                messages.push(LlmMessage::assistant_with_tool_calls(tool_calls.clone()));
+
+                for tool_call in code_tool_calls {
+                    let _ = app.emit(
+                        "code:tool_call",
+                        ToolCallEvent {
+                            session_id: session_id.clone(),
+                            request_id: request_id.clone(),
+                            message_id: tool_message_id.clone(),
+                            tool_call,
+                        },
+                    );
+                }
+
+                for tc in &tool_calls {
+                    let result = execute_code_tool(tc, working_dir.as_deref()).await;
+                    let tool_msg = CodeMessage {
+                        id: Uuid::new_v4().to_string(),
+                        role: "tool".to_string(),
+                        content: result.output.clone(),
+                        tool_calls: None,
+                        tool_results: Some(vec![result.clone()]),
+                        tool_call_id: Some(result.tool_call_id.clone()),
+                        tool_id: None,
+                        model: None,
+                        created_at: now(),
+                    };
+                    let _ = store::persist_message(&db, &session_id, &tool_msg).await;
+                    let _ = app.emit(
+                        "code:tool_result",
+                        ToolResultEvent {
+                            session_id: session_id.clone(),
+                            request_id: request_id.clone(),
+                            message_id: tool_msg.id.clone(),
+                            result: result.clone(),
+                        },
+                    );
+                    messages.push(LlmMessage::tool(&tc.id, result.output));
+                }
+
+                if tool_rounds >= max_tool_rounds {
+                    messages.push(LlmMessage::user(
+                        "已达到工具调用次数上限，请基于已有信息给出当前最佳回答，不要再调用工具。",
+                    ));
+                }
+            }
+            Err(e) => {
+                emit_error(&app, &session_id, &request_id, format!("LLM 调用失败：{e}"));
+                return;
+            }
         }
-        Err(e) => emit_error(&app, &session_id, &request_id, format!("LLM 调用失败：{e}")),
     }
+}
+
+fn emit_stream_delta(app: &AppHandle, session_id: &str, request_id: &str, chunk: String) {
+    let _ = app.emit(
+        "code:stream",
+        StreamEvent {
+            session_id: session_id.to_string(),
+            request_id: request_id.to_string(),
+            chunk,
+        },
+    );
 }
 
 fn emit_error(app: &AppHandle, session_id: &str, request_id: &str, error: String) {
@@ -184,6 +355,57 @@ fn emit_error(app: &AppHandle, session_id: &str, request_id: &str, error: String
             error,
         },
     );
+}
+
+fn push_code_message_as_llm(messages: &mut Vec<LlmMessage>, msg: &CodeMessage) {
+    match msg.role.as_str() {
+        "user" => messages.push(LlmMessage::user(msg.content.clone())),
+        "assistant" => {
+            if let Some(tool_calls) = &msg.tool_calls {
+                messages.push(LlmMessage {
+                    role: "assistant".into(),
+                    content: msg.content.clone(),
+                    tool_call_id: None,
+                    tool_calls: Some(
+                        tool_calls
+                            .iter()
+                            .map(|tc| ToolCall {
+                                id: tc.id.clone(),
+                                name: tc.name.clone(),
+                                arguments: tc.arguments.clone(),
+                            })
+                            .collect(),
+                    ),
+                    images: Vec::new(),
+                });
+            } else {
+                messages.push(LlmMessage::assistant(msg.content.clone()));
+            }
+        }
+        "tool" => {
+            if let Some(tool_call_id) = &msg.tool_call_id {
+                messages.push(LlmMessage::tool(tool_call_id, msg.content.clone()));
+            }
+        }
+        _ => {}
+    }
+}
+
+async fn execute_code_tool(tc: &ToolCall, working_dir: Option<&str>) -> CodeToolResult {
+    match tools::dispatch_tool(&tc.name, &tc.arguments, working_dir).await {
+        Ok(output) => CodeToolResult {
+            tool_call_id: tc.id.clone(),
+            name: tc.name.clone(),
+            output,
+            is_error: false,
+        },
+        Err(e) => CodeToolResult {
+            tool_call_id: tc.id.clone(),
+            name: tc.name.clone(),
+            output: format!("工具执行失败：{e}"),
+            is_error: true,
+        },
+    }
 }
 
 /// 构建代码助手的 system prompt，注入工作目录与当前文件上下文。
@@ -202,12 +424,17 @@ fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str
         - {dir_line}\n\
         - {file_line}\n\
         \n\
+        可用能力：\n\
+        - 选择了工作目录时，你可以用工具列目录、搜索、读取、写入/编辑文件，并运行命令。\n\
+        - 所有文件路径都应相对工作目录书写；不要访问工作目录之外的路径。\n\
+        - 运行命令前先判断必要性，优先选择可验证、影响小的命令。\n\
+        \n\
         请遵循以下原则：\n\
-        1. 回答简洁、准确，优先给出可运行的代码或清晰的修改建议。\n\
-        2. 如需修改文件，请在回复中给出完整的 diff 或代码块，并说明应放到哪个路径。\n\
-        3. 不要主动执行任何命令或写入文件；当前阶段只提供建议。\n\
+        1. 回答简洁、准确；需要了解代码时先读取或搜索，不要编造文件内容。\n\
+        2. 用户要求你修改代码时，优先直接使用工具完成修改，并在最后说明改了什么、如何验证。\n\
+        3. 不要执行明显危险或破坏性的命令；不要删除用户文件，除非用户明确要求。\n\
         4. 使用 Markdown 格式化代码块，必要时用中文注释说明关键步骤。\n\
-        5. 如果用户问题与当前文件或工作目录有关，请结合上下文作答，不要编造文件内容。"
+        5. 如果没有选择工作目录，请先提醒用户选择目录，再给出能基于现有上下文回答的部分。"
     )
 }
 

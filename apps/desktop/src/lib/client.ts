@@ -1034,10 +1034,26 @@ export const fieldDynamicsApi = {
 
 // ── Code（小妍原生代码助手）────────────────────────────────────
 
+export interface CodeToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface CodeToolResult {
+  tool_call_id: string;
+  name: string;
+  output: string;
+  is_error: boolean;
+}
+
 export interface CodeMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "tool";
   content: string;
+  tool_calls?: CodeToolCall[];
+  tool_results?: CodeToolResult[];
+  tool_call_id?: string | null;
   /** @deprecated 历史字段，代码助手不再依赖外部工具。 */
   tool_id?: string | null;
   /** @deprecated 历史字段，代码助手直接使用小妍设置中的模型。 */
@@ -1051,6 +1067,33 @@ export interface DirEntry {
   name: string;
   path: string;
   is_dir: boolean;
+}
+
+export interface CodeGitFile {
+  path: string;
+  index_status: string;
+  worktree_status: string;
+  staged: boolean;
+  unstaged: boolean;
+  untracked: boolean;
+}
+
+export interface CodeGitSnapshot {
+  is_repo: boolean;
+  branch: string | null;
+  head: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  files: CodeGitFile[];
+  staged_diff: string;
+  unstaged_diff: string;
+  recent_commits: string[];
+}
+
+export interface CodeReviewReport {
+  content: string;
+  diff_chars: number;
 }
 
 export interface CodeUpdateSessionInput {
@@ -1104,6 +1147,21 @@ export const codeApi = {
       title: input.title ?? null,
       workingDir: input.workingDir ?? null,
     }),
+
+  gitSnapshot: (workingDir: string): Promise<CodeGitSnapshot> =>
+    invoke("code_git_snapshot", { workingDir }),
+
+  gitStagePath: (workingDir: string, path: string): Promise<void> =>
+    invoke("code_git_stage_path", { workingDir, path }),
+
+  gitUnstagePath: (workingDir: string, path: string): Promise<void> =>
+    invoke("code_git_unstage_path", { workingDir, path }),
+
+  gitCommit: (workingDir: string, message: string): Promise<string> =>
+    invoke("code_git_commit", { workingDir, message }),
+
+  reviewChanges: (workingDir: string): Promise<CodeReviewReport> =>
+    invoke("code_review_changes", { workingDir }),
 };
 
 export const apiClient = {

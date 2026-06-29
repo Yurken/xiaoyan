@@ -35,7 +35,11 @@ pub async fn code_list_dir(path: String) -> Result<serde_json::Value, String> {
         }
         let path_str = entry.path().to_string_lossy().to_string();
         let is_dir = entry.file_type().await.map_err(|e| e.to_string())?.is_dir();
-        entries.push(DirEntry { name, path: path_str, is_dir });
+        entries.push(DirEntry {
+            name,
+            path: path_str,
+            is_dir,
+        });
     }
 
     entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
@@ -56,7 +60,9 @@ pub async fn code_read_file(path: String) -> Result<serde_json::Value, String> {
     if !path.is_file() {
         return Err("路径不是文件".into());
     }
-    let content = tokio::fs::read_to_string(path).await.map_err(|e| e.to_string())?;
+    let content = tokio::fs::read_to_string(path)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(json!({ "content": content }))
 }
 
@@ -65,10 +71,14 @@ pub async fn code_write_file(path: String, content: String) -> Result<(), String
     let path = Path::new(&path);
     if let Some(parent) = path.parent() {
         if !parent.exists() {
-            tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| e.to_string())?;
         }
     }
-    tokio::fs::write(path, content).await.map_err(|e| e.to_string())?;
+    tokio::fs::write(path, content)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -102,9 +112,10 @@ pub async fn code_create_session(
     working_dir: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let title = title.unwrap_or_else(|| "新对话".to_string());
-    let session = code::store::create_session(&state.db, &experiment_id, &title, working_dir.as_deref())
-        .await
-        .map_err(|e| e.to_string())?;
+    let session =
+        code::store::create_session(&state.db, &experiment_id, &title, working_dir.as_deref())
+            .await
+            .map_err(|e| e.to_string())?;
     serde_json::to_value(&session).map_err(|e| e.to_string())
 }
 
@@ -157,8 +168,48 @@ pub async fn code_send_message(
 
     // fire-and-forget，流式结果走事件回传。
     tauri::async_runtime::spawn(async move {
-        code::send_message_stream(app, db, settings, session_id, content, working_dir, current_file).await;
+        code::send_message_stream(
+            app,
+            db,
+            settings,
+            session_id,
+            content,
+            working_dir,
+            current_file,
+        )
+        .await;
     });
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn code_git_snapshot(working_dir: String) -> Result<serde_json::Value, String> {
+    let snapshot = code::git::snapshot(&working_dir).await?;
+    serde_json::to_value(snapshot).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn code_git_stage_path(working_dir: String, path: String) -> Result<(), String> {
+    code::git::stage_path(&working_dir, &path).await
+}
+
+#[tauri::command]
+pub async fn code_git_unstage_path(working_dir: String, path: String) -> Result<(), String> {
+    code::git::unstage_path(&working_dir, &path).await
+}
+
+#[tauri::command]
+pub async fn code_git_commit(working_dir: String, message: String) -> Result<String, String> {
+    code::git::commit(&working_dir, &message).await
+}
+
+#[tauri::command]
+pub async fn code_review_changes(
+    state: State<'_, AppState>,
+    working_dir: String,
+) -> Result<serde_json::Value, String> {
+    let settings = state.settings.read().await.clone();
+    let report = code::git::review_changes(&settings, &working_dir).await?;
+    serde_json::to_value(report).map_err(|e| e.to_string())
 }

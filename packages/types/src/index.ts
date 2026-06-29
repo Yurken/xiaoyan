@@ -617,6 +617,7 @@ export interface AppSettings {
   copilot_simple_frequency_penalty: string;
   xiaoyan_long_term_memory_enabled: string;
   xiaoyan_companion_id: string;
+  xiaoyan_active_researcher_enabled: string;
   // Multi-agent
   multi_agent_enabled: string;
   multi_agent_routing_mode: MultiAgentRoutingMode;
@@ -815,10 +816,28 @@ export interface ExperimentAttachment {
 
 // ── OpenCode ──────────────────────────────────────────────────
 
+export interface OpenCodeToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface OpenCodeToolResult {
+  tool_call_id: string;
+  name: string;
+  output: string;
+  is_error: boolean;
+}
+
 export interface OpenCodeMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "tool";
   content: string;
+  tool_calls?: OpenCodeToolCall[];
+  tool_results?: OpenCodeToolResult[];
+  tool_call_id?: string | null;
+  tool_id?: string | null;
+  model?: string | null;
   created_at: string;
 }
 
