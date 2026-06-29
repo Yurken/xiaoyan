@@ -122,7 +122,7 @@ export default function Tools() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
-      <div className="shrink-0 px-6 pt-4 pb-3">
+      <div className="app-header shrink-0 px-6 pb-3">
         <CapsuleTabs
           options={TOOL_TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
           value={activeTab}

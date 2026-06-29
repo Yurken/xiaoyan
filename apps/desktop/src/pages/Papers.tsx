@@ -169,59 +169,62 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       ) : null}
 
       <div className={clsx("mx-auto w-full space-y-5", hideFolders && "max-w-5xl px-4 pb-10")}>
-        <div className={clsx("flex flex-wrap items-center justify-end gap-2 shrink-0", view === "papers" ? "flex" : "hidden")}>
-            <div ref={recognizeRef} className="relative flex-shrink-0">
-              <button type="button" onClick={() => setRecognizeOpen((v) => !v)} data-open={recognizeOpen}
-                className="rc-dropdown-trigger flex items-center gap-1.5 rounded-2xl px-3 py-2 transition-all duration-150"
-                title="导入时自动识别论文内容">
-                <span className="text-xs font-medium text-ink-secondary">自动识别</span>
-                <ChevronDown className={`w-3.5 h-3.5 text-ink-tertiary transition-transform ${recognizeOpen ? "rotate-180" : ""}`} />
-              </button>
-              {recognizeOpen && (
-                <div className="rc-dropdown-menu absolute left-0 top-full mt-1.5 z-30 min-w-[160px] rounded-2xl py-2">
-                  {(["title","authors","year","venue","keywords"] as (keyof RecognizeFlags)[]).map((key) => (
-                    <button key={key} type="button" onClick={() => void handleToggleRecognize(key)}
-                      className="w-full flex items-center gap-2.5 px-4 py-1.5 text-xs text-ink-primary hover:bg-white/40 transition-colors">
-                      <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors"
-                        style={{ background: recognizeFlags[key] ? "#007AFF" : "transparent",
-                          border: recognizeFlags[key] ? "none" : "1.5px solid #B0B5BB" }}>
-                        {recognizeFlags[key] && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                      </span>
-                      {{ title: "名称", authors: "作者", year: "年份", venue: "期刊 / 会议", keywords: "关键词" }[key]}
-                    </button>
-                  ))}
-                </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CapsuleTabs
+            value={view}
+            onChange={(v) => setView(v as "papers" | "corpus")}
+            options={[
+              { value: "papers", label: "论文库" },
+              { value: "corpus", label: "语料库" },
+            ]}
+          />
+          {view === "papers" && (
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <div ref={recognizeRef} className="relative flex-shrink-0">
+                <button type="button" onClick={() => setRecognizeOpen((v) => !v)} data-open={recognizeOpen}
+                  className="rc-dropdown-trigger flex items-center gap-1.5 rounded-2xl px-3.5 py-2.5 text-sm transition-all duration-150"
+                  title="导入时自动识别论文内容">
+                  <span className="text-sm font-medium text-ink-secondary">自动识别</span>
+                  <ChevronDown className={`w-4 h-4 text-ink-tertiary transition-transform ${recognizeOpen ? "rotate-180" : ""}`} />
+                </button>
+                {recognizeOpen && (
+                  <div className="rc-dropdown-menu absolute left-0 top-full mt-1.5 z-30 min-w-[160px] rounded-2xl py-2">
+                    {(["title","authors","year","venue","keywords"] as (keyof RecognizeFlags)[]).map((key) => (
+                      <button key={key} type="button" onClick={() => void handleToggleRecognize(key)}
+                        className="w-full flex items-center gap-2.5 px-4 py-1.5 text-xs text-ink-primary hover:bg-white/40 transition-colors">
+                        <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                          style={{ background: recognizeFlags[key] ? "#007AFF" : "transparent",
+                            border: recognizeFlags[key] ? "none" : "1.5px solid #B0B5BB" }}>
+                          {recognizeFlags[key] && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                        </span>
+                        {{ title: "名称", authors: "作者", year: "年份", venue: "期刊 / 会议", keywords: "关键词" }[key]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {!hideFolders && (
+                <Select className="min-w-[200px]" prefix="文件夹：" value={papers.selectedInterestId}
+                  onChange={papers.setSelectedInterestId}
+                  options={[{ value: "", label: "未归档" }, ...buildFolderSelectOptions(papers.interests)]} />
               )}
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => setMergeOpen(true)}
+                disabled={duplicateGroups.length === 0}
+                title={duplicateGroups.length === 0 ? "未发现重复论文" : "合并疑似重复的论文"}
+              >
+                <GitMerge className="w-4 h-4" />
+                {duplicateGroups.length > 0 ? `合并重复 (${duplicateGroups.length})` : "合并重复"}
+              </Button>
+              <Button onClick={papers.handleUpload} loading={papers.uploading} size="md">
+                <Upload className="w-4 h-4" />
+                {papers.batchProgress ? `导入中 (${papers.batchProgress.done}/${papers.batchProgress.total})` : "导入 PDF"}
+              </Button>
             </div>
-            {!hideFolders && (
-              <Select className="min-w-[200px]" prefix="文件夹：" value={papers.selectedInterestId}
-                onChange={papers.setSelectedInterestId}
-                options={[{ value: "", label: "未归档" }, ...buildFolderSelectOptions(papers.interests)]} />
-            )}
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={() => setMergeOpen(true)}
-              disabled={duplicateGroups.length === 0}
-              title={duplicateGroups.length === 0 ? "未发现重复论文" : "合并疑似重复的论文"}
-            >
-              <GitMerge className="w-4 h-4" />
-              {duplicateGroups.length > 0 ? `合并重复 (${duplicateGroups.length})` : "合并重复"}
-            </Button>
-            <Button onClick={papers.handleUpload} loading={papers.uploading} size="md">
-              <Upload className="w-4 h-4" />
-              {papers.batchProgress ? `导入中 (${papers.batchProgress.done}/${papers.batchProgress.total})` : "导入 PDF"}
-            </Button>
-          </div>
-
-        <CapsuleTabs
-          value={view}
-          onChange={(v) => setView(v as "papers" | "corpus")}
-          options={[
-            { value: "papers", label: "论文库" },
-            { value: "corpus", label: "语料库" },
-          ]}
-        />
+          )}
+        </div>
 
         {view === "corpus" ? (
           <CorpusPanel />

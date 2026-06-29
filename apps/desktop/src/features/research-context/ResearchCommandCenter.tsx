@@ -29,7 +29,7 @@ export default function ResearchCommandCenter({ themeId }: ResearchCommandCenter
 
   if (error || !theme) {
     return (
-      <div className="flex h-full flex-col justify-center overflow-y-auto p-5">
+      <div className="flex h-full flex-col justify-center overflow-y-auto">
         <Card className="mx-auto flex w-full max-w-3xl flex-col gap-3 py-10 text-center">
           <p className="text-base font-semibold text-ink-primary">无法加载主题</p>
           <p className="mx-auto max-w-2xl break-all text-sm text-apple-red">{error}</p>
@@ -40,7 +40,7 @@ export default function ResearchCommandCenter({ themeId }: ResearchCommandCenter
 
   return (
     <>
-      <div className="flex h-full flex-col gap-4 p-5">
+      <div className="flex h-full flex-col gap-4">
         <Card padding="md" className="flex flex-col gap-6">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
