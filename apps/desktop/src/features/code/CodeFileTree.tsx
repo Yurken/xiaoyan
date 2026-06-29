@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import {
-  CornerLeftUp,
+  CornerRightUp,
   ChevronRight,
   ChevronDown,
   Folder,
@@ -130,7 +130,7 @@ export default function CodeFileTree({
             onClick={() => navigateTo(parentPath)}
             title={`返回上级：${parentPath}`}
           >
-            <CornerLeftUp size={14} />
+            <CornerRightUp size={14} />
           </button>
         )}
       </div>
