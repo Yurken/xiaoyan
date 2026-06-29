@@ -71,29 +71,37 @@ export default function Experiment({ experimentId }: ExperimentProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       {/* Header + horizontal segmented tabs */}
-      <div className="flex-shrink-0 px-6 pt-4 pb-3 border-b border-nm-dark/10 app-header">
+      <div className="app-header flex-shrink-0 px-6 pb-3 border-b border-nm-dark/10">
         <div
-          className="inline-flex items-center p-1 rounded-2xl mt-4"
-          style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
+          className="inline-flex rounded-2xl border p-1"
+          style={{ borderColor: "var(--rc-border)", background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.52))" }}
         >
-          {[
+          {([
             { key: "code", label: "代码" },
             { key: "snapshots", label: "快照" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              data-testid={`tab-${tab.key}`}
-              onClick={() => setActiveTab(tab.key as ExperimentTab)}
-              className={`px-5 py-1.5 rounded-xl text-sm font-medium transition-all ${
-                activeTab === tab.key
-                  ? "bg-white text-ink-primary shadow-sm"
-                  : "text-ink-tertiary hover:text-ink-primary"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          ] as const).map((tab) => {
+            const active = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                data-testid={`tab-${tab.key}`}
+                onClick={() => setActiveTab(tab.key)}
+                className="rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150"
+                style={active
+                  ? {
+                      background: "var(--rc-button-secondary-bg)",
+                      boxShadow: "var(--rc-button-secondary-shadow)",
+                      color: "var(--rc-text)",
+                    }
+                  : {
+                      color: "var(--rc-text-muted)",
+                    }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
