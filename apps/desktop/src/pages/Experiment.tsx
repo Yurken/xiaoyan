@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, FolderOpen } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { usePersistentState } from "../hooks/usePersistentStringState";
 import type { ExperimentRecord, ExperimentCodeSession } from "@research-copilot/types";
 import { experimentApi } from "../lib/client";
@@ -77,18 +77,6 @@ export default function Experiment({ experimentId }: ExperimentProps) {
     setTimeout(() => setToast(""), 2500);
   }
 
-  async function chooseWorkingDir() {
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const picked = await open({ directory: true });
-      if (picked && typeof picked === "string") {
-        setWorkingDir(picked);
-      }
-    } catch {
-      // ignore dialog errors
-    }
-  }
-
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       {/* Header + horizontal segmented tabs */}
@@ -125,19 +113,6 @@ export default function Experiment({ experimentId }: ExperimentProps) {
             );
           })}
         </div>
-
-        {activeTab === "code" && (
-          <button
-            type="button"
-            className="experiment-header-dir"
-            onClick={chooseWorkingDir}
-            title={workingDir ?? "选择工作目录"}
-            aria-label="选择工作目录"
-          >
-            <FolderOpen size={12} />
-            <span>{workingDir ?? "选择目录"}</span>
-          </button>
-        )}
       </div>
 
       {/* Main workspace */}
