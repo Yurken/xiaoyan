@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import {
+  CornerLeftUp,
   ChevronRight,
   ChevronDown,
-  ChevronsUp,
   Folder,
   FolderOpen,
   FileCode,
@@ -117,24 +117,23 @@ export default function CodeFileTree({
   return (
     <div className="code-file-tree">
       <div className="code-file-tree__root">
-        <FolderOpen size={14} className="code-file-tree__root-icon" />
-        <span className="code-file-tree__root-label" title={currentPath}>
-          {currentPath.split(/[/\\]/).pop() || currentPath}
-        </span>
+        <div className="code-file-tree__root-left">
+          <FolderOpen size={14} className="code-file-tree__root-icon" />
+          <span className="code-file-tree__root-label" title={currentPath}>
+            {currentPath.split(/[/\\]/).pop() || currentPath}
+          </span>
+        </div>
+        {parentPath && (
+          <button
+            type="button"
+            className="code-file-tree__parent"
+            onClick={() => navigateTo(parentPath)}
+            title={`返回上级：${parentPath}`}
+          >
+            <CornerLeftUp size={14} />
+          </button>
+        )}
       </div>
-
-      {/* 返回上级目录 */}
-      {parentPath && (
-        <button
-          type="button"
-          className="code-file-tree__parent"
-          onClick={() => navigateTo(parentPath)}
-          title={`返回上级：${parentPath}`}
-        >
-          <ChevronsUp size={14} />
-          <span>..</span>
-        </button>
-      )}
 
       {isLoading && displayEntries.length === 0 ? (
         <div className="code-file-tree__loading">
