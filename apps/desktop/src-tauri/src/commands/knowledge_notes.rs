@@ -707,6 +707,7 @@ pub async fn knowledge_import_zip(
             frontmatter.tags,
             normalized_interest_id.clone(),
             "import_zip",
+            None,
         )
         .await
         {
