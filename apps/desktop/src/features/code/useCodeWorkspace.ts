@@ -13,7 +13,7 @@ import {
 } from "../../lib/client";
 import type { AppSettings } from "@research-copilot/types";
 import { useCodeFileSystem } from "./useCodeFileSystem";
-import type { CodeModelOption, OpenFile } from "./shared";
+import type { CodeAgentMode, CodeModelOption, OpenFile } from "./shared";
 
 interface StreamEvent {
   session_id: string;
@@ -76,6 +76,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   const [streamingContent, setStreamingContent] = useState("");
   const [input, setInput] = useState("");
   const [toast, setToast] = useState("");
+  const [agentMode, setAgentMode] = useState<CodeAgentMode>("build");
 
   const streamingRef = useRef("");
   const unlistenersRef = useRef<UnlistenFn[]>([]);
@@ -467,6 +468,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         content,
         workingDir ?? undefined,
         openFile?.name ?? undefined,
+        agentMode,
       );
     } catch (err) {
       showToast(formatErrorMessage(err));
@@ -500,6 +502,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     handleCreateSession,
     handleDeleteSession,
     handleSend,
+    agentMode,
+    setAgentMode,
 
     // Settings / model
     currentModel,

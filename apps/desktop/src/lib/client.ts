@@ -1139,12 +1139,14 @@ export const codeApi = {
     content: string,
     workingDir?: string,
     currentFile?: string,
+    mode?: string,
   ): Promise<void> =>
     invoke("code_send_message", {
       sessionId,
       content,
       workingDir: workingDir ?? null,
       currentFile: currentFile ?? null,
+      mode: mode ?? null,
     }),
 
   setExperimentId: (experimentId: string) => {

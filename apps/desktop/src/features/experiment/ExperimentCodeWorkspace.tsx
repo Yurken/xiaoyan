@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  FileCode,
+  GitBranch,
   Loader2,
   Plus,
+  Search,
   Trash2,
   FolderOpen,
   ChevronRight,
@@ -12,6 +15,7 @@ import {
   PanelRight,
 } from "lucide-react";
 import type { ExperimentCodeSession, Skill } from "@research-copilot/types";
+import { CapsuleTabs } from "@research-copilot/ui";
 import { useCodeWorkspace } from "../code/useCodeWorkspace";
 import { useCodeGit } from "../code/useCodeGit";
 import { extractSkillVariables, applySkillVariables } from "../copilot/shared";
@@ -28,11 +32,11 @@ import { usePersistentState } from "../../hooks/usePersistentStringState";
 
 type RightTab = "files" | "editor" | "review" | "git";
 
-const TAB_DEFS: { id: RightTab; label: string }[] = [
-  { id: "files", label: "文件" },
-  { id: "editor", label: "编辑器" },
-  { id: "review", label: "审查" },
-  { id: "git", label: "Git" },
+const TAB_DEFS: { id: RightTab; label: string; icon: ReactNode }[] = [
+  { id: "files", label: "文件", icon: <FolderOpen className="h-4 w-4" /> },
+  { id: "editor", label: "编辑器", icon: <FileCode className="h-4 w-4" /> },
+  { id: "review", label: "审查", icon: <Search className="h-4 w-4" /> },
+  { id: "git", label: "Git", icon: <GitBranch className="h-4 w-4" /> },
 ];
 
 interface ExperimentCodeWorkspaceProps {
@@ -349,6 +353,10 @@ export function ExperimentCodeWorkspace({
             activeModelOptionId={ws.activeModelOptionId}
             onModelOptionChange={ws.changeModelOption}
             onAddFile={handleAddFile}
+            workingDir={ws.workingDir}
+            onChooseWorkingDir={ws.chooseWorkingDir}
+            agentMode={ws.agentMode}
+            onAgentModeChange={ws.setAgentMode}
             skills={skills}
             selectedSkillId={selectedSkillId}
             onSelectedSkillChange={setSelectedSkillId}
@@ -382,16 +390,13 @@ export function ExperimentCodeWorkspace({
             style={{ width: rightWidth, minWidth: rightWidth }}
           >
             <div className="code-opencode-tabs">
-              {TAB_DEFS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={`code-opencode-tab ${activeTab === tab.id ? "is-active" : ""}`}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              <CapsuleTabs
+                compact
+                iconOnly={rightWidth < 260}
+                options={TAB_DEFS.map((t) => ({ value: t.id, label: t.label, icon: t.icon }))}
+                value={activeTab}
+                onChange={(v) => setActiveTab(v as RightTab)}
+              />
               <button
                 type="button"
                 className="code-opencode-collapse-btn code-opencode-collapse-btn--right"

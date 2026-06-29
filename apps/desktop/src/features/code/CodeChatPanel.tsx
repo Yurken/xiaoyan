@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowUp, ChevronDown, Loader2, Lock, LockOpen, Plus, Sparkles, PanelTopClose, PanelTopOpen, X, Zap } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUp, ChevronDown, FolderOpen, Loader2, Lock, LockOpen, Plus, Sparkles, PanelTopClose, PanelTopOpen, X, Zap } from "lucide-react";
 import type { Skill } from "@research-copilot/types";
 import type { CodeMessage } from "../../lib/client";
-import { codeToolLabel } from "./shared";
-import type { CodeModelOption } from "./shared";
+import { codeToolLabel, CODE_MODES, CODE_MODE_MAP } from "./shared";
+import type { CodeAgentMode, CodeModelOption } from "./shared";
 import CodeAssistantMessage from "./CodeAssistantMessage";
 import { CodeToolCallCard, CodeToolResultCard } from "./CodeToolMessage";
 
@@ -22,6 +22,10 @@ interface CodeChatPanelProps {
   activeModelOptionId: string;
   onModelOptionChange: (optionId: string) => void;
   onAddFile: () => void;
+  workingDir?: string | null;
+  onChooseWorkingDir?: () => void;
+  agentMode?: CodeAgentMode;
+  onAgentModeChange?: (mode: CodeAgentMode) => void;
   skills?: Skill[];
   selectedSkillId?: string | null;
   onSelectedSkillChange?: (id: string | null) => void;
@@ -44,6 +48,10 @@ export default function CodeChatPanel({
   activeModelOptionId,
   onModelOptionChange,
   onAddFile,
+  workingDir,
+  onChooseWorkingDir,
+  agentMode = "build",
+  onAgentModeChange,
   skills = [],
   selectedSkillId = null,
   onSelectedSkillChange,
@@ -53,6 +61,8 @@ export default function CodeChatPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [modePickerOpen, setModePickerOpen] = useState(false);
+
   const latestMessageKey = messages
     .map((msg) => `${msg.id}:${msg.content.length}:${msg.tool_calls?.length ?? 0}:${msg.tool_results?.length ?? 0}`)
     .join("|");
@@ -83,37 +93,44 @@ export default function CodeChatPanel({
     setSlashIndex(0);
   }, [slashQuery]);
 
-  function selectSlashSkill(skillId: string) {
+  const selectSlashSkill = (skillId: string) => {
     onSelectedSkillChange?.(skillId);
     onInputChange("");
-  }
+  };
 
-  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+  useEffect(() => {
+    if (!modePickerOpen) return undefined;
+    const close = () => setModePickerOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [modePickerOpen]);
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (slashOpen) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
         setSlashIndex((i) => (i + 1) % slashMatches.length);
         return;
       }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
         setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
         return;
       }
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const skill = slashMatches[slashIndex];
-        if (skill) selectSlashSkill(skill.id);
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        const picked = slashMatches[slashIndex];
+        if (picked) selectSlashSkill(picked.id);
         return;
       }
-      if (e.key === "Escape") {
-        e.preventDefault();
+      if (event.key === "Escape") {
+        event.preventDefault();
         onInputChange("");
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       onSend();
     }
   }
@@ -242,27 +259,49 @@ export default function CodeChatPanel({
         )}
       </div>
 
+      {/* Composer — aligned with CopilotComposer (except mode toggle) */}
       <div className="code-chat-panel__input-area">
-        <div className={`code-chat-composer ${sending ? "is-sending" : ""}`}>
-          <div className="relative flex-1 flex flex-col">
+        <div
+          className="rounded-3xl"
+          style={{
+            background: "var(--rc-surface)",
+            boxShadow: "var(--rc-inset-shadow)",
+          }}
+        >
+          <div className="relative rounded-t-3xl overflow-visible">
             {slashOpen && (
               <div
-                className="code-chat-slash-dropdown"
+                className="rc-dropdown-menu absolute bottom-full mb-2 left-3 z-30 w-64 max-h-72 overflow-y-auto rounded-2xl py-1.5"
                 onMouseDown={(event) => event.preventDefault()}
               >
-                <p className="code-chat-slash-dropdown__label">技能 · 回车选择</p>
+                <p className="px-3 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">
+                  技能 · 回车选择
+                </p>
                 {slashMatches.map((skill, index) => (
                   <button
                     key={skill.id}
                     type="button"
                     onMouseEnter={() => setSlashIndex(index)}
                     onClick={() => selectSlashSkill(skill.id)}
-                    className={`code-chat-slash-dropdown__item ${index === slashIndex ? "is-active" : ""}`}
+                    className="w-full text-left px-3 py-2 transition-colors duration-100 flex items-center gap-2"
+                    style={{
+                      background: index === slashIndex ? "rgba(0,122,255,0.1)" : "transparent",
+                    }}
                   >
-                    <Zap size={12} className={index === slashIndex ? "text-blue-500" : "opacity-50"} />
-                    <span className="code-chat-slash-dropdown__item-text">
-                      <span className="code-chat-slash-dropdown__item-title">{skill.title}</span>
-                      <span className="code-chat-slash-dropdown__item-name">/{skill.name}</span>
+                    <Zap
+                      className="w-3 h-3 flex-shrink-0"
+                      style={{ color: index === slashIndex ? "#007AFF" : "#8E8E93" }}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className="block truncate text-xs font-medium"
+                        style={{ color: index === slashIndex ? "#007AFF" : "var(--rc-text-soft)" }}
+                      >
+                        {skill.title}
+                      </span>
+                      <span className="block truncate text-[10px] font-mono text-ink-tertiary">
+                        /{skill.name}
+                      </span>
                     </span>
                   </button>
                 ))}
@@ -270,19 +309,90 @@ export default function CodeChatPanel({
             )}
             <textarea
               ref={inputRef}
+              rows={3}
               value={input}
               onChange={(e) => onInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
               onInput={handleInput}
-              placeholder={selectedSkillId ? "输入内容，将与技能指令一起发送…" : '随便问点什么… 输入 "/" 唤起技能'}
-              rows={2}
-              className="code-chat-input"
+              placeholder={selectedSkillId ? "输入内容，将与技能指令一起发送…" : '让小妍做点什么… 输入 "/" 唤起技能'}
+              className="w-full px-5 pt-4 pb-2 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none"
+              style={{ background: "transparent" }}
               disabled={sending}
             />
           </div>
 
-          <div className="code-chat-composer__toolbar">
-            <div className="code-chat-composer__toolbar-left">
+          <div className="flex items-center justify-between px-3 pb-3 gap-2">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <button
+                type="button"
+                onClick={onChooseWorkingDir}
+                className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150 flex-shrink-0 max-w-[160px]"
+                style={{ color: workingDir ? "#636366" : "#007AFF", background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
+                title={workingDir || "点击选择工作目录"}
+              >
+                <FolderOpen className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{workingDir ? (workingDir.split(/[/\\]/).pop() || workingDir) : "选择目录"}</span>
+              </button>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setModePickerOpen((prev) => !prev);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150 flex-shrink-0"
+                  style={{ color: "#636366", background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
+                  title={CODE_MODE_MAP[agentMode].description}
+                >
+                  {(() => {
+                    const ModeIcon = CODE_MODE_MAP[agentMode].icon;
+                    return <ModeIcon className="w-3 h-3" />;
+                  })()}
+                  <span>{CODE_MODE_MAP[agentMode].label}</span>
+                </button>
+
+                {modePickerOpen && (
+                  <div
+                    className="rc-dropdown-menu absolute bottom-full mb-2 left-0 z-20 w-56 rounded-2xl py-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">模式</p>
+                    {CODE_MODES.map((mode) => {
+                      const active = agentMode === mode.id;
+                      const ModeIcon = mode.icon;
+                      return (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => {
+                            onAgentModeChange?.(mode.id);
+                            setModePickerOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-start gap-2"
+                          style={{
+                            color: active ? "#007AFF" : "var(--rc-text-soft)",
+                            background: active ? "rgba(0,122,255,0.08)" : "transparent",
+                          }}
+                        >
+                          <ModeIcon className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-medium">{mode.label}</span>
+                            <span className="block text-[10px] text-ink-tertiary mt-0.5">{mode.description}</span>
+                          </span>
+                          {mode.readOnly && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-500 flex-shrink-0">只读</span>
+                          )}
+                          {mode.confirmWrites && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 flex-shrink-0">需确认</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
                 className="code-chat-attach-btn"
@@ -297,17 +407,20 @@ export default function CodeChatPanel({
                 const skill = skills.find((item) => item.id === selectedSkillId);
                 if (!skill) return null;
                 return (
-                  <div className="code-chat-skill-chip">
-                    <Zap size={12} />
-                    <span>{skill.title}</span>
+                  <div className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium flex-shrink-0"
+                    style={{ background: "rgba(0,122,255,0.1)", color: "#007AFF" }}>
+                    <Zap className="w-3 h-3" />
+                    {skill.title}
                     <button
                       type="button"
                       onClick={() => onSkillLockedChange?.(!skillLocked)}
                       title={skillLocked ? "已锁定：连续多轮生效，点击解除" : "默认仅本条生效，点击锁定以连续使用"}
-                      className="code-chat-skill-chip__lock"
+                      aria-label={skillLocked ? "解除技能锁定" : "锁定技能"}
+                      aria-pressed={skillLocked}
+                      className="ml-0.5 transition-opacity hover:opacity-60"
                       style={{ opacity: skillLocked ? 1 : 0.55 }}
                     >
-                      {skillLocked ? <Lock size={11} /> : <LockOpen size={11} />}
+                      {skillLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
                     </button>
                     <button
                       type="button"
@@ -316,19 +429,22 @@ export default function CodeChatPanel({
                         onSkillLockedChange?.(false);
                       }}
                       title="移除技能"
-                      className="code-chat-skill-chip__close"
+                      className="hover:opacity-60 transition-opacity"
                     >
-                      <X size={11} />
+                      <X className="w-3 h-3" />
                     </button>
                   </div>
                 );
               })()}
 
-              <label className="code-chat-model-select" aria-label="切换模型">
+              <div className="relative inline-flex items-center rounded-xl flex-shrink-0"
+                style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}>
                 <select
                   value={activeModelOptionId}
                   onChange={(e) => onModelOptionChange(e.target.value)}
                   disabled={modelOptions.length === 0}
+                  className="appearance-none bg-transparent pl-2.5 pr-7 py-1 text-xs font-medium outline-none cursor-pointer"
+                  style={{ color: "var(--rc-text-soft)", maxWidth: 140 }}
                 >
                   {modelOptions.length === 0 ? (
                     <option value="">{currentModel || "默认模型"}</option>
@@ -340,21 +456,25 @@ export default function CodeChatPanel({
                     ))
                   )}
                 </select>
-                <ChevronDown size={14} className="code-chat-model-select__chevron" />
-              </label>
+                <ChevronDown className="absolute right-2 pointer-events-none w-3 h-3" style={{ color: "var(--rc-text-muted)" }} />
+              </div>
             </div>
 
             <button
-              type="button"
-              className={`code-chat-send-btn ${!input.trim() || sending ? "is-disabled" : ""}`}
-              onClick={onSend}
+              onClick={() => onSend()}
               disabled={!input.trim() || sending}
-              aria-label="发送"
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                boxShadow: input.trim() && !sending
+                  ? "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)"
+                  : "none",
+              }}
             >
               {sending ? (
-                <Loader2 size={16} className="animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <ArrowUp size={16} />
+                <ArrowUp className="w-4 h-4" />
               )}
             </button>
           </div>
