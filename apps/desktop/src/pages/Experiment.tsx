@@ -5,8 +5,9 @@ import { experimentApi } from "../lib/client";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 import { ExperimentCodeWorkspace } from "../features/experiment/ExperimentCodeWorkspace";
 import { ExperimentSnapshotPanel } from "../features/experiment/ExperimentSnapshotPanel";
+import { ExperimentRecordPanel } from "../features/experiment/ExperimentRecordPanel";
 
-type ExperimentTab = "code" | "snapshots";
+type ExperimentTab = "code" | "snapshots" | "records";
 
 function rowToExperiment(row: unknown): ExperimentRecord {
   const r = row as Record<string, unknown>;
@@ -79,6 +80,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
           {([
             { key: "code", label: "代码" },
             { key: "snapshots", label: "快照" },
+            { key: "records", label: "记录" },
           ] as const).map((tab) => {
             const active = activeTab === tab.key;
             return (
@@ -133,6 +135,16 @@ export default function Experiment({ experimentId }: ExperimentProps) {
                 <ExperimentSnapshotPanel
                   experimentId={experiment.id}
                   activeSession={activeCodeSession}
+                  onError={showToast}
+                />
+              </div>
+            )}
+
+            {activeTab === "records" && (
+              <div className="h-full overflow-y-auto p-5 max-lg:p-4">
+                <ExperimentRecordPanel
+                  experiment={experiment}
+                  onUpdate={setExperiment}
                   onError={showToast}
                 />
               </div>
