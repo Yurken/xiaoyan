@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Columns2, Eye, Pencil } from "lucide-react";
 import { CapsuleTabs, MarkdownRenderer } from "@research-copilot/ui";
+import { useResolvedNoteContent } from "./useResolvedNoteContent";
 
 export type MarkdownView = "edit" | "preview" | "split";
 
@@ -30,6 +31,7 @@ export default function MarkdownSplitEditor({
   defaultView?: MarkdownView;
 }) {
   const [view, setView] = useState<MarkdownView>(defaultView);
+  const resolvedValue = useResolvedNoteContent(value);
 
   const editor = (
     <textarea
@@ -44,7 +46,7 @@ export default function MarkdownSplitEditor({
   const preview = (
     <div className="h-full overflow-y-auto rounded-2xl px-4 py-3 text-sm" style={INSET_STYLE}>
       {value.trim() ? (
-        <MarkdownRenderer content={value} />
+        <MarkdownRenderer content={resolvedValue} />
       ) : (
         <p className="text-xs text-ink-tertiary/60">{placeholder ?? "暂无内容"}</p>
       )}

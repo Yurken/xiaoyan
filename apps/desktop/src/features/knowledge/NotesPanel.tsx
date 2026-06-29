@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertCircle, CheckSquare, Download, Globe, Loader2, Plus, Search, StickyNote, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, CheckSquare, Download, Globe, LayoutGrid, List, Loader2, Plus, Search, StickyNote, Trash2, Upload, X } from "lucide-react";
 import { Badge, Button, CapsuleTabs, Card, ConfirmDialog, Input } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
@@ -7,10 +7,12 @@ import { useKnowledgeNotesWorkspace } from "./useKnowledgeNotesWorkspace";
 import { useNotesExport } from "./useNotesExport";
 import { interestFolderName } from "../../lib/interestUtils";
 import NoteCard from "./NoteCard";
+import NoteListItem from "./NoteListItem";
 import NoteEditorModal from "./NoteEditorModal";
 import WebClipDialog from "./WebClipDialog";
 import ImportNotesDialog from "./ImportNotesDialog";
 import { useNotesImport } from "./useNotesImport";
+import NoteImportZip from "./NoteImportZip";
 import { sourceLabel } from "./notesShared";
 
 export default function NotesPanel({
@@ -44,6 +46,7 @@ export default function NotesPanel({
     saveNote,
     deleteInterestGroup,
     clipWebPage,
+    importZip,
   } = useKnowledgeNotesWorkspace({
     researchInterestId,
     initialNotes,
@@ -60,6 +63,7 @@ export default function NotesPanel({
   const [showImport, setShowImport] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [selectionMode, setSelectionMode] = useState(false);
+  const [viewMode, setViewMode] = useState<"card" | "list">("card");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { exporting, exportError, clearExportError, exportMarkdown } = useNotesExport();
   const { importing, importFiles } = useNotesImport({
@@ -181,6 +185,29 @@ export default function NotesPanel({
     />
   );
 
+  const renderNoteListItem = (note: KnowledgeNote) => (
+    <NoteListItem
+      key={note.id}
+      note={note}
+      linkedClaimCount={linkedNoteClaimCounts?.[note.id] ?? 0}
+      interestName={note.research_interest_id && interestMap[note.research_interest_id]
+        ? interestFolderName(interestMap[note.research_interest_id])
+        : undefined}
+      onOpen={setViewingNote}
+      onDelete={setPendingDeleteNote}
+      selectionMode={selectionMode}
+      selected={selectedIds.has(note.id)}
+      onToggleSelect={toggleSelect}
+    />
+  );
+
+  const renderNotes = (notes: KnowledgeNote[]) =>
+    viewMode === "list" ? (
+      <div className="space-y-2">{notes.map(renderNoteListItem)}</div>
+    ) : (
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{notes.map(renderNoteCard)}</div>
+    );
+
   return (
     <>
     <div className="space-y-4">
@@ -210,6 +237,14 @@ export default function NotesPanel({
                 className="pl-10"
               />
             </div>
+            <button
+              type="button"
+              onClick={() => setViewMode((prev) => (prev === "card" ? "list" : "card"))}
+              className="flex items-center justify-center rounded-xl px-2.5 py-1.5 text-ink-tertiary transition-colors hover:bg-white/50 hover:text-ink-primary"
+              title={viewMode === "card" ? "切换为列表视图" : "切换为卡片视图"}
+            >
+              {viewMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+            </button>
             {selectionMode ? (
               <Button size="sm" variant="secondary" onClick={exitSelection}>
                 <X className="h-4 w-4" />
@@ -230,6 +265,11 @@ export default function NotesPanel({
                   <Globe className="h-4 w-4" />
                   剪辑网页
                 </Button>
+                <NoteImportZip
+                  interests={interests}
+                  researchInterestId={researchInterestId}
+                  onImport={importZip}
+                />
                 <Button size="sm" variant="secondary" onClick={() => {
                   clearError();
                   setShowImport(true);
@@ -315,9 +355,7 @@ export default function NotesPanel({
           </div>
         </Card>
       ) : useFlatList ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {scopedNotes.filter(bySource).map(renderNoteCard)}
-        </div>
+        renderNotes(scopedNotes.filter(bySource))
       ) : (
         <div className="space-y-4">
           {noteGroups
@@ -374,9 +412,7 @@ export default function NotesPanel({
                   该主题下暂无知识卡片。
                 </Card>
               ) : (
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {group.notes.map(renderNoteCard)}
-                </div>
+                renderNotes(group.notes)
               )}
             </CollapsibleGroup>
           ))}
@@ -387,9 +423,7 @@ export default function NotesPanel({
                 <p className="text-sm font-semibold text-ink-primary">未归档笔记</p>
                 <p className="mt-1 text-xs text-ink-tertiary">这些笔记暂未绑定主题，可直接编辑并移动到研究主题。</p>
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {ungroupedNotes.filter(bySource).map(renderNoteCard)}
-              </div>
+              {renderNotes(ungroupedNotes.filter(bySource))}
             </section>
           )}
         </div>

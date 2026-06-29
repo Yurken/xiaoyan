@@ -222,6 +222,21 @@ export function useKnowledgeNotesWorkspace({
     }
   }, [clearError, setErrorFromUnknown, syncGraphSnapshot]);
 
+  const importZip = useCallback(async (filePath: string, targetInterestId?: string) => {
+    try {
+      clearError();
+      const result = await apiClient.knowledge.importZip(filePath, targetInterestId);
+      const importedNotes = result.notes.map((item) => item.note);
+      if (importedNotes.length > 0) {
+        setNotes((prev) => [...importedNotes, ...prev]);
+        syncGraphSnapshot();
+      }
+      return result;
+    } catch (nextError) {
+      throw setErrorFromUnknown(nextError);
+    }
+  }, [clearError, setErrorFromUnknown, syncGraphSnapshot]);
+
   return {
     notes,
     interests,
@@ -239,5 +254,6 @@ export function useKnowledgeNotesWorkspace({
     saveNote,
     deleteInterestGroup,
     clipWebPage,
+    importZip,
   };
 }

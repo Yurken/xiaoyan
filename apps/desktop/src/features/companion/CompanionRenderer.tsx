@@ -324,7 +324,7 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
 
   if (!controller.visible) return null;
 
-  const tooltipText = controller.notificationCount > 0
+  const tooltipText = controller.notificationOpen && controller.notificationCount > 0
     ? `我帮你找到了 ${controller.notificationCount} 篇可能相关的论文，点我看看~`
     : getCompanionTooltip(definition, controller.shownAction);
   const closeNotificationDrawer = () => {
