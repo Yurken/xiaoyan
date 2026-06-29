@@ -3,6 +3,9 @@ import {
   FileCode,
   GitBranch,
   Loader2,
+  MoreHorizontal,
+  Pencil,
+  Pin,
   Plus,
   Search,
   Trash2,
@@ -26,8 +29,7 @@ import CodeEditor from "../code/CodeEditor";
 import CodeChatPanel from "../code/CodeChatPanel";
 import CodeReviewPanel from "../code/CodeReviewPanel";
 import CodeGitPanel from "../code/CodeGitPanel";
-import { codeToolLabel } from "../code/shared";
-import { skillsApi } from "../../lib/client";
+import { skillsApi, codeApi } from "../../lib/client";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
 
 type RightTab = "files" | "editor" | "review" | "git";
@@ -99,7 +101,27 @@ export function ExperimentCodeWorkspace({
   }
 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [contextMenuId, setContextMenuId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [pinnedIds, setPinnedIds] = usePersistentState<string[]>(
+    `rc:experiment:${experimentId}:code:pinned`,
+    [],
+  );
+  const pinnedSet = useMemo(() => {
+    if (!Array.isArray(pinnedIds)) return new Set<string>();
+    return new Set(pinnedIds);
+  }, [pinnedIds]);
   const [activeTab, setActiveTab] = useState<RightTab>("files");
+
+  // 点击外部关闭 context menu
+  useEffect(() => {
+    if (!contextMenuId) return;
+    const close = () => setContextMenuId(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [contextMenuId]);
+
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // 左右侧边栏宽度与折叠状态
@@ -200,17 +222,6 @@ export function ExperimentCodeWorkspace({
     });
   }, [ws.sessions]);
 
-  // 新分组默认展开
-  useEffect(() => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      for (const [dir] of groupedSessions) {
-        next.add(dir);
-      }
-      return next;
-    });
-  }, [groupedSessions]);
-
   function projectLabel(dir: string) {
     if (dir === "未选择目录") return dir;
     return dir.split(/[/\\]/).pop() || dir;
@@ -227,6 +238,59 @@ export function ExperimentCodeWorkspace({
       return next;
     });
   }
+
+  // ── Session actions ──────────────────────────────────────────
+  function handlePin(sessionId: string) {
+    setPinnedIds((prev) => {
+      if (prev.includes(sessionId)) return prev.filter((id) => id !== sessionId);
+      return [...prev, sessionId];
+    });
+    setContextMenuId(null);
+  }
+
+  function startRename(session: ExperimentCodeSession) {
+    setRenamingId(session.id);
+    setRenameTitle(session.title);
+    setContextMenuId(null);
+  }
+
+  function commitRename(sessionId: string) {
+    const title = renameTitle.trim() || "新会话";
+    codeApi.updateSession(sessionId, { title }).catch(() => {});
+    // Update local state optimistically
+    setRenamingId(null);
+    setRenameTitle("");
+  }
+
+  function cancelRename() {
+    setRenamingId(null);
+    setRenameTitle("");
+  }
+
+  // ── Pin-aware group sorting ─────────────────────────────────
+  const sortedGroupedSessions = useMemo(() => {
+    // Sort sessions within each group: pinned first, then by updated_at desc
+    return groupedSessions.map(([dir, sessions]) => {
+      const sorted = [...sessions].sort((a, b) => {
+        const aPinned = pinnedSet.has(a.id);
+        const bPinned = pinnedSet.has(b.id);
+        if (aPinned !== bPinned) return aPinned ? -1 : 1;
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      });
+      return [dir, sorted] as [string, ExperimentCodeSession[]];
+    });
+  }, [groupedSessions, pinnedSet]);
+
+  // 新分组默认展开
+  useEffect(() => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      for (const [dir] of sortedGroupedSessions) {
+        next.add(dir);
+      }
+      return next;
+    });
+  }, [sortedGroupedSessions]);
 
   return (
     <div className="code-root code-root--opencode">
@@ -277,7 +341,7 @@ export function ExperimentCodeWorkspace({
                 <span>暂无会话</span>
               </div>
             ) : (
-              groupedSessions.map(([dir, sessions]) => {
+              sortedGroupedSessions.map(([dir, sessions]) => {
                 const isExpanded = expandedGroups.has(dir);
                 return (
                   <div key={dir} className="code-opencode-session-group">
@@ -297,28 +361,80 @@ export function ExperimentCodeWorkspace({
                       key={s.id}
                       className={`code-opencode-session-item ${s.id === ws.selectedId ? "is-active" : ""}`}
                     >
-                      <button
-                        type="button"
-                        className="code-opencode-session-item__main"
-                        onClick={() => ws.selectSession(s)}
-                      >
-                        <div className="code-opencode-session-item__text">
-                          <span className="code-opencode-session-item__title">{s.title}</span>
-                          <span className="code-opencode-session-item__meta">
-                            {new Date(s.updated_at).toLocaleDateString("zh-CN", { month: "short", day: "numeric" })}
-                            {s.messages.length > 0 && ` · ${s.messages.length} 条`}
-                            {s.tool_id && ` · ${codeToolLabel(s.tool_id)}`}
-                          </span>
+                      {renamingId === s.id ? (
+                        <div className="code-opencode-session-item__text" style={{ flex: 1 }}>
+                          <input
+                            autoFocus
+                            type="text"
+                            className="code-opencode-rename-input"
+                            value={renameTitle}
+                            onChange={(e) => setRenameTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.key === "Enter") commitRename(s.id);
+                              if (e.key === "Escape") cancelRename();
+                            }}
+                            onBlur={() => commitRename(s.id)}
+                          />
                         </div>
-                      </button>
-                      <button
-                        type="button"
-                        className="code-opencode-session-item__del"
-                        onClick={() => setPendingDeleteId(s.id)}
-                        aria-label="删除"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      ) : (
+                        <div
+                          className="code-opencode-session-item__text"
+                          onClick={() => ws.selectSession(s)}
+                        >
+                          <span className="code-opencode-session-item__title">
+                            {pinnedSet.has(s.id) ? <Pin size={10} className="code-opencode-pin-icon" /> : null}
+                            {s.title}
+                          </span>
+                          <span className="code-opencode-session-item__meta">{relativeSessionTime(s.updated_at)}</span>
+                        </div>
+                      )}
+
+                      <div className="code-opencode-session-item__actions" style={{ position: "relative" }}>
+                        <button
+                          type="button"
+                          className="code-opencode-session-item__more"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setContextMenuId(contextMenuId === s.id ? null : s.id);
+                          }}
+                          aria-label="更多操作"
+                          title="更多操作"
+                        >
+                          <MoreHorizontal size={12} />
+                        </button>
+                        {contextMenuId === s.id && (
+                          <div
+                            className="code-opencode-context-menu"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handlePin(s.id)}
+                              className="code-opencode-context-menu__item"
+                            >
+                              <Pin size={12} />
+                              {pinnedSet.has(s.id) ? "取消置顶" : "置顶"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => startRename(s)}
+                              className="code-opencode-context-menu__item"
+                            >
+                              <Pencil size={12} />
+                              重命名
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setContextMenuId(null); setPendingDeleteId(s.id); }}
+                              className="code-opencode-context-menu__item code-opencode-context-menu__item--danger"
+                            >
+                              <Trash2 size={12} />
+                              删除
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -500,4 +616,25 @@ export function ExperimentCodeWorkspace({
       )}
     </div>
   );
+}
+
+const MINUTE = 60;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+function relativeSessionTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  const diffSec = Math.floor((Date.now() - then) / 1000);
+  if (diffSec < 0) return "刚刚";
+  if (diffSec < HOUR) {
+    const m = Math.floor(diffSec / MINUTE);
+    return m <= 0 ? "刚刚" : `${m} 分钟前`;
+  }
+  if (diffSec < DAY) {
+    const h = Math.floor(diffSec / HOUR);
+    return `${h} 小时前`;
+  }
+  if (diffSec < 2 * DAY) return "昨天";
+  const d = Math.floor(diffSec / DAY);
+  return `${d} 天前`;
 }
