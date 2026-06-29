@@ -108,9 +108,8 @@ export default function SelectionPopup({
     <div
       className="pdf-selection-popup fixed z-[80]"
       style={{
-        left: Math.max(8, Math.min(x, window.innerWidth - 400)),
-        top: Math.max(8, y - 12),
-        transform: "translateY(-100%)",
+        left: Math.max(8, Math.min(x - 190, window.innerWidth - 400)),
+        top: y + 25,
       }}
       onMouseDown={(event) => event.stopPropagation()}
     >

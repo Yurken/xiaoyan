@@ -121,7 +121,7 @@ export default function PaperReader() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [translateOpen, toggleContinuous]);
 
-  // 划词处理：批注模式直接套用预选工具；一直翻译开启则自动翻译；否则视图模式弹工具菜单。
+  // 划词处理：批注模式直接套用预选工具；翻译栏开启则自动翻译；否则视图模式弹工具菜单。
   const handleTextSelected = useCallback(
     (next: ReaderSelection) => {
       setEditing(null);
@@ -139,12 +139,6 @@ export default function PaperReader() {
           positions: next.positions,
         });
         clearSelection();
-        return;
-      }
-
-      // 自动翻译时不弹划词菜单，但保留 PDF 上的高亮选区（别 removeAllRanges），让用户看清译的是哪段。
-      if (translateOpen && !translation.locked) {
-        setSelection(null);
         return;
       }
 
@@ -202,15 +196,15 @@ export default function PaperReader() {
     if (!selection) return;
     setTranslateOpen(true); // 翻译结果显示在右侧栏，自动展开
     void translation.translate(selection.text, selection.page);
-    clearSelection();
-  }, [selection, translation, clearSelection]);
+    setSelection(null);
+  }, [selection, translation]);
 
   const handleInterpret = useCallback(() => {
     if (!selection) return;
     setTranslateOpen(true); // 解读结果显示在右侧栏，自动展开
     translation.interpretText(selection.text);
-    clearSelection();
-  }, [selection, translation, clearSelection]);
+    setSelection(null);
+  }, [selection, translation]);
 
   // 形状绘制完成：把拖出的框存成形状批注（无原文），带边框色与填充色。
   const handleShapeDrawn = useCallback(
