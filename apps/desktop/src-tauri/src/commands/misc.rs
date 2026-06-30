@@ -1781,7 +1781,7 @@ fn build_survey_markdown(
         out.push_str(&format!("## 参考文献（{} 格式）\n\n", format_name));
         for cite in formatted_citations {
             out.push_str(cite);
-            out.push('\n');
+            out.push_str("\n\n");
         }
     }
 
