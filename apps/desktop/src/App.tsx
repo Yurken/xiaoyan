@@ -20,6 +20,7 @@ const Planner = lazy(() => import("./pages/Planner"));
 const Survey = lazy(() => import("./pages/Survey"));
 const Papers = lazy(() => import("./pages/Papers"));
 const PaperReader = lazy(() => import("./pages/PaperReader"));
+const NoteReader = lazy(() => import("./pages/NoteReader"));
 const Copilot = lazy(() => import("./pages/Copilot"));
 const Knowledge = lazy(() => import("./pages/Knowledge"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -211,6 +212,7 @@ export default function App() {
             <Route path="/xiaoyan" element={<RouteErrorBoundary><Copilot /></RouteErrorBoundary>} />
             <Route path="/copilot" element={<Navigate to="/xiaoyan" replace />} />
             <Route path="/knowledge" element={<RouteErrorBoundary><Knowledge /></RouteErrorBoundary>} />
+            <Route path="/notes/:id" element={<RouteErrorBoundary><NoteReader /></RouteErrorBoundary>} />
             <Route path="/research-theme/:id" element={<RouteErrorBoundary><ResearchTheme /></RouteErrorBoundary>} />
             <Route path="/settings" element={<RouteErrorBoundary><Settings /></RouteErrorBoundary>} />
             <Route path="/workbench/*" element={<LandscapeFocusRouteRedirect />} />

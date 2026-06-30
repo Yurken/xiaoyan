@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AlertCircle, CheckSquare, Download, Globe, LayoutGrid, List, Loader2, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
 import { Badge, Button, CapsuleTabs, Card, ConfirmDialog, Input } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
@@ -8,7 +9,6 @@ import { useNotesExport } from "./useNotesExport";
 import { interestFolderName } from "../../lib/interestUtils";
 import NoteCard from "./NoteCard";
 import NoteListItem from "./NoteListItem";
-import NoteEditorModal from "./NoteEditorModal";
 import WebClipDialog from "./WebClipDialog";
 import NoteImportZip from "./NoteImportZip";
 import { sourceLabel } from "./notesShared";
@@ -28,6 +28,7 @@ export default function NotesPanel({
   linkedNoteClaimCounts?: Record<string, number>;
   onNotesChanged?: () => void | Promise<void>;
 }) {
+  const navigate = useNavigate();
   const {
     interests,
     search,
@@ -39,9 +40,7 @@ export default function NotesPanel({
     scopedNotes,
     noteGroups,
     ungroupedNotes,
-    createNote,
     deleteNote,
-    saveNote,
     deleteInterestGroup,
     clipWebPage,
     importZip,
@@ -51,14 +50,11 @@ export default function NotesPanel({
     initialInterests,
     onNotesChanged,
   });
-  const [creating, setCreating] = useState(false);
   const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const [pendingDeleteNote, setPendingDeleteNote] = useState<KnowledgeNote | null>(null);
   const [deletingNote, setDeletingNote] = useState(false);
-  const [viewingNote, setViewingNote] = useState<KnowledgeNote | null>(null);
   const [showWebClip, setShowWebClip] = useState(false);
-  const [, setShowImport] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [selectionMode, setSelectionMode] = useState(false);
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
@@ -76,22 +72,6 @@ export default function NotesPanel({
     } finally {
       setDeletingNote(false);
     }
-  };
-
-  const handleModalSave = async (
-    id: string,
-    draft: { title: string; content: string; research_interest_id: string },
-  ) => {
-    const moved = await saveNote(id, draft);
-    setViewingNote(moved);
-  };
-
-  const handleCreateNote = async (draft: { title: string; content: string; research_interest_id: string }) => {
-    return createNote({
-      title: draft.title.trim(),
-      content: draft.content.trim(),
-      research_interest_id: draft.research_interest_id || undefined,
-    });
   };
 
   const handleDeleteInterestGroup = async (interestId: string, deleteAll: boolean) => {
@@ -143,7 +123,6 @@ export default function NotesPanel({
   const enterSelection = () => {
     setSelectionMode(true);
     setSelectedIds(new Set());
-    setCreating(false);
     setShowWebClip(false);
     clearError();
     clearExportError();
@@ -172,7 +151,6 @@ export default function NotesPanel({
       interestName={note.research_interest_id && interestMap[note.research_interest_id]
         ? interestFolderName(interestMap[note.research_interest_id])
         : undefined}
-      onOpen={setViewingNote}
       onDelete={setPendingDeleteNote}
       selectionMode={selectionMode}
       selected={selectedIds.has(note.id)}
@@ -188,7 +166,6 @@ export default function NotesPanel({
       interestName={note.research_interest_id && interestMap[note.research_interest_id]
         ? interestFolderName(interestMap[note.research_interest_id])
         : undefined}
-      onOpen={setViewingNote}
       onDelete={setPendingDeleteNote}
       selectionMode={selectionMode}
       selected={selectedIds.has(note.id)}
@@ -254,8 +231,6 @@ export default function NotesPanel({
                 <Button size="sm" variant="secondary" onClick={() => {
                   clearError();
                   setShowWebClip(true);
-                  setCreating(false);
-                  setShowImport(false);
                 }}>
                   <Globe className="h-4 w-4" />
                   剪辑网页
@@ -267,8 +242,7 @@ export default function NotesPanel({
                 />
                 <Button size="sm" onClick={() => {
                   clearError();
-                  setCreating(true);
-                  setShowWebClip(false);
+                  navigate("/notes/new", { state: { researchInterestId } });
                 }}>
                   <Plus className="h-4 w-4" />
                   新建笔记
@@ -415,21 +389,6 @@ export default function NotesPanel({
       )}
     </div>
 
-    {(viewingNote || creating) && (
-      <NoteEditorModal
-        note={viewingNote}
-        defaultInterestId={researchInterestId ?? ""}
-        lockInterest={researchInterestId != null}
-        linkedClaimCount={viewingNote ? (linkedNoteClaimCounts?.[viewingNote.id] ?? 0) : 0}
-        interests={interests}
-        interestMap={interestMap}
-        onClose={() => { setViewingNote(null); setCreating(false); }}
-        onCreate={handleCreateNote}
-        onSave={handleModalSave}
-        onDelete={(id) => deleteNote(id)}
-      />
-    )}
-
     <ConfirmDialog
       open={pendingDeleteNote != null}
       title="删除知识卡片"
@@ -447,7 +406,7 @@ export default function NotesPanel({
         defaultInterestId={researchInterestId ?? ""}
         lockInterest={researchInterestId != null}
         onClip={clipWebPage}
-        onClipped={(note) => { setShowWebClip(false); setViewingNote(note); }}
+        onClipped={(note) => { setShowWebClip(false); navigate(`/notes/${note.id}`, { state: { note } }); }}
         onClose={() => setShowWebClip(false)}
       />
     )}

@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Check, Pencil, Trash2 } from "lucide-react";
 import { clsx } from "clsx";
 import { Badge, Card } from "@research-copilot/ui";
@@ -6,14 +7,13 @@ import { sourceLabel, stripMarkdown } from "./notesShared";
 
 /**
  * 知识卡片列表项。
- * - 常规模式：操作（编辑 / 删除）常驻可见，点击标题/正文打开。
+ * - 常规模式：操作（编辑 / 删除）常驻可见，点击标题/正文跳转到全屏编辑页。
  * - 选择模式：整卡可点选，右上角显示勾选框，隐藏编辑 / 删除。
  */
 export default function NoteCard({
   note,
   linkedClaimCount = 0,
   interestName,
-  onOpen,
   onDelete,
   selectionMode = false,
   selected = false,
@@ -22,16 +22,17 @@ export default function NoteCard({
   note: KnowledgeNote;
   linkedClaimCount?: number;
   interestName?: string;
-  onOpen: (note: KnowledgeNote) => void;
   onDelete: (note: KnowledgeNote) => void;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (note: KnowledgeNote) => void;
 }) {
-  const activate = (event?: { stopPropagation: () => void }) => {
+  const navigate = useNavigate();
+
+  const openNote = (event?: { stopPropagation: () => void }) => {
     event?.stopPropagation();
     if (selectionMode) onToggleSelect?.(note);
-    else onOpen(note);
+    else navigate(`/notes/${note.id}`, { state: { note, linkedClaimCount } });
   };
 
   return (
@@ -42,13 +43,13 @@ export default function NoteCard({
         selectionMode && "cursor-pointer",
         selected && "ring-2 ring-apple-blue",
       )}
-      onClick={selectionMode ? activate : undefined}
+      onClick={selectionMode ? openNote : undefined}
     >
       <div className="pr-16">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={activate}
+            onClick={openNote}
             className="line-clamp-2 text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
           >
             {note.title}
@@ -63,7 +64,7 @@ export default function NoteCard({
 
       <button
         type="button"
-        onClick={activate}
+        onClick={openNote}
         className="text-left"
         aria-label={`查看 ${note.title}`}
       >
@@ -102,7 +103,7 @@ export default function NoteCard({
         <div className="absolute right-3 top-3 flex items-center gap-0.5">
           <button
             type="button"
-            onClick={() => onOpen(note)}
+            onClick={openNote}
             className="rounded-lg p-1.5 text-ink-tertiary transition-colors hover:bg-black/5 hover:text-ink-primary"
             aria-label={`编辑 ${note.title}`}
           >

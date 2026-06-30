@@ -5,6 +5,7 @@ import FocusWorkbench from "../features/focus/FocusWorkbench";
 import FocusSettingsWrapper from "../features/focus/FocusSettingsWrapper";
 import { type LegacyFreeTab } from "../features/focus/shared";
 import Planner from "./Planner";
+import NoteReader from "./NoteReader";
 import Writing from "./Writing";
 import Experiment from "./Experiment";
 import Submission from "./Submission";
@@ -32,6 +33,7 @@ export default function FocusApp() {
           <Route path="/tools" element={<FocusLegacyRouteRedirect tab="tools" />} />
           <Route path="/experiment" element={<Experiment />} />
           <Route path="/submission" element={<Submission />} />
+          <Route path="/notes/:id" element={<NoteReader />} />
           <Route path="/settings" element={<FocusSettingsWrapper />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
