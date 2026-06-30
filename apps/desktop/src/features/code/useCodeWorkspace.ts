@@ -5,16 +5,17 @@ import {
   codeApi,
   experimentApi,
   formatErrorMessage,
-  settingsApi,
   type CodeSession,
   type CodeMessage,
+  type CodePermissionRequest,
   type CodeToolCall,
   type CodeToolResult,
 } from "../../lib/client";
-import type { AppSettings } from "@research-copilot/types";
 import { useCodeFileSystem } from "./useCodeFileSystem";
-import type { CodeAgentMode, CodeFileAttachment, CodeModelOption, OpenFile } from "./shared";
-import { readAttachmentFile } from "./shared";
+import { useCodeAttachments } from "./useCodeAttachments";
+import { useCodeContextPack } from "./useCodeContextPack";
+import { useCodeModelOptions } from "./useCodeModelOptions";
+import type { CodeAgentMode, OpenFile } from "./shared";
 
 interface StreamEvent {
   session_id: string;
@@ -49,6 +50,8 @@ interface ToolResultEvent {
   result: CodeToolResult;
 }
 
+type PermissionRequestEvent = CodePermissionRequest;
+
 interface UseCodeWorkspaceOptions {
   workingDir?: string | null;
   onWorkingDirChange?: (dir: string | null) => void;
@@ -79,7 +82,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   const [input, setInput] = useState("");
   const [toast, setToast] = useState("");
   const [agentMode, setAgentMode] = useState<CodeAgentMode>("build");
-  const [attachments, setAttachments] = useState<CodeFileAttachment[]>([]);
+  const [permissionRequests, setPermissionRequests] = useState<CodePermissionRequest[]>([]);
 
   const streamingRef = useRef("");
   const unlistenersRef = useRef<UnlistenFn[]>([]);
@@ -87,72 +90,6 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   const requestIdRef = useRef<string | null>(null);
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
-
-  // ── Settings / model ─────────────────────────────────────────
-  const [currentModel, setCurrentModel] = useState<string>("");
-  const [modelOptions, setModelOptions] = useState<CodeModelOption[]>([]);
-  const [activeModelOptionId, setActiveModelOptionId] = useState("");
-  const [modelsLoading, setModelsLoading] = useState(false);
-  const [modelsError, setModelsError] = useState("");
-
-  const loadModelOptions = useCallback(async (provider: AppSettings["llm_provider"], settings: AppSettings) => {
-    setModelsLoading(true);
-    setModelsError("");
-    try {
-      const remoteModels = await settingsApi.listModels(settings);
-      const options: CodeModelOption[] = remoteModels.map((model) => ({
-        id: `${provider}:${model}`,
-        provider,
-        providerLabel: providerLabelForProvider(provider),
-        model,
-        label: model,
-      }));
-      setModelOptions(options);
-
-      const current = resolveReproductionModel(settings);
-      const matchId = options.find((o) => o.model === current)?.id ?? options[0]?.id ?? "";
-      setCurrentModel(current || (options[0]?.model ?? ""));
-      setActiveModelOptionId(matchId);
-    } catch (err) {
-      setModelsError(formatErrorMessage(err));
-      // Fallback: build from settings keys if API list fails
-      const options = buildCodeModelOptions(settings);
-      setModelOptions(options);
-      const current = resolveReproductionModel(settings);
-      setCurrentModel(current || (options[0]?.model ?? ""));
-      setActiveModelOptionId(options.find((o) => o.model === current)?.id ?? options[0]?.id ?? "");
-    } finally {
-      setModelsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    settingsApi
-      .get()
-      .then((settings) => {
-        loadModelOptions(settings.llm_provider, settings);
-      })
-      .catch(() => setCurrentModel(""));
-  }, [loadModelOptions]);
-
-  async function changeModelOption(optionId: string) {
-    const option = modelOptions.find((item) => item.id === optionId);
-    if (!option) return;
-
-    setCurrentModel(option.model);
-    setActiveModelOptionId(option.id);
-
-    try {
-      await settingsApi.update({
-        // Only change the reproduction (构域) role models,
-        // leaving the global provider / chat model and other role models unchanged.
-        paper_reproduction_model: option.model,
-        multi_agent_reproduction_model: option.model,
-      });
-    } catch (err) {
-      showToast(formatErrorMessage(err));
-    }
-  }
 
   // ── UI ───────────────────────────────────────────────────────
   const recentWorkingDirs = useMemo(() => {
@@ -177,6 +114,15 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     setToast(msg);
     setTimeout(() => setToast(""), 3000);
   }
+
+  const attachmentsController = useCodeAttachments({ onToast: showToast });
+  const modelOptionsController = useCodeModelOptions({ onToast: showToast });
+  const contextPack = useCodeContextPack({
+    workingDir,
+    currentFile: openFile?.path ?? null,
+    onInputChange: setInput,
+    onToast: showToast,
+  });
 
   // 让事件回调始终读到最新 selectedId，避免重复注册监听。
   useEffect(() => {
@@ -312,9 +258,24 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         requestIdRef.current = null;
       });
 
+      const unlistenPermission = await listen<PermissionRequestEvent>("code:permission_request", (event) => {
+        if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
+        setPermissionRequests((prev) => {
+          if (prev.some((item) => item.id === event.payload.id)) return prev;
+          return [...prev, event.payload];
+        });
+      });
+
       const unlistenTitle = await listen<{ session_id: string }>("code:title_changed", (_event) => {
         if (!mounted) return;
-        loadSessions();
+        void codeApi
+          .listSessions(experimentId)
+          .then((result) => {
+            if (mounted) setSessions(result.sessions ?? []);
+          })
+          .catch((err) => {
+            console.warn("Failed to load code sessions:", err);
+          });
       });
 
       unlistenersRef.current = [
@@ -323,6 +284,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         unlistenToolCall,
         unlistenToolResult,
         unlistenError,
+        unlistenPermission,
         unlistenTitle,
       ];
     }
@@ -334,7 +296,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       unlistenersRef.current.forEach((fn) => fn());
       unlistenersRef.current = [];
     };
-  }, []);
+  }, [experimentId]);
 
   // 恢复/同步工作目录：当 workingDir 变化时重新加载文件树；
   // 非受控模式下还会从 experiment 的 defaultWorkingDir 自动恢复。
@@ -455,39 +417,6 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     }
   }
 
-  // ── File attachments ────────────────────────────────────────
-  async function pickAttachments() {
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const picked = await open({ multiple: true, directory: false });
-      if (!picked) return;
-      const paths = Array.isArray(picked) ? picked : [picked];
-      const MAX_ATTACH = 5;
-      const remaining = MAX_ATTACH - attachments.length;
-      if (remaining <= 0) {
-        showToast(`最多附加 ${MAX_ATTACH} 个文件`);
-        return;
-      }
-      const toAdd = paths.slice(0, remaining);
-      const newAttachments: CodeFileAttachment[] = [];
-      for (const p of toAdd) {
-        const result = await readAttachmentFile(p);
-        if (result) {
-          newAttachments.push({ id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, ...result });
-        }
-      }
-      if (newAttachments.length > 0) {
-        setAttachments((prev) => [...prev, ...newAttachments]);
-      }
-    } catch (err) {
-      showToast(formatErrorMessage(err));
-    }
-  }
-
-  function removeAttachment(id: string) {
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
-  }
-
   // ── Cancel ────────────────────────────────────────────────────
   function cancelActiveStream() {
     const rid = requestIdRef.current;
@@ -497,8 +426,18 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       void codeApi.cancelMessage(rid);
     }
     setSending(false);
+    setPermissionRequests([]);
     streamingRef.current = "";
     setStreamingContent("");
+  }
+
+  async function resolvePermission(permissionId: string, approved: boolean, message?: string) {
+    setPermissionRequests((prev) => prev.filter((item) => item.id !== permissionId));
+    try {
+      await codeApi.resolvePermission(permissionId, approved, message);
+    } catch (err) {
+      showToast(formatErrorMessage(err));
+    }
   }
 
   // ── Send ─────────────────────────────────────────────────────
@@ -527,8 +466,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     let content = skillPrompt ? `${skillPrompt}\n\n---\n\n${rawContent}` : rawContent;
 
     // 注入附件文件内容
-    if (attachments.length > 0) {
-      const fileContext = attachments
+    if (attachmentsController.attachments.length > 0) {
+      const fileContext = attachmentsController.attachments
         .map((a, i) => {
           const trunc = a.truncated ? "\n[内容已截断]" : "";
           return `[文件 ${i + 1}] ${a.name}\n路径：${a.path}\n\`\`\`\n${a.content}${trunc}\n\`\`\``;
@@ -538,7 +477,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     }
 
     setInput("");
-    setAttachments([]);
+    attachmentsController.clearAttachments();
     setSending(true);
     setRequestId(null);
     requestIdRef.current = null;
@@ -597,23 +536,26 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     input,
     setInput,
     toast,
+    permissionRequests,
+    resolvePermission,
     handleCreateSession,
     handleDeleteSession,
     handleSend,
     cancelActiveStream,
     agentMode,
     setAgentMode,
-    attachments,
-    pickAttachments,
-    removeAttachment,
+    attachments: attachmentsController.attachments,
+    pickAttachments: attachmentsController.pickAttachments,
+    removeAttachment: attachmentsController.removeAttachment,
+    contextPack,
 
     // Settings / model
-    currentModel,
-    modelOptions,
-    activeModelOptionId,
-    changeModelOption,
-    modelsLoading,
-    modelsError,
+    currentModel: modelOptionsController.currentModel,
+    modelOptions: modelOptionsController.modelOptions,
+    activeModelOptionId: modelOptionsController.activeModelOptionId,
+    changeModelOption: modelOptionsController.changeModelOption,
+    modelsLoading: modelOptionsController.modelsLoading,
+    modelsError: modelOptionsController.modelsError,
 
     // Working dir
     recentWorkingDirs,
@@ -626,36 +568,3 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     setChatCollapsed,
   };
 }
-
-function resolveReproductionModel(settings: AppSettings): string {
-  return settings.multi_agent_reproduction_model || settings.paper_reproduction_model || "";
-}
-
-function providerLabelForProvider(provider: AppSettings["llm_provider"]): string {
-  switch (provider) {
-    case "openai": return "OpenAI";
-    case "anthropic": return "Anthropic";
-    case "openai_compatible": return "OpenAI-Compatible";
-    default: return provider;
-  }
-}
-
-function buildCodeModelOptions(settings: AppSettings): CodeModelOption[] {
-  const candidates: { provider: AppSettings["llm_provider"]; providerLabel: string; model: string }[] = [
-    { provider: "openai", providerLabel: "OpenAI", model: settings.openai_chat_model },
-    { provider: "anthropic", providerLabel: "Anthropic", model: settings.anthropic_chat_model },
-    { provider: "openai_compatible", providerLabel: "OpenAI-Compatible", model: settings.openai_compatible_chat_model },
-  ];
-
-  return candidates
-    .filter((c) => c.model)
-    .map((item) => ({
-      id: `${item.provider}:${item.model}`,
-      provider: item.provider,
-      providerLabel: item.providerLabel,
-      model: item.model,
-      label: item.model,
-    }));
-}
-
-

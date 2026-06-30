@@ -1058,6 +1058,17 @@ export interface CodeToolResult {
   is_error: boolean;
 }
 
+export interface CodePermissionRequest {
+  id: string;
+  session_id: string;
+  request_id: string;
+  tool_call: CodeToolCall;
+  title: string;
+  summary: string;
+  risk_level: "low" | "medium" | "high" | string;
+  preview: string;
+}
+
 export interface CodeMessage {
   id: string;
   role: "user" | "assistant" | "tool";
@@ -1107,6 +1118,17 @@ export interface CodeReviewReport {
   diff_chars: number;
 }
 
+export interface CodeWorkspaceContext {
+  working_dir: string;
+  current_file: string | null;
+  is_git_repo: boolean;
+  git_status: string;
+  package_scripts: string[];
+  instruction_files: string[];
+  key_files: string[];
+  content: string;
+}
+
 export interface CodeUpdateSessionInput {
   title?: string;
   workingDir?: string;
@@ -1121,6 +1143,9 @@ export const codeApi = {
 
   writeFile: (path: string, content: string): Promise<void> =>
     invoke("code_write_file", { path, content }),
+
+  workspaceContext: (workingDir: string, currentFile?: string): Promise<CodeWorkspaceContext> =>
+    invoke("code_workspace_context", { workingDir, currentFile: currentFile ?? null }),
 
   listSessions: (experimentId: string): Promise<{ sessions: CodeSession[] }> =>
     invoke("code_list_sessions", { experimentId }),
@@ -1151,6 +1176,9 @@ export const codeApi = {
 
   cancelMessage: (requestId: string): Promise<void> =>
     invoke("code_cancel", { requestId }),
+
+  resolvePermission: (permissionId: string, approved: boolean, message?: string): Promise<void> =>
+    invoke("code_resolve_permission", { permissionId, approved, message: message ?? null }),
 
   setExperimentId: (experimentId: string) => {
     // 占位：新架构下 codeApi 不保存 experimentId，调用方自行传入。

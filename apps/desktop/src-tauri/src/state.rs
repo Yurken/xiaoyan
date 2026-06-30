@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{oneshot, Mutex, RwLock};
 
 /// Sensitive settings keys — masked as "***" in GET responses.
 pub const SENSITIVE_KEYS: &[&str] = &[
@@ -44,16 +44,10 @@ pub fn default_settings() -> HashMap<String, String> {
         "text-embedding-3-small".into(),
     );
     m.insert("anthropic_api_key".into(), "".into());
-    m.insert(
-        "anthropic_chat_model".into(),
-        "".into(),
-    );
+    m.insert("anthropic_chat_model".into(), "".into());
     m.insert("openai_compatible_base_url".into(), "".into());
     m.insert("openai_compatible_api_key".into(), "".into());
-    m.insert(
-        "openai_compatible_chat_model".into(),
-        "".into(),
-    );
+    m.insert("openai_compatible_chat_model".into(), "".into());
     m.insert(
         "openai_compatible_embedding_model".into(),
         "BAAI/bge-m3".into(),
@@ -281,6 +275,9 @@ pub struct AppState {
     pub chat_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// Active code chat handles keyed by request_id.
     pub code_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
+    /// Pending visual approvals for code tools that can mutate files or run commands.
+    pub code_permissions:
+        Arc<Mutex<HashMap<String, oneshot::Sender<crate::code::CodePermissionDecision>>>>,
     /// 串行化 WebDAV 同步：保证同一时刻只有一次同步在运行。
     pub sync_lock: Arc<Mutex<()>>,
     /// 同步状态，供前端订阅展示。
@@ -294,6 +291,7 @@ impl AppState {
             settings: Arc::new(RwLock::new(settings)),
             chat_handles: Arc::new(Mutex::new(HashMap::new())),
             code_handles: Arc::new(Mutex::new(HashMap::new())),
+            code_permissions: Arc::new(Mutex::new(HashMap::new())),
             sync_lock: Arc::new(Mutex::new(())),
             sync_status: Arc::new(RwLock::new(
                 crate::services::sync_service::SyncStatus::default(),

@@ -787,9 +787,139 @@
   box-shadow: var(--rc-icon-button-shadow-hover);
 }
 
+.code-opencode-main .code-chat-attach-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+}
+
 .code-opencode-main .code-chat-attach-btn:active {
   transform: scale(0.95);
   box-shadow: var(--rc-icon-button-shadow-active);
+}
+
+.code-opencode-main .code-chat-context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 170px;
+  min-height: 24px;
+  flex-shrink: 1;
+  padding: 3px 8px;
+  border: 1px solid rgba(52, 199, 89, 0.18);
+  border-radius: 8px;
+  background: rgba(52, 199, 89, 0.08);
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.code-opencode-main .code-chat-context-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-permission-panel {
+  position: absolute;
+  left: clamp(12px, 1.6vw, 24px);
+  right: clamp(12px, 1.6vw, 24px);
+  bottom: 112px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(420px, 58vh);
+  padding: 12px;
+  border: 1px solid rgba(255, 149, 0, 0.28);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--rc-surface) 94%, #ff9500 6%);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+}
+
+.code-permission-panel__header,
+.code-permission-panel__title,
+.code-permission-panel__actions {
+  display: flex;
+  align-items: center;
+}
+
+.code-permission-panel__header {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.code-permission-panel__title {
+  min-width: 0;
+  gap: 6px;
+  color: var(--rc-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.code-permission-panel__risk {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 149, 0, 0.12);
+  color: #b45309;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.code-permission-panel__risk.is-high {
+  background: rgba(255, 59, 48, 0.12);
+  color: #dc2626;
+}
+
+.code-permission-panel__summary,
+.code-permission-panel__queued {
+  margin: 0;
+  color: var(--rc-text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.code-permission-panel__preview {
+  max-height: 180px;
+  margin: 0;
+  padding: 9px;
+  overflow: auto;
+  border: 1px solid var(--rc-border);
+  border-radius: 8px;
+  background: var(--rc-elevated);
+  color: var(--rc-text);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.code-permission-panel__actions {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.code-permission-panel__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rc-border);
+  border-radius: 8px;
+  background: var(--rc-chip-bg);
+  color: var(--rc-text-soft);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.code-permission-panel__btn--primary {
+  border-color: rgba(0, 122, 255, 0.25);
+  background: #007aff;
+  color: white;
 }
 
 /* Right tools */

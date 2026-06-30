@@ -84,6 +84,16 @@ pub async fn code_write_file(path: String, content: String) -> Result<(), String
 }
 
 #[tauri::command]
+pub async fn code_workspace_context(
+    working_dir: String,
+    current_file: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let context =
+        code::context::build_workspace_context(&working_dir, current_file.as_deref()).await?;
+    serde_json::to_value(context).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn code_list_sessions(
     state: State<'_, AppState>,
     experiment_id: String,
@@ -171,6 +181,7 @@ pub async fn code_send_message(
     let request_id = Uuid::new_v4().to_string();
     let rid = request_id.clone();
     let code_handles = state.code_handles.clone();
+    let code_permissions = state.code_permissions.clone();
 
     // fire-and-forget，流式结果走事件回传。
     let handle = tokio::spawn(async move {
@@ -183,6 +194,7 @@ pub async fn code_send_message(
             working_dir,
             current_file,
             mode,
+            code_permissions,
             &rid,
         )
         .await;
@@ -192,6 +204,22 @@ pub async fn code_send_message(
     state.code_handles.lock().await.insert(request_id, handle);
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn code_resolve_permission(
+    state: State<'_, AppState>,
+    permission_id: String,
+    approved: bool,
+    message: Option<String>,
+) -> Result<(), String> {
+    let sender = state.code_permissions.lock().await.remove(&permission_id);
+    match sender {
+        Some(sender) => sender
+            .send(code::CodePermissionDecision { approved, message })
+            .map_err(|_| "审批请求已失效".to_string()),
+        None => Err("审批请求不存在或已处理".into()),
+    }
 }
 
 #[tauri::command]
@@ -222,10 +250,7 @@ pub async fn code_git_list_branches(working_dir: String) -> Result<serde_json::V
 }
 
 #[tauri::command]
-pub async fn code_git_checkout_branch(
-    working_dir: String,
-    branch: String,
-) -> Result<(), String> {
+pub async fn code_git_checkout_branch(working_dir: String, branch: String) -> Result<(), String> {
     code::git::checkout_branch(&working_dir, &branch).await
 }
 

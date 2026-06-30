@@ -3,14 +3,16 @@
 //! 不再调用用户本机安装的各类 code CLI，而是直接复用小妍设置里配置好的 LLM，
 //! 在工作目录上下文中与用户进行代码对话，并通过受限本地工具读取、修改文件与执行命令。
 
+pub mod context;
 pub mod git;
 pub mod store;
 pub mod tools;
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use tauri::{AppHandle, Emitter};
+use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
 
 use crate::llm::{
@@ -71,6 +73,25 @@ pub struct CodeMessage {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodePermissionDecision {
+    pub approved: bool,
+    #[serde(default)]
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CodePermissionRequestEvent {
+    pub id: String,
+    pub session_id: String,
+    pub request_id: String,
+    pub tool_call: CodeToolCall,
+    pub title: String,
+    pub summary: String,
+    pub risk_level: String,
+    pub preview: String,
+}
+
 // ── 事件载荷 ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
@@ -124,6 +145,7 @@ pub async fn send_message_stream(
     working_dir: Option<String>,
     current_file: Option<String>,
     mode: Option<String>,
+    permissions: Arc<Mutex<HashMap<String, oneshot::Sender<CodePermissionDecision>>>>,
     request_id: &str,
 ) {
     let request_id = request_id.to_string();
@@ -184,7 +206,16 @@ pub async fn send_message_stream(
     };
 
     let mode_str = mode.as_deref().unwrap_or("build");
-    let system_prompt = build_code_system_prompt(working_dir.as_deref(), current_file.as_deref(), mode_str);
+    let workspace_context = match working_dir.as_deref() {
+        Some(dir) => context::build_system_context(dir).await,
+        None => String::new(),
+    };
+    let system_prompt = build_code_system_prompt(
+        working_dir.as_deref(),
+        current_file.as_deref(),
+        mode_str,
+        &workspace_context,
+    );
     let mut messages = vec![LlmMessage::system(system_prompt)];
 
     // 只保留最近若干轮对话作为上下文，避免 token 爆炸。
@@ -272,10 +303,14 @@ pub async fn send_message_stream(
                     let settings2 = settings.clone();
                     let sid2 = session_id.clone();
                     let app2 = app.clone();
-                    let title_content = build_title_prompt(&user_msg.content, &assistant_msg.content);
+                    let title_content =
+                        build_title_prompt(&user_msg.content, &assistant_msg.content);
                     tokio::spawn(async move {
                         auto_generate_title(db2, settings2, sid2.clone(), title_content).await;
-                        let _ = app2.emit("code:title_changed", serde_json::json!({ "session_id": sid2 }));
+                        let _ = app2.emit(
+                            "code:title_changed",
+                            serde_json::json!({ "session_id": sid2 }),
+                        );
                     });
                 }
 
@@ -313,7 +348,15 @@ pub async fn send_message_stream(
                 }
 
                 for tc in &tool_calls {
-                    let result = execute_code_tool(tc, working_dir.as_deref()).await;
+                    let result = execute_code_tool(
+                        &app,
+                        &session_id,
+                        &request_id,
+                        tc,
+                        working_dir.as_deref(),
+                        permissions.clone(),
+                    )
+                    .await;
                     let tool_msg = CodeMessage {
                         id: Uuid::new_v4().to_string(),
                         role: "tool".to_string(),
@@ -408,7 +451,40 @@ fn push_code_message_as_llm(messages: &mut Vec<LlmMessage>, msg: &CodeMessage) {
     }
 }
 
-async fn execute_code_tool(tc: &ToolCall, working_dir: Option<&str>) -> CodeToolResult {
+async fn execute_code_tool(
+    app: &AppHandle,
+    session_id: &str,
+    request_id: &str,
+    tc: &ToolCall,
+    working_dir: Option<&str>,
+    permissions: Arc<Mutex<HashMap<String, oneshot::Sender<CodePermissionDecision>>>>,
+) -> CodeToolResult {
+    if tools::requires_permission(&tc.name) {
+        match ask_tool_permission(app, session_id, request_id, tc, working_dir, permissions).await {
+            Ok(decision) if decision.approved => {}
+            Ok(decision) => {
+                let message = decision
+                    .message
+                    .filter(|value| !value.trim().is_empty())
+                    .unwrap_or_else(|| "用户拒绝了该工具调用。".to_string());
+                return CodeToolResult {
+                    tool_call_id: tc.id.clone(),
+                    name: tc.name.clone(),
+                    output: message,
+                    is_error: true,
+                };
+            }
+            Err(err) => {
+                return CodeToolResult {
+                    tool_call_id: tc.id.clone(),
+                    name: tc.name.clone(),
+                    output: format!("工具审批失败：{err}"),
+                    is_error: true,
+                };
+            }
+        }
+    }
+
     match tools::dispatch_tool(&tc.name, &tc.arguments, working_dir).await {
         Ok(output) => CodeToolResult {
             tool_call_id: tc.id.clone(),
@@ -425,8 +501,52 @@ async fn execute_code_tool(tc: &ToolCall, working_dir: Option<&str>) -> CodeTool
     }
 }
 
+async fn ask_tool_permission(
+    app: &AppHandle,
+    session_id: &str,
+    request_id: &str,
+    tc: &ToolCall,
+    working_dir: Option<&str>,
+    permissions: Arc<Mutex<HashMap<String, oneshot::Sender<CodePermissionDecision>>>>,
+) -> Result<CodePermissionDecision, String> {
+    let permission_id = Uuid::new_v4().to_string();
+    let preview = tools::permission_preview(&tc.name, &tc.arguments, working_dir).await;
+    let (tx, rx) = oneshot::channel();
+
+    permissions.lock().await.insert(permission_id.clone(), tx);
+    let event = CodePermissionRequestEvent {
+        id: permission_id.clone(),
+        session_id: session_id.to_string(),
+        request_id: request_id.to_string(),
+        tool_call: tools::to_code_tool_call(tc),
+        title: preview.title,
+        summary: preview.summary,
+        risk_level: preview.risk_level,
+        preview: preview.preview,
+    };
+
+    if let Err(err) = app.emit("code:permission_request", event) {
+        let _ = permissions.lock().await.remove(&permission_id);
+        return Err(format!("发送审批请求失败：{err}"));
+    }
+
+    match tokio::time::timeout(std::time::Duration::from_secs(600), rx).await {
+        Ok(Ok(decision)) => Ok(decision),
+        Ok(Err(_)) => Err("审批通道已关闭。".into()),
+        Err(_) => {
+            let _ = permissions.lock().await.remove(&permission_id);
+            Err("等待用户审批超时。".into())
+        }
+    }
+}
+
 /// 构建代码助手的 system prompt，注入工作目录、当前文件上下文和模式指令。
-fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str>, mode: &str) -> String {
+fn build_code_system_prompt(
+    working_dir: Option<&str>,
+    current_file: Option<&str>,
+    mode: &str,
+    workspace_context: &str,
+) -> String {
     let dir_line = working_dir
         .map(|d| format!("当前工作目录：{d}"))
         .unwrap_or_else(|| "当前未选择工作目录。".to_string());
@@ -435,12 +555,12 @@ fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str
         .unwrap_or_else(|| "用户当前没有打开特定文件。".to_string());
 
     let mode_instruction = match mode {
-        "build" => "你处于 Build 模式：你可以自由编写代码、修改文件、运行命令和测试。无需每次确认即可执行写操作。",
+        "build" => "你处于 Build 模式：你可以编写代码、修改文件、运行命令和测试。涉及写文件、编辑文件或执行命令时，系统会通过可视化权限面板向用户确认。",
         "plan" => "你处于 Plan 模式：你的主要职责是分析代码、制定方案和进行 Code Review。\
             在执行任何写操作（编辑文件、运行命令）之前，必须先向用户说明计划并获得确认。\
             优先使用只读工具（搜索、查看）来理解代码，然后给出清晰的分析和建议。",
         "general" => "你处于 General 模式：你可以处理通用任务，包括代码编写和分析。\
-            对于复杂的多步骤任务，可以将其拆解为子任务逐步完成。",
+            对于复杂的多步骤任务，可以将其拆解为子任务逐步完成；副作用工具会通过可视化权限面板确认。",
         "explore" => "你处于 Explore 模式：你只能进行只读操作——搜索、查看、分析代码。\
             禁止编辑文件、写入文件或执行任何可能修改系统的命令。\
             专注于帮助用户理解代码架构、查找问题和梳理逻辑。",
@@ -450,6 +570,13 @@ fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str
         _ => "你处于 Build 模式：你可以自由编写代码、修改文件、运行命令和测试。",
     };
 
+    let workspace_context_section = if workspace_context.trim().is_empty() {
+        "未加载额外工作区上下文。".to_string()
+    } else {
+        workspace_context.to_string()
+    };
+    let final_response_instruction = build_final_response_instruction(mode);
+
     format!(
         "你是小妍代码助手，一位面向科研实验场景的编程助手。你帮助用户理解、编写、调试和重构代码。\n\
         \n\
@@ -457,11 +584,14 @@ fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str
         - {dir_line}\n\
         - {file_line}\n\
         \n\
+        工作区上下文：\n\
+        {workspace_context_section}\n\
+        \n\
         模式指令：\n\
         - {mode_instruction}\n\
         \n\
         可用能力：\n\
-        - 选择了工作目录时，你可以用工具列目录、搜索、读取、写入/编辑文件，并运行命令。\n\
+        - 选择了工作目录时，你可以用工具列目录、glob 匹配、搜索、读取、写入/编辑文件，并运行命令。\n\
         - 所有文件路径都应相对工作目录书写；不要访问工作目录之外的路径。\n\
         - 运行命令前先判断必要性，优先选择可验证、影响小的命令。\n\
         \n\
@@ -470,8 +600,27 @@ fn build_code_system_prompt(working_dir: Option<&str>, current_file: Option<&str
         2. 用户要求你修改代码时，优先直接使用工具完成修改，并在最后说明改了什么、如何验证。\n\
         3. 不要执行明显危险或破坏性的命令；不要删除用户文件，除非用户明确要求。\n\
         4. 使用 Markdown 格式化代码块，必要时用中文注释说明关键步骤。\n\
-        5. 如果没有选择工作目录，请先提醒用户选择目录，再给出能基于现有上下文回答的部分。"
+        5. 如果没有选择工作目录，请先提醒用户选择目录，再给出能基于现有上下文回答的部分。\n\
+        6. 工作区上下文可能被截断；涉及具体实现时必须再读取相关文件，不要只凭摘要修改。\n\
+        \n\
+        收尾回复预算：\n\
+        {final_response_instruction}"
     )
+}
+
+fn build_final_response_instruction(mode: &str) -> &'static str {
+    match mode {
+        "plan" | "explore" | "scout" => {
+            "- 默认用 3 条以内要点收束：结论 / 关键依据 / 下一步。\n\
+             - 不要展开完整文件清单、长过程回放或工具调用细节，除非用户明确要求。\n\
+             - 不报告内部 token、耗时、上下文来源或未请求的元信息。"
+        }
+        _ => {
+            "- 完成代码修改后默认只输出：已完成内容、验证结果、未完成/未运行项；总长控制在 6 行以内。\n\
+             - 文件很多时只点名 1-3 个代表性文件，不逐文件复盘；细节留给用户追问。\n\
+             - 不报告内部 token、耗时、上下文来源或未请求的元信息。"
+        }
+    }
 }
 
 /// 判断是否是第一个用户-助手交换（会话刚创建，需要自动生成标题）
@@ -484,8 +633,16 @@ fn is_first_exchange(session: &CodeSession) -> bool {
 }
 
 fn build_title_prompt(user_text: &str, assistant_text: &str) -> String {
-    let trunc_user = if user_text.len() > 200 { &user_text[..200] } else { user_text };
-    let trunc_assistant = if assistant_text.len() > 300 { &assistant_text[..300] } else { assistant_text };
+    let trunc_user = if user_text.len() > 200 {
+        &user_text[..200]
+    } else {
+        user_text
+    };
+    let trunc_assistant = if assistant_text.len() > 300 {
+        &assistant_text[..300]
+    } else {
+        assistant_text
+    };
     format!(
         "根据以下对话，生成一个简短的中文标题（不超过20个字，只返回标题本身，不要引号或解释）：\n\
          用户：{trunc_user}\n\
@@ -503,10 +660,7 @@ async fn auto_generate_title(
         Ok(c) => c,
         Err(_) => return,
     };
-    let model = resolve_model(
-        &settings,
-        &["copilot_simple_model"],
-    );
+    let model = resolve_model(&settings, &["copilot_simple_model"]);
     let messages = vec![LlmMessage::user(prompt)];
     match client.chat(&messages, model.as_deref(), 0.4).await {
         Ok(title) => {
@@ -528,9 +682,16 @@ mod tests {
 
     #[test]
     fn test_build_code_system_prompt_contains_context() {
-        let prompt = build_code_system_prompt(Some("/tmp/project"), Some("main.py"));
+        let prompt = build_code_system_prompt(
+            Some("/tmp/project"),
+            Some("main.py"),
+            "build",
+            "package scripts",
+        );
         assert!(prompt.contains("/tmp/project"));
         assert!(prompt.contains("main.py"));
+        assert!(prompt.contains("package scripts"));
+        assert!(prompt.contains("收尾回复预算"));
         assert!(prompt.contains("小妍代码助手"));
     }
 }

@@ -17,12 +17,14 @@ pub fn code_tool_definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "read_file".into(),
-            description: "读取工作目录内指定文件的文本内容。用于查看代码、配置文件、日志等。"
+            description: "读取工作目录内指定文件的文本内容。支持 offset/limit 按行读取，适合查看代码、配置文件、日志等。"
                 .into(),
             parameters: json!({
                 "type": "object",
                 "properties": {
-                    "file_path": { "type": "string", "description": "相对于工作目录的文件路径" }
+                    "file_path": { "type": "string", "description": "相对于工作目录的文件路径" },
+                    "offset": { "type": "integer", "description": "起始行号（1-based），可选" },
+                    "limit": { "type": "integer", "description": "最多读取多少行，可选" }
                 },
                 "required": ["file_path"]
             }),
@@ -39,15 +41,37 @@ pub fn code_tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
+            name: "glob_files".into(),
+            description: "按 glob 模式列出工作目录内的文件路径，例如 **/*.ts 或 src/**/*.{ts,tsx}。用于快速定位文件。".into(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "pattern": { "type": "string", "description": "glob 文件匹配模式" },
+                    "path": { "type": "string", "description": "相对于工作目录的搜索根目录，默认为工作目录" }
+                },
+                "required": ["pattern"]
+            }),
+        },
+        ToolDefinition {
             name: "search_files".into(),
-            description: "在工作目录下搜索匹配关键词的文件内容，返回匹配行及其文件路径。".into(),
+            description: "在工作目录下搜索匹配关键词的文件内容，返回匹配行及其文件路径。支持 include 限定文件 glob。".into(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "pattern": { "type": "string", "description": "搜索关键词或正则表达式" },
-                    "path": { "type": "string", "description": "相对于工作目录的搜索根目录，默认为工作目录" }
+                    "path": { "type": "string", "description": "相对于工作目录的搜索根目录，默认为工作目录" },
+                    "include": { "type": "string", "description": "文件 glob 过滤，例如 *.rs 或 *.{ts,tsx}" }
                 },
                 "required": ["pattern"]
+            }),
+        },
+        ToolDefinition {
+            name: "workspace_context".into(),
+            description: "生成当前工作区的紧凑上下文包：项目指令、Git 状态、package 脚本、清单文件和关键文件列表。".into(),
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
             }),
         },
         ToolDefinition {
@@ -71,7 +95,8 @@ pub fn code_tool_definitions() -> Vec<ToolDefinition> {
                 "properties": {
                     "file_path": { "type": "string", "description": "相对于工作目录的文件路径" },
                     "old_string": { "type": "string", "description": "文件中需要被替换的旧文本" },
-                    "new_string": { "type": "string", "description": "用于替换的新文本" }
+                    "new_string": { "type": "string", "description": "用于替换的新文本" },
+                    "replace_all": { "type": "boolean", "description": "是否替换全部匹配，默认 false" }
                 },
                 "required": ["file_path", "old_string", "new_string"]
             }),
@@ -100,11 +125,13 @@ pub fn code_tool_definitions_for_mode(mode: &str) -> Vec<ToolDefinition> {
         "explore" | "scout" => vec![
             ToolDefinition {
                 name: "read_file".into(),
-                description: "读取工作目录内指定文件的文本内容。用于查看代码、配置文件、日志等。".into(),
+                description: "读取工作目录内指定文件的文本内容。支持 offset/limit 按行读取。".into(),
                 parameters: json!({
                     "type": "object",
                     "properties": {
-                        "file_path": { "type": "string", "description": "相对于工作目录的文件路径" }
+                        "file_path": { "type": "string", "description": "相对于工作目录的文件路径" },
+                        "offset": { "type": "integer", "description": "起始行号（1-based），可选" },
+                        "limit": { "type": "integer", "description": "最多读取多少行，可选" }
                     },
                     "required": ["file_path"]
                 }),
@@ -121,15 +148,37 @@ pub fn code_tool_definitions_for_mode(mode: &str) -> Vec<ToolDefinition> {
                 }),
             },
             ToolDefinition {
+                name: "glob_files".into(),
+                description: "按 glob 模式列出工作目录内的文件路径，例如 **/*.ts 或 src/**/*.{ts,tsx}。".into(),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "pattern": { "type": "string", "description": "glob 文件匹配模式" },
+                        "path": { "type": "string", "description": "相对于工作目录的搜索根目录，默认为工作目录" }
+                    },
+                    "required": ["pattern"]
+                }),
+            },
+            ToolDefinition {
                 name: "search_files".into(),
-                description: "在工作目录下搜索匹配关键词的文件内容，返回匹配行及其文件路径。".into(),
+                description: "在工作目录下搜索匹配关键词的文件内容，返回匹配行及其文件路径。支持 include 限定文件 glob。".into(),
                 parameters: json!({
                     "type": "object",
                     "properties": {
                         "pattern": { "type": "string", "description": "搜索关键词或正则表达式" },
-                        "path": { "type": "string", "description": "相对于工作目录的搜索根目录，默认为工作目录" }
+                        "path": { "type": "string", "description": "相对于工作目录的搜索根目录，默认为工作目录" },
+                        "include": { "type": "string", "description": "文件 glob 过滤，例如 *.rs 或 *.{ts,tsx}" }
                     },
                     "required": ["pattern"]
+                }),
+            },
+            ToolDefinition {
+                name: "workspace_context".into(),
+                description: "生成当前工作区的紧凑上下文包：项目指令、Git 状态、package 脚本、清单文件和关键文件列表。".into(),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {},
+                    "required": []
                 }),
             },
         ],
@@ -137,10 +186,38 @@ pub fn code_tool_definitions_for_mode(mode: &str) -> Vec<ToolDefinition> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct CodePermissionPreview {
+    pub title: String,
+    pub summary: String,
+    pub risk_level: String,
+    pub preview: String,
+}
+
 /// 判断某个工具是否具有写入或命令副作用。
-#[allow(dead_code)]
 pub fn requires_permission(name: &str) -> bool {
     matches!(name, "write_file" | "edit_file" | "run_command")
+}
+
+pub async fn permission_preview(
+    name: &str,
+    arguments: &str,
+    working_dir: Option<&str>,
+) -> CodePermissionPreview {
+    let args =
+        serde_json::from_str::<serde_json::Value>(arguments).unwrap_or(serde_json::Value::Null);
+    let wd = working_dir.unwrap_or("");
+    match name {
+        "write_file" => write_file_preview(args, wd).await,
+        "edit_file" => edit_file_preview(args, wd).await,
+        "run_command" => run_command_preview(args),
+        _ => CodePermissionPreview {
+            title: format!("允许工具：{name}"),
+            summary: "该工具需要用户确认后继续。".into(),
+            risk_level: "medium".into(),
+            preview: arguments.to_string(),
+        },
+    }
 }
 
 /// 将用户输入的路径解析为工作目录内的绝对路径。
@@ -204,7 +281,9 @@ pub async fn dispatch_tool(
     match name {
         "read_file" => read_file(args, wd).await,
         "list_dir" => list_dir(args, wd).await,
+        "glob_files" => glob_files(args, wd).await,
         "search_files" => search_files(args, wd).await,
+        "workspace_context" => workspace_context(wd).await,
         "write_file" => write_file(args, wd).await,
         "edit_file" => edit_file(args, wd).await,
         "run_command" => run_command(args, wd).await,
@@ -217,6 +296,122 @@ fn get_string_arg(args: &serde_json::Value, key: &str) -> Result<String, String>
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .ok_or_else(|| format!("缺少参数：{key}"))
+}
+
+async fn write_file_preview(args: serde_json::Value, wd: &str) -> CodePermissionPreview {
+    let rel_path = args
+        .get("file_path")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    let content = args
+        .get("content")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    let existing = resolve_working_path(rel_path, wd)
+        .ok()
+        .and_then(|path| std::fs::metadata(path).ok())
+        .map(|meta| meta.len());
+    let summary = match existing {
+        Some(bytes) => format!(
+            "覆盖 {rel_path}（原文件约 {bytes} bytes，新内容约 {} 字符）",
+            content.chars().count()
+        ),
+        None => format!("创建 {rel_path}（约 {} 字符）", content.chars().count()),
+    };
+    CodePermissionPreview {
+        title: "写入文件".into(),
+        summary,
+        risk_level: "high".into(),
+        preview: trim_preview(content, 6_000),
+    }
+}
+
+async fn edit_file_preview(args: serde_json::Value, wd: &str) -> CodePermissionPreview {
+    let rel_path = args
+        .get("file_path")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    let old_string = args
+        .get("old_string")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    let new_string = args
+        .get("new_string")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    let replace_all = args
+        .get("replace_all")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let occurrence_count = resolve_working_path(rel_path, wd)
+        .ok()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .map(|content| content.matches(old_string).count())
+        .unwrap_or(0);
+
+    CodePermissionPreview {
+        title: "编辑文件".into(),
+        summary: format!(
+            "{} {rel_path}（匹配 {} 处，{}）",
+            if replace_all {
+                "批量替换"
+            } else {
+                "替换"
+            },
+            occurrence_count,
+            if replace_all {
+                "全部替换"
+            } else {
+                "仅第一处"
+            },
+        ),
+        risk_level: "high".into(),
+        preview: format!(
+            "--- old\n{}\n+++ new\n{}",
+            trim_preview(old_string, 3_000),
+            trim_preview(new_string, 3_000),
+        ),
+    }
+}
+
+fn run_command_preview(args: serde_json::Value) -> CodePermissionPreview {
+    let command = args
+        .get("command")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    let timeout = args
+        .get("timeout")
+        .and_then(|value| value.as_u64())
+        .unwrap_or(DEFAULT_COMMAND_TIMEOUT_SECS);
+    CodePermissionPreview {
+        title: "执行命令".into(),
+        summary: format!("运行 shell 命令（超时 {timeout} 秒）"),
+        risk_level: if command_risk_is_high(command) {
+            "high"
+        } else {
+            "medium"
+        }
+        .into(),
+        preview: command.to_string(),
+    }
+}
+
+fn command_risk_is_high(command: &str) -> bool {
+    let lower = command.to_ascii_lowercase();
+    lower.contains(" rm ")
+        || lower.starts_with("rm ")
+        || lower.contains("git reset")
+        || lower.contains("git clean")
+        || lower.contains("chmod")
+        || lower.contains("sudo")
+}
+
+fn trim_preview(value: &str, limit: usize) -> String {
+    if value.chars().count() <= limit {
+        return value.to_string();
+    }
+    let prefix = value.chars().take(limit).collect::<String>();
+    format!("{prefix}\n...（预览已截断）")
 }
 
 async fn read_file(args: serde_json::Value, wd: &str) -> Result<String, String> {
@@ -244,7 +439,50 @@ async fn read_file(args: serde_json::Value, wd: &str) -> Result<String, String> 
     let content = tokio::fs::read_to_string(&path)
         .await
         .map_err(|e| format!("读取文件失败：{e}"))?;
-    Ok(content)
+    let offset = args
+        .get("offset")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1)
+        .max(1) as usize;
+    let limit = args
+        .get("limit")
+        .and_then(|v| v.as_u64())
+        .map(|value| value.clamp(1, 2_000) as usize);
+
+    if offset == 1 && limit.is_none() {
+        return Ok(content);
+    }
+
+    let lines: Vec<&str> = content.lines().collect();
+    let start = offset.saturating_sub(1);
+    if start >= lines.len() {
+        return Ok(format!(
+            "文件共有 {} 行，offset={} 超出范围。",
+            lines.len(),
+            offset
+        ));
+    }
+    let take = limit.unwrap_or(200).min(2_000);
+    let end = (start + take).min(lines.len());
+    let body = lines[start..end]
+        .iter()
+        .enumerate()
+        .map(|(index, line)| format!("{:>5}  {}", start + index + 1, line))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let suffix = if end < lines.len() {
+        format!("\n...（还有 {} 行未显示）", lines.len() - end)
+    } else {
+        String::new()
+    };
+    Ok(format!(
+        "文件：{rel_path}\n行 {}-{} / {}\n{}{}",
+        start + 1,
+        end,
+        lines.len(),
+        body,
+        suffix,
+    ))
 }
 
 async fn list_dir(args: serde_json::Value, wd: &str) -> Result<String, String> {
@@ -283,7 +521,7 @@ async fn list_dir(args: serde_json::Value, wd: &str) -> Result<String, String> {
     Ok(lines.join("\n"))
 }
 
-async fn search_files(args: serde_json::Value, wd: &str) -> Result<String, String> {
+async fn glob_files(args: serde_json::Value, wd: &str) -> Result<String, String> {
     let pattern = get_string_arg(&args, "pattern")?;
     let rel_path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
     let path = resolve_working_path(rel_path, wd)?;
@@ -291,19 +529,78 @@ async fn search_files(args: serde_json::Value, wd: &str) -> Result<String, Strin
     if !path.exists() {
         return Err(format!("搜索目录不存在：{rel_path}"));
     }
+    if !path.is_dir() {
+        return Err(format!("glob path 不是目录：{rel_path}"));
+    }
 
-    let output = match tokio::process::Command::new("rg")
-        .arg("-n")
-        .arg("-I")
+    let output = tokio::process::Command::new("rg")
+        .arg("--files")
         .arg("--hidden")
         .arg("--glob")
         .arg("!.git")
-        .arg("--")
+        .arg("--glob")
+        .arg("!node_modules")
+        .arg("--glob")
         .arg(&pattern)
-        .arg(&path)
+        .current_dir(&path)
         .output()
         .await
-    {
+        .map_err(|e| format!("glob 命令失败：{e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "glob 命令未成功执行。".to_string()
+        } else {
+            stderr
+        });
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout).to_string();
+    let mut lines = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .take(100)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    lines.sort();
+    if lines.is_empty() {
+        return Ok("No files found".into());
+    }
+    let truncated = text.lines().count() > 100;
+    let mut result = lines.join("\n");
+    if truncated {
+        result.push_str("\n...（结果已截断，请使用更具体的 pattern 或 path）");
+    }
+    Ok(result)
+}
+
+async fn search_files(args: serde_json::Value, wd: &str) -> Result<String, String> {
+    let pattern = get_string_arg(&args, "pattern")?;
+    let rel_path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
+    let include = args
+        .get("include")
+        .and_then(|v| v.as_str())
+        .filter(|v| !v.trim().is_empty());
+    let path = resolve_working_path(rel_path, wd)?;
+
+    if !path.exists() {
+        return Err(format!("搜索目录不存在：{rel_path}"));
+    }
+
+    let mut rg = tokio::process::Command::new("rg");
+    rg.arg("-n")
+        .arg("-I")
+        .arg("--hidden")
+        .arg("--glob")
+        .arg("!.git");
+    if let Some(include) = include {
+        rg.arg("--glob").arg(include);
+    }
+    rg.arg("--").arg(&pattern).arg(&path);
+
+    let output = match rg.output().await {
         Ok(output) => output,
         Err(_) => tokio::process::Command::new("grep")
             .arg("-R")
@@ -336,6 +633,11 @@ async fn search_files(args: serde_json::Value, wd: &str) -> Result<String, Strin
     }
 }
 
+async fn workspace_context(wd: &str) -> Result<String, String> {
+    let ctx = crate::code::context::build_workspace_context(wd, None).await?;
+    Ok(ctx.content)
+}
+
 async fn write_file(args: serde_json::Value, wd: &str) -> Result<String, String> {
     let rel_path = get_string_arg(&args, "file_path")?;
     let content = get_string_arg(&args, "content")?;
@@ -356,6 +658,10 @@ async fn edit_file(args: serde_json::Value, wd: &str) -> Result<String, String> 
     let rel_path = get_string_arg(&args, "file_path")?;
     let old_string = get_string_arg(&args, "old_string")?;
     let new_string = get_string_arg(&args, "new_string")?;
+    let replace_all = args
+        .get("replace_all")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
     let path = resolve_working_path(&rel_path, wd)?;
 
     if !path.exists() {
@@ -366,11 +672,36 @@ async fn edit_file(args: serde_json::Value, wd: &str) -> Result<String, String> 
         .await
         .map_err(|e| format!("读取文件失败：{e}"))?;
 
-    if !content.contains(&old_string) {
+    if old_string == new_string {
+        return Err("old_string 与 new_string 相同，未产生修改。".into());
+    }
+
+    let line_ending = if content.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let old_normalized = old_string.replace("\r\n", "\n").replace('\r', "\n");
+    let new_normalized = new_string.replace("\r\n", "\n").replace('\r', "\n");
+    let old = if line_ending == "\r\n" {
+        old_normalized.replace('\n', "\r\n")
+    } else {
+        old_normalized
+    };
+    let new = if line_ending == "\r\n" {
+        new_normalized.replace('\n', "\r\n")
+    } else {
+        new_normalized
+    };
+    if !content.contains(&old) {
         return Err(format!("文件中未找到待替换文本：{rel_path}"));
     }
 
-    let new_content = content.replacen(&old_string, &new_string, 1);
+    let new_content = if replace_all {
+        content.replace(&old, &new)
+    } else {
+        content.replacen(&old, &new, 1)
+    };
     tokio::fs::write(&path, new_content)
         .await
         .map_err(|e| format!("写入文件失败：{e}"))?;

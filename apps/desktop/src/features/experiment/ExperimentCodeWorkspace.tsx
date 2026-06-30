@@ -26,6 +26,7 @@ import CodeEditor from "../code/CodeEditor";
 import CodeChatPanel from "../code/CodeChatPanel";
 import CodeReviewPanel from "../code/CodeReviewPanel";
 import CodeGitPanel from "../code/CodeGitPanel";
+import CodePermissionPanel from "../code/CodePermissionPanel";
 import { skillsApi, codeApi } from "../../lib/client";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
 
@@ -597,6 +598,10 @@ export function ExperimentCodeWorkspace({
               <ChevronLeft size={16} />
             </button>
           )}
+          <CodePermissionPanel
+            requests={ws.permissionRequests}
+            onResolve={ws.resolvePermission}
+          />
           <CodeChatPanel
             messages={ws.selected?.messages ?? []}
             streamingContent={ws.streamingContent}
@@ -619,6 +624,9 @@ export function ExperimentCodeWorkspace({
             attachments={ws.attachments}
             onPickAttachments={ws.pickAttachments}
             onRemoveAttachment={ws.removeAttachment}
+            contextStats={ws.contextPack.stats}
+            contextLoading={ws.contextPack.loading}
+            onInjectContext={ws.contextPack.injectContext}
             skills={skills}
             selectedSkillId={selectedSkillId}
             onSelectedSkillChange={setSelectedSkillId}

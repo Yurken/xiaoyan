@@ -4,6 +4,7 @@ import {
   FilePenLine,
   FileText,
   FolderTree,
+  Layers,
   Search,
   Terminal,
   Wrench,
@@ -21,18 +22,22 @@ interface CodeToolResultCardProps {
 const TOOL_LABELS: Record<string, string> = {
   read_file: "读取文件",
   list_dir: "列出目录",
+  glob_files: "匹配文件",
   search_files: "搜索代码",
+  workspace_context: "工作区上下文",
   write_file: "写入文件",
   edit_file: "编辑文件",
   run_command: "执行命令",
 };
 
-const AUTO_COLLAPSED_TOOLS = new Set(["read_file", "list_dir", "search_files"]);
+const AUTO_COLLAPSED_TOOLS = new Set(["read_file", "list_dir", "glob_files", "search_files", "workspace_context"]);
 
 function ToolIcon({ name }: { name: string }) {
   if (name === "read_file") return <FileText size={13} />;
   if (name === "list_dir") return <FolderTree size={13} />;
+  if (name === "glob_files") return <FolderTree size={13} />;
   if (name === "search_files") return <Search size={13} />;
+  if (name === "workspace_context") return <Layers size={13} />;
   if (name === "write_file" || name === "edit_file") return <FilePenLine size={13} />;
   if (name === "run_command") return <Terminal size={13} />;
   return <Wrench size={13} />;

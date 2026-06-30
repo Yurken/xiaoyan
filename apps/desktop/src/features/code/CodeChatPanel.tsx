@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, ChevronDown, FileText, FolderOpen, Lock, LockOpen, Plus, Sparkles, PanelTopClose, PanelTopOpen, Square, X, Zap } from "lucide-react";
+import { ArrowUp, ChevronDown, FolderOpen, Lock, LockOpen, Sparkles, PanelTopClose, PanelTopOpen, Square, X, Zap } from "lucide-react";
 import type { Skill } from "@research-copilot/types";
 import type { CodeMessage } from "../../lib/client";
 import { codeToolLabel, CODE_MODES, CODE_MODE_MAP } from "./shared";
 import type { CodeAgentMode, CodeFileAttachment, CodeModelOption } from "./shared";
 import CodeAssistantMessage from "./CodeAssistantMessage";
+import CodeChatContextControls from "./CodeChatContextControls";
 import { CodeToolCallCard, CodeToolResultCard } from "./CodeToolMessage";
 
 interface CodeChatPanelProps {
@@ -31,6 +32,9 @@ interface CodeChatPanelProps {
   attachments?: CodeFileAttachment[];
   onPickAttachments?: () => void;
   onRemoveAttachment?: (id: string) => void;
+  contextStats?: { files: number; instructions: number; scripts: number; chars: number } | null;
+  contextLoading?: boolean;
+  onInjectContext?: () => void;
   skills?: Skill[];
   selectedSkillId?: string | null;
   onSelectedSkillChange?: (id: string | null) => void;
@@ -63,6 +67,9 @@ export default function CodeChatPanel({
   attachments = [],
   onPickAttachments,
   onRemoveAttachment,
+  contextStats = null,
+  contextLoading = false,
+  onInjectContext,
   skills = [],
   selectedSkillId = null,
   onSelectedSkillChange,
@@ -475,34 +482,16 @@ export default function CodeChatPanel({
                 )}
               </div>
 
-              <button
-                type="button"
-                className="code-chat-attach-btn"
-                onClick={onPickAttachments ?? onAddFile}
-                aria-label="添加文件"
-                title="添加文件作为上下文"
-              >
-                <Plus size={16} />
-              </button>
-
-              {attachments.length > 0 && attachments.map((att) => (
-                <div
-                  key={att.id}
-                  className="inline-flex items-center gap-1 rounded-xl px-2 py-0.5 text-[11px] font-medium flex-shrink-0 max-w-[140px] group"
-                  style={{ background: "rgba(0,122,255,0.08)", color: "#007AFF" }}
-                  title={att.path}
-                >
-                  <FileText className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate">{att.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveAttachment?.(att.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity hover:opacity-60 flex-shrink-0"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
+              <CodeChatContextControls
+                workingDir={workingDir}
+                attachments={attachments}
+                contextStats={contextStats}
+                contextLoading={contextLoading}
+                onAddFile={onAddFile}
+                onPickAttachments={onPickAttachments}
+                onRemoveAttachment={onRemoveAttachment}
+                onInjectContext={onInjectContext}
+              />
 
               {selectedSkillId && (() => {
                 const skill = skills.find((item) => item.id === selectedSkillId);
