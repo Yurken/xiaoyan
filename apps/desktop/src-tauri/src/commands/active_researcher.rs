@@ -173,6 +173,16 @@ pub async fn auto_researcher_scan_on_startup(
 ) {
     use crate::services::active_researcher_service;
 
+    let settings = state.settings.read().await;
+    let enabled = settings
+        .get("xiaoyan_active_researcher_enabled")
+        .map(|v| v == "true")
+        .unwrap_or(true);
+    drop(settings);
+    if !enabled {
+        return;
+    }
+
     if active_researcher_service::ensure_table(&state.db)
         .await
         .is_err()
