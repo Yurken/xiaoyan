@@ -39,6 +39,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const memorySavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadSessionRequestRef = useRef(0);
 
   const {
     attachments,
@@ -85,21 +86,28 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   // Sync chat reset with session changes
   const handleNewChat = useCallback(() => {
+    loadSessionRequestRef.current += 1;
     sessions.handleNewChat();
     chat.resetChat();
   }, [sessions, chat]);
 
   const handleLoadSession = useCallback(async (session: ChatSession) => {
+    const requestId = loadSessionRequestRef.current + 1;
+    loadSessionRequestRef.current = requestId;
     chat.cancelActiveStream();
     const sessionData = await sessions.loadSession(session);
-    if (!sessionData) return;
+    if (!sessionData || loadSessionRequestRef.current !== requestId) return;
     chat.resetChat();
     chat.setMessages(sessionData.messages ?? []);
     try {
       const runData = await apiClient.chat.listAgentRuns(session.id);
-      chat.setAgentRuns(runData);
+      if (loadSessionRequestRef.current === requestId) {
+        chat.setAgentRuns(runData);
+      }
     } catch (err) { console.warn("Failed to load agent runs:", err); }
-    chat.setSidebarCollapsed(true);
+    if (loadSessionRequestRef.current === requestId) {
+      chat.setSidebarCollapsed(true);
+    }
   }, [sessions, chat]);
 
   // Skills
