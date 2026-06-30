@@ -118,11 +118,17 @@ function localStorageAdapter(paperId: string): NotesAdapter {
       return note;
     },
     update: async (id, data) => {
-      const notes = load().map((n) =>
-        n.id === id ? { ...n, ...data, updated_at: new Date().toISOString() } : n,
-      );
+      let updatedNote: PaperNote | null = null;
+      const notes = load().map((n) => {
+        if (n.id !== id) return n;
+        updatedNote = { ...n, ...data, updated_at: new Date().toISOString() };
+        return updatedNote;
+      });
+      if (!updatedNote) {
+        throw new Error(`Note ${id} was not found`);
+      }
       save(notes);
-      return notes.find((n) => n.id === id)!;
+      return updatedNote;
     },
     delete: async (id) => {
       const notes = load().filter((n) => n.id !== id);
@@ -141,11 +147,21 @@ export function useNotes({ paperId }: UseNotesOptions) {
 
   // Initialize adapter
   useEffect(() => {
+    let cancelled = false;
     const tauriInvoke = getTauriInvoke();
-    adapterRef.current = tauriInvoke ? createTauriAdapter(tauriInvoke) : localStorageAdapter(paperId);
+    const adapter = tauriInvoke ? createTauriAdapter(tauriInvoke) : localStorageAdapter(paperId);
+    adapterRef.current = adapter;
 
     // Load initial data
-    adapterRef.current.list(paperId).then(setNotes).catch(console.error);
+    adapter.list(paperId).then((nextNotes) => {
+      if (!cancelled && adapterRef.current === adapter) {
+        setNotes(nextNotes);
+      }
+    }).catch(console.error);
+
+    return () => {
+      cancelled = true;
+    };
   }, [paperId]);
 
   const addNote = useCallback(

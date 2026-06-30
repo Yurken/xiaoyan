@@ -25,6 +25,11 @@ function clearTimer(timer: MutableRefObject<ReturnType<typeof setTimeout> | null
   }
 }
 
+function clearTimers(timers: MutableRefObject<Array<ReturnType<typeof setTimeout>>>) {
+  timers.current.forEach(clearTimeout);
+  timers.current = [];
+}
+
 export function useCompanionController({ allowIdleSleep = true }: CompanionControllerOptions = {}) {
   const [visible, setVisible] = useState(false);
   const [shownAction, setShownAction] = useState<CompanionActionKey>("idle");
@@ -41,6 +46,8 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
 
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleSleepRunId = useRef(0);
+  const idleStepTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const wakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const oneshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,6 +85,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
 
   const cancelIdleTimer = useCallback(() => {
     clearTimer(idleTimer);
+    clearTimers(idleStepTimers);
     idleSleepRunId.current += 1;
     isSleeping.current = false;
   }, []);
@@ -92,6 +100,7 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
     const runId = idleSleepRunId.current;
     idleTimer.current = setTimeout(() => {
       if (!allowIdleSleep || activeWork.current.size > 0 || isStreaming.current) return;
+      clearTimers(idleStepTimers);
       isSleeping.current = true;
       const steps: [CompanionActionKey, number][] = [
         ["looking", 3500],
@@ -103,9 +112,10 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
       ];
       let delay = 0;
       for (const [key, duration] of steps) {
-        setTimeout(() => {
+        const timer = setTimeout(() => {
           if (isSleeping.current && idleSleepRunId.current === runId) showAction(key);
         }, delay);
+        idleStepTimers.current.push(timer);
         delay += duration;
       }
     }, IDLE_TO_SLEEP_MS);
@@ -115,7 +125,11 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
     if (!isSleeping.current) return false;
     cancelIdleTimer();
     showAction("waking");
-    setTimeout(() => resumeWork(), 2000);
+    clearTimer(wakeTimer);
+    wakeTimer.current = setTimeout(() => {
+      wakeTimer.current = null;
+      resumeWork();
+    }, 2000);
     return true;
   }, [cancelIdleTimer, resumeWork, showAction]);
 
@@ -297,7 +311,8 @@ export function useCompanionController({ allowIdleSleep = true }: CompanionContr
       cancelled = true;
       clearTimeout(visibleTimer);
       unlisten.forEach((fn) => fn());
-      [idleTimer, oneshotTimer, reactionTimer, clickTimer, actionSwitchTimer].forEach(clearTimer);
+      clearTimers(idleStepTimers);
+      [idleTimer, wakeTimer, oneshotTimer, reactionTimer, clickTimer, actionSwitchTimer].forEach(clearTimer);
     };
   }, [cancelIdleTimer, finishWork, showAction, startIdleTimer, startWork, triggerFeedback, wakeIfSleeping]);
 

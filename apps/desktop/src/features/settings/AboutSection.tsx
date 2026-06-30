@@ -72,6 +72,7 @@ export default function AboutSection({
   const pct = downloadProgress?.total && downloadProgress.total > 0
     ? Math.min(100, Math.round((downloadProgress.downloaded / downloadProgress.total) * 100))
     : null;
+  const downloadedBytes = downloadProgress?.downloaded ?? 0;
 
   return (
     <div className="space-y-4">
@@ -162,7 +163,7 @@ export default function AboutSection({
               />
             </div>
             <p className="text-xs text-ink-tertiary text-right">
-              {pct !== null ? `${pct}%` : formatBytes(downloadProgress!.downloaded)}
+              {pct !== null ? `${pct}%` : formatBytes(downloadedBytes)}
               {downloadProgress?.total ? ` / ${formatBytes(downloadProgress.total)}` : ""}
             </p>
             <style>{`

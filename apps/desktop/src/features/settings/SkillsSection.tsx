@@ -108,9 +108,13 @@ function SkillEditModal({
 
       const result = isCreate
         ? await apiClient.skills.create({ name, title, description, prompt, tags })
-        : await apiClient.skills.update(skill!.id, { title, description, prompt, tags });
+        : skill
+          ? await apiClient.skills.update(skill.id, { title, description, prompt, tags })
+          : null;
 
-      onSave(result);
+      if (result) {
+        onSave(result);
+      }
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
     } finally {

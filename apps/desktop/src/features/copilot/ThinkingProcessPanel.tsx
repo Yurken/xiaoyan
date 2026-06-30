@@ -51,6 +51,7 @@ export default function ThinkingProcessPanel({
   const doneCount = runs.filter((r) => r.status === "done").length;
   const failedCount = runs.filter((r) => r.status === "failed").length;
   const totalCount = plan.length || runs.length;
+  const decision = routingDecision ?? null;
 
   // Build progress text
   let progressText = "";
@@ -97,7 +98,7 @@ export default function ThinkingProcessPanel({
                 color: "#AF52DE",
               }}
             >
-              {routingDecision!.selected.length} 个能力已调度
+              {decision?.selected.length ?? 0} 个能力已调度
             </span>
           )}
           {isSearching && (
@@ -133,23 +134,23 @@ export default function ThinkingProcessPanel({
           )}
 
           {/* Routing Decision Banner */}
-          {hasRoutingDecision && (
-            <RoutingDecisionBanner decision={routingDecision!} />
-          )}
+          {decision ? (
+            <RoutingDecisionBanner decision={decision} />
+          ) : null}
 
           {/* Execution Timeline (when waves info is available) */}
-          {useTimelineView && (
+          {useTimelineView && decision ? (
             <div>
               <div className="mb-1.5 text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">
                 执行时间线
               </div>
               <ExecutionTimeline
                 runs={runs}
-                executionWaves={routingDecision!.execution_waves}
+                executionWaves={decision.execution_waves}
                 isThinking={isThinking}
               />
             </div>
-          )}
+          ) : null}
 
           {/* Reasoning content */}
           {hasReasoning && (

@@ -187,6 +187,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const artifacts = useMemo(() => {
     return displayedRuns.flatMap((run) => run.artifacts ?? []);
   }, [displayedRuns]);
+  const contextMenu = sessions.contextMenu;
 
   return (
     <>
@@ -316,12 +317,12 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       )}
 
       {/* 会话右键菜单 */}
-      {sessions.contextMenu && (
+      {contextMenu && (
         <div
           className="fixed z-50 min-w-[160px] overflow-hidden rounded-2xl py-1.5 text-xs"
           style={{
-            left: sessions.contextMenu.x,
-            top: sessions.contextMenu.y,
+            left: contextMenu.x,
+            top: contextMenu.y,
             background: "var(--rc-elevated)",
             boxShadow: "var(--rc-chip-shadow)",
           }}
@@ -332,7 +333,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           </div>
           <button
             className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
-            onClick={() => void sessions.handleMoveSession(sessions.contextMenu!.session, "")}
+            onClick={() => void sessions.handleMoveSession(contextMenu.session, "")}
           >
             未归类
           </button>
@@ -340,7 +341,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             <button
               key={interest.id}
               className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
-              onClick={() => void sessions.handleMoveSession(sessions.contextMenu!.session, interest.id)}
+              onClick={() => void sessions.handleMoveSession(contextMenu.session, interest.id)}
             >
               {interestFolderName(interest)}
             </button>
@@ -349,7 +350,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           <button
             className="w-full px-3 py-1.5 text-left text-apple-red transition-colors hover:bg-apple-red/8"
             onClick={() => {
-              void sessions.handleDeleteSession(sessions.contextMenu!.session.id);
+              void sessions.handleDeleteSession(contextMenu.session.id);
               sessions.setContextMenu(null);
             }}
           >
