@@ -1,7 +1,7 @@
-import { Sparkles } from "lucide-react";
+import { Sparkles, Radar } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppSettings } from "@research-copilot/types";
-import { SectionIcon } from "../settings/shared";
+import { SectionIcon, ToggleRow } from "../settings/shared";
 import { COMPANION_OPTIONS, getCompanionDefinition } from "./petRegistry";
 import { emitCompanionPreferenceChange, normalizeCompanionId } from "./shared";
 import { CompanionVisual } from "./CompanionRenderer";
@@ -16,6 +16,7 @@ export default function CompanionSettingsSection({
   set,
 }: CompanionSettingsSectionProps) {
   const activeId = normalizeCompanionId(form.xiaoyan_companion_id);
+  const activeResearcherEnabled = form.xiaoyan_active_researcher_enabled !== "false";
 
   const chooseCompanion = (id: string) => {
     const next = normalizeCompanionId(id);
@@ -72,6 +73,26 @@ export default function CompanionSettingsSection({
             </button>
           );
         })}
+      </div>
+
+      <div className="pt-2 border-t" style={{ borderColor: "var(--rc-border)" }}>
+        <div className="flex items-center gap-3 mb-3">
+          <SectionIcon icon={Radar} color="#FF9500" />
+          <div>
+            <h2 className="text-base font-semibold text-ink-primary">主动研究员</h2>
+            <p className="mt-0.5 text-xs text-ink-tertiary">
+              小妍定期扫描 arXiv，自动发现与你研究主题相关的新论文。
+            </p>
+          </div>
+        </div>
+        <ToggleRow
+          title="启用主动研究"
+          description="开启后小妍会主动侦测关联论文并通知你，会消耗额外 token。"
+          checked={activeResearcherEnabled}
+          onToggle={() =>
+            set("xiaoyan_active_researcher_enabled")(activeResearcherEnabled ? "false" : "true")
+          }
+        />
       </div>
     </Card>
   );
