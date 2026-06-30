@@ -77,6 +77,8 @@ test.describe("应用导航", () => {
   });
 
   test("应支持键盘快捷键跳转设置", async ({ page }) => {
+    // 等待侧边栏可见，确保键盘快捷键监听已注册。
+    await expect(page.locator(".app-sidebar")).toBeVisible();
     await page.keyboard.press("Meta+,");
     await expect(page).toHaveURL("/settings");
   });

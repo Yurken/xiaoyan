@@ -97,6 +97,7 @@ const MOCK_INVOKE_RESULTS = {
   // Knowledge
   knowledge_list_interests: [],
   knowledge_list_notes: [],
+  knowledge_list_notes_by_source: [],
   knowledge_graph_snapshot: {
     interests: [],
     papers: [],
