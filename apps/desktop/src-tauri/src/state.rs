@@ -133,6 +133,7 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("copilot_simple_frequency_penalty".into(), "".into());
     m.insert("xiaoyan_long_term_memory_enabled".into(), "true".into());
     m.insert("xiaoyan_companion_id".into(), "xiaoyan".into());
+    m.insert("xiaoyan_active_researcher_enabled".into(), "true".into());
     m.insert("multi_agent_enabled".into(), "true".into());
     m.insert("multi_agent_routing_mode".into(), "hybrid".into());
     m.insert(
