@@ -1149,6 +1149,9 @@ export const codeApi = {
       mode: mode ?? null,
     }),
 
+  cancelMessage: (requestId: string): Promise<void> =>
+    invoke("code_cancel", { requestId }),
+
   setExperimentId: (experimentId: string) => {
     // 占位：新架构下 codeApi 不保存 experimentId，调用方自行传入。
     void experimentId;
@@ -1172,6 +1175,15 @@ export const codeApi = {
 
   gitCommit: (workingDir: string, message: string): Promise<string> =>
     invoke("code_git_commit", { workingDir, message }),
+
+  gitListBranches: (workingDir: string): Promise<string[]> =>
+    invoke("code_git_list_branches", { workingDir }),
+
+  gitCheckoutBranch: (workingDir: string, branch: string): Promise<void> =>
+    invoke("code_git_checkout_branch", { workingDir, branch }),
+
+  generateCommitMessage: (workingDir: string): Promise<string> =>
+    invoke("code_generate_commit_message", { workingDir }),
 
   reviewChanges: (workingDir: string): Promise<CodeReviewReport> =>
     invoke("code_review_changes", { workingDir }),

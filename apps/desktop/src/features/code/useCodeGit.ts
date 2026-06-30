@@ -13,6 +13,9 @@ export function useCodeGit(workingDir: string | null | undefined) {
   const [reviewing, setReviewing] = useState(false);
   const [review, setReview] = useState<CodeReviewReport | null>(null);
   const [commitMessage, setCommitMessage] = useState("");
+  const [generatingMessage, setGeneratingMessage] = useState(false);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [switchingBranch, setSwitchingBranch] = useState(false);
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
@@ -70,6 +73,47 @@ export function useCodeGit(workingDir: string | null | undefined) {
     });
   }
 
+  async function generateCommitMessage() {
+    if (!workingDir) return;
+    setGeneratingMessage(true);
+    setError("");
+    try {
+      const message = await codeApi.generateCommitMessage(workingDir);
+      setCommitMessage(message);
+    } catch (err) {
+      setError(formatErrorMessage(err));
+    } finally {
+      setGeneratingMessage(false);
+    }
+  }
+
+  async function loadBranches() {
+    if (!workingDir) {
+      setBranches([]);
+      return;
+    }
+    try {
+      const list = await codeApi.gitListBranches(workingDir);
+      setBranches(list);
+    } catch {
+      setBranches([]);
+    }
+  }
+
+  async function checkoutBranch(branch: string) {
+    if (!workingDir || !branch) return;
+    setSwitchingBranch(true);
+    setError("");
+    try {
+      await codeApi.gitCheckoutBranch(workingDir, branch);
+      await refresh();
+    } catch (err) {
+      setError(formatErrorMessage(err));
+    } finally {
+      setSwitchingBranch(false);
+    }
+  }
+
   async function runReview() {
     if (!workingDir) return;
     setReviewing(true);
@@ -92,12 +136,18 @@ export function useCodeGit(workingDir: string | null | undefined) {
     review,
     commitMessage,
     setCommitMessage,
+    generatingMessage,
     error,
     setError,
     refresh,
     stage,
     unstage,
     commit,
+    generateCommitMessage,
+    branches,
+    loadBranches,
+    checkoutBranch,
+    switchingBranch,
     runReview,
   };
 }

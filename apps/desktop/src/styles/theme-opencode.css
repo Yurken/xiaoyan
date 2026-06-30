@@ -927,6 +927,25 @@
   font-weight: 700;
 }
 
+.code-git-panel__branch {
+  padding: 5px 8px;
+  border: 1px solid var(--rc-border);
+  border-radius: 8px;
+  background: var(--rc-chip-bg);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.code-git-panel__branch:hover:not(:disabled) {
+  background: var(--rc-elevated);
+  border-color: var(--rc-accent);
+}
+
+.code-git-panel__branch:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .code-git-panel__branch svg,
 .code-review-panel__title svg {
   flex-shrink: 0;
@@ -1121,6 +1140,30 @@
   opacity: 0.45;
 }
 
+.code-git-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rc-accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.code-git-link-btn:hover:not(:disabled) {
+  background: var(--rc-accent-alpha, rgba(0, 122, 255, 0.08));
+}
+
+.code-git-link-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .code-git-diff {
   min-width: 0;
   overflow: hidden;
@@ -1139,18 +1182,70 @@
   user-select: none;
 }
 
-.code-git-diff pre {
+.code-git-diff__content {
   max-height: min(42vh, 420px);
-  margin: 0;
-  padding: 10px 12px;
-  border-top: 1px solid var(--rc-border);
   overflow: auto;
-  background: color-mix(in srgb, var(--rc-text) 92%, var(--rc-surface) 8%);
-  color: var(--rc-surface);
+  border-top: 1px solid var(--rc-border);
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.55;
+}
+
+.code-git-diff__empty {
+  padding: 16px;
+  color: var(--rc-text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.code-git-diff__line {
+  display: flex;
+  gap: 6px;
+  padding: 1px 8px;
   white-space: pre;
+}
+
+.code-git-diff__line--file {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-top: 4px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rc-border);
+  background: var(--rc-elevated);
+  color: var(--rc-text);
+  font-weight: 700;
+}
+
+.code-git-diff__line--meta {
+  color: var(--rc-text-muted);
+}
+
+.code-git-diff__line--hunk {
+  background: rgba(0, 122, 255, 0.06);
+  color: var(--rc-accent);
+}
+
+.code-git-diff__line--add {
+  background: rgba(52, 199, 89, 0.1);
+  color: #34C759;
+}
+
+.code-git-diff__line--del {
+  background: rgba(255, 59, 48, 0.1);
+  color: #FF3B30;
+}
+
+.code-git-diff__prefix {
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  user-select: none;
+}
+
+.code-git-diff__text {
+  min-width: 0;
 }
 
 .code-review-panel__result {

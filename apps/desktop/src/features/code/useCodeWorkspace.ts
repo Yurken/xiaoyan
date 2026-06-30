@@ -74,6 +74,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [input, setInput] = useState("");
   const [toast, setToast] = useState("");
@@ -83,6 +84,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   const streamingRef = useRef("");
   const unlistenersRef = useRef<UnlistenFn[]>([]);
   const selectedIdRef = useRef<string | null>(null);
+  const requestIdRef = useRef<string | null>(null);
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
 
@@ -188,6 +190,10 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     async function setup() {
       const unlistenStream = await listen<StreamEvent>("code:stream", (event) => {
         if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
+        if (!requestIdRef.current) {
+          requestIdRef.current = event.payload.request_id;
+          setRequestId(event.payload.request_id);
+        }
         streamingRef.current += event.payload.chunk;
         setStreamingContent(streamingRef.current);
       });
@@ -223,6 +229,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         streamingRef.current = "";
         setStreamingContent("");
         setSending(false);
+        setRequestId(null);
+        requestIdRef.current = null;
       });
 
       const unlistenToolCall = await listen<ToolCallEvent>("code:tool_call", (event) => {
@@ -300,6 +308,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         streamingRef.current = "";
         setStreamingContent("");
         setSending(false);
+        setRequestId(null);
+        requestIdRef.current = null;
       });
 
       const unlistenTitle = await listen<{ session_id: string }>("code:title_changed", (_event) => {
@@ -320,6 +330,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     setup();
     return () => {
       mounted = false;
+      cancelActiveStream();
       unlistenersRef.current.forEach((fn) => fn());
       unlistenersRef.current = [];
     };
@@ -477,9 +488,25 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
+  // ── Cancel ────────────────────────────────────────────────────
+  function cancelActiveStream() {
+    const rid = requestIdRef.current;
+    if (rid) {
+      requestIdRef.current = null;
+      setRequestId(null);
+      void codeApi.cancelMessage(rid);
+    }
+    setSending(false);
+    streamingRef.current = "";
+    setStreamingContent("");
+  }
+
   // ── Send ─────────────────────────────────────────────────────
   async function handleSend(skillPrompt?: string) {
     if (!input.trim() || sending) return;
+
+    // 取消上一次请求（如果还在进行中）
+    cancelActiveStream();
 
     // 没有会话时自动新建一个，保证「选目录 → 输入 → 发送」开箱即用。
     let targetId = selectedId;
@@ -513,6 +540,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     setInput("");
     setAttachments([]);
     setSending(true);
+    setRequestId(null);
+    requestIdRef.current = null;
     streamingRef.current = "";
     setStreamingContent("");
 
@@ -563,6 +592,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     selectSession,
     chatLoading,
     sending,
+    requestId,
     streamingContent,
     input,
     setInput,
@@ -570,6 +600,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     handleCreateSession,
     handleDeleteSession,
     handleSend,
+    cancelActiveStream,
     agentMode,
     setAgentMode,
     attachments,

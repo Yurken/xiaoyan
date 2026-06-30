@@ -122,6 +122,95 @@ pub async fn commit(working_dir: &str, message: &str) -> Result<String, String> 
     git_output(working_dir, &["commit", "-m", message]).await
 }
 
+pub async fn list_branches(working_dir: &str) -> Result<Vec<String>, String> {
+    ensure_working_dir(working_dir)?;
+    if !is_git_repo(working_dir).await {
+        return Err("当前目录不是 Git 仓库。".into());
+    }
+    let output = git_output(working_dir, &["branch", "--format=%(refname:short)"]).await?;
+    Ok(output
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
+pub async fn checkout_branch(working_dir: &str, branch: &str) -> Result<(), String> {
+    ensure_working_dir(working_dir)?;
+    if !is_git_repo(working_dir).await {
+        return Err("当前目录不是 Git 仓库。".into());
+    }
+    let branch = branch.trim();
+    if branch.is_empty() {
+        return Err("分支名称不能为空。".into());
+    }
+    git_output(working_dir, &["checkout", branch]).await?;
+    Ok(())
+}
+
+pub async fn generate_commit_message(
+    settings: &std::collections::HashMap<String, String>,
+    working_dir: &str,
+) -> Result<String, String> {
+    ensure_working_dir(working_dir)?;
+    if !is_git_repo(working_dir).await {
+        return Err("当前目录不是 Git 仓库。".into());
+    }
+
+    let status = git_output(
+        working_dir,
+        &["status", "--porcelain=v1", "-b", "--untracked-files=all"],
+    )
+    .await?;
+    let staged_diff = git_output(working_dir, &["diff", "--cached", "--"])
+        .await
+        .unwrap_or_default();
+    if staged_diff.trim().is_empty() {
+        return Err("没有已暂存的变更，无法生成提交注释。".into());
+    }
+    let recent_commits = git_output(
+        working_dir,
+        &["log", "--oneline", "--decorate", "--max-count=6"],
+    )
+    .await
+    .unwrap_or_default();
+
+    let client = LlmClient::from_settings(settings).map_err(|e| e.to_string())?;
+    let model = resolve_model(
+        settings,
+        &[
+            "code_assistant_model",
+            "copilot_simple_model",
+            "paper_analysis_model",
+        ],
+    );
+    let temperature = resolve_temperature_chain(
+        settings,
+        &["code_assistant_temperature", "copilot_simple_temperature"],
+        0.2,
+    );
+
+    let prompt = format!(
+        "请根据以下已暂存的 Git diff 生成一条简洁的 commit message。\n\n要求：\n- 参照下面最近几次提交的风格和格式。\n- 只输出 commit message 本身，不要解释、不要代码块、不要引号。\n- 聚焦「为什么改」，而非「改了什么」。\n- 1-2 句话，不超过 80 个字符。\n\n最近提交样例：\n{}\n\n当前变更状态：\n{}\n\nDiff：\n{}",
+        recent_commits,
+        status,
+        truncate_chars(&staged_diff, MAX_DIFF_CHARS)
+    );
+
+    let messages = vec![
+        LlmMessage::system("你是专业的 Git commit message 生成助手。"),
+        LlmMessage::user(prompt),
+    ];
+
+    let content = client
+        .chat_with_max_tokens(&messages, model.as_deref(), temperature, 512)
+        .await
+        .map_err(|e| format!("生成提交注释失败：{e}"))?;
+
+    Ok(content.trim().to_string())
+}
+
 pub async fn review_changes(
     settings: &std::collections::HashMap<String, String>,
     working_dir: &str,

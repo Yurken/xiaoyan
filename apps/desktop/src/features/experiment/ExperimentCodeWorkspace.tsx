@@ -624,6 +624,7 @@ export function ExperimentCodeWorkspace({
             onSelectedSkillChange={setSelectedSkillId}
             skillLocked={skillLocked}
             onSkillLockedChange={setSkillLocked}
+            onStop={ws.cancelActiveStream}
           />
         </main>
 
@@ -708,6 +709,9 @@ export function ExperimentCodeWorkspace({
                 snapshot={git.snapshot}
                 loading={git.loading}
                 actionLoading={git.actionLoading}
+                generatingCommitMessage={git.generatingMessage}
+                switchingBranch={git.switchingBranch}
+                branches={git.branches}
                 error={git.error}
                 commitMessage={git.commitMessage}
                 onCommitMessageChange={git.setCommitMessage}
@@ -715,6 +719,9 @@ export function ExperimentCodeWorkspace({
                 onStage={git.stage}
                 onUnstage={git.unstage}
                 onCommit={git.commit}
+                onGenerateCommitMessage={git.generateCommitMessage}
+                onLoadBranches={git.loadBranches}
+                onCheckoutBranch={git.checkoutBranch}
               />
             )}
           </div>

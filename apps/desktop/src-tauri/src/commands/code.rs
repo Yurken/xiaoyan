@@ -8,6 +8,7 @@ use crate::state::AppState;
 use serde_json::json;
 use std::path::Path;
 use tauri::State;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, serde::Serialize)]
 struct DirEntry {
@@ -167,8 +168,12 @@ pub async fn code_send_message(
 
     code::store::maybe_autotitle(&db, &session_id, &content).await;
 
+    let request_id = Uuid::new_v4().to_string();
+    let rid = request_id.clone();
+    let code_handles = state.code_handles.clone();
+
     // fire-and-forget，流式结果走事件回传。
-    tauri::async_runtime::spawn(async move {
+    let handle = tokio::spawn(async move {
         code::send_message_stream(
             app,
             db,
@@ -178,9 +183,13 @@ pub async fn code_send_message(
             working_dir,
             current_file,
             mode,
+            &rid,
         )
         .await;
+        let _ = code_handles.lock().await.remove(&rid);
     });
+
+    state.code_handles.lock().await.insert(request_id, handle);
 
     Ok(())
 }
@@ -207,6 +216,30 @@ pub async fn code_git_commit(working_dir: String, message: String) -> Result<Str
 }
 
 #[tauri::command]
+pub async fn code_git_list_branches(working_dir: String) -> Result<serde_json::Value, String> {
+    let branches = code::git::list_branches(&working_dir).await?;
+    serde_json::to_value(branches).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn code_git_checkout_branch(
+    working_dir: String,
+    branch: String,
+) -> Result<(), String> {
+    code::git::checkout_branch(&working_dir, &branch).await
+}
+
+#[tauri::command]
+pub async fn code_generate_commit_message(
+    state: State<'_, AppState>,
+    working_dir: String,
+) -> Result<serde_json::Value, String> {
+    let settings = state.settings.read().await.clone();
+    let message = code::git::generate_commit_message(&settings, &working_dir).await?;
+    serde_json::to_value(message).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn code_review_changes(
     state: State<'_, AppState>,
     working_dir: String,
@@ -214,4 +247,12 @@ pub async fn code_review_changes(
     let settings = state.settings.read().await.clone();
     let report = code::git::review_changes(&settings, &working_dir).await?;
     serde_json::to_value(report).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn code_cancel(state: State<'_, AppState>, request_id: String) -> Result<(), String> {
+    if let Some(handle) = state.code_handles.lock().await.remove(&request_id) {
+        handle.abort();
+    }
+    Ok(())
 }

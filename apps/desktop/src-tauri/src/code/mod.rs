@@ -124,8 +124,9 @@ pub async fn send_message_stream(
     working_dir: Option<String>,
     current_file: Option<String>,
     mode: Option<String>,
+    request_id: &str,
 ) {
-    let request_id = Uuid::new_v4().to_string();
+    let request_id = request_id.to_string();
     let working_dir = working_dir.and_then(|dir| {
         let trimmed = dir.trim();
         if trimmed.is_empty() {

@@ -278,6 +278,8 @@ pub struct AppState {
     pub settings: Arc<RwLock<HashMap<String, String>>>,
     /// Active chat stream handles keyed by request_id.
     pub chat_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
+    /// Active code chat handles keyed by request_id.
+    pub code_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// 串行化 WebDAV 同步：保证同一时刻只有一次同步在运行。
     pub sync_lock: Arc<Mutex<()>>,
     /// 同步状态，供前端订阅展示。
@@ -290,6 +292,7 @@ impl AppState {
             db,
             settings: Arc::new(RwLock::new(settings)),
             chat_handles: Arc::new(Mutex::new(HashMap::new())),
+            code_handles: Arc::new(Mutex::new(HashMap::new())),
             sync_lock: Arc::new(Mutex::new(())),
             sync_status: Arc::new(RwLock::new(
                 crate::services::sync_service::SyncStatus::default(),

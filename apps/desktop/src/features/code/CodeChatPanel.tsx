@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, ChevronDown, FileText, FolderOpen, Loader2, Lock, LockOpen, Plus, Sparkles, PanelTopClose, PanelTopOpen, X, Zap } from "lucide-react";
+import { ArrowUp, ChevronDown, FileText, FolderOpen, Lock, LockOpen, Plus, Sparkles, PanelTopClose, PanelTopOpen, Square, X, Zap } from "lucide-react";
 import type { Skill } from "@research-copilot/types";
 import type { CodeMessage } from "../../lib/client";
 import { codeToolLabel, CODE_MODES, CODE_MODE_MAP } from "./shared";
@@ -36,6 +36,7 @@ interface CodeChatPanelProps {
   onSelectedSkillChange?: (id: string | null) => void;
   skillLocked?: boolean;
   onSkillLockedChange?: (locked: boolean) => void;
+  onStop?: () => void;
 }
 
 export default function CodeChatPanel({
@@ -67,6 +68,7 @@ export default function CodeChatPanel({
   onSelectedSkillChange,
   skillLocked = false,
   onSkillLockedChange,
+  onStop,
 }: CodeChatPanelProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -560,18 +562,22 @@ export default function CodeChatPanel({
             </div>
 
             <button
-              onClick={() => onSend()}
-              disabled={!input.trim() || sending}
+              onClick={() => { if (sending) { onStop?.(); } else { onSend(); } }}
+              disabled={sending ? false : !input.trim()}
               className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
-                background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                boxShadow: input.trim() && !sending
-                  ? "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)"
-                  : "none",
+                background: sending
+                  ? "#FF3B30"
+                  : "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                boxShadow: sending
+                  ? "3px 3px 8px rgba(255,59,48,0.35), -2px -2px 6px rgba(255,100,80,0.2)"
+                  : input.trim()
+                    ? "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)"
+                    : "none",
               }}
             >
               {sending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Square className="w-3.5 h-3.5" />
               ) : (
                 <ArrowUp className="w-4 h-4" />
               )}
