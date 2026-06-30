@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   CornerRightUp,
   ChevronRight,
@@ -10,6 +10,9 @@ import {
   Loader2,
 } from "lucide-react";
 import type { DirEntry } from "./shared";
+import type { CodeGitFile } from "../../lib/client";
+
+type GitStatusKind = "modified" | "added" | "deleted" | "untracked" | "renamed";
 
 interface CodeFileTreeProps {
   rootPath: string;
@@ -18,12 +21,91 @@ interface CodeFileTreeProps {
   onListDir: (path: string) => Promise<DirEntry[]>;
   onOpenFile: (path: string, name: string) => void;
   activePath: string | null;
+  gitFiles?: CodeGitFile[];
 }
 
 interface TreeNodeState {
   expanded: boolean;
   loading: boolean;
   children: DirEntry[];
+}
+
+const STATUS_PRIORITY: Record<GitStatusKind, number> = {
+  deleted: 40,
+  untracked: 30,
+  added: 20,
+  modified: 10,
+  renamed: 5,
+};
+
+function normalizePath(p: string) {
+  return p.replace(/\\/g, "/");
+}
+
+function getRelativePath(absolutePath: string, rootPath: string) {
+  const root = normalizePath(rootPath).replace(/\/+$/, "");
+  const abs = normalizePath(absolutePath);
+  return abs.startsWith(root + "/") ? abs.slice(root.length + 1) : abs;
+}
+
+function getFileStatus(file: CodeGitFile): GitStatusKind | null {
+  if (file.untracked) return "untracked";
+  if (file.index_status === "D" || file.worktree_status === "D") return "deleted";
+  if (file.index_status === "A" || file.worktree_status === "A") return "added";
+  if (file.index_status === "R" || file.worktree_status === "R") return "renamed";
+  if (file.index_status === "M" || file.worktree_status === "M") return "modified";
+  return null;
+}
+
+function higherPriority(a: GitStatusKind | null, b: GitStatusKind | null): GitStatusKind | null {
+  if (!a) return b;
+  if (!b) return a;
+  return STATUS_PRIORITY[a] >= STATUS_PRIORITY[b] ? a : b;
+}
+
+function buildStatusMap(gitFiles: CodeGitFile[] | undefined) {
+  const map = new Map<string, GitStatusKind>();
+  if (!gitFiles) return map;
+  for (const file of gitFiles) {
+    const status = getFileStatus(file);
+    if (status) map.set(normalizePath(file.path), status);
+  }
+  return map;
+}
+
+function resolveStatus(
+  entry: DirEntry,
+  statusMap: Map<string, GitStatusKind>,
+  rootPath: string,
+  states: Map<string, TreeNodeState>,
+): GitStatusKind | null {
+  const rel = getRelativePath(entry.path, rootPath);
+  const direct = statusMap.get(rel);
+  if (direct) return direct;
+  if (!entry.is_dir) return null;
+
+  const state = states.get(entry.path);
+  const prefix = rel === "" ? "" : `${rel}/`;
+
+  // 已展开的目录：递归汇总子节点状态
+  if (state?.expanded && state.children.length > 0) {
+    let result: GitStatusKind | null = null;
+    for (const child of state.children) {
+      result = higherPriority(result, resolveStatus(child, statusMap, rootPath, states));
+      if (result && STATUS_PRIORITY[result] >= 40) break;
+    }
+    return result;
+  }
+
+  // 未展开的目录：查找该目录下所有变更文件，取最高优先级
+  let result: GitStatusKind | null = null;
+  for (const [path, status] of statusMap) {
+    if (path.startsWith(prefix)) {
+      result = higherPriority(result, status);
+      if (result && STATUS_PRIORITY[result] >= 40) break;
+    }
+  }
+  return result;
 }
 
 export default function CodeFileTree({
@@ -33,11 +115,14 @@ export default function CodeFileTree({
   onListDir,
   onOpenFile,
   activePath,
+  gitFiles,
 }: CodeFileTreeProps) {
   const [nodeStates, setNodeStates] = useState<Map<string, TreeNodeState>>(new Map());
   const [currentPath, setCurrentPath] = useState(rootPath);
   const [currentEntries, setCurrentEntries] = useState<DirEntry[]>(entries);
   const [navLoading, setNavLoading] = useState(false);
+
+  const gitStatusByPath = useMemo(() => buildStatusMap(gitFiles), [gitFiles]);
 
   // 当 rootPath 变化时重置导航状态
   const prevRootRef = useCallback(() => rootPath, [rootPath]);
@@ -154,6 +239,8 @@ export default function CodeFileTree({
               onListDir={onListDir}
               nodeStates={nodeStates}
               getState={getState}
+              gitStatusByPath={gitStatusByPath}
+              rootPath={rootPath}
             />
           ))}
         </div>
@@ -173,6 +260,8 @@ interface TreeItemProps {
   onListDir: (path: string) => Promise<DirEntry[]>;
   nodeStates: Map<string, TreeNodeState>;
   getState: (path: string) => TreeNodeState;
+  gitStatusByPath: Map<string, GitStatusKind>;
+  rootPath: string;
 }
 
 function TreeItem({
@@ -186,9 +275,15 @@ function TreeItem({
   onListDir,
   nodeStates,
   getState,
+  gitStatusByPath,
+  rootPath,
 }: TreeItemProps) {
   const isActive = activePath === entry.path;
   const isDir = entry.is_dir;
+  const gitStatus = useMemo(
+    () => resolveStatus(entry, gitStatusByPath, rootPath, nodeStates),
+    [entry, gitStatusByPath, rootPath, nodeStates],
+  );
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleClick() {
@@ -232,7 +327,7 @@ function TreeItem({
     <div>
       <button
         type="button"
-        className={`code-file-tree__item ${isActive ? "is-active" : ""}`}
+        className={`code-file-tree__item ${isActive ? "is-active" : ""} ${gitStatus ? `is-git-${gitStatus}` : ""}`}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
@@ -268,6 +363,8 @@ function TreeItem({
               onListDir={onListDir}
               nodeStates={nodeStates}
               getState={getState}
+              gitStatusByPath={gitStatusByPath}
+              rootPath={rootPath}
             />
           ))}
         </div>

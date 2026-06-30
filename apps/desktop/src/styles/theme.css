@@ -2890,7 +2890,53 @@ html[data-style="liquid-glass"] .code-sidebar__dir-btn:hover {
   background: var(--rc-nav-item-active-bg);
   border-color: var(--rc-nav-item-active-border);
   box-shadow: var(--rc-nav-item-active-shadow);
+}
+
+.code-file-tree__item.is-active:not([class*="is-git-"]) {
   color: var(--rc-accent);
+}
+
+/* Git status highlight - IDEA style */
+.code-file-tree__item.is-git-modified,
+.code-file-tree__item.is-git-modified .code-file-tree__icon-folder,
+.code-file-tree__item.is-git-modified .code-file-tree__icon-folder-open,
+.code-file-tree__item.is-git-modified .code-file-tree__icon-file,
+.code-file-tree__item.is-git-modified .code-file-tree__icon-file-code {
+  color: #007AFF;
+}
+
+.code-file-tree__item.is-git-added,
+.code-file-tree__item.is-git-added .code-file-tree__icon-folder,
+.code-file-tree__item.is-git-added .code-file-tree__icon-folder-open,
+.code-file-tree__item.is-git-added .code-file-tree__icon-file,
+.code-file-tree__item.is-git-added .code-file-tree__icon-file-code {
+  color: #34C759;
+}
+
+.code-file-tree__item.is-git-deleted,
+.code-file-tree__item.is-git-deleted .code-file-tree__icon-folder,
+.code-file-tree__item.is-git-deleted .code-file-tree__icon-folder-open,
+.code-file-tree__item.is-git-deleted .code-file-tree__icon-file,
+.code-file-tree__item.is-git-deleted .code-file-tree__icon-file-code {
+  color: #8D99AA;
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+
+.code-file-tree__item.is-git-untracked,
+.code-file-tree__item.is-git-untracked .code-file-tree__icon-folder,
+.code-file-tree__item.is-git-untracked .code-file-tree__icon-folder-open,
+.code-file-tree__item.is-git-untracked .code-file-tree__icon-file,
+.code-file-tree__item.is-git-untracked .code-file-tree__icon-file-code {
+  color: #FF9500;
+}
+
+.code-file-tree__item.is-git-renamed,
+.code-file-tree__item.is-git-renamed .code-file-tree__icon-folder,
+.code-file-tree__item.is-git-renamed .code-file-tree__icon-folder-open,
+.code-file-tree__item.is-git-renamed .code-file-tree__icon-file,
+.code-file-tree__item.is-git-renamed .code-file-tree__icon-file-code {
+  color: #AF52DE;
 }
 
 .code-file-tree__chevron {

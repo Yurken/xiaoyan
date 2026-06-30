@@ -39,7 +39,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 10px 8px 14px;
+  padding: 12px 40px 8px 14px;
 }
 
 .code-opencode-new-session {
@@ -170,29 +170,82 @@
   overflow: hidden;
 }
 
+.code-opencode-session-group__header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--rc-border);
+  transition: background 0.14s;
+}
+
+.code-opencode-session-group__header:hover {
+  background: var(--rc-elevated);
+}
+
 .code-opencode-session-group__title {
   display: flex;
   align-items: center;
   gap: 5px;
-  width: 100%;
-  padding: 8px 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0 8px 12px;
   border: none;
-  border-bottom: 1px solid var(--rc-border);
   background: transparent;
   color: var(--rc-text-muted);
   font-size: 11px;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
-  transition: background 0.14s, color 0.14s;
+  transition: color 0.14s;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .code-opencode-session-group__title:hover {
-  background: var(--rc-elevated);
   color: var(--rc-text);
+}
+
+.code-opencode-session-group__title--editing {
+  padding: 5px 6px 5px 12px;
+  cursor: default;
+}
+
+.code-opencode-session-group__title--editing .code-opencode-rename-input {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.code-opencode-session-group__actions {
+  position: relative;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.code-opencode-session-group__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--rc-text-muted);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.14s, color 0.14s, background 0.14s;
+}
+
+.code-opencode-session-group__header:hover .code-opencode-session-group__more {
+  opacity: 1;
+}
+
+.code-opencode-session-group__more:hover {
+  color: var(--rc-text);
+  background: var(--rc-chip-bg);
 }
 
 .code-opencode-session-group__title svg {
@@ -757,7 +810,7 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  padding: 10px;
+  padding: 10px 40px 10px 10px;
   border-bottom: 1px solid var(--rc-border);
   background: var(--rc-surface);
 }

@@ -23,7 +23,9 @@ interface CodeChatPanelProps {
   onModelOptionChange: (optionId: string) => void;
   onAddFile: () => void;
   workingDir?: string | null;
+  recentWorkingDirs?: string[];
   onChooseWorkingDir?: () => void;
+  onChangeWorkingDir?: (dir: string | null) => void;
   agentMode?: CodeAgentMode;
   onAgentModeChange?: (mode: CodeAgentMode) => void;
   attachments?: CodeFileAttachment[];
@@ -52,7 +54,9 @@ export default function CodeChatPanel({
   onModelOptionChange,
   onAddFile,
   workingDir,
+  recentWorkingDirs = [],
   onChooseWorkingDir,
+  onChangeWorkingDir,
   agentMode = "build",
   onAgentModeChange,
   attachments = [],
@@ -68,6 +72,19 @@ export default function CodeChatPanel({
   const messagesRef = useRef<HTMLDivElement>(null);
   const [slashIndex, setSlashIndex] = useState(0);
   const [modePickerOpen, setModePickerOpen] = useState(false);
+  const [dirMenuOpen, setDirMenuOpen] = useState(false);
+  const dirMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!dirMenuOpen) return;
+    function handlePointerDown(event: MouseEvent) {
+      if (!dirMenuRef.current?.contains(event.target as Node)) {
+        setDirMenuOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [dirMenuOpen]);
 
   const latestMessageKey = messages
     .map((msg) => `${msg.id}:${msg.content.length}:${msg.tool_calls?.length ?? 0}:${msg.tool_results?.length ?? 0}`)
@@ -329,16 +346,73 @@ export default function CodeChatPanel({
 
           <div className="flex items-center justify-between px-3 pb-3 gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <button
-                type="button"
-                onClick={onChooseWorkingDir}
-                className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150 flex-shrink-0 max-w-[160px]"
-                style={{ color: workingDir ? "#636366" : "#007AFF", background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
-                title={workingDir || "点击选择工作目录"}
-              >
-                <FolderOpen className="w-3 h-3 flex-shrink-0" />
-                <span className="truncate">{workingDir ? (workingDir.split(/[/\\]/).pop() || workingDir) : "选择目录"}</span>
-              </button>
+              <div className="relative" ref={dirMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setDirMenuOpen((prev) => !prev)}
+                  className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150 flex-shrink-0 max-w-[160px]"
+                  style={{ color: workingDir ? "#636366" : "#007AFF", background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
+                  title={workingDir || "点击选择工作目录"}
+                >
+                  <FolderOpen className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate">{workingDir ? (workingDir.split(/[/\\]/).pop() || workingDir) : "选择目录"}</span>
+                  <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ transform: dirMenuOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
+                </button>
+
+                {dirMenuOpen && (
+                  <div
+                    className="rc-dropdown-menu absolute bottom-full mb-2 left-0 z-20 min-w-[180px] rounded-2xl py-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {recentWorkingDirs.length > 0 && (
+                      <>
+                        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">最近项目</p>
+                        {recentWorkingDirs.map((dir) => (
+                          <button
+                            key={dir}
+                            type="button"
+                            onClick={() => {
+                              onChangeWorkingDir?.(dir);
+                              setDirMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
+                            style={{ color: dir === workingDir ? "#007AFF" : "var(--rc-text-soft)", background: dir === workingDir ? "rgba(0,122,255,0.08)" : "transparent" }}
+                            title={dir}
+                          >
+                            <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="truncate">{dir.split(/[/\\]/).pop() || dir}</span>
+                          </button>
+                        ))}
+                        <div className="my-1 border-t" style={{ borderColor: "var(--rc-border)" }} />
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChooseWorkingDir?.();
+                        setDirMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
+                      style={{ color: "var(--rc-text-soft)" }}
+                    >
+                      <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>使用现有文件夹</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChangeWorkingDir?.(null);
+                        setDirMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
+                      style={{ color: "var(--rc-text-soft)" }}
+                    >
+                      <span className="w-3.5 h-3.5 flex-shrink-0 flex items-center justify-center text-ink-tertiary">—</span>
+                      <span>不使用文件夹</span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <div className="relative">
                 <button

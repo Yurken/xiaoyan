@@ -27,7 +27,6 @@ interface MetricTileProps {
   icon: LucideIcon;
   tone: {
     background: string;
-    border: string;
     color: string;
   };
 }
@@ -35,27 +34,19 @@ interface MetricTileProps {
 function MetricTile({ label, value, icon: Icon, tone }: MetricTileProps) {
   return (
     <div
-      className="flex min-h-[84px] items-center gap-3 rounded-[22px] border px-4 py-3"
-      style={{
-        borderColor: "var(--rc-card-inset-outline)",
-        background: "var(--rc-card-inset-bg)",
-        boxShadow: "var(--rc-card-inset-shadow)",
-      }}
+      className="flex items-center gap-1.5 rounded-2xl px-3 py-1.5"
+      style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
     >
       <span
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"
-        style={{
-          background: tone.background,
-          borderColor: tone.border,
-          color: tone.color,
-        }}
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg"
+        style={{ background: tone.background, color: tone.color }}
       >
-        <Icon className="h-5 w-5" />
+        <Icon className="h-3 w-3" />
       </span>
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-ink-tertiary">{label}</p>
-        <p className="mt-1 text-2xl font-semibold leading-none text-ink-primary tabular-nums">{value}</p>
-      </div>
+      <span className="text-lg font-bold tabular-nums" style={{ color: tone.color }}>
+        {value}
+      </span>
+      <span className="text-[11px] text-ink-tertiary">{label}</span>
     </div>
   );
 }
@@ -76,33 +67,23 @@ function GraphOverviewControls({
   onRefresh: () => void;
 }) {
   return (
-    <div
-      className="flex min-h-[84px] items-end gap-2 rounded-[22px] border px-3 py-3 md:col-span-2 xl:col-span-1"
-      style={{
-        borderColor: "var(--rc-card-inset-outline)",
-        background: "var(--rc-card-inset-bg)",
-        boxShadow: "var(--rc-card-inset-shadow)",
-      }}
-    >
-      <div className="min-w-0 flex-1">
-        <p className="mb-2 text-xs font-medium text-ink-tertiary">聚焦范围</p>
-        <Select
-          aria-label="聚焦研究主题"
-          className="w-full"
-          disabled={disabled}
-          value={activeInterestId ?? ""}
-          onChange={(value) => onChangeInterest(value || null)}
-          options={interestOptions}
-          placeholder="全部研究主题"
-        />
-      </div>
+    <div className="flex items-center gap-2">
+      <Select
+        aria-label="聚焦研究主题"
+        className="w-40"
+        disabled={disabled}
+        value={activeInterestId ?? ""}
+        onChange={(value) => onChangeInterest(value || null)}
+        options={interestOptions}
+        placeholder="全部研究主题"
+      />
       <IconButton
-        className="mb-[1px] shrink-0"
+        className="shrink-0"
         onClick={onRefresh}
         disabled={disabled}
         aria-label="刷新图谱"
         title="刷新图谱"
-        size="lg"
+        size="sm"
       >
         <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
       </IconButton>
@@ -128,29 +109,20 @@ function GraphOverviewStrip({
   onRefresh: () => void;
 }) {
   return (
-    <div
-      className="rounded-[28px] border p-2"
-      style={{
-        borderColor: "var(--rc-border)",
-        background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.52))",
-        boxShadow: "var(--rc-panel-shadow)",
-      }}
-    >
-      <div
-        className="grid gap-2 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(280px,1.15fr)]"
-      >
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap gap-2">
         {metrics.map((item) => (
           <MetricTile key={item.label} {...item} />
         ))}
-        <GraphOverviewControls
-          activeInterestId={activeInterestId}
-          disabled={disabled}
-          interestOptions={interestOptions}
-          loading={loading}
-          onChangeInterest={onChangeInterest}
-          onRefresh={onRefresh}
-        />
       </div>
+      <GraphOverviewControls
+        activeInterestId={activeInterestId}
+        disabled={disabled}
+        interestOptions={interestOptions}
+        loading={loading}
+        onChangeInterest={onChangeInterest}
+        onRefresh={onRefresh}
+      />
     </div>
   );
 }
@@ -197,41 +169,25 @@ export default function KnowledgeGraphWorkspace({
         label: "研究主题",
         value: snapshot?.summary.interestCount ?? 0,
         icon: Compass,
-        tone: {
-          background: "rgba(0, 122, 255, 0.12)",
-          border: "rgba(0, 122, 255, 0.18)",
-          color: "#007AFF",
-        },
+        tone: { background: "rgba(0, 122, 255, 0.12)", color: "#007AFF" },
       },
       {
         label: "结论节点",
         value: snapshot?.summary.claimCount ?? 0,
         icon: Lightbulb,
-        tone: {
-          background: "rgba(52, 199, 89, 0.12)",
-          border: "rgba(52, 199, 89, 0.18)",
-          color: "#2E7D32",
-        },
+        tone: { background: "rgba(52, 199, 89, 0.12)", color: "#2E7D32" },
       },
       {
         label: "证据关系",
         value: snapshot?.summary.evidenceCount ?? 0,
         icon: Link2,
-        tone: {
-          background: "rgba(255, 149, 0, 0.12)",
-          border: "rgba(255, 149, 0, 0.2)",
-          color: "#B86A00",
-        },
+        tone: { background: "rgba(255, 149, 0, 0.12)", color: "#B86A00" },
       },
       {
         label: "引用边",
         value: snapshot?.summary.citationCount ?? 0,
         icon: GitBranch,
-        tone: {
-          background: "rgba(88, 86, 214, 0.12)",
-          border: "rgba(88, 86, 214, 0.2)",
-          color: "#5856D6",
-        },
+        tone: { background: "rgba(88, 86, 214, 0.12)", color: "#5856D6" },
       },
     ],
     [snapshot?.summary.citationCount, snapshot?.summary.claimCount, snapshot?.summary.evidenceCount, snapshot?.summary.interestCount],

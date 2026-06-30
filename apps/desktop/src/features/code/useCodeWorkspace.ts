@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
@@ -51,7 +51,7 @@ interface ToolResultEvent {
 
 interface UseCodeWorkspaceOptions {
   workingDir?: string | null;
-  onWorkingDirChange?: (dir: string) => void;
+  onWorkingDirChange?: (dir: string | null) => void;
 }
 
 export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspaceOptions) {
@@ -64,7 +64,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   );
   const workingDir = isControlled ? options.workingDir : internalWorkingDir;
   const setWorkingDir = isControlled
-    ? (dir: string) => options.onWorkingDirChange?.(dir)
+    ? (dir: string | null) => options.onWorkingDirChange?.(dir)
     : setInternalWorkingDir;
   const [openFile, setOpenFile] = useState<OpenFile | null>(null);
   const workingDirRestoredRef = useRef<string | null>(null);
@@ -107,7 +107,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       }));
       setModelOptions(options);
 
-      const current = resolveCurrentModel(settings);
+      const current = resolveReproductionModel(settings);
       const matchId = options.find((o) => o.model === current)?.id ?? options[0]?.id ?? "";
       setCurrentModel(current || (options[0]?.model ?? ""));
       setActiveModelOptionId(matchId);
@@ -116,7 +116,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       // Fallback: build from settings keys if API list fails
       const options = buildCodeModelOptions(settings);
       setModelOptions(options);
-      const current = resolveCurrentModel(settings);
+      const current = resolveReproductionModel(settings);
       setCurrentModel(current || (options[0]?.model ?? ""));
       setActiveModelOptionId(options.find((o) => o.model === current)?.id ?? options[0]?.id ?? "");
     } finally {
@@ -142,9 +142,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
 
     try {
       await settingsApi.update({
-        llm_provider: option.provider,
-        [modelKeyForProvider(option.provider)]: option.model,
-        // Also sync to the code reproduction role so 构域 stays in sync
+        // Only change the reproduction (构域) role models,
+        // leaving the global provider / chat model and other role models unchanged.
         paper_reproduction_model: option.model,
         multi_agent_reproduction_model: option.model,
       });
@@ -154,6 +153,21 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   }
 
   // ── UI ───────────────────────────────────────────────────────
+  const recentWorkingDirs = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    const sorted = [...sessions].sort(
+      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    );
+    for (const s of sorted) {
+      if (s.working_dir && !seen.has(s.working_dir)) {
+        seen.add(s.working_dir);
+        result.push(s.working_dir);
+      }
+    }
+    return result;
+  }, [sessions]);
+
   const [treeOpen, setTreeOpen] = useState(true);
   const [chatCollapsed, setChatCollapsed] = useState(false);
 
@@ -361,20 +375,18 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       const { open } = await import("@tauri-apps/plugin-dialog");
       const picked = await open({ directory: true });
       if (picked && typeof picked === "string") {
-        await applyWorkingDir(picked);
+        changeWorkingDir(picked);
       }
     } catch (err) {
       showToast(formatErrorMessage(err));
     }
   }
 
-  async function applyWorkingDir(dir: string) {
+  function changeWorkingDir(dir: string | null) {
     setWorkingDir(dir);
-    await fs.listDir(dir);
-    if (selectedId) {
-      await codeApi.updateSession(selectedId, { workingDir: dir }).catch(() => {});
+    if (dir) {
+      void fs.listDir(dir);
     }
-    await experimentApi.update(experimentId, { defaultWorkingDir: dir }).catch(() => {});
   }
 
   // ── File operations ──────────────────────────────────────────
@@ -426,7 +438,9 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   function selectSession(session: CodeSession) {
     setSelectedId(session.id);
     if (session.working_dir) {
-      void applyWorkingDir(session.working_dir);
+      // Only load the session's working directory without mutating the session's
+      // working_dir or reordering the project list.
+      changeWorkingDir(session.working_dir);
     }
   }
 
@@ -533,7 +547,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   return {
     // File system
     workingDir,
-    setWorkingDir: applyWorkingDir,
+    setWorkingDir: changeWorkingDir,
     chooseWorkingDir,
     openFile,
     openFileByPath,
@@ -570,6 +584,10 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     modelsLoading,
     modelsError,
 
+    // Working dir
+    recentWorkingDirs,
+    changeWorkingDir,
+
     // UI
     treeOpen,
     setTreeOpen,
@@ -578,17 +596,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   };
 }
 
-function resolveCurrentModel(settings: AppSettings): string {
-  switch (settings.llm_provider) {
-    case "openai":
-      return settings.openai_chat_model;
-    case "anthropic":
-      return settings.anthropic_chat_model;
-    case "openai_compatible":
-      return settings.openai_compatible_chat_model;
-    default:
-      return "";
-  }
+function resolveReproductionModel(settings: AppSettings): string {
+  return settings.multi_agent_reproduction_model || settings.paper_reproduction_model || "";
 }
 
 function providerLabelForProvider(provider: AppSettings["llm_provider"]): string {
@@ -618,10 +627,4 @@ function buildCodeModelOptions(settings: AppSettings): CodeModelOption[] {
     }));
 }
 
-function modelKeyForProvider(
-  provider: AppSettings["llm_provider"],
-): "openai_chat_model" | "anthropic_chat_model" | "openai_compatible_chat_model" {
-  if (provider === "openai") return "openai_chat_model";
-  if (provider === "anthropic") return "anthropic_chat_model";
-  return "openai_compatible_chat_model";
-}
+

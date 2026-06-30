@@ -13,9 +13,6 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronLeft,
-  ChevronLast,
-  PanelLeft,
-  PanelRight,
 } from "lucide-react";
 import type { ExperimentCodeSession, Skill } from "@research-copilot/types";
 import { CapsuleTabs } from "@research-copilot/ui";
@@ -44,7 +41,7 @@ const TAB_DEFS: { id: RightTab; label: string; icon: ReactNode }[] = [
 interface ExperimentCodeWorkspaceProps {
   experimentId: string;
   workingDir?: string | null;
-  onWorkingDirChange?: (dir: string) => void;
+  onWorkingDirChange?: (dir: string | null) => void;
   onActiveSessionChange?: (session: ExperimentCodeSession | null) => void;
 }
 
@@ -108,19 +105,34 @@ export function ExperimentCodeWorkspace({
     `rc:experiment:${experimentId}:code:pinned`,
     [],
   );
+  const [projectAliases, setProjectAliases] = usePersistentState<Record<string, string>>(
+    `rc:experiment:${experimentId}:code:project-aliases`,
+    {},
+  );
+  const [projectMenuDir, setProjectMenuDir] = useState<string | null>(null);
+  const [pendingDeleteDir, setPendingDeleteDir] = useState<string | null>(null);
+  const [renamingDir, setRenamingDir] = useState<string | null>(null);
+  const [renameDirTitle, setRenameDirTitle] = useState("");
   const pinnedSet = useMemo(() => {
     if (!Array.isArray(pinnedIds)) return new Set<string>();
     return new Set(pinnedIds);
   }, [pinnedIds]);
   const [activeTab, setActiveTab] = useState<RightTab>("files");
 
-  // 点击外部关闭 context menu
+  // 点击外部关闭 context menu / project menu
   useEffect(() => {
     if (!contextMenuId) return;
     const close = () => setContextMenuId(null);
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [contextMenuId]);
+
+  useEffect(() => {
+    if (!projectMenuDir) return;
+    const close = () => setProjectMenuDir(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [projectMenuDir]);
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
@@ -186,7 +198,7 @@ export function ExperimentCodeWorkspace({
   const refreshGit = git.refresh;
 
   useEffect(() => {
-    if (activeTab === "review" || activeTab === "git") {
+    if (activeTab === "files" || activeTab === "review" || activeTab === "git") {
       void refreshGit();
     }
   }, [activeTab, refreshGit]);
@@ -212,19 +224,70 @@ export function ExperimentCodeWorkspace({
       list.push(s);
       groups.set(key, list);
     }
+    // 项目（group）之间的顺序保持为会话首次出现的顺序，不随单条会话更新而改变。
+    // 项目内部的会话仍按 updated_at 倒序排列。
     for (const list of groups.values()) {
       list.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
     }
-    return Array.from(groups.entries()).sort((a, b) => {
-      const aTime = Math.max(...a[1].map((s) => new Date(s.updated_at).getTime()));
-      const bTime = Math.max(...b[1].map((s) => new Date(s.updated_at).getTime()));
-      return bTime - aTime;
-    });
+    return Array.from(groups.entries());
   }, [ws.sessions]);
 
   function projectLabel(dir: string) {
     if (dir === "未选择目录") return dir;
     return dir.split(/[/\\]/).pop() || dir;
+  }
+
+  function projectDisplayLabel(dir: string) {
+    return projectAliases[dir] || projectLabel(dir);
+  }
+
+  function handlePinProject(dir: string) {
+    const sessionIds = groupedSessions.find(([d]) => d === dir)?.[1].map((s) => s.id) ?? [];
+    if (sessionIds.length === 0) {
+      setProjectMenuDir(null);
+      return;
+    }
+    const allPinned = sessionIds.every((id) => pinnedSet.has(id));
+    setPinnedIds((prev) => {
+      if (allPinned) return prev.filter((id) => !sessionIds.includes(id));
+      return Array.from(new Set([...prev, ...sessionIds]));
+    });
+    setProjectMenuDir(null);
+  }
+
+  function startRenameProject(dir: string) {
+    setRenamingDir(dir);
+    setRenameDirTitle(projectDisplayLabel(dir));
+    setProjectMenuDir(null);
+  }
+
+  function commitRenameProject(dir: string) {
+    const title = renameDirTitle.trim();
+    if (!title || title === projectLabel(dir)) {
+      cancelRenameProject();
+      return;
+    }
+    setProjectAliases((prev) => ({ ...prev, [dir]: title }));
+    setRenamingDir(null);
+    setRenameDirTitle("");
+  }
+
+  function cancelRenameProject() {
+    setRenamingDir(null);
+    setRenameDirTitle("");
+  }
+
+  async function handleDeleteProject(dir: string) {
+    const sessionsToDelete = groupedSessions.find(([d]) => d === dir)?.[1] ?? [];
+    for (const s of sessionsToDelete) {
+      await ws.handleDeleteSession(s.id);
+    }
+    setPendingDeleteDir(null);
+  }
+
+  function onConfirmDeleteProject() {
+    if (!pendingDeleteDir) return;
+    void handleDeleteProject(pendingDeleteDir);
   }
 
   function toggleGroup(dir: string) {
@@ -295,22 +358,22 @@ export function ExperimentCodeWorkspace({
   return (
     <div className="code-root code-root--opencode">
       <div className={`code-opencode-body${isResizing ? " code-opencode-body--resizing" : ""}`}>
-        {leftCollapsed ? (
-          <button
-            type="button"
-            className="code-opencode-expand-bar"
-            onClick={() => setLeftCollapsed(false)}
-            aria-label="展开会话栏"
-            title="展开会话栏"
-          >
-            <PanelLeft size={14} />
-          </button>
-        ) : (
+        {leftCollapsed ? null : (
           <aside
-            className="code-opencode-sidebar"
+            className="code-opencode-sidebar relative"
             aria-label="会话"
             style={{ width: leftWidth, minWidth: leftWidth }}
           >
+            <button
+              type="button"
+              onClick={() => setLeftCollapsed(true)}
+              aria-label="收起会话栏"
+              title="收起会话栏"
+              className="absolute right-2 top-4 z-10 flex h-6 w-6 items-center justify-center rounded-full border text-ink-tertiary transition-colors hover:text-ink-primary"
+              style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-bg)" }}
+            >
+              <ChevronLeft size={14} />
+            </button>
             <div className="code-opencode-sidebar__header">
               <button
                 type="button"
@@ -319,15 +382,6 @@ export function ExperimentCodeWorkspace({
               >
                 <Plus size={14} />
                 <span>新建会话</span>
-              </button>
-              <button
-                type="button"
-                className="code-opencode-collapse-btn"
-                onClick={() => setLeftCollapsed(true)}
-                aria-label="收起会话栏"
-                title="收起会话栏"
-              >
-                <ChevronLeft size={14} />
               </button>
             </div>
 
@@ -345,17 +399,84 @@ export function ExperimentCodeWorkspace({
                 const isExpanded = expandedGroups.has(dir);
                 return (
                   <div key={dir} className="code-opencode-session-group">
-                    <button
-                      type="button"
-                      className="code-opencode-session-group__title"
-                      title={dir}
-                      onClick={() => toggleGroup(dir)}
-                      aria-expanded={isExpanded}
-                    >
-                      {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                      <FolderOpen size={12} />
-                      <span>{projectLabel(dir)}</span>
-                    </button>
+                    <div className="code-opencode-session-group__header">
+                      {renamingDir === dir ? (
+                        <div className="code-opencode-session-group__title code-opencode-session-group__title--editing">
+                          <input
+                            autoFocus
+                            type="text"
+                            className="code-opencode-rename-input"
+                            value={renameDirTitle}
+                            onChange={(e) => setRenameDirTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.key === "Enter") commitRenameProject(dir);
+                              if (e.key === "Escape") cancelRenameProject();
+                            }}
+                            onBlur={() => commitRenameProject(dir)}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="code-opencode-session-group__title"
+                            title={dir}
+                            onClick={() => toggleGroup(dir)}
+                            aria-expanded={isExpanded}
+                          >
+                            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                            <FolderOpen size={12} />
+                            <span>{projectDisplayLabel(dir)}</span>
+                          </button>
+                          <div className="code-opencode-session-group__actions" style={{ position: "relative" }}>
+                            <button
+                              type="button"
+                              className="code-opencode-session-group__more"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setProjectMenuDir(projectMenuDir === dir ? null : dir);
+                              }}
+                              aria-label="项目操作"
+                              title="项目操作"
+                            >
+                              <MoreHorizontal size={12} />
+                            </button>
+                            {projectMenuDir === dir && (
+                              <div
+                                className="code-opencode-context-menu"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handlePinProject(dir)}
+                                  className="code-opencode-context-menu__item"
+                                >
+                                  <Pin size={12} />
+                                  {groupedSessions.find(([d]) => d === dir)?.[1].every((s) => pinnedSet.has(s.id)) ? "取消置顶项目" : "置顶项目"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => startRenameProject(dir)}
+                                  className="code-opencode-context-menu__item"
+                                >
+                                  <Pencil size={12} />
+                                  重命名项目
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setProjectMenuDir(null); setPendingDeleteDir(dir); }}
+                                  className="code-opencode-context-menu__item code-opencode-context-menu__item--danger"
+                                >
+                                  <Trash2 size={12} />
+                                  删除项目
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                     {isExpanded && sessions.map((s) => (
                     <div
                       key={s.id}
@@ -453,7 +574,29 @@ export function ExperimentCodeWorkspace({
           />
         )}
 
-        <main className="code-opencode-main">
+        <main className="code-opencode-main relative">
+          {leftCollapsed && (
+            <button
+              type="button"
+              onClick={() => setLeftCollapsed(false)}
+              aria-label="展开会话栏"
+              title="展开会话栏"
+              className="absolute left-2 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-lg text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-primary"
+            >
+              <ChevronRight size={16} />
+            </button>
+          )}
+          {rightCollapsed && (
+            <button
+              type="button"
+              onClick={() => setRightCollapsed(false)}
+              aria-label="展开工具栏"
+              title="展开工具栏"
+              className="absolute right-2 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-lg text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-primary"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          )}
           <CodeChatPanel
             messages={ws.selected?.messages ?? []}
             streamingContent={ws.streamingContent}
@@ -492,22 +635,22 @@ export function ExperimentCodeWorkspace({
           />
         )}
 
-        {rightCollapsed ? (
-          <button
-            type="button"
-            className="code-opencode-expand-bar"
-            onClick={() => setRightCollapsed(false)}
-            aria-label="展开工具栏"
-            title="展开工具栏"
-          >
-            <PanelRight size={14} />
-          </button>
-        ) : (
+        {rightCollapsed ? null : (
           <aside
-            className="code-opencode-tools"
+            className="code-opencode-tools relative"
             aria-label="工具"
             style={{ width: rightWidth, minWidth: rightWidth }}
           >
+            <button
+              type="button"
+              onClick={() => setRightCollapsed(true)}
+              aria-label="收起工具栏"
+              title="收起工具栏"
+              className="absolute right-2 top-4 z-10 flex h-6 w-6 items-center justify-center rounded-full border text-ink-tertiary transition-colors hover:text-ink-primary"
+              style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-bg)" }}
+            >
+              <ChevronRight size={14} />
+            </button>
             <div className="code-opencode-tabs">
               <CapsuleTabs
                 compact
@@ -516,15 +659,6 @@ export function ExperimentCodeWorkspace({
                 value={activeTab}
                 onChange={(v) => setActiveTab(v as RightTab)}
               />
-              <button
-                type="button"
-                className="code-opencode-collapse-btn code-opencode-collapse-btn--right"
-                onClick={() => setRightCollapsed(true)}
-                aria-label="收起工具栏"
-                title="收起工具栏"
-              >
-                <ChevronLast size={14} />
-              </button>
             </div>
 
           <div className="code-opencode-tab-content">
@@ -536,6 +670,7 @@ export function ExperimentCodeWorkspace({
                 onListDir={ws.fs.listDir}
                 onOpenFile={ws.openFileByPath}
                 activePath={ws.openFile?.path ?? null}
+                gitFiles={git.snapshot?.files}
               />
             )}
             {activeTab === "files" && !ws.workingDir && (
@@ -599,6 +734,21 @@ export function ExperimentCodeWorkspace({
             <div className="code-dialog__actions">
               <button type="button" className="code-dialog__btn" onClick={() => setPendingDeleteId(null)}>取消</button>
               <button type="button" className="code-dialog__btn code-dialog__btn--danger" onClick={onConfirmDelete}>删除</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteDir && (
+        <div className="code-overlay" onClick={() => setPendingDeleteDir(null)}>
+          <div className="code-dialog" onClick={(e) => e.stopPropagation()}>
+            <p className="code-dialog__title">删除项目会话</p>
+            <p className="code-dialog__desc">
+              确认删除「{projectDisplayLabel(pendingDeleteDir)}」下的全部会话？此操作不可撤销。
+            </p>
+            <div className="code-dialog__actions">
+              <button type="button" className="code-dialog__btn" onClick={() => setPendingDeleteDir(null)}>取消</button>
+              <button type="button" className="code-dialog__btn code-dialog__btn--danger" onClick={onConfirmDeleteProject}>删除</button>
             </div>
           </div>
         </div>
