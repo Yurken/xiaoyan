@@ -574,6 +574,7 @@ export interface AppSettings {
   copilot_simple_frequency_penalty: string;
   xiaoyan_long_term_memory_enabled: string;
   xiaoyan_companion_id: string;
+  xiaoyan_active_researcher_enabled: string;
   // Multi-agent
   multi_agent_enabled: string;
   multi_agent_routing_mode: MultiAgentRoutingMode;

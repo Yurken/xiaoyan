@@ -58,6 +58,7 @@ export default function NotesPanel({
   const [deletingNote, setDeletingNote] = useState(false);
   const [viewingNote, setViewingNote] = useState<KnowledgeNote | null>(null);
   const [showWebClip, setShowWebClip] = useState(false);
+  const [, setShowImport] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [selectionMode, setSelectionMode] = useState(false);
   const [viewMode, setViewMode] = useState<"card" | "list">("card");

@@ -121,6 +121,19 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
         action = latestPaper
           ? paperAction(paperActionLabel("解读", latestPaper), latestPaper)
           : { label: "打开论文库", to: "/papers" };
+      } else if (interest.status === "planned" && papers.length > 1 && analyzedCount < papers.length) {
+        stage = "继续精读";
+        stageTone = "blue";
+        summary = `已经关联 ${papers.length} 篇论文，完成 ${analyzedCount} 篇解读，建议继续分析剩余论文。`;
+        const latestUnanalyzedPaper = [...papers]
+          .filter((paper) => !paper.analysis)
+          .sort((left, right) => toTimestamp(right.updated_at || right.created_at) - toTimestamp(left.updated_at || left.created_at))[0];
+        nextStep = latestUnanalyzedPaper
+          ? `继续让小妍解读《${paperTitlePreview(latestUnanalyzedPaper)}》。`
+          : "继续让小妍把下一篇核心论文解读清楚。";
+        action = latestUnanalyzedPaper
+          ? paperAction(paperActionLabel("解读", latestUnanalyzedPaper), latestUnanalyzedPaper)
+          : { label: "打开论文库", to: "/papers" };
       } else if (interest.status === "planned" && notes.length === 0) {
         stage = "沉淀知识";
         stageTone = "green";
