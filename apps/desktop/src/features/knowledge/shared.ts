@@ -288,6 +288,28 @@ export interface StructuredSurveyResult {
   };
 }
 
+export type SurveyRunStatus = "idle" | "running" | "done" | "failed";
+
+export interface SurveyRunSnapshot {
+  requestId: string;
+  status: SurveyRunStatus;
+  query: string;
+  maxPapers: number;
+  timeFrom?: number;
+  timeTo?: number;
+  litTypes: string[];
+  databases: string[];
+  citationFormat: string;
+  language: string;
+  paperIds?: string[];
+  selectedInterestId?: string;
+  content: string;
+  agents: SurveyAgentState[];
+  structured: StructuredSurveyResult | null;
+  error?: string;
+  updatedAt: number;
+}
+
 export const SURVEY_DEFAULT_MAX_PAPERS = 20;
 export const SURVEY_MIN_PAPERS = 5;
 export const SURVEY_MAX_PAPERS = 50;
@@ -422,7 +444,9 @@ export interface SurveyGenerationController {
   copying: boolean;
   hasResults: boolean;
   canSaveResult: boolean;
+  canResumeFailedRun: boolean;
   handleGenerate: () => Promise<void>;
+  handleResumeFailedRun: () => Promise<void>;
   copySurveyMarkdown: () => Promise<void>;
   saveSurveyAsNote: () => Promise<void>;
 }

@@ -1,5 +1,6 @@
 use crate::assistant_prompts::specialist_system;
 use crate::llm::{resolve_model, resolve_temperature_chain, LlmClient, LlmMessage};
+use crate::semantic_scholar::throttle_semantic_scholar_request;
 use crate::state::AppState;
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Duration, Utc};
@@ -517,6 +518,7 @@ pub async fn search_semantic_scholar_hints(
         builder = builder.header("x-api-key", api_key);
     }
 
+    throttle_semantic_scholar_request().await;
     let resp = builder.send().await.context("Semantic Scholar 请求失败")?;
     if !resp.status().is_success() {
         let status = resp.status();

@@ -1,5 +1,6 @@
 use crate::ccf::match_venue;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
+use crate::semantic_scholar::throttle_semantic_scholar_request;
 use crate::state::AppState;
 use anyhow::Context;
 use chrono::{Datelike, Utc};
@@ -299,32 +300,39 @@ pub async fn search_survey_candidates(
     year_from: Option<i32>,
     year_to: Option<i32>,
 ) -> anyhow::Result<Vec<serde_json::Value>> {
-    let mut seen_terms = HashSet::new();
-    let search_terms = std::iter::once(query.to_string())
-        .chain(search_queries.iter().cloned())
-        .map(|term| clean_whitespace(&term))
-        .filter(|term| {
-            if term.is_empty() {
-                return false;
-            }
-            seen_terms.insert(term.to_lowercase())
-        })
-        .take(8)
-        .collect::<Vec<_>>();
-
+    let search_terms = collect_survey_search_terms(query, search_queries, 8);
     if search_terms.is_empty() {
         return Ok(Vec::new());
     }
 
     let max_results = candidate_pool_size(limit.max(1)).max(12);
-    let candidates = fetch_semantic_scholar_candidates(
-        settings,
-        &search_terms.join(" "),
-        &[],
-        36_500,
-        max_results,
-    )
-    .await?;
+    let mut candidates = Vec::new();
+    let mut seen_candidate_ids = HashSet::new();
+    let mut last_error = None;
+    for term in &search_terms {
+        match fetch_semantic_scholar_candidates(settings, term, &[], 36_500, max_results).await {
+            Ok(term_candidates) => {
+                for candidate in term_candidates {
+                    let key = if candidate.id.trim().is_empty() {
+                        format!("title:{}", candidate.title.trim().to_lowercase())
+                    } else {
+                        format!("id:{}", candidate.id)
+                    };
+                    if seen_candidate_ids.insert(key) {
+                        candidates.push(candidate);
+                    }
+                }
+            }
+            Err(error) => {
+                last_error = Some(error);
+            }
+        }
+    }
+    if candidates.is_empty() {
+        if let Some(error) = last_error {
+            return Err(error);
+        }
+    }
 
     let lower_terms = search_terms
         .iter()
@@ -378,6 +386,25 @@ pub async fn search_survey_candidates(
         .collect())
 }
 
+fn collect_survey_search_terms(
+    query: &str,
+    search_queries: &[String],
+    max_terms: usize,
+) -> Vec<String> {
+    let mut seen_terms = HashSet::new();
+    std::iter::once(query.to_string())
+        .chain(search_queries.iter().cloned())
+        .map(|term| clean_whitespace(&term))
+        .filter(|term| {
+            if term.is_empty() {
+                return false;
+            }
+            seen_terms.insert(term.to_lowercase())
+        })
+        .take(max_terms)
+        .collect()
+}
+
 async fn fetch_semantic_scholar_candidates(
     settings: &HashMap<String, String>,
     query: &str,
@@ -413,6 +440,7 @@ async fn fetch_semantic_scholar_candidates(
     let mut attempt = 0u32;
     let response = loop {
         let req = base_request.try_clone().context("联网检索请求克隆失败")?;
+        throttle_semantic_scholar_request().await;
         let resp = client.execute(req).await.context("联网检索请求失败")?;
         if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
             attempt += 1;
@@ -849,5 +877,30 @@ fn fallback_overall_summary(mode: RankingMode, candidates: usize, limit: usize) 
             candidates,
             candidates.min(limit)
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::collect_survey_search_terms;
+
+    #[test]
+    fn collect_survey_search_terms_deduplicates_and_limits() {
+        let terms = collect_survey_search_terms(
+            "  diffusion   model  ",
+            &[
+                "diffusion model".to_string(),
+                "text to image".to_string(),
+                "  ".to_string(),
+                "TEXT TO IMAGE".to_string(),
+                "controlnet".to_string(),
+            ],
+            3,
+        );
+
+        assert_eq!(
+            terms,
+            vec!["diffusion model", "text to image", "controlnet"]
+        );
     }
 }

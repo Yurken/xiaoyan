@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Clipboard, FileSearch, Loader2, Save } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clipboard, FileSearch, Loader2, RotateCcw, Save } from "lucide-react";
 import { Button, Card, MarkdownRenderer } from "@research-copilot/ui";
 import { openLink } from "../../lib/links";
 import SurveyCandidatePapersPanel from "./SurveyCandidatePapersPanel";
@@ -38,6 +38,12 @@ export default function SurveyResultsWorkspace({ controller }: { controller: Sur
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {controller.canResumeFailedRun ? (
+            <Button variant="secondary" size="sm" onClick={() => void controller.handleResumeFailedRun()} loading={controller.generating}>
+              <RotateCcw className="h-3.5 w-3.5" />
+              从失败步骤继续
+            </Button>
+          ) : null}
           <Button variant="secondary" size="sm" onClick={() => void controller.copySurveyMarkdown()} loading={controller.copying} disabled={!controller.canSaveResult}>
             <Clipboard className="h-3.5 w-3.5" />
             复制 Markdown

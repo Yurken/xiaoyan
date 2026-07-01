@@ -11,8 +11,17 @@ import {
   type SurveyAgentState,
 } from "./shared";
 import { createSurveyRequestId, registerSurveyEventListeners } from "./surveyEvents";
+import {
+  failSurveyRunSnapshot,
+  resumeSurveyRunSnapshot,
+  startSurveyRunSnapshot,
+  useActiveSurveyRunSnapshot,
+  useSurveyRunEventBridge,
+} from "./useSurveyRunSnapshots";
 
 export function useSurveyGeneration(): SurveyGenerationController {
+  useSurveyRunEventBridge();
+  const runSnapshot = useActiveSurveyRunSnapshot();
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [selectedInterestId, setSelectedInterestId] = useState("");
   const [interestPapers, setInterestPapers] = useState<Paper[]>([]);
@@ -39,6 +48,7 @@ export function useSurveyGeneration(): SurveyGenerationController {
   const contentRef = useRef("");
   const requestIdRef = useRef<string | null>(null);
   const unlistenersRef = useRef<Array<() => void>>([]);
+  const restoredPaperIdsRef = useRef<string[] | null>(null);
   const cleanupSurveyListeners = useCallback(() => {
     unlistenersRef.current.forEach((cleanup) => cleanup());
     unlistenersRef.current = [];
@@ -73,7 +83,12 @@ export function useSurveyGeneration(): SurveyGenerationController {
       .then((data) => {
         if (cancelled) return;
         setInterestPapers(data);
-        setSelectedPaperIds(data.map((paper) => paper.id));
+        if (restoredPaperIdsRef.current) {
+          setSelectedPaperIds(restoredPaperIdsRef.current);
+          restoredPaperIdsRef.current = null;
+        } else {
+          setSelectedPaperIds(data.map((paper) => paper.id));
+        }
       })
       .catch(() => {
         if (cancelled) return;
@@ -90,6 +105,28 @@ export function useSurveyGeneration(): SurveyGenerationController {
   }, [selectedInterestId]);
 
   useEffect(() => cleanupSurveyListeners, [cleanupSurveyListeners]);
+
+  useEffect(() => {
+    if (!runSnapshot) return;
+    requestIdRef.current = runSnapshot.requestId;
+    contentRef.current = runSnapshot.content;
+    setQuery(runSnapshot.query);
+    setMaxPapers(String(runSnapshot.maxPapers));
+    setTimeFrom(runSnapshot.timeFrom ? String(runSnapshot.timeFrom) : "");
+    setTimeTo(runSnapshot.timeTo ? String(runSnapshot.timeTo) : "");
+    setLitTypes(runSnapshot.litTypes);
+    setDatabases(runSnapshot.databases);
+    setCitationFormat(runSnapshot.citationFormat);
+    setLanguage(runSnapshot.language);
+    setSelectedInterestId(runSnapshot.selectedInterestId ?? "");
+    restoredPaperIdsRef.current = runSnapshot.paperIds ?? null;
+    setSelectedPaperIds(runSnapshot.paperIds ?? []);
+    setContent(runSnapshot.content);
+    setAgents(runSnapshot.agents);
+    setStructured(runSnapshot.structured);
+    setError(runSnapshot.error ?? "");
+    setGenerating(runSnapshot.status === "running");
+  }, [runSnapshot]);
 
   const effectiveMaxPapers = useMemo(() => {
     return normalizeSurveyPaperLimit(maxPapers).value ?? SURVEY_DEFAULT_MAX_PAPERS;
@@ -133,6 +170,20 @@ export function useSurveyGeneration(): SurveyGenerationController {
     contentRef.current = "";
     const requestId = createSurveyRequestId();
     requestIdRef.current = requestId;
+    const paperIds = selectedPaperIds.length > 0 ? selectedPaperIds.slice(0, validation.maxPapers) : undefined;
+    startSurveyRunSnapshot({
+      requestId,
+      query: validation.query,
+      maxPapers: validation.maxPapers,
+      timeFrom: validation.timeFrom,
+      timeTo: validation.timeTo,
+      litTypes,
+      databases,
+      citationFormat,
+      language,
+      paperIds,
+      selectedInterestId: selectedInterestId || undefined,
+    });
     setContent("");
     setAgents([]);
     setStructured(null);
@@ -164,12 +215,14 @@ export function useSurveyGeneration(): SurveyGenerationController {
         databases.length > 0 ? databases : undefined,
         citationFormat,
         language,
-        selectedPaperIds.length > 0 ? selectedPaperIds.slice(0, validation.maxPapers) : undefined,
+        paperIds,
         requestId,
       );
     } catch (nextError) {
       cleanupSurveyListeners();
-      setError(formatErrorMessage(nextError));
+      const message = formatErrorMessage(nextError);
+      failSurveyRunSnapshot(message);
+      setError(message);
       setGenerating(false);
     }
   }, [
@@ -182,9 +235,59 @@ export function useSurveyGeneration(): SurveyGenerationController {
     maxPapers,
     query,
     selectedPaperIds,
+    selectedInterestId,
     timeFrom,
     timeTo,
   ]);
+
+  const handleResumeFailedRun = useCallback(async () => {
+    if (!runSnapshot || runSnapshot.status !== "failed" || generating) return;
+
+    cleanupSurveyListeners();
+    const requestId = createSurveyRequestId();
+    requestIdRef.current = requestId;
+    contentRef.current = runSnapshot.content;
+    resumeSurveyRunSnapshot(runSnapshot, requestId);
+    setContent(runSnapshot.content);
+    setStructured(null);
+    setError("");
+    setActionMessage("");
+    setActionError("");
+    setGenerating(true);
+
+    try {
+      const listeners = await registerSurveyEventListeners({
+        requestIdRef,
+        contentRef,
+        setContent,
+        setGenerating,
+        setError,
+        setAgents,
+        setStructured,
+        cleanupSurveyListeners,
+      });
+      unlistenersRef.current = listeners;
+
+      await apiClient.survey.generate(
+        runSnapshot.query,
+        runSnapshot.maxPapers,
+        runSnapshot.timeFrom,
+        runSnapshot.timeTo,
+        runSnapshot.litTypes.length > 0 ? runSnapshot.litTypes : undefined,
+        runSnapshot.databases.length > 0 ? runSnapshot.databases : undefined,
+        runSnapshot.citationFormat,
+        runSnapshot.language,
+        runSnapshot.paperIds,
+        requestId,
+      );
+    } catch (nextError) {
+      cleanupSurveyListeners();
+      const message = formatErrorMessage(nextError);
+      failSurveyRunSnapshot(message);
+      setError(message);
+      setGenerating(false);
+    }
+  }, [cleanupSurveyListeners, generating, runSnapshot]);
 
   const copySurveyMarkdown = useCallback(async () => {
     const markdown = content.trim();
@@ -247,6 +350,7 @@ export function useSurveyGeneration(): SurveyGenerationController {
       maxPapers !== String(SURVEY_DEFAULT_MAX_PAPERS),
   );
   const hasResults = agents.length > 0 || Boolean(structured) || Boolean(content);
+  const canResumeFailedRun = Boolean(runSnapshot?.status === "failed" && agents.some((agent) => agent.status === "failed"));
 
   return {
     interests,
@@ -292,7 +396,9 @@ export function useSurveyGeneration(): SurveyGenerationController {
     copying,
     hasResults,
     canSaveResult: Boolean(content.trim()),
+    canResumeFailedRun,
     handleGenerate,
+    handleResumeFailedRun,
     copySurveyMarkdown,
     saveSurveyAsNote,
   };

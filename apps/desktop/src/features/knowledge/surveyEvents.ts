@@ -72,6 +72,10 @@ export async function registerSurveyEventListeners({
       if (!acceptRequest(event.payload.request_id)) return;
       const nextAgent = event.payload.agent;
       setAgents((prev) => {
+        const duplicateDoneStage = prev.some(
+          (item) => item.name === nextAgent.name && item.status === "done" && item.id !== nextAgent.id,
+        );
+        if (duplicateDoneStage) return prev;
         const exists = prev.some((item) => item.id === nextAgent.id);
         if (exists) return prev.map((item) => (item.id === nextAgent.id ? { ...item, ...nextAgent } : item));
         return [...prev, nextAgent];
@@ -80,7 +84,13 @@ export async function registerSurveyEventListeners({
     safeListen<{ request_id?: string; agent: SurveyAgentState }>("survey:agent_complete", (event) => {
       if (!acceptRequest(event.payload.request_id)) return;
       const nextAgent = event.payload.agent;
-      setAgents((prev) => prev.map((item) => (item.id === nextAgent.id ? { ...item, ...nextAgent, status: "done" } : item)));
+      setAgents((prev) => {
+        const duplicateDoneStage = prev.some(
+          (item) => item.name === nextAgent.name && item.status === "done" && item.id !== nextAgent.id,
+        );
+        if (duplicateDoneStage) return prev;
+        return prev.map((item) => (item.id === nextAgent.id ? { ...item, ...nextAgent, status: "done" } : item));
+      });
     }),
     safeListen<{ request_id?: string; agent: SurveyAgentState }>("survey:agent_error", (event) => {
       if (!acceptRequest(event.payload.request_id)) return;
