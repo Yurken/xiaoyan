@@ -214,3 +214,8 @@ export function failSurveyRunSnapshot(error: string) {
     agents: failRunningAgents(current.agents, error),
   }));
 }
+
+export function clearSurveyRunSnapshot() {
+  activeSnapshot = null;
+  notify();
+}

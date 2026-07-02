@@ -34,6 +34,7 @@ pub mod settings;
 pub mod skills;
 pub mod source;
 pub mod submission;
+pub mod survey_support;
 pub mod sync;
 pub mod token_usage;
 pub mod update;

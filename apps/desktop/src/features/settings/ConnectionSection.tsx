@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Brain, Loader2, Wifi } from "lucide-react";
+import { Brain, ExternalLink as ExternalLinkIcon, Loader2, Wifi } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppSettings, LlmProvider, PaperSearchEngine } from "@research-copilot/types";
 import { MASK, SectionIcon, SettingInput } from "./shared";
@@ -9,6 +9,7 @@ import OllamaEmbeddingPanel from "./OllamaEmbeddingPanel";
 import ProviderIcon from "./ProviderIcon";
 import ModelCombobox from "./ModelCombobox";
 import WebSearchSection from "./WebSearchSection";
+import ExternalLink from "../../components/ExternalLink";
 
 interface ConnectionSectionProps {
   contentUnavailable: boolean;
@@ -369,14 +370,22 @@ export default function ConnectionSection({
               </div>
             </div>
             {form.paper_search_engine === "semantic_scholar" ? (
-              <SettingInput
-                label="Semantic Scholar 接口密钥"
-                value={form.semantic_scholar_api_key}
-                onChange={set("semantic_scholar_api_key")}
-                placeholder="留空使用免费限速额度"
-                sensitive
-                hint={`留空或输入 ${MASK} 表示不更改`}
-              />
+              <div className="space-y-2">
+                <SettingInput
+                  label="Semantic Scholar 接口密钥"
+                  value={form.semantic_scholar_api_key}
+                  onChange={set("semantic_scholar_api_key")}
+                  placeholder="留空使用免费限速额度"
+                  sensitive
+                />
+                <p className="ml-1 flex flex-wrap items-center gap-1 text-xs leading-5 text-ink-tertiary">
+                  <span>留空或输入 {MASK} 表示不更改</span>
+                  <ExternalLink href="https://www.semanticscholar.org/product/api" className="inline-flex items-center gap-1 font-medium text-ink-secondary underline-offset-2 hover:underline">
+                    <span>申请入口</span>
+                    <ExternalLinkIcon className="h-3 w-3" />
+                  </ExternalLink>
+                </p>
+              </div>
             ) : null}
 
             <WebSearchSection form={form} set={set} />

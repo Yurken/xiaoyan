@@ -24,6 +24,7 @@ mod repositories;
 mod semantic_scholar;
 mod services;
 mod state;
+mod text_utils;
 mod token_usage;
 mod web_search;
 

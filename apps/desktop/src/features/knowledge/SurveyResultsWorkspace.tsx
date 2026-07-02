@@ -1,13 +1,13 @@
-import { AlertCircle, CheckCircle2, Clipboard, FileSearch, Loader2, RotateCcw, Save } from "lucide-react";
-import { Button, Card, MarkdownRenderer } from "@research-copilot/ui";
-import { openLink } from "../../lib/links";
+import { AlertCircle, CheckCircle2, Clipboard, FileSearch, RotateCcw, Save } from "lucide-react";
+import { Button, Card } from "@research-copilot/ui";
 import SurveyCandidatePapersPanel from "./SurveyCandidatePapersPanel";
+import SurveyReportContentPanel from "./SurveyReportContentPanel";
 import SurveyRunSummaryPanel from "./SurveyRunSummaryPanel";
-import SurveyStructuredReport from "./SurveyStructuredReport";
 import type { SurveyGenerationController } from "./shared";
 
 export default function SurveyResultsWorkspace({ controller }: { controller: SurveyGenerationController }) {
   if (!controller.hasResults) {
+    const preparingNewSurvey = Boolean(controller.query.trim());
     return (
       <Card className="flex flex-col items-center gap-3 py-16 text-center">
         <div
@@ -17,8 +17,12 @@ export default function SurveyResultsWorkspace({ controller }: { controller: Sur
           <FileSearch className="h-7 w-7 text-ink-tertiary" />
         </div>
         <div>
-          <p className="font-medium text-ink-secondary">请先输入研究问题</p>
-          <p className="mt-1 text-sm text-ink-tertiary">可展开「生成参数」指定时间范围、候选数量、文献类型与引用格式。</p>
+          <p className="font-medium text-ink-secondary">{preparingNewSurvey ? "旧综述已收起，请重新生成" : "请先输入研究问题"}</p>
+          <p className="mt-1 text-sm text-ink-tertiary">
+            {preparingNewSurvey
+              ? "当前正在准备新的综述主题，历史结果请在底部历史记录中查看。"
+              : "可展开「生成参数」指定时间范围、候选数量、文献类型与引用格式。"}
+          </p>
         </div>
       </Card>
     );
@@ -79,28 +83,12 @@ export default function SurveyResultsWorkspace({ controller }: { controller: Sur
         </div>
 
         <div className="space-y-4">
-          {controller.structured ? (
-            <SurveyStructuredReport structured={controller.structured} fallbackCitationFormatLabel={controller.citationFormatLabel} />
-          ) : null}
-
-          {controller.content ? (
-            <Card padding="sm">
-              <MarkdownRenderer content={controller.content} onLinkClick={openLink} />
-              {controller.generating ? (
-                <div className="mt-3 flex items-center gap-1.5 text-xs text-ink-tertiary">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  生成中…
-                </div>
-              ) : null}
-            </Card>
-          ) : null}
-
-          {!controller.content && !controller.structured && controller.generating ? (
-            <Card className="flex flex-col items-center gap-3 py-16 text-center">
-              <Loader2 className="h-8 w-8 animate-spin text-apple-blue" />
-              <p className="text-sm text-ink-tertiary">正在检索文献并生成综述…</p>
-            </Card>
-          ) : null}
+          <SurveyReportContentPanel
+            structured={controller.structured}
+            markdown={controller.content}
+            generating={controller.generating}
+            fallbackCitationFormatLabel={controller.citationFormatLabel}
+          />
         </div>
       </div>
     </div>

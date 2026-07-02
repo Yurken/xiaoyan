@@ -7,10 +7,11 @@ import {
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { ChatSession, ResearchInterest } from "@research-copilot/types";
 
-const COPILOT_LAST_SESSION_KEY = "rc:copilot:last-session-id";
+export const COPILOT_LAST_SESSION_KEY = "rc:copilot:last-session-id";
 
 export function useCopilotSessions() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -27,10 +28,20 @@ export function useCopilotSessions() {
   useEffect(() => {
     let cancelled = false;
     setLoadError("");
+    setSessionsLoaded(false);
     apiClient.chat.listSessions()
-      .then((data) => { if (!cancelled) setSessions(data); })
+      .then((data) => {
+        if (!cancelled) {
+          setSessions(data);
+          setSessionsLoaded(true);
+        }
+      })
       .catch((error) => {
-        if (!cancelled) { setLoadError(formatErrorMessage(error)); setSessions([]); }
+        if (!cancelled) {
+          setLoadError(formatErrorMessage(error));
+          setSessions([]);
+          setSessionsLoaded(true);
+        }
       });
     return () => { cancelled = true; };
   }, []);
@@ -203,6 +214,7 @@ export function useCopilotSessions() {
 
   return {
     sessions,
+    sessionsLoaded,
     interests,
     currentSession,
     setCurrentSession,

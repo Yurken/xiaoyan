@@ -12,6 +12,11 @@ import {
 } from "./shared";
 import { createSurveyRequestId, registerSurveyEventListeners } from "./surveyEvents";
 import {
+  clearSurveyGenerationResult,
+  hasSurveyGenerationResultState,
+} from "./surveyDraftState";
+import {
+  clearSurveyRunSnapshot,
   failSurveyRunSnapshot,
   resumeSurveyRunSnapshot,
   startSurveyRunSnapshot,
@@ -132,30 +137,102 @@ export function useSurveyGeneration(): SurveyGenerationController {
     return normalizeSurveyPaperLimit(maxPapers).value ?? SURVEY_DEFAULT_MAX_PAPERS;
   }, [maxPapers]);
 
+  const hasSessionResult = hasSurveyGenerationResultState({ agents, structured, content, error });
+
+  const resetCurrentResult = useCallback(() => {
+    if (generating || (!hasSessionResult && !runSnapshot)) return;
+    clearSurveyGenerationResult({
+      cleanupSurveyListeners,
+      clearSnapshot: clearSurveyRunSnapshot,
+      contentRef,
+      requestIdRef,
+      setContent,
+      setAgents,
+      setStructured,
+      setError,
+      setActionMessage,
+      setActionError,
+      setGenerating,
+    });
+  }, [cleanupSurveyListeners, error, generating, hasSessionResult, runSnapshot, structured, content, agents]);
+
   const selectInterest = useCallback(
     (id: string) => {
+      if (id !== selectedInterestId) resetCurrentResult();
       setSelectedInterestId(id);
       const interest = interests.find((item) => item.id === id);
       if (interest) setQuery(interest.topic);
     },
-    [interests],
+    [interests, resetCurrentResult, selectedInterestId],
   );
 
   const togglePaper = useCallback((id: string) => {
+    resetCurrentResult();
     setSelectedPaperIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
-  }, []);
+  }, [resetCurrentResult]);
 
   const toggleAllPapers = useCallback(() => {
+    resetCurrentResult();
     setSelectedPaperIds((prev) => (prev.length === interestPapers.length ? [] : interestPapers.map((paper) => paper.id)));
-  }, [interestPapers]);
+  }, [interestPapers, resetCurrentResult]);
 
   const toggleLitType = useCallback((value: string) => {
+    resetCurrentResult();
     setLitTypes((prev) => (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]));
-  }, []);
+  }, [resetCurrentResult]);
 
   const toggleDatabase = useCallback((value: string) => {
+    resetCurrentResult();
     setDatabases((prev) => (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]));
-  }, []);
+  }, [resetCurrentResult]);
+
+  const setQueryValue = useCallback(
+    (value: string) => {
+      if (value !== query) resetCurrentResult();
+      setQuery(value);
+    },
+    [query, resetCurrentResult],
+  );
+
+  const setMaxPapersValue = useCallback(
+    (value: string) => {
+      if (value !== maxPapers) resetCurrentResult();
+      setMaxPapers(value);
+    },
+    [maxPapers, resetCurrentResult],
+  );
+
+  const setTimeFromValue = useCallback(
+    (value: string) => {
+      if (value !== timeFrom) resetCurrentResult();
+      setTimeFrom(value);
+    },
+    [resetCurrentResult, timeFrom],
+  );
+
+  const setTimeToValue = useCallback(
+    (value: string) => {
+      if (value !== timeTo) resetCurrentResult();
+      setTimeTo(value);
+    },
+    [resetCurrentResult, timeTo],
+  );
+
+  const setCitationFormatValue = useCallback(
+    (value: string) => {
+      if (value !== citationFormat) resetCurrentResult();
+      setCitationFormat(value);
+    },
+    [citationFormat, resetCurrentResult],
+  );
+
+  const setLanguageValue = useCallback(
+    (value: string) => {
+      if (value !== language) resetCurrentResult();
+      setLanguage(value);
+    },
+    [language, resetCurrentResult],
+  );
 
   const handleGenerate = useCallback(async () => {
     if (generating) return;
@@ -365,24 +442,24 @@ export function useSurveyGeneration(): SurveyGenerationController {
     togglePaper,
     toggleAllPapers,
     query,
-    setQuery,
+    setQuery: setQueryValue,
     advancedOpen,
     setAdvancedOpen,
     maxPapers,
-    setMaxPapers,
+    setMaxPapers: setMaxPapersValue,
     effectiveMaxPapers,
     timeFrom,
-    setTimeFrom,
+    setTimeFrom: setTimeFromValue,
     timeTo,
-    setTimeTo,
+    setTimeTo: setTimeToValue,
     litTypes,
     toggleLitType,
     databases,
     toggleDatabase,
     citationFormat,
-    setCitationFormat,
+    setCitationFormat: setCitationFormatValue,
     language,
-    setLanguage,
+    setLanguage: setLanguageValue,
     citationFormatLabel: currentCitationFormatLabel,
     hasAdvancedSettings,
     generating,

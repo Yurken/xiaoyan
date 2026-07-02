@@ -244,6 +244,7 @@ export interface StructuredSurveyResult {
   query: string;
   report: {
     background?: string;
+    topic_landscape?: string;
     development_timeline?: Array<{
       period?: string;
       milestone?: string;
@@ -355,6 +356,44 @@ export function researchInterestDisplayName(interest: Pick<ResearchInterest, "to
 
 export function citationFormatLabel(value?: string) {
   return CITATION_FORMATS.find((format) => format.value === value)?.label ?? CITATION_FORMATS[0].label;
+}
+
+export function dedupeSurveyCitations(citations: string[] = []) {
+  const seen = new Set<string>();
+  return citations.filter((citation) => {
+    const normalized = citation.trim();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
+export interface SurveyMarkdownPreview {
+  content: string;
+  appendixHidden: boolean;
+}
+
+const SURVEY_MARKDOWN_APPENDIX_HEADINGS = ["## 检索到的候选论文", "## 参考文献"];
+
+export function buildSurveyMarkdownPreview(markdown: string): SurveyMarkdownPreview {
+  const trimmed = markdown.trim();
+  if (!trimmed) return { content: "", appendixHidden: false };
+
+  const appendixStart = SURVEY_MARKDOWN_APPENDIX_HEADINGS.reduce<number | null>((current, heading) => {
+    const index = trimmed.indexOf(`\n${heading}`);
+    if (index === -1) return current;
+    if (current === null) return index;
+    return Math.min(current, index);
+  }, null);
+
+  if (appendixStart === null) {
+    return { content: trimmed, appendixHidden: false };
+  }
+
+  return {
+    content: trimmed.slice(0, appendixStart).trimEnd(),
+    appendixHidden: true,
+  };
 }
 
 export function normalizeSurveyYearInput(value: string, label: string) {

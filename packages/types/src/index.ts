@@ -17,19 +17,40 @@ export const MAIN_ASSISTANT_INPUT_PLACEHOLDER =
 const CAPABILITY_MODEL_NAME_MAP: Record<string, string> = {
   retrieval: "溯源模型",
   planner: "谋策模型",
-  literature_scout: "探知模型",
+  literaturescout: "探知模型",
   survey: "翰章模型",
-  paper_analyst: "洞见模型",
+  paperanalyst: "洞见模型",
   reproduction: "构域模型",
   synthesis: "整合模型",
   supervisor: "谋策调度模型",
   worker: "小妍默认执行模型",
-  analyst: "小妍模型",
+  analyst: "洞见模型",
   scout: "探知模型",
   designer: "谋策模型",
   retriever: "溯源模型",
   writer: "翰章模型",
+  learningpathplanning: "谋策模型",
+  学习路径规划: "谋策模型",
+  检索规划: "探知模型",
+  研究任务规划: "探知模型",
+  文献检索: "溯源模型",
+  参考文献筛选: "探知模型",
+  时序分析: "探知模型",
+  文献时序分析: "探知模型",
+  综述写作: "翰章模型",
+  文献综述写作: "翰章模型",
 };
+
+function normalizeCapabilityModelLookupKey(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s-]+/g, "")
+    .replace(/小妍能力步骤/g, "")
+    .replace(/agent/g, "")
+    .replace(/模型/g, "")
+    .trim();
+}
 
 export function replaceAgentWording(text: string): string {
   if (!text) return text;
@@ -43,7 +64,7 @@ export function toCapabilityModelName(name: string): string {
   const raw = name.trim();
   if (!raw) return raw;
 
-  const mapped = CAPABILITY_MODEL_NAME_MAP[raw.toLowerCase()];
+  const mapped = CAPABILITY_MODEL_NAME_MAP[normalizeCapabilityModelLookupKey(raw)];
   if (mapped) return mapped;
 
   return replaceAgentWording(raw)

@@ -5,16 +5,16 @@ import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
 import { CopilotChatArea } from "../features/copilot/CopilotChatArea";
 import { CopilotSessionSidebar } from "../features/copilot/CopilotSessionSidebar";
 import SkillVariableFillModal from "../features/copilot/SkillVariableFillModal";
-import { useCopilotSessions } from "../features/copilot/useCopilotSessions";
+import { COPILOT_LAST_SESSION_KEY, useCopilotSessions } from "../features/copilot/useCopilotSessions";
 import { useCopilotChat } from "../features/copilot/useCopilotChat";
 import { useCopilotAttachments } from "../features/copilot/useCopilotAttachments";
 import { useCopilotChatMode } from "../features/copilot/useCopilotChatMode";
 import { useCopilotDropZone } from "../features/copilot/useCopilotDropZone";
 import { parseCopilotMessageContent } from "../features/copilot/shared";
-import { usePersistentStringState } from "../hooks/usePersistentStringState";
+import { clearPersistentValue, readPersistentValue, usePersistentStringState, writePersistentValue } from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
-import type { ChatSession, Skill } from "@research-copilot/types";
+import type { AgentRun, ChatSession, Skill } from "@research-copilot/types";
 import { interestFolderName } from "../lib/interestUtils";
 
 export default function Copilot({ hideFolders = false }: { hideFolders?: boolean }) {
@@ -40,6 +40,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [editText, setEditText] = useState("");
   const memorySavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadSessionRequestRef = useRef(0);
+  const restoredLastSessionRef = useRef(false);
 
   const {
     attachments,
@@ -66,6 +67,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       if (!skillLocked) setSelectedSkillId(null);
     },
     onSessionCreated: async (sessionId: string) => {
+      writePersistentValue(COPILOT_LAST_SESSION_KEY, sessionId);
       try {
         const updated = await apiClient.chat.listSessions();
         const nextSession = updated.find((s) => s.id === sessionId) ?? null;
@@ -97,18 +99,30 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     chat.cancelActiveStream();
     const sessionData = await sessions.loadSession(session);
     if (!sessionData || loadSessionRequestRef.current !== requestId) return;
-    chat.resetChat();
-    chat.setMessages(sessionData.messages ?? []);
+    let runData: AgentRun[] = [];
     try {
-      const runData = await apiClient.chat.listAgentRuns(session.id);
-      if (loadSessionRequestRef.current === requestId) {
-        chat.setAgentRuns(runData);
-      }
-    } catch (err) { console.warn("Failed to load agent runs:", err); }
+      runData = await apiClient.chat.listAgentRuns(session.id);
+    } catch (err) {
+      console.warn("Failed to load agent runs:", err);
+    }
     if (loadSessionRequestRef.current === requestId) {
-      chat.setSidebarCollapsed(true);
+      chat.restoreLoadedSession(sessionData, runData);
     }
   }, [sessions, chat]);
+
+  useEffect(() => {
+    if (restoredLastSessionRef.current) return;
+    if (!sessions.sessionsLoaded || sessions.currentSession) return;
+    restoredLastSessionRef.current = true;
+    const lastSessionId = readPersistentValue(COPILOT_LAST_SESSION_KEY);
+    if (!lastSessionId) return;
+    const lastSession = sessions.sessions.find((session) => session.id === lastSessionId);
+    if (!lastSession) {
+      clearPersistentValue(COPILOT_LAST_SESSION_KEY);
+      return;
+    }
+    void handleLoadSession(lastSession);
+  }, [handleLoadSession, sessions.currentSession, sessions.sessions, sessions.sessionsLoaded]);
 
   // Skills
   useEffect(() => {

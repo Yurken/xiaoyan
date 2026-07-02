@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applySkillVariables,
   buildCopilotMessageContent,
@@ -6,6 +6,13 @@ import {
   extractSkillVariables,
   upsertAgentRun,
 } from "./shared";
+import {
+  clearCopilotSessionSnapshot,
+  type CopilotSessionSnapshot,
+  hasCopilotSessionSnapshotContent,
+  resolveCopilotSessionState,
+  writeCopilotSessionSnapshot,
+} from "./copilotSessionState";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatMode, ChatSession, RoutingDecision, Skill } from "@research-copilot/types";
 
@@ -42,6 +49,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     onSessionCreated,
     onSkillConsumed,
   } = options;
+  const currentSessionId = currentSession?.id ?? null;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [plan, setPlan] = useState<AgentPlanStep[]>([]);
@@ -58,26 +66,133 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
   const streamAbortRef = useRef<AbortController | null>(null);
   const streamingContentRef = useRef("");
   const rafRef = useRef(0);
+  const skipNextPersistRef = useRef(true);
+  const restoredSessionIdRef = useRef<string | null>(null);
+  const promotedSessionIdRef = useRef<string | null>(null);
+  const snapshotRef = useRef<CopilotSessionSnapshot>({
+    messages: [],
+    plan: [],
+    agentRuns: [],
+    requestId: null,
+    activeAssistantId: null,
+    input: "",
+    routingDecision: null,
+    sidebarCollapsed: true,
+  });
   // 始终指向最新消息列表，供 retry/editAndResend 在点击时读取，避免闭包过期。
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
+  snapshotRef.current = {
+    messages,
+    plan,
+    agentRuns,
+    requestId: requestId ?? null,
+    activeAssistantId,
+    input,
+    routingDecision,
+    sidebarCollapsed,
+  };
+
+  const applyRestoredState = useCallback(
+    (state: ReturnType<typeof resolveCopilotSessionState>) => {
+      setMessages(state.messages);
+      setPlan(state.plan);
+      setAgentRuns(state.agentRuns);
+      setRequestId(state.requestId);
+      setActiveAssistantId(state.activeAssistantId);
+      setInput(state.input);
+      setSending(false);
+      setLoadError("");
+      setSearchingQuery(null);
+      setRoutingDecision(state.routingDecision);
+      setSidebarCollapsed(state.sidebarCollapsed);
+      setPendingSkillFill(null);
+    },
+    []
+  );
+
+  const cancelActiveStream = useCallback(() => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+  }, []);
 
   const resetChat = useCallback(() => {
+    cancelActiveStream();
+    skipNextPersistRef.current = true;
+    clearCopilotSessionSnapshot();
     setMessages([]);
     setPlan([]);
     setAgentRuns([]);
     setRequestId(undefined);
     setActiveAssistantId(null);
     setInput("");
+    setSending(false);
     setLoadError("");
     setSearchingQuery(null);
     setRoutingDecision(null);
+    setSidebarCollapsed(true);
+    setPendingSkillFill(null);
+  }, [cancelActiveStream]);
+
+  const restoreLoadedSession = useCallback(
+    (session: Pick<ChatSession, "id" | "messages">, loadedRuns: AgentRun[]) => {
+      skipNextPersistRef.current = true;
+      applyRestoredState(
+        resolveCopilotSessionState({
+          sessionId: session.id,
+          sessionMessages: session.messages ?? [],
+          agentRuns: loadedRuns,
+        }),
+      );
+    },
+    [applyRestoredState],
+  );
+
+  const promoteDraftSession = useCallback((sessionId: string) => {
+    promotedSessionIdRef.current = sessionId;
+    const snapshot = snapshotRef.current;
+    if (hasCopilotSessionSnapshotContent(snapshot)) {
+      writeCopilotSessionSnapshot(sessionId, snapshot);
+    }
+    clearCopilotSessionSnapshot();
   }, []);
 
-  const cancelActiveStream = useCallback(() => {
-    streamAbortRef.current?.abort();
-    streamAbortRef.current = null;
-  }, []);
+  useEffect(() => {
+    if (restoredSessionIdRef.current === currentSessionId) return;
+    restoredSessionIdRef.current = currentSessionId;
+    const promotedSessionId = promotedSessionIdRef.current;
+    const isPromotedDraftSession =
+      Boolean(currentSessionId) && promotedSessionId === currentSessionId;
+    if (!isPromotedDraftSession) {
+      skipNextPersistRef.current = true;
+    }
+    if (currentSessionId) {
+      if (isPromotedDraftSession) {
+        promotedSessionIdRef.current = null;
+      }
+      return;
+    }
+    promotedSessionIdRef.current = null;
+    applyRestoredState(resolveCopilotSessionState());
+  }, [applyRestoredState, currentSessionId]);
+
+  useEffect(() => {
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false;
+      return;
+    }
+    writeCopilotSessionSnapshot(currentSessionId, snapshotRef.current);
+  }, [
+    currentSessionId,
+    messages,
+    plan,
+    agentRuns,
+    requestId,
+    activeAssistantId,
+    input,
+    routingDecision,
+    sidebarCollapsed,
+  ]);
 
   // 流式对话核心：接收已构建好的发送内容与「基础消息列表」（含用户消息、不含助手占位），
   // 追加助手占位后驱动流式响应。handleSend / retry / editAndResend 共用，避免重复流式逻辑。
@@ -194,6 +309,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
         }
 
         if (sessionId && !currentSession && !abortController.signal.aborted) {
+          promoteDraftSession(sessionId);
           onSessionCreated(sessionId);
         }
       } catch (error) {
@@ -213,7 +329,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
         if (streamAbortRef.current === abortController) streamAbortRef.current = null;
       }
     },
-    [chatMode, currentSession, selectedInterestId, cancelActiveStream, onSessionCreated]
+    [chatMode, currentSession, selectedInterestId, cancelActiveStream, onSessionCreated, promoteDraftSession]
   );
 
   // 实际发送：组装发送文本（含技能注入标记）、校验视觉模型、追加用户消息并驱动流式。
@@ -353,6 +469,8 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     setSidebarCollapsed,
     resetChat,
     cancelActiveStream,
+    restoreLoadedSession,
+    promoteDraftSession,
     handleSend,
     retry,
     editAndResend,

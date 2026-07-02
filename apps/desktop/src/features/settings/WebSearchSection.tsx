@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { AlertCircle, Check, Loader2, Wifi } from "lucide-react";
+import { AlertCircle, Check, ExternalLink as ExternalLinkIcon, Loader2, Wifi } from "lucide-react";
 import type { AppSettings, TavilyKeyTest } from "@research-copilot/types";
 import { MASK, ToggleRow } from "./shared";
 import { apiClient } from "../../lib/client";
-import { openLink } from "../../lib/links";
+import ExternalLink from "../../components/ExternalLink";
 
 const WEB_SEARCH_PROVIDER_OPTIONS: { value: string; label: string; description: string }[] = [
   { value: "duckduckgo", label: "DuckDuckGo", description: "免费、无需密钥，结果质量一般。默认。" },
@@ -145,13 +145,13 @@ export default function WebSearchSection({ form, set }: WebSearchSectionProps) {
                 style={{ background: "var(--rc-card-inset-bg)", border: "1px solid var(--rc-card-inset-outline)" }}
               >
                 <span>启用后，小妍的搜索词会发送至 Tavily 服务器。</span>
-                <button
-                  type="button"
-                  onClick={() => void openLink("https://app.tavily.com")}
-                  className="font-medium text-ink-secondary underline-offset-2 hover:underline"
+                <ExternalLink
+                  href="https://app.tavily.com/home"
+                  className="inline-flex items-center gap-1 font-medium text-ink-secondary underline-offset-2 hover:underline"
                 >
-                  前往 Tavily 获取 Key
-                </button>
+                  <span>申请入口</span>
+                  <ExternalLinkIcon className="h-3 w-3" />
+                </ExternalLink>
               </div>
             </div>
           ) : null}

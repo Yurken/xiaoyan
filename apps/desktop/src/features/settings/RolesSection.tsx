@@ -374,7 +374,7 @@ export default function RolesSection({
                   hint="超过该步数将强制中断小妍步骤流程。"
                 />
                 <SettingInput
-                  label="文献检索模型抓取条数上限"
+                  label="外部检索上限"
                   value={form.multi_agent_search_limit}
                   onChange={set("multi_agent_search_limit")}
                   placeholder="8"

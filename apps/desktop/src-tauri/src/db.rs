@@ -1041,7 +1041,13 @@ pub async fn ensure_experiment_tables(pool: &SqlitePool) -> Result<()> {
 
     // 兼容旧库：这些列在已有表中可能不存在。
     ensure_table_column(pool, "experiment_records", "default_working_dir", "TEXT").await?;
-    ensure_table_column(pool, "experiment_attachments", "snapshot_id", "TEXT REFERENCES experiment_snapshots(id) ON DELETE CASCADE").await?;
+    ensure_table_column(
+        pool,
+        "experiment_attachments",
+        "snapshot_id",
+        "TEXT REFERENCES experiment_snapshots(id) ON DELETE CASCADE",
+    )
+    .await?;
     Ok(())
 }
 

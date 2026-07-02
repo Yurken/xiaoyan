@@ -1971,7 +1971,9 @@ pub async fn papers_generate_note(
         return Err(missing_full_text_message(&status).to_string());
     }
 
-    let title = paper_row.get::<Option<String>, _>("title").unwrap_or_default();
+    let title = paper_row
+        .get::<Option<String>, _>("title")
+        .unwrap_or_default();
     let authors = paper_row
         .get::<Option<String>, _>("authors")
         .unwrap_or_default();
@@ -1979,12 +1981,18 @@ pub async fn papers_generate_note(
         .get::<Option<i64>, _>("year")
         .map(|y| y.to_string())
         .unwrap_or_default();
-    let venue = paper_row.get::<Option<String>, _>("venue").unwrap_or_default();
-    let doi = paper_row.get::<Option<String>, _>("doi").unwrap_or_default();
+    let venue = paper_row
+        .get::<Option<String>, _>("venue")
+        .unwrap_or_default();
+    let doi = paper_row
+        .get::<Option<String>, _>("doi")
+        .unwrap_or_default();
     let abstract_text = paper_row
         .get::<Option<String>, _>("abstract")
         .unwrap_or_default();
-    let notes = paper_row.get::<Option<String>, _>("notes").unwrap_or_default();
+    let notes = paper_row
+        .get::<Option<String>, _>("notes")
+        .unwrap_or_default();
     let research_interest_id: Option<String> = paper_row.get("research_interest_id");
 
     let analysis_row = sqlx::query(
@@ -1998,10 +2006,19 @@ pub async fn papers_generate_note(
     let analysis_text = analysis_row
         .map(|row| {
             let parts = [
-                ("研究问题", row.get::<Option<String>, _>("research_question")),
+                (
+                    "研究问题",
+                    row.get::<Option<String>, _>("research_question"),
+                ),
                 ("核心方法", row.get::<Option<String>, _>("core_method")),
-                ("实验设计", row.get::<Option<String>, _>("experiment_design")),
-                ("实验结果", row.get::<Option<String>, _>("experiment_results")),
+                (
+                    "实验设计",
+                    row.get::<Option<String>, _>("experiment_design"),
+                ),
+                (
+                    "实验结果",
+                    row.get::<Option<String>, _>("experiment_results"),
+                ),
                 ("创新点", row.get::<Option<String>, _>("innovations")),
                 ("局限", row.get::<Option<String>, _>("limitations")),
                 ("关键结论", row.get::<Option<String>, _>("key_conclusions")),
@@ -2031,12 +2048,24 @@ pub async fn papers_generate_note(
         .map(|row| {
             let parts = [
                 ("代码仓库", row.get::<Option<String>, _>("code_repository")),
-                ("环境配置", row.get::<Option<String>, _>("environment_setup")),
+                (
+                    "环境配置",
+                    row.get::<Option<String>, _>("environment_setup"),
+                ),
                 ("依赖", row.get::<Option<String>, _>("dependencies")),
-                ("数据准备", row.get::<Option<String>, _>("dataset_preparation")),
+                (
+                    "数据准备",
+                    row.get::<Option<String>, _>("dataset_preparation"),
+                ),
                 ("训练流程", row.get::<Option<String>, _>("training_process")),
-                ("推理流程", row.get::<Option<String>, _>("inference_process")),
-                ("评估指标", row.get::<Option<String>, _>("evaluation_metrics")),
+                (
+                    "推理流程",
+                    row.get::<Option<String>, _>("inference_process"),
+                ),
+                (
+                    "评估指标",
+                    row.get::<Option<String>, _>("evaluation_metrics"),
+                ),
                 ("注意事项", row.get::<Option<String>, _>("risks_and_notes")),
             ];
             parts
@@ -2090,7 +2119,15 @@ pub async fn papers_generate_note(
         LlmMessage::system(paper_note_system()),
         LlmMessage::user(&prompt),
     ];
-    log_llm_request("paper-note", &id, "generate", model.as_deref(), temperature, max_tokens, &msgs);
+    log_llm_request(
+        "paper-note",
+        &id,
+        "generate",
+        model.as_deref(),
+        temperature,
+        max_tokens,
+        &msgs,
+    );
 
     let response = client
         .chat_with_max_tokens(&msgs, model.as_deref(), temperature, max_tokens)
@@ -2104,10 +2141,7 @@ pub async fn papers_generate_note(
         .filter(|s| !s.trim().is_empty())
         .map(|s| s.to_string())
         .unwrap_or_else(|| format!("论文笔记：{}", title));
-    let note_content = value["content"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
+    let note_content = value["content"].as_str().unwrap_or("").to_string();
     if note_content.trim().is_empty() {
         return Err("小妍未能生成有效笔记内容，请检查模型配置或稍后重试。".to_string());
     }
@@ -2126,7 +2160,11 @@ pub async fn papers_generate_note(
         &settings,
         note_title,
         note_content,
-        if note_tags.is_empty() { None } else { Some(note_tags) },
+        if note_tags.is_empty() {
+            None
+        } else {
+            Some(note_tags)
+        },
         research_interest_id,
         "paper_note",
         Some(id.clone()),
@@ -2137,7 +2175,6 @@ pub async fn papers_generate_note(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
-
 
 fn safe_text_preview(text: &str, max_bytes: usize) -> &str {
     if text.len() <= max_bytes {
