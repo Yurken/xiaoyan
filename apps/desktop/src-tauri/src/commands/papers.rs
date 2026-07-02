@@ -3,7 +3,7 @@ use crate::ccf::{infer_from_text, match_venue};
 use crate::commands::knowledge_notes::create_note_core;
 use crate::commands::paper_analysis_prompts::{
     agent1_system, agent2_system, agent3_system, agent4_system, build_agent1_prompt,
-    build_agent2_prompt, build_agent3_prompt, build_agent4_prompt, build_method_figure_context,
+    build_agent2_prompt, build_agent3_prompt, build_agent4_prompt, build_all_figure_context,
     build_paper_note_prompt, build_reproduce_prompt, build_type_directive, paper_note_system,
     reproduce_system,
 };
@@ -1494,7 +1494,7 @@ pub async fn papers_analyze(
             }
         };
 
-        let method_figure_context = build_method_figure_context(&extracted_figures);
+        let all_figure_context = build_all_figure_context(&extracted_figures);
 
         // ── Agent 1: Problem & Background + 论文类型判定 ──────────
         let _ = app.emit(
@@ -1502,7 +1502,8 @@ pub async fn papers_analyze(
             json!({ "paper_id": pid, "status": "analyzing", "step": "问题背景分析中（1/4）…" }),
         );
         let intro_text = build_intro_slice(&full_text, analysis_chunk_bytes);
-        let prompt1 = build_agent1_prompt(&intro_text);
+        let prompt1_text = format!("{all_figure_context}{intro_text}");
+        let prompt1 = build_agent1_prompt(&prompt1_text);
         let msgs1 = vec![
             LlmMessage::system(agent1_system()),
             LlmMessage::user(&prompt1),
@@ -1563,7 +1564,7 @@ pub async fn papers_analyze(
             "paper:status",
             json!({ "paper_id": pid, "status": "analyzing", "step": "方法深度解析中（2/4）…" }),
         );
-        let method_prompt_text = format!("{type_directive}{method_figure_context}{method_text}");
+        let method_prompt_text = format!("{type_directive}{all_figure_context}{method_text}");
         let prompt2 = build_agent2_prompt(&research_question, &method_prompt_text);
         let msgs2 = vec![
             LlmMessage::system(agent2_system()),
@@ -1605,7 +1606,7 @@ pub async fn papers_analyze(
             "paper:status",
             json!({ "paper_id": pid, "status": "analyzing", "step": "证据与结果分析中（3/4）…" }),
         );
-        let experiment_prompt_text = format!("{type_directive}{experiment_text}");
+        let experiment_prompt_text = format!("{type_directive}{all_figure_context}{experiment_text}");
         let prompt3 = build_agent3_prompt(&core_method, &experiment_prompt_text);
         let msgs3 = vec![
             LlmMessage::system(agent3_system()),
@@ -1657,7 +1658,7 @@ pub async fn papers_analyze(
             json!({ "paper_id": pid, "status": "analyzing", "step": "综合评审中（4/4）…" }),
         );
         let experiment_summary = format!("{}\n\n{}", experiment_design, experiment_results);
-        let problem_summary_for_review = format!("{type_directive}{research_question}");
+        let problem_summary_for_review = format!("{type_directive}{all_figure_context}{research_question}");
         let prompt4 = build_agent4_prompt(
             &problem_summary_for_review,
             &core_method,
