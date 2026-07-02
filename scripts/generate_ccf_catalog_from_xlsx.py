@@ -20,7 +20,7 @@ def looks_like_url(value: str) -> bool:
     return value.startswith("http://") or value.startswith("https://")
 
 
-def normalize_aliases(label: str, full_name: str) -> list[str]:
+def normalize_aliases(label: str, full_name: str, url: str) -> list[str]:
     aliases: list[str] = []
     seen: set[str] = set()
 
@@ -42,6 +42,18 @@ def normalize_aliases(label: str, full_name: str) -> list[str]:
     add(full_name.replace("International Conference on ", ""))
     add(full_name.replace("IEEE International Conference on ", ""))
     add(full_name.replace("ACM International Conference on ", ""))
+
+    # Derive short alias from SIG* labels, e.g. SIGKDD -> KDD
+    if label.upper().startswith("SIG") and len(label) > 3:
+        short = label[3:]
+        if short and short[0].isalpha():
+            add(short)
+
+    # Extract DBLP key from URL as alias, e.g. …/db/conf/kdd/ -> KDD
+    m = re.search(r"db/(?:conf|journals)/([^/]+)", url, re.IGNORECASE)
+    if m:
+        dblp_key = m.group(1).upper()
+        add(dblp_key)
 
     return aliases
 
@@ -129,7 +141,7 @@ def parse_entries(xlsx_path: Path) -> list[dict[str, object]]:
             "full_name": clean(full_name),
             "publisher": clean(publisher),
             "url": url,
-            "aliases": normalize_aliases(label, full_name),
+            "aliases": normalize_aliases(label, full_name, url),
         }
 
         if entry["full_name"]:
