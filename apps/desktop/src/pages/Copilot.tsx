@@ -18,9 +18,12 @@ import type { AgentRun, ChatSession, Skill } from "@research-copilot/types";
 import { interestFolderName } from "../lib/interestUtils";
 
 export default function Copilot({ hideFolders = false }: { hideFolders?: boolean }) {
+  const sessionListStorageKey = hideFolders
+    ? "rc:copilot:session-list-mode:focus"
+    : "rc:copilot:session-list-mode";
   const [sessionListMode, setSessionListMode] = usePersistentStringState<"open" | "collapsed">(
-    "rc:copilot:session-list-mode",
-    hideFolders ? "collapsed" : "open",
+    sessionListStorageKey,
+    "open",
     ["open", "collapsed"] as const,
   );
   const sessionListCollapsed = sessionListMode === "collapsed";

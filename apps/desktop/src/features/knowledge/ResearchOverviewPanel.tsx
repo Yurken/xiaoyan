@@ -75,8 +75,8 @@ function buildNextAction(
     return {
       title: "接上小妍留下的续接点",
       description: shortText(checkpointText),
-      label: "接着问小妍",
-      to: `/workbench/${interest.id}/xiaoyan`,
+      label: "继续对话",
+      to: `/workbench/${interest.id}/chat`,
       tone: latestCheckpoint.status === "failed" ? "rust" : "blue",
     };
   }
@@ -116,7 +116,7 @@ function buildNextAction(
       title: "沉淀第一条知识卡片",
       description: "已有论文解读，先把关键结论和证据从对话里固定下来。",
       label: "去笔记",
-      to: `/workbench/${interest.id}/notes`,
+      to: `/workbench/${interest.id}/knowledge`,
       tone: "green",
     };
   }
@@ -124,8 +124,8 @@ function buildNextAction(
   return {
     title: "继续收敛问题与证据",
     description: "论文、笔记和对话已经接起来，可以继续推进实验、写作或投稿准备。",
-    label: "问小妍",
-    to: `/workbench/${interest.id}/xiaoyan`,
+    label: "继续对话",
+    to: `/workbench/${interest.id}/chat`,
     tone: "blue",
   };
 }
@@ -291,8 +291,8 @@ export default function ResearchOverviewPanel({
         <section className="rounded-2xl p-3" style={surfaceStyle()}>
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-ink-primary">最近续接</h3>
-            <Link to={`/workbench/${interest.id}/xiaoyan`} className="text-xs font-medium text-apple-blue">
-              打开小妍
+            <Link to={`/workbench/${interest.id}/chat`} className="text-xs font-medium text-apple-blue">
+              打开对话
             </Link>
           </div>
           <div className="mt-3 grid gap-2">

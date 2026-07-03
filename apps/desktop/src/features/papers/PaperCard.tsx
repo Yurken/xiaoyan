@@ -56,7 +56,7 @@ interface PaperCardProps {
 }
 
 function statusBadge(status: string) {
-  if (status === "analyzed" || status === "reproduced") return <Badge variant="success">已解读</Badge>;
+  if (status === "analyzed" || status === "reproduced") return null;
   if (status === "failed" || status === "error") return <Badge variant="danger">失败</Badge>;
   if (status === "analyzing") return <Badge variant="info">分析中</Badge>;
   if (status === "parsing") return <Badge variant="info">解析中</Badge>;
@@ -259,20 +259,20 @@ export default function PaperCard({
           insertion === "before" ? "-top-1.5" : "-bottom-1.5",
         )} />
       )}
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1 text-sm">
+      <div className="flex min-w-0 flex-wrap items-start gap-3">
+        <div className="min-w-0 flex-1 basis-[18rem] text-sm">
           <div className="flex items-start gap-2">
             {paper.file_path ? (
               <button
                 type="button"
                 onClick={() => navigate(`/papers/${paper.id}/reader`)}
-                className="text-left font-semibold text-ink-primary transition-colors hover:text-apple-blue hover:underline"
+                className="min-w-0 text-left font-semibold text-ink-primary transition-colors hover:text-apple-blue hover:underline"
                 title="打开批注阅读（高亮 / 下划线 / 翻译）"
               >
                 {paper.title}
               </button>
             ) : (
-              <span className="font-semibold text-ink-primary">{paper.title}</span>
+              <span className="min-w-0 font-semibold text-ink-primary">{paper.title}</span>
             )}
             {statusBadge(paper.status)}
           </div>
@@ -300,35 +300,35 @@ export default function PaperCard({
         </div>
 
         {/* 右上角操作：解读 / 复现 / 笔记 / 引用 / 详情；编辑·重解析·删除见右键菜单 */}
-        <div className="flex flex-shrink-0 items-center gap-1.5">
+        <div className="ml-auto flex flex-shrink-0 items-center justify-end gap-1.5">
           <Button size="sm" onClick={() => {
             if (requiresReanalyzeConfirm(paper)) { setConfirmReanalyze((prev) => !prev); return; }
             onAnalyze(paper.id);
-          }} disabled={!canStartAnalyze(paper.status)} style={paper.status === "analyzed" || paper.status === "reproduced" ? { background: "#34C759", borderColor: "#34C759" } : undefined}>
+          }} disabled={!canStartAnalyze(paper.status)} className="h-8 whitespace-nowrap px-3" style={paper.status === "analyzed" || paper.status === "reproduced" ? { background: "#34C759", borderColor: "#34C759" } : undefined}>
             {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             {paper.status === "analyzing" ? "分析中…" : paper.status === "parsing" ? "解析中…" : paper.status === "analyzed" || paper.status === "reproduced" ? "已解读" : "小妍解读"}
           </Button>
           <button type="button" onClick={() => onReproduce(paper.id)} disabled={!canStartAnalyze(paper.status)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:opacity-40"
+            className="flex h-8 w-8 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
             style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" }}
             title="生成复现/验证指南">
             <FlaskConical className="h-4 w-4" />
           </button>
           <button type="button" onClick={() => openNoteUI()} disabled={generatingNote || (!localNote && !onGenerateNote && !onCreateNote)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:opacity-40"
+            className="flex h-8 w-8 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
             style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: localNote ? "#007AFF" : "var(--rc-text-secondary)" }}
             title={localNote ? "查看论文笔记" : "创建论文笔记"}>
             {generatingNote ? <Loader2 className="h-4 w-4 animate-spin" /> : localNote ? <BookOpen className="h-4 w-4" /> : <NotebookPen className="h-4 w-4" />}
           </button>
           <button type="button" onClick={() => setCitationOpen((prev) => !prev)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl transition-colors"
             style={{ background: "var(--rc-surface)", boxShadow: citationOpen ? "var(--rc-inset-shadow)" : "var(--rc-chip-shadow)", color: citationOpen ? "#007AFF" : "var(--rc-text-secondary)" }}
             title="引用">
             <Quote className="h-4 w-4" />
           </button>
           {(paper.analysis || paper.reproduction_guide || ["parsed","failed","error"].includes(paper.status)) && (
             <button type="button" onClick={() => detailPaperId === paper.id ? onCloseDetail() : onOpenDetail(paper.id)}
-              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-xl transition-colors"
               style={{ background: "var(--rc-surface)", boxShadow: detailPaperId === paper.id ? "var(--rc-inset-shadow)" : "var(--rc-chip-shadow)", color: detailPaperId === paper.id ? "#007AFF" : "var(--rc-text-secondary)" }}
               title={detailPaperId === paper.id ? "关闭详情" : "查看详情"}>
               <Eye className="h-4 w-4" />

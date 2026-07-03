@@ -77,7 +77,7 @@ function GraphOverviewControls({
 }) {
   return (
     <div
-      className="flex min-h-[84px] items-end gap-2 rounded-[22px] border px-3 py-3 md:col-span-2 xl:col-span-1"
+      className="flex min-h-[84px] min-w-0 items-end gap-2 rounded-[22px] border px-3 py-3"
       style={{
         borderColor: "var(--rc-card-inset-outline)",
         background: "var(--rc-card-inset-bg)",
@@ -114,6 +114,7 @@ function GraphOverviewStrip({
   activeInterestId,
   disabled,
   interestOptions,
+  hideFocusControls,
   loading,
   metrics,
   onChangeInterest,
@@ -122,6 +123,7 @@ function GraphOverviewStrip({
   activeInterestId: string | null;
   disabled: boolean;
   interestOptions: Array<{ value: string; label: string }>;
+  hideFocusControls?: boolean;
   loading: boolean;
   metrics: Array<MetricTileProps>;
   onChangeInterest: (value: string | null) => void;
@@ -137,19 +139,21 @@ function GraphOverviewStrip({
       }}
     >
       <div
-        className="grid gap-2 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(280px,1.15fr)]"
+        className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2"
       >
         {metrics.map((item) => (
           <MetricTile key={item.label} {...item} />
         ))}
-        <GraphOverviewControls
-          activeInterestId={activeInterestId}
-          disabled={disabled}
-          interestOptions={interestOptions}
-          loading={loading}
-          onChangeInterest={onChangeInterest}
-          onRefresh={onRefresh}
-        />
+        {!hideFocusControls ? (
+          <GraphOverviewControls
+            activeInterestId={activeInterestId}
+            disabled={disabled}
+            interestOptions={interestOptions}
+            loading={loading}
+            onChangeInterest={onChangeInterest}
+            onRefresh={onRefresh}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -157,8 +161,10 @@ function GraphOverviewStrip({
 
 export default function KnowledgeGraphWorkspace({
   controller,
+  hideFocusControls = false,
 }: {
   controller: KnowledgeGraphWorkspaceController;
+  hideFocusControls?: boolean;
 }) {
   const {
     snapshot,
@@ -257,7 +263,7 @@ export default function KnowledgeGraphWorkspace({
   }
 
   return (
-    <div className="mt-5 space-y-6">
+    <div className="mt-5 min-w-0 space-y-6 overflow-hidden">
       {error ? (
         <div
           className="flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm"
@@ -271,6 +277,7 @@ export default function KnowledgeGraphWorkspace({
       <GraphOverviewStrip
         activeInterestId={activeInterestId}
         disabled={loading || busy}
+        hideFocusControls={hideFocusControls}
         interestOptions={interestOptions}
         loading={loading}
         metrics={metrics}
@@ -278,8 +285,8 @@ export default function KnowledgeGraphWorkspace({
         onRefresh={() => void refresh()}
       />
 
-      <div className="grid gap-5 xl:grid-cols-[1.5fr,0.85fr]">
-        <Card padding="md">
+      <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(0,1.5fr),minmax(320px,0.85fr)]">
+        <Card padding="md" className="min-w-0">
           <CardHeader>
             <CardTitle>关系总览</CardTitle>
             <IconButton

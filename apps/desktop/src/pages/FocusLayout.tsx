@@ -6,12 +6,10 @@ import FocusSettingsWrapper from "../features/focus/FocusSettingsWrapper";
 import { type LegacyFreeTab } from "../features/focus/shared";
 import Planner from "./Planner";
 import NoteReader from "./NoteReader";
-import Writing from "./Writing";
-import Experiment from "./Experiment";
-import Submission from "./Submission";
+import PaperReader from "./PaperReader";
 
 function FocusLegacyRouteRedirect({ tab }: { tab: LegacyFreeTab }) {
-  const normalized = tab === "copilot" ? "xiaoyan" : tab;
+  const normalized = tab === "copilot" || tab === "xiaoyan" ? "chat" : tab;
   return <Navigate to={`/workbench/free/${normalized}`} replace />;
 }
 
@@ -26,13 +24,15 @@ export default function FocusApp() {
           <Route path="/planner" element={<Planner />} />
           <Route path="/survey" element={<FocusLegacyRouteRedirect tab="survey" />} />
           <Route path="/papers" element={<FocusLegacyRouteRedirect tab="papers" />} />
-          <Route path="/writing" element={<Writing />} />
+          <Route path="/papers/:id/reader" element={<PaperReader />} />
+          <Route path="/writing" element={<FocusLegacyRouteRedirect tab="writing" />} />
           <Route path="/knowledge" element={<FocusLegacyRouteRedirect tab="knowledge" />} />
+          <Route path="/chat" element={<FocusLegacyRouteRedirect tab="chat" />} />
           <Route path="/xiaoyan" element={<FocusLegacyRouteRedirect tab="xiaoyan" />} />
           <Route path="/copilot" element={<FocusLegacyRouteRedirect tab="copilot" />} />
           <Route path="/tools" element={<FocusLegacyRouteRedirect tab="tools" />} />
-          <Route path="/experiment" element={<Experiment />} />
-          <Route path="/submission" element={<Submission />} />
+          <Route path="/experiment" element={<FocusLegacyRouteRedirect tab="experiment" />} />
+          <Route path="/submission" element={<FocusLegacyRouteRedirect tab="submission" />} />
           <Route path="/notes/:id" element={<NoteReader />} />
           <Route path="/settings" element={<FocusSettingsWrapper />} />
           <Route path="*" element={<Navigate to="/" replace />} />

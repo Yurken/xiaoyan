@@ -145,7 +145,7 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
         stageTone = "green";
         summary = "这个主题已经有论文和知识沉淀，可以开始围绕问题继续追问。";
         nextStep = "带着现有材料继续和小妍讨论下一步。";
-        action = { label: "问小妍", to: "/xiaoyan" };
+        action = { label: "开始对话", to: "/chat" };
       } else if (interest.status === "planned") {
         stage = "持续推进";
         stageTone = "blue";
@@ -160,7 +160,7 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
           stage = checkpointSummary.hasOpenQuestions ? "问题待确认" : "接续追问";
           stageTone = checkpointSummary.hasFailed ? "rust" : checkpointSummary.hasOpenQuestions ? "amber" : "blue";
           summary = checkpointSummary.summary || summary;
-          action = { label: "接着问", to: "/xiaoyan" };
+          action = { label: "继续对话", to: "/chat" };
         }
       }
 
@@ -312,7 +312,7 @@ function buildHandoffs(source: WorkbenchOverviewSource): WorkbenchHandoffItem[] 
       title: latestSession.title || "继续刚才那次对话",
       description: `${formatDateTime(latestSession.updated_at || latestSession.created_at)} 有过更新，适合直接接着追问。`,
       tone: "amber",
-      action: { label: "打开小妍", to: "/xiaoyan" },
+      action: { label: "打开对话", to: "/chat" },
     });
   }
 
@@ -488,7 +488,7 @@ export function buildWorkbenchOverviewModel(source: WorkbenchOverviewSource): Wo
         ? "小妍先把值得继续的主题、刚交回来的结果和容易拖慢进展的事项整理到一起，让你回到首页就知道下一步。"
         : "从研究问题、关键词和目标开始，小妍会先帮你搭起路线，再把论文、知识和对话逐步接回来。",
     primaryAction,
-    secondaryAction: { label: "打开小妍", to: "/xiaoyan" },
+    secondaryAction: { label: "打开对话", to: "/chat" },
     metrics: [
       {
         label: "在研主题",

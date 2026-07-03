@@ -46,14 +46,14 @@ describe("Home 页面", () => {
     renderWithRouter(<Home />);
     expect(screen.getByText("还没有工作台概览")).toBeInTheDocument();
     expect(screen.getByText("打开规划")).toBeInTheDocument();
-    expect(screen.getByText("问问小妍")).toBeInTheDocument();
+    expect(screen.getByText("开始对话")).toBeInTheDocument();
   });
 
   it("空状态应有正确的导航链接", () => {
     mockUseWorkbenchOverview.mockReturnValue({ model: null, loading: false, error: null });
     renderWithRouter(<Home />);
     expect(screen.getByText("打开规划").closest("a")).toHaveAttribute("href", "/planner");
-    expect(screen.getByText("问问小妍").closest("a")).toHaveAttribute("href", "/xiaoyan");
+    expect(screen.getByText("开始对话").closest("a")).toHaveAttribute("href", "/chat");
   });
 
   it("有数据应显示工作台概览", () => {

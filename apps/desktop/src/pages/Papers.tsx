@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { ChevronDown, FileDown, GitMerge, Upload } from "lucide-react";
+import { ChevronDown, FileDown, GitMerge, Search, Upload } from "lucide-react";
 import { safeOnDragDrop } from "../lib/tauriEvent";
 import { Button, CapsuleTabs, Select } from "@research-copilot/ui";
 import { useClickOutside } from "../hooks/useClickOutside";
@@ -181,7 +181,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               </p>
             </div>
           )}
-          <div className={clsx("w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap", view === "papers" ? "flex" : "hidden")}>
+          <div className={clsx("min-w-0 w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end", view === "papers" ? "flex" : "hidden")}>
             <div ref={recognizeRef} className="relative flex-shrink-0">
               <button type="button" onClick={() => setRecognizeOpen((v) => !v)} data-open={recognizeOpen}
                 className="rc-dropdown-trigger flex items-center gap-1.5 rounded-2xl px-3 py-2 transition-all duration-150"
@@ -227,14 +227,31 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           </div>
         </div>
 
-        <CapsuleTabs
-          value={view}
-          onChange={(v) => setView(v as "papers" | "corpus")}
-          options={[
-            { value: "papers", label: "论文库" },
-            { value: "corpus", label: "语料库" },
-          ]}
-        />
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <CapsuleTabs
+            value={view}
+            onChange={(v) => setView(v as "papers" | "corpus")}
+            options={[
+              { value: "papers", label: "论文库" },
+              { value: "corpus", label: "语料库" },
+            ]}
+          />
+          {view === "papers" ? (
+            <div
+              className="relative w-full overflow-hidden rounded-[24px] sm:max-w-[320px] lg:ml-auto"
+              style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
+            >
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
+              <input
+                type="text"
+                value={papers.keywordFilter}
+                onChange={(event) => papers.setKeywordFilter(event.target.value)}
+                placeholder="请输入关键词或标签搜索论文"
+                className="h-11 w-full border-none bg-transparent pl-11 pr-4 text-sm text-ink-primary outline-none placeholder:text-ink-tertiary/75"
+              />
+            </div>
+          ) : null}
+        </div>
 
         {view === "corpus" ? (
           <CorpusPanel />
@@ -252,8 +269,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           ungroupedPapers={papers.ungroupedPapers}
           detailPaperId={detailPaperId}
           taskProgressByPaperId={taskProgressByPaperId}
-          keywordFilters={papers.keywordFilters}
-          titleFilters={papers.titleFilters}
           getSortKey={papers.getSortKey}
           onAnalyze={handleAnalyze}
           onReproduce={papers.handleReproduce}
@@ -268,8 +283,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           onOpenDetail={openPaperDetail}
           onCloseDetail={closePaperDetail}
           onSortKeyChange={papers.setSortKey}
-          onKeywordFilterChange={papers.setKeywordFilter}
-          onTitleFilterChange={papers.setTitleFilter}
           onMovePaper={(paperId, interestId) =>
             void papers.handleUpdatePaper(paperId, { research_interest_id: interestId || undefined })
           }

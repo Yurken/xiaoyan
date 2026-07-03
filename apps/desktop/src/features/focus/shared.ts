@@ -4,6 +4,7 @@ import {
   Library,
   MessageSquare,
   Microscope,
+  PenLine,
   Send,
   Sparkles,
   Wrench,
@@ -13,19 +14,21 @@ import type { InterestTab } from "../knowledge/ResearchWorkbench";
 export type FreeTab =
   | "survey"
   | "papers"
+  | "writing"
   | "knowledge"
-  | "xiaoyan"
+  | "chat"
   | "tools"
   | "experiment"
   | "submission";
 
-export type LegacyFreeTab = FreeTab | "copilot";
+export type LegacyFreeTab = FreeTab | "copilot" | "xiaoyan";
 
 export const FREE_TABS: Array<{ key: FreeTab; label: string; icon: typeof Sparkles }> = [
   { key: "survey", label: "综述", icon: BookOpen },
   { key: "papers", label: "论文", icon: FileText },
+  { key: "writing", label: "写作", icon: PenLine },
   { key: "knowledge", label: "知识", icon: Library },
-  { key: "xiaoyan", label: "小妍", icon: MessageSquare },
+  { key: "chat", label: "对话", icon: MessageSquare },
   { key: "experiment", label: "实验", icon: Microscope },
   { key: "submission", label: "投稿", icon: Send },
   { key: "tools", label: "工具", icon: Wrench },
@@ -39,7 +42,7 @@ export function isFreeTab(value?: string): value is FreeTab {
 }
 
 export function normalizeFreeTab(value?: string): FreeTab {
-  if (value === "copilot") return "xiaoyan";
+  if (value === "copilot" || value === "xiaoyan") return "chat";
   return isFreeTab(value) ? value : "survey";
 }
 
@@ -50,8 +53,9 @@ export const BASE_INTEREST_TABS: Array<{
 }> = [
   { key: "overview", label: "总览", icon: Microscope },
   { key: "papers", label: "论文", icon: FileText },
-  { key: "xiaoyan", label: "小妍", icon: MessageSquare },
-  { key: "notes", label: "笔记", icon: Library },
+  { key: "writing", label: "写作", icon: PenLine },
+  { key: "chat", label: "对话", icon: MessageSquare },
+  { key: "knowledge", label: "知识", icon: Library },
   { key: "experiment", label: "实验", icon: Microscope },
   { key: "submission", label: "投稿", icon: Send },
   { key: "tools", label: "工具", icon: Wrench },
@@ -67,7 +71,10 @@ export const INTEREST_TAB_KEYS: readonly InterestTab[] = [
   "overview",
   "planner",
   "papers",
+  "writing",
+  "chat",
   "xiaoyan",
+  "knowledge",
   "notes",
   "tools",
   "experiment",
@@ -84,6 +91,8 @@ export function normalizeInterestTab(
   value: string | undefined,
   planned: boolean,
 ): InterestTab {
+  if (value === "notes") return "knowledge";
+  if (value === "xiaoyan" || value === "copilot") return "chat";
   if (isInterestTab(value) && (value !== "planner" || planned)) {
     return value;
   }

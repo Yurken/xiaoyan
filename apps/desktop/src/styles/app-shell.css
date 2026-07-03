@@ -226,8 +226,11 @@
 
   .rc-app-page {
     height: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     overflow-y: auto;
-    padding: calc(var(--rc-page-top-gap) - 2px) var(--rc-page-inline-gap) var(--rc-page-bottom-gap);
+    overflow-x: hidden;
+    padding: calc(var(--rc-page-top-gap, 16px) - 2px) var(--rc-page-inline-gap, 24px) var(--rc-page-bottom-gap, 24px);
   }
 
   @media (max-width: 1279px) {

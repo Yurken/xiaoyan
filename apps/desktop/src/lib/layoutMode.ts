@@ -8,16 +8,18 @@ const FREE_WORKBENCH_LANDSCAPE_PATHS: Record<string, string> = {
   survey: "/survey",
   papers: "/papers",
   knowledge: "/knowledge",
-  xiaoyan: "/xiaoyan",
-  copilot: "/xiaoyan",
+  chat: "/chat",
+  xiaoyan: "/chat",
+  copilot: "/chat",
   tools: "/tools",
 };
 
 const INTEREST_WORKBENCH_LANDSCAPE_PATHS: Record<string, string> = {
   planner: "/planner",
   papers: "/papers",
-  xiaoyan: "/xiaoyan",
-  copilot: "/xiaoyan",
+  chat: "/chat",
+  xiaoyan: "/chat",
+  copilot: "/chat",
   notes: "/knowledge",
   knowledge: "/knowledge",
   tools: "/tools",

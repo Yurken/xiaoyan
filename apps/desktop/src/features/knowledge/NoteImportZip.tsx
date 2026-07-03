@@ -81,6 +81,7 @@ export default function NoteImportZip({
       <Button
         size="sm"
         variant="secondary"
+        className="whitespace-nowrap"
         onClick={() => {
           reset();
           setOpen(true);

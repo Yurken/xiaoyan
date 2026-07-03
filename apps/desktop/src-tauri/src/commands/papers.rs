@@ -32,6 +32,26 @@ fn has_meaningful_text(value: Option<&str>) -> bool {
     value.is_some_and(|text| !text.trim().is_empty())
 }
 
+fn generated_paper_note_title(paper_title: &str, llm_title: Option<&str>) -> String {
+    let clean_paper_title = paper_title.trim();
+    if !clean_paper_title.is_empty() {
+        return clean_paper_title.to_string();
+    }
+
+    llm_title
+        .map(str::trim)
+        .filter(|title| !title.is_empty())
+        .map(|title| {
+            title
+                .trim_start_matches("论文笔记：")
+                .trim_start_matches("论文笔记:")
+                .trim()
+                .to_string()
+        })
+        .filter(|title| !title.is_empty())
+        .unwrap_or_else(|| "未命名论文".to_string())
+}
+
 fn canonical_pdf_file(path: PathBuf) -> Result<PathBuf, String> {
     let canonical = path
         .canonicalize()
@@ -2137,11 +2157,7 @@ pub async fn papers_generate_note(
     log_llm_response("paper-note", &id, "generate", &response);
 
     let value = parse_llm_json_value(&response).map_err(|e| format!("解析笔记结果失败：{}", e))?;
-    let note_title = value["title"]
-        .as_str()
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| format!("论文笔记：{}", title));
+    let note_title = generated_paper_note_title(&title, value["title"].as_str());
     let note_content = value["content"].as_str().unwrap_or("").to_string();
     if note_content.trim().is_empty() {
         return Err("小妍未能生成有效笔记内容，请检查模型配置或稍后重试。".to_string());

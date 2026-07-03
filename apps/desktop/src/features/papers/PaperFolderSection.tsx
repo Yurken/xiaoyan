@@ -18,13 +18,6 @@ export type PaperGroup = { key: string; title: string; subtitle: string; papers:
 const SORT_KEYS: PaperSortKey[] = ["created_at", "title", "importance", "manual"];
 const SORT_LABELS: Record<PaperSortKey, string> = { created_at: "导入时间", title: "名称", importance: "重要性", manual: "自定义" };
 
-const inputStyle = (active: boolean) => ({
-  background: active ? "rgba(0,122,255,0.1)" : "var(--rc-surface)",
-  color: active ? "#007AFF" : "#8E8E93",
-  fontWeight: active ? 600 : 400,
-  boxShadow: active ? "inset 1px 1px 2px rgba(0,122,255,0.15)" : "var(--rc-chip-shadow)",
-});
-
 /** 递归文件夹节点渲染所需的共享上下文，自顶层一次构建后逐层透传。 */
 export interface PaperFolderContext {
   groupMap: Map<string, PaperGroup>;
@@ -40,11 +33,7 @@ export interface PaperFolderContext {
   savingEdit: boolean;
   taskProgressByPaperId: Record<string, PaperTaskProgress>;
   getSortKey: (groupId: string) => PaperSortKey;
-  keywordFilters: Record<string, string>;
-  titleFilters: Record<string, string>;
   onSortKeyChange: (groupId: string, key: PaperSortKey) => void;
-  onKeywordFilterChange: (groupId: string, kw: string) => void;
-  onTitleFilterChange: (groupId: string, q: string) => void;
   onAnalyze: (id: string) => void;
   onReproduce: (id: string) => void;
   onReparse: (id: string) => void;
@@ -59,27 +48,17 @@ export interface PaperFolderContext {
   onMoveFolder: (id: string, parentId: string | null) => Promise<unknown>;
 }
 
-/** 文件夹/未归档区通用的搜索 + 标签过滤 + 排序控件。 */
+/** 文件夹/未归档区通用的排序控件。 */
 export function PaperGroupControls({
-  groupKey, sortKey, keyword, titleQuery,
-  onSortKeyChange, onKeywordFilterChange, onTitleFilterChange,
+  groupKey, sortKey,
+  onSortKeyChange,
 }: {
   groupKey: string;
   sortKey: PaperSortKey;
-  keyword: string;
-  titleQuery: string;
   onSortKeyChange: (groupId: string, key: PaperSortKey) => void;
-  onKeywordFilterChange: (groupId: string, kw: string) => void;
-  onTitleFilterChange: (groupId: string, q: string) => void;
 }) {
   return (
     <div className="flex items-center gap-2">
-      <input type="text" value={titleQuery} placeholder="搜索标题" onClick={(e) => e.stopPropagation()}
-        onChange={(e) => { e.stopPropagation(); onTitleFilterChange(groupKey, e.target.value); }}
-        className="rounded-lg px-2 py-0.5 text-[10px] outline-none border-none w-20" style={inputStyle(!!titleQuery)} />
-      <input type="text" value={keyword} placeholder="标签过滤" onClick={(e) => e.stopPropagation()}
-        onChange={(e) => { e.stopPropagation(); onKeywordFilterChange(groupKey, e.target.value); }}
-        className="rounded-lg px-2 py-0.5 text-[10px] outline-none border-none w-20" style={inputStyle(!!keyword)} />
       <div className="flex items-center gap-1">
         {SORT_KEYS.map((key) => {
           const active = sortKey === key;
@@ -171,11 +150,7 @@ export default function PaperFolderSection({ node, ctx }: { node: InterestTreeNo
               <PaperGroupControls
                 groupKey={groupKey}
                 sortKey={ctx.getSortKey(groupKey)}
-                keyword={ctx.keywordFilters[groupKey] ?? ""}
-                titleQuery={ctx.titleFilters[groupKey] ?? ""}
                 onSortKeyChange={ctx.onSortKeyChange}
-                onKeywordFilterChange={ctx.onKeywordFilterChange}
-                onTitleFilterChange={ctx.onTitleFilterChange}
               />
               <NewFolderButton label="子文件夹" onCreate={(name) => ctx.onCreateFolder(name, groupKey)} />
               <button type="button" onClick={(e) => { e.stopPropagation(); setMovingOpen((v) => !v); }}

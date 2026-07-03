@@ -28,8 +28,6 @@ interface PapersListPanelProps {
   ungroupedPapers: Paper[];
   detailPaperId: string | null;
   taskProgressByPaperId: Record<string, PaperTaskProgress>;
-  keywordFilters: Record<string, string>;
-  titleFilters: Record<string, string>;
   getSortKey: (groupId: string) => PaperSortKey;
   onAnalyze: (id: string) => void;
   onReproduce: (id: string) => void;
@@ -44,8 +42,6 @@ interface PapersListPanelProps {
   onGenerateNote?: (paper: Paper) => Promise<KnowledgeNote>;
   onCreateNote?: (paper: Paper, draft: NoteDraft) => Promise<KnowledgeNote>;
   onSortKeyChange: (groupId: string, key: PaperSortKey) => void;
-  onKeywordFilterChange: (groupId: string, kw: string) => void;
-  onTitleFilterChange: (groupId: string, q: string) => void;
   onMovePaper?: (paperId: string, interestId: string | null) => void;
   onReorderPaper?: (groupId: string, orderedIds: string[]) => void;
   onCreateFolder: (name: string, parentId?: string | null) => Promise<unknown>;
@@ -56,9 +52,9 @@ export function PapersListPanel(props: PapersListPanelProps) {
   const {
     papers, interests, interestMap, paperNotesMap, loading, loadError, deletingPaperId, deletingGroupId, savingEdit,
     folderForest, paperGroups, ungroupedPapers, detailPaperId, taskProgressByPaperId,
-    keywordFilters, titleFilters, getSortKey,
+    getSortKey,
     onAnalyze, onReproduce, onReparse, onUpdatePaper, onDeletePaper, onDeleteInterestGroup,
-    onOpenDetail, onCloseDetail, onGenerateNote, onCreateNote, onSortKeyChange, onKeywordFilterChange, onTitleFilterChange,
+    onOpenDetail, onCloseDetail, onGenerateNote, onCreateNote, onSortKeyChange,
     onMovePaper, onReorderPaper, onCreateFolder, onMoveFolder,
   } = props;
 
@@ -81,8 +77,8 @@ export function PapersListPanel(props: PapersListPanelProps) {
     groupMap, interests, interestMap, paperNotesMap, folderOptions, dnd,
     canDragPaper: Boolean(onMovePaper || onReorderPaper),
     detailPaperId, deletingPaperId, deletingGroupId, savingEdit, taskProgressByPaperId,
-    getSortKey, keywordFilters, titleFilters,
-    onSortKeyChange, onKeywordFilterChange, onTitleFilterChange,
+    getSortKey,
+    onSortKeyChange,
     onAnalyze, onReproduce, onReparse, onUpdatePaper, onDeletePaper,
     onOpenDetail, onCloseDetail, onGenerateNote, onCreateNote, onDeleteInterestGroup, onCreateFolder, onMoveFolder,
   };
@@ -150,11 +146,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
             <PaperGroupControls
               groupKey="ungrouped"
               sortKey={getSortKey("ungrouped")}
-              keyword={keywordFilters["ungrouped"] ?? ""}
-              titleQuery={titleFilters["ungrouped"] ?? ""}
               onSortKeyChange={onSortKeyChange}
-              onKeywordFilterChange={onKeywordFilterChange}
-              onTitleFilterChange={onTitleFilterChange}
             />
           </div>
           {ungroupedPapers.map((p) => <CtxPaperCard key={p.id} ctx={ctx} paper={p} groupKey="ungrouped" />)}

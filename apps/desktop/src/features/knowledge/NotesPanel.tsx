@@ -4,11 +4,10 @@ import { AlertCircle, CheckSquare, Download, Globe, LayoutGrid, List, Loader2, P
 import { Badge, Button, CapsuleTabs, Card, ConfirmDialog, Input } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
+import { usePersistentStringState } from "../../hooks/usePersistentStringState";
 import { useKnowledgeNotesWorkspace } from "./useKnowledgeNotesWorkspace";
 import { useNotesExport } from "./useNotesExport";
-import { interestFolderName } from "../../lib/interestUtils";
 import NoteCard from "./NoteCard";
-import NoteListItem from "./NoteListItem";
 import WebClipDialog from "./WebClipDialog";
 import NoteImportZip from "./NoteImportZip";
 import { sourceLabel } from "./notesShared";
@@ -57,7 +56,11 @@ export default function NotesPanel({
   const [showWebClip, setShowWebClip] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [selectionMode, setSelectionMode] = useState(false);
-  const [viewMode, setViewMode] = useState<"card" | "list">("card");
+  const [viewMode, setViewMode] = usePersistentStringState<"card" | "list">(
+    "rc:knowledge:notes-view-mode",
+    "card",
+    ["card", "list"],
+  );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { exporting, exportError, clearExportError, exportMarkdown } = useNotesExport();
 
@@ -148,24 +151,6 @@ export default function NotesPanel({
       key={note.id}
       note={note}
       linkedClaimCount={linkedNoteClaimCounts?.[note.id] ?? 0}
-      interestName={note.research_interest_id && interestMap[note.research_interest_id]
-        ? interestFolderName(interestMap[note.research_interest_id])
-        : undefined}
-      onDelete={setPendingDeleteNote}
-      selectionMode={selectionMode}
-      selected={selectedIds.has(note.id)}
-      onToggleSelect={toggleSelect}
-    />
-  );
-
-  const renderNoteListItem = (note: KnowledgeNote) => (
-    <NoteListItem
-      key={note.id}
-      note={note}
-      linkedClaimCount={linkedNoteClaimCounts?.[note.id] ?? 0}
-      interestName={note.research_interest_id && interestMap[note.research_interest_id]
-        ? interestFolderName(interestMap[note.research_interest_id])
-        : undefined}
       onDelete={setPendingDeleteNote}
       selectionMode={selectionMode}
       selected={selectedIds.has(note.id)}
@@ -175,17 +160,17 @@ export default function NotesPanel({
 
   const renderNotes = (notes: KnowledgeNote[]) =>
     viewMode === "list" ? (
-      <div className="space-y-2">{notes.map(renderNoteListItem)}</div>
+      <div className="grid gap-3">{notes.map(renderNoteCard)}</div>
     ) : (
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{notes.map(renderNoteCard)}</div>
     );
 
   return (
     <>
-    <div className="space-y-4">
-      <Card padding="sm" className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+    <div className="min-w-0 space-y-4">
+      <Card padding="sm" className="min-w-0 space-y-4 overflow-hidden">
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-ink-primary">知识卡片库</p>
             <p className="mt-1 text-xs leading-5 text-ink-tertiary">
               支持语义搜索、标签归档，并可把笔记关联到具体研究主题。
@@ -199,8 +184,8 @@ export default function NotesPanel({
               ) : null}
             </div>
           </div>
-          <div className="flex w-full flex-col gap-2 lg:w-auto lg:max-w-[680px] lg:flex-row">
-            <div className="relative min-w-[220px] flex-1">
+          <div className="flex w-full min-w-0 flex-col gap-2 2xl:flex-row 2xl:items-center">
+            <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
               <Input
                 value={search}
@@ -218,17 +203,19 @@ export default function NotesPanel({
               {viewMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
             </button>
             {selectionMode ? (
-              <Button size="sm" variant="secondary" onClick={exitSelection}>
-                <X className="h-4 w-4" />
-                退出选择
-              </Button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={exitSelection}>
+                  <X className="h-4 w-4" />
+                  退出选择
+                </Button>
+              </div>
             ) : (
-              <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
-                <Button size="sm" variant="secondary" onClick={enterSelection} disabled={scopedNotes.length === 0}>
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={enterSelection} disabled={scopedNotes.length === 0}>
                   <CheckSquare className="h-4 w-4" />
                   选择
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => {
+                <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={() => {
                   clearError();
                   setShowWebClip(true);
                 }}>
@@ -240,7 +227,7 @@ export default function NotesPanel({
                   researchInterestId={researchInterestId}
                   onImport={importZip}
                 />
-                <Button size="sm" onClick={() => {
+                <Button size="sm" className="whitespace-nowrap" onClick={() => {
                   clearError();
                   navigate("/notes/new", { state: { researchInterestId } });
                 }}>

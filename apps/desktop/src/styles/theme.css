@@ -1330,6 +1330,28 @@ html[data-style="liquid-glass"][data-theme="light"] {
       all 0.15s ease;
   }
 
+  .rc-focus-tabbar {
+    scrollbar-width: none;
+  }
+
+  .rc-focus-tabbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rc-focus-workbench {
+    --rc-page-inline-gap: clamp(12px, 2.2vw, 20px);
+    --rc-page-top-gap: 14px;
+    --rc-page-bottom-gap: 18px;
+  }
+
+  .rc-focus-workbench .rc-app-page {
+    background: var(--rc-surface);
+  }
+
+  .rc-focus-workbench .rc-knowledge-focus-page {
+    padding-bottom: max(var(--rc-page-bottom-gap, 18px), 9rem);
+  }
+
   .rc-focus-tab--active {
     color: #ffffff;
     background: var(--rc-button-primary-bg);

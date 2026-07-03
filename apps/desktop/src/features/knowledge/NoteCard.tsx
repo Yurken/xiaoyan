@@ -13,7 +13,6 @@ import { sourceLabel, stripMarkdown } from "./notesShared";
 export default function NoteCard({
   note,
   linkedClaimCount = 0,
-  interestName,
   onDelete,
   selectionMode = false,
   selected = false,
@@ -21,7 +20,6 @@ export default function NoteCard({
 }: {
   note: KnowledgeNote;
   linkedClaimCount?: number;
-  interestName?: string;
   onDelete: (note: KnowledgeNote) => void;
   selectionMode?: boolean;
   selected?: boolean;
@@ -57,9 +55,6 @@ export default function NoteCard({
           <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
           {linkedClaimCount > 0 ? <Badge variant="info">图谱 {linkedClaimCount}</Badge> : null}
         </div>
-        {interestName && (
-          <p className="mt-1.5 text-[11px] text-apple-blue">{interestName}</p>
-        )}
       </div>
 
       <button

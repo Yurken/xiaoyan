@@ -141,7 +141,7 @@ describe("App 路由与导航", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("首页")).toHaveAttribute("href", "/");
       expect(screen.getByLabelText("规划")).toHaveAttribute("href", "/planner");
-      expect(screen.getByLabelText("对话")).toHaveAttribute("href", "/xiaoyan");
+      expect(screen.getByLabelText("对话")).toHaveAttribute("href", "/chat");
       expect(screen.getByLabelText("综述")).toHaveAttribute("href", "/survey");
       expect(screen.getByLabelText("论文")).toHaveAttribute("href", "/papers");
       expect(screen.getByLabelText("写作")).toHaveAttribute("href", "/writing");

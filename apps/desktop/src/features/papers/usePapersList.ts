@@ -23,8 +23,7 @@ export function usePapersList() {
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const [paperNotes, setPaperNotes] = useState<KnowledgeNote[]>([]);
   const [sortKeys, setSortKeys] = usePersistentState<Record<string, SortKey>>("rc:papers:sort-keys", {});
-  const [keywordFilters, setKeywordFilters] = usePersistentState<Record<string, string>>("rc:papers:keyword-filters", {});
-  const [titleFilters, setTitleFilters] = usePersistentState<Record<string, string>>("rc:papers:title-filters", {});
+  const [keywordFilter, setKeywordFilter] = usePersistentState<string>("rc:papers:keyword-filter", "");
 
   useEffect(() => {
     let cancelled = false;
@@ -291,9 +290,6 @@ export function usePapersList() {
   const getSortKey = useCallback((groupId: string): SortKey => sortKeys[groupId] || "created_at", [sortKeys]);
   const setSortKey = (groupId: string, key: SortKey) => setSortKeys((prev) => ({ ...prev, [groupId]: key }));
 
-  const setKeywordFilter = (groupId: string, kw: string) => setKeywordFilters((prev) => ({ ...prev, [groupId]: kw }));
-  const setTitleFilter = (groupId: string, q: string) => setTitleFilters((prev) => ({ ...prev, [groupId]: q }));
-
   // 文件夹内拖拽排序：orderedIds 为该文件夹论文的目标顺序。
   // 切换该分组为「自定义」排序，乐观更新本地 sort_order，再持久化到后端（随同步分发）。
   const handleReorderPaper = async (groupId: string, orderedIds: string[]) => {
@@ -324,37 +320,43 @@ export function usePapersList() {
     return map;
   }, [paperNotes]);
   const folderForest = useMemo(() => buildInterestForest(interests), [interests]);
+  const normalizedKeywordFilter = keywordFilter.trim().toLowerCase();
 
   const paperGroups = useMemo(() => {
     return interests.map((interest) => {
       const groupPapers = papers.filter((p) => p.research_interest_id === interest.id);
-      const activeKw = keywordFilters[interest.id]?.toLowerCase();
-      const activeTf = titleFilters[interest.id]?.toLowerCase();
-      let filtered = activeKw ? groupPapers.filter((p) => p.tags?.some((tag) => tag.toLowerCase().includes(activeKw))) : groupPapers;
-      if (activeTf) filtered = filtered.filter((p) => p.title.toLowerCase().includes(activeTf));
+      const filtered = normalizedKeywordFilter
+        ? groupPapers.filter((p) => {
+            const inTitle = p.title.toLowerCase().includes(normalizedKeywordFilter);
+            const inTags = p.tags?.some((tag) => tag.toLowerCase().includes(normalizedKeywordFilter)) ?? false;
+            return inTitle || inTags;
+          })
+        : groupPapers;
       return { key: interest.id, title: interest.folder_name?.trim() || interest.topic, subtitle: interest.topic, papers: sortPapers(filtered, getSortKey(interest.id)) };
     });
-  }, [interests, papers, keywordFilters, titleFilters, getSortKey, sortPapers]);
+  }, [getSortKey, interests, normalizedKeywordFilter, papers, sortPapers]);
 
   const ungroupedPapers = useMemo(() => {
     const base = papers.filter((p) => {
       if (!p.research_interest_id) return true;
       return !(p.research_interest_id in interestMap);
     });
-    const activeKw = keywordFilters["ungrouped"]?.toLowerCase();
-    const activeTf = titleFilters["ungrouped"]?.toLowerCase();
-    let filtered = activeKw ? base.filter((p) => p.tags?.some((tag) => tag.toLowerCase().includes(activeKw))) : base;
-    if (activeTf) filtered = filtered.filter((p) => p.title.toLowerCase().includes(activeTf));
+    const filtered = normalizedKeywordFilter
+      ? base.filter((p) => {
+          const inTitle = p.title.toLowerCase().includes(normalizedKeywordFilter);
+          const inTags = p.tags?.some((tag) => tag.toLowerCase().includes(normalizedKeywordFilter)) ?? false;
+          return inTitle || inTags;
+        })
+      : base;
     return sortPapers(filtered, getSortKey("ungrouped"));
-  }, [papers, interestMap, keywordFilters, titleFilters, getSortKey, sortPapers]);
+  }, [getSortKey, interestMap, normalizedKeywordFilter, papers, sortPapers]);
 
   return {
     papers, setPapers, interests, loading, uploading, batchProgress,
     loadError, setLoadError, deletingPaperId, savingEdit,
     selectedInterestId, setSelectedInterestId, deletingGroupId,
     sortKeys, getSortKey, setSortKey,
-    keywordFilters, setKeywordFilter,
-    titleFilters, setTitleFilter,
+    keywordFilter, setKeywordFilter,
     paperGroups, ungroupedPapers, folderForest, interestMap, paperNotesMap,
     handleUpload, importPaths, handleAnalyze, handleReproduce, handleReparse,
     handleUpdatePaper, handleDeletePaper, handleMergePapers, handleDeleteInterestGroup, handleReorderPaper,
