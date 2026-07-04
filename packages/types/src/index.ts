@@ -721,6 +721,13 @@ export interface GithubProjectSearchResponse {
   repos: GithubRepo[];
 }
 
+export interface GithubProjectSearchHistoryEntry {
+  id: string;
+  query: string;
+  result_json: string;
+  created_at: string;
+}
+
 export interface SettingsHistoryEntry {
   id: string;
   name: string;

@@ -1,6 +1,6 @@
-import { AlertCircle, Github, Search, Star } from "lucide-react";
-import { Badge, Button, Card, Input } from "@research-copilot/ui";
-import type { GithubProjectSearchResponse } from "@research-copilot/types";
+import { AlertCircle, Github, History, Search, Star, Trash2 } from "lucide-react";
+import { Badge, Button, Card, IconButton, Input } from "@research-copilot/ui";
+import type { GithubProjectSearchResponse, GithubProjectSearchHistoryEntry } from "@research-copilot/types";
 import ExternalLink from "../../components/ExternalLink";
 
 interface GithubProjectSearchPanelProps {
@@ -9,8 +9,12 @@ interface GithubProjectSearchPanelProps {
   loading: boolean;
   error: string;
   searched: boolean;
+  history: GithubProjectSearchHistoryEntry[];
+  historyLoading: boolean;
   onQueryChange: (value: string) => void;
   onSubmit: () => void | Promise<void>;
+  onApplyHistory: (entry: GithubProjectSearchHistoryEntry) => void;
+  onRemoveHistory: (id: string) => void | Promise<void>;
 }
 
 function formatStars(count: number): string {
@@ -36,8 +40,12 @@ export function GithubProjectSearchPanel({
   loading,
   error,
   searched,
+  history,
+  historyLoading,
   onQueryChange,
   onSubmit,
+  onApplyHistory,
+  onRemoveHistory,
 }: GithubProjectSearchPanelProps) {
   return (
     <div className="space-y-4">
@@ -75,6 +83,44 @@ export function GithubProjectSearchPanel({
           <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span>{error}</span>
+          </div>
+        ) : null}
+
+        {history.length > 0 || historyLoading ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-ink-secondary">
+              <History className="h-3.5 w-3.5" />
+              <span>历史搜索</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {historyLoading && history.length === 0 ? (
+                <span className="text-xs text-ink-tertiary">加载中...</span>
+              ) : null}
+              {history.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="group flex items-center gap-1 rounded-full border border-apple-separator bg-surface px-2.5 py-1 text-xs text-ink-secondary hover:border-apple-blue/30 hover:bg-apple-blue/5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onApplyHistory(entry)}
+                    className="max-w-[180px] truncate"
+                    title={entry.query}
+                  >
+                    {entry.query}
+                  </button>
+                  <IconButton
+                    size="sm"
+                    className="h-5 w-5 shrink-0"
+                    onClick={() => void onRemoveHistory(entry.id)}
+                    title="删除该条历史"
+                    aria-label="删除该条历史"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </IconButton>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
       </Card>

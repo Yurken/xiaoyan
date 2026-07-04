@@ -11,6 +11,7 @@ import type {
   CcfListResponse,
   CcfLookupResponse,
   GithubProjectSearchResponse,
+  GithubProjectSearchHistoryEntry,
   JournalLookupResponse,
   SourceLookupResponse,
   Paper,
@@ -367,6 +368,14 @@ export const webSearchApi = {
 export const githubProjectApi = {
   search: (query: string, limit = 8): Promise<GithubProjectSearchResponse> =>
     invoke("github_project_search", { request: { query, limit } }),
+  saveSearchHistory: (query: string, result: GithubProjectSearchResponse): Promise<GithubProjectSearchHistoryEntry> =>
+    invoke("github_project_save_search_history", {
+      request: { query, result_json: JSON.stringify(result) },
+    }),
+  getSearchHistory: (limit = 20): Promise<GithubProjectSearchHistoryEntry[]> =>
+    invoke("github_project_get_search_history", { limit }),
+  deleteSearchHistory: (id: string): Promise<boolean> =>
+    invoke("github_project_delete_search_history", { id }),
 };
 
 // ── Knowledge ─────────────────────────────────────────────────────

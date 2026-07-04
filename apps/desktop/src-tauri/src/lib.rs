@@ -65,7 +65,10 @@ use commands::{
         experiment_update, experiment_update_attachment_label,
     },
     export::export_to_obsidian,
-    github_project::github_project_search,
+    github_project::{
+        github_project_delete_search_history, github_project_get_search_history,
+        github_project_save_search_history, github_project_search,
+    },
     journal::{journal_lookup, journal_rank_filter},
     knowledge::{
         knowledge_create_folder, knowledge_create_interest, knowledge_delete_interest_bundle,
@@ -625,6 +628,9 @@ pub fn run() {
             translate_text,
             markdown_format_chunk,
             github_project_search,
+            github_project_save_search_history,
+            github_project_get_search_history,
+            github_project_delete_search_history,
             // App lock
             app_lock_status,
             app_lock_set_password,
