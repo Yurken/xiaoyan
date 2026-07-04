@@ -85,6 +85,11 @@
 /* 批注高亮直接绘制在 PDF 页面上；点击高亮可再次打开批注工具 */
 .pdf-highlight-overlay {
   pointer-events: auto;
+  mix-blend-mode: multiply;
+}
+
+.pdf-text-highlight-overlay {
+  pointer-events: none;
 }
 
 /* 超链接层：默认不拦截事件（保证可划词选择）；按住 Cmd/Ctrl 时才接管点击 */

@@ -18,6 +18,7 @@ import {
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
 import { usePdfTextSelection } from "./usePdfTextSelection";
 import { registerTextLayer } from "./textLayerSelection";
+import { useLineHighlightInteraction } from "./useLineHighlightInteraction";
 import { openLink } from "../../lib/links";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -264,16 +265,8 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [links, setLinks] = useState<PdfLink[]>([]);
-  const [hoveredNote, setHoveredNote] = useState<{ note: PaperNote; x: number; y: number } | null>(null);
-  const hoverTimeoutRef = useRef<number | null>(null);
   const renderedSignatureRef = useRef<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     renderedSignatureRef.current = null;
@@ -535,6 +528,15 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     [pageSize, onShapeMove, onNoteClick],
   );
 
+  const {
+    hoveredNote,
+    showNoteHover,
+    scheduleHoverClear,
+    handlePageClick,
+    handlePageMouseMove,
+    handlePageMouseLeave,
+  } = useLineHighlightInteraction({ pageNotes, pageSize, onNoteClick });
+
   const containerStyle: React.CSSProperties = pageSize
     ? ({
         width: pageSize.w,
@@ -553,6 +555,9 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       data-page-num={pageNum}
       className="rc-selectable relative mx-auto select-text"
       style={{ ...containerStyle, background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", borderRadius: 4 }}
+      onClick={handlePageClick}
+      onMouseMove={handlePageMouseMove}
+      onMouseLeave={handlePageMouseLeave}
     >
       {imgSrc ? (
         <img
@@ -597,14 +602,9 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
                   style={shapeStyle}
                   title={note.content?.trim() ? undefined : "拖拽移动 · 点击编辑"}
                   onMouseEnter={(event) => {
-                    if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
-                    if (note.content?.trim()) {
-                      setHoveredNote({ note, x: event.currentTarget.offsetLeft, y: event.currentTarget.offsetTop });
-                    }
+                    showNoteHover(note, event.currentTarget.offsetLeft, event.currentTarget.offsetTop);
                   }}
-                  onMouseLeave={() => {
-                    hoverTimeoutRef.current = window.setTimeout(() => setHoveredNote(null), 120);
-                  }}
+                  onMouseLeave={scheduleHoverClear}
                   onMouseDown={(event) => startShapeMove(event, note, stored ?? box)}
                 />
               );
@@ -632,22 +632,8 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
               return (
                 <div
                   key={`${note.id}-${i}`}
-                  className="pdf-highlight-overlay absolute"
+                  className="pdf-highlight-overlay pdf-text-highlight-overlay absolute"
                   style={style}
-                  title={note.content?.trim() ? undefined : "点击编辑批注"}
-                  onMouseEnter={(event) => {
-                    if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
-                    if (note.content?.trim()) {
-                      setHoveredNote({ note, x: event.currentTarget.offsetLeft, y: event.currentTarget.offsetTop });
-                    }
-                  }}
-                  onMouseLeave={() => {
-                    hoverTimeoutRef.current = window.setTimeout(() => setHoveredNote(null), 120);
-                  }}
-                  onClick={(event) => {
-                    const rect = event.currentTarget.getBoundingClientRect();
-                    onNoteClick(note, { x: rect.left + rect.width / 2, y: rect.top });
-                  }}
                 />
               );
             });

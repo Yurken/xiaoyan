@@ -33,11 +33,11 @@ export const HIGHLIGHT_COLORS: Record<
   HighlightColor,
   { bg: string; border: string; label: string }
 > = {
-  yellow: { bg: "rgba(253, 224, 71, 0.40)", border: "rgba(202, 138, 4, 0.9)", label: "黄色" },
-  green: { bg: "rgba(74, 222, 128, 0.34)", border: "rgba(22, 163, 74, 0.9)", label: "绿色" },
-  blue: { bg: "rgba(96, 165, 250, 0.34)", border: "rgba(37, 99, 235, 0.9)", label: "蓝色" },
-  pink: { bg: "rgba(244, 114, 182, 0.34)", border: "rgba(219, 39, 119, 0.9)", label: "粉色" },
-  purple: { bg: "rgba(167, 139, 250, 0.34)", border: "rgba(124, 58, 237, 0.9)", label: "紫色" },
+  yellow: { bg: "rgba(253, 224, 71, 0.18)", border: "rgba(202, 138, 4, 0.85)", label: "黄色" },
+  green: { bg: "rgba(74, 222, 128, 0.16)", border: "rgba(22, 163, 74, 0.8)", label: "绿色" },
+  blue: { bg: "rgba(96, 165, 250, 0.16)", border: "rgba(37, 99, 235, 0.8)", label: "蓝色" },
+  pink: { bg: "rgba(244, 114, 182, 0.16)", border: "rgba(219, 39, 119, 0.8)", label: "粉色" },
+  purple: { bg: "rgba(167, 139, 250, 0.16)", border: "rgba(124, 58, 237, 0.8)", label: "紫色" },
 };
 
 /** 归一化坐标（相对页面宽高的 0..1 比例），与缩放无关 */

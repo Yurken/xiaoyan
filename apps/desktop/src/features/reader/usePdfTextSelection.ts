@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import { mergeNormalizedRects, type NormalizedRect, type ReaderSelection } from "./readerTypes";
 
 interface UsePdfTextSelectionOptions {
@@ -16,6 +16,12 @@ function eventElement(target: EventTarget | null): Element | null {
   if (target instanceof Element) return target;
   if (target instanceof Node) return nodeElement(target);
   return null;
+}
+
+function isTextSpanTarget(target: Element | null): boolean {
+  const span = target?.closest(".textLayer span");
+  if (!(span instanceof HTMLElement)) return false;
+  return span.getAttribute("role") !== "img";
 }
 
 function findPageElement(range: Range): HTMLElement | null {
@@ -73,6 +79,8 @@ export function usePdfTextSelection({
   onTextSelected,
   onSelectionCleared,
 }: UsePdfTextSelectionOptions) {
+  const selectionStartedOnTextRef = useRef(false);
+
   useEffect(() => {
     if (!enabled) return;
 
@@ -82,8 +90,17 @@ export function usePdfTextSelection({
       // 点击已有高亮交给 PdfPage 的 onClick 打开编辑弹窗，这里不要把它当作“清空选区”。
       if (target?.closest(".pdf-highlight-overlay")) return;
 
+      const startedOnText = selectionStartedOnTextRef.current;
+      selectionStartedOnTextRef.current = false;
+
       // WKWebView 会稍晚同步原生选区，延后一拍读取更稳。
       window.setTimeout(() => {
+        if (!startedOnText) {
+          window.getSelection()?.removeAllRanges();
+          onSelectionCleared();
+          return;
+        }
+
         const container = containerRef.current;
         const selection = window.getSelection();
         const selectedText = selection?.toString().trim() ?? "";
@@ -116,6 +133,13 @@ export function usePdfTextSelection({
       const target = eventElement(event.target);
       if (target?.closest(".pdf-selection-popup")) return;
       if (target?.closest(".pdf-highlight-overlay")) return;
+      selectionStartedOnTextRef.current = isTextSpanTarget(target);
+      if (target?.closest(".textLayer") && !selectionStartedOnTextRef.current) {
+        event.preventDefault();
+        window.getSelection()?.removeAllRanges();
+        onSelectionCleared();
+        return;
+      }
       if (!target?.closest(".textLayer")) {
         onSelectionCleared();
       }
