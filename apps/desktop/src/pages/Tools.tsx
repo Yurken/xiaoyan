@@ -1,4 +1,5 @@
-import { FileText, FileSearch, Github, Globe2, Languages, Presentation, Sparkles } from "lucide-react";
+import { FileText, FileSearch, Globe2, Languages, Presentation, Sparkles } from "lucide-react";
+// import { Github } from "lucide-react";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import { ArxivFieldSearchPanel } from "../features/tools/ArxivFieldSearchPanel";
 import { ArxivSearchResults } from "../features/tools/ArxivSearchResults";
@@ -14,8 +15,8 @@ import { useMarkdownFormatter } from "../features/tools/useMarkdownFormatter";
 import { usePaperDiscoverySearch } from "../features/tools/usePaperDiscoverySearch";
 import { usePptGenerator } from "../features/tools/usePptGenerator";
 import { useSourceLookup } from "../features/tools/useSourceLookup";
-import { useGithubProjectSearch } from "../features/tools/useGithubProjectSearch";
-import { GithubProjectSearchPanel } from "../features/tools/GithubProjectSearchPanel";
+// import { useGithubProjectSearch } from "../features/tools/useGithubProjectSearch";
+// import { GithubProjectSearchPanel } from "../features/tools/GithubProjectSearchPanel";
 import { useTranslationTool } from "../features/tools/useTranslationTool";
 import { TranslationPanel } from "../features/tools/TranslationPanel";
 import { WebSupplementPanel } from "../features/tools/WebSupplementPanel";
@@ -23,7 +24,7 @@ import { useWebSupplement } from "../features/tools/useWebSupplement";
 
 const TOOL_TABS = [
   { key: "arxiv", icon: <Sparkles className="h-4 w-4" />, label: "论文检索" },
-  { key: "github", icon: <Github className="h-4 w-4" />, label: "GitHub 项目" },
+  // { key: "github", icon: <Github className="h-4 w-4" />, label: "GitHub 项目" },
   { key: "source", icon: <FileSearch className="h-4 w-4" />, label: "刊会查询" },
   { key: "translate", icon: <Languages className="h-4 w-4" />, label: "学术翻译" },
   { key: "md", icon: <FileText className="h-4 w-4" />, label: "MD 整理" },
@@ -47,7 +48,7 @@ export default function Tools() {
   const paperDiscovery = usePaperDiscoverySearch();
   const webSupplement = useWebSupplement();
   const arxivFieldSearch = useArxivFieldSearch();
-  const githubProjectSearch = useGithubProjectSearch();
+  // const githubProjectSearch = useGithubProjectSearch();
 
   const webSupplementSeed = [
     paperDiscovery.panelProps.allTerms,
@@ -180,6 +181,7 @@ export default function Tools() {
       />
       </>}
 
+      {/* GitHub 项目检索已临时下线：搜索结果可能出现不合规内容，待内容安全过滤完善后重新开放。
       {activeTab === "github" ? (
         <GithubProjectSearchPanel
           query={githubProjectSearch.query}
@@ -191,6 +193,7 @@ export default function Tools() {
           onSubmit={githubProjectSearch.submit}
         />
       ) : null}
+      */}
 
       {activeTab === "source" ? (
         <SourceLookupPanel
