@@ -10,6 +10,7 @@ import ReaderToolbar from "../features/reader/ReaderToolbar";
 import SelectionPopup from "../features/reader/SelectionPopup";
 import { useReaderNotes } from "../features/reader/useReaderNotes";
 import { useReaderTranslation } from "../features/reader/useReaderTranslation";
+import { useSmoothReaderZoom } from "../features/reader/useSmoothReaderZoom";
 import {
   isShapeStyle,
   type AnnotationStyle,
@@ -22,9 +23,6 @@ import {
 import { useCorpus } from "../features/papers/useCorpus";
 import { useResizableWidth } from "../hooks/useResizableWidth";
 
-const MIN_SCALE = 0.6;
-const MAX_SCALE = 3;
-
 export default function PaperReader() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -33,7 +31,7 @@ export default function PaperReader() {
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [scale, setScale] = useState(1.4);
+  const { scale, renderScale, zoomByFactor, zoomStep } = useSmoothReaderZoom(1.4);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
   const [editing, setEditing] = useState<{ note: PaperNote; x: number; y: number } | null>(null);
   const [toast, setToast] = useState("");
@@ -163,14 +161,6 @@ export default function PaperReader() {
     setEditing({ note, x: point.x, y: point.y });
   }, []);
 
-  const handleZoom = useCallback((factor: number) => {
-    setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(s * factor * 100) / 100)));
-  }, []);
-
-  const zoomStep = useCallback((delta: number) => {
-    setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round((s + delta) * 10) / 10)));
-  }, []);
-
   const handleAnnotate = useCallback(
     (color: HighlightColor, style: AnnotationStyle, note?: string) => {
       if (!selection) return;
@@ -288,10 +278,11 @@ export default function PaperReader() {
               data={pdfData}
               notes={notes}
               scale={scale}
+              renderScale={renderScale}
               onTextSelected={handleTextSelected}
               onSelectionCleared={handlePopupsCleared}
               onNoteClick={handleNoteClick}
-              onZoom={handleZoom}
+              onZoom={zoomByFactor}
               drawShape={drawShape}
               drawColor={annotateColor}
               drawFill={annotateFill}

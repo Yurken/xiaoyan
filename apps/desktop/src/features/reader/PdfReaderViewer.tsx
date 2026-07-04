@@ -32,6 +32,7 @@ interface PdfReaderViewerProps {
   data: Uint8Array;
   notes: PaperNote[];
   scale: number;
+  renderScale?: number;
   onTextSelected: (selection: ReaderSelection) => void;
   onSelectionCleared: () => void;
   onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
@@ -52,7 +53,7 @@ export interface PdfReaderViewerHandle {
 
 const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
   function PdfReaderViewer(
-    { data, notes, scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
+    { data, notes, scale, renderScale = scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -138,7 +139,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       };
     }, []);
 
-    // 懒渲染：进入视口的页才渲染
+    // 懒渲染：只让视口附近页面参与重绘；离开视口的页面保留旧图，缩放时不抢主线程。
     useEffect(() => {
       const container = containerRef.current;
       if (!container || numPages === 0) return;
@@ -148,12 +149,14 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
             const next = new Set(prev);
             entries.forEach((entry) => {
               const pageNum = parseInt((entry.target as HTMLElement).getAttribute("data-page-num") || "0", 10);
-              if (pageNum > 0 && entry.isIntersecting) next.add(pageNum);
+              if (pageNum <= 0) return;
+              if (entry.isIntersecting) next.add(pageNum);
+              else next.delete(pageNum);
             });
             return next;
           });
         },
-        { root: container, rootMargin: "300px 0px" },
+        { root: container, rootMargin: "600px 0px" },
       );
       pageRefs.current.forEach((el) => el && io.observe(el));
       return () => io.disconnect();
@@ -192,8 +195,9 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
             pageNum={pageNum}
             pdfDoc={pdfDoc}
             scale={scale}
+            renderScale={renderScale}
             devicePixelRatio={devicePixelRatio}
-            shouldRender={renderedPages.has(pageNum) || pageNum <= 4}
+            shouldRender={renderedPages.has(pageNum) || (renderedPages.size === 0 && pageNum <= 4)}
             pageNotes={notesByPage.get(pageNum) ?? []}
             onNoteClick={onNoteClick}
             onScrollToPage={scrollToPage}
@@ -242,6 +246,7 @@ interface PdfPageProps {
   pageNum: number;
   pdfDoc: PDFDocumentProxy;
   scale: number;
+  renderScale: number;
   devicePixelRatio: number;
   shouldRender: boolean;
   pageNotes: PaperNote[];
@@ -255,7 +260,7 @@ interface PdfPageProps {
 }
 
 const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
+  { pageNum, pdfDoc, scale, renderScale, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
   ref,
 ) {
   const textLayerRef = useRef<HTMLDivElement>(null);
@@ -263,6 +268,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
   const [draftRect, setDraftRect] = useState<NormalizedRect | null>(null);
   const [movingShape, setMovingShape] = useState<{ id: string; rect: NormalizedRect } | null>(null);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
+  const [renderedScale, setRenderedScale] = useState(renderScale);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [links, setLinks] = useState<PdfLink[]>([]);
   const renderedSignatureRef = useRef<string | null>(null);
@@ -301,7 +307,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
         try {
           const page = await pdfDoc.getPage(pageNum);
           if (cancelled) return;
-          const viewport = page.getViewport({ scale });
+          const viewport = page.getViewport({ scale: renderScale });
 
           const actualDpr = window.devicePixelRatio || devicePixelRatio || 1;
           const outputScale = resolveCanvasOutputScale(viewport, actualDpr);
@@ -312,7 +318,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           const pixelHeight = Math.round(cssHeight * outputScale);
 
           const renderSignature = [
-            scale,
+            renderScale,
             outputScale,
             actualDpr,
             cssWidth,
@@ -355,6 +361,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           renderedSignatureRef.current = renderSignature;
           setImgSrc(url);
           setPageSize({ w: cssWidth, h: cssHeight });
+          setRenderedScale(renderScale);
 
           // 文本层（划词选择/批注/翻译依赖它）尽力渲染，失败不影响画布显示。
           try {
@@ -430,7 +437,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       }
       cancelAnimationFrame(raf);
     };
-  }, [shouldRender, pdfDoc, pageNum, scale, devicePixelRatio]);
+  }, [shouldRender, pdfDoc, pageNum, renderScale, devicePixelRatio]);
 
   const handleLinkClick = useCallback(
     async (event: React.MouseEvent, link: PdfLink) => {
@@ -499,15 +506,16 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     (event: React.MouseEvent, note: PaperNote, box: NormalizedRect) => {
       event.stopPropagation();
       event.preventDefault(); // 拖动时不要触发原生文字选择
-      const size = pageSize;
-      if (!size) return;
+      if (!pageSize) return;
       const startX = event.clientX;
       const startY = event.clientY;
       const elRect = event.currentTarget.getBoundingClientRect();
+      const pageRect = (event.currentTarget.closest("[data-page-num]") as HTMLElement | null)?.getBoundingClientRect();
+      if (!pageRect || pageRect.width === 0 || pageRect.height === 0) return;
       let moved = false;
       const rectAt = (clientX: number, clientY: number): NormalizedRect => ({
-        x: Math.min(1 - box.w, Math.max(0, box.x + (clientX - startX) / size.w)),
-        y: Math.min(1 - box.h, Math.max(0, box.y + (clientY - startY) / size.h)),
+        x: Math.min(1 - box.w, Math.max(0, box.x + (clientX - startX) / pageRect.width)),
+        y: Math.min(1 - box.h, Math.max(0, box.y + (clientY - startY) / pageRect.height)),
         w: box.w,
         h: box.h,
       });
@@ -537,17 +545,26 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     handlePageMouseLeave,
   } = useLineHighlightInteraction({ pageNotes, pageSize, onNoteClick });
 
+  const visualScaleRatio = renderedScale > 0 ? scale / renderedScale : 1;
   const containerStyle: React.CSSProperties = pageSize
+    ? ({
+        width: pageSize.w * visualScaleRatio,
+        height: pageSize.h * visualScaleRatio,
+      } as React.CSSProperties)
+    : { minHeight: 400, width: "100%" };
+  const renderLayerStyle: React.CSSProperties = pageSize
     ? ({
         width: pageSize.w,
         height: pageSize.h,
-        "--scale-factor": scale,
+        transform: visualScaleRatio === 1 ? undefined : `scale(${visualScaleRatio})`,
+        transformOrigin: "0 0",
+        "--scale-factor": renderedScale,
         "--user-unit": 1,
-        "--total-scale-factor": `calc(${scale} * var(--user-unit))`,
+        "--total-scale-factor": `calc(${renderedScale} * var(--user-unit))`,
         "--scale-round-x": "1px",
         "--scale-round-y": "1px",
       } as React.CSSProperties)
-    : { minHeight: 400, width: "100%" };
+    : {};
 
   return (
     <div
@@ -559,23 +576,24 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       onMouseMove={handlePageMouseMove}
       onMouseLeave={handlePageMouseLeave}
     >
-      {imgSrc ? (
-        <img
-          src={imgSrc}
-          alt=""
-          draggable={false}
-          className="pointer-events-none absolute left-0 top-0 block"
-          style={pageSize ? { width: pageSize.w, height: pageSize.h } : undefined}
+      <div className="absolute left-0 top-0 origin-top-left" style={renderLayerStyle}>
+        {imgSrc ? (
+          <img
+            src={imgSrc}
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute left-0 top-0 block"
+            style={pageSize ? { width: pageSize.w, height: pageSize.h } : undefined}
+          />
+        ) : null}
+        <div
+          ref={textLayerRef}
+          className="textLayer rc-selectable absolute left-0 top-0"
+          style={{ zIndex: 1, width: pageSize?.w, height: pageSize?.h }}
         />
-      ) : null}
-      <div
-        ref={textLayerRef}
-        className="textLayer rc-selectable absolute left-0 top-0"
-        style={{ zIndex: 1, width: pageSize?.w, height: pageSize?.h }}
-      />
 
-      {pageSize
-        ? pageNotes.map((note) => {
+        {pageSize
+          ? pageNotes.map((note) => {
             const color = HIGHLIGHT_COLORS[note.highlight_color];
 
             // 形状：整段套一个外框（矩形/圆角/椭圆），只用颜色描边、内部不填充。
@@ -638,10 +656,10 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
               );
             });
           })
-        : null}
+          : null}
 
-      {pageSize
-        ? links.map((link, i) => (
+        {pageSize
+          ? links.map((link, i) => (
             <div
               key={`link-${i}`}
               className="pdf-link-overlay absolute"
@@ -650,48 +668,49 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
               onClick={(event) => void handleLinkClick(event, link)}
             />
           ))
-        : null}
+          : null}
 
-      {hoveredNote ? (
-        <div
-          className="pointer-events-none absolute z-10 max-w-xs rounded-lg border px-3 py-2 text-xs leading-5"
-          style={{
-            left: hoveredNote.x,
-            top: hoveredNote.y,
-            transform: "translateY(-100%)",
-            background: "var(--rc-card-bg)",
-            borderColor: "var(--rc-border)",
-            color: "var(--rc-text)",
-            boxShadow: "var(--rc-card-shadow)",
-          }}
-        >
-          {hoveredNote.note.content}
-        </div>
-      ) : null}
+        {hoveredNote ? (
+          <div
+            className="pointer-events-none absolute z-10 max-w-xs rounded-lg border px-3 py-2 text-xs leading-5"
+            style={{
+              left: hoveredNote.x,
+              top: hoveredNote.y,
+              transform: "translateY(-100%)",
+              background: "var(--rc-card-bg)",
+              borderColor: "var(--rc-border)",
+              color: "var(--rc-text)",
+              boxShadow: "var(--rc-card-shadow)",
+            }}
+          >
+            {hoveredNote.note.content}
+          </div>
+        ) : null}
 
-      {pageSize && drawShape ? (
-        <div
-          ref={drawLayerRef}
-          className="absolute left-0 top-0"
-          style={{ width: pageSize.w, height: pageSize.h, zIndex: 5, cursor: "crosshair" }}
-          onMouseDown={startDraw}
-        >
-          {draftRect ? (
-            <div
-              className="pointer-events-none absolute"
-              style={{
-                left: draftRect.x * pageSize.w,
-                top: draftRect.y * pageSize.h,
-                width: draftRect.w * pageSize.w,
-                height: draftRect.h * pageSize.h,
-                border: `2px solid ${(drawColor ? HIGHLIGHT_COLORS[drawColor] : HIGHLIGHT_COLORS.yellow).border}`,
-                borderRadius: SHAPE_BORDER_RADIUS[drawShape],
-                background: drawFill ? HIGHLIGHT_COLORS[drawFill].bg : "transparent",
-              }}
-            />
-          ) : null}
-        </div>
-      ) : null}
+        {pageSize && drawShape ? (
+          <div
+            ref={drawLayerRef}
+            className="absolute left-0 top-0"
+            style={{ width: pageSize.w, height: pageSize.h, zIndex: 5, cursor: "crosshair" }}
+            onMouseDown={startDraw}
+          >
+            {draftRect ? (
+              <div
+                className="pointer-events-none absolute"
+                style={{
+                  left: draftRect.x * pageSize.w,
+                  top: draftRect.y * pageSize.h,
+                  width: draftRect.w * pageSize.w,
+                  height: draftRect.h * pageSize.h,
+                  border: `2px solid ${(drawColor ? HIGHLIGHT_COLORS[drawColor] : HIGHLIGHT_COLORS.yellow).border}`,
+                  borderRadius: SHAPE_BORDER_RADIUS[drawShape],
+                  background: drawFill ? HIGHLIGHT_COLORS[drawFill].bg : "transparent",
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       <div
         className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]"
