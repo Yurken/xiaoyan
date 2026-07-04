@@ -523,6 +523,7 @@ export interface AppSettings {
   rag_top_k: string;
   // External
   paper_search_engine: PaperSearchEngine;
+  github_api_key: string;
   semantic_scholar_api_key: string;
   // 小妍联网搜索
   web_search_enabled: string;
@@ -694,6 +695,30 @@ export interface AppSettings {
   app_lock_password_salt: string;
   app_lock_password_hash: string;
   app_lock_timeout_minutes: string;
+}
+
+export interface GithubRepo {
+  full_name: string;
+  owner: string;
+  name: string;
+  html_url: string;
+  description?: string;
+  language?: string;
+  stargazers_count: number;
+  forks_count: number;
+  updated_at: string;
+  license?: string;
+  topics?: string[];
+}
+
+export interface GithubProjectSearchResponse {
+  query: string;
+  provider: "github_api" | "web_search";
+  candidate_count: number;
+  llm_used: boolean;
+  overall_summary: string;
+  ranking_note: string;
+  repos: GithubRepo[];
 }
 
 export interface SettingsHistoryEntry {

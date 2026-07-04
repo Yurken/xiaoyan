@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { chatApi, translateApi } from "../../lib/client";
+import type { ReaderImageSelection } from "./readerTypes";
 
 export interface TranslationState {
   id: number;
@@ -14,8 +15,20 @@ export interface InterpretationState {
   status: "loading" | "done" | "error";
   /** 被解读的原文（划词「解读」无译文时，面板据此展示原文）。 */
   source: string;
+  sourceType?: "text" | "image";
+  imageDataUrl?: string;
+  page?: number;
   text: string;
   error?: string;
+}
+
+interface InterpretRequest {
+  source: string;
+  prompt: string;
+  sourceType?: "text" | "image";
+  imageDataUrl?: string;
+  page?: number;
+  images?: Array<{ data: string; mediaType: string }>;
 }
 
 export const TRANSLATION_FONT_SIZES = [12, 13, 14, 16, 18, 20] as const;
@@ -99,42 +112,54 @@ export function useReaderTranslation() {
     [runTranslate],
   );
 
-  // 解读：不传 source 时解读当前译文的原文（面板按钮）；传入则解读指定文字（划词「解读」）。
-  const interpret = useCallback(async (sourceOverride?: string) => {
-    const raw = sourceOverride ?? currentRef.current?.source ?? "";
-    const source = sourceOverride ? normalizeSourceText(raw) : raw.trim();
-    if (!source) return;
+  const runInterpretation = useCallback(async ({
+    source,
+    prompt,
+    sourceType = "text",
+    imageDataUrl,
+    page,
+    images,
+  }: InterpretRequest) => {
     interpretAbortRef.current?.abort();
     const ac = new AbortController();
     interpretAbortRef.current = ac;
-    setInterpretation({ status: "loading", source, text: "" });
-    const prompt =
-      `请用中文解读下面这段学术原文：先点出它在讲什么，再解释其中的关键概念/术语，必要时说明其作用或意义。不要逐句翻译。\n\n原文：\n${source}`;
+    const baseState = { source, sourceType, imageDataUrl, page };
+    setInterpretation({ ...baseState, status: "loading", text: "" });
     let acc = "";
     try {
       // 不传 session_id：每次解读都是全新、无记忆的一次性对话（tag 让它不进导航对话列表）。
       for await (const chunk of chatApi.stream(
-        { message: prompt, context_type: "general", chat_mode: "direct", tag: "reader-interpret" },
+        { message: prompt, context_type: "general", chat_mode: "direct", tag: "reader-interpret", images },
         ac.signal,
       )) {
         if (interpretAbortRef.current !== ac) break;
         if (chunk.type === "delta") {
           acc += chunk.value;
-          setInterpretation({ status: "loading", source, text: acc });
+          setInterpretation({ ...baseState, status: "loading", text: acc });
         }
         if (chunk.type === "error") {
-          setInterpretation({ status: "error", source, text: acc, error: chunk.value || "解读失败" });
+          setInterpretation({ ...baseState, status: "error", text: acc, error: chunk.value || "解读失败" });
         }
       }
       if (interpretAbortRef.current === ac) {
-        setInterpretation((prev) => (prev && prev.status === "error" ? prev : { status: "done", source, text: acc }));
+        setInterpretation((prev) => (prev && prev.status === "error" ? prev : { ...baseState, status: "done", text: acc }));
       }
     } catch (err) {
       if ((err as Error)?.name === "AbortError") return;
       const message = err instanceof Error ? err.message : "解读失败";
-      setInterpretation({ status: "error", source, text: acc, error: message });
+      setInterpretation({ ...baseState, status: "error", text: acc, error: message });
     }
   }, []);
+
+  // 解读：不传 source 时解读当前译文的原文（面板按钮）；传入则解读指定文字（划词「解读」）。
+  const interpret = useCallback(async (sourceOverride?: string) => {
+    const raw = sourceOverride ?? currentRef.current?.source ?? "";
+    const source = sourceOverride ? normalizeSourceText(raw) : raw.trim();
+    if (!source) return;
+    const prompt =
+      `请用中文解读下面这段学术原文：先点出它在讲什么，再解释其中的关键概念/术语，必要时说明其作用或意义。不要逐句翻译。\n\n原文：\n${source}`;
+    await runInterpretation({ source, prompt });
+  }, [runInterpretation]);
 
   // 划词「解读」：丢掉旧译文，仅就选中文字独立解读（面板只显示解读卡片）。
   const interpretText = useCallback(
@@ -143,6 +168,24 @@ export function useReaderTranslation() {
       void interpret(text);
     },
     [interpret],
+  );
+
+  const interpretImage = useCallback(
+    (image: ReaderImageSelection) => {
+      setCurrent(null);
+      const source = `第 ${image.page} 页框选图像（${image.width} × ${image.height}）`;
+      const prompt =
+        "请用中文解读这张论文 PDF 中框选出来的图像区域。优先判断它可能是哪类图/表/公式/流程图，解释图中主要元素、坐标轴/图例/箭头/结构关系，以及它在论文论证中可能表达的结论。若局部文字看不清，请明确说明不确定，不要编造。";
+      void runInterpretation({
+        source,
+        prompt,
+        sourceType: "image",
+        imageDataUrl: `data:${image.mediaType};base64,${image.data}`,
+        page: image.page,
+        images: [{ data: image.data, mediaType: image.mediaType }],
+      });
+    },
+    [runInterpretation],
   );
 
   const toggleContinuous = useCallback(() => setContinuous((value) => !value), []);
@@ -165,6 +208,7 @@ export function useReaderTranslation() {
     editSource,
     interpret,
     interpretText,
+    interpretImage,
     clear,
     setLocked,
     toggleLock,

@@ -4,6 +4,7 @@ import {
   Circle,
   ExternalLink,
   Highlighter,
+  Image as ImageIcon,
   Minus,
   PanelLeft,
   Plus,
@@ -29,6 +30,8 @@ interface ReaderToolbarProps {
   scalePercent: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  areaSelectEnabled: boolean;
+  onToggleAreaSelect: () => void;
   mode: ReaderMode;
   onModeChange: (mode: ReaderMode) => void;
   tool: AnnotationStyle;
@@ -66,6 +69,8 @@ export default function ReaderToolbar({
   scalePercent,
   onZoomIn,
   onZoomOut,
+  areaSelectEnabled,
+  onToggleAreaSelect,
   mode,
   onModeChange,
   tool,
@@ -115,6 +120,18 @@ export default function ReaderToolbar({
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      <div className="h-5 w-px" style={{ background: "var(--rc-border)" }} />
+
+      <button
+        type="button"
+        onClick={onToggleAreaSelect}
+        className={iconBtn}
+        style={areaSelectEnabled ? { color: "var(--rc-accent)" } : undefined}
+        title={areaSelectEnabled ? "退出框选图像解读" : "框选图像让小妍解读"}
+      >
+        <ImageIcon className="h-4 w-4" />
+      </button>
 
       <div className="h-5 w-px" style={{ background: "var(--rc-border)" }} />
 

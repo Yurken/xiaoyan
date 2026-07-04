@@ -10,6 +10,7 @@ pub mod data_backup;
 pub mod evidence;
 pub mod experiment;
 pub mod export;
+pub mod github_project;
 pub mod journal;
 pub mod knowledge;
 pub mod knowledge_graph;

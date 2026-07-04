@@ -17,6 +17,7 @@ import {
   type HighlightColor,
   type NormalizedRect,
   type PaperNote,
+  type ReaderImageSelection,
   type ReaderMode,
   type ReaderSelection,
 } from "../features/reader/readerTypes";
@@ -43,6 +44,7 @@ export default function PaperReader() {
   // 工具栏状态
   const [leftOpen, setLeftOpen] = useState(true);
   const [mode, setMode] = useState<ReaderMode>("view");
+  const [areaSelectEnabled, setAreaSelectEnabled] = useState(false);
   const [annotateTool, setAnnotateTool] = useState<AnnotationStyle>("highlight");
   const [annotateColor, setAnnotateColor] = useState<HighlightColor>("yellow");
   const [annotateFill, setAnnotateFill] = useState<HighlightColor | null>(null);
@@ -161,6 +163,19 @@ export default function PaperReader() {
     setEditing({ note, x: point.x, y: point.y });
   }, []);
 
+  const toggleAreaSelect = useCallback(() => {
+    setMode("view");
+    setSelection(null);
+    setEditing(null);
+    window.getSelection()?.removeAllRanges();
+    setAreaSelectEnabled((value) => !value);
+  }, []);
+
+  const handleModeChange = useCallback((nextMode: ReaderMode) => {
+    setAreaSelectEnabled(false);
+    setMode(nextMode);
+  }, []);
+
   const handleAnnotate = useCallback(
     (color: HighlightColor, style: AnnotationStyle, note?: string) => {
       if (!selection) return;
@@ -221,8 +236,19 @@ export default function PaperReader() {
     [moveAnnotation],
   );
 
+  const handleAreaSelected = useCallback(
+    (image: ReaderImageSelection) => {
+      setTranslateOpen(true);
+      setSelection(null);
+      setEditing(null);
+      setAreaSelectEnabled(false);
+      translation.interpretImage(image);
+    },
+    [translation],
+  );
+
   // 批注模式下选中形状工具即进入「绘制」模式：拖拽画框，不再划词。
-  const drawShape = mode === "annotate" && isShapeStyle(annotateTool) ? annotateTool : null;
+  const drawShape = !areaSelectEnabled && mode === "annotate" && isShapeStyle(annotateTool) ? annotateTool : null;
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
@@ -233,8 +259,10 @@ export default function PaperReader() {
         scalePercent={Math.round(scale * 100)}
         onZoomIn={() => zoomStep(0.1)}
         onZoomOut={() => zoomStep(-0.1)}
+        areaSelectEnabled={areaSelectEnabled}
+        onToggleAreaSelect={toggleAreaSelect}
         mode={mode}
-        onModeChange={setMode}
+        onModeChange={handleModeChange}
         tool={annotateTool}
         onToolChange={setAnnotateTool}
         color={annotateColor}
@@ -279,10 +307,13 @@ export default function PaperReader() {
               notes={notes}
               scale={scale}
               renderScale={renderScale}
+              areaSelectEnabled={areaSelectEnabled}
               onTextSelected={handleTextSelected}
               onSelectionCleared={handlePopupsCleared}
               onNoteClick={handleNoteClick}
               onZoom={zoomByFactor}
+              onAreaSelected={handleAreaSelected}
+              onAreaSelectError={flashToast}
               drawShape={drawShape}
               drawColor={annotateColor}
               drawFill={annotateFill}

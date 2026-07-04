@@ -12,11 +12,13 @@ import {
   type HighlightColor,
   type NormalizedRect,
   type PaperNote,
+  type ReaderImageSelection,
   type ReaderSelection,
   type ShapeStyle,
 } from "./readerTypes";
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
 import { usePdfTextSelection } from "./usePdfTextSelection";
+import { usePdfAreaSelection } from "./usePdfAreaSelection";
 import { registerTextLayer } from "./textLayerSelection";
 import { useLineHighlightInteraction } from "./useLineHighlightInteraction";
 import { openLink } from "../../lib/links";
@@ -33,11 +35,14 @@ interface PdfReaderViewerProps {
   notes: PaperNote[];
   scale: number;
   renderScale?: number;
+  areaSelectEnabled?: boolean;
   onTextSelected: (selection: ReaderSelection) => void;
   onSelectionCleared: () => void;
   onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
   /** Cmd/Ctrl + 滚轮缩放：factor > 1 放大、< 1 缩小。 */
   onZoom: (factor: number) => void;
+  onAreaSelected?: (selection: ReaderImageSelection) => void;
+  onAreaSelectError?: (message: string) => void;
   /** 形状绘制模式：非空时在页面上拖拽画框，而非划词选择。 */
   drawShape?: ShapeStyle | null;
   drawColor?: HighlightColor;
@@ -53,7 +58,7 @@ export interface PdfReaderViewerHandle {
 
 const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
   function PdfReaderViewer(
-    { data, notes, scale, renderScale = scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
+    { data, notes, scale, renderScale = scale, areaSelectEnabled = false, onTextSelected, onSelectionCleared, onNoteClick, onZoom, onAreaSelected, onAreaSelectError, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -105,7 +110,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
     usePdfTextSelection({
       containerRef,
-      enabled: Boolean(pdfDoc) && !drawShape, // 形状绘制时关闭划词选择
+      enabled: Boolean(pdfDoc) && !drawShape && !areaSelectEnabled, // 形状/图像框选时关闭划词选择
       onTextSelected,
       onSelectionCleared,
     });
@@ -196,11 +201,14 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
             pdfDoc={pdfDoc}
             scale={scale}
             renderScale={renderScale}
+            areaSelectEnabled={areaSelectEnabled}
             devicePixelRatio={devicePixelRatio}
             shouldRender={renderedPages.has(pageNum) || (renderedPages.size === 0 && pageNum <= 4)}
             pageNotes={notesByPage.get(pageNum) ?? []}
             onNoteClick={onNoteClick}
             onScrollToPage={scrollToPage}
+            onAreaSelected={onAreaSelected}
+            onAreaSelectError={onAreaSelectError}
             drawShape={drawShape}
             drawColor={drawColor}
             drawFill={drawFill}
@@ -247,11 +255,14 @@ interface PdfPageProps {
   pdfDoc: PDFDocumentProxy;
   scale: number;
   renderScale: number;
+  areaSelectEnabled: boolean;
   devicePixelRatio: number;
   shouldRender: boolean;
   pageNotes: PaperNote[];
   onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
   onScrollToPage: (page: number) => void;
+  onAreaSelected?: (selection: ReaderImageSelection) => void;
+  onAreaSelectError?: (message: string) => void;
   drawShape?: ShapeStyle | null;
   drawColor?: HighlightColor;
   drawFill?: HighlightColor | null;
@@ -260,9 +271,10 @@ interface PdfPageProps {
 }
 
 const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, renderScale, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
+  { pageNum, pdfDoc, scale, renderScale, areaSelectEnabled, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, onAreaSelected, onAreaSelectError, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
   ref,
 ) {
+  const imageRef = useRef<HTMLImageElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const drawLayerRef = useRef<HTMLDivElement>(null);
   const [draftRect, setDraftRect] = useState<NormalizedRect | null>(null);
@@ -544,6 +556,14 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     handlePageMouseMove,
     handlePageMouseLeave,
   } = useLineHighlightInteraction({ pageNotes, pageSize, onNoteClick });
+  const { draftRect: areaDraftRect, startAreaSelection } = usePdfAreaSelection({
+    enabled: areaSelectEnabled,
+    page: pageNum,
+    pageSize,
+    imageRef,
+    onAreaSelected,
+    onError: onAreaSelectError,
+  });
 
   const visualScaleRatio = renderedScale > 0 ? scale / renderedScale : 1;
   const containerStyle: React.CSSProperties = pageSize
@@ -572,13 +592,14 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       data-page-num={pageNum}
       className="rc-selectable relative mx-auto select-text"
       style={{ ...containerStyle, background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", borderRadius: 4 }}
-      onClick={handlePageClick}
-      onMouseMove={handlePageMouseMove}
+      onClick={areaSelectEnabled ? undefined : handlePageClick}
+      onMouseMove={areaSelectEnabled ? undefined : handlePageMouseMove}
       onMouseLeave={handlePageMouseLeave}
     >
       <div className="absolute left-0 top-0 origin-top-left" style={renderLayerStyle}>
         {imgSrc ? (
           <img
+            ref={imageRef}
             src={imgSrc}
             alt=""
             draggable={false}
@@ -705,6 +726,30 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
                   border: `2px solid ${(drawColor ? HIGHLIGHT_COLORS[drawColor] : HIGHLIGHT_COLORS.yellow).border}`,
                   borderRadius: SHAPE_BORDER_RADIUS[drawShape],
                   background: drawFill ? HIGHLIGHT_COLORS[drawFill].bg : "transparent",
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
+
+        {pageSize && areaSelectEnabled ? (
+          <div
+            className="absolute left-0 top-0"
+            style={{ width: pageSize.w, height: pageSize.h, zIndex: 6, cursor: "crosshair" }}
+            title="拖拽框选图像区域，让小妍解读"
+            onMouseDown={startAreaSelection}
+          >
+            {areaDraftRect ? (
+              <div
+                className="pointer-events-none absolute rounded-sm border-2"
+                style={{
+                  left: areaDraftRect.x * pageSize.w,
+                  top: areaDraftRect.y * pageSize.h,
+                  width: areaDraftRect.w * pageSize.w,
+                  height: areaDraftRect.h * pageSize.h,
+                  borderColor: "var(--rc-accent)",
+                  background: "rgba(0, 122, 255, 0.12)",
+                  boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.12)",
                 }}
               />
             ) : null}

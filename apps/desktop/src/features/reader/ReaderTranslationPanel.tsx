@@ -62,6 +62,7 @@ export default function ReaderTranslationPanel({
 
   const interpretBusy = interpretation?.status === "loading";
   const canInterpret = Boolean(current) && current?.status !== "loading" && !interpretBusy;
+  const interpretingImage = interpretation?.sourceType === "image";
 
   return (
     <aside
@@ -142,7 +143,7 @@ export default function ReaderTranslationPanel({
           >
             <Languages className="h-5 w-5 text-ink-tertiary" />
             <p className="text-xs leading-5 text-ink-tertiary">
-              在 PDF 中选中文字即自动翻译，译文与原文都会完整显示在这里。锁定后将固定当前内容、不再随划词变化。
+              在 PDF 中选中文字即自动翻译，也可以用顶部图像按钮框选图表让小妍解读。锁定后将固定当前内容、不再随划词变化。
             </p>
           </div>
         ) : (
@@ -200,23 +201,37 @@ export default function ReaderTranslationPanel({
                 {!current ? (
                   <>
                     <div className="mb-1.5 flex items-center gap-2">
-                      <span className="text-sm font-bold text-ink-primary">原文</span>
-                      <button
-                        type="button"
-                        onClick={() => void copy("source", interpretation.source)}
-                        className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue"
-                        title="复制原文"
+                      <span className="text-sm font-bold text-ink-primary">{interpretingImage ? "框选图像" : "原文"}</span>
+                      {interpretation.page ? (
+                        <span className="text-[11px] font-semibold text-ink-tertiary">第 {interpretation.page} 页</span>
+                      ) : null}
+                      {!interpretingImage ? (
+                        <button
+                          type="button"
+                          onClick={() => void copy("source", interpretation.source)}
+                          className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue"
+                          title="复制原文"
+                        >
+                          {copied === "source" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          复制
+                        </button>
+                      ) : null}
+                    </div>
+                    {interpretingImage && interpretation.imageDataUrl ? (
+                      <div
+                        className="mb-2 overflow-hidden rounded-lg border"
+                        style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
                       >
-                        {copied === "source" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                        复制
-                      </button>
-                    </div>
-                    <div
-                      className="mb-2 whitespace-pre-wrap rounded-lg border p-2.5 text-ink-secondary"
-                      style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)", fontSize, lineHeight: 1.7 }}
-                    >
-                      {interpretation.source}
-                    </div>
+                        <img src={interpretation.imageDataUrl} alt={interpretation.source} className="block max-h-72 w-full object-contain" />
+                      </div>
+                    ) : (
+                      <div
+                        className="mb-2 whitespace-pre-wrap rounded-lg border p-2.5 text-ink-secondary"
+                        style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)", fontSize, lineHeight: 1.7 }}
+                      >
+                        {interpretation.source}
+                      </div>
+                    )}
                   </>
                 ) : null}
 

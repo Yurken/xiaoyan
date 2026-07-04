@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   chunk_overlap: "150",
   rag_top_k: "5",
   paper_search_engine: "arxiv",
+  github_api_key: "",
   semantic_scholar_api_key: "",
   planner_hint_model: "",
   planner_hint_base_url: "",

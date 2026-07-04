@@ -108,6 +108,15 @@ export interface ReaderSelection {
   popupY: number;
 }
 
+export interface ReaderImageSelection {
+  page: number;
+  rect: NormalizedRect;
+  data: string;
+  mediaType: string;
+  width: number;
+  height: number;
+}
+
 export interface PaperNote {
   id: string;
   paper_id: string;

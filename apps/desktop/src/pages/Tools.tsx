@@ -1,4 +1,4 @@
-import { FileText, FileSearch, Globe2, Languages, Presentation, Sparkles } from "lucide-react";
+import { FileText, FileSearch, Github, Globe2, Languages, Presentation, Sparkles } from "lucide-react";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import { ArxivFieldSearchPanel } from "../features/tools/ArxivFieldSearchPanel";
 import { ArxivSearchResults } from "../features/tools/ArxivSearchResults";
@@ -14,6 +14,8 @@ import { useMarkdownFormatter } from "../features/tools/useMarkdownFormatter";
 import { usePaperDiscoverySearch } from "../features/tools/usePaperDiscoverySearch";
 import { usePptGenerator } from "../features/tools/usePptGenerator";
 import { useSourceLookup } from "../features/tools/useSourceLookup";
+import { useGithubProjectSearch } from "../features/tools/useGithubProjectSearch";
+import { GithubProjectSearchPanel } from "../features/tools/GithubProjectSearchPanel";
 import { useTranslationTool } from "../features/tools/useTranslationTool";
 import { TranslationPanel } from "../features/tools/TranslationPanel";
 import { WebSupplementPanel } from "../features/tools/WebSupplementPanel";
@@ -21,6 +23,7 @@ import { useWebSupplement } from "../features/tools/useWebSupplement";
 
 const TOOL_TABS = [
   { key: "arxiv", icon: <Sparkles className="h-4 w-4" />, label: "论文检索" },
+  { key: "github", icon: <Github className="h-4 w-4" />, label: "GitHub 项目" },
   { key: "source", icon: <FileSearch className="h-4 w-4" />, label: "刊会查询" },
   { key: "translate", icon: <Languages className="h-4 w-4" />, label: "学术翻译" },
   { key: "md", icon: <FileText className="h-4 w-4" />, label: "MD 整理" },
@@ -44,6 +47,7 @@ export default function Tools() {
   const paperDiscovery = usePaperDiscoverySearch();
   const webSupplement = useWebSupplement();
   const arxivFieldSearch = useArxivFieldSearch();
+  const githubProjectSearch = useGithubProjectSearch();
 
   const webSupplementSeed = [
     paperDiscovery.panelProps.allTerms,
@@ -175,6 +179,18 @@ export default function Tools() {
         pdfActionTitle="打开 arXiv PDF"
       />
       </>}
+
+      {activeTab === "github" ? (
+        <GithubProjectSearchPanel
+          query={githubProjectSearch.query}
+          result={githubProjectSearch.result}
+          loading={githubProjectSearch.loading}
+          error={githubProjectSearch.error}
+          searched={githubProjectSearch.searched}
+          onQueryChange={githubProjectSearch.setQuery}
+          onSubmit={githubProjectSearch.submit}
+        />
+      ) : null}
 
       {activeTab === "source" ? (
         <SourceLookupPanel

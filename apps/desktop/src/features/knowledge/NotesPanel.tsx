@@ -184,58 +184,66 @@ export default function NotesPanel({
               ) : null}
             </div>
           </div>
-          <div className="flex w-full min-w-0 flex-col gap-2 2xl:flex-row 2xl:items-center">
-            <div className="relative min-w-0 flex-1">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="请输入关键词搜索笔记、术语或方法"
-                className="pl-10"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setViewMode((prev) => (prev === "card" ? "list" : "card"))}
-              className="flex items-center justify-center rounded-xl px-2.5 py-1.5 text-ink-tertiary transition-colors hover:bg-white/50 hover:text-ink-primary"
-              title={viewMode === "card" ? "切换为列表视图" : "切换为卡片视图"}
-            >
-              {viewMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-            </button>
-            {selectionMode ? (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={exitSelection}>
-                  <X className="h-4 w-4" />
-                  退出选择
-                </Button>
-              </div>
-            ) : (
-              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={enterSelection} disabled={scopedNotes.length === 0}>
-                  <CheckSquare className="h-4 w-4" />
-                  选择
-                </Button>
-                <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={() => {
-                  clearError();
-                  setShowWebClip(true);
-                }}>
-                  <Globe className="h-4 w-4" />
-                  剪辑网页
-                </Button>
-                <NoteImportZip
-                  interests={interests}
-                  researchInterestId={researchInterestId}
-                  onImport={importZip}
-                />
-                <Button size="sm" className="whitespace-nowrap" onClick={() => {
-                  clearError();
-                  navigate("/notes/new", { state: { researchInterestId } });
-                }}>
-                  <Plus className="h-4 w-4" />
-                  新建笔记
-                </Button>
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
+            {sourceTabs.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-ink-tertiary">来源</span>
+                <CapsuleTabs compact options={sourceTabs} value={activeSource} onChange={setSourceFilter} />
               </div>
             )}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="relative w-64 sm:w-72">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="请输入关键词搜索笔记、术语或方法"
+                  className="pl-10"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewMode((prev) => (prev === "card" ? "list" : "card"))}
+                className="flex items-center justify-center rounded-xl px-2.5 py-1.5 text-ink-tertiary transition-colors hover:bg-white/50 hover:text-ink-primary"
+                title={viewMode === "card" ? "切换为列表视图" : "切换为卡片视图"}
+              >
+                {viewMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+              </button>
+              {selectionMode ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={exitSelection}>
+                    <X className="h-4 w-4" />
+                    退出选择
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={enterSelection} disabled={scopedNotes.length === 0}>
+                    <CheckSquare className="h-4 w-4" />
+                    选择
+                  </Button>
+                  <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={() => {
+                    clearError();
+                    setShowWebClip(true);
+                  }}>
+                    <Globe className="h-4 w-4" />
+                    剪辑网页
+                  </Button>
+                  <NoteImportZip
+                    interests={interests}
+                    researchInterestId={researchInterestId}
+                    onImport={importZip}
+                  />
+                  <Button size="sm" className="whitespace-nowrap" onClick={() => {
+                    clearError();
+                    navigate("/notes/new", { state: { researchInterestId } });
+                  }}>
+                    <Plus className="h-4 w-4" />
+                    新建笔记
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -262,13 +270,6 @@ export default function NotesPanel({
               <Download className="h-4 w-4" />
               导出 Markdown{selectedNotes.length > 0 ? `（${selectedNotes.length}）` : ""}
             </Button>
-          </div>
-        )}
-
-        {sourceTabs.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-ink-tertiary">来源</span>
-            <CapsuleTabs compact options={sourceTabs} value={activeSource} onChange={setSourceFilter} />
           </div>
         )}
 

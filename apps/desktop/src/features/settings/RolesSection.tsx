@@ -59,6 +59,7 @@ export default function RolesSection({
   const [showAllCards, setShowAllCards] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [roleTestStates, setRoleTestStates] = useState<Record<string, RoleTestState>>({});
+  const [roleTestErrors, setRoleTestErrors] = useState<Record<string, string>>({});
   const activePreset = detectModelPreset(form);
 
   // Count how many cards have custom values
@@ -85,6 +86,7 @@ export default function RolesSection({
   const handleTestRole = async (item: (typeof CHARACTERISTIC_MODEL_CARDS)[number]) => {
     const key = item.title;
     setRoleTestStates((prev) => ({ ...prev, [key]: "testing" }));
+    setRoleTestErrors((prev) => ({ ...prev, [key]: "" }));
     try {
       // 视觉模型需发送真实测试图确认多模态能力，走专用的视觉连接测试（直接读 form 里的 vision_* 字段）。
       if (item.modelKeys.includes("vision_model")) {
@@ -101,13 +103,16 @@ export default function RolesSection({
         await apiClient.settings.test(testForm);
       }
       setRoleTestStates((prev) => ({ ...prev, [key]: "ok" }));
+      setRoleTestErrors((prev) => ({ ...prev, [key]: "" }));
       window.setTimeout(
         () => setRoleTestStates((prev) => (prev[key] === "ok" ? { ...prev, [key]: "idle" } : prev)),
         4000,
       );
     } catch (error) {
       console.error("Role test failed:", error);
+      const message = typeof error === "string" ? error : error instanceof Error ? error.message : String(error);
       setRoleTestStates((prev) => ({ ...prev, [key]: "error" }));
+      setRoleTestErrors((prev) => ({ ...prev, [key]: message }));
       window.setTimeout(
         () => setRoleTestStates((prev) => (prev[key] === "error" ? { ...prev, [key]: "idle" } : prev)),
         5000,
@@ -261,7 +266,8 @@ export default function RolesSection({
                 statusSummary={getCardStatusSummary(form, item)}
                 isCustomized={customized}
                 roleTestState={roleTestStates[item.title] ?? "idle"}
-                onTestRole={() => handleTestRole(item)}
+                roleTestError={roleTestErrors[item.title] ?? ""}
+                onTestRole={() => void handleTestRole(item)}
               />
             );
           })}

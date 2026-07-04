@@ -10,6 +10,7 @@ import type {
   ArxivSearchResponse,
   CcfListResponse,
   CcfLookupResponse,
+  GithubProjectSearchResponse,
   JournalLookupResponse,
   SourceLookupResponse,
   Paper,
@@ -361,6 +362,11 @@ export const paperSearchApi = {
 
 export const webSearchApi = {
   query: (query: string): Promise<WebSearchOutcome> => invoke("web_search_query", { query }),
+};
+
+export const githubProjectApi = {
+  search: (query: string, limit = 8): Promise<GithubProjectSearchResponse> =>
+    invoke("github_project_search", { request: { query, limit } }),
 };
 
 // ── Knowledge ─────────────────────────────────────────────────────
@@ -1012,6 +1018,7 @@ export const apiClient = {
   arxiv: arxivApi,
   paperSearch: paperSearchApi,
   webSearch: webSearchApi,
+  githubProject: githubProjectApi,
   ccf: ccfApi,
   journals: journalApi,
   sources: sourceApi,
