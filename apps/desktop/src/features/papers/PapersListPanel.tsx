@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { clsx } from "clsx";
 import { AlertCircle, FileText, Loader2 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { Paper, KnowledgeNote, ResearchInterest } from "@research-copilot/types";
@@ -10,9 +9,8 @@ import PaperFolderSection, {
   type PaperFolderContext,
   type PaperGroup,
 } from "./PaperFolderSection";
-import { usePaperDnd } from "./usePaperDnd";
 import { buildFolderSelectOptions, type InterestTreeNode } from "./interestTree";
-import type { PaperSortKey, PaperTaskProgress } from "./shared";
+import type { PaperSortDirection, PaperSortKey, PaperTaskProgress } from "./shared";
 import type { NoteDraft } from "../knowledge/NoteEditorModal";
 
 interface PapersListPanelProps {
@@ -29,6 +27,7 @@ interface PapersListPanelProps {
   detailPaperId: string | null;
   taskProgressByPaperId: Record<string, PaperTaskProgress>;
   getSortKey: (groupId: string) => PaperSortKey;
+  getSortDirection: (groupId: string) => PaperSortDirection;
   onAnalyze: (id: string) => void;
   onReproduce: (id: string) => void;
   onReparse: (id: string) => void;
@@ -52,7 +51,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
   const {
     papers, interests, interestMap, paperNotesMap, loading, loadError, deletingPaperId, deletingGroupId, savingEdit,
     folderForest, paperGroups, ungroupedPapers, detailPaperId, taskProgressByPaperId,
-    getSortKey,
+    getSortKey, getSortDirection,
     onAnalyze, onReproduce, onReparse, onUpdatePaper, onDeletePaper, onDeleteInterestGroup,
     onOpenDetail, onCloseDetail, onGenerateNote, onCreateNote, onSortKeyChange,
     onMovePaper, onReorderPaper, onCreateFolder, onMoveFolder,
@@ -66,20 +65,17 @@ export function PapersListPanel(props: PapersListPanelProps) {
 
   const folderOptions = useMemo(() => buildFolderSelectOptions(interests), [interests]);
 
-  const dnd = usePaperDnd({
-    onMovePaper,
-    onReorderPaper,
-    resolveGroupPaperIds: (groupKey) =>
-      (groupKey === "ungrouped" ? ungroupedPapers : groupMap.get(groupKey)?.papers ?? []).map((p) => p.id),
-  });
+  const resolveGroupPaperIds = (groupKey: string) =>
+    (groupKey === "ungrouped" ? ungroupedPapers : groupMap.get(groupKey)?.papers ?? []).map((p) => p.id);
 
   const ctx: PaperFolderContext = {
-    groupMap, interests, interestMap, paperNotesMap, folderOptions, dnd,
-    canDragPaper: Boolean(onMovePaper || onReorderPaper),
+    groupMap, interests, interestMap, paperNotesMap, folderOptions,
     detailPaperId, deletingPaperId, deletingGroupId, savingEdit, taskProgressByPaperId,
-    getSortKey,
+    getSortKey, getSortDirection,
     onSortKeyChange,
+    resolveGroupPaperIds,
     onAnalyze, onReproduce, onReparse, onUpdatePaper, onDeletePaper,
+    onMovePaper, onReorderPaper,
     onOpenDetail, onCloseDetail, onGenerateNote, onCreateNote, onDeleteInterestGroup, onCreateFolder, onMoveFolder,
   };
 
@@ -125,7 +121,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 px-1">
-        <p className="text-xs text-ink-tertiary">拖拽论文到文件夹归档，可建子文件夹分层整理。</p>
+        <p className="text-xs text-ink-tertiary">右键论文可移动到文件夹；文件夹支持子级整理。</p>
         <NewFolderButton label="新建文件夹" onCreate={(name) => onCreateFolder(name, null)} />
       </div>
 
@@ -135,17 +131,17 @@ export function PapersListPanel(props: PapersListPanelProps) {
 
       {ungroupedPapers.length > 0 && (
         <section
-          {...dnd.folderDropProps("ungrouped", null)}
-          className={clsx("space-y-3 rounded-[24px] transition-shadow", dnd.isFolderDragOver("ungrouped") && "shadow-[0_0_0_2px_var(--rc-accent)]")}
+          className="space-y-3 rounded-[24px] transition-shadow"
         >
           <div className="flex items-center justify-between gap-2 px-1">
             <div>
               <p className="text-sm font-semibold text-ink-primary">未归档论文</p>
-              <p className="mt-0.5 text-xs text-ink-tertiary">暂未绑定文件夹，可拖拽到上方文件夹归档。</p>
+              <p className="mt-0.5 text-xs text-ink-tertiary">暂未绑定文件夹，可从论文右键菜单移动归档。</p>
             </div>
             <PaperGroupControls
               groupKey="ungrouped"
               sortKey={getSortKey("ungrouped")}
+              sortDirection={getSortDirection("ungrouped")}
               onSortKeyChange={onSortKeyChange}
             />
           </div>

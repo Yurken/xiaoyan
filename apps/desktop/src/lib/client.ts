@@ -597,8 +597,8 @@ export const surveyApi = {
 // ── Translate ─────────────────────────────────────────────────────
 
 export const translateApi = {
-  translate: (text: string, targetLang: string, sourceLang?: string): Promise<string> =>
-    invoke("translate_text", { text, targetLang, sourceLang: sourceLang ?? null }),
+  translate: (text: string, targetLang: string, sourceLang?: string, model?: string): Promise<string> =>
+    invoke("translate_text", { text, targetLang, sourceLang: sourceLang ?? null, model: model ?? null }),
 };
 
 // ── Markdown Format ───────────────────────────────────────────────

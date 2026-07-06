@@ -330,10 +330,14 @@ export default function PaperReader() {
             locked={translation.locked}
             continuous={translation.continuous}
             fontSize={translation.fontSize}
+            translationModel={translation.translationModel}
+            availableModels={translation.availableModels}
+            loadingModels={translation.loadingModels}
+            modelsError={translation.modelsError}
             onToggleLock={translation.toggleLock}
             onToggleContinuous={translation.toggleContinuous}
-            onFontSize={translation.setFontSize}
             onInterpret={translation.interpret}
+            onTranslationModelChange={translation.setTranslationModel}
             onEditSource={translation.editSource}
             onClear={translation.clear}
             onCollapse={() => setTranslateOpen(false)}

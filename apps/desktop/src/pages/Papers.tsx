@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
 import { ChevronDown, FileDown, GitMerge, Search, Upload } from "lucide-react";
 import { safeOnDragDrop } from "../lib/tauriEvent";
-import { Button, CapsuleTabs, Select } from "@research-copilot/ui";
+import { Button, CapsuleTabs } from "@research-copilot/ui";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { usePapersList } from "../features/papers/usePapersList";
 import { PapersListPanel } from "../features/papers/PapersListPanel";
 import CorpusPanel from "../features/papers/CorpusPanel";
+import PaperImportDialog from "../features/papers/PaperImportDialog";
 import MergeDuplicatesDialog from "../features/papers/MergeDuplicatesDialog";
 import { findDuplicateGroups } from "../features/papers/duplicatePapers";
 import PaperDetailModal from "../features/papers/PaperDetailModal";
@@ -14,12 +15,13 @@ import { usePaperDetailRoute } from "../features/papers/usePaperDetailRoute";
 import { usePaperTaskProgress } from "../features/papers/usePaperTaskProgress";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { PaperFigure } from "../features/papers/shared";
-import { buildFolderSelectOptions } from "../features/papers/interestTree";
+import { interestFolderName } from "../lib/interestUtils";
 
 export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
   const papers = usePapersList();
   const [view, setView] = useState<"papers" | "corpus">("papers");
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [merging, setMerging] = useState(false);
   const [detailPaperId, setDetailPaperId] = useState<string | null>(null);
   const [paperFigures, setPaperFigures] = useState<Record<string, PaperFigure[]>>({});
@@ -131,6 +133,14 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   };
 
   const duplicateGroups = useMemo(() => findDuplicateGroups(papers.papers), [papers.papers]);
+  const importDropTarget = papers.selectedInterestId ? papers.interestMap?.[papers.selectedInterestId] : undefined;
+  const importDropTargetLabel = importDropTarget ? interestFolderName(importDropTarget) : "";
+
+  const handleImportFromDialog = async (interestId: string) => {
+    papers.setSelectedInterestId(interestId);
+    const imported = await papers.handleUpload(interestId);
+    if (imported) setImportOpen(false);
+  };
 
   const handleMerge = async (keepId: string, deleteIds: string[]) => {
     setMerging(true);
@@ -162,7 +172,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             <FileDown className="h-10 w-10 text-apple-blue" />
             <p className="text-base font-bold text-ink-primary">释放以导入 PDF</p>
             <p className="text-xs text-ink-tertiary">
-              {papers.selectedInterestId ? "将归档到当前所选研究主题" : "导入为未归档论文"}
+              {importDropTargetLabel ? `将归档到「${importDropTargetLabel}」` : "导入为未归档论文"}
             </p>
           </div>
         </div>
@@ -205,11 +215,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
                 </div>
               )}
             </div>
-            {!hideFolders && (
-              <Select className="min-w-[200px]" prefix="文件夹：" value={papers.selectedInterestId}
-                onChange={papers.setSelectedInterestId}
-                options={[{ value: "", label: "未归档" }, ...buildFolderSelectOptions(papers.interests)]} />
-            )}
             <Button
               variant="secondary"
               size="md"
@@ -220,7 +225,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               <GitMerge className="w-4 h-4" />
               {duplicateGroups.length > 0 ? `合并重复 (${duplicateGroups.length})` : "合并重复"}
             </Button>
-            <Button onClick={papers.handleUpload} loading={papers.uploading} size="md">
+            <Button onClick={() => setImportOpen(true)} loading={papers.uploading} size="md">
               <Upload className="w-4 h-4" />
               {papers.batchProgress ? `导入中 (${papers.batchProgress.done}/${papers.batchProgress.total})` : "导入 PDF"}
             </Button>
@@ -270,6 +275,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           detailPaperId={detailPaperId}
           taskProgressByPaperId={taskProgressByPaperId}
           getSortKey={papers.getSortKey}
+          getSortDirection={papers.getSortDirection}
           onAnalyze={handleAnalyze}
           onReproduce={papers.handleReproduce}
           onReparse={papers.handleReparse}
@@ -294,6 +300,16 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       </div>
       <PaperDetailModal paper={detailPaper} figures={detailPaper ? (paperFigures[detailPaper.id] ?? []) : []}
         onClose={closePaperDetail} />
+      {importOpen ? (
+        <PaperImportDialog
+          interests={papers.interests}
+          defaultInterestId={papers.selectedInterestId}
+          uploading={papers.uploading}
+          batchProgress={papers.batchProgress}
+          onImport={handleImportFromDialog}
+          onClose={() => setImportOpen(false)}
+        />
+      ) : null}
       {mergeOpen ? (
         <MergeDuplicatesDialog
           groups={duplicateGroups}

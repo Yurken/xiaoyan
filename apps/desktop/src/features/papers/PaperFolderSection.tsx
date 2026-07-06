@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { clsx } from "clsx";
 import { FolderInput, Trash2, X } from "lucide-react";
 import { Button, Select } from "@research-copilot/ui";
 import type { KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import PaperCard from "./PaperCard";
 import NewFolderButton from "./NewFolderButton";
-import type { PaperDnd } from "./usePaperDnd";
-import type { PaperSortKey, PaperTaskProgress } from "./shared";
+import type { PaperSortDirection, PaperSortKey, PaperTaskProgress } from "./shared";
 import type { NoteDraft } from "../knowledge/NoteEditorModal";
 import type { FolderSelectOption, InterestTreeNode } from "./interestTree";
 import { buildFolderSelectOptions, collectInterestSubtreeIds } from "./interestTree";
@@ -15,8 +13,10 @@ import { interestFolderName } from "../../lib/interestUtils";
 
 export type PaperGroup = { key: string; title: string; subtitle: string; papers: Paper[] };
 
-const SORT_KEYS: PaperSortKey[] = ["created_at", "title", "importance", "manual"];
+const SORT_KEYS: PaperSortKey[] = ["created_at", "title", "importance"];
 const SORT_LABELS: Record<PaperSortKey, string> = { created_at: "导入时间", title: "名称", importance: "重要性", manual: "自定义" };
+/** Direction-aware sort key labels for tooltips. */
+const SORT_TOOLTIP_LABELS: Record<string, string> = { created_at: "导入时间", title: "名称", importance: "重要性" };
 
 /** 递归文件夹节点渲染所需的共享上下文，自顶层一次构建后逐层透传。 */
 export interface PaperFolderContext {
@@ -25,19 +25,21 @@ export interface PaperFolderContext {
   interestMap: Record<string, ResearchInterest>;
   paperNotesMap: Record<string, KnowledgeNote>;
   folderOptions: FolderSelectOption[];
-  dnd: PaperDnd;
-  canDragPaper: boolean;
   detailPaperId: string | null;
   deletingPaperId: string | null;
   deletingGroupId: string | null;
   savingEdit: boolean;
   taskProgressByPaperId: Record<string, PaperTaskProgress>;
   getSortKey: (groupId: string) => PaperSortKey;
+  getSortDirection: (groupId: string) => PaperSortDirection;
   onSortKeyChange: (groupId: string, key: PaperSortKey) => void;
+  resolveGroupPaperIds: (groupKey: string) => string[];
   onAnalyze: (id: string) => void;
   onReproduce: (id: string) => void;
   onReparse: (id: string) => void;
   onUpdatePaper: (id: string, data: Record<string, unknown>) => Promise<unknown>;
+  onMovePaper?: (paperId: string, interestId: string | null) => void | Promise<unknown>;
+  onReorderPaper?: (groupId: string, orderedIds: string[]) => void;
   onDeletePaper: (id: string) => void;
   onOpenDetail: (id: string) => void;
   onCloseDetail: () => void;
@@ -50,11 +52,12 @@ export interface PaperFolderContext {
 
 /** 文件夹/未归档区通用的排序控件。 */
 export function PaperGroupControls({
-  groupKey, sortKey,
+  groupKey, sortKey, sortDirection,
   onSortKeyChange,
 }: {
   groupKey: string;
   sortKey: PaperSortKey;
+  sortDirection: PaperSortDirection;
   onSortKeyChange: (groupId: string, key: PaperSortKey) => void;
 }) {
   return (
@@ -62,10 +65,17 @@ export function PaperGroupControls({
       <div className="flex items-center gap-1">
         {SORT_KEYS.map((key) => {
           const active = sortKey === key;
+          const supportsDirection = key !== "manual";
+          const isAscending = supportsDirection && active && sortDirection === "asc";
+          const activeColor = !active ? undefined : isAscending ? "#34C759" : "#007AFF";
+          const tooltip = supportsDirection && active
+            ? `${SORT_TOOLTIP_LABELS[key]}${sortDirection === "asc" ? "正序" : "逆序"}`
+            : undefined;
           return (
             <button key={key} type="button" onClick={(e) => { e.stopPropagation(); onSortKeyChange(groupKey, key); }}
               className="rounded-lg px-2 py-0.5 text-[10px] transition-all"
-              style={{ background: active ? "#007AFF" : "var(--rc-surface)", color: active ? "#fff" : "#999",
+              title={tooltip}
+              style={{ background: activeColor ?? "var(--rc-surface)", color: active ? "#fff" : "#999",
                 boxShadow: active ? "inset 1px 1px 2px rgba(0,0,0,0.2)" : "var(--rc-chip-shadow)", fontWeight: active ? 600 : 400 }}>
               {SORT_LABELS[key]}
             </button>
@@ -78,24 +88,38 @@ export function PaperGroupControls({
 
 /** 用上下文渲染一张论文卡片，文件夹与未归档区共用，避免重复透传。 */
 export function CtxPaperCard({ ctx, paper, groupKey }: { ctx: PaperFolderContext; paper: Paper; groupKey: string }) {
+  const groupPaperIds = ctx.resolveGroupPaperIds(groupKey);
+  const index = groupPaperIds.indexOf(paper.id);
+  const sortable = Boolean(ctx.onReorderPaper && groupPaperIds.length > 1);
+  const reorder = (direction: -1 | 1) => {
+    if (!ctx.onReorderPaper || index < 0) return;
+    const target = index + direction;
+    if (target < 0 || target >= groupPaperIds.length) return;
+    const orderedIds = [...groupPaperIds];
+    [orderedIds[index], orderedIds[target]] = [orderedIds[target], orderedIds[index]];
+    ctx.onReorderPaper(groupKey, orderedIds);
+  };
+
   return (
     <PaperCard
       paper={paper}
-      groupKey={groupKey}
       folderOptions={ctx.folderOptions}
       detailPaperId={ctx.detailPaperId}
       deletingPaperId={ctx.deletingPaperId}
       savingEdit={ctx.savingEdit}
       taskProgress={ctx.taskProgressByPaperId[paper.id]}
-      draggable={ctx.canDragPaper}
-      dnd={ctx.dnd}
       interests={ctx.interests}
       interestMap={ctx.interestMap}
       paperNote={ctx.paperNotesMap[paper.id]}
+      canMoveUp={sortable && index > 0}
+      canMoveDown={sortable && index >= 0 && index < groupPaperIds.length - 1}
       onAnalyze={ctx.onAnalyze}
       onReproduce={ctx.onReproduce}
       onReparse={ctx.onReparse}
       onUpdatePaper={ctx.onUpdatePaper}
+      onMovePaper={ctx.onMovePaper}
+      onMoveUp={sortable ? () => reorder(-1) : undefined}
+      onMoveDown={sortable ? () => reorder(1) : undefined}
       onDeletePaper={ctx.onDeletePaper}
       onOpenDetail={ctx.onOpenDetail}
       onCloseDetail={ctx.onCloseDetail}
@@ -124,10 +148,7 @@ export default function PaperFolderSection({ node, ctx }: { node: InterestTreeNo
   ];
 
   return (
-    <div
-      {...ctx.dnd.folderDropProps(groupKey, groupKey)}
-      className={clsx("rounded-[24px] transition-shadow", ctx.dnd.isFolderDragOver(groupKey) && "shadow-[0_0_0_2px_var(--rc-accent)]")}
-    >
+    <div className="rounded-[24px] transition-shadow">
       <CollapsibleGroup
         title={title}
         subtitle={subtitle !== title ? `研究主题：${subtitle}` : undefined}
@@ -150,6 +171,7 @@ export default function PaperFolderSection({ node, ctx }: { node: InterestTreeNo
               <PaperGroupControls
                 groupKey={groupKey}
                 sortKey={ctx.getSortKey(groupKey)}
+                sortDirection={ctx.getSortDirection(groupKey)}
                 onSortKeyChange={ctx.onSortKeyChange}
               />
               <NewFolderButton label="子文件夹" onCreate={(name) => ctx.onCreateFolder(name, groupKey)} />
@@ -174,7 +196,7 @@ export default function PaperFolderSection({ node, ctx }: { node: InterestTreeNo
 
         {papers.length === 0 && node.children.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
-            这个文件夹下还没有论文，上传 PDF 或把论文拖进来。
+            这个文件夹下还没有论文，上传 PDF 或在论文右键菜单中移动到这里。
           </div>
         ) : (
           papers.map((p) => <CtxPaperCard key={p.id} ctx={ctx} paper={p} groupKey={groupKey} />)

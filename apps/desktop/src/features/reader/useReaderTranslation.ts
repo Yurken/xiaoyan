@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { chatApi, translateApi } from "../../lib/client";
+import type { AppSettings, LlmProvider } from "@research-copilot/types";
+import { chatApi, translateApi, settingsApi } from "../../lib/client";
 import type { ReaderImageSelection } from "./readerTypes";
+
+function getDefaultChatModel(settings: AppSettings): string {
+  const map: Record<LlmProvider, string> = {
+    openai: settings.openai_chat_model,
+    anthropic: settings.anthropic_chat_model,
+    openai_compatible: settings.openai_compatible_chat_model,
+  };
+  return map[settings.llm_provider] ?? "";
+}
 
 export interface TranslationState {
   id: number;
@@ -58,6 +68,10 @@ export function useReaderTranslation() {
   const [locked, setLocked] = useState(false);
   const [continuous, setContinuous] = useState(false);
   const [fontSize, setFontSize] = useState<number>(DEFAULT_FONT_SIZE);
+  const [translationModel, setTranslationModel] = useState<string>("");
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState("");
 
   const seqRef = useRef(0);
   const currentRef = useRef<TranslationState | null>(null);
@@ -73,6 +87,36 @@ export function useReaderTranslation() {
   // 卸载时中止仍在进行的解读流，避免卸载后 setState 与未释放的网络流。
   useEffect(() => () => interpretAbortRef.current?.abort(), []);
 
+  // 初始化译衡模型：优先使用设置中保存的 translation_model；未指定时回退到小妍默认模型。
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingModels(true);
+    setModelsError("");
+    (async () => {
+      try {
+        const settings = await settingsApi.get();
+        if (cancelled) return;
+        const defaultModel = getDefaultChatModel(settings);
+        setTranslationModel(settings.translation_model || defaultModel);
+        const models = await settingsApi.listModels(settings);
+        if (cancelled) return;
+        setAvailableModels(models);
+        if (models.length === 0) {
+          setModelsError("未获取到模型，请检查接口地址与密钥。");
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setAvailableModels([]);
+        setModelsError(error instanceof Error ? error.message : String(error));
+      } finally {
+        if (!cancelled) setLoadingModels(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const runTranslate = useCallback(async (source: string, page?: number) => {
     const trimmed = normalizeSourceText(source);
     if (!trimmed) return;
@@ -80,13 +124,13 @@ export function useReaderTranslation() {
     setInterpretation(null); // 译文变化，旧解读作废
     setCurrent({ id, source: trimmed, page, result: "", status: "loading" });
     try {
-      const result = await translateApi.translate(trimmed, "zh");
+      const result = await translateApi.translate(trimmed, "zh", undefined, translationModel);
       setCurrent((prev) => (prev && prev.id === id ? { ...prev, result: result.trim(), status: "done" } : prev));
     } catch (err) {
       const message = err instanceof Error ? err.message : "翻译失败";
       setCurrent((prev) => (prev && prev.id === id ? { ...prev, status: "error", error: message } : prev));
     }
-  }, []);
+  }, [translationModel]);
 
   // 划词翻译：连翻开启且已有结果时，把新选中文字接到上一段后合并重译；否则另起一段。
   const translate = useCallback(
@@ -204,6 +248,10 @@ export function useReaderTranslation() {
     locked,
     continuous,
     fontSize,
+    translationModel,
+    availableModels,
+    loadingModels,
+    modelsError,
     translate,
     editSource,
     interpret,
@@ -215,5 +263,6 @@ export function useReaderTranslation() {
     setContinuous,
     toggleContinuous,
     setFontSize,
+    setTranslationModel,
   };
 }

@@ -28,6 +28,9 @@ const handleDragStart = (event: DragEvent) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
 
+  // 如果目标位于显式 draggable 的容器内部，由容器自己的 dragstart 处理，不在这里拦截。
+  if (target.closest("[draggable='true']")) return;
+
   if (
     target.closest(
       "button, [role='button'], a, img, svg, [data-no-drag='true'], .rc-icon-button, .app-nav-link"

@@ -982,11 +982,14 @@ pub async fn translate_text(
     text: String,
     target_lang: String,
     source_lang: Option<String>,
+    model: Option<String>,
 ) -> Result<String, String> {
     let settings = state.settings.read().await.clone();
     let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
 
-    let model = resolve_model(&settings, &["translation_model"]);
+    let model = model
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| resolve_model(&settings, &["translation_model"]));
     let temperature = resolve_temperature(&settings, "translation_temperature", 0.1);
 
     let lang_map: &[(&str, &str)] = &[

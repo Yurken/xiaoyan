@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, Eye, FlaskConical, FolderOpen, Loader2, NotebookPen, Pencil, Quote, RotateCw, Trash2, X } from "lucide-react";
-import { clsx } from "clsx";
+import { ArrowDown, ArrowUp, BookOpen, Eye, FlaskConical, Loader2, NotebookPen, Pencil, Quote, X } from "lucide-react";
 import { Badge, Button, Card, Input, Select } from "@research-copilot/ui";
 import type { KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 import {
@@ -13,12 +12,11 @@ import {
   WosIndexBadge,
 } from "../../components/CcfBadges";
 import PaperCitationPanel from "./PaperCitationPanel";
+import PaperCardContextMenu from "./PaperCardContextMenu";
 import PaperNoteViewerModal from "./PaperNoteViewerModal";
 import PaperTaskProgressPanel from "./PaperTaskProgressPanel";
 import type { PaperTaskProgress } from "./shared";
 import type { FolderSelectOption } from "./interestTree";
-import type { PaperDnd } from "./usePaperDnd";
-import { apiClient } from "../../lib/client";
 import NoteEditorModal, { type NoteDraft } from "../knowledge/NoteEditorModal";
 
 const IMPORTANCE_OPTIONS = [
@@ -33,21 +31,23 @@ const IMPORTANCE_OPTIONS = [
 
 interface PaperCardProps {
   paper: Paper;
-  groupKey: string;
   folderOptions: FolderSelectOption[];
   detailPaperId: string | null;
   deletingPaperId: string | null;
   savingEdit: boolean;
   taskProgress?: PaperTaskProgress;
-  draggable: boolean;
-  dnd: PaperDnd;
   interests: ResearchInterest[];
   interestMap: Record<string, ResearchInterest>;
   paperNote?: KnowledgeNote;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
   onAnalyze: (id: string) => void;
   onReproduce: (id: string) => void;
   onReparse: (id: string) => void;
   onUpdatePaper: (id: string, data: Record<string, unknown>) => Promise<unknown>;
+  onMovePaper?: (paperId: string, interestId: string | null) => void | Promise<unknown>;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   onDeletePaper: (id: string) => void;
   onOpenDetail: (id: string) => void;
   onCloseDetail: () => void;
@@ -69,21 +69,23 @@ const requiresReanalyzeConfirm = (p: Paper) => p.status === "analyzed" || p.stat
 
 export default function PaperCard({
   paper,
-  groupKey,
   folderOptions,
   detailPaperId,
   deletingPaperId,
   savingEdit,
   taskProgress,
-  draggable,
-  dnd,
   interests,
   interestMap,
   paperNote,
+  canMoveUp = false,
+  canMoveDown = false,
   onAnalyze,
   onReproduce,
   onReparse,
   onUpdatePaper,
+  onMovePaper,
+  onMoveUp,
+  onMoveDown,
   onDeletePaper,
   onOpenDetail,
   onCloseDetail,
@@ -182,9 +184,6 @@ export default function PaperCard({
     setLocalNote(paperNote);
   }, [paperNote]);
 
-  const canDrag = draggable && !editing;
-  const insertion = dnd.dragInsertion(paper.id);
-
   function showNoteToast(message: string, noteId?: string) {
     setNoteToast({ message, noteId });
     setTimeout(() => setNoteToast(null), 3000);
@@ -237,28 +236,32 @@ export default function PaperCard({
     }
   };
 
+  const sortButtons = (onMoveUp || onMoveDown) && !editing ? (
+    <span className="ml-auto inline-flex items-center gap-0.5 self-center">
+      <button type="button" onClick={onMoveUp} disabled={!canMoveUp}
+        className="flex h-5 w-5 items-center justify-center text-ink-tertiary transition-colors hover:text-apple-blue disabled:opacity-25"
+        title="上移排序">
+        <ArrowUp className="h-3 w-3" />
+      </button>
+      <button type="button" onClick={onMoveDown} disabled={!canMoveDown}
+        className="flex h-5 w-5 items-center justify-center text-ink-tertiary transition-colors hover:text-apple-blue disabled:opacity-25"
+        title="下移排序">
+        <ArrowDown className="h-3 w-3" />
+      </button>
+    </span>
+  ) : null;
+
   return (
     <Card
       padding="sm"
-      className={clsx(
-        "relative",
-        canDrag && "cursor-grab active:cursor-grabbing",
-        dnd.isDragging(paper.id) && "opacity-50",
-      )}
+      className="relative"
       style={{ borderTop: paper.importance_color ? `3px solid ${paper.importance_color}` : undefined }}
-      draggable={canDrag}
-      {...dnd.cardDragProps(paper.id, groupKey)}
+      data-paper-card
       onContextMenu={(e) => {
         e.preventDefault();
         setMenu({ x: e.clientX, y: e.clientY });
       }}
     >
-      {insertion && (
-        <div className={clsx(
-          "pointer-events-none absolute left-3 right-3 h-0.5 rounded-full bg-[var(--rc-accent)]",
-          insertion === "before" ? "-top-1.5" : "-bottom-1.5",
-        )} />
-      )}
       <div className="flex min-w-0 flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1 basis-[18rem] text-sm">
           <div className="flex items-start gap-2">
@@ -289,12 +292,13 @@ export default function PaperCard({
             {paper.cas_top && <CasTopBadge top={paper.cas_top} />}
             {paper.ccf_rating && <CcfRatingBadge rating={paper.ccf_rating} />}
           </div>
-          {paper.tags && paper.tags.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {paper.tags.map((tag) => (
+          {((paper.tags && paper.tags.length > 0) || sortButtons) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              {paper.tags?.map((tag) => (
                 <span key={tag} className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-ink-tertiary"
                   style={{ background: "var(--rc-chip-inset-bg)" }}>{tag}</span>
               ))}
+              {/* {sortButtons} */}
             </div>
           )}
         </div>
@@ -535,42 +539,17 @@ export default function PaperCard({
         />
       )}
       {menu && (
-        <div
-          className="fixed z-[60] min-w-[160px] overflow-hidden rounded-xl py-1"
-          style={{
-            left: Math.min(menu.x, window.innerWidth - 180),
-            top: Math.min(menu.y, window.innerHeight - 150),
-            background: "var(--rc-surface)",
-            boxShadow: "0 12px 36px rgba(15,23,42,0.2)",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button type="button"
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-black/5"
-            onClick={() => { openEditor(); setMenu(null); }}>
-            <Pencil className="h-3.5 w-3.5" />编辑
-          </button>
-          {paper.file_path && (
-            <button type="button"
-              disabled={["parsing", "analyzing"].includes(paper.status)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-black/5 disabled:opacity-40"
-              onClick={() => { onReparse(paper.id); setMenu(null); }}>
-              <RotateCw className="h-3.5 w-3.5" />重新解析
-            </button>
-          )}
-          {paper.file_path && (
-            <button type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-black/5"
-              onClick={() => { void apiClient.papers.revealInFolder(paper.id); setMenu(null); }}>
-              <FolderOpen className="h-3.5 w-3.5" />在访达中打开
-            </button>
-          )}
-          <button type="button"
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-apple-red transition-colors hover:bg-apple-red/10"
-            onClick={() => { setConfirmDelete(true); setMenu(null); }}>
-            <Trash2 className="h-3.5 w-3.5" />删除
-          </button>
-        </div>
+        <PaperCardContextMenu
+          paper={paper}
+          x={menu.x}
+          y={menu.y}
+          folderOptions={folderOptions}
+          onClose={() => setMenu(null)}
+          onEdit={openEditor}
+          onReparse={onReparse}
+          onMovePaper={onMovePaper}
+          onRequestDelete={() => setConfirmDelete(true)}
+        />
       )}
     </Card>
   );
