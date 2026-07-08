@@ -216,9 +216,17 @@ __marimo__/
 backend/.env
 backend/uploads/
 backend/.venv/
-tmp/opencode/
 apps/desktop/src-tauri/gen/schemas/windows-schema.json
 apps/desktop/src-tauri/*.db
+
+# Local workspace / generated artifacts
+.workbuddy/
+extract_ppt.py
+ppt_content.json
+ppt_xiaoyan/
+slide-outline.md
+outputs/*.html
+tmp/
 
 # Frontend / monorepo
 node_modules/

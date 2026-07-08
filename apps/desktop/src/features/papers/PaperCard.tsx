@@ -179,6 +179,7 @@ export default function PaperCard({
   const editTitleError = editing && !editDraft.title.trim() ? "标题不能为空" : "";
   const editYearText = editDraft.year.trim();
   const editYearError = editing && editYearText && !/^\d{4}$/.test(editYearText) ? "年份需填写 4 位数字" : "";
+  const hasReproductionResult = paper.status === "reproduced" || Boolean(paper.reproduction_guide);
 
   useEffect(() => {
     setLocalNote(paperNote);
@@ -314,8 +315,20 @@ export default function PaperCard({
           </Button>
           <button type="button" onClick={() => onReproduce(paper.id)} disabled={!canStartAnalyze(paper.status)}
             className="flex h-8 w-8 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
-            style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" }}
-            title="生成复现/验证指南">
+            style={hasReproductionResult
+              ? {
+                  background: "rgba(52,199,89,0.14)",
+                  border: "1px solid rgba(52,199,89,0.42)",
+                  boxShadow: "var(--rc-chip-inset-shadow)",
+                  color: "#1A9E3F",
+                }
+              : {
+                  background: "var(--rc-surface)",
+                  border: "1px solid transparent",
+                  boxShadow: "var(--rc-chip-shadow)",
+                  color: "var(--rc-text-secondary)",
+                }}
+            title={hasReproductionResult ? "已生成复现/验证指南" : "生成复现/验证指南"}>
             <FlaskConical className="h-4 w-4" />
           </button>
           <button type="button" onClick={() => openNoteUI()} disabled={generatingNote || (!localNote && !onGenerateNote && !onCreateNote)}

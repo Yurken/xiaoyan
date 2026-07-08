@@ -1,20 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { safeListen } from "./tauriEvent";
-import { updatesApi } from "./client";
+import { formatErrorMessage, updatesApi } from "./client";
 import type { AppUpdateInfo } from "@research-copilot/types";
+import type { DownloadProgress } from "./updateProgress";
 
 const INTERVAL_MS = 30 * 60 * 1000;
 
-export interface DownloadProgress {
-  status: "started" | "progress" | "finished";
-  downloaded: number;
-  total: number | null;
-}
+export type { DownloadProgress } from "./updateProgress";
 
 export interface AutoUpdateState {
   updateInfo: AppUpdateInfo | null;
   installing: boolean;
   downloadProgress: DownloadProgress | null;
+  installError: string;
   install: () => Promise<void>;
   dismiss: () => void;
 }
@@ -24,6 +22,7 @@ export function useAutoUpdate(): AutoUpdateState {
   const [installing, setInstalling] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
+  const [installError, setInstallError] = useState("");
   const checkingRef = useRef(false);
 
   const check = useCallback(async () => {
@@ -33,6 +32,7 @@ export function useAutoUpdate(): AutoUpdateState {
       const info = await updatesApi.check();
       if (info.configured && info.available) {
         setUpdateInfo(info);
+        setInstallError("");
         setDismissed(false);
       }
     } catch {
@@ -45,15 +45,20 @@ export function useAutoUpdate(): AutoUpdateState {
   const install = useCallback(async () => {
     setInstalling(true);
     setDownloadProgress(null);
+    setInstallError("");
     try {
       await updatesApi.install();
-    } catch {
+    } catch (error) {
       setInstalling(false);
       setDownloadProgress(null);
+      setInstallError(formatErrorMessage(error));
     }
   }, []);
 
-  const dismiss = useCallback(() => setDismissed(true), []);
+  const dismiss = useCallback(() => {
+    setDismissed(true);
+    setInstallError("");
+  }, []);
 
   useEffect(() => {
     void check();
@@ -84,6 +89,7 @@ export function useAutoUpdate(): AutoUpdateState {
     updateInfo: dismissed ? null : updateInfo,
     installing,
     downloadProgress,
+    installError,
     install,
     dismiss,
   };

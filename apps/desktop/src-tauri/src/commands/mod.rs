@@ -25,6 +25,8 @@ pub mod paper_analysis_text;
 pub mod paper_artifacts;
 pub mod paper_corpus;
 pub mod paper_cross_analysis;
+pub mod paper_figure_images;
+pub mod paper_figure_pages;
 pub mod paper_figures;
 pub mod paper_notes;
 pub mod paper_search;

@@ -4,11 +4,12 @@ import { safeListen } from "../../lib/tauriEvent";
 import type { AppSettings, AppUpdateInfo } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { emitCompanionPreferenceChange, normalizeCompanionId } from "../companion/shared";
-import type { DownloadProgress } from "../../lib/useAutoUpdate";
+import type { DownloadProgress } from "../../lib/updateProgress";
+import { getUpdateStatusMessage } from "../../lib/updateProgress";
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 export type TestState = "idle" | "testing" | "ok" | "error";
-export type UpdateState = "idle" | "checking" | "ready" | "latest" | "installing" | "disabled" | "error";
+export type UpdateState = "idle" | "checking" | "ready" | "latest" | "installing" | "disabled" | "error" | "installError";
 
 export function useSettingsController(defaultSettings: AppSettings) {
   const [form, setForm] = useState<AppSettings>(defaultSettings);
@@ -105,7 +106,10 @@ export function useSettingsController(defaultSettings: AppSettings) {
     let unlisten: (() => void) | undefined;
     let mounted = true;
     void safeListen<DownloadProgress>("update:download-progress", (event) => {
-      setDownloadProgress(event.payload);
+      const progress = event.payload;
+      setDownloadProgress(progress);
+      setUpdateState("installing");
+      setUpdateMsg(getUpdateStatusMessage(progress));
     }).then((cleanup) => {
       if (!mounted) {
         cleanup();
@@ -189,13 +193,14 @@ export function useSettingsController(defaultSettings: AppSettings) {
   const handleInstallUpdate = async () => {
     setUpdateState("installing");
     setDownloadProgress(null);
-    setUpdateMsg("正在下载并安装更新，完成后应用会自动重启。");
+    setUpdateMsg("正在准备下载更新包。");
     try {
       await apiClient.updates.install();
-      setUpdateMsg("更新已安装，应用即将重启。");
+      setUpdateMsg("更新已安装，正在重启应用。");
     } catch (error) {
-      setUpdateState("error");
-      setUpdateMsg(formatErrorMessage(error));
+      setUpdateState("installError");
+      setDownloadProgress(null);
+      setUpdateMsg(`更新安装失败：${formatErrorMessage(error)}`);
     }
   };
 

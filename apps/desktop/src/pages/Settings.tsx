@@ -26,6 +26,7 @@ import { useSettingsHistory } from "../features/settings/useSettingsHistory";
 import { useSettingsMemories } from "../features/settings/useSettingsMemories";
 import { useLayoutSettingsController } from "../features/settings/useLayoutSettingsController";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
+import { getUpdateCurrentVersion, getUpdatePublishedAt } from "../lib/updateProgress";
 import type { LlmProvider } from "@research-copilot/types";
 
 const SETTINGS_SECTION_KEYS = SETTINGS_SECTIONS.map((section) => section.key);
@@ -288,9 +289,9 @@ export default function Settings() {
   };
 
   const contentUnavailable = loading || Boolean(loadError);
-  const displayVersion = updateInfo?.available ? updateInfo.version : appVersion || updateInfo?.current_version;
+  const displayVersion = updateInfo?.available ? updateInfo.version : appVersion || getUpdateCurrentVersion(updateInfo);
   const changelogPublishedAt = getChangelogReleaseDate(displayVersion);
-  const updatePublishedAt = formatUpdateDate(updateInfo?.pub_date || changelogPublishedAt);
+  const updatePublishedAt = formatUpdateDate(getUpdatePublishedAt(updateInfo) || changelogPublishedAt);
   const { connectionReady, rolesReady, multiAgentReady } = computeQuickStartReadiness(form);
   const paperImportReady = [
     form.paper_import_recognize_title,

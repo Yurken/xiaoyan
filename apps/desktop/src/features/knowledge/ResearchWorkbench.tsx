@@ -392,9 +392,23 @@ export default function ResearchWorkbench({ interest, activeTab = "overview", on
                       {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                       {paper.status === "parsing" ? "解析中" : paper.status === "uploaded" ? "待解析" : "分析"}
                     </Button>
-                    <Button size="sm" variant="secondary" onClick={() => void handleReproduce(paper.id)} disabled={!canRunPaperTask(paper.status)}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void handleReproduce(paper.id)}
+                      disabled={!canRunPaperTask(paper.status)}
+                      style={paper.status === "reproduced" || paper.reproduction_guide
+                        ? {
+                            background: "rgba(52,199,89,0.14)",
+                            borderColor: "rgba(52,199,89,0.42)",
+                            boxShadow: "var(--rc-chip-inset-shadow)",
+                            color: "#1A9E3F",
+                          }
+                        : undefined}
+                      title={paper.status === "reproduced" || paper.reproduction_guide ? "已生成复现/验证指南" : "生成复现/验证指南"}
+                    >
                       <FlaskConical className="h-3.5 w-3.5" />
-                      复现
+                      {paper.status === "reproduced" || paper.reproduction_guide ? "已复现" : "复现"}
                     </Button>
                   </div>
                   {paper.status === "analyzing" && taskProgressByPaperId[paper.id] ? (

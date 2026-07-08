@@ -301,9 +301,11 @@ export interface SourceLookupResponse {
 export interface AppUpdateInfo {
   configured: boolean;
   available: boolean;
-  current_version: string;
+  currentVersion?: string;
+  current_version?: string;
   version?: string;
   body?: string;
+  pubDate?: string;
   pub_date?: string;
 }
 

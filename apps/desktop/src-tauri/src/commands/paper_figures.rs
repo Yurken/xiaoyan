@@ -1,4 +1,8 @@
 use crate::commands::paper_artifacts::paper_figures_dir;
+use crate::commands::paper_figure_images::{extract_pdf_images, is_likely_paper_figure_image};
+use crate::commands::paper_figure_pages::{
+    crop_page_region, extract_rendered_figure_crops, render_pdf_pages,
+};
 use crate::llm::LlmClient;
 use crate::state::AppState;
 use base64::{engine::general_purpose, Engine as _};
@@ -9,13 +13,13 @@ use std::path::{Path, PathBuf};
 use tauri::{Manager, State};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-enum FigureKind {
+pub(crate) enum FigureKind {
     Figure,
     Table,
 }
 
 impl FigureKind {
-    fn as_str(&self) -> &'static str {
+    pub(crate) fn as_str(&self) -> &'static str {
         match self {
             Self::Figure => "figure",
             Self::Table => "table",
@@ -29,7 +33,7 @@ impl FigureKind {
         }
     }
 
-    fn from_str(value: &str) -> Option<Self> {
+    pub(crate) fn from_str(value: &str) -> Option<Self> {
         let normalized = value.trim().to_ascii_lowercase();
         if matches!(normalized.as_str(), "figure" | "fig" | "图") {
             Some(Self::Figure)
@@ -55,14 +59,14 @@ impl PaperFigureContext {
     }
 }
 
-type CaptionMap = HashMap<(FigureKind, u32), String>;
+pub(crate) type CaptionMap = HashMap<(FigureKind, u32), String>;
 
 #[derive(Debug, Clone)]
-struct NormalizedBBox {
-    x: f32,
-    y: f32,
-    width: f32,
-    height: f32,
+pub(crate) struct NormalizedBBox {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) width: f32,
+    pub(crate) height: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -71,19 +75,6 @@ struct VisionFigureCandidate {
     index: u32,
     bbox: NormalizedBBox,
     caption: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct RawPdfImage {
-    file_path: PathBuf,
-    width: u32,
-    height: u32,
-}
-
-impl RawPdfImage {
-    fn area(&self) -> u64 {
-        self.width as u64 * self.height as u64
-    }
 }
 
 pub(crate) async fn ensure_figures_extracted(
@@ -188,6 +179,17 @@ pub(crate) async fn ensure_figures_extracted(
         let _ = std::fs::remove_dir_all(&pages_dir);
     }
 
+    add_rendered_page_fallbacks(
+        db,
+        paper_id,
+        &pdf_path,
+        &figures_dir,
+        &captions,
+        &mut extracted,
+        &now,
+    )
+    .await;
+
     add_embedded_image_fallbacks(
         db,
         paper_id,
@@ -274,6 +276,49 @@ async fn query_figure_contexts(db: &sqlx::SqlitePool, paper_id: &str) -> Vec<Pap
         caption: row.get("caption"),
     })
     .collect()
+}
+
+async fn add_rendered_page_fallbacks(
+    db: &sqlx::SqlitePool,
+    paper_id: &str,
+    pdf_path: &Path,
+    figures_dir: &Path,
+    captions: &CaptionMap,
+    extracted: &mut HashSet<(FigureKind, u32)>,
+    now: &str,
+) {
+    let caption_map = captions.clone();
+    let already_extracted = extracted.clone();
+    let pdf_p = pdf_path.to_path_buf();
+    let fig_d = figures_dir.to_path_buf();
+    let crops = tokio::task::spawn_blocking(move || {
+        extract_rendered_figure_crops(&pdf_p, &fig_d, &caption_map, &already_extracted)
+    })
+    .await
+    .unwrap_or_default();
+
+    for crop in crops {
+        let key = (crop.kind.clone(), crop.index);
+        if extracted.contains(&key) {
+            continue;
+        }
+        if insert_figure_record(
+            db,
+            paper_id,
+            &crop.kind,
+            crop.index,
+            crop.caption.as_deref(),
+            &crop.file_path,
+            Some(crop.page_number),
+            Some(&crop.bbox),
+            "rendered",
+            now,
+        )
+        .await
+        {
+            extracted.insert(key);
+        }
+    }
 }
 
 async fn add_embedded_image_fallbacks(
@@ -401,87 +446,6 @@ fn has_caption_signal(candidate: &VisionFigureCandidate, captions: &CaptionMap) 
     })
 }
 
-fn render_pdf_pages(pdf_path: &Path, output_dir: &Path, max_pages: usize) -> Vec<(usize, PathBuf)> {
-    let stem = pdf_path
-        .file_stem()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
-    let page_prefix = output_dir.join(format!("{stem}_pg"));
-
-    let pdftoppm_ok = std::process::Command::new("pdftoppm")
-        .args([
-            "-r",
-            "144",
-            "-png",
-            "-l",
-            &max_pages.to_string(),
-            pdf_path.to_str().unwrap_or(""),
-            page_prefix.to_str().unwrap_or(""),
-        ])
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
-
-    if pdftoppm_ok {
-        let mut pages: Vec<PathBuf> = std::fs::read_dir(output_dir)
-            .ok()
-            .into_iter()
-            .flatten()
-            .filter_map(|entry| {
-                let path = entry.ok()?.path();
-                let name = path.file_name()?.to_string_lossy().to_string();
-                if name.starts_with(&format!("{stem}_pg")) && name.ends_with(".png") {
-                    Some(path)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        pages.sort_by_key(|path| page_sort_key(path));
-        if !pages.is_empty() {
-            return pages
-                .into_iter()
-                .enumerate()
-                .map(|(idx, path)| (idx + 1, path))
-                .collect();
-        }
-    }
-
-    let ql_ok = std::process::Command::new("qlmanage")
-        .args([
-            "-t",
-            "-s",
-            "1200",
-            "-o",
-            output_dir.to_str().unwrap_or(""),
-            pdf_path.to_str().unwrap_or(""),
-        ])
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
-
-    if ql_ok {
-        let ql_out = output_dir.join(format!(
-            "{}.png",
-            pdf_path.file_name().unwrap_or_default().to_string_lossy()
-        ));
-        if ql_out.exists() {
-            return vec![(1, ql_out)];
-        }
-    }
-
-    Vec::new()
-}
-
-fn page_sort_key(path: &Path) -> usize {
-    path.file_stem()
-        .and_then(|value| value.to_str())
-        .and_then(|name| name.rsplit(['-', '_']).next())
-        .and_then(|tail| tail.parse::<usize>().ok())
-        .unwrap_or(usize::MAX)
-}
-
 async fn vision_scan_page(
     client: &LlmClient,
     model: Option<&str>,
@@ -584,43 +548,6 @@ fn bbox_from_value(value: &serde_json::Value) -> Option<NormalizedBBox> {
     Some(bbox)
 }
 
-fn crop_page_region(page_path: &Path, output_path: &Path, bbox: &NormalizedBBox) -> bool {
-    let image = match image::open(page_path) {
-        Ok(value) => value,
-        Err(_) => return false,
-    };
-    let image_width = image.width();
-    let image_height = image.height();
-    if image_width < 100 || image_height < 100 {
-        return false;
-    }
-
-    let margin_x = (bbox.width * 0.025).max(0.008);
-    let margin_y = (bbox.height * 0.035).max(0.01);
-    let x0 = (bbox.x - margin_x).clamp(0.0, 1.0);
-    let y0 = (bbox.y - margin_y).clamp(0.0, 1.0);
-    let x1 = (bbox.x + bbox.width + margin_x).clamp(0.0, 1.0);
-    let y1 = (bbox.y + bbox.height + margin_y).clamp(0.0, 1.0);
-    if x1 <= x0 || y1 <= y0 {
-        return false;
-    }
-
-    let x = (x0 * image_width as f32).floor() as u32;
-    let y = (y0 * image_height as f32).floor() as u32;
-    let width = ((x1 - x0) * image_width as f32).ceil() as u32;
-    let height = ((y1 - y0) * image_height as f32).ceil() as u32;
-    if width < 80 || height < 80 {
-        return false;
-    }
-
-    let width = width.min(image_width.saturating_sub(x));
-    let height = height.min(image_height.saturating_sub(y));
-    image
-        .crop_imm(x, y, width, height)
-        .save(output_path)
-        .is_ok()
-}
-
 fn extract_figure_captions(full_text: &str) -> CaptionMap {
     let mut captions = CaptionMap::new();
     let lines = full_text.lines().collect::<Vec<_>>();
@@ -683,251 +610,6 @@ fn looks_like_section_heading(line: &str) -> bool {
             | "conclusion"
             | "references"
     )
-}
-
-fn stream_has_filter(stream: &lopdf::Stream, filter_name: &[u8]) -> bool {
-    use lopdf::Object;
-    match stream.dict.get(b"Filter") {
-        Ok(Object::Name(name)) => name.as_slice() == filter_name,
-        Ok(Object::Array(filters)) => filters
-            .iter()
-            .any(|item| matches!(item, Object::Name(name) if name.as_slice() == filter_name)),
-        _ => false,
-    }
-}
-
-fn colorspace_channels(stream: &lopdf::Stream, doc: &lopdf::Document) -> u32 {
-    use lopdf::Object;
-    match stream.dict.get(b"ColorSpace") {
-        Ok(Object::Name(name)) => match name.as_slice() {
-            b"DeviceRGB" | b"CalRGB" => 3,
-            b"DeviceGray" | b"CalGray" => 1,
-            _ => 0,
-        },
-        Ok(Object::Array(items)) => match items.first() {
-            Some(Object::Name(name)) if name.as_slice() == b"ICCBased" => {
-                let n = items
-                    .get(1)
-                    .and_then(|item| match item {
-                        Object::Reference(reference) => Some(*reference),
-                        _ => None,
-                    })
-                    .and_then(|reference| doc.get_object(reference).ok())
-                    .and_then(|object| match object {
-                        Object::Stream(stream) => Some(stream.dict.clone()),
-                        _ => None,
-                    })
-                    .and_then(|dict| dict.get(b"N").ok().cloned())
-                    .and_then(|item| match item {
-                        Object::Integer(n) => Some(n as u32),
-                        _ => None,
-                    })
-                    .unwrap_or(3);
-                if n == 1 || n == 3 {
-                    n
-                } else {
-                    0
-                }
-            }
-            Some(Object::Name(name)) if name.as_slice() == b"CalRGB" => 3,
-            Some(Object::Name(name)) if name.as_slice() == b"CalGray" => 1,
-            _ => 0,
-        },
-        _ => 0,
-    }
-}
-
-fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
-    let (a, b, c) = (a as i32, b as i32, c as i32);
-    let p = a + b - c;
-    let pa = (p - a).abs();
-    let pb = (p - b).abs();
-    let pc = (p - c).abs();
-    if pa <= pb && pa <= pc {
-        a as u8
-    } else if pb <= pc {
-        b as u8
-    } else {
-        c as u8
-    }
-}
-
-fn apply_png_predictor(data: &[u8], width: u32, channels: u32) -> Vec<u8> {
-    let stride = (width * channels) as usize;
-    let row_bytes = stride + 1;
-    let num_rows = data.len() / row_bytes;
-    let mut out = Vec::with_capacity(num_rows * stride);
-    let mut prev = vec![0u8; stride];
-
-    for row_index in 0..num_rows {
-        let base = row_index * row_bytes;
-        if base + row_bytes > data.len() {
-            break;
-        }
-        let filter = data[base];
-        let source = &data[base + 1..base + row_bytes];
-        let mut row = vec![0u8; stride];
-
-        for index in 0..stride {
-            let left = if index >= channels as usize {
-                row[index - channels as usize]
-            } else {
-                0
-            };
-            let up = prev[index];
-            let up_left = if index >= channels as usize {
-                prev[index - channels as usize]
-            } else {
-                0
-            };
-            row[index] = match filter {
-                0 => source[index],
-                1 => source[index].wrapping_add(left),
-                2 => source[index].wrapping_add(up),
-                3 => source[index].wrapping_add(((left as u16 + up as u16) / 2) as u8),
-                4 => source[index].wrapping_add(paeth_predictor(left, up, up_left)),
-                _ => source[index],
-            };
-        }
-        out.extend_from_slice(&row);
-        prev = row;
-    }
-
-    out
-}
-
-fn zlib_decompress(data: &[u8]) -> Option<Vec<u8>> {
-    use flate2::read::ZlibDecoder;
-    use std::io::Read;
-    let mut decoder = ZlibDecoder::new(data);
-    let mut out = Vec::new();
-    decoder.read_to_end(&mut out).ok()?;
-    Some(out)
-}
-
-fn extract_pdf_images(pdf_path: &Path, output_dir: &Path) -> Vec<RawPdfImage> {
-    use lopdf::Object;
-    let doc = match lopdf::Document::load(pdf_path) {
-        Ok(doc) => doc,
-        Err(_) => return Vec::new(),
-    };
-    let mut image_oids = doc
-        .objects
-        .iter()
-        .filter_map(|(oid, object)| {
-            if let Object::Stream(stream) = object {
-                let is_image = stream
-                    .dict
-                    .get(b"Subtype")
-                    .map(|item| matches!(item, Object::Name(name) if name.as_slice() == b"Image"))
-                    .unwrap_or(false);
-                is_image.then_some(*oid)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    image_oids.sort();
-
-    let mut results = Vec::new();
-    for (scanned, oid) in image_oids.into_iter().enumerate() {
-        if scanned >= 500 || results.len() >= 40 {
-            break;
-        }
-        let stream = match doc.objects.get(&oid) {
-            Some(Object::Stream(stream)) => stream,
-            _ => continue,
-        };
-        let width = match stream.dict.get(b"Width") {
-            Ok(Object::Integer(n)) => *n as u32,
-            _ => 0,
-        };
-        let height = match stream.dict.get(b"Height") {
-            Ok(Object::Integer(n)) => *n as u32,
-            _ => 0,
-        };
-        if width < 120 || height < 120 {
-            continue;
-        }
-
-        if stream_has_filter(stream, b"DCTDecode") {
-            let file_path = output_dir.join(format!("embedded_{scanned:03}.jpg"));
-            if std::fs::write(&file_path, &stream.content).is_ok() {
-                results.push(RawPdfImage {
-                    file_path,
-                    width,
-                    height,
-                });
-            }
-            continue;
-        }
-
-        if !stream_has_filter(stream, b"FlateDecode") {
-            continue;
-        }
-        let bits = match stream.dict.get(b"BitsPerComponent") {
-            Ok(Object::Integer(n)) => *n as u32,
-            _ => 8,
-        };
-        if bits != 8 {
-            continue;
-        }
-        let channels = colorspace_channels(stream, &doc);
-        if channels != 1 && channels != 3 {
-            continue;
-        }
-        let raw = match zlib_decompress(&stream.content) {
-            Some(value) => value,
-            None => continue,
-        };
-        let predictor = match stream.dict.get(b"DecodeParms") {
-            Ok(Object::Dictionary(dict)) => match dict.get(b"Predictor") {
-                Ok(Object::Integer(n)) => *n,
-                _ => 1,
-            },
-            _ => 1,
-        };
-        let pixels = if predictor >= 10 {
-            apply_png_predictor(&raw, width, channels)
-        } else {
-            raw
-        };
-        let expected = (width * height * channels) as usize;
-        if pixels.len() < expected {
-            continue;
-        }
-        let pixel_data = pixels[..expected].to_vec();
-        let file_path = output_dir.join(format!("embedded_{scanned:03}.png"));
-        let saved = if channels == 1 {
-            image::GrayImage::from_raw(width, height, pixel_data)
-                .map(|image| image.save(&file_path).is_ok())
-                .unwrap_or(false)
-        } else {
-            image::RgbImage::from_raw(width, height, pixel_data)
-                .map(|image| image.save(&file_path).is_ok())
-                .unwrap_or(false)
-        };
-        if saved {
-            results.push(RawPdfImage {
-                file_path,
-                width,
-                height,
-            });
-        }
-    }
-
-    results
-}
-
-fn is_likely_paper_figure_image(image: &RawPdfImage) -> bool {
-    if image.width < 160 || image.height < 120 {
-        return false;
-    }
-    if image.area() < 45_000 {
-        return false;
-    }
-    let aspect = image.width as f32 / image.height as f32;
-    aspect > 0.22 && aspect < 5.2
 }
 
 #[allow(dead_code)] // 兜底抽取已不再按“方法图”标题过滤；保留供未来分类使用
