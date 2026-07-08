@@ -398,12 +398,7 @@ export default function ResearchWorkbench({ interest, activeTab = "overview", on
                       onClick={() => void handleReproduce(paper.id)}
                       disabled={!canRunPaperTask(paper.status)}
                       style={paper.status === "reproduced" || paper.reproduction_guide
-                        ? {
-                            background: "rgba(52,199,89,0.14)",
-                            borderColor: "rgba(52,199,89,0.42)",
-                            boxShadow: "var(--rc-chip-inset-shadow)",
-                            color: "#1A9E3F",
-                          }
+                        ? { color: "#34C759" }
                         : undefined}
                       title={paper.status === "reproduced" || paper.reproduction_guide ? "已生成复现/验证指南" : "生成复现/验证指南"}
                     >

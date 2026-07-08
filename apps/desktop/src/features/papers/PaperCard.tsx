@@ -315,25 +315,13 @@ export default function PaperCard({
           </Button>
           <button type="button" onClick={() => onReproduce(paper.id)} disabled={!canStartAnalyze(paper.status)}
             className="flex h-8 w-8 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
-            style={hasReproductionResult
-              ? {
-                  background: "rgba(52,199,89,0.14)",
-                  border: "1px solid rgba(52,199,89,0.42)",
-                  boxShadow: "var(--rc-chip-inset-shadow)",
-                  color: "#1A9E3F",
-                }
-              : {
-                  background: "var(--rc-surface)",
-                  border: "1px solid transparent",
-                  boxShadow: "var(--rc-chip-shadow)",
-                  color: "var(--rc-text-secondary)",
-                }}
+            style={{ background: "var(--rc-surface)", border: "1px solid transparent", boxShadow: "var(--rc-chip-shadow)", color: hasReproductionResult ? "#34C759" : "var(--rc-text-secondary)" }}
             title={hasReproductionResult ? "已生成复现/验证指南" : "生成复现/验证指南"}>
             <FlaskConical className="h-4 w-4" />
           </button>
           <button type="button" onClick={() => openNoteUI()} disabled={generatingNote || (!localNote && !onGenerateNote && !onCreateNote)}
             className="flex h-8 w-8 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
-            style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: localNote ? "#007AFF" : "var(--rc-text-secondary)" }}
+            style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: localNote ? "#34C759" : "var(--rc-text-secondary)" }}
             title={localNote ? "查看论文笔记" : "创建论文笔记"}>
             {generatingNote ? <Loader2 className="h-4 w-4 animate-spin" /> : localNote ? <BookOpen className="h-4 w-4" /> : <NotebookPen className="h-4 w-4" />}
           </button>
