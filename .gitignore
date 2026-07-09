@@ -227,6 +227,8 @@ ppt_xiaoyan/
 slide-outline.md
 outputs/*.html
 tmp/
+agent-collaboration-flowcharts.md
+multi-agent-system-overview.png
 
 # Frontend / monorepo
 node_modules/
