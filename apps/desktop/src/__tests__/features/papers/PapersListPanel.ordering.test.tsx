@@ -83,13 +83,15 @@ describe("PapersListPanel paper ordering and move menu", () => {
     expect(onMovePaper).toHaveBeenCalledWith("paper-a", "folder-2");
   });
 
-  it("should reorder papers with explicit move buttons", () => {
-    const onReorderPaper = vi.fn();
-    renderWithRouter(<PapersListPanel {...defaultProps} onReorderPaper={onReorderPaper} />);
+  it("should change sort key via group controls", () => {
+    const onSortKeyChange = vi.fn();
+    renderWithRouter(
+      <PapersListPanel {...defaultProps} onSortKeyChange={onSortKeyChange} />,
+    );
 
-    fireEvent.click(screen.getAllByTitle("下移排序")[0]);
+    fireEvent.click(screen.getAllByText("名称")[0]);
 
-    expect(onReorderPaper).toHaveBeenCalledWith("folder-1", ["paper-b", "paper-a"]);
+    expect(onSortKeyChange).toHaveBeenCalledWith("folder-1", "title");
   });
 
   it("should show ascending import time sorting in green", () => {
