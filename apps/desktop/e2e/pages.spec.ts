@@ -129,7 +129,7 @@ test.describe("论文库页面", () => {
 test.describe("对话页面", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(TAURI_MOCK_SCRIPT);
-    await page.goto("/xiaoyan");
+    await page.goto("/chat");
   });
 
   test("应显示对话界面", async ({ page }) => {
