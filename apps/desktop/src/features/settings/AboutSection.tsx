@@ -2,7 +2,7 @@ import { Download, Globe, Loader2, RefreshCw } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppUpdateInfo } from "@research-copilot/types";
 import type { UpdateState } from "./useSettingsController";
-import { openLink } from "../../lib/links";
+import { OFFICIAL_SITE_URL, openLink } from "../../lib/links";
 import type { DownloadProgress } from "../../lib/updateProgress";
 import {
   getUpdateButtonLabel,
@@ -10,8 +10,6 @@ import {
   getUpdateProgressPercent,
   getUpdateProgressSummary,
 } from "../../lib/updateProgress";
-
-const OFFICIAL_SITE_URL = "https://xiaoyan.net.cn/";
 
 interface AboutSectionProps {
   appVersion: string;

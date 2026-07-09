@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { open } from "@tauri-apps/plugin-shell";
 import { describe, expect, it, vi } from "vitest";
 import UpdateNotification from "../../components/UpdateNotification";
+import { OFFICIAL_SITE_URL } from "../../lib/links";
 import type { AutoUpdateState } from "../../lib/useAutoUpdate";
 
 function renderNotification(overrides: Partial<AutoUpdateState> = {}) {
@@ -43,5 +45,13 @@ describe("UpdateNotification", () => {
     fireEvent.click(screen.getByRole("button", { name: "重试下载并安装" }));
 
     expect(state.install).toHaveBeenCalledTimes(1);
+  });
+
+  it("点击官网按钮打开官网", () => {
+    renderNotification();
+
+    fireEvent.click(screen.getByRole("button", { name: "官网" }));
+
+    expect(open).toHaveBeenCalledWith(OFFICIAL_SITE_URL);
   });
 });
