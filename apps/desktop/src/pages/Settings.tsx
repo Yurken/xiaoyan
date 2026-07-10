@@ -535,6 +535,7 @@ export default function Settings() {
             onExportAllData={openBackupExportModal}
             onImportAllData={openBackupImportPicker}
             onSaveCurrent={settingsHistory.saveCurrent}
+            onManageHistory={() => setConfigManageOpen(true)}
           />
         ) : null}
 

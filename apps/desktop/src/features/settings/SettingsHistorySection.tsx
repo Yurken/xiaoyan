@@ -1,5 +1,5 @@
 import { Card } from "@research-copilot/ui";
-import { History, Loader2, Save } from "lucide-react";
+import { History, Loader2, Save, Settings2 } from "lucide-react";
 import DataConfigTransferCard from "./DataConfigTransferCard";
 import { SectionIcon } from "./shared";
 import SyncSection from "./SyncSection";
@@ -18,9 +18,10 @@ interface SettingsHistorySectionProps {
   onExportAllData: () => void;
   onImportAllData: () => Promise<void> | void;
   onSaveCurrent: () => Promise<void> | void;
+  onManageHistory: () => void;
 }
 
-// 「切换与管理」已迁移到「小妍配置 → 更多管理」弹窗（ConfigHistoryManageModal），此处只保留保存当前配置。
+// 配置历史统一在「数据与配置」中保存、切换和管理，覆盖全局可同步设置。
 export default function SettingsHistorySection({
   draftName,
   saving,
@@ -35,6 +36,7 @@ export default function SettingsHistorySection({
   onExportAllData,
   onImportAllData,
   onSaveCurrent,
+  onManageHistory,
 }: SettingsHistorySectionProps) {
   return (
     <div className="space-y-4">
@@ -53,9 +55,9 @@ export default function SettingsHistorySection({
         <div className="flex items-center gap-3">
           <SectionIcon icon={History} color="#0A84FF" />
           <div>
-            <h2 className="text-base font-semibold text-ink-primary">配置历史</h2>
+            <h2 className="text-base font-semibold text-ink-primary">全局设置配置历史</h2>
             <p className="mt-0.5 text-xs text-ink-tertiary">
-              把当前小妍配置保存成一条历史记录，后面需要时可以在「小妍配置 → 更多管理」里一键切回来。
+              保存当前全部可同步设置，包含小妍、任务分工、检索与论文导入等；本机应用锁和界面布局不会被覆盖。
             </p>
           </div>
         </div>
@@ -83,22 +85,34 @@ export default function SettingsHistorySection({
                 }}
               />
             </div>
-            <button
-              type="button"
-              onClick={() => void onSaveCurrent()}
-              disabled={saving || busy}
-              className="flex shrink-0 items-center justify-center gap-1.5 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-              style={{
-                background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-                boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
-              }}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "保存中…" : "保存当前配置"}
-            </button>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={onManageHistory}
+                disabled={busy}
+                className="flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium text-ink-secondary transition-all duration-150 active:scale-95 disabled:opacity-50"
+                style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
+              >
+                <Settings2 className="h-4 w-4" />
+                管理历史
+              </button>
+              <button
+                type="button"
+                onClick={() => void onSaveCurrent()}
+                disabled={saving || busy}
+                className="flex items-center justify-center gap-1.5 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
+                style={{
+                  background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
+                  boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
+                }}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? "保存中…" : "保存当前设置"}
+              </button>
+            </div>
           </div>
           <p className="ml-1 text-xs leading-5 text-ink-tertiary">
-            不填名称时，会自动用当前时间生成一条历史记录。
+            不填名称时，会自动用当前时间生成一条全局设置快照。
           </p>
         </div>
 
