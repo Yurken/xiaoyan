@@ -244,7 +244,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
       try {
         let sessionId = currentSession?.id;
 
-        for await (const chunk of apiClient.chat.stream(
+        stream: for await (const chunk of apiClient.chat.stream(
           {
             session_id: currentSession?.id,
             message: submittedText,
@@ -301,6 +301,13 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
                 m.id === assistantId ? { ...m, content: chunk.value || "请求未完成，请稍后重试。" } : m
               )
             );
+            // error 是终态事件，不再等待事件桥关闭，避免输入框一直显示“终止”。
+            break stream;
+          }
+          if (chunk.type === "done") {
+            // 完成事件已经代表后端回复结束。主动退出迭代，避免底层流清理延迟
+            // 让发送状态滞留在 true，导致发送按钮长期显示为“终止”。
+            break stream;
           }
         }
 
