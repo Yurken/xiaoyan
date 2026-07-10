@@ -22,7 +22,7 @@ function ProgressBar({ progress }: { progress: DownloadProgress | null }) {
   const pct = getUpdateProgressPercent(progress);
   return (
     <div className="space-y-1.5">
-      <div className="h-1.5 rounded-full" style={{ background: "rgba(0,122,255,0.12)" }}>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(0,122,255,0.12)" }}>
         <div
           className="h-1.5 rounded-full transition-all duration-300 ease-out"
           style={{
