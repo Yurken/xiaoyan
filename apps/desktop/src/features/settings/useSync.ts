@@ -18,6 +18,7 @@ export function useSync() {
   });
   const [url, setUrl] = useState("");
   const [username, setUsername] = useState("");
+  const [hasSavedCredentials, setHasSavedCredentials] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -31,6 +32,7 @@ export function useSync() {
       ]);
       setUrl(cfg.url);
       setUsername(cfg.username);
+      setHasSavedCredentials(cfg.has_saved_credentials);
       setStatus(st);
     } catch (e) {
       setError(e instanceof Error ? e.message : "读取同步状态失败");
@@ -106,6 +108,7 @@ export function useSync() {
     setUrl,
     username,
     setUsername,
+    hasSavedCredentials,
     loading,
     busy,
     error,

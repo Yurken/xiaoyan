@@ -99,6 +99,7 @@ export interface SyncStatus {
 
 export interface SyncConfigView {
   configured: boolean;
+  has_saved_credentials: boolean;
   url: string;
   username: string;
 }
