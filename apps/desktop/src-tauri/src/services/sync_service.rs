@@ -14,8 +14,10 @@ use crate::services::settings_service::{
 };
 use crate::services::webdav_service::{self, WebdavConfig};
 use crate::state::{default_settings, AppState};
+use chrono::{DateTime, Duration as ChronoDuration, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 use tauri::{Emitter, Manager};
@@ -25,6 +27,7 @@ const DEVICES_DIR: &str = "xiaoyan-sync/devices";
 const ASSETS_DIR: &str = "xiaoyan-sync/assets";
 const SNAPSHOT_VERSION: u32 = 1;
 const ASSET_TABLES: &[&str] = &["papers", "paper_figures", "experiment_attachments"];
+const AUTO_SYNC_COOLDOWN: ChronoDuration = ChronoDuration::minutes(15);
 
 /// 同步状态，供前端订阅展示。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -34,6 +37,8 @@ pub struct SyncStatus {
     pub last_sync_at: Option<String>,
     pub last_error: Option<String>,
     pub last_message: Option<String>,
+    #[serde(skip)]
+    last_run_started_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -143,15 +148,49 @@ async fn device_id(db: &sqlx::SqlitePool) -> Result<String, String> {
     Ok(id)
 }
 
-fn now_iso() -> String {
-    chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+/// 统一生成带时区的 UTC 时间，避免和 SQLite 的无时区时间串混用。
+fn now_rfc3339() -> String {
+    Utc::now().to_rfc3339()
+}
+
+/// 将历史的 SQLite 时间（`YYYY-MM-DD HH:MM:SS`）和 RFC 3339 时间归一为 UTC。
+///
+/// 同步快照已发布过两种格式，不能直接按字符串排序：同一天内空格与 `T`
+/// 的字典序会让较早的 RFC 3339 时间错误地胜出。无法解析的历史值保留
+/// 字典序回退，保证合并结果仍然确定。
+fn parse_sync_timestamp(value: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
+        .map(|timestamp| timestamp.with_timezone(&Utc))
+        .ok()
+        .or_else(|| {
+            NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f")
+                .ok()
+                .map(|timestamp| timestamp.and_utc())
+        })
+}
+
+fn compare_timestamps(left: &str, right: &str) -> Ordering {
+    match (parse_sync_timestamp(left), parse_sync_timestamp(right)) {
+        (Some(left), Some(right)) => left.cmp(&right),
+        _ => left.cmp(right),
+    }
+}
+
+fn is_newer_timestamp(candidate: &str, current: &str) -> bool {
+    compare_timestamps(candidate, current).is_gt()
+}
+
+fn automatic_sync_is_due(last_run_started_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> bool {
+    last_run_started_at
+        .map(|last_run| now.signed_duration_since(last_run) >= AUTO_SYNC_COOLDOWN)
+        .unwrap_or(true)
 }
 
 // ── 删除检测（基线对比）──────────────────────────────────────────
 
 /// 对比上次同步保存的「行 id 基线」与当前行集合，为本地删除生成墓碑。
 async fn detect_local_deletes(db: &sqlx::SqlitePool) -> Result<(), String> {
-    let deleted_at = now_iso();
+    let deleted_at = now_rfc3339();
     for &table in BACKUP_TABLES {
         let pk = pk_column(table);
         let current: HashSet<String> =
@@ -281,7 +320,7 @@ async fn build_snapshot(
     let snapshot = DeviceSnapshot {
         version: SNAPSHOT_VERSION,
         device_id: device.to_string(),
-        generated_at: now_iso(),
+        generated_at: now_rfc3339(),
         tables,
         tombstones,
         assets,
@@ -328,7 +367,7 @@ fn combine_snapshots(snapshots: &[DeviceSnapshot]) -> MergePlan {
                 };
                 let ts = effective_ts(table, row);
                 match bucket.get(id) {
-                    Some(existing) if effective_ts(table, existing) >= ts => {}
+                    Some(existing) if !is_newer_timestamp(&ts, &effective_ts(table, existing)) => {}
                     _ => {
                         bucket.insert(id.to_string(), row.clone());
                     }
@@ -339,7 +378,7 @@ fn combine_snapshots(snapshots: &[DeviceSnapshot]) -> MergePlan {
             let key = (t.table.clone(), t.id.clone());
             let keep = tombstones
                 .get(&key)
-                .map(|cur| t.deleted_at > *cur)
+                .map(|cur| is_newer_timestamp(&t.deleted_at, cur))
                 .unwrap_or(true);
             if keep {
                 tombstones.insert(key, t.deleted_at.clone());
@@ -401,7 +440,7 @@ async fn apply_merge(
         let pk = pk_column(table);
         let local = local_ts.get(table).and_then(|m| m.get(id));
         let should_delete = match local {
-            Some(ts) => ts <= del_ts,
+            Some(ts) => !is_newer_timestamp(ts, del_ts),
             None => false, // 本地没有该行，无需删
         };
         if should_delete {
@@ -413,17 +452,29 @@ async fn apply_merge(
             deleted += 1;
         }
         // 记录墓碑（保留最新 deleted_at）
-        sqlx::query(
-            "INSERT INTO sync_tombstones (entity_table, entity_id, deleted_at) VALUES (?, ?, ?)
-             ON CONFLICT(entity_table, entity_id) DO UPDATE SET
-                 deleted_at = MAX(sync_tombstones.deleted_at, excluded.deleted_at)",
+        let existing_tombstone = sqlx::query_scalar::<_, String>(
+            "SELECT deleted_at FROM sync_tombstones WHERE entity_table = ? AND entity_id = ?",
         )
         .bind(table)
         .bind(id)
-        .bind(del_ts)
-        .execute(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;
+        if existing_tombstone
+            .as_deref()
+            .is_none_or(|current| is_newer_timestamp(del_ts, current))
+        {
+            sqlx::query(
+                "INSERT INTO sync_tombstones (entity_table, entity_id, deleted_at) VALUES (?, ?, ?)
+                 ON CONFLICT(entity_table, entity_id) DO UPDATE SET deleted_at = excluded.deleted_at",
+            )
+            .bind(table)
+            .bind(id)
+            .bind(del_ts)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+        }
     }
 
     // 2) 按依赖顺序 upsert（父表先于子表）。
@@ -437,13 +488,13 @@ async fn apply_merge(
 
             // 墓碑更新于该行 → 跳过（删除胜出）
             if let Some(del) = plan.tombstones.get(&(table.to_string(), id.clone())) {
-                if *del >= row_ts {
+                if !is_newer_timestamp(&row_ts, del) {
                     continue;
                 }
             }
             // 本地更新 → 跳过（本地胜出）
             if let Some(local) = local_ts.get(table).and_then(|m| m.get(id)) {
-                if *local >= row_ts {
+                if !is_newer_timestamp(&row_ts, local) {
                     continue;
                 }
             }
@@ -632,20 +683,41 @@ pub async fn current_status(state: &AppState) -> SyncStatus {
     status.configured = crate::services::secure_store::load()
         .ok()
         .flatten()
-        .is_some();
+        .map(|creds| creds.enabled)
+        .unwrap_or(false);
     status
 }
 
 // ── 对外主入口 ───────────────────────────────────────────────────
 
-/// 执行一次完整同步。若未配置凭据或已有同步在运行，返回 Ok(None)。
+/// 执行一次后台自动同步。与上一次同步开始时间不足 15 分钟时跳过。
 pub async fn run_sync(
     state: &AppState,
     app: &tauri::AppHandle,
 ) -> Result<Option<SyncSummary>, String> {
+    run_sync_with_mode(state, app, true).await
+}
+
+/// 手动同步或重新启用同步时调用，不受后台频率限制。
+pub async fn run_manual_sync(
+    state: &AppState,
+    app: &tauri::AppHandle,
+) -> Result<Option<SyncSummary>, String> {
+    run_sync_with_mode(state, app, false).await
+}
+
+/// 执行一次完整同步。若未启用凭据或已有同步在运行，返回 Ok(None)。
+async fn run_sync_with_mode(
+    state: &AppState,
+    app: &tauri::AppHandle,
+    is_automatic: bool,
+) -> Result<Option<SyncSummary>, String> {
     let Some(creds) = crate::services::secure_store::load()? else {
         return Ok(None);
     };
+    if !creds.enabled {
+        return Ok(None);
+    }
     let config = WebdavConfig {
         url: creds.url,
         username: creds.username,
@@ -660,6 +732,11 @@ pub async fn run_sync(
 
     {
         let mut s = state.sync_status.write().await;
+        let now = Utc::now();
+        if is_automatic && !automatic_sync_is_due(s.last_run_started_at, now) {
+            return Ok(None);
+        }
+        s.last_run_started_at = Some(now);
         s.configured = true;
         s.running = true;
         s.last_error = None;
@@ -673,7 +750,7 @@ pub async fn run_sync(
         s.running = false;
         match &result {
             Ok(summary) => {
-                s.last_sync_at = Some(now_iso());
+                s.last_sync_at = Some(now_rfc3339());
                 s.last_error = None;
                 s.last_message = Some(format!(
                     "已同步：应用 {} 行、删除 {} 行、设备 {} 台",
@@ -802,6 +879,33 @@ mod tests {
         assert_eq!(ts_column("chat_messages"), "created_at");
     }
 
+    #[test]
+    fn timestamps_compare_by_time_across_legacy_and_rfc3339_formats() {
+        let legacy_later = "2026-01-01 09:00:00";
+        let rfc_earlier = "2026-01-01T01:00:00Z";
+        assert_eq!(
+            compare_timestamps(legacy_later, rfc_earlier),
+            Ordering::Greater
+        );
+        assert!(is_newer_timestamp(legacy_later, rfc_earlier));
+        assert!(parse_sync_timestamp(&now_rfc3339()).is_some());
+    }
+
+    #[test]
+    fn automatic_sync_uses_a_fifteen_minute_cooldown() {
+        let started_at = DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        assert!(!automatic_sync_is_due(
+            Some(started_at),
+            started_at + ChronoDuration::minutes(14),
+        ));
+        assert!(automatic_sync_is_due(
+            Some(started_at),
+            started_at + ChronoDuration::minutes(15),
+        ));
+    }
+
     fn snap(
         device: &str,
         rows: Vec<(&str, serde_json::Value)>,
@@ -831,6 +935,25 @@ mod tests {
         ]);
         let row = &plan.rows["papers"]["p1"];
         assert_eq!(row.get("title").unwrap(), "new");
+    }
+
+    #[test]
+    fn combine_uses_real_time_when_snapshot_formats_differ() {
+        let rfc_earlier = serde_json::json!({
+            "id":"p1",
+            "title":"rfc earlier",
+            "updated_at":"2026-01-01T01:00:00Z"
+        });
+        let legacy_later = serde_json::json!({
+            "id":"p1",
+            "title":"legacy later",
+            "updated_at":"2026-01-01 09:00:00"
+        });
+        let plan = combine_snapshots(&[
+            snap("a", vec![("papers", rfc_earlier)], vec![]),
+            snap("b", vec![("papers", legacy_later)], vec![]),
+        ]);
+        assert_eq!(plan.rows["papers"]["p1"]["title"], "legacy later");
     }
 
     async fn test_pool() -> sqlx::SqlitePool {
@@ -949,7 +1072,7 @@ mod tests {
                 vec![Tombstone {
                     table: "papers".into(),
                     id: "p1".into(),
-                    deleted_at: "2026-01-01 00:00:00".into(),
+                    deleted_at: "2026-01-01 09:00:00".into(),
                 }],
             ),
             snap(
@@ -958,13 +1081,13 @@ mod tests {
                 vec![Tombstone {
                     table: "papers".into(),
                     id: "p1".into(),
-                    deleted_at: "2026-03-01 00:00:00".into(),
+                    deleted_at: "2026-01-01T01:00:00Z".into(),
                 }],
             ),
         ]);
         assert_eq!(
             plan.tombstones[&("papers".to_string(), "p1".to_string())],
-            "2026-03-01 00:00:00"
+            "2026-01-01 09:00:00"
         );
     }
 }

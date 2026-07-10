@@ -365,8 +365,8 @@ pub fn run() {
                     });
                 }
 
-                // WebDAV 无冲突同步：启动后跑一次，之后每 5 分钟自动后台同步。
-                // 未配置凭据时 run_sync 直接返回 None，开销可忽略。
+                // WebDAV 无冲突同步：启动后跑一次，之后每 15 分钟检查一次。
+                // 切回前台也会检查，但服务层以同一冷却时间限制重复请求。
                 {
                     let state = handle.state::<AppState>().inner().clone();
                     let app_handle = handle.clone();
@@ -374,7 +374,7 @@ pub fn run() {
                         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                         let _ = services::sync_service::run_sync(&state, &app_handle).await;
                         let mut ticker =
-                            tokio::time::interval(std::time::Duration::from_secs(300));
+                            tokio::time::interval(std::time::Duration::from_secs(900));
                         ticker.tick().await; // 立即返回的第一次 tick
                         loop {
                             ticker.tick().await;
@@ -438,7 +438,7 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 窗口重新获得焦点时触发一次同步，让用户切回应用即见最新数据。
+            // 窗口重新获得焦点时检查同步；服务层会限制为每 15 分钟至多一次。
             if let tauri::WindowEvent::Focused(true) = event {
                 let app = window.app_handle().clone();
                 if let Some(state) = app.try_state::<AppState>() {

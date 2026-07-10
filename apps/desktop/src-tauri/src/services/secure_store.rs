@@ -19,6 +19,13 @@ pub struct SyncCredentials {
     pub url: String,
     pub username: String,
     pub password: String,
+    /// 停用时保留凭据；重新启用前不参与任何自动同步。
+    #[serde(default = "default_sync_enabled")]
+    pub enabled: bool,
+}
+
+fn default_sync_enabled() -> bool {
+    true
 }
 
 fn entry() -> Result<Entry, String> {
@@ -41,13 +48,5 @@ pub fn load() -> Result<Option<SyncCredentials>, String> {
         }
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => Err(format!("读取钥匙串失败: {e}")),
-    }
-}
-
-pub fn clear() -> Result<(), String> {
-    match entry()?.delete_credential() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(format!("清除钥匙串失败: {e}")),
     }
 }
