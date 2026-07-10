@@ -227,6 +227,7 @@ ppt_content.json
 ppt_xiaoyan/
 slide-outline.md
 outputs/*.html
+outputs/*.md
 tmp/
 agent-collaboration-flowcharts.md
 multi-agent-system-overview.png
@@ -256,6 +257,11 @@ system-review*.md
 promo-video-planning.md
 *.dmg
 *.apk
+
+# Personal research imports and local showcase data
+scripts/import-zotero-research-data.py
+scripts/seed-writing-submission-showcase.py
+apps/desktop/src/features/writing/researchDraft.ts
 
 # master分支暂不更新
 apps/mac/

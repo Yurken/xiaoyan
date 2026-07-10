@@ -7,8 +7,9 @@ export interface InterestProfileHighlight {
 
 interface InterestProfilePanelProps {
   highlights: InterestProfileHighlight[];
-  constraints?: string[] | null;
-  keywords?: string[] | null;
+  // 兼容旧数据库中偶尔以单个字符串保存的画像字段。
+  constraints?: string[] | string | null;
+  keywords?: string[] | string | null;
 }
 
 const shellStyle = {
@@ -37,8 +38,13 @@ function getIcon(label: string) {
 }
 
 export default function InterestProfilePanel({ highlights, constraints, keywords }: InterestProfilePanelProps) {
-  const constraintList = constraints?.filter(Boolean) ?? [];
-  const keywordList = keywords?.filter(Boolean) ?? [];
+  const normalizeList = (value: string[] | string | null | undefined) => {
+    if (Array.isArray(value)) return value.filter(Boolean);
+    if (typeof value === "string" && value.trim()) return [value.trim()];
+    return [];
+  };
+  const constraintList = normalizeList(constraints);
+  const keywordList = normalizeList(keywords);
 
   if (highlights.length === 0 && constraintList.length === 0 && keywordList.length === 0) {
     return null;

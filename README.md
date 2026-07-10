@@ -202,6 +202,7 @@ pnpm lint                                             # 全仓库 lint
 
 ```bash
 node scripts/sync-version.mjs --version 1.2.3
+node scripts/sync-version.mjs --version 1.2.3.4 # 四段修订版号，运行时会映射为可发布的 SemVer
 ```
 
 GitHub 流水线成功后，如需同步旧服务器下载页：

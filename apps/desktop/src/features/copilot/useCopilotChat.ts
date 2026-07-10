@@ -116,6 +116,15 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     streamAbortRef.current = null;
   }, []);
 
+  // 用户主动终止时立即退出“生成中”状态；AbortController 仍会向后端发送 chat_cancel，
+  // 已经收到的内容保留在当前回答中，避免用户丢失可用的部分结果。
+  const stopGenerating = useCallback(() => {
+    cancelActiveStream();
+    setSending(false);
+    setSearchingQuery(null);
+    setActiveAssistantId(null);
+  }, [cancelActiveStream]);
+
   const resetChat = useCallback(() => {
     cancelActiveStream();
     skipNextPersistRef.current = true;
@@ -469,6 +478,7 @@ export function useCopilotChat(options: UseCopilotChatOptions) {
     setSidebarCollapsed,
     resetChat,
     cancelActiveStream,
+    stopGenerating,
     restoreLoadedSession,
     promoteDraftSession,
     handleSend,

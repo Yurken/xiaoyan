@@ -2,6 +2,7 @@
 
 import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { parseReleaseVersion } from "./versioning.mjs";
 
 const PLATFORM_BUNDLE_PREFERENCES = {
   darwin: [".app.tar.gz"],
@@ -175,7 +176,7 @@ async function copyRootLatest(inputDir, outputPath) {
 async function main() {
   const inputDir = path.resolve(requireArg("--input-dir"));
   const baseUrl = trimTrailingSlash(requireArg("--base-url"));
-  const version = requireArg("--version").replace(/^v/, "");
+  const { appVersion } = parseReleaseVersion(requireArg("--version"));
   const outputPath = path.resolve(getArg("--output") || path.join(inputDir, "latest.json"));
   const notes = getArg("--notes").trim();
   const pubDate = getArg("--pub-date").trim();
@@ -185,7 +186,7 @@ async function main() {
     throw new Error(`Input path is not a directory: ${inputDir}`);
   }
 
-  const manifest = await buildManifest(inputDir, baseUrl, version, notes, pubDate);
+  const manifest = await buildManifest(inputDir, baseUrl, appVersion, notes, pubDate);
   await writeFile(path.join(inputDir, "latest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   await copyRootLatest(inputDir, outputPath);
   console.log(`Generated updater manifest: ${outputPath}`);

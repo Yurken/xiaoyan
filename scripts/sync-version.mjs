@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { parseReleaseVersion } from "./versioning.mjs";
 
 const root = process.cwd();
 const args = process.argv.slice(2);
@@ -13,14 +14,6 @@ function getArg(name) {
 
 function firstNonEmpty(values) {
   return values.find((value) => typeof value === "string" && value.trim() !== "");
-}
-
-function normalizeVersion(input) {
-  const version = input.replace(/^v/, "");
-  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
-    throw new Error(`Invalid version: ${input}`);
-  }
-  return version;
 }
 
 function readText(relativePath) {
@@ -60,10 +53,10 @@ const rawVersion = firstNonEmpty([
 ]);
 
 if (!rawVersion) {
-  throw new Error("Missing version. Use --version 1.2.3 or --tag v1.2.3.");
+  throw new Error("Missing version. Use --version 1.2.3, --version 1.2.3.4, or the corresponding v-prefixed tag.");
 }
 
-const version = normalizeVersion(rawVersion);
+const { releaseVersion, appVersion, isFourPart } = parseReleaseVersion(rawVersion);
 const touched = [];
 
 for (const file of [
@@ -76,48 +69,52 @@ for (const file of [
   "packages/ui/package.json",
 ]) {
   updateJson(file, (json) => {
-    json.version = version;
+    json.version = appVersion;
   }, touched);
 }
 
 updateJson("apps/mobile/app.json", (json) => {
-  json.expo.version = version;
+  json.expo.version = appVersion;
 }, touched);
 
 updateJson("apps/desktop/src-tauri/tauri.conf.json", (json) => {
-  json.version = version;
+  json.version = appVersion;
 }, touched);
 
 updateText("apps/desktop/src-tauri/Cargo.toml", (text) => {
-  return text.replace(/^version = ".*"$/m, `version = "${version}"`);
+  return text.replace(/^version = ".*"$/m, `version = "${appVersion}"`);
 }, touched);
 
 updateText("apps/desktop/src-tauri/src/commands/arxiv.rs", (text) => {
   return text.replace(
-    /^(const ARXIV_USER_AGENT: &str = "xiaoyan-desktop\/)[\d.]+(")/m,
-    `$1${version}$2`,
+    /^(const ARXIV_USER_AGENT: &str = "xiaoyan-desktop\/)[0-9A-Za-z.+-]+(?= )/m,
+    `$1${appVersion}`,
   );
 }, touched);
 
 updateText("README.md", (text) => {
   return text.replace(
-    /(badge\/release-v)[\d.]+(-)/,
-    `$1${version}$2`,
+    /(badge\/release-v)[0-9A-Za-z.+-]+(-)/,
+    `$1${releaseVersion}$2`,
   );
 }, touched);
 
 updateText("apps/desktop/src-tauri/src/commands/paper_search.rs", (text) => {
   return text.replace(
-    /^(const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop\/)[\d.]+(")/m,
-    `$1${version}$2`,
+    /^(const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop\/)[0-9A-Za-z.+-]+(")/m,
+    `$1${appVersion}$2`,
   );
 }, touched);
 
 if (touched.length === 0) {
-  console.log(`Version already synced: ${version}`);
+  console.log(`Version already synced: ${appVersion}`);
 } else {
-  console.log(`Synced version ${version} in ${touched.length} files`);
+  console.log(`Synced version ${appVersion} in ${touched.length} files`);
   for (const file of touched) {
     console.log(`- ${file}`);
   }
+}
+
+if (isFourPart) {
+  console.log(`Release revision v${releaseVersion} is represented as SemVer ${appVersion} for Cargo, Tauri, and the updater.`);
 }

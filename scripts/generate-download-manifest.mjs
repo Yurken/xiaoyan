@@ -6,6 +6,7 @@
 
 import { readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { parseReleaseVersion } from "./versioning.mjs";
 
 const PLATFORM_INSTALLER_PREFERENCES = {
   "darwin-aarch64": [".dmg"],
@@ -85,7 +86,7 @@ async function findPlatformDirs(inputDir) {
 async function main() {
   const inputDir = path.resolve(requireArg("--input-dir"));
   const baseUrl = trimTrailingSlash(requireArg("--base-url"));
-  const version = requireArg("--version").replace(/^v/, "");
+  const { releaseVersion: version } = parseReleaseVersion(requireArg("--version"));
   const outputPath = path.resolve(getArg("--output") || path.join(inputDir, "latest.json"));
 
   const inputStats = await stat(inputDir);

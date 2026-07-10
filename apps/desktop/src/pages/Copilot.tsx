@@ -301,6 +301,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               input={chat.input}
               onInputChange={chat.setInput}
               onSubmit={chat.handleSend}
+              onCancel={chat.stopGenerating}
               sending={chat.sending}
               uploadingAttachments={uploadingAttachments}
               attachments={attachments}
