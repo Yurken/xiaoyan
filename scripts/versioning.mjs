@@ -11,10 +11,9 @@ const FOUR_PART_VERSION = new RegExp(
  *
  * Git tags and download manifests may use a four-part revision such as
  * `v0.4.6.1`. Runtime metadata cannot: Cargo rejects a fourth numeric part.
- * A fourth part is therefore represented as the prerelease immediately before
- * the next patch: `0.4.6.1` becomes `0.4.7-1`. This keeps every revision above
- * `0.4.6` and below the eventual stable `0.4.7`, which is essential for the
- * updater's version ordering.
+ * A fourth part is therefore represented as a prerelease of the same patch:
+ * `0.4.6.1` becomes `0.4.6-1`. This preserves the patch boundary and keeps
+ * every revision ordered between `0.4.6` and `0.4.7`.
  */
 export function parseReleaseVersion(input) {
   const releaseVersion = String(input).trim().replace(/^v/i, "");
@@ -23,7 +22,7 @@ export function parseReleaseVersion(input) {
     const [, major, minor, patch, revision] = fourPart;
     return {
       releaseVersion,
-      appVersion: `${major}.${minor}.${Number(patch) + 1}-${revision}`,
+      appVersion: `${major}.${minor}.${patch}-${revision}`,
       isFourPart: true,
     };
   }

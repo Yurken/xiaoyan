@@ -44,6 +44,13 @@ function updateText(relativePath, updater, touched) {
   }
 }
 
+function writeTextIfChanged(relativePath, contents, touched) {
+  const current = fs.existsSync(path.join(root, relativePath)) ? readText(relativePath) : "";
+  if (current === contents) return;
+  writeText(relativePath, contents);
+  touched.push(relativePath);
+}
+
 const rawVersion = firstNonEmpty([
   getArg("--version"),
   getArg("--tag"),
