@@ -29,7 +29,7 @@ export default function SurveyReportContentPanel({
   fallbackCitationFormatLabel,
 }: SurveyReportContentPanelProps) {
   const hasStructured = Boolean(structured);
-  const hasMarkdown = Boolean(markdown.trim());
+  const hasMarkdown = Boolean(markdown?.trim());
   const hadStructuredRef = useRef(hasStructured);
   const [view, setView] = useState<SurveyContentView>(hasStructured ? "structured" : "markdown");
 

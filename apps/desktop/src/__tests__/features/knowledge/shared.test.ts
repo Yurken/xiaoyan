@@ -26,4 +26,10 @@ describe("knowledge/shared survey helpers", () => {
   it("dedupeSurveyCitations 应保持顺序并去除重复项", () => {
     expect(dedupeSurveyCitations(["[1] A", " [1] A ", "", "[2] B"])).toEqual(["[1] A", "[2] B"]);
   });
+
+  it("dedupeSurveyCitations 应跳过非字符串元素", () => {
+    expect(
+      dedupeSurveyCitations(["[1] A", null as unknown as string, undefined as unknown as string, 42 as unknown as string, "[2] B"]),
+    ).toEqual(["[1] A", "[2] B"]);
+  });
 });

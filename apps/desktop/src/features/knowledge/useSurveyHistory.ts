@@ -5,11 +5,16 @@ import type { StructuredSurveyResult, SurveyPaperResult } from "./shared";
 
 /** 已保存综述 → 结果工作区可渲染的结构，复用 SurveyStructuredReport 等子组件。 */
 export function savedSurveyToStructured(survey: SavedSurvey): StructuredSurveyResult {
+  const rawCitations = survey.formatted_citations as unknown[] | undefined;
+  const formattedCitations = Array.isArray(rawCitations)
+    ? rawCitations.filter((item): item is string => typeof item === "string")
+    : [];
+
   return {
     query: survey.query,
     report: (survey.report ?? {}) as StructuredSurveyResult["report"],
     papers: (survey.papers as SurveyPaperResult[] | undefined) ?? [],
-    formatted_citations: survey.formatted_citations,
+    formatted_citations: formattedCitations,
     citation_format: survey.citation_format ?? undefined,
     meta: (survey.meta ?? undefined) as StructuredSurveyResult["meta"],
   };

@@ -361,6 +361,7 @@ export function citationFormatLabel(value?: string) {
 export function dedupeSurveyCitations(citations: string[] = []) {
   const seen = new Set<string>();
   return citations.filter((citation) => {
+    if (typeof citation !== "string") return false;
     const normalized = citation.trim();
     if (!normalized || seen.has(normalized)) return false;
     seen.add(normalized);
@@ -376,7 +377,7 @@ export interface SurveyMarkdownPreview {
 const SURVEY_MARKDOWN_APPENDIX_HEADINGS = ["## 检索到的候选论文", "## 参考文献"];
 
 export function buildSurveyMarkdownPreview(markdown: string): SurveyMarkdownPreview {
-  const trimmed = markdown.trim();
+  const trimmed = markdown?.trim() ?? "";
   if (!trimmed) return { content: "", appendixHidden: false };
 
   const appendixStart = SURVEY_MARKDOWN_APPENDIX_HEADINGS.reduce<number | null>((current, heading) => {
