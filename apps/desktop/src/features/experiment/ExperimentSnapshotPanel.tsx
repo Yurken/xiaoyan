@@ -20,11 +20,12 @@ interface ExperimentSnapshotPanelProps {
   experimentId: string;
   activeSession: ExperimentCodeSession | null;
   onError: (message: string) => void;
+  onRestored?: () => void;
 }
 
 type SortOrder = "newest" | "oldest";
 
-export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }: ExperimentSnapshotPanelProps) {
+export function ExperimentSnapshotPanel({ experimentId, activeSession, onError, onRestored }: ExperimentSnapshotPanelProps) {
   // ── Data ─────────────────────────────────────────────────────
   const [snapshots, setSnapshots] = useState<ExperimentSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +42,10 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
   // ── Pending delete ───────────────────────────────────────────
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // ── Pending restore ──────────────────────────────────────────
+  const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   // ── Expand detail ────────────────────────────────────────────
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -65,18 +70,36 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
     void loadSnapshots();
   }, [loadSnapshots]);
 
+  // ── Debounced search query ───────────────────────────────────
+  const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // ── Search index (avoid JSON.stringify on every render) ──────
+  const searchIndex = useMemo(() => {
+    return new Map(
+      snapshots.map((s) => [
+        s.id,
+        [
+          s.title,
+          JSON.stringify(s.configSnapshot),
+          s.resultSnapshot ?? "",
+          s.notesSnapshot ?? "",
+        ]
+          .join(" ")
+          .toLowerCase(),
+      ]),
+    );
+  }, [snapshots]);
+
   // ── Filtered & sorted ────────────────────────────────────────
   const filteredSnapshots = useMemo(() => {
     let list = snapshots;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.title.toLowerCase().includes(q) ||
-          JSON.stringify(s.configSnapshot).toLowerCase().includes(q) ||
-          (s.resultSnapshot ?? "").toLowerCase().includes(q) ||
-          (s.notesSnapshot ?? "").toLowerCase().includes(q),
-      );
+    if (debouncedQuery.trim()) {
+      const q = debouncedQuery.toLowerCase();
+      list = list.filter((s) => searchIndex.get(s.id)?.includes(q) ?? false);
     }
     // Snapshots come from backend newest-first. For oldest-first, reverse.
     if (sortOrder === "oldest") {
@@ -87,10 +110,14 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
 
   // ── Create ───────────────────────────────────────────────────
   async function handleCreate() {
+    const defaultTitle = `快照 ${new Date().toLocaleString("zh-CN")}`;
+    const title = window.prompt("给快照取个标题：", defaultTitle);
+    if (title === null) return;
+
     setCreating(true);
     try {
       const snapshot = await experimentApi.snapshots.create(experimentId, {
-        title: `快照 ${new Date().toLocaleString("zh-CN")}`,
+        title: title.trim() || defaultTitle,
         codeSessionId: activeSession?.id,
         toolId: activeSession?.tool_id ?? undefined,
         model: activeSession?.model ?? undefined,
@@ -128,6 +155,24 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
     setPendingDeleteIds(ids);
   }
 
+  // ── Restore ──────────────────────────────────────────────────
+  async function executeRestore(id: string) {
+    setRestoring(true);
+    try {
+      await experimentApi.snapshots.restore(id);
+      setPendingRestoreId(null);
+      onRestored?.();
+    } catch (err) {
+      onError(formatErrorMessage(err));
+    } finally {
+      setRestoring(false);
+    }
+  }
+
+  function requestRestore(id: string) {
+    setPendingRestoreId(id);
+  }
+
   // ── Select / compare ─────────────────────────────────────────
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -146,10 +191,13 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
   function exitSelectMode() { setSelectMode(false); setSelectedIds(new Set()); }
 
   function handleCompareClick() {
-    const ids = Array.from(selectedIds);
-    if (ids.length >= 2) {
-      compare.toggleCompare(ids[0]);
-      compare.toggleCompare(ids[1]);
+    // Use list order so users can predict which two snapshots will be compared.
+    const ordered = filteredSnapshots
+      .filter((s) => selectedIds.has(s.id))
+      .map((s) => s.id);
+    if (ordered.length >= 2) {
+      compare.toggleCompare(ordered[0]);
+      compare.toggleCompare(ordered[1]);
       setSelectMode(false);
       setSelectedIds(new Set());
     }
@@ -399,6 +447,7 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
               onCompare={handleCardCompareToggle}
               onExport={handleExport}
               onDelete={(id) => requestDelete([id])}
+              onRestore={(id) => requestRestore(id)}
             />
           ))}
         </div>
@@ -419,6 +468,18 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
         loading={deleting}
         onClose={() => { if (!deleting) setPendingDeleteIds(null); }}
         onConfirm={() => { if (pendingDeleteIds) void executeDelete(pendingDeleteIds); }}
+      />
+
+      <ConfirmDialog
+        open={pendingRestoreId !== null}
+        title="恢复快照"
+        description="确认将该快照的配置、结果和备注恢复到当前实验？当前实验内容将被覆盖。"
+        confirmLabel="确认恢复"
+        cancelLabel="取消"
+        tone="default"
+        loading={restoring}
+        onClose={() => { if (!restoring) setPendingRestoreId(null); }}
+        onConfirm={() => { if (pendingRestoreId) void executeRestore(pendingRestoreId); }}
       />
     </div>
   );

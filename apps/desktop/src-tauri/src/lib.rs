@@ -69,8 +69,8 @@ use commands::{
     evidence::evidence_get_links,
     experiment::{
         experiment_add_attachment, experiment_create, experiment_create_snapshot, experiment_delete,
-        experiment_delete_attachment, experiment_get, experiment_list, experiment_list_attachments,
-        experiment_delete_snapshot, experiment_get_snapshot, experiment_list_snapshots,
+        experiment_delete_attachment, experiment_get, experiment_get_snapshot, experiment_list,
+        experiment_list_attachments, experiment_list_snapshots, experiment_restore_snapshot,
         experiment_update, experiment_update_attachment_label,
     },
     export::export_to_obsidian,
@@ -637,6 +637,7 @@ pub fn run() {
             experiment_list_snapshots,
             experiment_get_snapshot,
             experiment_delete_snapshot,
+            experiment_restore_snapshot,
             // Export
             export_to_obsidian,
             // Knowledge extras

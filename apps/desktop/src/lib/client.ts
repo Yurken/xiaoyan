@@ -906,6 +906,8 @@ export const experimentApi = {
         toolId: params.toolId ?? null, model: params.model ?? null, workingDir: params.workingDir ?? null,
       }),
     delete: (snapshotId: string) => invoke<void>("experiment_delete_snapshot", { snapshotId }),
+    restore: (snapshotId: string) =>
+      invoke<{ experimentId: string; restoredAt: string }>("experiment_restore_snapshot", { snapshotId }),
   },
   attachments: {
     list: (experimentId: string) =>
