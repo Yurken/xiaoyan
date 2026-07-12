@@ -484,7 +484,9 @@
 
 /* User messages: right-aligned bubble, no avatar */
 .code-opencode-main .code-chat-msg__user {
-  justify-content: flex-end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .code-opencode-main .code-chat-msg__user-avatar {
@@ -494,12 +496,14 @@
 .code-opencode-main .code-chat-msg__user-content {
   flex: 0 1 auto;
   max-width: 85%;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: none;
   border-radius: 16px;
   background: linear-gradient(145deg, #1A8AFF, #0062CC);
   color: #FFFFFF;
   box-shadow: 4px 4px 10px rgba(0, 62, 204, 0.3), -3px -3px 8px rgba(58, 155, 255, 0.2);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* AI messages: left-aligned, no bubble/avatar, flat in the main area */

@@ -147,6 +147,7 @@ pub async fn send_message_stream(
     mode: Option<String>,
     permissions: Arc<Mutex<HashMap<String, oneshot::Sender<CodePermissionDecision>>>>,
     request_id: &str,
+    user_message_id: Option<String>,
 ) {
     let request_id = request_id.to_string();
     let working_dir = working_dir.and_then(|dir| {
@@ -160,7 +161,7 @@ pub async fn send_message_stream(
 
     // 1. 落盘用户消息
     let user_msg = CodeMessage {
-        id: Uuid::new_v4().to_string(),
+        id: user_message_id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         role: "user".to_string(),
         content: content.clone(),
         tool_calls: None,

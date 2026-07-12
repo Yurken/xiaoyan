@@ -292,9 +292,6 @@ export default function CopilotComposer({
               </button>
             </div>
 
-            <span className="hidden text-[11px] text-ink-tertiary sm:inline">
-              ⌘ / Ctrl ↵ 发送
-            </span>
             <button
               type="button"
               onClick={() => {
@@ -305,7 +302,7 @@ export default function CopilotComposer({
                 void onSubmit();
               }}
               disabled={!sending && !canSubmit}
-              aria-label={sending ? "终止生成" : "发送消息"}
+              aria-label={sending ? "终止生成" : "发送消息（⌘ / Ctrl + Enter）"}
               title={sending ? "终止生成" : "发送消息（⌘ / Ctrl + Enter）"}
               className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{

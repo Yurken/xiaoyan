@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, ChevronDown, FolderOpen, Lock, LockOpen, Sparkles, PanelTopClose, PanelTopOpen, Square, X, Zap } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Copy, FolderOpen, Lock, LockOpen, Pencil, Sparkles, PanelTopClose, PanelTopOpen, Square, X, Zap } from "lucide-react";
 import type { Skill } from "@research-copilot/types";
 import type { CodeMessage } from "../../lib/client";
 import { codeToolLabel, CODE_MODES, CODE_MODE_MAP } from "./shared";
@@ -15,6 +15,7 @@ interface CodeChatPanelProps {
   input: string;
   onInputChange: (value: string) => void;
   onSend: () => void;
+  onEditMessage?: (messageId: string, newText: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
   currentFileName: string | null;
@@ -33,8 +34,6 @@ interface CodeChatPanelProps {
   onPickAttachments?: () => void;
   onRemoveAttachment?: (id: string) => void;
   contextStats?: { files: number; instructions: number; scripts: number; chars: number } | null;
-  contextLoading?: boolean;
-  onInjectContext?: () => void;
   skills?: Skill[];
   selectedSkillId?: string | null;
   onSelectedSkillChange?: (id: string | null) => void;
@@ -50,6 +49,7 @@ export default function CodeChatPanel({
   input,
   onInputChange,
   onSend,
+  onEditMessage,
   collapsed,
   onToggleCollapse,
   currentFileName,
@@ -68,8 +68,6 @@ export default function CodeChatPanel({
   onPickAttachments,
   onRemoveAttachment,
   contextStats = null,
-  contextLoading = false,
-  onInjectContext,
   skills = [],
   selectedSkillId = null,
   onSelectedSkillChange,
@@ -82,6 +80,9 @@ export default function CodeChatPanel({
   const [slashIndex, setSlashIndex] = useState(0);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [dirMenuOpen, setDirMenuOpen] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const dirMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -149,7 +150,7 @@ export default function CodeChatPanel({
         setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
         return;
       }
-      if (event.key === "Enter" || event.key === "Tab") {
+      if (event.key === "Tab" || (event.key === "Enter" && !event.metaKey && !event.ctrlKey)) {
         event.preventDefault();
         const picked = slashMatches[slashIndex];
         if (picked) selectSlashSkill(picked.id);
@@ -161,7 +162,7 @@ export default function CodeChatPanel({
         return;
       }
     }
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       onSend();
     }
@@ -171,6 +172,16 @@ export default function CodeChatPanel({
     const t = e.currentTarget;
     t.style.height = "auto";
     t.style.height = Math.min(t.scrollHeight, 120) + "px";
+  }
+
+  async function handleCopy(text: string, messageId: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 1500);
+    } catch {
+      // ignore
+    }
   }
 
   if (collapsed) {
@@ -223,12 +234,92 @@ export default function CodeChatPanel({
 
         {messages.map((msg) => (
           <div key={msg.id} className={`code-chat-msg code-chat-msg--${msg.role}`}>
-            {msg.role === "user" ? (
-              <div className="code-chat-msg__user">
-                <div className="code-chat-msg__user-avatar">你</div>
-                <div className="code-chat-msg__user-content">{msg.content}</div>
-              </div>
-            ) : msg.role === "tool" ? (
+            {msg.role === "user" ? (() => {
+              const isEditing = editingMessageId === msg.id;
+              return (
+                <div className="code-chat-msg__user group">
+                  <div className="code-chat-msg__user-avatar">你</div>
+                  <div
+                    className="code-chat-msg__user-content"
+                    style={isEditing ? { background: "transparent", boxShadow: "none", padding: 0 } : undefined}
+                  >
+                    {isEditing ? (
+                      <textarea
+                        rows={3}
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            onEditMessage?.(msg.id, editText);
+                          }
+                          if (e.key === "Escape") {
+                            setEditingMessageId(null);
+                            setEditText("");
+                          }
+                        }}
+                        onInput={handleInput}
+                        className="w-full rounded-2xl px-3 py-2 text-xs text-ink-primary outline-none border-0 resize-none"
+                        style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
+                        autoFocus
+                      />
+                    ) : (
+                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                    )}
+                  </div>
+                  {isEditing ? (
+                    <div className="flex justify-end gap-1 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => { setEditingMessageId(null); setEditText(""); }}
+                        className="rounded-lg px-2 py-1 text-[11px] transition-colors"
+                        style={{ color: "var(--rc-text-tertiary)" }}
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onEditMessage?.(msg.id, editText)}
+                        disabled={!editText.trim() || sending}
+                        className="rounded-lg px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-40"
+                        style={{ color: "#FFFFFF", background: "#007AFF" }}
+                      >
+                        保存并发送
+                      </button>
+                    </div>
+                  ) : (
+                    !sending && onEditMessage && (
+                      <div className="flex justify-end gap-0.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(msg.content, msg.id)}
+                          aria-label={copiedMessageId === msg.id ? "已复制" : "复制消息"}
+                          title={copiedMessageId === msg.id ? "已复制" : "复制消息"}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors"
+                          style={{ color: "var(--rc-text-tertiary)" }}
+                        >
+                          {copiedMessageId === msg.id ? (
+                            <Check className="w-3 h-3" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setEditingMessageId(msg.id); setEditText(msg.content); }}
+                          aria-label="编辑消息"
+                          title="编辑消息"
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors"
+                          style={{ color: "var(--rc-text-tertiary)" }}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )
+                  )}
+                </div>
+              );
+            })() : msg.role === "tool" ? (
               <div className="code-chat-msg__assistant">
                 <div className="code-chat-msg__assistant-avatar">
                   <Sparkles size={12} />
@@ -346,7 +437,7 @@ export default function CodeChatPanel({
               onChange={(e) => onInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
               onInput={handleInput}
-              placeholder={selectedSkillId ? "输入内容，将与技能指令一起发送…" : '让小妍做点什么… 输入 "/" 唤起技能'}
+              placeholder={selectedSkillId ? "输入内容，将与技能指令一起发送 · ⌘/Ctrl + ↵ 发送" : '让小妍做点什么… 输入 "/" 唤起技能 · ⌘/Ctrl + ↵ 发送'}
               className="w-full px-5 pt-4 pb-2 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none"
               style={{ background: "transparent" }}
               disabled={sending}
@@ -483,14 +574,11 @@ export default function CodeChatPanel({
               </div>
 
               <CodeChatContextControls
-                workingDir={workingDir}
                 attachments={attachments}
                 contextStats={contextStats}
-                contextLoading={contextLoading}
                 onAddFile={onAddFile}
                 onPickAttachments={onPickAttachments}
                 onRemoveAttachment={onRemoveAttachment}
-                onInjectContext={onInjectContext}
               />
 
               {selectedSkillId && (() => {
@@ -553,6 +641,8 @@ export default function CodeChatPanel({
             <button
               onClick={() => { if (sending) { onStop?.(); } else { onSend(); } }}
               disabled={sending ? false : !input.trim()}
+              aria-label={sending ? "终止生成" : "发送消息（⌘ / Ctrl + Enter）"}
+              title={sending ? "终止生成" : "发送消息（⌘ / Ctrl + Enter）"}
               className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
                 background: sending

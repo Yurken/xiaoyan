@@ -177,7 +177,7 @@ export const settingsApi = {
   tokenUsage: (): Promise<TokenUsageStats> => invoke("token_usage_stats"),
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
-  listModels: (data: Partial<AppSettings>): Promise<string[]> =>
+  listModels: (data: Partial<AppSettings> & { list_models_base_url?: string; list_models_api_key?: string }): Promise<string[]> =>
     invoke("settings_list_models", { data }),
   testTavily: (data: Partial<AppSettings>): Promise<TavilyKeyTest[]> =>
     invoke("settings_test_tavily", { data }),
@@ -982,7 +982,8 @@ export const codeApi = {
   getSession: (sessionId: string): Promise<CodeSession> => invoke("code_get_session", { sessionId }),
   createSession: (experimentId: string, title?: string, workingDir?: string): Promise<CodeSession> => invoke("code_create_session", { experimentId, title: title ?? null, workingDir: workingDir ?? null }),
   deleteSession: (sessionId: string): Promise<void> => invoke("code_delete_session", { sessionId }),
-  sendMessage: (sessionId: string, content: string, workingDir?: string, currentFile?: string, mode?: string): Promise<void> => invoke("code_send_message", { sessionId, content, workingDir: workingDir ?? null, currentFile: currentFile ?? null, mode: mode ?? null }),
+  sendMessage: (sessionId: string, content: string, workingDir?: string, currentFile?: string, mode?: string, userMessageId?: string): Promise<void> => invoke("code_send_message", { sessionId, content, workingDir: workingDir ?? null, currentFile: currentFile ?? null, mode: mode ?? null, userMessageId: userMessageId ?? null }),
+  editMessage: (sessionId: string, messageId: string): Promise<void> => invoke("code_edit_message", { sessionId, messageId }),
   cancelMessage: (requestId: string): Promise<void> => invoke("code_cancel", { requestId }),
   resolvePermission: (permissionId: string, approved: boolean, message?: string): Promise<void> => invoke("code_resolve_permission", { permissionId, approved, message: message ?? null }),
   updateSession: (sessionId: string, input: { title?: string; workingDir?: string }): Promise<void> => invoke("code_update_session", { sessionId, title: input.title ?? null, workingDir: input.workingDir ?? null }),

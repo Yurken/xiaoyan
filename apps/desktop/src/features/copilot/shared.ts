@@ -83,9 +83,10 @@ export const COPILOT_CHAT_MODE_OPTIONS: CopilotChatModeOption[] = [
 ];
 
 export function getCopilotInputPlaceholder(mode: ChatMode) {
+  const shortcut = "⌘/Ctrl + ↵ 发送";
   return mode === "direct"
-    ? "直接问我就行，比如：你好、帮我润色这段话、解释一下这个概念"
-    : "告诉我你的研究任务，我会先拆解步骤，再逐步推进";
+    ? `直接问我就行，比如：你好、帮我润色这段话、解释一下这个概念 · ${shortcut}`
+    : `告诉我你的研究任务，我会先拆解步骤，再逐步推进 · ${shortcut}`;
 }
 
 const NODE_ORDER: Exclude<AgentGraphNodeKey, "start">[] = [

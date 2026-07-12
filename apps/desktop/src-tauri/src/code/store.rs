@@ -190,7 +190,9 @@ pub async fn persist_message(
 /// 若会话仍是默认标题，用首条用户消息生成标题。
 pub async fn maybe_autotitle(db: &SqlitePool, session_id: &str, content: &str) {
     if let Ok(session) = get_session(db, session_id).await {
-        if session.messages.len() <= 1 && session.title == "新对话" {
+        // 兼容前端默认标题 "新会话" 与旧默认 "新对话"
+        let is_default_title = session.title == "新会话" || session.title == "新对话" || session.title.trim().is_empty();
+        if session.messages.len() <= 1 && is_default_title {
             let truncated: String = content.chars().take(50).collect();
             let _ = sqlx::query("UPDATE experiment_code_sessions SET title = ?, updated_at = ? WHERE id = ?")
                 .bind(&truncated)
@@ -200,6 +202,33 @@ pub async fn maybe_autotitle(db: &SqlitePool, session_id: &str, content: &str) {
                 .await;
         }
     }
+}
+
+/// 删除指定用户消息及其之后的所有消息（用于编辑并重发）。
+pub async fn edit_message(
+    db: &SqlitePool,
+    session_id: &str,
+    message_id: &str,
+) -> anyhow::Result<()> {
+    let mut session = get_session(db, session_id).await?;
+    let idx = session
+        .messages
+        .iter()
+        .position(|m| m.id == message_id && m.role == "user")
+        .ok_or_else(|| anyhow::anyhow!("消息不存在或不可编辑"))?;
+    session.messages.truncate(idx);
+
+    let json = serde_json::to_string(&session.messages)?;
+    let ts = now();
+    sqlx::query(
+        "UPDATE experiment_code_sessions SET messages_json = ?, updated_at = ? WHERE id = ?",
+    )
+    .bind(&json)
+    .bind(&ts)
+    .bind(session_id)
+    .execute(db)
+    .await?;
+    Ok(())
 }
 
 /// 更新会话标题（用于 AI 自动标题生成）

@@ -625,14 +625,13 @@ export function ExperimentCodeWorkspace({
             onPickAttachments={ws.pickAttachments}
             onRemoveAttachment={ws.removeAttachment}
             contextStats={ws.contextPack.stats}
-            contextLoading={ws.contextPack.loading}
-            onInjectContext={ws.contextPack.injectContext}
             skills={skills}
             selectedSkillId={selectedSkillId}
             onSelectedSkillChange={setSelectedSkillId}
             skillLocked={skillLocked}
             onSkillLockedChange={setSkillLocked}
             onStop={ws.cancelActiveStream}
+            onEditMessage={ws.handleEditAndResend}
           />
         </main>
 

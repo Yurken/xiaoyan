@@ -17,6 +17,13 @@ import { useCodeContextPack } from "./useCodeContextPack";
 import { useCodeModelOptions } from "./useCodeModelOptions";
 import type { CodeAgentMode, OpenFile } from "./shared";
 
+function generateMessageId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 interface StreamEvent {
   session_id: string;
   request_id: string;
@@ -440,9 +447,20 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     }
   }
 
-  // ── Send ─────────────────────────────────────────────────────
+// ── Send ─────────────────────────────────────────────────────
   async function handleSend(skillPrompt?: string) {
     if (!input.trim() || sending) return;
+    const rawContent = input.trim();
+    setInput("");
+    attachmentsController.clearAttachments();
+    await sendUserContent(rawContent, { skillPrompt });
+  }
+
+  async function sendUserContent(
+    rawContent: string,
+    options?: { skillPrompt?: string; skipAttachments?: boolean },
+  ) {
+    if (!rawContent.trim() || sending) return;
 
     // 取消上一次请求（如果还在进行中）
     cancelActiveStream();
@@ -462,11 +480,12 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       }
     }
 
-    const rawContent = input.trim();
-    let content = skillPrompt ? `${skillPrompt}\n\n---\n\n${rawContent}` : rawContent;
+    let content = options?.skillPrompt
+      ? `${options.skillPrompt}\n\n---\n\n${rawContent}`
+      : rawContent;
 
     // 注入附件文件内容
-    if (attachmentsController.attachments.length > 0) {
+    if (!options?.skipAttachments && attachmentsController.attachments.length > 0) {
       const fileContext = attachmentsController.attachments
         .map((a, i) => {
           const trunc = a.truncated ? "\n[内容已截断]" : "";
@@ -476,16 +495,15 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       content = `${content}\n\n<file-context>\n以下是用户附加的文件内容，请结合这些内容回答问题：\n\n${fileContext}\n</file-context>`;
     }
 
-    setInput("");
-    attachmentsController.clearAttachments();
     setSending(true);
     setRequestId(null);
     requestIdRef.current = null;
     streamingRef.current = "";
     setStreamingContent("");
 
+    const userMessageId = generateMessageId();
     const userMsg: CodeMessage = {
-      id: `temp-${Date.now()}`,
+      id: userMessageId,
       role: "user",
       content: rawContent,
       created_at: new Date().toISOString(),
@@ -505,11 +523,48 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         workingDir ?? undefined,
         openFile?.name ?? undefined,
         agentMode,
+        userMessageId,
       );
     } catch (err) {
       showToast(formatErrorMessage(err));
       setSending(false);
     }
+  }
+
+  async function handleEditAndResend(messageId: string, newText: string) {
+    if (sending) return;
+    const trimmed = newText.trim();
+    if (!trimmed) return;
+
+    const session = selected;
+    if (!session) return;
+    const idx = session.messages.findIndex((m) => m.id === messageId && m.role === "user");
+    if (idx < 0) return;
+
+    // 乐观更新：截断本地消息到目标消息之前
+    const truncated = session.messages.slice(0, idx);
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === session.id
+          ? { ...s, messages: truncated, updated_at: new Date().toISOString() }
+          : s,
+      ),
+    );
+
+    try {
+      await codeApi.editMessage(session.id, messageId);
+    } catch (err) {
+      showToast(formatErrorMessage(err));
+      // 失败时回滚：重新加载会话
+      void codeApi.getSession(session.id).then((s) => {
+        setSessions((prev) =>
+          prev.map((item) => (item.id === s.id ? s : item)),
+        );
+      }).catch(() => {});
+      return;
+    }
+
+    await sendUserContent(trimmed, { skipAttachments: true });
   }
 
   return {
@@ -541,6 +596,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     handleCreateSession,
     handleDeleteSession,
     handleSend,
+    handleEditAndResend,
     cancelActiveStream,
     agentMode,
     setAgentMode,

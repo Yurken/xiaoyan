@@ -7,7 +7,7 @@ use crate::code;
 use crate::state::AppState;
 use serde_json::json;
 use std::path::Path;
-use tauri::State;
+use tauri::{Emitter, State};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -168,6 +168,7 @@ pub async fn code_send_message(
     working_dir: Option<String>,
     current_file: Option<String>,
     mode: Option<String>,
+    user_message_id: Option<String>,
 ) -> Result<(), String> {
     if content.trim().is_empty() {
         return Err("消息不能为空".into());
@@ -177,6 +178,10 @@ pub async fn code_send_message(
     let settings = state.settings.read().await.clone();
 
     code::store::maybe_autotitle(&db, &session_id, &content).await;
+    let _ = app.emit(
+        "code:title_changed",
+        serde_json::json!({ "session_id": &session_id }),
+    );
 
     let request_id = Uuid::new_v4().to_string();
     let rid = request_id.clone();
@@ -196,6 +201,7 @@ pub async fn code_send_message(
             mode,
             code_permissions,
             &rid,
+            user_message_id,
         )
         .await;
         let _ = code_handles.lock().await.remove(&rid);
@@ -204,6 +210,17 @@ pub async fn code_send_message(
     state.code_handles.lock().await.insert(request_id, handle);
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn code_edit_message(
+    state: State<'_, AppState>,
+    session_id: String,
+    message_id: String,
+) -> Result<(), String> {
+    code::store::edit_message(&state.db, &session_id, &message_id)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
