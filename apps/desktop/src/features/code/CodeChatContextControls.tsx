@@ -1,26 +1,20 @@
-import { FileText, Layers, Loader2, Plus, X } from "lucide-react";
+import { FileText, Layers, Plus, X } from "lucide-react";
 import type { CodeFileAttachment } from "./shared";
 
 interface CodeChatContextControlsProps {
-  workingDir?: string | null;
   attachments: CodeFileAttachment[];
   contextStats?: { files: number; instructions: number; scripts: number; chars: number } | null;
-  contextLoading?: boolean;
   onAddFile: () => void;
   onPickAttachments?: () => void;
   onRemoveAttachment?: (id: string) => void;
-  onInjectContext?: () => void;
 }
 
 export default function CodeChatContextControls({
-  workingDir,
   attachments,
   contextStats = null,
-  contextLoading = false,
   onAddFile,
   onPickAttachments,
   onRemoveAttachment,
-  onInjectContext,
 }: CodeChatContextControlsProps) {
   return (
     <>
@@ -32,17 +26,6 @@ export default function CodeChatContextControls({
         title="添加文件作为上下文"
       >
         <Plus size={16} />
-      </button>
-
-      <button
-        type="button"
-        className="code-chat-attach-btn"
-        onClick={onInjectContext}
-        disabled={!workingDir || contextLoading}
-        aria-label="注入工作区上下文"
-        title="注入工作区上下文"
-      >
-        {contextLoading ? <Loader2 size={15} className="animate-spin" /> : <Layers size={15} />}
       </button>
 
       {contextStats && (

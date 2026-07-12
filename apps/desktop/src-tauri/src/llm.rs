@@ -171,11 +171,22 @@ fn normalize_base_url(url: &str) -> String {
     trimmed.to_string()
 }
 
-fn is_anthropic_compatible_base_url(base_url: &str) -> bool {
+/// Query whether a base URL should be treated as Anthropic-compatible.
+/// Exported so the settings service can pick the right auth header when listing models.
+///
+/// Special case for Kimi Code:
+/// - Anthropic-compatible form: `https://api.kimi.com/coding/` (no `/v1` suffix)
+/// - OpenAI-compatible form:    `https://api.kimi.com/coding/v1`
+pub(crate) fn is_anthropic_compatible_base_url(base_url: &str) -> bool {
     let lower = base_url.to_ascii_lowercase();
-    lower.contains("/anthropic/")
-        || lower.contains("api.anthropic.com")
-        || lower.contains("api.kimi.com/coding")
+    if lower.contains("/anthropic/") || lower.contains("api.anthropic.com") {
+        return true;
+    }
+    if lower.contains("api.kimi.com/coding") {
+        // The OpenAI-compatible endpoint ends with `/v1` and must stay on the OpenAI wire.
+        return !lower.trim_end_matches('/').ends_with("/v1");
+    }
+    false
 }
 
 fn build_anthropic_messages_url(base_url: &str) -> String {
@@ -185,6 +196,22 @@ fn build_anthropic_messages_url(base_url: &str) -> String {
         format!("{}/messages", trimmed)
     } else {
         format!("{}/v1/messages", trimmed)
+    }
+}
+
+/// Returns the appropriate (header_name, header_value) for Anthropic-compatible endpoints.
+/// Native Anthropic and Kimi Code's Anthropic-compatible endpoint use `x-api-key`.
+/// Other Anthropic-compatible gateways (Azure Foundry, MiniMax, etc.) commonly require
+/// `Authorization: Bearer`, so we fall back to Bearer for unrecognized Anthropic-like URLs.
+pub(crate) fn anthropic_auth_header(base_url: &str, api_key: &str) -> (&'static str, String) {
+    let lower = base_url.to_ascii_lowercase();
+    let use_x_api_key = lower.contains("api.anthropic.com")
+        || (lower.contains("api.kimi.com/coding")
+            && !lower.trim_end_matches('/').ends_with("/v1"));
+    if use_x_api_key {
+        ("x-api-key", api_key.to_string())
+    } else {
+        ("Authorization", format!("Bearer {}", api_key))
     }
 }
 
@@ -485,9 +512,10 @@ impl LlmClient {
                         ]
                     }]
                 });
+                let (auth_header, auth_value) = anthropic_auth_header(base_url, api_key);
                 let resp = client
                     .post(build_anthropic_messages_url(base_url))
-                    .header("x-api-key", api_key)
+                    .header(auth_header, auth_value)
                     .header("anthropic-version", "2023-06-01")
                     .json(&body)
                     .send()
@@ -564,6 +592,84 @@ impl LlmClient {
                     max_tokens,
                 )
                 .await
+            }
+        }
+    }
+
+    /// Connectivity test: send a minimal request and accept any successful,
+    /// parseable response (including empty text). This avoids treating a valid
+    /// 200 response with an empty content block as an error.
+    pub async fn test(&self) -> Result<()> {
+        match self {
+            LlmClient::OpenAI {
+                base_url,
+                api_key,
+                chat_model,
+                ..
+            } => {
+                let client = http_client();
+                let messages = vec![LlmMessage::user("hi")];
+                let body = json!({
+                    "model": chat_model,
+                    "messages": build_message_array_impl(&messages),
+                    "temperature": 0.0,
+                    "max_tokens": 1,
+                });
+                crate::append_diagnostic_log(&format!(
+                    "[llm][test] url={}/chat/completions model={}",
+                    base_url.trim_end_matches('/'),
+                    chat_model,
+                ));
+                let resp = client
+                    .post(format!(
+                        "{}/chat/completions",
+                        base_url.trim_end_matches('/')
+                    ))
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .header("User-Agent", USER_AGENT)
+                    .json(&body)
+                    .send()
+                    .await?;
+                let resp = ensure_http_success(resp, |status, body| {
+                    format_openai_http_error_impl(status, body, base_url, "LLM API test error")
+                })
+                .await?;
+                parse_json_response(resp, "LLM API test error").await?;
+                Ok(())
+            }
+            LlmClient::Anthropic {
+                base_url,
+                api_key,
+                chat_model,
+            } => {
+                let client = http_client();
+                let messages = vec![LlmMessage::user("hi")];
+                let body = json!({
+                    "model": chat_model,
+                    "max_tokens": 1,
+                    "messages": build_anthropic_user_messages(&messages),
+                    "temperature": 0.0,
+                });
+                crate::append_diagnostic_log(&format!(
+                    "[llm][test] url={} model={} auth_header={}",
+                    build_anthropic_messages_url(base_url),
+                    chat_model,
+                    anthropic_auth_header(base_url, "").0,
+                ));
+                let (auth_header, auth_value) = anthropic_auth_header(base_url, api_key);
+                let resp = client
+                    .post(build_anthropic_messages_url(base_url))
+                    .header(auth_header, auth_value)
+                    .header("anthropic-version", "2023-06-01")
+                    .json(&body)
+                    .send()
+                    .await?;
+                let resp = ensure_http_success(resp, |status, body| {
+                    format_http_error(status, body, "Anthropic API test error")
+                })
+                .await?;
+                parse_json_response(resp, "Anthropic API test error").await?;
+                Ok(())
             }
         }
     }
@@ -952,9 +1058,10 @@ async fn anthropic_chat(
         max_tokens,
         messages.len(),
     ));
+    let (auth_header, auth_value) = anthropic_auth_header(base_url, api_key);
     let resp = client
         .post(build_anthropic_messages_url(base_url))
-        .header("x-api-key", api_key)
+        .header(auth_header, auth_value)
         .header("anthropic-version", "2023-06-01")
         .json(&body)
         .send()
@@ -999,9 +1106,10 @@ async fn stream_anthropic(
     if let Some(s) = system {
         body["system"] = json!(s);
     }
+    let (auth_header, auth_value) = anthropic_auth_header(base_url, api_key);
     let resp = client
         .post(build_anthropic_messages_url(base_url))
-        .header("x-api-key", api_key)
+        .header(auth_header, auth_value)
         .header("anthropic-version", "2023-06-01")
         .json(&body)
         .send()
@@ -1261,9 +1369,10 @@ async fn stream_anthropic_with_tools(
     if !tools.is_empty() {
         body["tools"] = build_anthropic_tools(tools);
     }
+    let (auth_header, auth_value) = anthropic_auth_header(base_url, api_key);
     let resp = client
         .post(build_anthropic_messages_url(base_url))
-        .header("x-api-key", api_key)
+        .header(auth_header, auth_value)
         .header("anthropic-version", "2023-06-01")
         .json(&body)
         .send()
