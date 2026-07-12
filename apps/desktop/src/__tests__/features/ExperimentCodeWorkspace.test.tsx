@@ -81,6 +81,13 @@ function createWorkspace(overrides: Record<string, unknown> = {}) {
     setTreeOpen: vi.fn(),
     chatCollapsed: false,
     setChatCollapsed: vi.fn(),
+    permissionRequests: [],
+    resolvePermission: vi.fn(),
+    contextPack: {
+      stats: { files: 0, chars: 0, tokens: 0 },
+      loading: false,
+      injectContext: vi.fn(),
+    },
     ...overrides,
   };
 }
@@ -113,9 +120,9 @@ describe("ExperimentCodeWorkspace", () => {
     expect(screen.getByText("Git")).toBeInTheDocument();
 
     // Chat input
-    expect(screen.getByPlaceholderText(/随便问点什么/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/让小妍做点什么/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "添加文件" })).toBeInTheDocument();
-    expect(screen.getByLabelText("切换模型")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "deepseek-chat" })).toBeInTheDocument();
     expect(screen.queryByText("当前模型")).not.toBeInTheDocument();
 
