@@ -160,7 +160,7 @@ export default function SyncSection() {
         </div>
 
         <p className="ml-1 text-xs text-ink-quaternary">
-          密码同时用于端到端加密，仅保存在本机系统钥匙串；多台设备请使用同一 WebDAV 账号与密码。
+          密码同时用于端到端加密，仅保存在本机系统钥匙串；macOS 首次授权时请选择“始终允许”，之后不会重复询问。多台设备请使用同一 WebDAV 账号与密码。
         </p>
 
         <div className="flex flex-wrap items-center gap-2">
