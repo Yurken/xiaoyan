@@ -94,7 +94,7 @@ test.describe("对话页面交互", () => {
         ],
       }),
     );
-    await page.goto("/xiaoyan");
+    await page.goto("/chat");
   });
 
   test("应显示对话界面元素", async ({ page }) => {

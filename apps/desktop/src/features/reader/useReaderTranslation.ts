@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { chatApi, translateApi } from "../../lib/client";
+import type { AppSettings, LlmProvider } from "@research-copilot/types";
+import { chatApi, translateApi, settingsApi } from "../../lib/client";
+import type { ReaderImageSelection } from "./readerTypes";
+
+function getDefaultChatModel(settings: AppSettings): string {
+  const map: Record<LlmProvider, string> = {
+    openai: settings.openai_chat_model,
+    anthropic: settings.anthropic_chat_model,
+    openai_compatible: settings.openai_compatible_chat_model,
+  };
+  return map[settings.llm_provider] ?? "";
+}
 
 export interface TranslationState {
   id: number;
@@ -14,8 +25,20 @@ export interface InterpretationState {
   status: "loading" | "done" | "error";
   /** 被解读的原文（划词「解读」无译文时，面板据此展示原文）。 */
   source: string;
+  sourceType?: "text" | "image";
+  imageDataUrl?: string;
+  page?: number;
   text: string;
   error?: string;
+}
+
+interface InterpretRequest {
+  source: string;
+  prompt: string;
+  sourceType?: "text" | "image";
+  imageDataUrl?: string;
+  page?: number;
+  images?: Array<{ data: string; mediaType: string }>;
 }
 
 export const TRANSLATION_FONT_SIZES = [12, 13, 14, 16, 18, 20] as const;
@@ -45,6 +68,10 @@ export function useReaderTranslation() {
   const [locked, setLocked] = useState(false);
   const [continuous, setContinuous] = useState(false);
   const [fontSize, setFontSize] = useState<number>(DEFAULT_FONT_SIZE);
+  const [translationModel, setTranslationModel] = useState<string>("");
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState("");
 
   const seqRef = useRef(0);
   const currentRef = useRef<TranslationState | null>(null);
@@ -60,6 +87,36 @@ export function useReaderTranslation() {
   // 卸载时中止仍在进行的解读流，避免卸载后 setState 与未释放的网络流。
   useEffect(() => () => interpretAbortRef.current?.abort(), []);
 
+  // 初始化译衡模型：优先使用设置中保存的 translation_model；未指定时回退到小妍默认模型。
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingModels(true);
+    setModelsError("");
+    (async () => {
+      try {
+        const settings = await settingsApi.get();
+        if (cancelled) return;
+        const defaultModel = getDefaultChatModel(settings);
+        setTranslationModel(settings.translation_model || defaultModel);
+        const models = await settingsApi.listModels(settings);
+        if (cancelled) return;
+        setAvailableModels(models);
+        if (models.length === 0) {
+          setModelsError("未获取到模型，请检查接口地址与密钥。");
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setAvailableModels([]);
+        setModelsError(error instanceof Error ? error.message : String(error));
+      } finally {
+        if (!cancelled) setLoadingModels(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const runTranslate = useCallback(async (source: string, page?: number) => {
     const trimmed = normalizeSourceText(source);
     if (!trimmed) return;
@@ -67,13 +124,13 @@ export function useReaderTranslation() {
     setInterpretation(null); // 译文变化，旧解读作废
     setCurrent({ id, source: trimmed, page, result: "", status: "loading" });
     try {
-      const result = await translateApi.translate(trimmed, "zh");
+      const result = await translateApi.translate(trimmed, "zh", undefined, translationModel);
       setCurrent((prev) => (prev && prev.id === id ? { ...prev, result: result.trim(), status: "done" } : prev));
     } catch (err) {
       const message = err instanceof Error ? err.message : "翻译失败";
       setCurrent((prev) => (prev && prev.id === id ? { ...prev, status: "error", error: message } : prev));
     }
-  }, []);
+  }, [translationModel]);
 
   // 划词翻译：连翻开启且已有结果时，把新选中文字接到上一段后合并重译；否则另起一段。
   const translate = useCallback(
@@ -99,42 +156,54 @@ export function useReaderTranslation() {
     [runTranslate],
   );
 
-  // 解读：不传 source 时解读当前译文的原文（面板按钮）；传入则解读指定文字（划词「解读」）。
-  const interpret = useCallback(async (sourceOverride?: string) => {
-    const raw = sourceOverride ?? currentRef.current?.source ?? "";
-    const source = sourceOverride ? normalizeSourceText(raw) : raw.trim();
-    if (!source) return;
+  const runInterpretation = useCallback(async ({
+    source,
+    prompt,
+    sourceType = "text",
+    imageDataUrl,
+    page,
+    images,
+  }: InterpretRequest) => {
     interpretAbortRef.current?.abort();
     const ac = new AbortController();
     interpretAbortRef.current = ac;
-    setInterpretation({ status: "loading", source, text: "" });
-    const prompt =
-      `请用中文解读下面这段学术原文：先点出它在讲什么，再解释其中的关键概念/术语，必要时说明其作用或意义。不要逐句翻译。\n\n原文：\n${source}`;
+    const baseState = { source, sourceType, imageDataUrl, page };
+    setInterpretation({ ...baseState, status: "loading", text: "" });
     let acc = "";
     try {
       // 不传 session_id：每次解读都是全新、无记忆的一次性对话（tag 让它不进导航对话列表）。
       for await (const chunk of chatApi.stream(
-        { message: prompt, context_type: "general", chat_mode: "direct", tag: "reader-interpret" },
+        { message: prompt, context_type: "general", chat_mode: "direct", tag: "reader-interpret", images },
         ac.signal,
       )) {
         if (interpretAbortRef.current !== ac) break;
         if (chunk.type === "delta") {
           acc += chunk.value;
-          setInterpretation({ status: "loading", source, text: acc });
+          setInterpretation({ ...baseState, status: "loading", text: acc });
         }
         if (chunk.type === "error") {
-          setInterpretation({ status: "error", source, text: acc, error: chunk.value || "解读失败" });
+          setInterpretation({ ...baseState, status: "error", text: acc, error: chunk.value || "解读失败" });
         }
       }
       if (interpretAbortRef.current === ac) {
-        setInterpretation((prev) => (prev && prev.status === "error" ? prev : { status: "done", source, text: acc }));
+        setInterpretation((prev) => (prev && prev.status === "error" ? prev : { ...baseState, status: "done", text: acc }));
       }
     } catch (err) {
       if ((err as Error)?.name === "AbortError") return;
       const message = err instanceof Error ? err.message : "解读失败";
-      setInterpretation({ status: "error", source, text: acc, error: message });
+      setInterpretation({ ...baseState, status: "error", text: acc, error: message });
     }
   }, []);
+
+  // 解读：不传 source 时解读当前译文的原文（面板按钮）；传入则解读指定文字（划词「解读」）。
+  const interpret = useCallback(async (sourceOverride?: string) => {
+    const raw = sourceOverride ?? currentRef.current?.source ?? "";
+    const source = sourceOverride ? normalizeSourceText(raw) : raw.trim();
+    if (!source) return;
+    const prompt =
+      `请用中文解读下面这段学术原文：先点出它在讲什么，再解释其中的关键概念/术语，必要时说明其作用或意义。不要逐句翻译。\n\n原文：\n${source}`;
+    await runInterpretation({ source, prompt });
+  }, [runInterpretation]);
 
   // 划词「解读」：丢掉旧译文，仅就选中文字独立解读（面板只显示解读卡片）。
   const interpretText = useCallback(
@@ -143,6 +212,24 @@ export function useReaderTranslation() {
       void interpret(text);
     },
     [interpret],
+  );
+
+  const interpretImage = useCallback(
+    (image: ReaderImageSelection) => {
+      setCurrent(null);
+      const source = `第 ${image.page} 页框选图像（${image.width} × ${image.height}）`;
+      const prompt =
+        "请用中文解读这张论文 PDF 中框选出来的图像区域。优先判断它可能是哪类图/表/公式/流程图，解释图中主要元素、坐标轴/图例/箭头/结构关系，以及它在论文论证中可能表达的结论。若局部文字看不清，请明确说明不确定，不要编造。";
+      void runInterpretation({
+        source,
+        prompt,
+        sourceType: "image",
+        imageDataUrl: `data:${image.mediaType};base64,${image.data}`,
+        page: image.page,
+        images: [{ data: image.data, mediaType: image.mediaType }],
+      });
+    },
+    [runInterpretation],
   );
 
   const toggleContinuous = useCallback(() => setContinuous((value) => !value), []);
@@ -161,15 +248,21 @@ export function useReaderTranslation() {
     locked,
     continuous,
     fontSize,
+    translationModel,
+    availableModels,
+    loadingModels,
+    modelsError,
     translate,
     editSource,
     interpret,
     interpretText,
+    interpretImage,
     clear,
     setLocked,
     toggleLock,
     setContinuous,
     toggleContinuous,
     setFontSize,
+    setTranslationModel,
   };
 }

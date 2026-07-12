@@ -1,17 +1,14 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertCircle, CheckSquare, Download, Globe, LayoutGrid, List, Loader2, Plus, Search, StickyNote, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, CheckSquare, Download, Globe, LayoutGrid, List, Loader2, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
 import { Badge, Button, CapsuleTabs, Card, ConfirmDialog, Input } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
+import { usePersistentStringState } from "../../hooks/usePersistentStringState";
 import { useKnowledgeNotesWorkspace } from "./useKnowledgeNotesWorkspace";
 import { useNotesExport } from "./useNotesExport";
-import { interestFolderName } from "../../lib/interestUtils";
 import NoteCard from "./NoteCard";
-import NoteListItem from "./NoteListItem";
 import WebClipDialog from "./WebClipDialog";
-import ImportNotesDialog from "./ImportNotesDialog";
-import { useNotesImport } from "./useNotesImport";
 import NoteImportZip from "./NoteImportZip";
 import { sourceLabel } from "./notesShared";
 
@@ -42,7 +39,6 @@ export default function NotesPanel({
     scopedNotes,
     noteGroups,
     ungroupedNotes,
-    createNote,
     deleteNote,
     deleteInterestGroup,
     clipWebPage,
@@ -58,15 +54,15 @@ export default function NotesPanel({
   const [pendingDeleteNote, setPendingDeleteNote] = useState<KnowledgeNote | null>(null);
   const [deletingNote, setDeletingNote] = useState(false);
   const [showWebClip, setShowWebClip] = useState(false);
-  const [showImport, setShowImport] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [selectionMode, setSelectionMode] = useState(false);
-  const [viewMode, setViewMode] = useState<"card" | "list">("card");
+  const [viewMode, setViewMode] = usePersistentStringState<"card" | "list">(
+    "rc:knowledge:notes-view-mode",
+    "card",
+    ["card", "list"],
+  );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { exporting, exportError, clearExportError, exportMarkdown } = useNotesExport();
-  const { importing, importFiles } = useNotesImport({
-    onCreate: (draft) => createNote({ ...draft, source_type: "import" }),
-  });
 
   const handleConfirmDeleteNote = async () => {
     if (!pendingDeleteNote) return;
@@ -99,15 +95,6 @@ export default function NotesPanel({
     () => {
       if (!linkedNoteClaimCounts) return 0;
       return scopedNotes.filter((note) => (linkedNoteClaimCounts[note.id] ?? 0) > 0).length;
-    },
-    [linkedNoteClaimCounts, scopedNotes],
-  );
-
-  const linkedCountForGroup = useMemo(
-    () => (groupKey: string) => {
-      if (!linkedNoteClaimCounts) return 0;
-      const groupNotes = scopedNotes.filter((n) => n.research_interest_id === groupKey);
-      return groupNotes.filter((n) => (linkedNoteClaimCounts[n.id] ?? 0) > 0).length;
     },
     [linkedNoteClaimCounts, scopedNotes],
   );
@@ -164,24 +151,6 @@ export default function NotesPanel({
       key={note.id}
       note={note}
       linkedClaimCount={linkedNoteClaimCounts?.[note.id] ?? 0}
-      interestName={note.research_interest_id && interestMap[note.research_interest_id]
-        ? interestFolderName(interestMap[note.research_interest_id])
-        : undefined}
-      onDelete={setPendingDeleteNote}
-      selectionMode={selectionMode}
-      selected={selectedIds.has(note.id)}
-      onToggleSelect={toggleSelect}
-    />
-  );
-
-  const renderNoteListItem = (note: KnowledgeNote) => (
-    <NoteListItem
-      key={note.id}
-      note={note}
-      linkedClaimCount={linkedNoteClaimCounts?.[note.id] ?? 0}
-      interestName={note.research_interest_id && interestMap[note.research_interest_id]
-        ? interestFolderName(interestMap[note.research_interest_id])
-        : undefined}
       onDelete={setPendingDeleteNote}
       selectionMode={selectionMode}
       selected={selectedIds.has(note.id)}
@@ -191,82 +160,89 @@ export default function NotesPanel({
 
   const renderNotes = (notes: KnowledgeNote[]) =>
     viewMode === "list" ? (
-      <div className="space-y-2">{notes.map(renderNoteListItem)}</div>
+      <div className="grid gap-3">{notes.map(renderNoteCard)}</div>
     ) : (
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{notes.map(renderNoteCard)}</div>
     );
 
   return (
     <>
-    <div className="space-y-4">
-      <Card padding="sm" className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          {/* Left: search + view toggle + selection/action buttons */}
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="请输入关键词搜索笔记、术语或方法"
-                className="pl-10"
-              />
+    <div className="min-w-0 space-y-4">
+      <Card padding="sm" className="min-w-0 space-y-4 overflow-hidden">
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink-primary">知识卡片库</p>
+            <p className="mt-1 text-xs leading-5 text-ink-tertiary">
+              支持语义搜索、标签归档，并可把笔记关联到具体研究主题。
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {researchInterestId ? <Badge variant="default">已按研究主题聚焦</Badge> : null}
+              {hasGraphCoverage && scopedNotes.length > 0 ? (
+                <Badge variant={linkedVisibleNoteCount > 0 ? "info" : "default"}>
+                  图谱关联 {linkedVisibleNoteCount}/{scopedNotes.length}
+                </Badge>
+              ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => setViewMode((prev) => (prev === "card" ? "list" : "card"))}
-              className="flex items-center justify-center rounded-xl px-2.5 py-1.5 text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary"
-              title={viewMode === "card" ? "切换为列表视图" : "切换为卡片视图"}
-            >
-              {viewMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-            </button>
-            {selectionMode ? (
-              <Button size="sm" variant="secondary" onClick={exitSelection}>
-                <X className="h-4 w-4" />
-                退出选择
-              </Button>
-            ) : (
-              <>
-                <Button size="sm" variant="secondary" onClick={enterSelection} disabled={scopedNotes.length === 0}>
-                  <CheckSquare className="h-4 w-4" />
-                  选择
-                </Button>
-              </>
-            )}
           </div>
-
-          {/* Right: badges + action buttons */}
-          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-            {researchInterestId ? <Badge variant="default">已按研究主题聚焦</Badge> : null}
-            <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={() => {
-                clearError();
-                setShowWebClip(true);
-                setShowImport(false);
-              }}>
-                <Globe className="h-4 w-4" />
-                剪辑网页
-              </Button>
-              <NoteImportZip
-                interests={interests}
-                researchInterestId={researchInterestId}
-                onImport={importZip}
-              />
-              <Button size="sm" variant="secondary" onClick={() => {
-                clearError();
-                setShowImport(true);
-                setShowWebClip(false);
-              }} loading={importing}>
-                <Upload className="h-4 w-4" />
-                导入笔记
-              </Button>
-              <Button size="sm" onClick={() => {
-                clearError();
-                navigate("/notes/new", { state: { researchInterestId } });
-              }}>
-                <Plus className="h-4 w-4" />
-                新建笔记
-              </Button>
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
+            {sourceTabs.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-ink-tertiary">来源</span>
+                <CapsuleTabs compact options={sourceTabs} value={activeSource} onChange={setSourceFilter} />
+              </div>
+            )}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="relative w-64 sm:w-72">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="请输入关键词搜索笔记、术语或方法"
+                  className="pl-10"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewMode((prev) => (prev === "card" ? "list" : "card"))}
+                className="flex items-center justify-center rounded-xl px-2.5 py-1.5 text-ink-tertiary transition-colors hover:bg-white/50 hover:text-ink-primary"
+                title={viewMode === "card" ? "切换为列表视图" : "切换为卡片视图"}
+              >
+                {viewMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+              </button>
+              {selectionMode ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={exitSelection}>
+                    <X className="h-4 w-4" />
+                    退出选择
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={enterSelection} disabled={scopedNotes.length === 0}>
+                    <CheckSquare className="h-4 w-4" />
+                    选择
+                  </Button>
+                  <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={() => {
+                    clearError();
+                    setShowWebClip(true);
+                  }}>
+                    <Globe className="h-4 w-4" />
+                    剪辑网页
+                  </Button>
+                  <NoteImportZip
+                    interests={interests}
+                    researchInterestId={researchInterestId}
+                    onImport={importZip}
+                  />
+                  <Button size="sm" className="whitespace-nowrap" onClick={() => {
+                    clearError();
+                    navigate("/notes/new", { state: { researchInterestId } });
+                  }}>
+                    <Plus className="h-4 w-4" />
+                    新建笔记
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -294,22 +270,6 @@ export default function NotesPanel({
               <Download className="h-4 w-4" />
               导出 Markdown{selectedNotes.length > 0 ? `（${selectedNotes.length}）` : ""}
             </Button>
-          </div>
-        )}
-
-        {sourceTabs.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-ink-tertiary">来源</span>
-            <CapsuleTabs compact options={sourceTabs} value={activeSource} onChange={setSourceFilter} />
-          </div>
-        )}
-
-        {/* 图谱关联 badge — when no source tabs are present, show it standalone */}
-        {sourceTabs.length === 0 && hasGraphCoverage && scopedNotes.length > 0 && (
-          <div className="flex items-center gap-2">
-            <Badge variant={linkedVisibleNoteCount > 0 ? "info" : "default"}>
-              图谱关联 {linkedVisibleNoteCount}/{scopedNotes.length}
-            </Badge>
           </div>
         )}
 
@@ -353,10 +313,7 @@ export default function NotesPanel({
               key={group.key}
               title={group.title}
               subtitle={group.subtitle !== group.title ? `研究主题：${group.subtitle}` : undefined}
-              countLabel={(() => {
-                const linked = linkedCountForGroup(group.key);
-                return linked > 0 ? `${group.notes.length} 条 · 图谱 ${linked}` : `${group.notes.length} 条`;
-              })()}
+              countLabel={`${group.notes.length} 条`}
               defaultOpen={group.notes.length > 0}
               actions={
                 confirmDeleteGroupId === group.key ? (
@@ -439,16 +396,6 @@ export default function NotesPanel({
         onClip={clipWebPage}
         onClipped={(note) => { setShowWebClip(false); navigate(`/notes/${note.id}`, { state: { note } }); }}
         onClose={() => setShowWebClip(false)}
-      />
-    )}
-
-    {showImport && (
-      <ImportNotesDialog
-        interests={interests}
-        defaultInterestId={researchInterestId ?? ""}
-        lockInterest={researchInterestId != null}
-        onImport={importFiles}
-        onClose={() => setShowImport(false)}
       />
     )}
     </>

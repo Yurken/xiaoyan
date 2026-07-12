@@ -1,6 +1,6 @@
 {
   "name": "research-copilot",
-  "version": "0.4.4",
+  "version": "0.4.9",
   "private": true,
   "scripts": {
     "dev:web": "turbo run dev --filter=@research-copilot/web",
@@ -15,6 +15,7 @@
     "test": "turbo run test",
     "test:e2e": "pnpm --dir apps/desktop run test:e2e",
     "tauri": "pnpm --dir apps/desktop run tauri",
+    "deploy:all": "node scripts/release-sync-landing.mjs --deploy-all",
     "release:landing": "node scripts/release-sync-landing.mjs"
   },
   "devDependencies": {

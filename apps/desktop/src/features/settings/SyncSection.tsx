@@ -25,11 +25,17 @@ function describeSummary(s: SyncSummary): string {
   return `${parts.join("，")}；本地原有数据已保留并上传，不会被覆盖。`;
 }
 
+function formatSyncTime(value: string): string {
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) return value;
+  return timestamp.toLocaleString("zh-CN", { hour12: false });
+}
+
 /**
  * WebDAV 同步设置区（无冲突自动同步）。
  *
  * 基于每设备状态文件的记录级合并同步：配置一次 WebDAV 账号后，
- * 应用会在启动 / 切回前台 / 定时 自动后台同步，多设备不冲突、不丢数据。
+ * 应用会在启动后、每 15 分钟以及切回前台时检查同步；后台同步受 15 分钟冷却限制。
  */
 export default function SyncSection() {
   const {
@@ -38,6 +44,7 @@ export default function SyncSection() {
     setUrl,
     username,
     setUsername,
+    hasSavedCredentials,
     loading,
     busy,
     error,
@@ -91,7 +98,7 @@ export default function SyncSection() {
             </span>
           </h2>
           <p className="mt-0.5 text-xs text-ink-tertiary">
-            填一次账号即可多设备自动同步：启动、切回前台、定时在后台静默合并，删除会传播，且不会互相覆盖。
+            填一次账号即可多设备自动同步：启动后、每 15 分钟及切回前台会检查；后台请求最多每 15 分钟一次。
           </p>
         </div>
         {status.configured && (
@@ -138,14 +145,14 @@ export default function SyncSection() {
           </div>
           <div className="md:col-span-2">
             <label className="mb-1.5 ml-1 block text-xs font-medium text-ink-tertiary">
-              密码 {status.configured && "（如需更改凭据请重新填写）"}
+              密码 {hasSavedCredentials && "（已安全保存；留空可重新启用）"}
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={busy}
-              placeholder={status.configured ? "已保存于系统钥匙串" : "应用密码 / WebDAV 密码"}
+              placeholder={hasSavedCredentials ? "已保存于系统钥匙串" : "应用密码 / WebDAV 密码"}
               className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none text-[var(--rc-text)] placeholder:text-[var(--rc-text-muted)]"
               style={inputStyle}
             />
@@ -153,7 +160,7 @@ export default function SyncSection() {
         </div>
 
         <p className="ml-1 text-xs text-ink-quaternary">
-          密码同时用于端到端加密，仅保存在本机系统钥匙串；多台设备请使用同一 WebDAV 账号与密码。
+          密码同时用于端到端加密，仅保存在本机系统钥匙串；macOS 首次授权时请选择“始终允许”，之后不会重复询问。多台设备请使用同一 WebDAV 账号与密码。
         </p>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -181,7 +188,7 @@ export default function SyncSection() {
           <button
             type="button"
             onClick={handleEnable}
-            disabled={busy || !url.trim() || !username.trim() || !password.trim()}
+            disabled={busy || !url.trim() || !username.trim() || (!password.trim() && !hasSavedCredentials)}
             className="flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
             style={{ background: "linear-gradient(145deg,#30D158,#248A3D)", boxShadow: "4px 4px 10px rgba(36,138,61,0.3)" }}
           >
@@ -209,7 +216,7 @@ export default function SyncSection() {
                 style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
               >
                 <Power className="h-4 w-4" />
-                停用
+                停用（保留账号）
               </button>
             </>
           )}
@@ -242,7 +249,7 @@ export default function SyncSection() {
         {/* 状态行 */}
         {!loading && status.configured && status.last_sync_at && (
           <div className="ml-1 text-xs text-ink-tertiary">
-            上次同步：{status.last_sync_at}
+            上次同步：{formatSyncTime(status.last_sync_at)}
             {status.last_message ? ` · ${status.last_message}` : ""}
           </div>
         )}

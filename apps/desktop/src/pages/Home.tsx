@@ -52,8 +52,8 @@ export default function Home() {
           <Link to="/planner">
             <Button size="sm">打开规划</Button>
           </Link>
-          <Link to="/xiaoyan">
-            <Button size="sm" variant="secondary">问问小妍</Button>
+          <Link to="/chat">
+            <Button size="sm" variant="secondary">开始对话</Button>
           </Link>
         </div>
       </Card>

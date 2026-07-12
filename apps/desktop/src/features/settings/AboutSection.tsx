@@ -2,10 +2,14 @@ import { Download, Globe, Loader2, RefreshCw } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppUpdateInfo } from "@research-copilot/types";
 import type { UpdateState } from "./useSettingsController";
-import type { DownloadProgress } from "../../lib/useAutoUpdate";
-import { openLink } from "../../lib/links";
-
-const OFFICIAL_SITE_URL = "https://xiaoyan.net.cn/";
+import { OFFICIAL_SITE_URL, openLink } from "../../lib/links";
+import type { DownloadProgress } from "../../lib/updateProgress";
+import {
+  getUpdateButtonLabel,
+  getUpdateCurrentVersion,
+  getUpdateProgressPercent,
+  getUpdateProgressSummary,
+} from "../../lib/updateProgress";
 
 interface AboutSectionProps {
   appVersion: string;
@@ -17,23 +21,6 @@ interface AboutSectionProps {
   downloadProgress: DownloadProgress | null;
   onCheckUpdate: () => void | Promise<void>;
   onInstallUpdate: () => void | Promise<void>;
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function installButtonLabel(state: UpdateState, progress: DownloadProgress | null) {
-  if (state !== "installing") return "下载并安装";
-  if (!progress) return "准备中…";
-  if (progress.status === "finished") return "安装中…";
-  if (progress.total && progress.total > 0) {
-    const pct = Math.round((progress.downloaded / progress.total) * 100);
-    return `下载中… ${pct}%`;
-  }
-  return `下载中… ${formatBytes(progress.downloaded)}`;
 }
 
 function SectionIcon({
@@ -69,9 +56,11 @@ export default function AboutSection({
   onInstallUpdate,
 }: AboutSectionProps) {
   const showProgress = updateState === "installing" && downloadProgress !== null;
-  const pct = downloadProgress?.total && downloadProgress.total > 0
-    ? Math.min(100, Math.round((downloadProgress.downloaded / downloadProgress.total) * 100))
-    : null;
+  const pct = getUpdateProgressPercent(downloadProgress);
+  const canInstall = updateState === "ready" || (updateState === "installError" && Boolean(updateInfo?.available));
+  const installLabel = updateState === "installError"
+    ? "重试下载并安装"
+    : getUpdateButtonLabel(downloadProgress, updateState === "installing");
 
   return (
     <div className="space-y-4">
@@ -103,7 +92,7 @@ export default function AboutSection({
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-tertiary">当前版本</p>
-              <p className="mt-1 text-sm font-semibold text-ink-primary">{appVersion || updateInfo?.current_version || "—"}</p>
+              <p className="mt-1 text-sm font-semibold text-ink-primary">{appVersion || getUpdateCurrentVersion(updateInfo) || "—"}</p>
             </div>
             <div className="rounded-2xl border border-nm-dark/10 bg-white/35 px-4 py-3">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-tertiary">最新版本</p>
@@ -135,7 +124,7 @@ export default function AboutSection({
             <button
               type="button"
               onClick={() => void onInstallUpdate()}
-              disabled={updateState !== "ready"}
+              disabled={!canInstall}
               className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
               style={{
                 background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
@@ -143,7 +132,7 @@ export default function AboutSection({
               }}
             >
               {updateState === "installing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              {installButtonLabel(updateState, downloadProgress)}
+              {installLabel}
             </button>
           </div>
         </div>
@@ -151,7 +140,7 @@ export default function AboutSection({
         {/* Progress bar */}
         {showProgress && (
           <div className="space-y-1.5">
-            <div className="h-1.5 rounded-full" style={{ background: "rgba(0,122,255,0.12)" }}>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(0,122,255,0.12)" }}>
               <div
                 className="h-1.5 rounded-full transition-all duration-300 ease-out"
                 style={{
@@ -162,8 +151,7 @@ export default function AboutSection({
               />
             </div>
             <p className="text-xs text-ink-tertiary text-right">
-              {pct !== null ? `${pct}%` : formatBytes(downloadProgress!.downloaded)}
-              {downloadProgress?.total ? ` / ${formatBytes(downloadProgress.total)}` : ""}
+              {downloadProgress ? getUpdateProgressSummary(downloadProgress) : ""}
             </p>
             <style>{`
               @keyframes about-progress-indeterminate {
@@ -179,6 +167,7 @@ export default function AboutSection({
           <div
             className={`rounded-2xl border px-4 py-3 text-xs leading-5 ${
               updateState === "error"
+                || updateState === "installError"
                 ? "border-red-200 bg-red-50 text-red-600"
                 : updateState === "disabled"
                   ? "border-amber-200 bg-amber-50 text-amber-700"

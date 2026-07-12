@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, FileText, FlaskConical, Loader2, MessageSquare, Send, Upload } from "lucide-react";
 import { Badge, Button, Input, MarkdownRenderer, Select } from "@research-copilot/ui";
-import NotesPanel from "./NotesPanel";
 import { CcfRatingBadge, VenueTypeBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
 import AgentStateGraphPanel from "../copilot/AgentStateGraphPanel";
@@ -12,12 +11,14 @@ import { apiClient, formatErrorMessage } from "../../lib/client";
 import { openLink } from "../../lib/links";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 import Tools from "../../pages/Tools";
+import Writing from "../../pages/Writing";
 import Experiment from "../../pages/Experiment";
 import Submission from "../../pages/Submission";
+import Knowledge from "../../pages/Knowledge";
 import { LearningPathView } from "./InterestsPanel";
 import ResearchOverviewPanel from "./ResearchOverviewPanel";
 
-export type InterestTab = "overview" | "planner" | "papers" | "xiaoyan" | "notes" | "tools" | "experiment" | "submission";
+export type InterestTab = "overview" | "planner" | "papers" | "writing" | "chat" | "xiaoyan" | "knowledge" | "notes" | "tools" | "experiment" | "submission";
 
 interface ResearchWorkbenchProps {
   interest: ResearchInterest;
@@ -391,9 +392,18 @@ export default function ResearchWorkbench({ interest, activeTab = "overview", on
                       {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                       {paper.status === "parsing" ? "解析中" : paper.status === "uploaded" ? "待解析" : "分析"}
                     </Button>
-                    <Button size="sm" variant="secondary" onClick={() => void handleReproduce(paper.id)} disabled={!canRunPaperTask(paper.status)}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void handleReproduce(paper.id)}
+                      disabled={!canRunPaperTask(paper.status)}
+                      style={paper.status === "reproduced" || paper.reproduction_guide
+                        ? { color: "#34C759" }
+                        : undefined}
+                      title={paper.status === "reproduced" || paper.reproduction_guide ? "已生成复现/验证指南" : "生成复现/验证指南"}
+                    >
                       <FlaskConical className="h-3.5 w-3.5" />
-                      复现
+                      {paper.status === "reproduced" || paper.reproduction_guide ? "已复现" : "复现"}
                     </Button>
                   </div>
                   {paper.status === "analyzing" && taskProgressByPaperId[paper.id] ? (
@@ -423,8 +433,15 @@ export default function ResearchWorkbench({ interest, activeTab = "overview", on
         </div>
       )}
 
-      {/* ── 小妍 ── */}
-      {activeTab === "xiaoyan" && (
+      {/* ── 写作 ── */}
+      {activeTab === "writing" && (
+        <div className="flex-1 min-h-0 overflow-hidden pt-2">
+          <Writing defaultResearchInterestId={interest.id} />
+        </div>
+      )}
+
+      {/* ── 对话 ── */}
+      {(activeTab === "chat" || activeTab === "xiaoyan") && (
         <div className="flex flex-col flex-1 min-h-0 p-5 gap-3">
           <div className="flex items-center justify-between gap-3 flex-shrink-0">
             <div className="flex items-center gap-2">
@@ -528,10 +545,10 @@ export default function ResearchWorkbench({ interest, activeTab = "overview", on
         </div>
       )}
 
-      {/* ── 笔记 ── */}
-      {activeTab === "notes" && (
-        <div className="flex-1 min-h-0 overflow-y-auto p-5">
-          <NotesPanel hideFolders researchInterestId={interest.id} />
+      {/* ── 知识 ── */}
+      {(activeTab === "knowledge" || activeTab === "notes") && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <Knowledge hideFolders researchInterestId={interest.id} />
         </div>
       )}
 

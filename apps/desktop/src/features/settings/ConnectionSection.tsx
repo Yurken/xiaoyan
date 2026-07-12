@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Brain, Loader2, Wifi } from "lucide-react";
+import { Brain, ExternalLink as ExternalLinkIcon, Loader2, Wifi } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppSettings, LlmProvider, PaperSearchEngine } from "@research-copilot/types";
 import { MASK, SectionIcon, SettingInput } from "./shared";
@@ -9,6 +9,7 @@ import OllamaEmbeddingPanel from "./OllamaEmbeddingPanel";
 import ProviderIcon from "./ProviderIcon";
 import ModelCombobox from "./ModelCombobox";
 import WebSearchSection from "./WebSearchSection";
+import ExternalLink from "../../components/ExternalLink";
 
 interface ConnectionSectionProps {
   contentUnavailable: boolean;
@@ -369,15 +370,41 @@ export default function ConnectionSection({
               </div>
             </div>
             {form.paper_search_engine === "semantic_scholar" ? (
-              <SettingInput
-                label="Semantic Scholar 接口密钥"
-                value={form.semantic_scholar_api_key}
-                onChange={set("semantic_scholar_api_key")}
-                placeholder="留空使用免费限速额度"
-                sensitive
-                hint={`留空或输入 ${MASK} 表示不更改`}
-              />
+              <div className="space-y-2">
+                <SettingInput
+                  label="Semantic Scholar 接口密钥"
+                  value={form.semantic_scholar_api_key}
+                  onChange={set("semantic_scholar_api_key")}
+                  placeholder="留空使用免费限速额度"
+                  sensitive
+                />
+                <p className="ml-1 flex flex-wrap items-center gap-1 text-xs leading-5 text-ink-tertiary">
+                  <span>留空或输入 {MASK} 表示不更改</span>
+                  <ExternalLink href="https://www.semanticscholar.org/product/api" className="inline-flex items-center gap-1 font-medium text-ink-secondary underline-offset-2 hover:underline">
+                    <span>申请入口</span>
+                    <ExternalLinkIcon className="h-3 w-3" />
+                  </ExternalLink>
+                </p>
+              </div>
             ) : null}
+
+            <div className="space-y-2">
+              <SettingInput
+                label="GitHub Personal Access Token"
+                labelHint="申请时无需勾选任何 scope：GitHub Search API 对公开仓库的搜索只需要 token 存在即可提升速率限额。若后续需要访问私有仓库，再勾选 repo。"
+                value={form.github_api_key}
+                onChange={set("github_api_key")}
+                placeholder="ghp_...（留空使用免费限速额度）"
+                sensitive
+              />
+              <p className="ml-1 flex flex-wrap items-center gap-1 text-xs leading-5 text-ink-tertiary">
+                <span>用于 GitHub 项目检索，留空或输入 {MASK} 表示不更改</span>
+                <ExternalLink href="https://github.com/settings/tokens" className="inline-flex items-center gap-1 font-medium text-ink-secondary underline-offset-2 hover:underline">
+                  <span>申请入口</span>
+                  <ExternalLinkIcon className="h-3 w-3" />
+                </ExternalLink>
+              </p>
+            </div>
 
             <WebSearchSection form={form} set={set} />
           </div>

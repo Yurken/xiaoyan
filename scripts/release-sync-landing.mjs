@@ -37,14 +37,15 @@ function resolveVersion() {
   return explicit ? (explicit.startsWith("v") ? explicit : `v${explicit}`) : readRootVersion();
 }
 
-function buildForwardArgs(version) {
-  const forwarded = ["release:sync", "--version", version];
+function buildForwardArgs(version, deployAll) {
+  const forwarded = [deployAll ? "deploy:all" : "release:sync", "--version", version];
   const passthroughFlags = [
     "--dry-run",
     "--skip-build",
     "--skip-deploy",
     "--skip-manifest",
     "--skip-verify",
+    ...(deployAll ? ["--skip-release", "--skip-feedback"] : []),
   ];
 
   for (const flag of passthroughFlags) {
@@ -62,6 +63,7 @@ function buildForwardArgs(version) {
     "--server-manifest-path",
     "--server-landing-dir",
     "--public-base-url",
+    ...(deployAll ? ["--remote-dir", "--service-name", "--port", "--db-path", "--allowed-origins"] : []),
   ];
 
   for (const flag of passthroughValues) {
@@ -78,6 +80,7 @@ function printHelp() {
   console.log(`Usage:
   pnpm release:landing
   pnpm release:landing --version v0.4.4
+  pnpm deploy:all --version v0.4.4
 
 Defaults:
   - Reads the target version from xiaoyan/package.json
@@ -86,6 +89,7 @@ Defaults:
 
 Wrapper-only flags:
   --page-repo PATH
+  --deploy-all
 
 Forwarded flags:
   --dry-run
@@ -101,6 +105,15 @@ Forwarded flags:
   --server-manifest-path PATH
   --server-landing-dir PATH
   --public-base-url URL
+
+Deploy-all-only flags:
+  --skip-release
+  --skip-feedback
+  --remote-dir PATH
+  --service-name NAME
+  --port 18902
+  --db-path PATH
+  --allowed-origins ORIGINS
 `);
 }
 
@@ -111,15 +124,16 @@ function main() {
   }
 
   const pageRepo = path.resolve(getArg("--page-repo").trim() || DEFAULT_PAGE_REPO);
+  const deployAll = hasFlag("--deploy-all");
   const pagePackageJsonPath = path.join(pageRepo, "package.json");
   if (!fs.existsSync(pagePackageJsonPath)) {
     throw new Error(`page_xiaoyan package.json not found: ${pagePackageJsonPath}`);
   }
 
   const version = resolveVersion();
-  const forwardArgs = buildForwardArgs(version);
+  const forwardArgs = buildForwardArgs(version, deployAll);
 
-  console.log(`Syncing landing site for ${version}`);
+  console.log(deployAll ? `Deploying landing site and feedback service for ${version}` : `Syncing landing site for ${version}`);
   console.log(`Using xiaoyan repo: ${ROOT_DIR}`);
   console.log(`Using page repo: ${pageRepo}`);
 

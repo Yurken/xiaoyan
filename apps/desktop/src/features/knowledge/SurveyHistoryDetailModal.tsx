@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { Card, MarkdownRenderer } from "@research-copilot/ui";
 import type { SavedSurvey } from "@research-copilot/types";
 import { IS_MACOS_DESKTOP, MACOS_WINDOW_DRAG_HEIGHT } from "../../lib/windowChrome";
-import { openLink } from "../../lib/links";
 import SurveyCandidatePapersPanel from "./SurveyCandidatePapersPanel";
-import SurveyStructuredReport from "./SurveyStructuredReport";
+import SurveyReportContentPanel from "./SurveyReportContentPanel";
 import { citationFormatLabel } from "./shared";
 import { savedSurveyToStructured } from "./useSurveyHistory";
 
@@ -71,15 +69,13 @@ export default function SurveyHistoryDetailModal({
             </p>
           </div>
 
-          <SurveyStructuredReport structured={structured} fallbackCitationFormatLabel={fallbackLabel} />
+          <SurveyReportContentPanel
+            structured={structured}
+            markdown={survey.markdown ?? ""}
+            fallbackCitationFormatLabel={fallbackLabel}
+          />
 
           <SurveyCandidatePapersPanel papers={structured.papers} />
-
-          {survey.markdown ? (
-            <Card padding="sm">
-              <MarkdownRenderer content={survey.markdown} onLinkClick={openLink} />
-            </Card>
-          ) : null}
         </div>
       </div>
     </div>

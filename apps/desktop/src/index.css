@@ -1,6 +1,5 @@
 @import "katex/dist/katex.min.css";
 @import "./styles/theme.css";
-@import "./styles/theme-opencode.css";
 @import "./styles/app-shell.css";
 
 @tailwind base;
@@ -51,6 +50,12 @@
   img,
   [data-no-drag="true"] {
     -webkit-user-drag: none;
+  }
+
+  /* 论文卡片整体可拖拽，其内部按钮/图标不应阻止父卡片被拖起 */
+  [data-paper-card] button,
+  [data-paper-card] svg {
+    -webkit-user-drag: auto;
   }
 
   @media (prefers-reduced-motion: reduce) {

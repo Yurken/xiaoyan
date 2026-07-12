@@ -17,19 +17,40 @@ export const MAIN_ASSISTANT_INPUT_PLACEHOLDER =
 const CAPABILITY_MODEL_NAME_MAP: Record<string, string> = {
   retrieval: "溯源模型",
   planner: "谋策模型",
-  literature_scout: "探知模型",
+  literaturescout: "探知模型",
   survey: "翰章模型",
-  paper_analyst: "洞见模型",
+  paperanalyst: "洞见模型",
   reproduction: "构域模型",
   synthesis: "整合模型",
   supervisor: "谋策调度模型",
   worker: "小妍默认执行模型",
-  analyst: "小妍模型",
+  analyst: "洞见模型",
   scout: "探知模型",
   designer: "谋策模型",
   retriever: "溯源模型",
   writer: "翰章模型",
+  learningpathplanning: "谋策模型",
+  学习路径规划: "谋策模型",
+  检索规划: "探知模型",
+  研究任务规划: "探知模型",
+  文献检索: "溯源模型",
+  参考文献筛选: "探知模型",
+  时序分析: "探知模型",
+  文献时序分析: "探知模型",
+  综述写作: "翰章模型",
+  文献综述写作: "翰章模型",
 };
+
+function normalizeCapabilityModelLookupKey(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s-]+/g, "")
+    .replace(/小妍能力步骤/g, "")
+    .replace(/agent/g, "")
+    .replace(/模型/g, "")
+    .trim();
+}
 
 export function replaceAgentWording(text: string): string {
   if (!text) return text;
@@ -43,7 +64,7 @@ export function toCapabilityModelName(name: string): string {
   const raw = name.trim();
   if (!raw) return raw;
 
-  const mapped = CAPABILITY_MODEL_NAME_MAP[raw.toLowerCase()];
+  const mapped = CAPABILITY_MODEL_NAME_MAP[normalizeCapabilityModelLookupKey(raw)];
   if (mapped) return mapped;
 
   return replaceAgentWording(raw)
@@ -280,9 +301,11 @@ export interface SourceLookupResponse {
 export interface AppUpdateInfo {
   configured: boolean;
   available: boolean;
-  current_version: string;
+  currentVersion?: string;
+  current_version?: string;
   version?: string;
   body?: string;
+  pubDate?: string;
   pub_date?: string;
 }
 
@@ -333,6 +356,19 @@ export interface ArxivSearchResponse {
   papers: ArxivRecommendation[];
 }
 
+export interface WebSearchItem {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+export interface WebSearchOutcome {
+  provider: string;
+  answer?: string | null;
+  note?: string | null;
+  items: WebSearchItem[];
+}
+
 export interface BriefingPaper {
   external_id: string;
   source: "arxiv" | "semantic_scholar";
@@ -374,19 +410,6 @@ export interface FieldDynamicsListResult {
 
 export interface FieldDynamicsScanResult extends FieldDynamicsListResult {
   scanned_interests: number;
-}
-
-export interface WebSearchItem {
-  title: string;
-  url: string;
-  snippet: string;
-}
-
-export interface WebSearchOutcome {
-  provider: string;
-  answer?: string | null;
-  note?: string | null;
-  items: WebSearchItem[];
 }
 
 export interface KnowledgeNote {
@@ -545,6 +568,7 @@ export interface AppSettings {
   rag_top_k: string;
   // External
   paper_search_engine: PaperSearchEngine;
+  github_api_key: string;
   semantic_scholar_api_key: string;
   // 小妍联网搜索
   web_search_enabled: string;
@@ -718,6 +742,37 @@ export interface AppSettings {
   app_lock_timeout_minutes: string;
 }
 
+export interface GithubRepo {
+  full_name: string;
+  owner: string;
+  name: string;
+  html_url: string;
+  description?: string;
+  language?: string;
+  stargazers_count: number;
+  forks_count: number;
+  updated_at: string;
+  license?: string;
+  topics?: string[];
+}
+
+export interface GithubProjectSearchResponse {
+  query: string;
+  provider: "github_api" | "web_search";
+  candidate_count: number;
+  llm_used: boolean;
+  overall_summary: string;
+  ranking_note: string;
+  repos: GithubRepo[];
+}
+
+export interface GithubProjectSearchHistoryEntry {
+  id: string;
+  query: string;
+  result_json: string;
+  created_at: string;
+}
+
 export interface SettingsHistoryEntry {
   id: string;
   name: string;
@@ -763,7 +818,41 @@ export interface Job {
   finished_at?: string;
 }
 
-// ── Experiment ────────────────────────────────────────────────
+// ── OpenCode ──────────────────────────────────────────────────
+
+export interface OpenCodeMessage {
+  id: string;
+  role: "user" | "assistant" | "tool";
+  content: string;
+  tool_calls?: OpenCodeToolCall[];
+  tool_results?: OpenCodeToolResult[];
+  tool_call_id?: string | null;
+  tool_id?: string | null;
+  model?: string | null;
+  created_at: string;
+}
+
+export interface OpenCodeToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface OpenCodeToolResult {
+  tool_call_id: string;
+  name: string;
+  output: string;
+  is_error: boolean;
+}
+
+export interface OpenCodeSession {
+  id: string;
+  title: string;
+  working_dir: string | null;
+  messages: OpenCodeMessage[];
+  created_at: string;
+  updated_at: string;
+}
 
 export interface ExperimentRecord {
   id: string;
@@ -802,52 +891,6 @@ export interface ExperimentSnapshot {
   workingDir: string | null;
   envSnapshot: Record<string, unknown>;
   createdAt: string;
-}
-
-export interface ExperimentAttachment {
-  id: string;
-  experimentId: string;
-  snapshotId: string | null;
-  filePath: string;
-  label: string;
-  dataUrl: string;
-  createdAt: string;
-}
-
-// ── OpenCode ──────────────────────────────────────────────────
-
-export interface OpenCodeToolCall {
-  id: string;
-  name: string;
-  arguments: string;
-}
-
-export interface OpenCodeToolResult {
-  tool_call_id: string;
-  name: string;
-  output: string;
-  is_error: boolean;
-}
-
-export interface OpenCodeMessage {
-  id: string;
-  role: "user" | "assistant" | "tool";
-  content: string;
-  tool_calls?: OpenCodeToolCall[];
-  tool_results?: OpenCodeToolResult[];
-  tool_call_id?: string | null;
-  tool_id?: string | null;
-  model?: string | null;
-  created_at: string;
-}
-
-export interface OpenCodeSession {
-  id: string;
-  title: string;
-  working_dir: string | null;
-  messages: OpenCodeMessage[];
-  created_at: string;
-  updated_at: string;
 }
 
 export interface OpenCodeDetectResult {

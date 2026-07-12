@@ -4,6 +4,7 @@ use crate::llm::{
     resolve_model, resolve_temperature, resolve_temperature_chain, LlmClient, LlmMessage,
 };
 use crate::rag::combined_search;
+use crate::text_utils::truncate_chars_with_ellipsis;
 use anyhow::Result;
 use sqlx::Row;
 use std::collections::HashMap;
@@ -28,11 +29,7 @@ pub async fn execute_agent_node(
         "retrieval" => retrieval_context(client, db, settings, message).await,
         "paper_analyst" => {
             let text = paper_text(db, context_id).await;
-            let preview = if text.len() > 8000 {
-                &text[..8000]
-            } else {
-                &text
-            };
+            let preview = truncate_chars_with_ellipsis(&text, 8000);
             let prompt = format!(
                 "请基于以下论文内容回答用户问题，结论应客观、准确、可追溯。\n\n\
 用户问题：{}\n\n\
@@ -176,11 +173,7 @@ pub async fn execute_agent_node(
         }
         "reproduction" => {
             let text = paper_text(db, context_id).await;
-            let preview = if text.len() > 8000 {
-                &text[..8000]
-            } else {
-                &text
-            };
+            let preview = truncate_chars_with_ellipsis(&text, 8000);
             let prompt = format!(
                 "请给出论文复现/验证指南，并重点回答以下问题：{}\n\n\
 论文内容（已截取关键部分）：\n{}\n\n\
@@ -215,29 +208,21 @@ async fn retrieval_context(
     message: &str,
 ) -> Result<String> {
     let embedding = if let Ok(embed_client) = LlmClient::embed_client_from_settings(settings) {
-        embed_client
-            .embed(&[message.to_string()])
-            .await?
-            .into_iter()
-            .next()
+        match embed_client.embed(&[message.to_string()]).await {
+            Ok(embeddings) => embeddings.into_iter().next(),
+            Err(error) => {
+                crate::append_diagnostic_log(&format!(
+                    "[agent:retrieval] embedding unavailable, fallback to keyword-only retrieval: {error}"
+                ));
+                None
+            }
+        }
     } else {
         None
     };
 
     let Some(embedding) = embedding else {
-        let prompt = format!(
-            "请围绕问题「{}」提炼出最需要检索的证据类型与关键检索词（中英文各一组），不要生成检索结果。",
-            message
-        );
-        let messages = vec![
-            LlmMessage::system(specialist_system(
-                "检索步骤",
-                "补充当前问题最需要的检索方向与关键词。",
-                Some("只输出证据类型和关键词，不要输出检索结果。"),
-            )),
-            LlmMessage::user(prompt),
-        ];
-        return client.chat(&messages, None, 0.2).await;
+        return retrieval_keyword_guidance(client, message).await;
     };
 
     let top_k: usize = settings
@@ -272,22 +257,26 @@ async fn retrieval_context(
         .join("\n\n");
 
     if merged.trim().is_empty() {
-        let prompt = format!(
-            "请围绕问题「{}」提炼出最需要检索的证据类型与关键检索词（中英文各一组），不要生成检索结果。",
-            message
-        );
-        let messages = vec![
-            LlmMessage::system(specialist_system(
-                "检索步骤",
-                "补充当前问题最需要的检索方向与关键词。",
-                Some("只输出证据类型和关键词，不要输出检索结果。"),
-            )),
-            LlmMessage::user(prompt),
-        ];
-        return client.chat(&messages, None, 0.2).await;
+        return retrieval_keyword_guidance(client, message).await;
     }
 
     Ok(merged)
+}
+
+async fn retrieval_keyword_guidance(client: &LlmClient, message: &str) -> Result<String> {
+    let prompt = format!(
+        "请围绕问题「{}」提炼出最需要检索的证据类型与关键检索词（中英文各一组），不要生成检索结果。",
+        message
+    );
+    let messages = vec![
+        LlmMessage::system(specialist_system(
+            "检索步骤",
+            "补充当前问题最需要的检索方向与关键词。",
+            Some("只输出证据类型和关键词，不要输出检索结果。"),
+        )),
+        LlmMessage::user(prompt),
+    ];
+    client.chat(&messages, None, 0.2).await
 }
 
 async fn paper_text(db: &sqlx::SqlitePool, context_id: &Option<String>) -> String {

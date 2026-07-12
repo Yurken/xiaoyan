@@ -120,9 +120,55 @@ pub fn infer_from_text(text: &str) -> Option<CcfTag> {
     best.map(|(_, entry)| to_tag(&entry.entry))
 }
 
+fn strip_year_suffix(input: &str) -> &str {
+    let bytes = input.as_bytes();
+    let len = bytes.len();
+    if len == 0 {
+        return input;
+    }
+
+    // "'YY" suffix, e.g. "KDD'20" -> "KDD"
+    if len >= 3
+        && bytes[len - 3] == b'\''
+        && bytes[len - 2].is_ascii_digit()
+        && bytes[len - 1].is_ascii_digit()
+    {
+        return &input[..len - 3];
+    }
+
+    // " YYYY" suffix, e.g. "KDD 2020" -> "KDD" (year 19xx or 20xx)
+    if len >= 5
+        && bytes[len - 5] == b' '
+        && (bytes[len - 4] == b'1' && bytes[len - 3] == b'9'
+            || bytes[len - 4] == b'2' && bytes[len - 3] == b'0')
+        && bytes[len - 2].is_ascii_digit()
+        && bytes[len - 1].is_ascii_digit()
+    {
+        return &input[..len - 5];
+    }
+
+    // "YYYY" suffix when directly attached and preceded by non-digit, e.g. "KDD2020" -> "KDD"
+    if len >= 5
+        && (bytes[len - 4] == b'1' && bytes[len - 3] == b'9'
+            || bytes[len - 4] == b'2' && bytes[len - 3] == b'0')
+        && bytes[len - 2].is_ascii_digit()
+        && bytes[len - 1].is_ascii_digit()
+        && !bytes[len - 5].is_ascii_digit()
+    {
+        let prefix = &input[..len - 4];
+        // Only strip if remaining part looks like a real venue name (not just digits)
+        if !prefix.is_empty() && prefix.as_bytes().iter().any(|b| b.is_ascii_alphabetic()) {
+            return prefix;
+        }
+    }
+
+    input
+}
+
 fn scored_lookup(query: &str, limit: usize) -> Vec<CcfTag> {
-    let query_words = normalize_words(query);
-    let query_compact = normalize_compact(query);
+    let stripped = strip_year_suffix(query);
+    let query_words = normalize_words(stripped);
+    let query_compact = normalize_compact(stripped);
     if query_words.is_empty() || query_compact.is_empty() {
         return Vec::new();
     }
@@ -245,7 +291,7 @@ fn rating_rank(rating: &str) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{infer_from_text, lookup, match_venue};
+    use super::{infer_from_text, lookup, match_venue, strip_year_suffix};
 
     #[test]
     fn lookup_by_abbreviation_returns_expected_entry() {
@@ -272,6 +318,63 @@ mod tests {
         )
         .expect("expected SIGMOD to be detected");
         assert_eq!(result.label, "SIGMOD");
+        assert_eq!(result.rating, "A");
+    }
+
+    #[test]
+    fn strip_year_suffix_apostrophe_two_digit() {
+        assert_eq!(strip_year_suffix("KDD'20"), "KDD");
+        assert_eq!(strip_year_suffix("CVPR'23"), "CVPR");
+    }
+
+    #[test]
+    fn strip_year_suffix_space_four_digit() {
+        assert_eq!(strip_year_suffix("KDD 2020"), "KDD");
+        assert_eq!(strip_year_suffix("NeurIPS 2019"), "NeurIPS");
+    }
+
+    #[test]
+    fn strip_year_suffix_directly_attached() {
+        assert_eq!(strip_year_suffix("KDD2020"), "KDD");
+    }
+
+    #[test]
+    fn strip_year_suffix_no_year_preserves_input() {
+        assert_eq!(strip_year_suffix("KDD"), "KDD");
+        assert_eq!(strip_year_suffix("CVPR"), "CVPR");
+        assert_eq!(strip_year_suffix(""), "");
+    }
+
+    #[test]
+    fn strip_year_suffix_venue_with_digits_in_name() {
+        // "3DV" is a real venue, should not be stripped
+        assert_eq!(strip_year_suffix("3DV"), "3DV");
+        assert_eq!(strip_year_suffix("I3D"), "I3D");
+    }
+
+    #[test]
+    fn match_venue_with_year_suffix() {
+        // KDD'20 should match SIGKDD (CCF-A)
+        let result = match_venue("KDD'20").expect("expected KDD'20 to match SIGKDD");
+        assert_eq!(result.label, "SIGKDD");
+        assert_eq!(result.rating, "A");
+        assert_eq!(result.kind, "conference");
+
+        // KDD 2020 should also match
+        let result2 = match_venue("KDD 2020").expect("expected KDD 2020 to match SIGKDD");
+        assert_eq!(result2.label, "SIGKDD");
+        assert_eq!(result2.rating, "A");
+
+        // CVPR 2023 should match
+        let result3 = match_venue("CVPR 2023").expect("expected CVPR 2023 to match");
+        assert_eq!(result3.label, "CVPR");
+        assert_eq!(result3.rating, "A");
+    }
+
+    #[test]
+    fn match_venue_without_year_still_works() {
+        let result = match_venue("SIGKDD").expect("expected SIGKDD to match");
+        assert_eq!(result.label, "SIGKDD");
         assert_eq!(result.rating, "A");
     }
 }

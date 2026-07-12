@@ -35,6 +35,8 @@ interface CompactModelCardProps {
   isCustomized: boolean;
   /** 该角色测试连接状态：以卡片红/绿配色展示 */
   roleTestState?: "idle" | "testing" | "ok" | "error";
+  /** 测试失败时的用户可读错误原因 */
+  roleTestError?: string;
   onTestRole?: () => void;
 }
 
@@ -66,6 +68,7 @@ export function CompactModelCard({
   statusSummary,
   isCustomized,
   roleTestState = "idle",
+  roleTestError = "",
   onTestRole,
 }: CompactModelCardProps) {
   const [expanded, setExpanded] = useState(false);
@@ -121,6 +124,14 @@ export function CompactModelCard({
           </span>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {roleTestState === "error" && roleTestError ? (
+            <span
+              className="hidden sm:inline max-w-[200px] truncate text-[11px] text-[#D92D20]"
+              title={roleTestError}
+            >
+              {roleTestError}
+            </span>
+          ) : null}
           {onTestRole ? (
             <button
               type="button"
@@ -182,6 +193,11 @@ export function CompactModelCard({
             </p>
           </div>
 
+          {roleTestState === "error" && roleTestError ? (
+            <div className="sm:hidden rounded-xl bg-[rgba(255,69,58,0.08)] border border-[rgba(255,69,58,0.25)] px-3 py-2">
+              <p className="text-[11px] leading-4 text-[#D92D20]">{roleTestError}</p>
+            </div>
+          ) : null}
           {/* Model + Temperature */}
           <div className="grid gap-2.5">
             <ModelCombobox

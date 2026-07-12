@@ -20,6 +20,7 @@ import Survey from "../../pages/Survey";
 import Papers from "../../pages/Papers";
 import Knowledge from "../../pages/Knowledge";
 import Copilot from "../../pages/Copilot";
+import Writing from "../../pages/Writing";
 import Tools from "../../pages/Tools";
 import Experiment from "../../pages/Experiment";
 import Submission from "../../pages/Submission";
@@ -46,7 +47,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rc-focus-tab ${active ? "rc-focus-tab--active" : ""}`}
+      className={`rc-focus-tab flex-shrink-0 ${active ? "rc-focus-tab--active" : ""}`}
     >
       <Icon className="w-3.5 h-3.5" />
       {label}
@@ -177,9 +178,11 @@ export default function FocusWorkbench() {
         return <Survey hideFolders />;
       case "papers":
         return <Papers hideFolders />;
+      case "writing":
+        return <Writing />;
       case "knowledge":
         return <Knowledge hideFolders />;
-      case "xiaoyan":
+      case "chat":
         return <Copilot hideFolders />;
       case "experiment":
         return <Experiment />;
@@ -191,13 +194,13 @@ export default function FocusWorkbench() {
   })();
 
   return (
-    <div className="flex flex-col h-full bg-nm-bg">
+    <div className="rc-focus-workbench flex h-full min-w-0 flex-col bg-nm-bg">
       <div className="rc-focus-header flex-shrink-0">
         <MacWindowDragStrip
           style={{ height: `${MACOS_WINDOW_DRAG_HEIGHT}px` }}
         />
         {/* 身份行：返回 + 标题 + 统计 + 自由主题入口 */}
-        <div className="flex items-center gap-3 px-4 h-11">
+        <div className="flex h-auto min-h-11 flex-wrap items-center gap-2 px-3 py-1 sm:flex-nowrap sm:gap-3 sm:px-4 sm:py-0">
           <button
             type="button"
             onClick={() => navigate("/")}
@@ -212,7 +215,7 @@ export default function FocusWorkbench() {
           </p>
 
           {!isFree && visibleInterest && (
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="hidden flex-shrink-0 items-center gap-1.5 sm:flex">
               <StatChip label="论文" value={stats.papers} />
               <StatChip label="会话" value={stats.sessions} />
               <StatChip label="笔记" value={stats.notes} />
@@ -232,14 +235,14 @@ export default function FocusWorkbench() {
 
         {/* 导航行：tab 横向滚动 */}
         <div
-          className="rc-focus-tabbar flex items-center gap-1 px-3 pt-1.5"
+          className="rc-focus-tabbar flex items-center gap-1 overflow-x-auto px-3 pt-1.5"
           style={{ paddingBottom: IS_MACOS_DESKTOP ? "8px" : "6px" }}
         >
           {tabButtons}
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {isFree ? (
           FreePage
         ) : loadingInterest ? (

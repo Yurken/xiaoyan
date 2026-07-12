@@ -124,7 +124,9 @@ fn compile_project(
     let mut log = String::new();
 
     let (engine, success) = if let Some(latexmk) = find_executable("latexmk") {
-        let output = Command::new(&latexmk)
+        let mut command = Command::new(&latexmk);
+        configure_tex_environment(&mut command, &latexmk);
+        let output = command
             .args([
                 "-xelatex",
                 "-interaction=nonstopmode",
@@ -336,7 +338,9 @@ fn copy_image_assets(
 fn run_xelatex_pipeline(work_dir: &Path, xelatex: &str, log: &mut String) -> Result<bool, String> {
     let mut all_success = true;
     for pass in 1..=3 {
-        let output = Command::new(xelatex)
+        let mut command = Command::new(xelatex);
+        configure_tex_environment(&mut command, xelatex);
+        let output = command
             .args(["-interaction=nonstopmode", "-halt-on-error", "main.tex"])
             .current_dir(work_dir)
             .output()
@@ -361,7 +365,9 @@ fn run_bibtex_if_available(work_dir: &Path, log: &mut String) -> Result<(), Stri
         log.push_str("\n未找到 bibtex，已跳过参考文献编译。\n");
         return Ok(());
     };
-    let output = Command::new(&bibtex)
+    let mut command = Command::new(&bibtex);
+    configure_tex_environment(&mut command, &bibtex);
+    let output = command
         .arg("main")
         .current_dir(work_dir)
         .output()
@@ -382,6 +388,24 @@ fn find_executable(name: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn configure_tex_environment(command: &mut Command, executable: &str) {
+    let Some(executable_dir) = Path::new(executable)
+        .parent()
+        .filter(|path| path.is_absolute())
+    else {
+        return;
+    };
+
+    let mut paths = vec![executable_dir.to_path_buf()];
+    if let Some(current_path) = std::env::var_os("PATH") {
+        paths.extend(std::env::split_paths(&current_path));
+    }
+
+    if let Ok(path) = std::env::join_paths(paths) {
+        command.env("PATH", path);
+    }
 }
 
 fn append_output(log: &mut String, command: &str, output: &Output) {

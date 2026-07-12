@@ -11,6 +11,10 @@
     "shell:default",
     "updater:default",
     "fs:default",
-    "fs:scope-home-recursive"
+    "fs:scope-home-recursive",
+    "fs:allow-read-file",
+    "fs:allow-read-text-file",
+    "fs:allow-write-file",
+    "fs:allow-write-text-file"
   ]
 }

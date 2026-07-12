@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronRight, Copy, HelpCircle, Languages, Pencil, Sparkles } from "lucide-react";
+import { Check, ChevronRight, Copy, HelpCircle, Languages, Lock, Pencil, Sparkles, Trash2 } from "lucide-react";
 import {
-  TRANSLATION_FONT_SIZES,
   type InterpretationState,
   type TranslationState,
 } from "./useReaderTranslation";
@@ -13,10 +12,14 @@ interface ReaderTranslationPanelProps {
   locked: boolean;
   continuous: boolean;
   fontSize: number;
+  translationModel: string;
+  availableModels: string[];
+  loadingModels: boolean;
+  modelsError: string;
   onToggleLock: () => void;
   onToggleContinuous: () => void;
-  onFontSize: (size: number) => void;
   onInterpret: () => void;
+  onTranslationModelChange: (model: string) => void;
   onEditSource: (text: string) => void;
   onClear: () => void;
   onCollapse: () => void;
@@ -35,10 +38,14 @@ export default function ReaderTranslationPanel({
   locked,
   continuous,
   fontSize,
+  translationModel,
+  availableModels,
+  loadingModels,
+  modelsError,
   onToggleLock,
   onToggleContinuous,
-  onFontSize,
   onInterpret,
+  onTranslationModelChange,
   onEditSource,
   onClear,
   onCollapse,
@@ -62,6 +69,7 @@ export default function ReaderTranslationPanel({
 
   const interpretBusy = interpretation?.status === "loading";
   const canInterpret = Boolean(current) && current?.status !== "loading" && !interpretBusy;
+  const interpretingImage = interpretation?.sourceType === "image";
 
   return (
     <aside
@@ -70,71 +78,73 @@ export default function ReaderTranslationPanel({
     >
       {/* 控件栏 */}
       <div
-        className="flex h-11 shrink-0 items-center gap-3 border-b px-3 text-xs"
+        className="flex h-11 shrink-0 items-center gap-2 border-b px-3 text-xs"
         style={{ borderColor: "var(--rc-border)" }}
       >
-        <label className="flex cursor-pointer select-none items-center gap-1 text-ink-secondary">
-          <input
-            type="checkbox"
-            checked={locked}
-            onChange={onToggleLock}
-            style={{ accentColor: "var(--rc-accent)" }}
-          />
-          锁定
-        </label>
-
-        <label
-          className="flex cursor-pointer select-none items-center gap-1 font-medium"
-          style={{ color: continuous ? "#34C759" : "var(--rc-text-secondary)" }}
+        <button
+          type="button"
+          onClick={onToggleLock}
+          className="mr-2 flex select-none items-center gap-1 rounded p-0.5 text-xs font-medium transition-colors"
+          style={{ color: locked ? "var(--rc-accent)" : "var(--rc-text-secondary)" }}
+          title={locked ? "已锁定，不再随划词更新" : "点击锁定当前翻译"}
         >
-          <input
-            type="checkbox"
-            checked={continuous}
-            onChange={onToggleContinuous}
-            style={{ accentColor: continuous ? "#34C759" : "var(--rc-accent)" }}
-          />
-          连续翻译
-          <span title={CONTINUOUS_HINT} className="inline-flex">
-            <HelpCircle className="h-3 w-3 text-ink-tertiary" />
-          </span>
-        </label>
+          <Lock className="h-2.5 w-2.5" />
+          {/* 锁定 */}
+        </button>
 
-        <div className="ml-auto flex items-center gap-1 text-ink-secondary">
+        <button
+          type="button"
+          onClick={onToggleContinuous}
+          className="flex select-none items-center gap-1 text-xs font-medium transition-colors"
+          style={{ color: continuous ? "#34C759" : "var(--rc-text-secondary)" }}
+          title={CONTINUOUS_HINT}
+        >
+          连续翻译
+          <span className="inline-flex">
+            <HelpCircle className="h-3 w-3" />
+          </span>
+        </button>
+
+        <div className="ml-auto flex items-center gap-2">
           <select
-            value={fontSize}
-            onChange={(event) => onFontSize(Number(event.target.value))}
-            className="rounded border bg-transparent px-1 py-0.5 text-xs text-ink-primary outline-none"
+            value={translationModel}
+            onChange={(event) => onTranslationModelChange(event.target.value)}
+            disabled={loadingModels}
+            className="max-w-[120px] truncate rounded border bg-transparent px-1 py-0.5 text-xs text-ink-primary outline-none disabled:opacity-50"
             style={{ borderColor: "var(--rc-border)" }}
-            title="译文/原文字号"
+            title={modelsError || translationModel || "译衡模型"}
           >
-            {TRANSLATION_FONT_SIZES.map((size) => (
-              <option key={size} value={size}>
-                {size}
+            {availableModels.map((model) => (
+              <option key={model} value={model}>
+                {model}
               </option>
             ))}
+            {translationModel && !availableModels.includes(translationModel) ? (
+              <option value={translationModel}>{translationModel}</option>
+            ) : null}
           </select>
-        </div>
 
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={!current && !interpretation}
-          className="rounded px-1.5 py-0.5 text-[11px] font-medium text-ink-tertiary transition-colors hover:text-apple-red disabled:opacity-40"
-          title="清空当前翻译/解读"
-        >
-          清空
-        </button>
-        <button
-          type="button"
-          onClick={onCollapse}
-          className="rounded p-1 text-ink-tertiary transition-colors hover:text-ink-secondary"
-          title="收起翻译栏"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={!current && !interpretation}
+            className="flex items-center rounded p-0.5 text-ink-tertiary transition-colors hover:text-apple-red disabled:opacity-40"
+            title="清空当前翻译/解读"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="rounded p-1 text-ink-tertiary transition-colors hover:text-ink-secondary"
+            title="收起翻译栏"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
         {!current && !interpretation ? (
           <div
             className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 text-center"
@@ -142,7 +152,7 @@ export default function ReaderTranslationPanel({
           >
             <Languages className="h-5 w-5 text-ink-tertiary" />
             <p className="text-xs leading-5 text-ink-tertiary">
-              在 PDF 中选中文字即自动翻译，译文与原文都会完整显示在这里。锁定后将固定当前内容、不再随划词变化。
+              在 PDF 中选中文字即自动翻译，也可以用顶部图像按钮框选图表让小妍解读。锁定后将固定当前内容、不再随划词变化。
             </p>
           </div>
         ) : (
@@ -150,7 +160,7 @@ export default function ReaderTranslationPanel({
             {/* 译文 */}
             {current ? (
               <section>
-                <div className="mb-1.5 flex items-center gap-2">
+                <div className="mb-1 flex items-center gap-2">
                   <span className="text-sm font-bold text-ink-primary">译文</span>
                   {current.page ? (
                     <span className="text-[11px] font-semibold text-ink-tertiary">第 {current.page} 页</span>
@@ -158,9 +168,9 @@ export default function ReaderTranslationPanel({
                   <div className="ml-auto flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => onInterpret()}
+                      onClick={onInterpret}
                       disabled={!canInterpret}
-                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold text-violet-500 transition-colors hover:text-violet-600 disabled:opacity-40"
+                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-violet-500 transition-colors hover:text-violet-600 disabled:opacity-40"
                       title="让小妍解读这段内容"
                     >
                       <Sparkles className="h-3.5 w-3.5" />
@@ -170,11 +180,10 @@ export default function ReaderTranslationPanel({
                       type="button"
                       onClick={() => void copy("result", current.result)}
                       disabled={current.status !== "done"}
-                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue disabled:opacity-40"
+                      className="flex items-center rounded px-1.5 py-0.5 text-ink-tertiary transition-colors hover:text-apple-blue disabled:opacity-40"
                       title="复制译文"
                     >
                       {copied === "result" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      复制
                     </button>
                   </div>
                 </div>
@@ -199,24 +208,37 @@ export default function ReaderTranslationPanel({
               <section>
                 {!current ? (
                   <>
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <span className="text-sm font-bold text-ink-primary">原文</span>
-                      <button
-                        type="button"
-                        onClick={() => void copy("source", interpretation.source)}
-                        className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue"
-                        title="复制原文"
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="text-sm font-bold text-ink-primary">{interpretingImage ? "框选图像" : "原文"}</span>
+                      {interpretation.page ? (
+                        <span className="text-[11px] font-semibold text-ink-tertiary">第 {interpretation.page} 页</span>
+                      ) : null}
+                      {!interpretingImage ? (
+                        <button
+                          type="button"
+                          onClick={() => void copy("source", interpretation.source)}
+                          className="ml-auto flex items-center rounded px-1.5 py-0.5 text-ink-tertiary transition-colors hover:text-apple-blue"
+                          title="复制原文"
+                        >
+                          {copied === "source" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        </button>
+                      ) : null}
+                    </div>
+                    {interpretingImage && interpretation.imageDataUrl ? (
+                      <div
+                        className="mb-2 overflow-hidden rounded-lg border"
+                        style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
                       >
-                        {copied === "source" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                        复制
-                      </button>
-                    </div>
-                    <div
-                      className="mb-2 whitespace-pre-wrap rounded-lg border p-2.5 text-ink-secondary"
-                      style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)", fontSize, lineHeight: 1.7 }}
-                    >
-                      {interpretation.source}
-                    </div>
+                        <img src={interpretation.imageDataUrl} alt={interpretation.source} className="block max-h-72 w-full object-contain" />
+                      </div>
+                    ) : (
+                      <div
+                        className="mb-2 whitespace-pre-wrap rounded-lg border p-2.5 text-ink-secondary"
+                        style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)", fontSize, lineHeight: 1.7 }}
+                      >
+                        {interpretation.source}
+                      </div>
+                    )}
                   </>
                 ) : null}
 
@@ -259,20 +281,18 @@ export default function ReaderTranslationPanel({
                   <button
                     type="button"
                     onClick={() => void copy("source", current.source)}
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue"
+                    className="flex items-center rounded p-0.5 text-ink-tertiary transition-colors hover:text-apple-blue"
                     title="复制原文"
                   >
                     {copied === "source" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    复制
                   </button>
                   <button
                     type="button"
                     onClick={() => setDraft(draft === null ? current.source : null)}
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-tertiary transition-colors hover:text-apple-blue"
+                    className="flex items-center rounded p-0.5 text-ink-tertiary transition-colors hover:text-apple-blue"
                     title="修改原文后重新翻译（修正识别错误）"
                   >
                     <Pencil className="h-3.5 w-3.5" />
-                    修改
                   </button>
                 </div>
               </div>
@@ -305,7 +325,7 @@ export default function ReaderTranslationPanel({
                     <button
                       type="button"
                       onClick={() => {
-                        const text = draft.trim();
+                        const text = draft?.trim();
                         if (text) onEditSource(text);
                         setDraft(null);
                       }}

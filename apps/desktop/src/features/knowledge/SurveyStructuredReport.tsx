@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Card } from "@research-copilot/ui";
 import ExternalLink from "../../components/ExternalLink";
 import { buildPaperSearchUrl } from "../../lib/links";
-import { CITATION_FORMATS, type StructuredSurveyResult } from "./shared";
+import { CITATION_FORMATS, dedupeSurveyCitations, type StructuredSurveyResult } from "./shared";
 
 interface SurveyStructuredReportProps {
   structured: StructuredSurveyResult;
@@ -45,8 +45,27 @@ function PlainListSection({ title, items }: { title: string; items?: string[] })
   );
 }
 
+function ParagraphSection({ title, content }: { title: string; content?: string }) {
+  if (!content?.trim()) return null;
+  return (
+    <div>
+      <SectionLabel>{title}</SectionLabel>
+      <div className="space-y-2 text-sm leading-relaxed text-ink-secondary">
+        {content
+          .split(/\n{2,}/)
+          .map((paragraph) => paragraph.trim())
+          .filter(Boolean)
+          .map((paragraph, index) => (
+            <p key={`${title}-${index}`}>{paragraph}</p>
+          ))}
+      </div>
+    </div>
+  );
+}
+
 export default function SurveyStructuredReport({ structured, fallbackCitationFormatLabel }: SurveyStructuredReportProps) {
   const report = structured.report;
+  const citations = dedupeSurveyCitations(structured.formatted_citations);
 
   return (
     <Card padding="sm" className="space-y-5">
@@ -55,12 +74,9 @@ export default function SurveyStructuredReport({ structured, fallbackCitationFor
         <p className="mt-1 text-xs text-ink-tertiary">研究问题：{structured.query}</p>
       </div>
 
-      {report.background ? (
-        <div>
-          <SectionLabel>研究背景</SectionLabel>
-          <p className="text-sm leading-relaxed text-ink-secondary">{report.background}</p>
-        </div>
-      ) : null}
+      <ParagraphSection title="研究背景" content={report.background} />
+
+      <ParagraphSection title="领域现状综述" content={report.topic_landscape} />
 
       {report.development_timeline?.length ? (
         <div>
@@ -226,26 +242,22 @@ export default function SurveyStructuredReport({ structured, fallbackCitationFor
         </div>
       ) : null}
 
-      {report.overall_summary ? (
-        <div>
-          <SectionLabel>总结建议</SectionLabel>
-          <p className="text-sm leading-relaxed text-ink-secondary">{report.overall_summary}</p>
-        </div>
-      ) : null}
+      <ParagraphSection title="总结建议" content={report.overall_summary} />
 
-      {structured.formatted_citations?.length ? (
-        <div>
-          <SectionLabel>
-            参考文献（{CITATION_FORMATS.find((format) => format.value === structured.citation_format)?.label ?? fallbackCitationFormatLabel} 格式）
-          </SectionLabel>
-          <div className="space-y-1.5 rounded-2xl border border-nm-dark/10 bg-white/30 p-3">
-            {structured.formatted_citations.map((citation) => (
+      {citations.length ? (
+        <details className="rounded-2xl border border-nm-dark/10 bg-white/30 p-3">
+          <summary className="cursor-pointer list-none text-sm font-medium text-ink-primary">
+            参考文献（{CITATION_FORMATS.find((format) => format.value === structured.citation_format)?.label ?? fallbackCitationFormatLabel} 格式，{citations.length} 条）
+          </summary>
+          <p className="mt-1 text-[11px] text-ink-tertiary">默认收起，避免和候选论文/Markdown 附录重复占用阅读空间。</p>
+          <div className="mt-3 space-y-1.5">
+            {citations.map((citation) => (
               <p key={citation} className="text-[11px] leading-5 text-ink-secondary">
                 {citation}
               </p>
             ))}
           </div>
-        </div>
+        </details>
       ) : null}
     </Card>
   );

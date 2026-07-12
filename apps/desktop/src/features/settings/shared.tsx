@@ -24,6 +24,7 @@ export function SettingInput({
   placeholder,
   sensitive,
   hint,
+  labelHint,
 }: {
   label: string;
   value: string;
@@ -31,13 +32,19 @@ export function SettingInput({
   placeholder?: string;
   sensitive?: boolean;
   hint?: string;
+  labelHint?: string;
 }) {
   const [show, setShow] = useState(false);
   const type = sensitive && !show ? "password" : "text";
 
   return (
     <div className="space-y-1.5">
-      <label className="block text-xs font-medium text-ink-tertiary ml-1">{label}</label>
+      <div className="flex items-center gap-1.5 ml-1">
+        <label className="block text-xs font-medium text-ink-tertiary">{label}</label>
+        {labelHint ? (
+          <span className="text-[11px] leading-4 text-ink-tertiary" title={labelHint}>?</span>
+        ) : null}
+      </div>
       <div className="relative">
         <input
           type={type}

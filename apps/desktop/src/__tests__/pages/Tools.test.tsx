@@ -137,6 +137,11 @@ describe("Tools 页面", () => {
     localStorage.clear();
   });
 
+  it("应渲染页面标题", () => {
+    render(<Tools />);
+    expect(screen.getByText("实用工具")).toBeInTheDocument();
+  });
+
   it("应显示所有工具标签", () => {
     render(<Tools />);
     expect(screen.getByText("论文检索")).toBeInTheDocument();
@@ -183,4 +188,8 @@ describe("Tools 页面", () => {
     expect(screen.getByTestId("friend-links-panel")).toBeInTheDocument();
   });
 
+  it("应显示页面描述", () => {
+    render(<Tools />);
+    expect(screen.getByText(/小妍为你准备了一些科研实用工具/)).toBeInTheDocument();
+  });
 });

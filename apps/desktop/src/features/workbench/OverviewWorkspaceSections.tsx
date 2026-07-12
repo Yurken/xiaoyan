@@ -30,7 +30,7 @@ interface InsetSurfaceProps {
 function InsetSurface({ children, className }: InsetSurfaceProps) {
   return (
     <div
-      className={clsx("rounded-[18px] px-3.5 py-3", className)}
+      className={clsx("min-w-0 rounded-[18px] px-3.5 py-3", className)}
       style={{
         background: "var(--rc-card-inset-bg)",
         border: "1px solid var(--rc-card-inset-outline)",
@@ -64,8 +64,8 @@ function SectionHeading({ title, description, action }: SectionHeadingProps) {
 export function SummaryItem({ title, description }: { title: string; description: string }) {
   return (
     <InsetSurface className="min-h-[74px]">
-      <p className="text-sm font-semibold text-ink-primary">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-ink-secondary">{description}</p>
+      <p className="truncate text-sm font-semibold text-ink-primary">{title}</p>
+      <p className="mt-1 line-clamp-2 text-xs leading-5 text-ink-secondary">{description}</p>
     </InsetSurface>
   );
 }
@@ -133,7 +133,7 @@ export function OverviewSection({
           <SectionHeading
             title="小妍交接"
             description="小妍刚整理好的结果，等你决定确认、追问或继续修改。"
-            action={{ label: "打开小妍", to: "/xiaoyan" }}
+            action={{ label: "打开对话", to: "/chat" }}
           />
           {model.handoffs.length === 0 ? (
             <EmptyState>所有任务已交接。</EmptyState>
@@ -199,11 +199,11 @@ function QuickAction({
 
 export function QuickActionStrip() {
   return (
-    <Card variant="inset" padding="sm" className="flex flex-col gap-3 md:flex-row md:items-center">
+    <Card variant="inset" padding="sm" className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-apple-blue" style={{ background: "rgba(0,122,255,0.09)" }}>
         <Sparkles className="h-5 w-5" />
       </div>
-      <div className="grid flex-1 gap-4 sm:grid-cols-3">
+      <div className="grid min-w-0 flex-1 gap-4 sm:grid-cols-3">
         <QuickAction
           icon={<BookOpen className="h-4 w-4" />}
           title="规划路线"
@@ -214,7 +214,7 @@ export function QuickActionStrip() {
           icon={<MessageSquare className="h-4 w-4" />}
           title="发问思考"
           description="带着论文和问题追问，保持思路连贯。"
-          to="/xiaoyan"
+          to="/chat"
         />
         <QuickAction
           icon={<Library className="h-4 w-4" />}

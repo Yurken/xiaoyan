@@ -11,6 +11,7 @@ use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
 use crate::services::agent_event_service::{
     emit_agent_event, AgentEvent, AgentRunEvent, AgentRunEventInput, AgentRunStatus,
 };
+use crate::text_utils::truncate_chars_with_ellipsis;
 use anyhow::Result;
 use futures_util::future::join_all;
 use std::collections::{HashMap, HashSet};
@@ -497,10 +498,9 @@ fn spawn_worker(
                 upstream_deps
                     .iter()
                     .filter_map(|dep| {
-                        workspace
-                            .outputs
-                            .get(dep)
-                            .map(|o| format!("{}: {}", dep, &o.summary[..o.summary.len().min(200)]))
+                        workspace.outputs.get(dep).map(|o| {
+                            format!("{}: {}", dep, truncate_chars_with_ellipsis(&o.summary, 200))
+                        })
                     })
                     .collect::<Vec<_>>()
                     .join("; "),

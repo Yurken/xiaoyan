@@ -35,7 +35,11 @@ const VIEW_OPTIONS = [
   { value: "preview", label: "预览", icon: <Eye className="h-3.5 w-3.5" /> },
 ] as const;
 
-export default function WritingWorkspace() {
+export default function WritingWorkspace({
+  defaultResearchInterestId,
+}: {
+  defaultResearchInterestId?: string;
+}) {
   const workspace = useWritingWorkspace();
   const showEditor = workspace.viewMode !== "preview";
   const showPreview = workspace.viewMode !== "editor";
@@ -266,7 +270,7 @@ export default function WritingWorkspace() {
         interests={workspace.interests}
         loadingInterests={workspace.loadingInterests}
         interestError={workspace.interestError}
-        defaultResearchInterestId={workspace.researchInterestId}
+        defaultResearchInterestId={defaultResearchInterestId ?? workspace.researchInterestId}
         defaultTemplateId={workspace.templateId}
         onClose={() => setNewDraftModalOpen(false)}
         onCreateDraft={workspace.createDraft}

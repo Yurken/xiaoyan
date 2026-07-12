@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   clearPersistentValue,
   readPersistentValue,
@@ -7,10 +7,11 @@ import {
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { ChatSession, ResearchInterest } from "@research-copilot/types";
 
-const COPILOT_LAST_SESSION_KEY = "rc:copilot:last-session-id";
+export const COPILOT_LAST_SESSION_KEY = "rc:copilot:last-session-id";
 
 export function useCopilotSessions() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -22,14 +23,25 @@ export function useCopilotSessions() {
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
+  const loadSessionRequestRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
     setLoadError("");
+    setSessionsLoaded(false);
     apiClient.chat.listSessions()
-      .then((data) => { if (!cancelled) setSessions(data); })
+      .then((data) => {
+        if (!cancelled) {
+          setSessions(data);
+          setSessionsLoaded(true);
+        }
+      })
       .catch((error) => {
-        if (!cancelled) { setLoadError(formatErrorMessage(error)); setSessions([]); }
+        if (!cancelled) {
+          setLoadError(formatErrorMessage(error));
+          setSessions([]);
+          setSessionsLoaded(true);
+        }
       });
     return () => { cancelled = true; };
   }, []);
@@ -62,6 +74,7 @@ export function useCopilotSessions() {
   };
 
   const handleNewChat = () => {
+    loadSessionRequestRef.current += 1;
     clearPersistentValue(COPILOT_LAST_SESSION_KEY);
     setCurrentSession(null);
     setLoadError("");
@@ -79,9 +92,14 @@ export function useCopilotSessions() {
   };
 
   const loadSession = useCallback(async (session: ChatSession) => {
+    const requestId = loadSessionRequestRef.current + 1;
+    loadSessionRequestRef.current = requestId;
     try {
       setLoadError("");
       const sessionData = await apiClient.chat.getSession(session.id);
+      if (loadSessionRequestRef.current !== requestId) {
+        return null;
+      }
       setCurrentSession(sessionData);
       writePersistentValue(COPILOT_LAST_SESSION_KEY, sessionData.id);
       setSelectedInterestId(
@@ -89,7 +107,9 @@ export function useCopilotSessions() {
       );
       return sessionData;
     } catch (error) {
-      setLoadError(formatErrorMessage(error));
+      if (loadSessionRequestRef.current === requestId) {
+        setLoadError(formatErrorMessage(error));
+      }
       return null;
     }
   }, []);
@@ -194,6 +214,7 @@ export function useCopilotSessions() {
 
   return {
     sessions,
+    sessionsLoaded,
     interests,
     currentSession,
     setCurrentSession,

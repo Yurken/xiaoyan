@@ -20,6 +20,15 @@ CREATE TABLE IF NOT EXISTS settings_history (
 );
 CREATE INDEX IF NOT EXISTS idx_settings_history_created_at ON settings_history(created_at DESC);
 
+CREATE TABLE IF NOT EXISTS github_project_search_history (
+    id          TEXT PRIMARY KEY,
+    query       TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_github_project_search_history_created_at
+    ON github_project_search_history(created_at DESC);
+
 CREATE TABLE IF NOT EXISTS papers (
     id         TEXT PRIMARY KEY,
     title      TEXT NOT NULL,
@@ -372,18 +381,16 @@ CREATE INDEX IF NOT EXISTS idx_findings_interest ON active_researcher_findings(i
 CREATE INDEX IF NOT EXISTS idx_findings_scanned ON active_researcher_findings(scanned_at DESC);
 ";
 
-// 旧 code_sessions 已迁移到 experiment_code_sessions；保留 DDL 仅用于迁移检测。
-pub const CODE_SESSIONS_DDL: &str = "
-CREATE TABLE IF NOT EXISTS code_sessions (
+pub const OPENCODE_SESSIONS_DDL: &str = "
+CREATE TABLE IF NOT EXISTS opencode_sessions (
     id             TEXT PRIMARY KEY,
     title          TEXT NOT NULL DEFAULT '新对话',
     working_dir    TEXT,
-    tool_id        TEXT,
-    model          TEXT,
     messages_json  TEXT NOT NULL DEFAULT '[]',
     created_at     TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_opencode_sessions_updated ON opencode_sessions(updated_at DESC);
 
 -- 本地 token 用量按日聚合（仅本地统计，不参与同步）
 CREATE TABLE IF NOT EXISTS token_usage_daily (
@@ -423,8 +430,6 @@ pub const SYNC_MUTABLE_TABLES: &[&str] = &[
     "knowledge_graph_claims",
     "submissions",
     "experiment_records",
-    "experiment_code_sessions",
-    "experiment_snapshots",
     "agent_runs",
     "paper_parse_runs",
     "submission_diagnosis_reports",
@@ -479,14 +484,30 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_submission_revision_task_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
     ensure_paper_notes_table(&pool).await?;
-    ensure_code_tables(&pool).await?;
+    ensure_opencode_tables(&pool).await?;
     ensure_paper_corpus_table(&pool).await?;
     ensure_token_usage_char_columns(&pool).await?;
-    ensure_field_dynamics_tables(&pool).await?;
     ensure_sync_tables(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
+    ensure_github_project_search_history_table(&pool).await?;
 
     Ok(pool)
+}
+
+pub async fn ensure_github_project_search_history_table(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS github_project_search_history (
+            id          TEXT PRIMARY KEY,
+            query       TEXT NOT NULL,
+            result_json TEXT NOT NULL,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_github_project_search_history_created_at
+            ON github_project_search_history(created_at DESC);",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 /// 建立同步元数据表，补齐可变同步表的 `updated_at` 列，并安装自动刷新触发器。
@@ -565,35 +586,6 @@ pub async fn ensure_paper_corpus_table(pool: &SqlitePool) -> Result<()> {
     )
     .execute(pool)
     .await?;
-    Ok(())
-}
-
-pub async fn ensure_field_dynamics_tables(pool: &SqlitePool) -> Result<()> {
-    sqlx::raw_sql(
-        "CREATE TABLE IF NOT EXISTS research_field_briefings (
-            id              TEXT PRIMARY KEY,
-            interest_id     TEXT NOT NULL UNIQUE,
-            interest_topic  TEXT NOT NULL,
-            period_start    TEXT NOT NULL,
-            period_end      TEXT NOT NULL,
-            summary         TEXT NOT NULL DEFAULT '',
-            trends          TEXT NOT NULL DEFAULT '[]',
-            key_papers      TEXT NOT NULL DEFAULT '[]',
-            upcoming_deadlines TEXT NOT NULL DEFAULT '[]',
-            generated_at    TEXT NOT NULL,
-            is_read         INTEGER NOT NULL DEFAULT 0
-        );
-        CREATE INDEX IF NOT EXISTS idx_field_briefings_interest ON research_field_briefings(interest_id);
-        CREATE INDEX IF NOT EXISTS idx_field_briefings_generated ON research_field_briefings(generated_at DESC);",
-    )
-    .execute(pool)
-    .await?;
-
-    // 旧版开发表（如存在）清理，避免字段冲突
-    let _ = sqlx::query("DROP TABLE IF EXISTS research_field_updates")
-        .execute(pool)
-        .await;
-
     Ok(())
 }
 
@@ -1059,46 +1051,42 @@ pub async fn ensure_experiment_tables(pool: &SqlitePool) -> Result<()> {
             result                TEXT NOT NULL DEFAULT '',
             notes                 TEXT NOT NULL DEFAULT '',
             linked_submission_id  TEXT REFERENCES submissions(id) ON DELETE SET NULL,
-            default_working_dir   TEXT,
             created_at            TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
         );
-        CREATE TABLE IF NOT EXISTS experiment_code_sessions (
-            id              TEXT PRIMARY KEY,
-            experiment_id   TEXT NOT NULL REFERENCES experiment_records(id) ON DELETE CASCADE,
-            title           TEXT NOT NULL DEFAULT '新对话',
-            working_dir     TEXT,
-            tool_id         TEXT,
-            model           TEXT,
-            messages_json   TEXT NOT NULL DEFAULT '[]',
-            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_experiment_code_sessions_experiment_updated
-            ON experiment_code_sessions(experiment_id, updated_at DESC);
-        CREATE TABLE IF NOT EXISTS experiment_snapshots (
-            id                  TEXT PRIMARY KEY,
-            experiment_id       TEXT NOT NULL REFERENCES experiment_records(id) ON DELETE CASCADE,
-            title               TEXT NOT NULL DEFAULT '快照',
-            config_snapshot     TEXT NOT NULL DEFAULT '{}',
-            result_snapshot     TEXT NOT NULL DEFAULT '',
-            notes_snapshot      TEXT NOT NULL DEFAULT '',
-            code_session_id     TEXT REFERENCES experiment_code_sessions(id) ON DELETE SET NULL,
-            tool_id             TEXT,
-            model               TEXT,
-            working_dir         TEXT,
-            env_snapshot        TEXT NOT NULL DEFAULT '{}',
-            created_at          TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_experiment_snapshots_experiment_created
-            ON experiment_snapshots(experiment_id, created_at DESC);
         CREATE TABLE IF NOT EXISTS experiment_attachments (
             id            TEXT PRIMARY KEY,
             experiment_id TEXT NOT NULL REFERENCES experiment_records(id) ON DELETE CASCADE,
-            snapshot_id   TEXT REFERENCES experiment_snapshots(id) ON DELETE CASCADE,
             file_path     TEXT NOT NULL,
             label         TEXT NOT NULL DEFAULT '',
             created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS experiment_code_sessions (
+            id            TEXT PRIMARY KEY,
+            experiment_id TEXT NOT NULL REFERENCES experiment_records(id) ON DELETE CASCADE,
+            title         TEXT NOT NULL DEFAULT '新会话',
+            working_dir   TEXT,
+            tool_id       TEXT,
+            model         TEXT,
+            messages_json TEXT NOT NULL DEFAULT '[]',
+            created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_experiment_code_sessions_updated
+            ON experiment_code_sessions(experiment_id, updated_at DESC);
+        CREATE TABLE IF NOT EXISTS experiment_snapshots (
+            id               TEXT PRIMARY KEY,
+            experiment_id    TEXT NOT NULL REFERENCES experiment_records(id) ON DELETE CASCADE,
+            title            TEXT NOT NULL DEFAULT '快照',
+            config_snapshot  TEXT NOT NULL DEFAULT '{}',
+            result_snapshot  TEXT NOT NULL DEFAULT '',
+            notes_snapshot   TEXT NOT NULL DEFAULT '',
+            code_session_id  TEXT,
+            tool_id          TEXT,
+            model            TEXT,
+            working_dir      TEXT,
+            env_snapshot     TEXT NOT NULL DEFAULT '{}',
+            created_at       TEXT NOT NULL DEFAULT (datetime('now'))
         );",
     )
     .execute(pool)
@@ -1106,7 +1094,13 @@ pub async fn ensure_experiment_tables(pool: &SqlitePool) -> Result<()> {
 
     // 兼容旧库：这些列在已有表中可能不存在。
     ensure_table_column(pool, "experiment_records", "default_working_dir", "TEXT").await?;
-    ensure_table_column(pool, "experiment_attachments", "snapshot_id", "TEXT REFERENCES experiment_snapshots(id) ON DELETE CASCADE").await?;
+    ensure_table_column(
+        pool,
+        "experiment_attachments",
+        "snapshot_id",
+        "TEXT REFERENCES experiment_snapshots(id) ON DELETE CASCADE",
+    )
+    .await?;
     Ok(())
 }
 
@@ -1190,91 +1184,8 @@ pub async fn ensure_paper_notes_table(pool: &SqlitePool) -> Result<()> {
     Ok(())
 }
 
-pub async fn ensure_code_tables(pool: &SqlitePool) -> Result<()> {
-    // 1. 确保旧表存在（老用户才有数据；新用户无感知）
-    sqlx::raw_sql(CODE_SESSIONS_DDL).execute(pool).await?;
-
-    // 2. 迁移旧 code_sessions 到 experiment_code_sessions
-    migrate_code_sessions_to_experiments(pool).await?;
-
-    Ok(())
-}
-
-/// 将旧 code_sessions 数据迁移到 experiment_code_sessions。
-/// 每个旧 session 会生成一个 experiment_records 记录作为归属容器。
-async fn migrate_code_sessions_to_experiments(pool: &SqlitePool) -> Result<()> {
-    let old_exists: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'code_sessions'"
-    )
-    .fetch_one(pool)
-    .await?;
-    if old_exists.0 == 0 {
-        return Ok(());
-    }
-
-    let rows = sqlx::query(
-        "SELECT id, title, working_dir, tool_id, model, messages_json, created_at, updated_at
-         FROM code_sessions"
-    )
-    .fetch_all(pool)
-    .await?;
-
-    if rows.is_empty() {
-        // 没有旧数据，直接删除旧表
-        let _ = sqlx::query("DROP TABLE IF EXISTS code_sessions").execute(pool).await;
-        return Ok(());
-    }
-
-    for row in rows {
-        let session_id: String = sqlx::Row::get(&row, "id");
-        let title: String = sqlx::Row::get(&row, "title");
-        let working_dir: Option<String> = sqlx::Row::get(&row, "working_dir");
-        let tool_id: Option<String> = sqlx::Row::get(&row, "tool_id");
-        let model: Option<String> = sqlx::Row::get(&row, "model");
-        let messages_json: String = sqlx::Row::get(&row, "messages_json");
-        let created_at: String = sqlx::Row::get(&row, "created_at");
-        let updated_at: String = sqlx::Row::get(&row, "updated_at");
-
-        let experiment_id = uuid::Uuid::new_v4().to_string();
-        let experiment_title = if title.trim().is_empty() {
-            "代码会话迁移".to_string()
-        } else {
-            format!("{} (代码会话迁移)", title)
-        };
-
-        // 创建 experiment 容器
-        sqlx::query(
-            "INSERT INTO experiment_records (id, title, config, result, notes, default_working_dir, linked_submission_id, created_at, updated_at)
-             VALUES (?, ?, '{}', '', '', ?, NULL, ?, ?)"
-        )
-        .bind(&experiment_id)
-        .bind(&experiment_title)
-        .bind(&working_dir)
-        .bind(&created_at)
-        .bind(&updated_at)
-        .execute(pool)
-        .await?;
-
-        // 迁移 code session
-        sqlx::query(
-            "INSERT INTO experiment_code_sessions (id, experiment_id, title, working_dir, tool_id, model, messages_json, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-        .bind(&session_id)
-        .bind(&experiment_id)
-        .bind(&title)
-        .bind(&working_dir)
-        .bind(&tool_id)
-        .bind(&model)
-        .bind(&messages_json)
-        .bind(&created_at)
-        .bind(&updated_at)
-        .execute(pool)
-        .await?;
-    }
-
-    // 迁移完成后删除旧表
-    let _ = sqlx::query("DROP TABLE IF EXISTS code_sessions").execute(pool).await;
+pub async fn ensure_opencode_tables(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(OPENCODE_SESSIONS_DDL).execute(pool).await?;
     Ok(())
 }
 

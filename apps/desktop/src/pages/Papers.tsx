@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { ChevronDown, FileDown, GitMerge, Upload } from "lucide-react";
+import { ChevronDown, FileDown, GitMerge, Search, Upload } from "lucide-react";
 import { safeOnDragDrop } from "../lib/tauriEvent";
-import { Button, CapsuleTabs, Select } from "@research-copilot/ui";
+import { Button, CapsuleTabs } from "@research-copilot/ui";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { usePapersList } from "../features/papers/usePapersList";
 import { PapersListPanel } from "../features/papers/PapersListPanel";
 import CorpusPanel from "../features/papers/CorpusPanel";
+import PaperImportDialog from "../features/papers/PaperImportDialog";
 import MergeDuplicatesDialog from "../features/papers/MergeDuplicatesDialog";
 import { findDuplicateGroups } from "../features/papers/duplicatePapers";
 import PaperDetailModal from "../features/papers/PaperDetailModal";
@@ -14,12 +15,13 @@ import { usePaperDetailRoute } from "../features/papers/usePaperDetailRoute";
 import { usePaperTaskProgress } from "../features/papers/usePaperTaskProgress";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import type { PaperFigure } from "../features/papers/shared";
-import { buildFolderSelectOptions } from "../features/papers/interestTree";
+import { interestFolderName } from "../lib/interestUtils";
 
 export default function Papers({ hideFolders = false }: { hideFolders?: boolean }) {
   const papers = usePapersList();
   const [view, setView] = useState<"papers" | "corpus">("papers");
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [merging, setMerging] = useState(false);
   const [detailPaperId, setDetailPaperId] = useState<string | null>(null);
   const [paperFigures, setPaperFigures] = useState<Record<string, PaperFigure[]>>({});
@@ -131,6 +133,14 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
   };
 
   const duplicateGroups = useMemo(() => findDuplicateGroups(papers.papers), [papers.papers]);
+  const importDropTarget = papers.selectedInterestId ? papers.interestMap?.[papers.selectedInterestId] : undefined;
+  const importDropTargetLabel = importDropTarget ? interestFolderName(importDropTarget) : "";
+
+  const handleImportFromDialog = async (interestId: string) => {
+    papers.setSelectedInterestId(interestId);
+    const imported = await papers.handleUpload(interestId);
+    if (imported) setImportOpen(false);
+  };
 
   const handleMerge = async (keepId: string, deleteIds: string[]) => {
     setMerging(true);
@@ -162,14 +172,67 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
             <FileDown className="h-10 w-10 text-apple-blue" />
             <p className="text-base font-bold text-ink-primary">释放以导入 PDF</p>
             <p className="text-xs text-ink-tertiary">
-              {papers.selectedInterestId ? "将归档到当前所选研究主题" : "导入为未归档论文"}
+              {importDropTargetLabel ? `将归档到「${importDropTargetLabel}」` : "导入为未归档论文"}
             </p>
           </div>
         </div>
       ) : null}
 
       <div className={clsx("mx-auto w-full space-y-5", hideFolders && "max-w-5xl px-4 pb-10")}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between shrink-0">
+          {!hideFolders && (
+            <div>
+              <h1 className="text-2xl font-bold text-ink-primary">论文库</h1>
+              <p className="mt-1 text-sm text-ink-tertiary">
+                {`共 ${papers.papers.length} 篇论文 · ${papers.interests.length} 个主题分组`}
+              </p>
+              <p className="mt-1 text-sm text-ink-tertiary">
+                上传 PDF，小妍会按论文类型精读内容；需要时可单独生成复现/验证指南。
+              </p>
+            </div>
+          )}
+          <div className={clsx("min-w-0 w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end", view === "papers" ? "flex" : "hidden")}>
+            <div ref={recognizeRef} className="relative flex-shrink-0">
+              <button type="button" onClick={() => setRecognizeOpen((v) => !v)} data-open={recognizeOpen}
+                className="rc-dropdown-trigger flex items-center gap-1.5 rounded-2xl px-3 py-2 transition-all duration-150"
+                title="导入时自动识别论文内容">
+                <span className="text-xs font-medium text-ink-secondary">自动识别</span>
+                <ChevronDown className={`w-3.5 h-3.5 text-ink-tertiary transition-transform ${recognizeOpen ? "rotate-180" : ""}`} />
+              </button>
+              {recognizeOpen && (
+                <div className="rc-dropdown-menu absolute left-0 top-full mt-1.5 z-30 min-w-[160px] rounded-2xl py-2">
+                  {(["title","authors","year","venue","keywords"] as (keyof RecognizeFlags)[]).map((key) => (
+                    <button key={key} type="button" onClick={() => void handleToggleRecognize(key)}
+                      className="w-full flex items-center gap-2.5 px-4 py-1.5 text-xs text-ink-primary hover:bg-white/40 transition-colors">
+                      <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                        style={{ background: recognizeFlags[key] ? "#007AFF" : "transparent",
+                          border: recognizeFlags[key] ? "none" : "1.5px solid #B0B5BB" }}>
+                        {recognizeFlags[key] && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                      </span>
+                      {{ title: "名称", authors: "作者", year: "年份", venue: "期刊 / 会议", keywords: "关键词" }[key]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setMergeOpen(true)}
+              disabled={duplicateGroups.length === 0}
+              title={duplicateGroups.length === 0 ? "未发现重复论文" : "合并疑似重复的论文"}
+            >
+              <GitMerge className="w-4 h-4" />
+              {duplicateGroups.length > 0 ? `合并重复 (${duplicateGroups.length})` : "合并重复"}
+            </Button>
+            <Button onClick={() => setImportOpen(true)} loading={papers.uploading} size="md">
+              <Upload className="w-4 h-4" />
+              {papers.batchProgress ? `导入中 (${papers.batchProgress.done}/${papers.batchProgress.total})` : "导入 PDF"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <CapsuleTabs
             value={view}
             onChange={(v) => setView(v as "papers" | "corpus")}
@@ -178,52 +241,21 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               { value: "corpus", label: "语料库" },
             ]}
           />
-          {view === "papers" && (
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <div ref={recognizeRef} className="relative flex-shrink-0">
-                <button type="button" onClick={() => setRecognizeOpen((v) => !v)} data-open={recognizeOpen}
-                  className="rc-dropdown-trigger flex items-center gap-1.5 rounded-2xl px-3.5 py-2.5 text-sm transition-all duration-150"
-                  title="导入时自动识别论文内容">
-                  <span className="text-sm font-medium text-ink-secondary">自动识别</span>
-                  <ChevronDown className={`w-4 h-4 text-ink-tertiary transition-transform ${recognizeOpen ? "rotate-180" : ""}`} />
-                </button>
-                {recognizeOpen && (
-                  <div className="rc-dropdown-menu absolute left-0 top-full mt-1.5 z-30 min-w-[160px] rounded-2xl py-2">
-                    {(["title","authors","year","venue","keywords"] as (keyof RecognizeFlags)[]).map((key) => (
-                      <button key={key} type="button" onClick={() => void handleToggleRecognize(key)}
-                        className="w-full flex items-center gap-2.5 px-4 py-1.5 text-xs text-ink-primary hover:bg-white/40 transition-colors">
-                        <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors"
-                          style={{ background: recognizeFlags[key] ? "#007AFF" : "transparent",
-                            border: recognizeFlags[key] ? "none" : "1.5px solid #B0B5BB" }}>
-                          {recognizeFlags[key] && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                        </span>
-                        {{ title: "名称", authors: "作者", year: "年份", venue: "期刊 / 会议", keywords: "关键词" }[key]}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {!hideFolders && (
-                <Select className="min-w-[200px]" prefix="文件夹：" value={papers.selectedInterestId}
-                  onChange={papers.setSelectedInterestId}
-                  options={[{ value: "", label: "未归档" }, ...buildFolderSelectOptions(papers.interests)]} />
-              )}
-              <Button
-                variant="secondary"
-                size="md"
-                onClick={() => setMergeOpen(true)}
-                disabled={duplicateGroups.length === 0}
-                title={duplicateGroups.length === 0 ? "未发现重复论文" : "合并疑似重复的论文"}
-              >
-                <GitMerge className="w-4 h-4" />
-                {duplicateGroups.length > 0 ? `合并重复 (${duplicateGroups.length})` : "合并重复"}
-              </Button>
-              <Button onClick={papers.handleUpload} loading={papers.uploading} size="md">
-                <Upload className="w-4 h-4" />
-                {papers.batchProgress ? `导入中 (${papers.batchProgress.done}/${papers.batchProgress.total})` : "导入 PDF"}
-              </Button>
+          {view === "papers" ? (
+            <div
+              className="relative w-full overflow-hidden rounded-[24px] sm:max-w-[320px] lg:ml-auto"
+              style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
+            >
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
+              <input
+                type="text"
+                value={papers.keywordFilter}
+                onChange={(event) => papers.setKeywordFilter(event.target.value)}
+                placeholder="请输入关键词或标签搜索论文"
+                className="h-11 w-full border-none bg-transparent pl-11 pr-4 text-sm text-ink-primary outline-none placeholder:text-ink-tertiary/75"
+              />
             </div>
-          )}
+          ) : null}
         </div>
 
         {view === "corpus" ? (
@@ -242,9 +274,8 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           ungroupedPapers={papers.ungroupedPapers}
           detailPaperId={detailPaperId}
           taskProgressByPaperId={taskProgressByPaperId}
-          keywordFilters={papers.keywordFilters}
-          titleFilters={papers.titleFilters}
           getSortKey={papers.getSortKey}
+          getSortDirection={papers.getSortDirection}
           onAnalyze={handleAnalyze}
           onReproduce={papers.handleReproduce}
           onReparse={papers.handleReparse}
@@ -258,8 +289,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           onOpenDetail={openPaperDetail}
           onCloseDetail={closePaperDetail}
           onSortKeyChange={papers.setSortKey}
-          onKeywordFilterChange={papers.setKeywordFilter}
-          onTitleFilterChange={papers.setTitleFilter}
           onMovePaper={(paperId, interestId) =>
             void papers.handleUpdatePaper(paperId, { research_interest_id: interestId || undefined })
           }
@@ -271,6 +300,16 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       </div>
       <PaperDetailModal paper={detailPaper} figures={detailPaper ? (paperFigures[detailPaper.id] ?? []) : []}
         onClose={closePaperDetail} />
+      {importOpen ? (
+        <PaperImportDialog
+          interests={papers.interests}
+          defaultInterestId={papers.selectedInterestId}
+          uploading={papers.uploading}
+          batchProgress={papers.batchProgress}
+          onImport={handleImportFromDialog}
+          onClose={() => setImportOpen(false)}
+        />
+      ) : null}
       {mergeOpen ? (
         <MergeDuplicatesDialog
           groups={duplicateGroups}

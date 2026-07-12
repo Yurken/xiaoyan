@@ -1,7 +1,6 @@
 import { createPortal } from "react-dom";
 import { Download, Loader2, Sparkles, X } from "lucide-react";
 import ExternalLinkCmp from "../../components/ExternalLink";
-import { formatDateTime } from "../tools/shared";
 import { useCompanionFindings } from "./useCompanionFindings";
 
 interface CompanionFindingsDrawerProps {
@@ -157,7 +156,7 @@ export default function CompanionFindingsDrawer({
                       </span>
                       {f.published_at ? (
                         <span className="text-[11px] text-ink-tertiary">
-                          {formatDateTime(f.published_at)}
+                          {f.published_at}
                         </span>
                       ) : null}
                       <button

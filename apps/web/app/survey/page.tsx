@@ -62,19 +62,19 @@ function getDefaultWorkflow(): AgentStep[] {
   return [
     {
       id: "planner",
-      name: "检索规划模型",
+      name: toCapabilityModelName("literature_scout"),
       role: "规划研究范围与检索策略",
       status: "pending",
     },
     {
       id: "retriever",
-      name: "文献检索模型",
+      name: toCapabilityModelName("retrieval"),
       role: "小妍会自动检索相关文献",
       status: "pending",
     },
     {
       id: "writer",
-      name: "综述写作模型",
+      name: toCapabilityModelName("survey"),
       role: "生成结构化文献综述",
       status: "pending",
     },
@@ -201,21 +201,21 @@ function normalizeWorkflow(raw: Record<string, unknown>, normalized: SurveyData)
   return [
     {
       id: "planner",
-      name: "检索规划模型",
+      name: toCapabilityModelName("literature_scout"),
       role: "规划研究范围与检索策略",
       status: "done",
       summary: `已完成「${normalized.query}」的综述范围拆解`,
     },
     {
       id: "retriever",
-      name: "文献检索模型",
+      name: toCapabilityModelName("retrieval"),
       role: "小妍会自动检索相关文献",
       status: "done",
       summary: `已检索到 ${normalized.papers.length} 篇候选论文`,
     },
     {
       id: "writer",
-      name: "综述写作模型",
+      name: toCapabilityModelName("survey"),
       role: "生成结构化文献综述",
       status: "done",
       summary: "已输出研究背景、方法、趋势与建议研究方向",

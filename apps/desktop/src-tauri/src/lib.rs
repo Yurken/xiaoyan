@@ -22,8 +22,10 @@ mod links;
 mod llm;
 mod rag;
 mod repositories;
+mod semantic_scholar;
 mod services;
 mod state;
+mod text_utils;
 mod token_usage;
 mod web_search;
 
@@ -66,15 +68,19 @@ use commands::{
     data_backup::{data_backup_export, data_backup_import},
     evidence::evidence_get_links,
     experiment::{
-        experiment_add_attachment, experiment_create, experiment_create_snapshot,
-        experiment_delete, experiment_delete_attachment, experiment_delete_snapshot,
-        experiment_get, experiment_get_snapshot, experiment_list, experiment_list_attachments,
-        experiment_list_snapshots, experiment_update, experiment_update_attachment_label,
+        experiment_add_attachment, experiment_create, experiment_create_snapshot, experiment_delete,
+        experiment_delete_attachment, experiment_get, experiment_list, experiment_list_attachments,
+        experiment_delete_snapshot, experiment_get_snapshot, experiment_list_snapshots,
+        experiment_update, experiment_update_attachment_label,
     },
     export::export_to_obsidian,
     field_dynamics::{
         field_dynamics_import_paper, field_dynamics_list, field_dynamics_mark_read,
         field_dynamics_scan,
+    },
+    github_project::{
+        github_project_delete_search_history, github_project_get_search_history,
+        github_project_save_search_history, github_project_search,
     },
     journal::{journal_lookup, journal_rank_filter},
     knowledge::{
@@ -372,7 +378,7 @@ pub fn run() {
                     });
                 }
 
-                // Auto-scan for research-field dynamics — fires after active researcher
+                // 领域动态在活跃研究者扫描后执行，避免启动阶段并发检索过多。
                 {
                     let state = handle.state::<AppState>().inner().clone();
                     let app_handle = handle.clone();
@@ -382,8 +388,8 @@ pub fn run() {
                     });
                 }
 
-                // WebDAV 无冲突同步：启动后跑一次，之后每 5 分钟自动后台同步。
-                // 未配置凭据时 run_sync 直接返回 None，开销可忽略。
+                // WebDAV 无冲突同步：启动后跑一次，之后每 15 分钟检查一次。
+                // 切回前台也会检查，但服务层以同一冷却时间限制重复请求。
                 {
                     let state = handle.state::<AppState>().inner().clone();
                     let app_handle = handle.clone();
@@ -391,7 +397,7 @@ pub fn run() {
                         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                         let _ = services::sync_service::run_sync(&state, &app_handle).await;
                         let mut ticker =
-                            tokio::time::interval(std::time::Duration::from_secs(300));
+                            tokio::time::interval(std::time::Duration::from_secs(900));
                         ticker.tick().await; // 立即返回的第一次 tick
                         loop {
                             ticker.tick().await;
@@ -455,7 +461,7 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 窗口重新获得焦点时触发一次同步，让用户切回应用即见最新数据。
+            // 窗口重新获得焦点时检查同步；服务层会限制为每 15 分钟至多一次。
             if let tauri::WindowEvent::Focused(true) = event {
                 let app = window.app_handle().clone();
                 if let Some(state) = app.try_state::<AppState>() {
@@ -648,7 +654,6 @@ pub fn run() {
             survey_search,
             translate_text,
             markdown_format_chunk,
-            // Code（多工具壳）
             code_create_session,
             code_delete_session,
             code_get_session,
@@ -669,6 +674,10 @@ pub fn run() {
             code_update_session,
             code_write_file,
             code_workspace_context,
+            github_project_search,
+            github_project_save_search_history,
+            github_project_get_search_history,
+            github_project_delete_search_history,
             // App lock
             app_lock_status,
             app_lock_set_password,
@@ -710,7 +719,6 @@ pub fn run() {
             active_researcher_findings,
             active_researcher_import_finding,
             active_researcher_mark_read,
-            // Field Dynamics
             field_dynamics_scan,
             field_dynamics_list,
             field_dynamics_import_paper,

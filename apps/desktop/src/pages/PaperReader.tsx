@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, ChevronUp, ExternalLink, Languages, Search, X } from "lucide-react";
+import { ExternalLink, Languages } from "lucide-react";
 import { Button } from "@research-copilot/ui";
 import { papersApi } from "../lib/client";
 import PdfReaderViewer, { type PdfReaderViewerHandle } from "../features/reader/PdfReaderViewer";
@@ -10,57 +10,29 @@ import ReaderToolbar from "../features/reader/ReaderToolbar";
 import SelectionPopup from "../features/reader/SelectionPopup";
 import { useReaderNotes } from "../features/reader/useReaderNotes";
 import { useReaderTranslation } from "../features/reader/useReaderTranslation";
+import { useSmoothReaderZoom } from "../features/reader/useSmoothReaderZoom";
 import {
   isShapeStyle,
   type AnnotationStyle,
   type HighlightColor,
   type NormalizedRect,
   type PaperNote,
+  type ReaderImageSelection,
   type ReaderMode,
   type ReaderSelection,
 } from "../features/reader/readerTypes";
 import { useCorpus } from "../features/papers/useCorpus";
 import { useResizableWidth } from "../hooks/useResizableWidth";
-import { readPersistentValue, writePersistentValue } from "../hooks/usePersistentStringState";
-import { usePdfSearch } from "../features/reader/usePdfSearch";
-
-const MIN_SCALE = 0.6;
-const MAX_SCALE = 3;
-
-interface ReaderState {
-  scale: number;
-  scrollTop: number;
-}
-
-function getReaderStateKey(paperId: string) {
-  return `rc:reader:state:${paperId}`;
-}
-
-function loadReaderState(paperId: string): ReaderState | null {
-  const raw = readPersistentValue(getReaderStateKey(paperId));
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as ReaderState;
-  } catch {
-    return null;
-  }
-}
-
-function saveReaderState(paperId: string, state: ReaderState) {
-  writePersistentValue(getReaderStateKey(paperId), JSON.stringify(state));
-}
 
 export default function PaperReader() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const viewerRef = useRef<PdfReaderViewerHandle>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const prevIdRef = useRef<string | undefined>(undefined);
 
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [scale, setScale] = useState(1.4);
+  const { scale, renderScale, zoomByFactor, zoomStep } = useSmoothReaderZoom(1.4);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
   const [editing, setEditing] = useState<{ note: PaperNote; x: number; y: number } | null>(null);
   const [toast, setToast] = useState("");
@@ -72,6 +44,7 @@ export default function PaperReader() {
   // 工具栏状态
   const [leftOpen, setLeftOpen] = useState(true);
   const [mode, setMode] = useState<ReaderMode>("view");
+  const [areaSelectEnabled, setAreaSelectEnabled] = useState(false);
   const [annotateTool, setAnnotateTool] = useState<AnnotationStyle>("highlight");
   const [annotateColor, setAnnotateColor] = useState<HighlightColor>("yellow");
   const [annotateFill, setAnnotateFill] = useState<HighlightColor | null>(null);
@@ -82,15 +55,6 @@ export default function PaperReader() {
   const translation = useReaderTranslation();
   const corpus = useCorpus(id);
 
-  // ── PDF 搜索 ────────────────────────────────────────────────
-  const [searchPdfDoc, setSearchPdfDoc] = useState<import("pdfjs-dist").PDFDocumentProxy | null>(null);
-  const [searchNumPages, setSearchNumPages] = useState(0);
-  const search = usePdfSearch({
-    pdfDoc: searchPdfDoc,
-    scale,
-    numPages: searchNumPages,
-  });
-
   const flashToast = useCallback((message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 1800);
@@ -99,23 +63,11 @@ export default function PaperReader() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-
-    // 切换论文时，保存前一篇论文的状态
-    if (prevIdRef.current && prevIdRef.current !== id) {
-      const scrollTop = containerRef.current?.scrollTop ?? 0;
-      saveReaderState(prevIdRef.current, { scale, scrollTop });
-    }
-    prevIdRef.current = id;
-
     setLoading(true);
     setLoadError("");
     setPdfData(null);
     setSelection(null);
     setEditing(null);
-
-    // 恢复新论文的缩放比例
-    const saved = loadReaderState(id);
-    setScale(saved?.scale ?? 1.4);
 
     (async () => {
       try {
@@ -140,44 +92,6 @@ export default function PaperReader() {
       cancelled = true;
     };
   }, [id]);
-
-  // PDF 加载完成后恢复滚动位置
-  useEffect(() => {
-    if (!loading && pdfData && id) {
-      const saved = loadReaderState(id);
-      if (saved?.scrollTop) {
-        requestAnimationFrame(() => {
-          containerRef.current?.scrollTo(0, saved.scrollTop);
-        });
-      }
-    }
-  }, [loading, pdfData, id]);
-
-  // PDF 加载完成后同步搜索所需的 pdfDoc 引用
-  useEffect(() => {
-    if (!loading && pdfData) {
-      // Small delay to let imperative handle settle
-      const timer = setTimeout(() => {
-        const doc = viewerRef.current?.getPdfDoc() ?? null;
-        const np = viewerRef.current?.getNumPages() ?? 0;
-        if (doc) {
-          setSearchPdfDoc(doc);
-          setSearchNumPages(np);
-        }
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [loading, pdfData]);
-
-  // 组件卸载时保存当前论文状态
-  useEffect(() => {
-    return () => {
-      if (id) {
-        const scrollTop = containerRef.current?.scrollTop ?? 0;
-        saveReaderState(id, { scale, scrollTop });
-      }
-    };
-  }, [id, scale]);
 
   const clearSelection = useCallback(() => {
     setSelection(null);
@@ -211,33 +125,6 @@ export default function PaperReader() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [translateOpen, toggleContinuous]);
-
-  // ── 搜索快捷键 ──────────────────────────────────────────────
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      // Ctrl/Cmd+F：打开搜索
-      if (event.key.toLowerCase() === "f" && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
-        event.preventDefault();
-        search.openSearch();
-        return;
-      }
-      // Escape：关闭搜索
-      if (event.key === "Escape" && search.open) {
-        event.preventDefault();
-        search.closeSearch();
-        return;
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [search.openSearch, search.closeSearch, search.open]);
-
-  // 激活匹配项变更时滚动到对应页面
-  useEffect(() => {
-    if (search.activeMatch && viewerRef.current) {
-      viewerRef.current.scrollToPage(search.activeMatch.pageNum);
-    }
-  }, [search.activeMatch]);
 
   // 划词处理：批注模式直接套用预选工具；翻译栏开启则自动翻译；否则视图模式弹工具菜单。
   const handleTextSelected = useCallback(
@@ -276,12 +163,17 @@ export default function PaperReader() {
     setEditing({ note, x: point.x, y: point.y });
   }, []);
 
-  const handleZoom = useCallback((factor: number) => {
-    setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(s * factor * 100) / 100)));
+  const toggleAreaSelect = useCallback(() => {
+    setMode("view");
+    setSelection(null);
+    setEditing(null);
+    window.getSelection()?.removeAllRanges();
+    setAreaSelectEnabled((value) => !value);
   }, []);
 
-  const zoomStep = useCallback((delta: number) => {
-    setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round((s + delta) * 10) / 10)));
+  const handleModeChange = useCallback((nextMode: ReaderMode) => {
+    setAreaSelectEnabled(false);
+    setMode(nextMode);
   }, []);
 
   const handleAnnotate = useCallback(
@@ -344,8 +236,19 @@ export default function PaperReader() {
     [moveAnnotation],
   );
 
+  const handleAreaSelected = useCallback(
+    (image: ReaderImageSelection) => {
+      setTranslateOpen(true);
+      setSelection(null);
+      setEditing(null);
+      setAreaSelectEnabled(false);
+      translation.interpretImage(image);
+    },
+    [translation],
+  );
+
   // 批注模式下选中形状工具即进入「绘制」模式：拖拽画框，不再划词。
-  const drawShape = mode === "annotate" && isShapeStyle(annotateTool) ? annotateTool : null;
+  const drawShape = !areaSelectEnabled && mode === "annotate" && isShapeStyle(annotateTool) ? annotateTool : null;
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
@@ -356,8 +259,10 @@ export default function PaperReader() {
         scalePercent={Math.round(scale * 100)}
         onZoomIn={() => zoomStep(0.1)}
         onZoomOut={() => zoomStep(-0.1)}
+        areaSelectEnabled={areaSelectEnabled}
+        onToggleAreaSelect={toggleAreaSelect}
         mode={mode}
-        onModeChange={setMode}
+        onModeChange={handleModeChange}
         tool={annotateTool}
         onToolChange={setAnnotateTool}
         color={annotateColor}
@@ -371,65 +276,6 @@ export default function PaperReader() {
         <div className="shrink-0 bg-apple-red/10 px-4 py-1.5 text-xs text-apple-red">{notesError}</div>
       ) : null}
 
-      {/* ── 搜索栏 ─────────────────────────────────────────── */}
-      {search.open && (
-        <div className="flex shrink-0 items-center gap-2 border-b px-4 py-2" style={{ background: "var(--rc-card-inset-bg)", borderColor: "var(--rc-border)" }}>
-          <Search className="w-4 h-4 flex-shrink-0" style={{ color: "var(--rc-text-muted)" }} />
-          <input
-            autoFocus
-            type="text"
-            value={search.query}
-            onChange={(e) => search.setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                search.goNext();
-              } else if (e.key === "Enter" && e.shiftKey) {
-                e.preventDefault();
-                search.goPrev();
-              }
-            }}
-            placeholder="在 PDF 中搜索…"
-            className="flex-1 bg-transparent text-sm outline-none"
-            style={{ color: "var(--rc-text)" }}
-          />
-          {search.matches.length > 0 && (
-            <span className="text-xs flex-shrink-0" style={{ color: "var(--rc-text-muted)" }}>
-              {search.activeIndex + 1}/{search.matches.length}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={search.goPrev}
-            disabled={search.matches.length === 0}
-            className="p-1 rounded-lg flex-shrink-0 transition-colors disabled:opacity-30"
-            style={{ color: "var(--rc-text-muted)" }}
-            title="上一个 (Shift+Enter)"
-          >
-            <ChevronUp className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={search.goNext}
-            disabled={search.matches.length === 0}
-            className="p-1 rounded-lg flex-shrink-0 transition-colors disabled:opacity-30"
-            style={{ color: "var(--rc-text-muted)" }}
-            title="下一个 (Enter)"
-          >
-            <ChevronDown className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={search.closeSearch}
-            className="p-1 rounded-lg flex-shrink-0 transition-colors"
-            style={{ color: "var(--rc-text-muted)" }}
-            title="关闭 (Esc)"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       <div className="flex min-h-0 flex-1">
         {leftOpen ? (
           <ReaderPaperList
@@ -440,16 +286,7 @@ export default function PaperReader() {
           />
         ) : null}
 
-        <div
-          ref={containerRef}
-          className="min-w-0 flex-1 overflow-auto"
-          onScroll={() => {
-            if (id) {
-              const scrollTop = containerRef.current?.scrollTop ?? 0;
-              saveReaderState(id, { scale, scrollTop });
-            }
-          }}
-        >
+        <div className="min-w-0 flex-1">
           {loading ? (
             <div className="flex h-full items-center justify-center text-sm text-ink-tertiary">正在打开论文…</div>
           ) : loadError ? (
@@ -469,17 +306,19 @@ export default function PaperReader() {
               data={pdfData}
               notes={notes}
               scale={scale}
+              renderScale={renderScale}
+              areaSelectEnabled={areaSelectEnabled}
               onTextSelected={handleTextSelected}
               onSelectionCleared={handlePopupsCleared}
               onNoteClick={handleNoteClick}
-              onZoom={handleZoom}
+              onZoom={zoomByFactor}
+              onAreaSelected={handleAreaSelected}
+              onAreaSelectError={flashToast}
               drawShape={drawShape}
               drawColor={annotateColor}
               drawFill={annotateFill}
               onShapeDrawn={handleShapeDrawn}
               onShapeMove={handleShapeMove}
-              searchMatches={search.matches}
-              activeSearchIndex={search.activeIndex}
             />
           ) : null}
         </div>
@@ -491,10 +330,14 @@ export default function PaperReader() {
             locked={translation.locked}
             continuous={translation.continuous}
             fontSize={translation.fontSize}
+            translationModel={translation.translationModel}
+            availableModels={translation.availableModels}
+            loadingModels={translation.loadingModels}
+            modelsError={translation.modelsError}
             onToggleLock={translation.toggleLock}
             onToggleContinuous={translation.toggleContinuous}
-            onFontSize={translation.setFontSize}
             onInterpret={translation.interpret}
+            onTranslationModelChange={translation.setTranslationModel}
             onEditSource={translation.editSource}
             onClear={translation.clear}
             onCollapse={() => setTranslateOpen(false)}

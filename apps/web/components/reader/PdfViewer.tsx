@@ -365,12 +365,13 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
   useEffect(() => {
     if (!shouldRender) return;
 
+    let disposed = false;
     const id = ++renderIdRef.current;
 
     (async () => {
       try {
         const page = await pdfDoc.getPage(pageNum);
-        if (id !== renderIdRef.current) return; // stale — skip
+        if (disposed || id !== renderIdRef.current) return; // stale — skip
 
         const viewport = page.getViewport({ scale });
         const outputScale = window.devicePixelRatio || 1;
@@ -399,14 +400,14 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
         } as any).promise;
 
         // Double-check: if a newer render started while we were painting, abort
-        if (id !== renderIdRef.current) return;
+        if (disposed || id !== renderIdRef.current) return;
 
         // ── Text layer ──
         const textLayerDiv = textLayerRef.current;
         if (!textLayerDiv) return;
 
         const textContent = await page.getTextContent();
-        if (id !== renderIdRef.current) return;
+        if (disposed || id !== renderIdRef.current) return;
 
         const { TextLayer, setLayerDimensions } = await loadPdfJs();
 
@@ -428,7 +429,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           (span as HTMLElement).style.cursor = "text";
         });
       } catch (e) {
-        if (id === renderIdRef.current) {
+        if (!disposed && id === renderIdRef.current) {
           console.error(`Failed to render page ${pageNum}:`, e);
         }
       }
@@ -436,7 +437,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
 
     return () => {
       // Invalidate this render — any in-flight async work will bail out
-      renderIdRef.current++;
+      disposed = true;
     };
   }, [shouldRender, pdfDoc, pageNum, scale]);
 

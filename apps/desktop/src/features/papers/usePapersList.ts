@@ -3,10 +3,11 @@ import { apiClient, formatErrorMessage } from "../../lib/client";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
 import type { KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 import { buildInterestForest, collectInterestSubtreeIds } from "./interestTree";
-import { type PaperSortKey } from "./shared";
+import { type PaperSortDirection, type PaperSortKey } from "./shared";
 import type { NoteDraft } from "../knowledge/NoteEditorModal";
 
 type SortKey = PaperSortKey;
+type SortDirection = PaperSortDirection;
 
 const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
 
@@ -23,8 +24,8 @@ export function usePapersList() {
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const [paperNotes, setPaperNotes] = useState<KnowledgeNote[]>([]);
   const [sortKeys, setSortKeys] = usePersistentState<Record<string, SortKey>>("rc:papers:sort-keys", {});
-  const [keywordFilters, setKeywordFilters] = usePersistentState<Record<string, string>>("rc:papers:keyword-filters", {});
-  const [titleFilters, setTitleFilters] = usePersistentState<Record<string, string>>("rc:papers:title-filters", {});
+  const [sortDirections, setSortDirections] = usePersistentState<Record<string, SortDirection>>("rc:papers:sort-directions", {});
+  const [keywordFilter, setKeywordFilter] = usePersistentState<string>("rc:papers:keyword-filter", "");
 
   useEffect(() => {
     let cancelled = false;
@@ -86,19 +87,21 @@ export function usePapersList() {
     }
   }, []);
 
-  const handleUpload = async () => {
+  const handleUpload = async (interestId = selectedInterestId) => {
     try {
       setLoadError("");
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selected = await open({ multiple: true, filters: [{ name: "PDF", extensions: ["pdf"] }] });
-      if (!selected) return;
+      if (!selected) return false;
       const paths = (Array.isArray(selected) ? selected : [selected])
         .map((item) => typeof item === "string" ? item : (item && typeof item === "object" && "path" in item ? String((item as { path: unknown }).path) : ""))
         .filter(Boolean);
-      if (paths.length === 0) return;
-      await importPaths(paths, selectedInterestId || undefined);
+      if (paths.length === 0) return false;
+      await importPaths(paths, interestId || undefined);
+      return true;
     } catch (error) {
       setLoadError(formatErrorMessage(error));
+      return false;
     }
   };
 
@@ -272,27 +275,45 @@ export function usePapersList() {
   };
 
 
-  const sortPapers = useCallback((ps: Paper[], key: SortKey): Paper[] => {
+  const sortPapers = useCallback((ps: Paper[], key: SortKey, direction: SortDirection): Paper[] => {
     if (key === "manual") return [...ps].sort((a, b) => {
       const ao = a.sort_order ?? 0;
       const bo = b.sort_order ?? 0;
       if (ao !== bo) return ao - bo;
       return b.created_at.localeCompare(a.created_at);
     });
-    if (key === "title") return [...ps].sort((a, b) => a.title.localeCompare(b.title, "zh"));
+    if (key === "title") return [...ps].sort((a, b) => {
+      const cmp = a.title.localeCompare(b.title, "zh");
+      return direction === "desc" ? -cmp : cmp;
+    });
     if (key === "importance") return [...ps].sort((a, b) => {
       const ai = a.importance_color ? COLOR_PRIORITY.indexOf(a.importance_color) : COLOR_PRIORITY.length;
       const bi = b.importance_color ? COLOR_PRIORITY.indexOf(b.importance_color) : COLOR_PRIORITY.length;
-      return (ai === -1 ? COLOR_PRIORITY.length : ai) - (bi === -1 ? COLOR_PRIORITY.length : bi);
+      const cmp = (ai === -1 ? COLOR_PRIORITY.length : ai) - (bi === -1 ? COLOR_PRIORITY.length : bi);
+      return direction === "desc" ? -cmp : cmp;
     });
-    return [...ps].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return [...ps].sort((a, b) =>
+      direction === "asc"
+        ? a.created_at.localeCompare(b.created_at)
+        : b.created_at.localeCompare(a.created_at),
+    );
   }, []);
 
   const getSortKey = useCallback((groupId: string): SortKey => sortKeys[groupId] || "created_at", [sortKeys]);
-  const setSortKey = (groupId: string, key: SortKey) => setSortKeys((prev) => ({ ...prev, [groupId]: key }));
-
-  const setKeywordFilter = (groupId: string, kw: string) => setKeywordFilters((prev) => ({ ...prev, [groupId]: kw }));
-  const setTitleFilter = (groupId: string, q: string) => setTitleFilters((prev) => ({ ...prev, [groupId]: q }));
+  const getSortDirection = useCallback((groupId: string): SortDirection => sortDirections[groupId] || "desc", [sortDirections]);
+  const setSortKey = (groupId: string, key: SortKey) => {
+    const explicitCurrentKey = sortKeys[groupId];
+    // Toggle direction for all sortable keys (not manual).
+    if (key !== "manual") {
+      const prevDir = sortDirections[groupId] || "desc";
+      const sameKey = explicitCurrentKey === key || (!explicitCurrentKey && key === "created_at");
+      setSortDirections((current) => ({
+        ...current,
+        [groupId]: sameKey && prevDir === "desc" ? "asc" : sameKey ? "desc" : prevDir,
+      }));
+    }
+    setSortKeys((prev) => ({ ...prev, [groupId]: key }));
+  };
 
   // 文件夹内拖拽排序：orderedIds 为该文件夹论文的目标顺序。
   // 切换该分组为「自定义」排序，乐观更新本地 sort_order，再持久化到后端（随同步分发）。
@@ -324,37 +345,48 @@ export function usePapersList() {
     return map;
   }, [paperNotes]);
   const folderForest = useMemo(() => buildInterestForest(interests), [interests]);
+  const normalizedKeywordFilter = keywordFilter.trim().toLowerCase();
 
   const paperGroups = useMemo(() => {
     return interests.map((interest) => {
       const groupPapers = papers.filter((p) => p.research_interest_id === interest.id);
-      const activeKw = keywordFilters[interest.id]?.toLowerCase();
-      const activeTf = titleFilters[interest.id]?.toLowerCase();
-      let filtered = activeKw ? groupPapers.filter((p) => p.tags?.some((tag) => tag.toLowerCase().includes(activeKw))) : groupPapers;
-      if (activeTf) filtered = filtered.filter((p) => p.title.toLowerCase().includes(activeTf));
-      return { key: interest.id, title: interest.folder_name?.trim() || interest.topic, subtitle: interest.topic, papers: sortPapers(filtered, getSortKey(interest.id)) };
+      const filtered = normalizedKeywordFilter
+        ? groupPapers.filter((p) => {
+            const inTitle = p.title.toLowerCase().includes(normalizedKeywordFilter);
+            const inTags = p.tags?.some((tag) => tag.toLowerCase().includes(normalizedKeywordFilter)) ?? false;
+            return inTitle || inTags;
+          })
+        : groupPapers;
+      return {
+        key: interest.id,
+        title: interest.folder_name?.trim() || interest.topic,
+        subtitle: interest.topic,
+        papers: sortPapers(filtered, getSortKey(interest.id), getSortDirection(interest.id)),
+      };
     });
-  }, [interests, papers, keywordFilters, titleFilters, getSortKey, sortPapers]);
+  }, [getSortDirection, getSortKey, interests, normalizedKeywordFilter, papers, sortPapers]);
 
   const ungroupedPapers = useMemo(() => {
     const base = papers.filter((p) => {
       if (!p.research_interest_id) return true;
       return !(p.research_interest_id in interestMap);
     });
-    const activeKw = keywordFilters["ungrouped"]?.toLowerCase();
-    const activeTf = titleFilters["ungrouped"]?.toLowerCase();
-    let filtered = activeKw ? base.filter((p) => p.tags?.some((tag) => tag.toLowerCase().includes(activeKw))) : base;
-    if (activeTf) filtered = filtered.filter((p) => p.title.toLowerCase().includes(activeTf));
-    return sortPapers(filtered, getSortKey("ungrouped"));
-  }, [papers, interestMap, keywordFilters, titleFilters, getSortKey, sortPapers]);
+    const filtered = normalizedKeywordFilter
+      ? base.filter((p) => {
+          const inTitle = p.title.toLowerCase().includes(normalizedKeywordFilter);
+          const inTags = p.tags?.some((tag) => tag.toLowerCase().includes(normalizedKeywordFilter)) ?? false;
+          return inTitle || inTags;
+        })
+      : base;
+    return sortPapers(filtered, getSortKey("ungrouped"), getSortDirection("ungrouped"));
+  }, [getSortDirection, getSortKey, interestMap, normalizedKeywordFilter, papers, sortPapers]);
 
   return {
     papers, setPapers, interests, loading, uploading, batchProgress,
     loadError, setLoadError, deletingPaperId, savingEdit,
     selectedInterestId, setSelectedInterestId, deletingGroupId,
-    sortKeys, getSortKey, setSortKey,
-    keywordFilters, setKeywordFilter,
-    titleFilters, setTitleFilter,
+    sortKeys, getSortKey, getSortDirection, setSortKey,
+    keywordFilter, setKeywordFilter,
     paperGroups, ungroupedPapers, folderForest, interestMap, paperNotesMap,
     handleUpload, importPaths, handleAnalyze, handleReproduce, handleReparse,
     handleUpdatePaper, handleDeletePaper, handleMergePapers, handleDeleteInterestGroup, handleReorderPaper,

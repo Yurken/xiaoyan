@@ -56,7 +56,10 @@ pub async fn writing_polish_text(
     );
 
     let prompt = build_polish_prompt(&request.section, &request.direction, text);
-    let msgs = vec![LlmMessage::system(polish_system()), LlmMessage::user(&prompt)];
+    let msgs = vec![
+        LlmMessage::system(polish_system()),
+        LlmMessage::user(&prompt),
+    ];
 
     let response = client
         .chat_with_max_tokens(&msgs, model.as_deref(), temperature, max_tokens)

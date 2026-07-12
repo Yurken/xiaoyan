@@ -129,7 +129,9 @@ export default function PaperDetailModal({
         return {
           ...section,
           content,
-          figures: section.key === "core_method" ? resolveMethodFigures(content, figures) : [],
+          figures: ["research_question", "core_method", "experiment_design", "experiment_results"].includes(section.key)
+            ? resolveMethodFigures(content, figures)
+            : [],
         };
       })
       .filter((section): section is NonNullable<typeof section> => section !== null);
@@ -207,8 +209,7 @@ export default function PaperDetailModal({
             <button
               type="button"
               onClick={() => setEvidenceOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-2xl transition-colors hover:text-ink-primary"
-              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" as string }}
+              className="rc-icon-button h-9 w-9"
               aria-label="查看证据链"
               title="查看证据链"
             >
@@ -217,8 +218,7 @@ export default function PaperDetailModal({
             <button
               type="button"
               onClick={requestClose}
-              className="flex h-9 w-9 items-center justify-center rounded-2xl transition-colors hover:text-ink-primary"
-              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-secondary)" as string }}
+              className="rc-icon-button h-9 w-9"
               aria-label="关闭详情弹窗"
             >
               <X className="h-4.5 w-4.5" />

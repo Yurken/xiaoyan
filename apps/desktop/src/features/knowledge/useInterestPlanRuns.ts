@@ -26,18 +26,41 @@ interface InterestAgentEvent {
 }
 
 const NON_PLAN_EVENT_IDS = new Set(["hints", "suggest", "workbench_overview"]);
+const INTEREST_PLAN_STORAGE_KEY = "rc:interest-plan:runs";
 
-let snapshots: InterestPlanRunSnapshots = {};
+let snapshots: InterestPlanRunSnapshots = readStoredSnapshots();
 let listenerPromise: Promise<UnlistenFn[]> | null = null;
-let bridgeRefCount = 0;
 
 const subscribers = new Set<() => void>();
+
+function readStoredSnapshots(): InterestPlanRunSnapshots {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(INTEREST_PLAN_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as InterestPlanRunSnapshots;
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function persistSnapshots() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(INTEREST_PLAN_STORAGE_KEY, JSON.stringify(snapshots));
+  } catch {
+    // localStorage is best-effort; in-memory snapshots still keep navigation within this session recoverable.
+  }
+}
 
 function shouldIgnorePlanEvent(id: string) {
   return !id || NON_PLAN_EVENT_IDS.has(id);
 }
 
 function notify() {
+  persistSnapshots();
   subscribers.forEach((subscriber) => subscriber());
 }
 
@@ -155,21 +178,9 @@ async function installInterestPlanListeners() {
 
 export function useInterestPlanEventBridge() {
   useEffect(() => {
-    bridgeRefCount += 1;
     if (!listenerPromise) {
       listenerPromise = installInterestPlanListeners();
     }
-
-    return () => {
-      bridgeRefCount = Math.max(0, bridgeRefCount - 1);
-      if (bridgeRefCount > 0) return;
-
-      const cleanupPromise = listenerPromise;
-      listenerPromise = null;
-      void cleanupPromise?.then((cleanups) => {
-        cleanups.forEach((cleanup) => cleanup());
-      });
-    };
   }, []);
 }
 

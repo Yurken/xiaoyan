@@ -73,9 +73,19 @@ export default function Submission() {
   const [polishSourceId, setPolishSourceId] = useState<string>("");
 
   useEffect(() => {
-    if (board.submissions.length === 0) return;
-    if (!versionSubId) setVersionSubId(board.submissions[0].id);
-    if (!review.subId) review.setSubId(board.submissions[0].id);
+    const firstSubmissionId = board.submissions[0]?.id ?? "";
+    if (!firstSubmissionId) {
+      if (versionSubId) setVersionSubId("");
+      if (review.subId) review.setSubId("");
+      return;
+    }
+
+    if (!versionSubId || !board.submissions.some((submission) => submission.id === versionSubId)) {
+      setVersionSubId(firstSubmissionId);
+    }
+    if (!review.subId || !board.submissions.some((submission) => submission.id === review.subId)) {
+      review.setSubId(firstSubmissionId);
+    }
   }, [board.submissions, versionSubId, review.subId, review]);
 
   // AI review event listeners

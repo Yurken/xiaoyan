@@ -121,6 +121,19 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
         action = latestPaper
           ? paperAction(paperActionLabel("解读", latestPaper), latestPaper)
           : { label: "打开论文库", to: "/papers" };
+      } else if (interest.status === "planned" && papers.length > 1 && analyzedCount < papers.length) {
+        stage = "继续精读";
+        stageTone = "blue";
+        summary = `已经关联 ${papers.length} 篇论文，完成 ${analyzedCount} 篇解读，建议继续分析剩余论文。`;
+        const latestUnanalyzedPaper = [...papers]
+          .filter((paper) => !paper.analysis)
+          .sort((left, right) => toTimestamp(right.updated_at || right.created_at) - toTimestamp(left.updated_at || left.created_at))[0];
+        nextStep = latestUnanalyzedPaper
+          ? `继续让小妍解读《${paperTitlePreview(latestUnanalyzedPaper)}》。`
+          : "继续让小妍把下一篇核心论文解读清楚。";
+        action = latestUnanalyzedPaper
+          ? paperAction(paperActionLabel("解读", latestUnanalyzedPaper), latestUnanalyzedPaper)
+          : { label: "打开论文库", to: "/papers" };
       } else if (interest.status === "planned" && notes.length === 0) {
         stage = "沉淀知识";
         stageTone = "green";
@@ -132,7 +145,7 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
         stageTone = "green";
         summary = "这个主题已经有论文和知识沉淀，可以开始围绕问题继续追问。";
         nextStep = "带着现有材料继续和小妍讨论下一步。";
-        action = { label: "问小妍", to: "/xiaoyan" };
+        action = { label: "开始对话", to: "/chat" };
       } else if (interest.status === "planned") {
         stage = "持续推进";
         stageTone = "blue";
@@ -147,7 +160,7 @@ function buildInterestSnapshots(source: WorkbenchOverviewSource): InterestSnapsh
           stage = checkpointSummary.hasOpenQuestions ? "问题待确认" : "接续追问";
           stageTone = checkpointSummary.hasFailed ? "rust" : checkpointSummary.hasOpenQuestions ? "amber" : "blue";
           summary = checkpointSummary.summary || summary;
-          action = { label: "接着问", to: "/xiaoyan" };
+          action = { label: "继续对话", to: "/chat" };
         }
       }
 
@@ -299,7 +312,7 @@ function buildHandoffs(source: WorkbenchOverviewSource): WorkbenchHandoffItem[] 
       title: latestSession.title || "继续刚才那次对话",
       description: `${formatDateTime(latestSession.updated_at || latestSession.created_at)} 有过更新，适合直接接着追问。`,
       tone: "amber",
-      action: { label: "打开小妍", to: "/xiaoyan" },
+      action: { label: "打开对话", to: "/chat" },
     });
   }
 
@@ -475,7 +488,7 @@ export function buildWorkbenchOverviewModel(source: WorkbenchOverviewSource): Wo
         ? "小妍先把值得继续的主题、刚交回来的结果和容易拖慢进展的事项整理到一起，让你回到首页就知道下一步。"
         : "从研究问题、关键词和目标开始，小妍会先帮你搭起路线，再把论文、知识和对话逐步接回来。",
     primaryAction,
-    secondaryAction: { label: "打开小妍", to: "/xiaoyan" },
+    secondaryAction: { label: "打开对话", to: "/chat" },
     metrics: [
       {
         label: "在研主题",

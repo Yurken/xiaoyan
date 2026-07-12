@@ -3,6 +3,7 @@
 //! 替代原有 `context_parts: Vec<String>` 的扁平拼接模式，
 //! 让下游 Worker 能读取上游 Worker 的结构化输出。
 
+use crate::text_utils::truncate_chars_with_ellipsis;
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -188,8 +189,8 @@ pub fn extract_summary(content: &str) -> String {
             return trimmed[..sep_pos].to_string();
         }
     }
-    if trimmed.len() > 1500 {
-        format!("{}…", &trimmed[..1500])
+    if trimmed.chars().count() > 1500 {
+        truncate_chars_with_ellipsis(trimmed, 1500)
     } else {
         trimmed.to_string()
     }
@@ -421,6 +422,14 @@ mod tests {
     fn extract_summary_short_content() {
         let content = "这是一段短文本";
         assert_eq!(extract_summary(content), "这是一段短文本");
+    }
+
+    #[test]
+    fn extract_summary_handles_multibyte_text_without_panicking() {
+        let content = "研究路径".repeat(600);
+        let summary = extract_summary(&content);
+        assert!(summary.ends_with('…'));
+        assert!(summary.chars().count() <= 1501);
     }
 
     #[test]

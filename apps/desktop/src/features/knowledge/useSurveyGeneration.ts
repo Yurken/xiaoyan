@@ -11,8 +11,22 @@ import {
   type SurveyAgentState,
 } from "./shared";
 import { createSurveyRequestId, registerSurveyEventListeners } from "./surveyEvents";
+import {
+  clearSurveyGenerationResult,
+  hasSurveyGenerationResultState,
+} from "./surveyDraftState";
+import {
+  clearSurveyRunSnapshot,
+  failSurveyRunSnapshot,
+  resumeSurveyRunSnapshot,
+  startSurveyRunSnapshot,
+  useActiveSurveyRunSnapshot,
+  useSurveyRunEventBridge,
+} from "./useSurveyRunSnapshots";
 
 export function useSurveyGeneration(): SurveyGenerationController {
+  useSurveyRunEventBridge();
+  const runSnapshot = useActiveSurveyRunSnapshot();
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const [selectedInterestId, setSelectedInterestId] = useState("");
   const [interestPapers, setInterestPapers] = useState<Paper[]>([]);
@@ -39,6 +53,7 @@ export function useSurveyGeneration(): SurveyGenerationController {
   const contentRef = useRef("");
   const requestIdRef = useRef<string | null>(null);
   const unlistenersRef = useRef<Array<() => void>>([]);
+  const restoredPaperIdsRef = useRef<string[] | null>(null);
   const cleanupSurveyListeners = useCallback(() => {
     unlistenersRef.current.forEach((cleanup) => cleanup());
     unlistenersRef.current = [];
@@ -73,7 +88,12 @@ export function useSurveyGeneration(): SurveyGenerationController {
       .then((data) => {
         if (cancelled) return;
         setInterestPapers(data);
-        setSelectedPaperIds(data.map((paper) => paper.id));
+        if (restoredPaperIdsRef.current) {
+          setSelectedPaperIds(restoredPaperIdsRef.current);
+          restoredPaperIdsRef.current = null;
+        } else {
+          setSelectedPaperIds(data.map((paper) => paper.id));
+        }
       })
       .catch(() => {
         if (cancelled) return;
@@ -91,34 +111,128 @@ export function useSurveyGeneration(): SurveyGenerationController {
 
   useEffect(() => cleanupSurveyListeners, [cleanupSurveyListeners]);
 
+  useEffect(() => {
+    if (!runSnapshot) return;
+    requestIdRef.current = runSnapshot.requestId;
+    contentRef.current = runSnapshot.content;
+    setQuery(runSnapshot.query);
+    setMaxPapers(String(runSnapshot.maxPapers));
+    setTimeFrom(runSnapshot.timeFrom ? String(runSnapshot.timeFrom) : "");
+    setTimeTo(runSnapshot.timeTo ? String(runSnapshot.timeTo) : "");
+    setLitTypes(runSnapshot.litTypes);
+    setDatabases(runSnapshot.databases);
+    setCitationFormat(runSnapshot.citationFormat);
+    setLanguage(runSnapshot.language);
+    setSelectedInterestId(runSnapshot.selectedInterestId ?? "");
+    restoredPaperIdsRef.current = runSnapshot.paperIds ?? null;
+    setSelectedPaperIds(runSnapshot.paperIds ?? []);
+    setContent(runSnapshot.content);
+    setAgents(runSnapshot.agents);
+    setStructured(runSnapshot.structured);
+    setError(runSnapshot.error ?? "");
+    setGenerating(runSnapshot.status === "running");
+  }, [runSnapshot]);
+
   const effectiveMaxPapers = useMemo(() => {
     return normalizeSurveyPaperLimit(maxPapers).value ?? SURVEY_DEFAULT_MAX_PAPERS;
   }, [maxPapers]);
 
+  const hasSessionResult = hasSurveyGenerationResultState({ agents, structured, content, error });
+
+  const resetCurrentResult = useCallback(() => {
+    if (generating || (!hasSessionResult && !runSnapshot)) return;
+    clearSurveyGenerationResult({
+      cleanupSurveyListeners,
+      clearSnapshot: clearSurveyRunSnapshot,
+      contentRef,
+      requestIdRef,
+      setContent,
+      setAgents,
+      setStructured,
+      setError,
+      setActionMessage,
+      setActionError,
+      setGenerating,
+    });
+  }, [cleanupSurveyListeners, error, generating, hasSessionResult, runSnapshot, structured, content, agents]);
+
   const selectInterest = useCallback(
     (id: string) => {
+      if (id !== selectedInterestId) resetCurrentResult();
       setSelectedInterestId(id);
       const interest = interests.find((item) => item.id === id);
       if (interest) setQuery(interest.topic);
     },
-    [interests],
+    [interests, resetCurrentResult, selectedInterestId],
   );
 
   const togglePaper = useCallback((id: string) => {
+    resetCurrentResult();
     setSelectedPaperIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
-  }, []);
+  }, [resetCurrentResult]);
 
   const toggleAllPapers = useCallback(() => {
+    resetCurrentResult();
     setSelectedPaperIds((prev) => (prev.length === interestPapers.length ? [] : interestPapers.map((paper) => paper.id)));
-  }, [interestPapers]);
+  }, [interestPapers, resetCurrentResult]);
 
   const toggleLitType = useCallback((value: string) => {
+    resetCurrentResult();
     setLitTypes((prev) => (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]));
-  }, []);
+  }, [resetCurrentResult]);
 
   const toggleDatabase = useCallback((value: string) => {
+    resetCurrentResult();
     setDatabases((prev) => (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]));
-  }, []);
+  }, [resetCurrentResult]);
+
+  const setQueryValue = useCallback(
+    (value: string) => {
+      if (value !== query) resetCurrentResult();
+      setQuery(value);
+    },
+    [query, resetCurrentResult],
+  );
+
+  const setMaxPapersValue = useCallback(
+    (value: string) => {
+      if (value !== maxPapers) resetCurrentResult();
+      setMaxPapers(value);
+    },
+    [maxPapers, resetCurrentResult],
+  );
+
+  const setTimeFromValue = useCallback(
+    (value: string) => {
+      if (value !== timeFrom) resetCurrentResult();
+      setTimeFrom(value);
+    },
+    [resetCurrentResult, timeFrom],
+  );
+
+  const setTimeToValue = useCallback(
+    (value: string) => {
+      if (value !== timeTo) resetCurrentResult();
+      setTimeTo(value);
+    },
+    [resetCurrentResult, timeTo],
+  );
+
+  const setCitationFormatValue = useCallback(
+    (value: string) => {
+      if (value !== citationFormat) resetCurrentResult();
+      setCitationFormat(value);
+    },
+    [citationFormat, resetCurrentResult],
+  );
+
+  const setLanguageValue = useCallback(
+    (value: string) => {
+      if (value !== language) resetCurrentResult();
+      setLanguage(value);
+    },
+    [language, resetCurrentResult],
+  );
 
   const handleGenerate = useCallback(async () => {
     if (generating) return;
@@ -133,6 +247,20 @@ export function useSurveyGeneration(): SurveyGenerationController {
     contentRef.current = "";
     const requestId = createSurveyRequestId();
     requestIdRef.current = requestId;
+    const paperIds = selectedPaperIds.length > 0 ? selectedPaperIds.slice(0, validation.maxPapers) : undefined;
+    startSurveyRunSnapshot({
+      requestId,
+      query: validation.query,
+      maxPapers: validation.maxPapers,
+      timeFrom: validation.timeFrom,
+      timeTo: validation.timeTo,
+      litTypes,
+      databases,
+      citationFormat,
+      language,
+      paperIds,
+      selectedInterestId: selectedInterestId || undefined,
+    });
     setContent("");
     setAgents([]);
     setStructured(null);
@@ -164,12 +292,14 @@ export function useSurveyGeneration(): SurveyGenerationController {
         databases.length > 0 ? databases : undefined,
         citationFormat,
         language,
-        selectedPaperIds.length > 0 ? selectedPaperIds.slice(0, validation.maxPapers) : undefined,
+        paperIds,
         requestId,
       );
     } catch (nextError) {
       cleanupSurveyListeners();
-      setError(formatErrorMessage(nextError));
+      const message = formatErrorMessage(nextError);
+      failSurveyRunSnapshot(message);
+      setError(message);
       setGenerating(false);
     }
   }, [
@@ -182,9 +312,59 @@ export function useSurveyGeneration(): SurveyGenerationController {
     maxPapers,
     query,
     selectedPaperIds,
+    selectedInterestId,
     timeFrom,
     timeTo,
   ]);
+
+  const handleResumeFailedRun = useCallback(async () => {
+    if (!runSnapshot || runSnapshot.status !== "failed" || generating) return;
+
+    cleanupSurveyListeners();
+    const requestId = createSurveyRequestId();
+    requestIdRef.current = requestId;
+    contentRef.current = runSnapshot.content;
+    resumeSurveyRunSnapshot(runSnapshot, requestId);
+    setContent(runSnapshot.content);
+    setStructured(null);
+    setError("");
+    setActionMessage("");
+    setActionError("");
+    setGenerating(true);
+
+    try {
+      const listeners = await registerSurveyEventListeners({
+        requestIdRef,
+        contentRef,
+        setContent,
+        setGenerating,
+        setError,
+        setAgents,
+        setStructured,
+        cleanupSurveyListeners,
+      });
+      unlistenersRef.current = listeners;
+
+      await apiClient.survey.generate(
+        runSnapshot.query,
+        runSnapshot.maxPapers,
+        runSnapshot.timeFrom,
+        runSnapshot.timeTo,
+        runSnapshot.litTypes.length > 0 ? runSnapshot.litTypes : undefined,
+        runSnapshot.databases.length > 0 ? runSnapshot.databases : undefined,
+        runSnapshot.citationFormat,
+        runSnapshot.language,
+        runSnapshot.paperIds,
+        requestId,
+      );
+    } catch (nextError) {
+      cleanupSurveyListeners();
+      const message = formatErrorMessage(nextError);
+      failSurveyRunSnapshot(message);
+      setError(message);
+      setGenerating(false);
+    }
+  }, [cleanupSurveyListeners, generating, runSnapshot]);
 
   const copySurveyMarkdown = useCallback(async () => {
     const markdown = content.trim();
@@ -247,6 +427,7 @@ export function useSurveyGeneration(): SurveyGenerationController {
       maxPapers !== String(SURVEY_DEFAULT_MAX_PAPERS),
   );
   const hasResults = agents.length > 0 || Boolean(structured) || Boolean(content);
+  const canResumeFailedRun = Boolean(runSnapshot?.status === "failed" && agents.some((agent) => agent.status === "failed"));
 
   return {
     interests,
@@ -261,24 +442,24 @@ export function useSurveyGeneration(): SurveyGenerationController {
     togglePaper,
     toggleAllPapers,
     query,
-    setQuery,
+    setQuery: setQueryValue,
     advancedOpen,
     setAdvancedOpen,
     maxPapers,
-    setMaxPapers,
+    setMaxPapers: setMaxPapersValue,
     effectiveMaxPapers,
     timeFrom,
-    setTimeFrom,
+    setTimeFrom: setTimeFromValue,
     timeTo,
-    setTimeTo,
+    setTimeTo: setTimeToValue,
     litTypes,
     toggleLitType,
     databases,
     toggleDatabase,
     citationFormat,
-    setCitationFormat,
+    setCitationFormat: setCitationFormatValue,
     language,
-    setLanguage,
+    setLanguage: setLanguageValue,
     citationFormatLabel: currentCitationFormatLabel,
     hasAdvancedSettings,
     generating,
@@ -292,7 +473,9 @@ export function useSurveyGeneration(): SurveyGenerationController {
     copying,
     hasResults,
     canSaveResult: Boolean(content.trim()),
+    canResumeFailedRun,
     handleGenerate,
+    handleResumeFailedRun,
     copySurveyMarkdown,
     saveSurveyAsNote,
   };

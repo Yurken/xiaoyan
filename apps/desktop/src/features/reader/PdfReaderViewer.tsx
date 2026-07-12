@@ -12,13 +12,15 @@ import {
   type HighlightColor,
   type NormalizedRect,
   type PaperNote,
+  type ReaderImageSelection,
   type ReaderSelection,
   type ShapeStyle,
 } from "./readerTypes";
-import type { SearchMatch } from "./usePdfSearch";
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
 import { usePdfTextSelection } from "./usePdfTextSelection";
+import { usePdfAreaSelection } from "./usePdfAreaSelection";
 import { registerTextLayer } from "./textLayerSelection";
+import { useLineHighlightInteraction } from "./useLineHighlightInteraction";
 import { openLink } from "../../lib/links";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -32,11 +34,15 @@ interface PdfReaderViewerProps {
   data: Uint8Array;
   notes: PaperNote[];
   scale: number;
+  renderScale?: number;
+  areaSelectEnabled?: boolean;
   onTextSelected: (selection: ReaderSelection) => void;
   onSelectionCleared: () => void;
   onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
   /** Cmd/Ctrl + 滚轮缩放：factor > 1 放大、< 1 缩小。 */
   onZoom: (factor: number) => void;
+  onAreaSelected?: (selection: ReaderImageSelection) => void;
+  onAreaSelectError?: (message: string) => void;
   /** 形状绘制模式：非空时在页面上拖拽画框，而非划词选择。 */
   drawShape?: ShapeStyle | null;
   drawColor?: HighlightColor;
@@ -44,21 +50,15 @@ interface PdfReaderViewerProps {
   onShapeDrawn?: (page: number, rect: NormalizedRect) => void;
   /** 拖动已有形状批注到新位置。 */
   onShapeMove?: (note: PaperNote, rect: NormalizedRect) => void;
-  /** 搜索匹配结果（所有页面）。 */
-  searchMatches?: SearchMatch[];
-  /** 当前激活的搜索匹配项索引（-1 表示无激活项）。 */
-  activeSearchIndex?: number;
 }
 
 export interface PdfReaderViewerHandle {
   scrollToPage: (page: number) => void;
-  getPdfDoc: () => PDFDocumentProxy | null;
-  getNumPages: () => number;
 }
 
 const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
   function PdfReaderViewer(
-    { data, notes, scale, onTextSelected, onSelectionCleared, onNoteClick, onZoom, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove, searchMatches, activeSearchIndex },
+    { data, notes, scale, renderScale = scale, areaSelectEnabled = false, onTextSelected, onSelectionCleared, onNoteClick, onZoom, onAreaSelected, onAreaSelectError, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -106,11 +106,11 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     }, []);
 
-    useImperativeHandle(ref, () => ({ scrollToPage, getPdfDoc: () => pdfDoc, getNumPages: () => numPages }), [scrollToPage, pdfDoc, numPages]);
+    useImperativeHandle(ref, () => ({ scrollToPage }), [scrollToPage]);
 
     usePdfTextSelection({
       containerRef,
-      enabled: Boolean(pdfDoc) && !drawShape, // 形状绘制时关闭划词选择
+      enabled: Boolean(pdfDoc) && !drawShape && !areaSelectEnabled, // 形状/图像框选时关闭划词选择
       onTextSelected,
       onSelectionCleared,
     });
@@ -144,7 +144,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       };
     }, []);
 
-    // 懒渲染：进入视口的页才渲染
+    // 懒渲染：只让视口附近页面参与重绘；离开视口的页面保留旧图，缩放时不抢主线程。
     useEffect(() => {
       const container = containerRef.current;
       if (!container || numPages === 0) return;
@@ -154,12 +154,14 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
             const next = new Set(prev);
             entries.forEach((entry) => {
               const pageNum = parseInt((entry.target as HTMLElement).getAttribute("data-page-num") || "0", 10);
-              if (pageNum > 0 && entry.isIntersecting) next.add(pageNum);
+              if (pageNum <= 0) return;
+              if (entry.isIntersecting) next.add(pageNum);
+              else next.delete(pageNum);
             });
             return next;
           });
         },
-        { root: container, rootMargin: "300px 0px" },
+        { root: container, rootMargin: "600px 0px" },
       );
       pageRefs.current.forEach((el) => el && io.observe(el));
       return () => io.disconnect();
@@ -192,35 +194,31 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
         ref={containerRef}
         className={`h-full space-y-4 overflow-y-auto px-6 py-4${linkMode ? " pdf-links-active" : ""}`}
       >
-        {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => {
-          const pageMatches = searchMatches?.filter((m) => m.pageNum === pageNum) ?? [];
-          const activeOnPage = activeSearchIndex != null && activeSearchIndex >= 0
-            ? searchMatches?.[activeSearchIndex]
-            : null;
-          return (
-            <PdfPage
-              key={pageNum}
-              pageNum={pageNum}
-              pdfDoc={pdfDoc}
-              scale={scale}
-              devicePixelRatio={devicePixelRatio}
-              shouldRender={renderedPages.has(pageNum) || pageNum <= 4}
-              pageNotes={notesByPage.get(pageNum) ?? []}
-              onNoteClick={onNoteClick}
-              onScrollToPage={scrollToPage}
-              drawShape={drawShape}
-              drawColor={drawColor}
-              drawFill={drawFill}
-              onShapeDrawn={onShapeDrawn}
-              onShapeMove={onShapeMove}
-              searchMatches={pageMatches}
-              activeSearchItem={activeOnPage && activeOnPage.pageNum === pageNum ? activeOnPage : null}
-              ref={(el) => {
-                pageRefs.current[pageNum - 1] = el;
-              }}
-            />
-          );
-        })}
+        {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
+          <PdfPage
+            key={pageNum}
+            pageNum={pageNum}
+            pdfDoc={pdfDoc}
+            scale={scale}
+            renderScale={renderScale}
+            areaSelectEnabled={areaSelectEnabled}
+            devicePixelRatio={devicePixelRatio}
+            shouldRender={renderedPages.has(pageNum) || (renderedPages.size === 0 && pageNum <= 4)}
+            pageNotes={notesByPage.get(pageNum) ?? []}
+            onNoteClick={onNoteClick}
+            onScrollToPage={scrollToPage}
+            onAreaSelected={onAreaSelected}
+            onAreaSelectError={onAreaSelectError}
+            drawShape={drawShape}
+            drawColor={drawColor}
+            drawFill={drawFill}
+            onShapeDrawn={onShapeDrawn}
+            onShapeMove={onShapeMove}
+            ref={(el) => {
+              pageRefs.current[pageNum - 1] = el;
+            }}
+          />
+        ))}
       </div>
     );
   },
@@ -256,41 +254,37 @@ interface PdfPageProps {
   pageNum: number;
   pdfDoc: PDFDocumentProxy;
   scale: number;
+  renderScale: number;
+  areaSelectEnabled: boolean;
   devicePixelRatio: number;
   shouldRender: boolean;
   pageNotes: PaperNote[];
   onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
   onScrollToPage: (page: number) => void;
+  onAreaSelected?: (selection: ReaderImageSelection) => void;
+  onAreaSelectError?: (message: string) => void;
   drawShape?: ShapeStyle | null;
   drawColor?: HighlightColor;
   drawFill?: HighlightColor | null;
   onShapeDrawn?: (page: number, rect: NormalizedRect) => void;
   onShapeMove?: (note: PaperNote, rect: NormalizedRect) => void;
-  searchMatches?: SearchMatch[];
-  activeSearchItem?: SearchMatch | null;
 }
 
 const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove, searchMatches, activeSearchItem },
+  { pageNum, pdfDoc, scale, renderScale, areaSelectEnabled, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, onAreaSelected, onAreaSelectError, drawShape, drawColor, drawFill, onShapeDrawn, onShapeMove },
   ref,
 ) {
+  const imageRef = useRef<HTMLImageElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const drawLayerRef = useRef<HTMLDivElement>(null);
   const [draftRect, setDraftRect] = useState<NormalizedRect | null>(null);
   const [movingShape, setMovingShape] = useState<{ id: string; rect: NormalizedRect } | null>(null);
   const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
+  const [renderedScale, setRenderedScale] = useState(renderScale);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [links, setLinks] = useState<PdfLink[]>([]);
-  const [hoveredNote, setHoveredNote] = useState<{ note: PaperNote; x: number; y: number } | null>(null);
-  const hoverTimeoutRef = useRef<number | null>(null);
   const renderedSignatureRef = useRef<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     renderedSignatureRef.current = null;
@@ -325,7 +319,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
         try {
           const page = await pdfDoc.getPage(pageNum);
           if (cancelled) return;
-          const viewport = page.getViewport({ scale });
+          const viewport = page.getViewport({ scale: renderScale });
 
           const actualDpr = window.devicePixelRatio || devicePixelRatio || 1;
           const outputScale = resolveCanvasOutputScale(viewport, actualDpr);
@@ -336,7 +330,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           const pixelHeight = Math.round(cssHeight * outputScale);
 
           const renderSignature = [
-            scale,
+            renderScale,
             outputScale,
             actualDpr,
             cssWidth,
@@ -379,6 +373,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           renderedSignatureRef.current = renderSignature;
           setImgSrc(url);
           setPageSize({ w: cssWidth, h: cssHeight });
+          setRenderedScale(renderScale);
 
           // 文本层（划词选择/批注/翻译依赖它）尽力渲染，失败不影响画布显示。
           try {
@@ -454,7 +449,7 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       }
       cancelAnimationFrame(raf);
     };
-  }, [shouldRender, pdfDoc, pageNum, scale, devicePixelRatio]);
+  }, [shouldRender, pdfDoc, pageNum, renderScale, devicePixelRatio]);
 
   const handleLinkClick = useCallback(
     async (event: React.MouseEvent, link: PdfLink) => {
@@ -523,15 +518,16 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     (event: React.MouseEvent, note: PaperNote, box: NormalizedRect) => {
       event.stopPropagation();
       event.preventDefault(); // 拖动时不要触发原生文字选择
-      const size = pageSize;
-      if (!size) return;
+      if (!pageSize) return;
       const startX = event.clientX;
       const startY = event.clientY;
       const elRect = event.currentTarget.getBoundingClientRect();
+      const pageRect = (event.currentTarget.closest("[data-page-num]") as HTMLElement | null)?.getBoundingClientRect();
+      if (!pageRect || pageRect.width === 0 || pageRect.height === 0) return;
       let moved = false;
       const rectAt = (clientX: number, clientY: number): NormalizedRect => ({
-        x: Math.min(1 - box.w, Math.max(0, box.x + (clientX - startX) / size.w)),
-        y: Math.min(1 - box.h, Math.max(0, box.y + (clientY - startY) / size.h)),
+        x: Math.min(1 - box.w, Math.max(0, box.x + (clientX - startX) / pageRect.width)),
+        y: Math.min(1 - box.h, Math.max(0, box.y + (clientY - startY) / pageRect.height)),
         w: box.w,
         h: box.h,
       });
@@ -552,17 +548,43 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     [pageSize, onShapeMove, onNoteClick],
   );
 
+  const {
+    hoveredNote,
+    showNoteHover,
+    scheduleHoverClear,
+    handlePageClick,
+    handlePageMouseMove,
+    handlePageMouseLeave,
+  } = useLineHighlightInteraction({ pageNotes, pageSize, onNoteClick });
+  const { draftRect: areaDraftRect, startAreaSelection } = usePdfAreaSelection({
+    enabled: areaSelectEnabled,
+    page: pageNum,
+    pageSize,
+    imageRef,
+    onAreaSelected,
+    onError: onAreaSelectError,
+  });
+
+  const visualScaleRatio = renderedScale > 0 ? scale / renderedScale : 1;
   const containerStyle: React.CSSProperties = pageSize
+    ? ({
+        width: pageSize.w * visualScaleRatio,
+        height: pageSize.h * visualScaleRatio,
+      } as React.CSSProperties)
+    : { minHeight: 400, width: "100%" };
+  const renderLayerStyle: React.CSSProperties = pageSize
     ? ({
         width: pageSize.w,
         height: pageSize.h,
-        "--scale-factor": scale,
+        transform: visualScaleRatio === 1 ? undefined : `scale(${visualScaleRatio})`,
+        transformOrigin: "0 0",
+        "--scale-factor": renderedScale,
         "--user-unit": 1,
-        "--total-scale-factor": `calc(${scale} * var(--user-unit))`,
+        "--total-scale-factor": `calc(${renderedScale} * var(--user-unit))`,
         "--scale-round-x": "1px",
         "--scale-round-y": "1px",
       } as React.CSSProperties)
-    : { minHeight: 400, width: "100%" };
+    : {};
 
   return (
     <div
@@ -570,24 +592,29 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
       data-page-num={pageNum}
       className="rc-selectable relative mx-auto select-text"
       style={{ ...containerStyle, background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", borderRadius: 4 }}
+      onClick={areaSelectEnabled ? undefined : handlePageClick}
+      onMouseMove={areaSelectEnabled ? undefined : handlePageMouseMove}
+      onMouseLeave={handlePageMouseLeave}
     >
-      {imgSrc ? (
-        <img
-          src={imgSrc}
-          alt=""
-          draggable={false}
-          className="pointer-events-none absolute left-0 top-0 block"
-          style={pageSize ? { width: pageSize.w, height: pageSize.h } : undefined}
+      <div className="absolute left-0 top-0 origin-top-left" style={renderLayerStyle}>
+        {imgSrc ? (
+          <img
+            ref={imageRef}
+            src={imgSrc}
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute left-0 top-0 block"
+            style={pageSize ? { width: pageSize.w, height: pageSize.h } : undefined}
+          />
+        ) : null}
+        <div
+          ref={textLayerRef}
+          className="textLayer rc-selectable absolute left-0 top-0"
+          style={{ zIndex: 1, width: pageSize?.w, height: pageSize?.h }}
         />
-      ) : null}
-      <div
-        ref={textLayerRef}
-        className="textLayer rc-selectable absolute left-0 top-0"
-        style={{ zIndex: 1, width: pageSize?.w, height: pageSize?.h }}
-      />
 
-      {pageSize
-        ? pageNotes.map((note) => {
+        {pageSize
+          ? pageNotes.map((note) => {
             const color = HIGHLIGHT_COLORS[note.highlight_color];
 
             // 形状：整段套一个外框（矩形/圆角/椭圆），只用颜色描边、内部不填充。
@@ -614,14 +641,9 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
                   style={shapeStyle}
                   title={note.content?.trim() ? undefined : "拖拽移动 · 点击编辑"}
                   onMouseEnter={(event) => {
-                    if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
-                    if (note.content?.trim()) {
-                      setHoveredNote({ note, x: event.currentTarget.offsetLeft, y: event.currentTarget.offsetTop });
-                    }
+                    showNoteHover(note, event.currentTarget.offsetLeft, event.currentTarget.offsetTop);
                   }}
-                  onMouseLeave={() => {
-                    hoverTimeoutRef.current = window.setTimeout(() => setHoveredNote(null), 120);
-                  }}
+                  onMouseLeave={scheduleHoverClear}
                   onMouseDown={(event) => startShapeMove(event, note, stored ?? box)}
                 />
               );
@@ -649,30 +671,16 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
               return (
                 <div
                   key={`${note.id}-${i}`}
-                  className="pdf-highlight-overlay absolute"
+                  className="pdf-highlight-overlay pdf-text-highlight-overlay absolute"
                   style={style}
-                  title={note.content?.trim() ? undefined : "点击编辑批注"}
-                  onMouseEnter={(event) => {
-                    if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
-                    if (note.content?.trim()) {
-                      setHoveredNote({ note, x: event.currentTarget.offsetLeft, y: event.currentTarget.offsetTop });
-                    }
-                  }}
-                  onMouseLeave={() => {
-                    hoverTimeoutRef.current = window.setTimeout(() => setHoveredNote(null), 120);
-                  }}
-                  onClick={(event) => {
-                    const rect = event.currentTarget.getBoundingClientRect();
-                    onNoteClick(note, { x: rect.left + rect.width / 2, y: rect.top });
-                  }}
                 />
               );
             });
           })
-        : null}
+          : null}
 
-      {pageSize
-        ? links.map((link, i) => (
+        {pageSize
+          ? links.map((link, i) => (
             <div
               key={`link-${i}`}
               className="pdf-link-overlay absolute"
@@ -681,77 +689,73 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
               onClick={(event) => void handleLinkClick(event, link)}
             />
           ))
-        : null}
+          : null}
 
-      {hoveredNote ? (
-        <div
-          className="pointer-events-none absolute z-10 max-w-xs rounded-lg border px-3 py-2 text-xs leading-5"
-          style={{
-            left: hoveredNote.x,
-            top: hoveredNote.y,
-            transform: "translateY(-100%)",
-            background: "var(--rc-card-bg)",
-            borderColor: "var(--rc-border)",
-            color: "var(--rc-text)",
-            boxShadow: "var(--rc-card-shadow)",
-          }}
-        >
-          {hoveredNote.note.content}
-        </div>
-      ) : null}
+        {hoveredNote ? (
+          <div
+            className="pointer-events-none absolute z-10 max-w-xs rounded-lg border px-3 py-2 text-xs leading-5"
+            style={{
+              left: hoveredNote.x,
+              top: hoveredNote.y,
+              transform: "translateY(-100%)",
+              background: "var(--rc-card-bg)",
+              borderColor: "var(--rc-border)",
+              color: "var(--rc-text)",
+              boxShadow: "var(--rc-card-shadow)",
+            }}
+          >
+            {hoveredNote.note.content}
+          </div>
+        ) : null}
 
-      {pageSize && searchMatches && searchMatches.length > 0
-        ? searchMatches.map((match, mi) => {
-            const isActive = activeSearchItem != null
-              && activeSearchItem.pageNum === pageNum
-              && match.text === activeSearchItem.text
-              && match.rects.length > 0
-              && activeSearchItem.rects.length > 0
-              && Math.abs(match.rects[0].x - activeSearchItem.rects[0].x) < 0.001
-              && Math.abs(match.rects[0].y - activeSearchItem.rects[0].y) < 0.001;
-
-            return match.rects.map((rect, ri) => (
+        {pageSize && drawShape ? (
+          <div
+            ref={drawLayerRef}
+            className="absolute left-0 top-0"
+            style={{ width: pageSize.w, height: pageSize.h, zIndex: 5, cursor: "crosshair" }}
+            onMouseDown={startDraw}
+          >
+            {draftRect ? (
               <div
-                key={`search-${mi}-${ri}`}
-                className="pointer-events-none absolute rounded-sm"
+                className="pointer-events-none absolute"
                 style={{
-                  left: rect.x * pageSize.w,
-                  top: rect.y * pageSize.h,
-                  width: rect.w * pageSize.w,
-                  height: rect.h * pageSize.h,
-                  zIndex: 4,
-                  background: isActive ? "rgba(255,149,0,0.55)" : "rgba(0,122,255,0.25)",
-                  border: isActive ? "1px solid rgba(255,149,0,0.8)" : "1px solid rgba(0,122,255,0.35)",
-                  borderRadius: 2,
+                  left: draftRect.x * pageSize.w,
+                  top: draftRect.y * pageSize.h,
+                  width: draftRect.w * pageSize.w,
+                  height: draftRect.h * pageSize.h,
+                  border: `2px solid ${(drawColor ? HIGHLIGHT_COLORS[drawColor] : HIGHLIGHT_COLORS.yellow).border}`,
+                  borderRadius: SHAPE_BORDER_RADIUS[drawShape],
+                  background: drawFill ? HIGHLIGHT_COLORS[drawFill].bg : "transparent",
                 }}
               />
-            ));
-          })
-        : null}
+            ) : null}
+          </div>
+        ) : null}
 
-      {pageSize && drawShape ? (
-        <div
-          ref={drawLayerRef}
-          className="absolute left-0 top-0"
-          style={{ width: pageSize.w, height: pageSize.h, zIndex: 5, cursor: "crosshair" }}
-          onMouseDown={startDraw}
-        >
-          {draftRect ? (
-            <div
-              className="pointer-events-none absolute"
-              style={{
-                left: draftRect.x * pageSize.w,
-                top: draftRect.y * pageSize.h,
-                width: draftRect.w * pageSize.w,
-                height: draftRect.h * pageSize.h,
-                border: `2px solid ${(drawColor ? HIGHLIGHT_COLORS[drawColor] : HIGHLIGHT_COLORS.yellow).border}`,
-                borderRadius: SHAPE_BORDER_RADIUS[drawShape],
-                background: drawFill ? HIGHLIGHT_COLORS[drawFill].bg : "transparent",
-              }}
-            />
-          ) : null}
-        </div>
-      ) : null}
+        {pageSize && areaSelectEnabled ? (
+          <div
+            className="absolute left-0 top-0"
+            style={{ width: pageSize.w, height: pageSize.h, zIndex: 6, cursor: "crosshair" }}
+            title="拖拽框选图像区域，让小妍解读"
+            onMouseDown={startAreaSelection}
+          >
+            {areaDraftRect ? (
+              <div
+                className="pointer-events-none absolute rounded-sm border-2"
+                style={{
+                  left: areaDraftRect.x * pageSize.w,
+                  top: areaDraftRect.y * pageSize.h,
+                  width: areaDraftRect.w * pageSize.w,
+                  height: areaDraftRect.h * pageSize.h,
+                  borderColor: "var(--rc-accent)",
+                  background: "rgba(0, 122, 255, 0.12)",
+                  boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.12)",
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       <div
         className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]"

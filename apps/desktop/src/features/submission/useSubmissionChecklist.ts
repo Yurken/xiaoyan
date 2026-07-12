@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { submissionApi } from "../../lib/client";
 import {
   DEFAULT_CHECKLIST,
@@ -11,7 +11,11 @@ export function useSubmissionChecklist(submissions: Submission[], onError?: (err
   const [checklistSubId, setChecklistSubId] = useState("");
   const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
   const [checklistCat, setChecklistCat] = useState<string>("all");
+  const reloadRequestRef = useRef(0);
+
   const reloadChecklist = useCallback(() => {
+    const requestId = reloadRequestRef.current + 1;
+    reloadRequestRef.current = requestId;
     if (!checklistSubId) {
       setChecklist(DEFAULT_CHECKLIST);
       return Promise.resolve();
@@ -20,21 +24,32 @@ export function useSubmissionChecklist(submissions: Submission[], onError?: (err
     return submissionApi
       .getChecklist(checklistSubId)
       .then((response) => {
+        if (reloadRequestRef.current !== requestId) {
+          return;
+        }
         const items = response.checklist.map(rowToChecklistItem);
         setChecklist(items.length > 0 ? items : DEFAULT_CHECKLIST);
       })
       .catch((error) => {
-        onError?.(error);
-        setChecklist(DEFAULT_CHECKLIST);
+        if (reloadRequestRef.current === requestId) {
+          onError?.(error);
+          setChecklist(DEFAULT_CHECKLIST);
+        }
       });
   }, [checklistSubId, onError]);
 
   useEffect(() => {
-    if (checklistSubId || submissions.length === 0) {
+    const firstSubmissionId = submissions[0]?.id ?? "";
+    if (!firstSubmissionId) {
+      if (checklistSubId) {
+        setChecklistSubId("");
+      }
       return;
     }
 
-    setChecklistSubId(submissions[0].id);
+    if (!checklistSubId || !submissions.some((submission) => submission.id === checklistSubId)) {
+      setChecklistSubId(firstSubmissionId);
+    }
   }, [checklistSubId, submissions]);
 
   useEffect(() => {

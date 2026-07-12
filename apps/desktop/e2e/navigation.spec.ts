@@ -33,7 +33,7 @@ test.describe("应用导航", () => {
 
   test("点击对话应导航到对话页", async ({ page }) => {
     await page.getByLabel("对话").click();
-    await expect(page).toHaveURL("/xiaoyan");
+    await expect(page).toHaveURL("/chat");
   });
 
   test("点击综述应导航到综述页", async ({ page }) => {
@@ -77,13 +77,15 @@ test.describe("应用导航", () => {
   });
 
   test("应支持键盘快捷键跳转设置", async ({ page }) => {
+    // 等待侧边栏可见，确保键盘快捷键监听已注册。
+    await expect(page.locator(".app-sidebar")).toBeVisible();
     await page.keyboard.press("Meta+,");
     await expect(page).toHaveURL("/settings");
   });
 
-  test("/copilot 应重定向到 /xiaoyan", async ({ page }) => {
+  test("/copilot 应重定向到 /chat", async ({ page }) => {
     await page.goto("/copilot");
-    await expect(page).toHaveURL("/xiaoyan");
+    await expect(page).toHaveURL("/chat");
   });
 
   test("/write 应重定向到 /writing", async ({ page }) => {

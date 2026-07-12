@@ -5,22 +5,25 @@ import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
 import { CopilotChatArea } from "../features/copilot/CopilotChatArea";
 import { CopilotSessionSidebar } from "../features/copilot/CopilotSessionSidebar";
 import SkillVariableFillModal from "../features/copilot/SkillVariableFillModal";
-import { useCopilotSessions } from "../features/copilot/useCopilotSessions";
+import { COPILOT_LAST_SESSION_KEY, useCopilotSessions } from "../features/copilot/useCopilotSessions";
 import { useCopilotChat } from "../features/copilot/useCopilotChat";
 import { useCopilotAttachments } from "../features/copilot/useCopilotAttachments";
 import { useCopilotChatMode } from "../features/copilot/useCopilotChatMode";
 import { useCopilotDropZone } from "../features/copilot/useCopilotDropZone";
 import { parseCopilotMessageContent } from "../features/copilot/shared";
-import { usePersistentStringState } from "../hooks/usePersistentStringState";
-import { apiClient, formatErrorMessage, settingsApi } from "../lib/client";
+import { clearPersistentValue, readPersistentValue, usePersistentStringState, writePersistentValue } from "../hooks/usePersistentStringState";
+import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
-import type { ChatSession, Skill } from "@research-copilot/types";
+import type { AgentRun, ChatSession, Skill } from "@research-copilot/types";
 import { interestFolderName } from "../lib/interestUtils";
 
 export default function Copilot({ hideFolders = false }: { hideFolders?: boolean }) {
+  const sessionListStorageKey = hideFolders
+    ? "rc:copilot:session-list-mode:focus"
+    : "rc:copilot:session-list-mode";
   const [sessionListMode, setSessionListMode] = usePersistentStringState<"open" | "collapsed">(
-    "rc:copilot:session-list-mode",
-    hideFolders ? "collapsed" : "open",
+    sessionListStorageKey,
+    "open",
     ["open", "collapsed"] as const,
   );
   const sessionListCollapsed = sessionListMode === "collapsed";
@@ -39,6 +42,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const memorySavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadSessionRequestRef = useRef(0);
+  const restoredLastSessionRef = useRef(false);
 
   const {
     attachments,
@@ -65,6 +70,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       if (!skillLocked) setSelectedSkillId(null);
     },
     onSessionCreated: async (sessionId: string) => {
+      writePersistentValue(COPILOT_LAST_SESSION_KEY, sessionId);
       try {
         const updated = await apiClient.chat.listSessions();
         const nextSession = updated.find((s) => s.id === sessionId) ?? null;
@@ -85,22 +91,41 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   // Sync chat reset with session changes
   const handleNewChat = useCallback(() => {
+    loadSessionRequestRef.current += 1;
     sessions.handleNewChat();
     chat.resetChat();
   }, [sessions, chat]);
 
   const handleLoadSession = useCallback(async (session: ChatSession) => {
+    const requestId = loadSessionRequestRef.current + 1;
+    loadSessionRequestRef.current = requestId;
     chat.cancelActiveStream();
     const sessionData = await sessions.loadSession(session);
-    if (!sessionData) return;
-    chat.resetChat();
-    chat.setMessages(sessionData.messages ?? []);
+    if (!sessionData || loadSessionRequestRef.current !== requestId) return;
+    let runData: AgentRun[] = [];
     try {
-      const runData = await apiClient.chat.listAgentRuns(session.id);
-      chat.setAgentRuns(runData);
-    } catch (err) { console.warn("Failed to load agent runs:", err); }
-    chat.setSidebarCollapsed(true);
+      runData = await apiClient.chat.listAgentRuns(session.id);
+    } catch (err) {
+      console.warn("Failed to load agent runs:", err);
+    }
+    if (loadSessionRequestRef.current === requestId) {
+      chat.restoreLoadedSession(sessionData, runData);
+    }
   }, [sessions, chat]);
+
+  useEffect(() => {
+    if (restoredLastSessionRef.current) return;
+    if (!sessions.sessionsLoaded || sessions.currentSession) return;
+    restoredLastSessionRef.current = true;
+    const lastSessionId = readPersistentValue(COPILOT_LAST_SESSION_KEY);
+    if (!lastSessionId) return;
+    const lastSession = sessions.sessions.find((session) => session.id === lastSessionId);
+    if (!lastSession) {
+      clearPersistentValue(COPILOT_LAST_SESSION_KEY);
+      return;
+    }
+    void handleLoadSession(lastSession);
+  }, [handleLoadSession, sessions.currentSession, sessions.sessions, sessions.sessionsLoaded]);
 
   // Skills
   useEffect(() => {
@@ -108,41 +133,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       // 对话技能选择器只收提示词技能；工具技能（如 PPT 生成）走工具页专用流程。
       setSkills(data.filter((s) => s.is_enabled && s.kind !== "tool"));
     }).catch((err) => { console.warn("Failed to load skills:", err); });
-  }, []);
-
-  // ── 流光模型 ──────────────────────────────────────────────────
-  const [copilotModel, setCopilotModel] = useState("");
-  const [copilotModelOptions, setCopilotModelOptions] = useState<{ id: string; label: string }[]>([]);
-  const [copilotModelsLoading, setCopilotModelsLoading] = useState(false);
-
-  const loadCopilotModels = useCallback(async () => {
-    setCopilotModelsLoading(true);
-    try {
-      const s = await settingsApi.get();
-      const current = s.copilot_simple_model || "";
-      const remote = await settingsApi.listModels(s);
-      const opts = remote.map((m) => ({ id: m, label: m }));
-      setCopilotModel(current);
-      setCopilotModelOptions(opts);
-    } catch {
-      // keep defaults on error
-    } finally {
-      setCopilotModelsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadCopilotModels();
-  }, [loadCopilotModels]);
-
-  const changeCopilotModel = useCallback(async (model: string) => {
-    if (!model) return;
-    setCopilotModel(model);
-    try {
-      await settingsApi.update({ copilot_simple_model: model });
-    } catch (err) {
-      console.warn("Failed to update copilot model:", err);
-    }
   }, []);
 
   // Cleanup：仅在卸载时取消进行中的流。
@@ -222,6 +212,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const artifacts = useMemo(() => {
     return displayedRuns.flatMap((run) => run.artifacts ?? []);
   }, [displayedRuns]);
+  const contextMenu = sessions.contextMenu;
 
   return (
     <>
@@ -310,8 +301,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               input={chat.input}
               onInputChange={chat.setInput}
               onSubmit={chat.handleSend}
+              onCancel={chat.stopGenerating}
               sending={chat.sending}
-              onStop={chat.cancelActiveStream}
               uploadingAttachments={uploadingAttachments}
               attachments={attachments}
               pickAttachments={pickAttachments}
@@ -322,10 +313,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               onSelectedSkillChange={setSelectedSkillId}
               skillLocked={skillLocked}
               onSkillLockedChange={setSkillLocked}
-              copilotModel={copilotModel}
-              copilotModelOptions={copilotModelOptions}
-              copilotModelsLoading={copilotModelsLoading}
-              onChangeCopilotModel={changeCopilotModel}
             />
           </div>
         </div>
@@ -356,12 +343,12 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       )}
 
       {/* 会话右键菜单 */}
-      {sessions.contextMenu && (
+      {contextMenu && (
         <div
           className="fixed z-50 min-w-[160px] overflow-hidden rounded-2xl py-1.5 text-xs"
           style={{
-            left: sessions.contextMenu.x,
-            top: sessions.contextMenu.y,
+            left: contextMenu.x,
+            top: contextMenu.y,
             background: "var(--rc-elevated)",
             boxShadow: "var(--rc-chip-shadow)",
           }}
@@ -372,7 +359,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           </div>
           <button
             className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
-            onClick={() => void sessions.handleMoveSession(sessions.contextMenu!.session, "")}
+            onClick={() => void sessions.handleMoveSession(contextMenu.session, "")}
           >
             未归类
           </button>
@@ -380,7 +367,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
             <button
               key={interest.id}
               className="w-full px-3 py-1.5 text-left text-ink-secondary transition-colors hover:bg-nm-dark/8 hover:text-ink-primary"
-              onClick={() => void sessions.handleMoveSession(sessions.contextMenu!.session, interest.id)}
+              onClick={() => void sessions.handleMoveSession(contextMenu.session, interest.id)}
             >
               {interestFolderName(interest)}
             </button>
@@ -389,7 +376,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           <button
             className="w-full px-3 py-1.5 text-left text-apple-red transition-colors hover:bg-apple-red/8"
             onClick={() => {
-              void sessions.handleDeleteSession(sessions.contextMenu!.session.id);
+              void sessions.handleDeleteSession(contextMenu.session.id);
               sessions.setContextMenu(null);
             }}
           >

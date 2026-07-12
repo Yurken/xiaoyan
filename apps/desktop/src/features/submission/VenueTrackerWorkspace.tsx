@@ -113,11 +113,14 @@ export default function VenueTrackerWorkspace({
         ) : null}
         {visibleVenues.map((venue) => {
           const conference = venue.type === "conference";
+          const conferenceVenue = conference ? venue as Conference : null;
+          const journalVenue = conference ? null : venue as Journal;
           const days = conference
-            ? venue.deadline ? getDaysUntil(venue.deadline) : null
-            : venue.specialIssueDeadline ? getDaysUntil(venue.specialIssueDeadline) : null;
+            ? conferenceVenue?.deadline ? getDaysUntil(conferenceVenue.deadline) : null
+            : journalVenue?.specialIssueDeadline ? getDaysUntil(journalVenue.specialIssueDeadline) : null;
           const deadlineStyle = days !== null ? getDdlStyle(days) : null;
           const ccfStyle = CCF_STYLE[venue.ccf];
+          const sciQuartile = journalVenue?.sciQuartile;
 
           return (
             <Card key={venue.id} padding="sm" className="group">
@@ -145,7 +148,7 @@ export default function VenueTrackerWorkspace({
                         CCF {venue.ccf}
                       </span>
                     ) : null}
-                    {!conference && (venue as Journal).sci ? (
+                    {journalVenue?.sci ? (
                       <span
                         className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
                         style={{ background: "rgba(52,199,89,0.12)", color: "#1A7F37" }}
@@ -153,18 +156,17 @@ export default function VenueTrackerWorkspace({
                         SCI
                       </span>
                     ) : null}
-                    {!conference && (venue as Journal).sciQuartile ? (() => {
-                      const quartile = (venue as Journal).sciQuartile!;
-                      const quartileColor = quartile === "Q1" ? { bg: "rgba(88,86,214,0.12)", color: "#5856D6" }
-                        : quartile === "Q2" ? { bg: "rgba(0,122,255,0.12)", color: "#007AFF" }
-                        : quartile === "Q3" ? { bg: "rgba(255,149,0,0.12)", color: "#E65100" }
+                    {sciQuartile ? (() => {
+                      const quartileColor = sciQuartile === "Q1" ? { bg: "rgba(88,86,214,0.12)", color: "#5856D6" }
+                        : sciQuartile === "Q2" ? { bg: "rgba(0,122,255,0.12)", color: "#007AFF" }
+                        : sciQuartile === "Q3" ? { bg: "rgba(255,149,0,0.12)", color: "#E65100" }
                         : { bg: "rgba(142,142,147,0.12)", color: "#6B6B6B" };
                       return (
                         <span
                           className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
                           style={{ background: quartileColor.bg, color: quartileColor.color }}
                         >
-                          {quartile}
+                          {sciQuartile}
                         </span>
                       );
                     })() : null}
@@ -197,10 +199,10 @@ export default function VenueTrackerWorkspace({
                   <div className="flex items-center gap-3 mt-1">
                     {conference ? (
                       <>
-                        {(venue as Conference).deadline ? (
+                        {conferenceVenue?.deadline ? (
                           <span className="flex items-center gap-1 text-[11px] text-ink-tertiary">
                             <Clock className="w-3 h-3" />
-                            截止 {(venue as Conference).deadline!.toLocaleDateString("zh-CN")}
+                            截止 {conferenceVenue.deadline.toLocaleDateString("zh-CN")}
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-[11px] text-ink-tertiary">
@@ -208,10 +210,10 @@ export default function VenueTrackerWorkspace({
                             等待官方 DDL
                           </span>
                         )}
-                        {(venue as Conference).notificationDate ? (
+                        {conferenceVenue?.notificationDate ? (
                           <span className="flex items-center gap-1 text-[11px] text-ink-tertiary">
                             <Bell className="w-3 h-3" />
-                            通知 {(venue as Conference).notificationDate!.toLocaleDateString("zh-CN")}
+                            通知 {conferenceVenue.notificationDate.toLocaleDateString("zh-CN")}
                           </span>
                         ) : null}
                       </>
@@ -221,10 +223,10 @@ export default function VenueTrackerWorkspace({
                           <BookOpen className="w-3 h-3" />
                           随时投稿
                         </span>
-                        {(venue as Journal).specialIssueDeadline && (venue as Journal).specialIssueTitle ? (
+                        {journalVenue?.specialIssueDeadline && journalVenue.specialIssueTitle ? (
                           <span className="flex items-center gap-1 text-[11px]" style={{ color: "#FF9500" }}>
                             <Bell className="w-3 h-3" />
-                            特刊「{(venue as Journal).specialIssueTitle}」截止 {(venue as Journal).specialIssueDeadline!.toLocaleDateString("zh-CN")}
+                            特刊「{journalVenue.specialIssueTitle}」截止 {journalVenue.specialIssueDeadline.toLocaleDateString("zh-CN")}
                           </span>
                         ) : null}
                       </>
@@ -237,7 +239,7 @@ export default function VenueTrackerWorkspace({
                     className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold"
                     style={{ background: deadlineStyle.bg, color: deadlineStyle.color }}
                   >
-                    {days! < 0 ? "已截止" : `还剩 ${deadlineStyle.label}`}
+                    {days !== null && days < 0 ? "已截止" : `还剩 ${deadlineStyle.label}`}
                   </div>
                 ) : null}
 

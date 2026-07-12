@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{oneshot, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock};
 
 /// Sensitive settings keys — masked as "***" in GET responses.
 pub const SENSITIVE_KEYS: &[&str] = &[
@@ -8,6 +8,7 @@ pub const SENSITIVE_KEYS: &[&str] = &[
     "anthropic_api_key",
     "openai_compatible_api_key",
     "embedding_api_key",
+    "github_api_key",
     "semantic_scholar_api_key",
     "tavily_api_key",
     "planner_hint_api_key",
@@ -28,6 +29,7 @@ pub const SENSITIVE_KEYS: &[&str] = &[
     "multi_agent_synthesis_api_key",
     "vision_api_key",
     "translation_api_key",
+    "opencode_api_key",
     "app_lock_password_salt",
     "app_lock_password_hash",
 ];
@@ -38,16 +40,22 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("llm_provider".into(), "openai_compatible".into());
     m.insert("openai_api_key".into(), "".into());
     m.insert("openai_base_url".into(), "https://api.openai.com/v1".into());
-    m.insert("openai_chat_model".into(), "".into());
+    m.insert("openai_chat_model".into(), "gpt-4o-mini".into());
     m.insert(
         "openai_embedding_model".into(),
         "text-embedding-3-small".into(),
     );
     m.insert("anthropic_api_key".into(), "".into());
-    m.insert("anthropic_chat_model".into(), "".into());
+    m.insert(
+        "anthropic_chat_model".into(),
+        "claude-3-5-haiku-20241022".into(),
+    );
     m.insert("openai_compatible_base_url".into(), "".into());
     m.insert("openai_compatible_api_key".into(), "".into());
-    m.insert("openai_compatible_chat_model".into(), "".into());
+    m.insert(
+        "openai_compatible_chat_model".into(),
+        "deepseek-chat".into(),
+    );
     m.insert(
         "openai_compatible_embedding_model".into(),
         "BAAI/bge-m3".into(),
@@ -59,6 +67,7 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("embedding_api_key".into(), "".into());
     m.insert("embedding_model".into(), "".into());
     m.insert("paper_search_engine".into(), "arxiv".into());
+    m.insert("github_api_key".into(), "".into());
     m.insert("semantic_scholar_api_key".into(), "".into());
     m.insert("planner_hint_model".into(), "".into());
     m.insert("planner_hint_base_url".into(), "".into());
@@ -262,7 +271,14 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("app_lock_password_salt".into(), "".into());
     m.insert("app_lock_password_hash".into(), "".into());
     m.insert("app_lock_timeout_minutes".into(), "0".into());
-    // 代码功能使用各本地工具自身的鉴权/模型配置，不在此暴露小妍侧的 code API 设置。
+    // OpenCode settings
+    m.insert("opencode_enabled".into(), "true".into());
+    m.insert("opencode_binary_path".into(), "".into());
+    m.insert("opencode_model".into(), "".into());
+    m.insert("opencode_base_url".into(), "".into());
+    m.insert("opencode_api_key".into(), "".into());
+    m.insert("opencode_temperature".into(), "0.3".into());
+    m.insert("opencode_max_tokens".into(), "16384".into());
     m
 }
 
@@ -273,11 +289,6 @@ pub struct AppState {
     pub settings: Arc<RwLock<HashMap<String, String>>>,
     /// Active chat stream handles keyed by request_id.
     pub chat_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
-    /// Active code chat handles keyed by request_id.
-    pub code_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
-    /// Pending visual approvals for code tools that can mutate files or run commands.
-    pub code_permissions:
-        Arc<Mutex<HashMap<String, oneshot::Sender<crate::code::CodePermissionDecision>>>>,
     /// 串行化 WebDAV 同步：保证同一时刻只有一次同步在运行。
     pub sync_lock: Arc<Mutex<()>>,
     /// 同步状态，供前端订阅展示。
@@ -290,8 +301,6 @@ impl AppState {
             db,
             settings: Arc::new(RwLock::new(settings)),
             chat_handles: Arc::new(Mutex::new(HashMap::new())),
-            code_handles: Arc::new(Mutex::new(HashMap::new())),
-            code_permissions: Arc::new(Mutex::new(HashMap::new())),
             sync_lock: Arc::new(Mutex::new(())),
             sync_status: Arc::new(RwLock::new(
                 crate::services::sync_service::SyncStatus::default(),

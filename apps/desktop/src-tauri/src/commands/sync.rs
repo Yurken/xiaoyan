@@ -10,6 +10,7 @@ use tauri::State;
 #[derive(Debug, Serialize)]
 pub struct SyncConfigView {
     pub configured: bool,
+    pub has_saved_credentials: bool,
     pub url: String,
     pub username: String,
 }
@@ -23,8 +24,21 @@ pub async fn sync_configure(
     username: String,
     password: String,
 ) -> Result<SyncSummary, String> {
+    let url = url.trim().trim_end_matches('/').to_string();
+    let username = username.trim().to_string();
+    let password = if password.trim().is_empty() {
+        let Some(saved) = secure_store::load()? else {
+            return Err("请填写 WebDAV 密码".to_string());
+        };
+        if saved.url != url || saved.username != username {
+            return Err("服务器地址或用户名已变更，请填写 WebDAV 密码".to_string());
+        }
+        saved.password
+    } else {
+        password
+    };
     let config = WebdavConfig {
-        url: url.trim().trim_end_matches('/').to_string(),
+        url,
         username,
         password,
     };
@@ -34,6 +48,7 @@ pub async fn sync_configure(
         url: config.url.clone(),
         username: config.username.clone(),
         password: config.password.clone(),
+        enabled: true,
     })?;
 
     {
@@ -41,7 +56,7 @@ pub async fn sync_configure(
         s.configured = true;
     }
 
-    match sync_service::run_sync(state.inner(), &app).await? {
+    match sync_service::run_manual_sync(state.inner(), &app).await? {
         Some(summary) => Ok(summary),
         None => Err("同步正在进行中，请稍候".to_string()),
     }
@@ -52,12 +67,14 @@ pub async fn sync_configure(
 pub async fn sync_get_config() -> Result<SyncConfigView, String> {
     match secure_store::load()? {
         Some(creds) => Ok(SyncConfigView {
-            configured: true,
+            configured: creds.enabled,
+            has_saved_credentials: true,
             url: creds.url,
             username: creds.username,
         }),
         None => Ok(SyncConfigView {
             configured: false,
+            has_saved_credentials: false,
             url: String::new(),
             username: String::new(),
         }),
@@ -76,13 +93,16 @@ pub async fn sync_now(
     state: State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<Option<SyncSummary>, String> {
-    sync_service::run_sync(state.inner(), &app).await
+    sync_service::run_manual_sync(state.inner(), &app).await
 }
 
-/// 停用同步并清除钥匙串中的凭据。
+/// 停用同步，但保留钥匙串中的凭据，便于之后无需重新填写即可启用。
 #[tauri::command]
 pub async fn sync_disable(state: State<'_, AppState>) -> Result<(), String> {
-    secure_store::clear()?;
+    if let Some(mut creds) = secure_store::load()? {
+        creds.enabled = false;
+        secure_store::save(&creds)?;
+    }
     let mut s = state.sync_status.write().await;
     s.configured = false;
     s.last_message = None;

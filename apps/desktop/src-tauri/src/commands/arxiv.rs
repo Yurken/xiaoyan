@@ -1,5 +1,6 @@
 use crate::assistant_prompts::specialist_system;
 use crate::llm::{resolve_model, resolve_temperature_chain, LlmClient, LlmMessage};
+use crate::semantic_scholar::throttle_semantic_scholar_request;
 use crate::state::AppState;
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Duration, Utc};
@@ -12,7 +13,7 @@ use std::time::{Duration as StdDuration, Instant};
 use tauri::State;
 
 const ARXIV_API_URL: &str = "https://export.arxiv.org/api/query";
-const ARXIV_USER_AGENT: &str = "xiaoyan-desktop/0.4.3 (mailto:xiaoyan@example.com)";
+const ARXIV_USER_AGENT: &str = "xiaoyan-desktop/0.4.9 (mailto:xiaoyan@example.com)";
 const ARXIV_MIN_INTERVAL_SECS: f64 = 3.5;
 const ARXIV_MAX_RETRIES: u32 = 3;
 
@@ -517,6 +518,7 @@ pub async fn search_semantic_scholar_hints(
         builder = builder.header("x-api-key", api_key);
     }
 
+    throttle_semantic_scholar_request().await;
     let resp = builder.send().await.context("Semantic Scholar 请求失败")?;
     if !resp.status().is_success() {
         let status = resp.status();

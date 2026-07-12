@@ -27,21 +27,32 @@ export default function SubmissionPageHeader({
   const stats = { conferencesCount, journalsCount, activeCount, acceptedCount };
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <SubmissionTabs activeTab={activeTab} onTabChange={onTabChange} />
-      <div className="flex flex-wrap gap-2">
-        {statItems.map((stat) => (
-          <div
-            key={stat.key}
-            className="flex items-center gap-1.5 rounded-2xl px-3 py-1.5"
-            style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
-          >
-            <span className="text-lg font-bold tabular-nums" style={{ color: stat.color }}>
-              {stats[stat.key]}
-            </span>
-            <span className="text-[11px] text-ink-tertiary">{stat.label}</span>
-          </div>
-        ))}
+    // 直接置于 rc-app-page 的标准内边距下，与论文库/规划/综述等页面对齐（不再叠加 px-6/app-header 造成双重缩进）。
+    <div>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-ink-primary">投稿管理</h1>
+          <p className="mt-1 text-sm text-ink-tertiary">追踪会议和期刊的截稿日期，小妍陪你走完论文投稿的每一步。</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          {statItems.map((stat) => (
+            <div
+              key={stat.key}
+              className="min-w-[92px] rounded-2xl px-3.5 py-2"
+              style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
+            >
+              <p className="text-[11px] text-ink-tertiary">{stat.label}</p>
+              <p className="mt-0.5 text-xl font-bold tabular-nums" style={{ color: stat.color }}>
+                {stats[stat.key]}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <SubmissionTabs activeTab={activeTab} onTabChange={onTabChange} />
       </div>
     </div>
   );

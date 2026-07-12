@@ -49,7 +49,7 @@ function checkpointAction(checkpoint: WorkbenchCheckpointItem): WorkbenchLinkAct
   if (checkpoint.contextType === "paper" && checkpoint.contextId) {
     return { label: "打开论文", to: `/papers?paper=${encodeURIComponent(checkpoint.contextId)}` };
   }
-  return { label: "打开小妍", to: "/xiaoyan" };
+  return { label: "打开对话", to: "/chat" };
 }
 
 function checkpointTone(checkpoint: WorkbenchCheckpointItem): WorkbenchTone {

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { clsx } from "clsx";
 import { Select } from "@research-copilot/ui";
 import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspace";
@@ -11,14 +11,27 @@ import { usePersistentStringState } from "../hooks/usePersistentStringState";
 type KnowledgeView = "graph" | "notes";
 const KNOWLEDGE_VIEWS: readonly KnowledgeView[] = ["graph", "notes"];
 
-export default function Knowledge({ hideFolders = false }: { hideFolders?: boolean }) {
+export default function Knowledge({
+  hideFolders = false,
+  researchInterestId,
+}: {
+  hideFolders?: boolean;
+  researchInterestId?: string;
+}) {
   const [view, setView] = usePersistentStringState<KnowledgeView>(
     "rc:knowledge:view",
     "graph",
     KNOWLEDGE_VIEWS,
   );
   const graphController = useKnowledgeGraphWorkspace();
+  const { setActiveInterestId } = graphController;
   useDomainEventRefresh("knowledge:note_created", () => { graphController.refresh(); });
+
+  useEffect(() => {
+    if (researchInterestId) {
+      setActiveInterestId(researchInterestId);
+    }
+  }, [setActiveInterestId, researchInterestId]);
   const interestOptions = useMemo(
     () => buildInterestSelectOptions(graphController.snapshot?.interests ?? []),
     [graphController.snapshot?.interests],
@@ -65,8 +78,17 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
   );
 
   return (
-    <div className="rc-app-page h-full flex flex-col">
-      <div className={clsx("space-y-4", (view === "notes" && hideFolders) && "mx-auto w-full max-w-5xl px-4")}>
+    <div className={clsx("rc-app-page flex h-full min-w-0 flex-col", hideFolders && "rc-knowledge-focus-page")}>
+      <div className="min-w-0 space-y-4">
+        {!hideFolders && (
+          <div className="shrink-0">
+            <h1 className="text-2xl font-bold text-ink-primary">知识库</h1>
+            <p className="mt-1 text-sm text-ink-tertiary">
+              不只是记笔记。把论文、观点、证据和实验串联成可追溯的知识图谱，让每个结论都有据可查。
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div
             className="inline-flex rounded-2xl border p-1"
@@ -99,7 +121,7 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
             })}
           </div>
 
-          {view === "notes" && graphController.snapshot ? (
+          {view === "notes" && graphController.snapshot && !researchInterestId ? (
             <Select
               className="w-full lg:w-[260px]"
               prefix="聚焦："
@@ -112,13 +134,16 @@ export default function Knowledge({ hideFolders = false }: { hideFolders?: boole
         </div>
       </div>
 
-      <div key={view} className={clsx("mt-6", (view === "notes" && hideFolders) && "mx-auto w-full max-w-5xl px-4")} style={{ animation: "rc-view-enter 0.28s ease-out" }}>
+      <div key={view} className="mt-6 min-w-0" style={{ animation: "rc-view-enter 0.28s ease-out" }}>
         {view === "graph" ? (
-          <KnowledgeGraphWorkspace controller={graphController} />
+          <KnowledgeGraphWorkspace
+            controller={graphController}
+            hideFocusControls={Boolean(researchInterestId)}
+          />
         ) : (
           <NotesPanel
             hideFolders={hideFolders}
-            researchInterestId={graphController.activeInterestId ?? undefined}
+            researchInterestId={researchInterestId ?? graphController.activeInterestId ?? undefined}
             initialNotes={initialNotes}
             initialInterests={initialInterests}
             linkedNoteClaimCounts={linkedNoteClaimCounts}

@@ -320,56 +320,106 @@ pub async fn list_dir(config: &WebdavConfig, path: &str) -> Result<Vec<WebdavFil
 }
 
 fn parse_propfind_response(xml: &str) -> Result<Vec<WebdavFile>, String> {
+    const DAV_NAMESPACE: &str = "DAV:";
+
+    let document = roxmltree::Document::parse(xml)
+        .map_err(|error| format!("解析 WebDAV 目录响应失败: {error}"))?;
     let mut files = Vec::new();
-    let mut remaining = xml;
 
-    while let Some(resp_start) = remaining.find("<D:response") {
-        let resp_block = &remaining[resp_start..];
-        let resp_end = resp_block.find("</D:response>").unwrap_or(resp_block.len());
-        let response = &resp_block[..resp_end + "</D:response>".len()];
-
-        let href = extract_xml_content(response, "D:href");
-        let displayname = extract_xml_content(response, "D:displayname");
-        let size_str = extract_xml_content(response, "D:getcontentlength");
-        let modified = extract_xml_content(response, "D:getlastmodified");
-
-        let is_collection = response.contains("<D:collection/>");
-        if !is_collection && !href.is_empty() {
-            let name = if !displayname.is_empty() {
-                displayname
-            } else {
-                href.split('/').last().unwrap_or(&href).to_string()
-            };
-
-            let size: u64 = size_str.parse().unwrap_or(0);
-            if size > 0 {
-                files.push(WebdavFile {
-                    name,
-                    path: href,
-                    size,
-                    last_modified: modified,
-                });
-            }
+    for response in document.descendants().filter(|node| {
+        node.is_element()
+            && node.tag_name().namespace() == Some(DAV_NAMESPACE)
+            && node.tag_name().name() == "response"
+    }) {
+        let href = dav_text(&response, "href");
+        let is_collection = response.descendants().any(|node| {
+            node.is_element()
+                && node.tag_name().namespace() == Some(DAV_NAMESPACE)
+                && node.tag_name().name() == "collection"
+        });
+        if is_collection || href.is_empty() {
+            continue;
         }
 
-        remaining = &resp_block[resp_end + "</D:response>".len()..];
-        if remaining.find("<D:response").is_none() {
-            break;
+        let displayname = dav_text(&response, "displayname");
+        let size: u64 = dav_text(&response, "getcontentlength").parse().unwrap_or(0);
+        if size == 0 {
+            continue;
         }
+
+        let name = if displayname.is_empty() {
+            href.rsplit('/').next().unwrap_or(&href).to_string()
+        } else {
+            displayname
+        };
+        files.push(WebdavFile {
+            name,
+            path: href,
+            size,
+            last_modified: dav_text(&response, "getlastmodified"),
+        });
     }
 
     Ok(files)
 }
 
-fn extract_xml_content(xml: &str, tag: &str) -> String {
-    let start_tag = format!("<{}>", tag);
-    let end_tag = format!("</{}>", tag);
+fn dav_text(node: &roxmltree::Node<'_, '_>, element_name: &str) -> String {
+    const DAV_NAMESPACE: &str = "DAV:";
 
-    if let Some(start) = xml.find(&start_tag) {
-        let after_start = &xml[start + start_tag.len()..];
-        if let Some(end) = after_start.find(&end_tag) {
-            return after_start[..end].trim().to_string();
-        }
+    node.descendants()
+        .find(|child| {
+            child.is_element()
+                && child.tag_name().namespace() == Some(DAV_NAMESPACE)
+                && child.tag_name().name() == element_name
+        })
+        .and_then(|child| child.text())
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_device_files_when_server_uses_a_lowercase_dav_prefix() {
+        let xml = r#"<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:">
+  <d:response>
+    <d:href>/dav/xiaoyan-sync/devices/</d:href>
+    <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/dav/xiaoyan-sync/devices/mac.rcstate</d:href>
+    <d:propstat><d:prop>
+      <d:displayname>mac.rcstate</d:displayname>
+      <d:getcontentlength>512</d:getcontentlength>
+      <d:getlastmodified>Fri, 10 Jul 2026 09:00:00 GMT</d:getlastmodified>
+      <d:resourcetype/>
+    </d:prop></d:propstat>
+  </d:response>
+</d:multistatus>"#;
+
+        let files = parse_propfind_response(xml).expect("应解析 WebDAV 目录");
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "mac.rcstate");
+        assert_eq!(files[0].size, 512);
     }
-    String::new()
+
+    #[test]
+    fn parses_device_files_independently_of_the_namespace_prefix() {
+        let xml = r#"<dav:multistatus xmlns:dav="DAV:">
+  <dav:response>
+    <dav:href>/dav/xiaoyan-sync/devices/windows.rcstate</dav:href>
+    <dav:propstat><dav:prop>
+      <dav:getcontentlength>256</dav:getcontentlength>
+      <dav:resourcetype></dav:resourcetype>
+    </dav:prop></dav:propstat>
+  </dav:response>
+</dav:multistatus>"#;
+
+        let files = parse_propfind_response(xml).expect("应解析 WebDAV 目录");
+        assert_eq!(files[0].name, "windows.rcstate");
+    }
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { submissionApi } from "../../lib/client";
 import {
   rowToComment,
@@ -32,32 +32,32 @@ export function useSubmissionReview(onError: (error: unknown) => void) {
   const [mockResult, setMockResult] = useState<MockReviewerResult[] | null>(null);
   const [mockFileExtracting, setMockFileExtracting] = useState(false);
   const [mockFileName, setMockFileName] = useState<string | null>(null);
+  const reloadRequestRef = useRef(0);
 
-  const reloadReview = () => {
+  const reloadReview = useCallback(() => {
+    const requestId = reloadRequestRef.current + 1;
+    reloadRequestRef.current = requestId;
     if (!subId) {
       setRounds([]);
       setComments([]);
-      return;
+      return Promise.resolve();
     }
-    Promise.all([
+
+    return Promise.all([
       submissionApi.listRounds(subId),
       submissionApi.listComments(subId),
     ]).then(([roundsRes, commentsRes]) => {
+      if (reloadRequestRef.current !== requestId) return;
       setRounds(roundsRes.rounds.map(rowToRound));
       setComments(commentsRes.comments.map(rowToComment));
-    }).catch(onError);
-  };
+    }).catch((error) => {
+      if (reloadRequestRef.current === requestId) onError(error);
+    });
+  }, [onError, subId]);
 
   useEffect(() => {
-    if (!subId) return;
-    Promise.all([
-      submissionApi.listRounds(subId),
-      submissionApi.listComments(subId),
-    ]).then(([roundsRes, commentsRes]) => {
-      setRounds(roundsRes.rounds.map(rowToRound));
-      setComments(commentsRes.comments.map(rowToComment));
-    }).catch(onError);
-  }, [subId, onError]);
+    void reloadReview();
+  }, [reloadReview]);
 
   const handleReviewSubmit = async () => {
     if (!subId) return;
@@ -71,7 +71,7 @@ export function useSubmissionReview(onError: (error: unknown) => void) {
       });
       setShowAddModal(false);
       setForm({ reviewer: "", content: "", tags: [], verdict: "major_revision" });
-      reloadReview();
+      void reloadReview();
     } catch (err) {
       onError(err);
     }

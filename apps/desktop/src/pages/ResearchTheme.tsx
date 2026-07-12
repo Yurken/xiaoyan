@@ -9,7 +9,7 @@ export default function ResearchTheme() {
   }
 
   return (
-    <div className="rc-app-page bg-apple-gray-50">
+    <div className="h-full bg-apple-gray-50 overflow-y-auto">
       <ResearchCommandCenter themeId={id} />
     </div>
   );

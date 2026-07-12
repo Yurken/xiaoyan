@@ -195,7 +195,7 @@ export function AssetShelf({ items }: { items: WorkbenchAssetItem[] }) {
         const Icon = index % 3 === 0 ? FileText : index % 3 === 1 ? BookOpenCheck : Layers3;
 
         return (
-          <Link key={item.id} to={item.action.to} className="group relative flex min-h-[148px] flex-col rounded-[22px] p-4 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
+          <Link key={item.id} to={item.action.to} className="group relative flex min-h-[148px] min-w-0 flex-col overflow-hidden rounded-[22px] p-4 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
             <div className="flex items-start justify-between gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-2xl text-apple-blue" style={iconTintStyle()}>
                 <Icon className="h-4 w-4" />
@@ -204,8 +204,8 @@ export function AssetShelf({ items }: { items: WorkbenchAssetItem[] }) {
                 {item.label}
               </span>
             </div>
-            <p className="mt-3 pr-6 text-sm font-semibold text-ink-primary">{item.title}</p>
-            <p className="mt-1 line-clamp-3 flex-1 pr-6 text-xs leading-5 text-ink-secondary">{item.description}</p>
+            <p className="mt-3 line-clamp-2 pr-6 text-sm font-semibold text-ink-primary">{item.title}</p>
+            <p className="mt-1 line-clamp-3 flex-1 break-words pr-6 text-xs leading-5 text-ink-secondary">{item.description}</p>
             <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 transition-all duration-300 group-hover:-translate-x-1 group-hover:opacity-100">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-apple-blue/10 text-apple-blue">
                 <ArrowRight className="h-4 w-4" />

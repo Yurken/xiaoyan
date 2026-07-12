@@ -130,7 +130,11 @@ pub async fn create_note_core(
     let now = chrono::Utc::now().to_rfc3339();
     let next_tags = tags.unwrap_or_default();
     let tags_json = serde_json::to_string(&next_tags).unwrap_or_else(|_| "[]".into());
-    let next_source_type = if source_type.is_empty() { "manual" } else { source_type };
+    let next_source_type = if source_type.is_empty() {
+        "manual"
+    } else {
+        source_type
+    };
 
     sqlx::query(
         "INSERT INTO knowledge_notes (id, title, content, tags, source_type, source_id, research_interest_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -204,7 +208,6 @@ pub async fn knowledge_create_note(
     )
     .await
 }
-
 
 #[tauri::command]
 pub async fn knowledge_list_notes_by_source(
@@ -495,8 +498,7 @@ fn sanitize_asset_file_name(name: &str) -> String {
 
 fn extract_zip_archive(zip_path: &Path, dest_dir: &Path) -> Result<Vec<PathBuf>, String> {
     let file = std::fs::File::open(zip_path).map_err(|e| format!("无法打开压缩包：{e}"))?;
-    let mut archive =
-        zip::ZipArchive::new(file).map_err(|e| format!("无法解析压缩包：{e}"))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("无法解析压缩包：{e}"))?;
 
     let mut md_files = Vec::new();
 
@@ -510,18 +512,15 @@ fn extract_zip_archive(zip_path: &Path, dest_dir: &Path) -> Result<Vec<PathBuf>,
         }
         let out_path = dest_dir.join(&raw_name);
         if entry.is_dir() {
-            std::fs::create_dir_all(&out_path)
-                .map_err(|e| format!("创建解压目录失败：{e}"))?;
+            std::fs::create_dir_all(&out_path).map_err(|e| format!("创建解压目录失败：{e}"))?;
             continue;
         }
         if let Some(parent) = out_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("创建解压目录失败：{e}"))?;
+            std::fs::create_dir_all(parent).map_err(|e| format!("创建解压目录失败：{e}"))?;
         }
-        let mut out_file = std::fs::File::create(&out_path)
-            .map_err(|e| format!("创建解压文件失败：{e}"))?;
-        std::io::copy(&mut entry, &mut out_file)
-            .map_err(|e| format!("解压文件失败：{e}"))?;
+        let mut out_file =
+            std::fs::File::create(&out_path).map_err(|e| format!("创建解压文件失败：{e}"))?;
+        std::io::copy(&mut entry, &mut out_file).map_err(|e| format!("解压文件失败：{e}"))?;
 
         if is_markdown_file_name(&raw_name) {
             md_files.push(out_path);
@@ -568,8 +567,7 @@ fn rewrite_image_refs(
         return Ok((content.to_string(), Vec::new()));
     }
 
-    std::fs::create_dir_all(note_assets_dir)
-        .map_err(|e| format!("无法创建笔记资源目录：{e}"))?;
+    std::fs::create_dir_all(note_assets_dir).map_err(|e| format!("无法创建笔记资源目录：{e}"))?;
 
     let mut assets: Vec<(String, String)> = Vec::new();
     let mut rewritten = String::with_capacity(content.len());
@@ -638,19 +636,16 @@ pub async fn knowledge_import_zip(
 
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let assets_root = app_data_dir.join("notes_assets");
-    std::fs::create_dir_all(&assets_root)
-        .map_err(|e| format!("无法创建笔记资源目录：{e}"))?;
+    std::fs::create_dir_all(&assets_root).map_err(|e| format!("无法创建笔记资源目录：{e}"))?;
 
     let temp_dir = app_data_dir.join(format!("import_zip_temp_{}", Uuid::new_v4()));
-    std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| format!("无法创建临时解压目录：{e}"))?;
+    std::fs::create_dir_all(&temp_dir).map_err(|e| format!("无法创建临时解压目录：{e}"))?;
 
     let extracted_root = temp_dir.clone();
-    let md_files = tauri::async_runtime::spawn_blocking(move || {
-        extract_zip_archive(&source, &extracted_root)
-    })
-    .await
-    .map_err(|e| format!("解压任务异常：{e}"))??;
+    let md_files =
+        tauri::async_runtime::spawn_blocking(move || extract_zip_archive(&source, &extracted_root))
+            .await
+            .map_err(|e| format!("解压任务异常：{e}"))??;
 
     if md_files.is_empty() {
         let _ = std::fs::remove_dir_all(&temp_dir);
@@ -685,19 +680,14 @@ pub async fn knowledge_import_zip(
         let note_id = Uuid::new_v4().to_string();
         let note_assets_dir = assets_root.join(&note_id);
         let md_dir = md_path.parent().unwrap_or(Path::new(&temp_dir));
-        let (content, assets) = match rewrite_image_refs(
-            body,
-            md_dir,
-            &note_assets_dir,
-            &note_id,
-            &temp_dir,
-        ) {
-            Ok(c) => c,
-            Err(e) => {
-                errors.push(format!("{}：处理图片失败：{e}", md_path.display()));
-                continue;
-            }
-        };
+        let (content, assets) =
+            match rewrite_image_refs(body, md_dir, &note_assets_dir, &note_id, &temp_dir) {
+                Ok(c) => c,
+                Err(e) => {
+                    errors.push(format!("{}：处理图片失败：{e}", md_path.display()));
+                    continue;
+                }
+            };
 
         match create_note_core(
             &state.db,

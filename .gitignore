@@ -3,9 +3,6 @@ __pycache__/
 *.py[codz]
 *$py.class
 
-# Codegraph tool cache
-.codegraph/
-
 # C extensions
 *.so
 
@@ -22,6 +19,7 @@ lib64/
 # Un-ignore frontend source lib directories (not Python virtualenv)
 !apps/*/lib/
 !apps/*/src/lib/
+!apps/*/src/**/__tests__/lib/
 parts/
 sdist/
 var/
@@ -213,6 +211,7 @@ marimo/_lsp/
 __marimo__/
 
 # Project specific
+.codegraph/
 .claude/worktrees/
 .codex/
 backend/.env
@@ -220,6 +219,18 @@ backend/uploads/
 backend/.venv/
 apps/desktop/src-tauri/gen/schemas/windows-schema.json
 apps/desktop/src-tauri/*.db
+
+# Local workspace / generated artifacts
+.workbuddy/
+extract_ppt.py
+ppt_content.json
+ppt_xiaoyan/
+slide-outline.md
+outputs/*.html
+outputs/*.md
+tmp/
+agent-collaboration-flowcharts.md
+multi-agent-system-overview.png
 
 # Frontend / monorepo
 node_modules/
@@ -247,7 +258,10 @@ promo-video-planning.md
 *.dmg
 *.apk
 
+# Personal research imports and local showcase data
+scripts/import-zotero-research-data.py
+scripts/seed-writing-submission-showcase.py
+apps/desktop/src/features/writing/researchDraft.ts
+
 # master分支暂不更新
 apps/mac/
-
-tmp

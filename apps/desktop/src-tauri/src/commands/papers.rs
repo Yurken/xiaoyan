@@ -3,7 +3,7 @@ use crate::ccf::{infer_from_text, match_venue};
 use crate::commands::knowledge_notes::create_note_core;
 use crate::commands::paper_analysis_prompts::{
     agent1_system, agent2_system, agent3_system, agent4_system, build_agent1_prompt,
-    build_agent2_prompt, build_agent3_prompt, build_agent4_prompt, build_method_figure_context,
+    build_agent2_prompt, build_agent3_prompt, build_agent4_prompt, build_all_figure_context,
     build_paper_note_prompt, build_reproduce_prompt, build_type_directive, paper_note_system,
     reproduce_system,
 };
@@ -30,6 +30,26 @@ use uuid::Uuid;
 
 fn has_meaningful_text(value: Option<&str>) -> bool {
     value.is_some_and(|text| !text.trim().is_empty())
+}
+
+fn generated_paper_note_title(paper_title: &str, llm_title: Option<&str>) -> String {
+    let clean_paper_title = paper_title.trim();
+    if !clean_paper_title.is_empty() {
+        return clean_paper_title.to_string();
+    }
+
+    llm_title
+        .map(str::trim)
+        .filter(|title| !title.is_empty())
+        .map(|title| {
+            title
+                .trim_start_matches("论文笔记：")
+                .trim_start_matches("论文笔记:")
+                .trim()
+                .to_string()
+        })
+        .filter(|title| !title.is_empty())
+        .unwrap_or_else(|| "未命名论文".to_string())
 }
 
 fn canonical_pdf_file(path: PathBuf) -> Result<PathBuf, String> {
@@ -1494,7 +1514,7 @@ pub async fn papers_analyze(
             }
         };
 
-        let method_figure_context = build_method_figure_context(&extracted_figures);
+        let all_figure_context = build_all_figure_context(&extracted_figures);
 
         // ── Agent 1: Problem & Background + 论文类型判定 ──────────
         let _ = app.emit(
@@ -1502,7 +1522,8 @@ pub async fn papers_analyze(
             json!({ "paper_id": pid, "status": "analyzing", "step": "问题背景分析中（1/4）…" }),
         );
         let intro_text = build_intro_slice(&full_text, analysis_chunk_bytes);
-        let prompt1 = build_agent1_prompt(&intro_text);
+        let prompt1_text = format!("{all_figure_context}{intro_text}");
+        let prompt1 = build_agent1_prompt(&prompt1_text);
         let msgs1 = vec![
             LlmMessage::system(agent1_system()),
             LlmMessage::user(&prompt1),
@@ -1563,7 +1584,7 @@ pub async fn papers_analyze(
             "paper:status",
             json!({ "paper_id": pid, "status": "analyzing", "step": "方法深度解析中（2/4）…" }),
         );
-        let method_prompt_text = format!("{type_directive}{method_figure_context}{method_text}");
+        let method_prompt_text = format!("{type_directive}{all_figure_context}{method_text}");
         let prompt2 = build_agent2_prompt(&research_question, &method_prompt_text);
         let msgs2 = vec![
             LlmMessage::system(agent2_system()),
@@ -1605,7 +1626,7 @@ pub async fn papers_analyze(
             "paper:status",
             json!({ "paper_id": pid, "status": "analyzing", "step": "证据与结果分析中（3/4）…" }),
         );
-        let experiment_prompt_text = format!("{type_directive}{experiment_text}");
+        let experiment_prompt_text = format!("{type_directive}{all_figure_context}{experiment_text}");
         let prompt3 = build_agent3_prompt(&core_method, &experiment_prompt_text);
         let msgs3 = vec![
             LlmMessage::system(agent3_system()),
@@ -1657,7 +1678,7 @@ pub async fn papers_analyze(
             json!({ "paper_id": pid, "status": "analyzing", "step": "综合评审中（4/4）…" }),
         );
         let experiment_summary = format!("{}\n\n{}", experiment_design, experiment_results);
-        let problem_summary_for_review = format!("{type_directive}{research_question}");
+        let problem_summary_for_review = format!("{type_directive}{all_figure_context}{research_question}");
         let prompt4 = build_agent4_prompt(
             &problem_summary_for_review,
             &core_method,
@@ -1971,7 +1992,9 @@ pub async fn papers_generate_note(
         return Err(missing_full_text_message(&status).to_string());
     }
 
-    let title = paper_row.get::<Option<String>, _>("title").unwrap_or_default();
+    let title = paper_row
+        .get::<Option<String>, _>("title")
+        .unwrap_or_default();
     let authors = paper_row
         .get::<Option<String>, _>("authors")
         .unwrap_or_default();
@@ -1979,12 +2002,18 @@ pub async fn papers_generate_note(
         .get::<Option<i64>, _>("year")
         .map(|y| y.to_string())
         .unwrap_or_default();
-    let venue = paper_row.get::<Option<String>, _>("venue").unwrap_or_default();
-    let doi = paper_row.get::<Option<String>, _>("doi").unwrap_or_default();
+    let venue = paper_row
+        .get::<Option<String>, _>("venue")
+        .unwrap_or_default();
+    let doi = paper_row
+        .get::<Option<String>, _>("doi")
+        .unwrap_or_default();
     let abstract_text = paper_row
         .get::<Option<String>, _>("abstract")
         .unwrap_or_default();
-    let notes = paper_row.get::<Option<String>, _>("notes").unwrap_or_default();
+    let notes = paper_row
+        .get::<Option<String>, _>("notes")
+        .unwrap_or_default();
     let research_interest_id: Option<String> = paper_row.get("research_interest_id");
 
     let analysis_row = sqlx::query(
@@ -1998,10 +2027,19 @@ pub async fn papers_generate_note(
     let analysis_text = analysis_row
         .map(|row| {
             let parts = [
-                ("研究问题", row.get::<Option<String>, _>("research_question")),
+                (
+                    "研究问题",
+                    row.get::<Option<String>, _>("research_question"),
+                ),
                 ("核心方法", row.get::<Option<String>, _>("core_method")),
-                ("实验设计", row.get::<Option<String>, _>("experiment_design")),
-                ("实验结果", row.get::<Option<String>, _>("experiment_results")),
+                (
+                    "实验设计",
+                    row.get::<Option<String>, _>("experiment_design"),
+                ),
+                (
+                    "实验结果",
+                    row.get::<Option<String>, _>("experiment_results"),
+                ),
                 ("创新点", row.get::<Option<String>, _>("innovations")),
                 ("局限", row.get::<Option<String>, _>("limitations")),
                 ("关键结论", row.get::<Option<String>, _>("key_conclusions")),
@@ -2031,12 +2069,24 @@ pub async fn papers_generate_note(
         .map(|row| {
             let parts = [
                 ("代码仓库", row.get::<Option<String>, _>("code_repository")),
-                ("环境配置", row.get::<Option<String>, _>("environment_setup")),
+                (
+                    "环境配置",
+                    row.get::<Option<String>, _>("environment_setup"),
+                ),
                 ("依赖", row.get::<Option<String>, _>("dependencies")),
-                ("数据准备", row.get::<Option<String>, _>("dataset_preparation")),
+                (
+                    "数据准备",
+                    row.get::<Option<String>, _>("dataset_preparation"),
+                ),
                 ("训练流程", row.get::<Option<String>, _>("training_process")),
-                ("推理流程", row.get::<Option<String>, _>("inference_process")),
-                ("评估指标", row.get::<Option<String>, _>("evaluation_metrics")),
+                (
+                    "推理流程",
+                    row.get::<Option<String>, _>("inference_process"),
+                ),
+                (
+                    "评估指标",
+                    row.get::<Option<String>, _>("evaluation_metrics"),
+                ),
                 ("注意事项", row.get::<Option<String>, _>("risks_and_notes")),
             ];
             parts
@@ -2090,7 +2140,15 @@ pub async fn papers_generate_note(
         LlmMessage::system(paper_note_system()),
         LlmMessage::user(&prompt),
     ];
-    log_llm_request("paper-note", &id, "generate", model.as_deref(), temperature, max_tokens, &msgs);
+    log_llm_request(
+        "paper-note",
+        &id,
+        "generate",
+        model.as_deref(),
+        temperature,
+        max_tokens,
+        &msgs,
+    );
 
     let response = client
         .chat_with_max_tokens(&msgs, model.as_deref(), temperature, max_tokens)
@@ -2099,15 +2157,8 @@ pub async fn papers_generate_note(
     log_llm_response("paper-note", &id, "generate", &response);
 
     let value = parse_llm_json_value(&response).map_err(|e| format!("解析笔记结果失败：{}", e))?;
-    let note_title = value["title"]
-        .as_str()
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| format!("论文笔记：{}", title));
-    let note_content = value["content"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
+    let note_title = generated_paper_note_title(&title, value["title"].as_str());
+    let note_content = value["content"].as_str().unwrap_or("").to_string();
     if note_content.trim().is_empty() {
         return Err("小妍未能生成有效笔记内容，请检查模型配置或稍后重试。".to_string());
     }
@@ -2126,7 +2177,11 @@ pub async fn papers_generate_note(
         &settings,
         note_title,
         note_content,
-        if note_tags.is_empty() { None } else { Some(note_tags) },
+        if note_tags.is_empty() {
+            None
+        } else {
+            Some(note_tags)
+        },
         research_interest_id,
         "paper_note",
         Some(id.clone()),
@@ -2137,7 +2192,6 @@ pub async fn papers_generate_note(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
-
 
 fn safe_text_preview(text: &str, max_bytes: usize) -> &str {
     if text.len() <= max_bytes {

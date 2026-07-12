@@ -28,7 +28,6 @@ const Tools = lazy(() => import("./pages/Tools"));
 const Submission = lazy(() => import("./pages/Submission"));
 const Experiment = lazy(() => import("./pages/Experiment"));
 const Writing = lazy(() => import("./pages/Writing"));
-
 const ResearchTheme = lazy(() => import("./pages/ResearchTheme"));
 const FocusApp = lazy(() => import("./pages/FocusLayout"));
 import LockScreen from "./features/appLock/LockScreen";
@@ -56,7 +55,7 @@ import { writePersistentValue } from "./hooks/usePersistentStringState";
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "首页" },
   { to: "/planner", icon: Map, label: "规划" },
-  { to: "/xiaoyan", icon: MessageSquare, label: "对话" },
+  { to: "/chat", icon: MessageSquare, label: "对话" },
   { to: "/survey", icon: BookOpen, label: "综述" },
   { to: "/papers", icon: FileText, label: "论文" },
   { to: "/writing", icon: PenLine, label: "写作" },
@@ -210,9 +209,9 @@ export default function App() {
             <Route path="/submission" element={<RouteErrorBoundary><Submission /></RouteErrorBoundary>} />
             <Route path="/experiment" element={<RouteErrorBoundary><Experiment /></RouteErrorBoundary>} />
             <Route path="/tools" element={<RouteErrorBoundary><Tools /></RouteErrorBoundary>} />
-            <Route path="/code" element={<Navigate to="/experiment" replace />} />
-            <Route path="/xiaoyan" element={<RouteErrorBoundary><Copilot /></RouteErrorBoundary>} />
-            <Route path="/copilot" element={<Navigate to="/xiaoyan" replace />} />
+            <Route path="/chat" element={<RouteErrorBoundary><Copilot /></RouteErrorBoundary>} />
+            <Route path="/xiaoyan" element={<Navigate to="/chat" replace />} />
+            <Route path="/copilot" element={<Navigate to="/chat" replace />} />
             <Route path="/knowledge" element={<RouteErrorBoundary><Knowledge /></RouteErrorBoundary>} />
             <Route path="/notes/:id" element={<RouteErrorBoundary><NoteReader /></RouteErrorBoundary>} />
             <Route path="/research-theme/:id" element={<RouteErrorBoundary><ResearchTheme /></RouteErrorBoundary>} />

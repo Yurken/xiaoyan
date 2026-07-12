@@ -65,7 +65,7 @@ export default function ThemeModuleGrid({ progress }: ThemeModuleGridProps) {
     {
       key: "sessions",
       label: "对话",
-      to: "/xiaoyan",
+      to: "/chat",
       icon: MessageSquare,
       iconColor: "text-apple-teal",
       count: progress.sessionCount,

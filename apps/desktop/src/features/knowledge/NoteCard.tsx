@@ -13,7 +13,6 @@ import { sourceLabel, stripMarkdown } from "./notesShared";
 export default function NoteCard({
   note,
   linkedClaimCount = 0,
-  interestName,
   onDelete,
   selectionMode = false,
   selected = false,
@@ -21,7 +20,6 @@ export default function NoteCard({
 }: {
   note: KnowledgeNote;
   linkedClaimCount?: number;
-  interestName?: string;
   onDelete: (note: KnowledgeNote) => void;
   selectionMode?: boolean;
   selected?: boolean;
@@ -57,9 +55,6 @@ export default function NoteCard({
           <Badge variant="default">{sourceLabel(note.source_type)}</Badge>
           {linkedClaimCount > 0 ? <Badge variant="info">图谱 {linkedClaimCount}</Badge> : null}
         </div>
-        {interestName && (
-          <p className="mt-1.5 text-[11px] text-apple-blue">{interestName}</p>
-        )}
       </div>
 
       <button
@@ -73,9 +68,7 @@ export default function NoteCard({
 
       {note.source_type !== "manual" && note.tags && note.tags.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-            style={{ background: "rgba(139,92,246,0.12)", color: "var(--rc-accent-purple, #8B5CF6)" }}
-          >小妍</span>
+          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-500">小妍</span>
           {note.tags.map((tag, index) => (
             <span key={`${note.id}-${tag}-${index}`} className="rc-accent-chip rounded-full px-2 py-0.5 text-[11px]">
               {tag}
@@ -95,9 +88,8 @@ export default function NoteCard({
               "flex h-5 w-5 items-center justify-center rounded-md border transition-colors",
               selected
                 ? "border-apple-blue bg-apple-blue text-white"
-                : "border-nm-dark/25 text-transparent",
+                : "border-nm-dark/25 bg-white/60 text-transparent",
             )}
-            style={selected ? undefined : { background: "var(--rc-card-inset-bg)" }}
           >
             <Check className="h-3.5 w-3.5" strokeWidth={3} />
           </span>
@@ -107,7 +99,7 @@ export default function NoteCard({
           <button
             type="button"
             onClick={openNote}
-            className="rounded-lg p-1.5 text-ink-tertiary transition-colors hover:bg-nm-dark/10 hover:text-ink-primary"
+            className="rounded-lg p-1.5 text-ink-tertiary transition-colors hover:bg-black/5 hover:text-ink-primary"
             aria-label={`编辑 ${note.title}`}
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -115,7 +107,7 @@ export default function NoteCard({
           <button
             type="button"
             onClick={() => onDelete(note)}
-            className="rounded-lg p-1.5 text-ink-tertiary transition-colors hover:text-[var(--rc-apple-red,#FF3B30)]"
+            className="rounded-lg p-1.5 text-ink-tertiary transition-colors hover:bg-apple-red/10 hover:text-apple-red"
             aria-label={`删除 ${note.title}`}
           >
             <Trash2 className="h-3.5 w-3.5" />

@@ -1,5 +1,5 @@
 import type { AppSettings } from "@research-copilot/types";
-import { CHARACTERISTIC_MODEL_CARDS } from "./shared";
+import type { CHARACTERISTIC_MODEL_CARDS } from "./shared";
 
 /**
  * 配置预设 — 一键为所有角色模型分配推荐配置

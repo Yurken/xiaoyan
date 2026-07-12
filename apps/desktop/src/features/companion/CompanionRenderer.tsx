@@ -312,15 +312,20 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
   const companionId = useCompanionPreference();
   const definition = useMemo(() => getCompanionDefinition(companionId), [companionId]);
   const controller = useCompanionController({ allowIdleSleep: definition.allowIdleSleep !== false });
+  const { setNotificationCount } = controller;
 
   // 启动时加载未读数
   useEffect(() => {
+    let cancelled = false;
     apiClient.activeResearcher.findings(0).then((r) => {
-      if (r.unread_count > 0) {
-        controller.setNotificationCount(r.unread_count);
+      if (!cancelled && r.unread_count > 0) {
+        setNotificationCount(r.unread_count);
       }
     }).catch((err) => { console.warn("Failed to load findings:", err); });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [setNotificationCount]);
 
   if (!controller.visible) return null;
 

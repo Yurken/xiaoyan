@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use reqwest::Url;
 use serde::Serialize;
@@ -100,12 +101,14 @@ pub async fn update_install(
     };
 
     let downloaded = Arc::new(AtomicU64::new(0));
-    let mut content_length: Option<u64> = None;
+    let total_bytes = Arc::new(AtomicU64::new(0));
 
     let progress_app = app.clone();
     let finish_app = app.clone();
     let progress_dl = Arc::clone(&downloaded);
     let finish_dl = Arc::clone(&downloaded);
+    let progress_total = Arc::clone(&total_bytes);
+    let finish_total = Arc::clone(&total_bytes);
 
     let _ = app.emit(
         "update:download-progress",
@@ -116,18 +119,22 @@ pub async fn update_install(
         .download_and_install(
             |chunk_len, total_len| {
                 let dl = progress_dl.fetch_add(chunk_len as u64, Ordering::Relaxed) + chunk_len as u64;
-                if content_length.is_none() && total_len.is_some() {
-                    content_length = total_len;
+                if let Some(total) = total_len {
+                    progress_total.store(total, Ordering::Relaxed);
                 }
+                let total = progress_total.load(Ordering::Relaxed);
                 let _ = progress_app.emit(
                     "update:download-progress",
-                    json!({ "status": "progress", "downloaded": dl, "total": content_length }),
+                    json!({ "status": "progress", "downloaded": dl, "total": if total > 0 { Some(total) } else { None } }),
                 );
             },
             || {
+                let dl = finish_dl.load(Ordering::Relaxed);
+                let total = finish_total.load(Ordering::Relaxed);
+                let visible_total = if total > 0 { total } else { dl };
                 let _ = finish_app.emit(
                     "update:download-progress",
-                    json!({ "status": "finished", "downloaded": finish_dl.load(Ordering::Relaxed), "total": finish_dl.load(Ordering::Relaxed) }),
+                    json!({ "status": "installing", "downloaded": dl, "total": visible_total }),
                 );
             },
         )
@@ -144,6 +151,14 @@ pub async fn update_install(
         return Err(error.to_string());
     }
 
+    let dl = downloaded.load(Ordering::Relaxed);
+    let total = total_bytes.load(Ordering::Relaxed);
+    let visible_total = if total > 0 { total } else { dl };
+    let _ = app.emit(
+        "update:download-progress",
+        json!({ "status": "installed", "downloaded": dl, "total": visible_total }),
+    );
+    tokio::time::sleep(Duration::from_millis(650)).await;
     app.restart();
     #[allow(unreachable_code)]
     Ok(())
