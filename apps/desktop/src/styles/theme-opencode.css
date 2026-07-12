@@ -434,6 +434,8 @@
 }
 
 .code-opencode-main .code-chat-panel {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   height: auto;
@@ -457,7 +459,12 @@
 }
 
 .code-opencode-main .code-chat-panel__empty {
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
   text-align: center;
   max-width: 520px;
   margin: 0 auto;

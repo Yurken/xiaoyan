@@ -125,7 +125,7 @@ export default function Knowledge({
         </div>
       </div>
 
-      <div key={view} className="mt-6 min-w-0" style={{ animation: "rc-view-enter 0.28s ease-out" }}>
+      <div key={view} className="mt-3 min-w-0" style={{ animation: "rc-view-enter 0.28s ease-out" }}>
         {view === "graph" ? (
           <KnowledgeGraphWorkspace
             controller={graphController}

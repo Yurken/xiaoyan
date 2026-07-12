@@ -1348,4 +1348,72 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn master_experiment_schema_upgrade_preserves_records_and_attachments() -> Result<()> {
+        let pool = memory_pool().await?;
+
+        // 模拟 master 已发布版本的实验数据：无工作目录、快照与代码会话字段。
+        sqlx::raw_sql(
+            "CREATE TABLE experiment_records (
+                id                   TEXT PRIMARY KEY,
+                title                TEXT NOT NULL,
+                config               TEXT NOT NULL DEFAULT '{}',
+                result               TEXT NOT NULL DEFAULT '',
+                notes                TEXT NOT NULL DEFAULT '',
+                linked_submission_id TEXT,
+                created_at           TEXT NOT NULL,
+                updated_at           TEXT NOT NULL
+            );
+            CREATE TABLE experiment_attachments (
+                id            TEXT PRIMARY KEY,
+                experiment_id TEXT NOT NULL,
+                file_path     TEXT NOT NULL,
+                label         TEXT NOT NULL DEFAULT '',
+                created_at    TEXT NOT NULL
+            );",
+        )
+        .execute(&pool)
+        .await?;
+        sqlx::query(
+            "INSERT INTO experiment_records (id, title, config, result, notes, created_at, updated_at)
+             VALUES ('experiment-1', '旧实验', '{\"seed\": 7}', '旧结果', '旧备注', '2026-01-01', '2026-01-02')",
+        )
+        .execute(&pool)
+        .await?;
+        sqlx::query(
+            "INSERT INTO experiment_attachments (id, experiment_id, file_path, label, created_at)
+             VALUES ('attachment-1', 'experiment-1', '/tmp/figure.png', '旧附件', '2026-01-02')",
+        )
+        .execute(&pool)
+        .await?;
+
+        ensure_experiment_tables(&pool).await?;
+
+        let record: (String, String, String) = sqlx::query_as(
+            "SELECT title, result, notes FROM experiment_records WHERE id = 'experiment-1'",
+        )
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(record, ("旧实验".into(), "旧结果".into(), "旧备注".into()));
+
+        let attachment: (String, String) = sqlx::query_as(
+            "SELECT experiment_id, label FROM experiment_attachments WHERE id = 'attachment-1'",
+        )
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(attachment, ("experiment-1".into(), "旧附件".into()));
+
+        for (table, column) in [
+            ("experiment_records", "default_working_dir"),
+            ("experiment_attachments", "snapshot_id"),
+        ] {
+            assert!(column_exists(&pool, table, column).await?, "{table}.{column}");
+        }
+        for table in ["experiment_code_sessions", "experiment_snapshots"] {
+            assert!(table_exists(&pool, table).await?, "{table}");
+        }
+
+        Ok(())
+    }
 }
