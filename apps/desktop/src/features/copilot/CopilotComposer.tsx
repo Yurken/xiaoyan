@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUp, Bot, BrainCircuit, FileText, Paperclip, Plus, Square, X, Zap } from "lucide-react";
+import { ArrowUp, Bot, BrainCircuit, FileText, Paperclip, Square, X, Zap } from "lucide-react";
 import type { ChatMode, Skill } from "@research-copilot/types";
+import { useResizableHeight } from "../../hooks/useResizableHeight";
 import {
   COPILOT_CHAT_MODE_OPTIONS,
   getCopilotInputPlaceholder,
@@ -18,7 +19,6 @@ interface CopilotComposerProps {
   sending: boolean;
   uploadingAttachments: boolean;
   attachments: PendingCopilotAttachment[];
-  pickAttachments: () => void | Promise<void>;
   onPasteImages: (files: File[]) => void | Promise<void>;
   removeAttachment: (attachmentId: string) => void;
   skills: Skill[];
@@ -43,7 +43,6 @@ export default function CopilotComposer({
   sending,
   uploadingAttachments,
   attachments,
-  pickAttachments,
   onPasteImages,
   removeAttachment,
   skills,
@@ -53,6 +52,12 @@ export default function CopilotComposer({
   onSkillLockedChange,
 }: CopilotComposerProps) {
   const [slashIndex, setSlashIndex] = useState(0);
+  const { height: composerHeight, onDragStart } = useResizableHeight({
+    initialHeight: 132,
+    minHeight: 80,
+    maxHeight: 360,
+    persistentKey: "copilotComposerHeight",
+  });
 
   // 斜杠唤起：当输入恰为单个 /token（无空格）时，弹出技能自动补全。
   const slashQuery = useMemo(() => {
@@ -152,13 +157,28 @@ export default function CopilotComposer({
 
         {/* 输入框 + 内嵌按钮栏 */}
         <div
-          className="rounded-3xl"
+          className="rounded-3xl flex flex-col"
           style={{
+            height: composerHeight,
             background: "var(--rc-surface)",
             boxShadow: "var(--rc-inset-shadow)",
           }}
         >
-          <div className="relative rounded-t-3xl overflow-visible">
+          {/* 拖拽调整高度 */}
+          <div
+            onMouseDown={onDragStart}
+            className="h-1.5 w-full cursor-ns-resize rounded-t-3xl flex items-center justify-center flex-shrink-0 group/handle"
+            title="拖拽调整输入框高度"
+            aria-label="拖拽调整输入框高度"
+            role="slider"
+            aria-orientation="vertical"
+          >
+            <div
+              className="w-8 h-1 rounded-full opacity-50 transition-colors group-hover/handle:opacity-100"
+              style={{ background: "var(--rc-border)" }}
+            />
+          </div>
+          <div className="relative overflow-visible flex-1 min-h-0">
             {slashOpen && (
               <div
                 className="rc-dropdown-menu absolute bottom-full mb-2 left-3 z-30 w-64 max-h-72 overflow-y-auto rounded-2xl py-1.5"
@@ -198,7 +218,6 @@ export default function CopilotComposer({
               </div>
             )}
             <textarea
-              rows={3}
               value={input}
               onChange={(event) => onInputChange(event.target.value)}
               onKeyDown={(event) => {
@@ -232,12 +251,12 @@ export default function CopilotComposer({
               }}
               onPaste={handlePaste}
               placeholder={getCopilotInputPlaceholder(chatMode)}
-              className="w-full px-5 pt-4 pb-2 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none"
+              className="w-full h-full px-5 pt-3.5 pb-2 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none"
               style={{ background: "transparent" }}
             />
           </div>
 
-          <div className="flex items-center justify-between px-3 pb-3 gap-2">
+          <div className="flex items-center justify-between px-3 pb-3 gap-2 flex-shrink-0">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <div
                 className="relative inline-flex rounded-xl p-0.5"
@@ -279,17 +298,6 @@ export default function CopilotComposer({
                 skillLocked={skillLocked}
                 onSkillLockedChange={onSkillLockedChange}
               />
-
-              <button
-                type="button"
-                onClick={() => void pickAttachments()}
-                disabled={sending || uploadingAttachments}
-                className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 flex-shrink-0"
-                style={{ color: "#636366", background: "var(--rc-chip-bg)", boxShadow: "var(--rc-card-shadow)" }}
-              >
-                <Plus className="w-3 h-3" />
-                {uploadingAttachments ? "读取文件中..." : "上传文件"}
-              </button>
             </div>
 
             <button

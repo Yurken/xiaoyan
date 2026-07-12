@@ -360,7 +360,9 @@
 .code-opencode-context-menu {
   position: absolute;
   right: 0;
-  top: 100%;
+  bottom: 100%;
+  top: auto;
+  margin-bottom: 4px;
   z-index: 30;
   min-width: 120px;
   padding: 4px;
@@ -368,6 +370,13 @@
   border-radius: 12px;
   background: var(--rc-elevated);
   box-shadow: var(--rc-raised-shadow);
+}
+
+.code-opencode-context-menu--portal {
+  right: auto;
+  bottom: auto;
+  margin-bottom: 0;
+  z-index: 100;
 }
 
 .code-opencode-context-menu__item {
@@ -1548,6 +1557,26 @@ html[data-style="liquid-glass"] .code-toast {
 }
 
 /* ── Dialog ─────────────────────────────────────────────────── */
+
+.code-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+}
+
+.code-dialog {
+  min-width: 320px;
+  max-width: 90vw;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--rc-elevated);
+  box-shadow: var(--rc-raised-shadow);
+}
 
 .code-dialog__title {
   font-size: 15px;

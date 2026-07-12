@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { usePersistentState } from "../hooks/usePersistentStringState";
 import type { ExperimentRecord, ExperimentCodeSession } from "@research-copilot/types";
@@ -42,6 +42,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
 
   const [activeTab, setActiveTab] = useState<ExperimentTab>("code");
   const [activeCodeSession, setActiveCodeSession] = useState<ExperimentCodeSession | null>(null);
+  const defaultDirRestoredRef = useRef(false);
   const [workingDir, setWorkingDir] = usePersistentState<string | null>(
     experimentId ? `rc:experiment:${experimentId}:code:working-dir` : "rc:experiment:code:working-dir",
     null,
@@ -57,8 +58,13 @@ export default function Experiment({ experimentId }: ExperimentProps) {
         record = (result.experiments ?? []).map(rowToExperiment)[0] ?? null;
       }
       setExperiment(record);
-      if (!workingDir && record?.defaultWorkingDir) {
-        setWorkingDir(record.defaultWorkingDir);
+      // 只在首次加载 experiment 且本地没有缓存工作目录时，自动恢复到默认目录；
+      // 避免用户点击“不使用文件夹”后被再次覆盖。
+      if (!defaultDirRestoredRef.current) {
+        defaultDirRestoredRef.current = true;
+        if (!workingDir && record?.defaultWorkingDir) {
+          setWorkingDir(record.defaultWorkingDir);
+        }
       }
     } catch {
       // keep existing data on refresh failure

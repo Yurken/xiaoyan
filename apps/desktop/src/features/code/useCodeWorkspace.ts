@@ -78,12 +78,14 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     : setInternalWorkingDir;
   const [openFile, setOpenFile] = useState<OpenFile | null>(null);
   const workingDirRestoredRef = useRef<string | null>(null);
+  const defaultDirAutoRestoredRef = useRef(false);
 
   // ── Chat ─────────────────────────────────────────────────────
   const [sessions, setSessions] = useState<CodeSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [creatingSession, setCreatingSession] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [input, setInput] = useState("");
@@ -306,7 +308,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   }, [experimentId]);
 
   // 恢复/同步工作目录：当 workingDir 变化时重新加载文件树；
-  // 非受控模式下还会从 experiment 的 defaultWorkingDir 自动恢复。
+  // 非受控模式下只在初始化时从 experiment 的 defaultWorkingDir 自动恢复一次。
   useEffect(() => {
     if (workingDirRestoredRef.current === workingDir) return;
 
@@ -317,12 +319,15 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         return;
       }
 
-      if (isControlled) return;
+      // workingDir 被显式清空时，同步清空文件树。
+      workingDirRestoredRef.current = null;
+      fs.setEntries([]);
+
+      if (isControlled || defaultDirAutoRestoredRef.current) return;
 
       try {
         const exp = await experimentApi.get(experimentId);
         if (exp.defaultWorkingDir) {
-          workingDirRestoredRef.current = exp.defaultWorkingDir;
           setInternalWorkingDir(exp.defaultWorkingDir);
           await fs.listDir(exp.defaultWorkingDir);
         }
@@ -331,6 +336,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       }
     }
 
+    // 标记已做过初始化恢复判断，避免用户手动清空后被再次覆盖。
+    defaultDirAutoRestoredRef.current = true;
     void restore();
   }, [isControlled, experimentId, workingDir, fs, setInternalWorkingDir]);
 
@@ -396,12 +403,19 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
 
   // ── Session operations ───────────────────────────────────────
   async function handleCreateSession() {
+    if (creatingSession) return;
+    // 当前已选中空会话时，避免重复创建。
+    if (selected?.messages.length === 0) return;
+
+    setCreatingSession(true);
     try {
       const session = await codeApi.createSession(experimentId, undefined, workingDir ?? undefined);
       setSessions((prev) => [session, ...prev]);
       setSelectedId(session.id);
     } catch (err) {
       showToast(formatErrorMessage(err));
+    } finally {
+      setCreatingSession(false);
     }
   }
 
@@ -586,6 +600,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     selectSession,
     chatLoading,
     sending,
+    creatingSession,
     requestId,
     streamingContent,
     input,
@@ -602,6 +617,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     setAgentMode,
     attachments: attachmentsController.attachments,
     pickAttachments: attachmentsController.pickAttachments,
+    pickFromDrop: attachmentsController.pickFromDrop,
     removeAttachment: attachmentsController.removeAttachment,
     contextPack,
 

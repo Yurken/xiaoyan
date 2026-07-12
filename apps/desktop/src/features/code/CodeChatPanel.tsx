@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Check, ChevronDown, Copy, FolderOpen, Lock, LockOpen, Pencil, Sparkles, PanelTopClose, PanelTopOpen, Square, X, Zap } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, ChevronRight, Copy, FolderOpen, Lock, LockOpen, Pencil, Sparkles, PanelTopClose, PanelTopOpen, Square, X, Zap } from "lucide-react";
 import type { Skill } from "@research-copilot/types";
 import type { CodeMessage } from "../../lib/client";
+import { useResizableHeight } from "../../hooks/useResizableHeight";
 import { codeToolLabel, CODE_MODES, CODE_MODE_MAP } from "./shared";
 import type { CodeAgentMode, CodeFileAttachment, CodeModelOption } from "./shared";
 import CodeAssistantMessage from "./CodeAssistantMessage";
@@ -23,7 +24,6 @@ interface CodeChatPanelProps {
   modelOptions: CodeModelOption[];
   activeModelOptionId: string;
   onModelOptionChange: (optionId: string) => void;
-  onAddFile: () => void;
   workingDir?: string | null;
   recentWorkingDirs?: string[];
   onChooseWorkingDir?: () => void;
@@ -31,7 +31,6 @@ interface CodeChatPanelProps {
   agentMode?: CodeAgentMode;
   onAgentModeChange?: (mode: CodeAgentMode) => void;
   attachments?: CodeFileAttachment[];
-  onPickAttachments?: () => void;
   onRemoveAttachment?: (id: string) => void;
   contextStats?: { files: number; instructions: number; scripts: number; chars: number } | null;
   skills?: Skill[];
@@ -57,7 +56,6 @@ export default function CodeChatPanel({
   modelOptions,
   activeModelOptionId,
   onModelOptionChange,
-  onAddFile,
   workingDir,
   recentWorkingDirs = [],
   onChooseWorkingDir,
@@ -65,7 +63,6 @@ export default function CodeChatPanel({
   agentMode = "build",
   onAgentModeChange,
   attachments = [],
-  onPickAttachments,
   onRemoveAttachment,
   contextStats = null,
   skills = [],
@@ -80,13 +77,23 @@ export default function CodeChatPanel({
   const [slashIndex, setSlashIndex] = useState(0);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [dirMenuOpen, setDirMenuOpen] = useState(false);
+  const [recentSubmenuOpen, setRecentSubmenuOpen] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const dirMenuRef = useRef<HTMLDivElement>(null);
+  const { height: composerHeight, onDragStart } = useResizableHeight({
+    initialHeight: 132,
+    minHeight: 80,
+    maxHeight: 360,
+    persistentKey: "codeComposerHeight",
+  });
 
   useEffect(() => {
-    if (!dirMenuOpen) return;
+    if (!dirMenuOpen) {
+      setRecentSubmenuOpen(false);
+      return;
+    }
     function handlePointerDown(event: MouseEvent) {
       if (!dirMenuRef.current?.contains(event.target as Node)) {
         setDirMenuOpen(false);
@@ -168,10 +175,10 @@ export default function CodeChatPanel({
     }
   }
 
-  function handleInput(e: React.FormEvent<HTMLTextAreaElement>) {
+  function handleEditInput(e: React.FormEvent<HTMLTextAreaElement>) {
     const t = e.currentTarget;
     t.style.height = "auto";
-    t.style.height = Math.min(t.scrollHeight, 120) + "px";
+    t.style.height = Math.min(t.scrollHeight, 200) + "px";
   }
 
   async function handleCopy(text: string, messageId: string) {
@@ -258,7 +265,7 @@ export default function CodeChatPanel({
                             setEditText("");
                           }
                         }}
-                        onInput={handleInput}
+                        onInput={handleEditInput}
                         className="w-full rounded-2xl px-3 py-2 text-xs text-ink-primary outline-none border-0 resize-none"
                         style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
                         autoFocus
@@ -385,13 +392,28 @@ export default function CodeChatPanel({
       {/* Composer — aligned with CopilotComposer (except mode toggle) */}
       <div className="code-chat-panel__input-area">
         <div
-          className="rounded-3xl"
+          className="rounded-3xl flex flex-col"
           style={{
+            height: composerHeight,
             background: "var(--rc-surface)",
             boxShadow: "var(--rc-inset-shadow)",
           }}
         >
-          <div className="relative rounded-t-3xl overflow-visible">
+          {/* 拖拽调整高度 */}
+          <div
+            onMouseDown={onDragStart}
+            className="h-1.5 w-full cursor-ns-resize rounded-t-3xl flex items-center justify-center flex-shrink-0 group/handle"
+            title="拖拽调整输入框高度"
+            aria-label="拖拽调整输入框高度"
+            role="slider"
+            aria-orientation="vertical"
+          >
+            <div
+              className="w-8 h-1 rounded-full opacity-50 transition-colors group-hover/handle:opacity-100"
+              style={{ background: "var(--rc-border)" }}
+            />
+          </div>
+          <div className="relative overflow-visible flex-1 min-h-0">
             {slashOpen && (
               <div
                 className="rc-dropdown-menu absolute bottom-full mb-2 left-3 z-30 w-64 max-h-72 overflow-y-auto rounded-2xl py-1.5"
@@ -432,19 +454,17 @@ export default function CodeChatPanel({
             )}
             <textarea
               ref={inputRef}
-              rows={3}
               value={input}
               onChange={(e) => onInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
-              onInput={handleInput}
               placeholder={selectedSkillId ? "输入内容，将与技能指令一起发送 · ⌘/Ctrl + ↵ 发送" : '让小妍做点什么… 输入 "/" 唤起技能 · ⌘/Ctrl + ↵ 发送'}
-              className="w-full px-5 pt-4 pb-2 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none"
+              className="w-full h-full px-5 pt-3.5 pb-2 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 resize-none"
               style={{ background: "transparent" }}
               disabled={sending}
             />
           </div>
 
-          <div className="flex items-center justify-between px-3 pb-3 gap-2">
+          <div className="flex items-center justify-between px-3 pb-3 gap-2 flex-shrink-0">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <div className="relative" ref={dirMenuRef}>
                 <button
@@ -464,32 +484,57 @@ export default function CodeChatPanel({
                     className="rc-dropdown-menu absolute bottom-full mb-2 left-0 z-20 min-w-[180px] rounded-2xl py-1"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {recentWorkingDirs.length > 0 && (
-                      <>
-                        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">最近项目</p>
-                        {recentWorkingDirs.map((dir) => (
-                          <button
-                            key={dir}
-                            type="button"
-                            onClick={() => {
-                              onChangeWorkingDir?.(dir);
-                              setDirMenuOpen(false);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
-                            style={{ color: dir === workingDir ? "#007AFF" : "var(--rc-text-soft)", background: dir === workingDir ? "rgba(0,122,255,0.08)" : "transparent" }}
-                            title={dir}
-                          >
-                            <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span className="truncate">{dir.split(/[/\\]/).pop() || dir}</span>
-                          </button>
-                        ))}
-                        <div className="my-1 border-t" style={{ borderColor: "var(--rc-border)" }} />
-                      </>
-                    )}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setRecentSubmenuOpen((prev) => !prev)}
+                        className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center justify-between gap-2"
+                        style={{ color: "var(--rc-text-soft)" }}
+                        aria-expanded={recentSubmenuOpen}
+                        aria-haspopup="menu"
+                      >
+                        <span className="flex items-center gap-2">
+                          <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>最近项目</span>
+                        </span>
+                        <ChevronRight
+                          className={`w-3 h-3 flex-shrink-0 transition-transform duration-150 ${recentSubmenuOpen ? "rotate-90" : ""}`}
+                          style={{ color: "var(--rc-text-muted)" }}
+                        />
+                      </button>
+                      {recentSubmenuOpen && (
+                        <div
+                          className="rc-dropdown-menu absolute left-full bottom-0 mb-0 ml-1 z-30 min-w-[180px] max-h-72 overflow-y-auto rounded-2xl py-1"
+                        >
+                          {recentWorkingDirs.length > 0 ? (
+                            recentWorkingDirs.map((dir) => (
+                              <button
+                                key={dir}
+                                type="button"
+                                onClick={() => {
+                                  onChangeWorkingDir?.(dir);
+                                  setRecentSubmenuOpen(false);
+                                  setDirMenuOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
+                                style={{ color: dir === workingDir ? "#007AFF" : "var(--rc-text-soft)", background: dir === workingDir ? "rgba(0,122,255,0.08)" : "transparent" }}
+                                title={dir}
+                              >
+                                <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span className="truncate">{dir.split(/[/\\]/).pop() || dir}</span>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-xs text-ink-tertiary">暂无最近项目</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
                         onChooseWorkingDir?.();
+                        setRecentSubmenuOpen(false);
                         setDirMenuOpen(false);
                       }}
                       className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
@@ -502,6 +547,7 @@ export default function CodeChatPanel({
                       type="button"
                       onClick={() => {
                         onChangeWorkingDir?.(null);
+                        setRecentSubmenuOpen(false);
                         setDirMenuOpen(false);
                       }}
                       className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 flex items-center gap-2"
@@ -576,8 +622,6 @@ export default function CodeChatPanel({
               <CodeChatContextControls
                 attachments={attachments}
                 contextStats={contextStats}
-                onAddFile={onAddFile}
-                onPickAttachments={onPickAttachments}
                 onRemoveAttachment={onRemoveAttachment}
               />
 

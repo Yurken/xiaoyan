@@ -58,6 +58,7 @@ function createWorkspace(overrides: Record<string, unknown> = {}) {
     handleCreateSession: vi.fn(),
     handleDeleteSession: vi.fn(),
     handleSend: vi.fn(),
+    pickFromDrop: vi.fn(),
     currentModel: "deepseek-chat",
     modelOptions: [
       {
@@ -121,7 +122,6 @@ describe("ExperimentCodeWorkspace", () => {
 
     // Chat input
     expect(screen.getByPlaceholderText(/让小妍做点什么/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "添加文件" })).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "deepseek-chat" })).toBeInTheDocument();
     expect(screen.queryByText("当前模型")).not.toBeInTheDocument();

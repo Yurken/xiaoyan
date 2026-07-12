@@ -48,7 +48,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const {
     attachments,
     uploading: uploadingAttachments,
-    pickAttachments,
     pickFromDrop,
     addImageFiles,
     removeAttachment,
@@ -305,7 +304,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               sending={chat.sending}
               uploadingAttachments={uploadingAttachments}
               attachments={attachments}
-              pickAttachments={pickAttachments}
               onPasteImages={addImageFiles}
               removeAttachment={removeAttachment}
               skills={skills}

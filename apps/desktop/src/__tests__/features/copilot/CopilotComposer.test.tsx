@@ -14,7 +14,6 @@ function renderComposer(overrides: Partial<ComponentProps<typeof CopilotComposer
     sending: false,
     uploadingAttachments: false,
     attachments: [],
-    pickAttachments: vi.fn(),
     onPasteImages: vi.fn(),
     removeAttachment: vi.fn(),
     skills: [],

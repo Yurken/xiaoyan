@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   FileCode,
   GitBranch,
@@ -29,6 +30,7 @@ import CodeGitPanel from "../code/CodeGitPanel";
 import CodePermissionPanel from "../code/CodePermissionPanel";
 import { skillsApi, codeApi } from "../../lib/client";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
+import { useCopilotDropZone } from "../copilot/useCopilotDropZone";
 
 type RightTab = "files" | "editor" | "review" | "git";
 
@@ -54,6 +56,7 @@ export function ExperimentCodeWorkspace({
 }: ExperimentCodeWorkspaceProps) {
   const ws = useCodeWorkspace(experimentId, { workingDir, onWorkingDirChange });
   const git = useCodeGit(ws.workingDir);
+  const { zoneRef, isOver } = useCopilotDropZone(ws.pickFromDrop);
 
   useEffect(() => {
     onActiveSessionChange?.(ws.selected);
@@ -100,6 +103,7 @@ export function ExperimentCodeWorkspace({
 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [contextMenuId, setContextMenuId] = useState<string | null>(null);
+  const sessionMenuAnchorRef = useRef<DOMRect | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [pinnedIds, setPinnedIds] = usePersistentState<string[]>(
@@ -111,6 +115,7 @@ export function ExperimentCodeWorkspace({
     {},
   );
   const [projectMenuDir, setProjectMenuDir] = useState<string | null>(null);
+  const projectMenuAnchorRef = useRef<DOMRect | null>(null);
   const [pendingDeleteDir, setPendingDeleteDir] = useState<string | null>(null);
   const [renamingDir, setRenamingDir] = useState<string | null>(null);
   const [renameDirTitle, setRenameDirTitle] = useState("");
@@ -210,13 +215,6 @@ export function ExperimentCodeWorkspace({
     setPendingDeleteId(null);
   }
 
-  function handleAddFile() {
-    setActiveTab("files");
-    if (!ws.workingDir) {
-      void ws.chooseWorkingDir();
-    }
-  }
-
   const groupedSessions = useMemo(() => {
     const groups = new Map<string, ExperimentCodeSession[]>();
     for (const s of ws.sessions) {
@@ -225,8 +223,7 @@ export function ExperimentCodeWorkspace({
       list.push(s);
       groups.set(key, list);
     }
-    // 项目（group）之间的顺序保持为会话首次出现的顺序，不随单条会话更新而改变。
-    // 项目内部的会话仍按 updated_at 倒序排列。
+    // 项目内部会话按 updated_at 倒序排列；项目之间的顺序在 sortedGroupedSessions 中处理。
     for (const list of groups.values()) {
       list.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
     }
@@ -333,16 +330,25 @@ export function ExperimentCodeWorkspace({
 
   // ── Pin-aware group sorting ─────────────────────────────────
   const sortedGroupedSessions = useMemo(() => {
-    // Sort sessions within each group: pinned first, then by updated_at desc
-    return groupedSessions.map(([dir, sessions]) => {
+    const withMeta = groupedSessions.map(([dir, sessions]) => {
       const sorted = [...sessions].sort((a, b) => {
         const aPinned = pinnedSet.has(a.id);
         const bPinned = pinnedSet.has(b.id);
         if (aPinned !== bPinned) return aPinned ? -1 : 1;
         return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       });
-      return [dir, sorted] as [string, ExperimentCodeSession[]];
+      const hasPinnedSession = sessions.some((s) => pinnedSet.has(s.id));
+      const earliestCreatedAt = Math.min(...sessions.map((s) => new Date(s.created_at).getTime()));
+      return { dir, sessions: sorted, hasPinnedSession, earliestCreatedAt };
     });
+
+    // 项目顺序：置顶优先；其余按项目创建时间（最早会话）降序，最新创建的项目在最上面。
+    withMeta.sort((a, b) => {
+      if (a.hasPinnedSession !== b.hasPinnedSession) return a.hasPinnedSession ? -1 : 1;
+      return b.earliestCreatedAt - a.earliestCreatedAt;
+    });
+
+    return withMeta.map(({ dir, sessions }) => [dir, sessions] as [string, ExperimentCodeSession[]]);
   }, [groupedSessions, pinnedSet]);
 
   // 新分组默认展开
@@ -380,8 +386,13 @@ export function ExperimentCodeWorkspace({
                 type="button"
                 className="code-opencode-new-session"
                 onClick={ws.handleCreateSession}
+                disabled={ws.creatingSession}
               >
-                <Plus size={14} />
+                {ws.creatingSession ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Plus size={14} />
+                )}
                 <span>新建会话</span>
               </button>
             </div>
@@ -436,16 +447,25 @@ export function ExperimentCodeWorkspace({
                               className="code-opencode-session-group__more"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setProjectMenuDir(projectMenuDir === dir ? null : dir);
+                                const isOpening = projectMenuDir !== dir;
+                                if (isOpening) {
+                                  projectMenuAnchorRef.current = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                                }
+                                setProjectMenuDir(isOpening ? dir : null);
                               }}
                               aria-label="项目操作"
                               title="项目操作"
                             >
                               <MoreHorizontal size={12} />
                             </button>
-                            {projectMenuDir === dir && (
+                            {projectMenuDir === dir && projectMenuAnchorRef.current && createPortal(
                               <div
-                                className="code-opencode-context-menu"
+                                className="code-opencode-context-menu code-opencode-context-menu--portal"
+                                style={{
+                                  position: "fixed",
+                                  right: window.innerWidth - projectMenuAnchorRef.current.right,
+                                  top: projectMenuAnchorRef.current.bottom + 4,
+                                }}
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <button
@@ -472,7 +492,8 @@ export function ExperimentCodeWorkspace({
                                   <Trash2 size={12} />
                                   删除项目
                                 </button>
-                              </div>
+                              </div>,
+                              document.body,
                             )}
                           </div>
                         </>
@@ -518,16 +539,25 @@ export function ExperimentCodeWorkspace({
                           className="code-opencode-session-item__more"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setContextMenuId(contextMenuId === s.id ? null : s.id);
+                            const isOpening = contextMenuId !== s.id;
+                            if (isOpening) {
+                              sessionMenuAnchorRef.current = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                            }
+                            setContextMenuId(isOpening ? s.id : null);
                           }}
                           aria-label="更多操作"
                           title="更多操作"
                         >
                           <MoreHorizontal size={12} />
                         </button>
-                        {contextMenuId === s.id && (
+                        {contextMenuId === s.id && sessionMenuAnchorRef.current && createPortal(
                           <div
-                            className="code-opencode-context-menu"
+                            className="code-opencode-context-menu code-opencode-context-menu--portal"
+                            style={{
+                              position: "fixed",
+                              right: window.innerWidth - sessionMenuAnchorRef.current.right,
+                              top: sessionMenuAnchorRef.current.bottom + 4,
+                            }}
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
@@ -554,7 +584,8 @@ export function ExperimentCodeWorkspace({
                               <Trash2 size={12} />
                               删除
                             </button>
-                          </div>
+                          </div>,
+                          document.body,
                         )}
                       </div>
                     </div>
@@ -575,7 +606,14 @@ export function ExperimentCodeWorkspace({
           />
         )}
 
-        <main className="code-opencode-main relative">
+        <main ref={zoneRef} className="code-opencode-main relative">
+          {isOver && (
+            <div
+              className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl m-2 border-2 border-dashed border-[#007AFF] bg-[rgba(0,122,255,0.08)]"
+            >
+              <span className="text-sm font-medium text-[#007AFF]">释放以上传文件</span>
+            </div>
+          )}
           {leftCollapsed && (
             <button
               type="button"
@@ -616,13 +654,13 @@ export function ExperimentCodeWorkspace({
             modelOptions={ws.modelOptions}
             activeModelOptionId={ws.activeModelOptionId}
             onModelOptionChange={ws.changeModelOption}
-            onAddFile={handleAddFile}
             workingDir={ws.workingDir}
+            recentWorkingDirs={ws.recentWorkingDirs}
             onChooseWorkingDir={ws.chooseWorkingDir}
+            onChangeWorkingDir={ws.setWorkingDir}
             agentMode={ws.agentMode}
             onAgentModeChange={ws.setAgentMode}
             attachments={ws.attachments}
-            onPickAttachments={ws.pickAttachments}
             onRemoveAttachment={ws.removeAttachment}
             contextStats={ws.contextPack.stats}
             skills={skills}

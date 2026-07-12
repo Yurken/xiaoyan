@@ -47,6 +47,7 @@ export function useCodeFileSystem() {
 
   return {
     entries,
+    setEntries,
     loading,
     error,
     listDir,

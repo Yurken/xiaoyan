@@ -1,33 +1,19 @@
-import { FileText, Layers, Plus, X } from "lucide-react";
+import { FileText, Layers, X } from "lucide-react";
 import type { CodeFileAttachment } from "./shared";
 
 interface CodeChatContextControlsProps {
   attachments: CodeFileAttachment[];
   contextStats?: { files: number; instructions: number; scripts: number; chars: number } | null;
-  onAddFile: () => void;
-  onPickAttachments?: () => void;
   onRemoveAttachment?: (id: string) => void;
 }
 
 export default function CodeChatContextControls({
   attachments,
   contextStats = null,
-  onAddFile,
-  onPickAttachments,
   onRemoveAttachment,
 }: CodeChatContextControlsProps) {
   return (
     <>
-      <button
-        type="button"
-        className="code-chat-attach-btn"
-        onClick={onPickAttachments ?? onAddFile}
-        aria-label="添加文件"
-        title="添加文件作为上下文"
-      >
-        <Plus size={16} />
-      </button>
-
       {contextStats && (
         <div
           className="code-chat-context-chip"
