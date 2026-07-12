@@ -663,6 +663,7 @@ export function ExperimentCodeWorkspace({
             <div className="code-opencode-tabs">
               <CapsuleTabs
                 compact
+                display={rightWidth < 200 ? "icon" : rightWidth < 298 ? "text" : "full"}
                 options={TAB_DEFS.map((t) => ({ value: t.id, label: t.label, icon: t.icon }))}
                 value={activeTab}
                 onChange={(v) => setActiveTab(v as RightTab)}

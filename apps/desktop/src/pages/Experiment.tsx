@@ -146,7 +146,6 @@ export default function Experiment({ experimentId }: ExperimentProps) {
                   experimentId={experiment.id}
                   activeSession={activeCodeSession}
                   onError={showToast}
-                  onRestored={() => { void loadExperiment(); }}
                 />
               </div>
             )}

@@ -1,6 +1,7 @@
 @import "katex/dist/katex.min.css";
 @import "./styles/theme.css";
 @import "./styles/app-shell.css";
+@import "./styles/theme-opencode.css";
 
 @tailwind base;
 @tailwind components;

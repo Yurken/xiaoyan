@@ -8,14 +8,18 @@ export interface CapsuleTab {
   icon?: ReactNode;
 }
 
+export type CapsuleTabsDisplay = "full" | "text" | "icon";
+
 interface CapsuleTabsProps {
   options: readonly CapsuleTab[];
   value: string;
   onChange: (value: string) => void;
   compact?: boolean;
+  /** full=图标+文字, text=仅文字, icon=仅图标 */
+  display?: CapsuleTabsDisplay;
 }
 
-export function CapsuleTabs({ options, value, onChange, compact }: CapsuleTabsProps) {
+export function CapsuleTabs({ options, value, onChange, compact, display = "full" }: CapsuleTabsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [ready, setReady] = useState(false);
@@ -75,15 +79,20 @@ export function CapsuleTabs({ options, value, onChange, compact }: CapsuleTabsPr
           }}
           type="button"
           onClick={() => onChange(tab.value)}
-          className={`relative z-10 inline-flex items-center gap-1.5 rounded-xl font-medium transition-colors duration-200 ${
-            compact ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"
+          className={`relative z-10 inline-flex items-center rounded-xl font-medium transition-colors duration-200 ${
+            display === "icon"
+              ? "p-2"
+              : compact
+                ? "px-3 py-1.5 text-xs gap-1.5"
+                : "px-4 py-2 text-sm gap-1.5"
           }`}
           style={{
             color: value === tab.value ? "var(--rc-text)" : "var(--rc-text-muted)",
           }}
+          title={tab.label}
         >
-          {tab.icon}
-          {tab.label}
+          {display !== "text" && tab.icon}
+          {display !== "icon" && tab.label}
         </button>
       ))}
     </div>

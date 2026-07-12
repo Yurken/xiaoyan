@@ -5,7 +5,6 @@ import {
   ChevronDown,
   Code2,
   Download,
-  RotateCcw,
   Trash2,
 } from "lucide-react";
 import type { ExperimentSnapshot } from "@research-copilot/types";
@@ -23,7 +22,6 @@ interface ExperimentSnapshotCardProps {
   onCompare: (id: string) => void;
   onExport: (snapshot: ExperimentSnapshot) => void;
   onDelete: (id: string) => void;
-  onRestore: (id: string) => void;
 }
 
 type DetailSection = "config" | "result" | "notes" | "env";
@@ -46,7 +44,6 @@ export function ExperimentSnapshotCard({
   onCompare,
   onExport,
   onDelete,
-  onRestore,
 }: ExperimentSnapshotCardProps) {
   const [detailTab, setDetailTab] = useState<DetailSection>("config");
   const rel = relativeTime(snapshot.createdAt);
@@ -113,14 +110,6 @@ export function ExperimentSnapshotCard({
         {/* Action buttons */}
         {!selectMode && (
           <div className="flex items-center gap-0.5 flex-shrink-0">
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onRestore(snapshot.id); }}
-              className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary hover:bg-nm-dark/10 transition-colors"
-              title="恢复到当前实验"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onExport(snapshot); }}
