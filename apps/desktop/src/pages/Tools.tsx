@@ -126,13 +126,6 @@ export default function Tools() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
-      <div className="shrink-0 px-6 pt-5 pb-4">
-        <h1 className="text-2xl font-bold text-ink-primary">实用工具</h1>
-        <p className="mt-1 text-sm text-ink-tertiary">
-          小妍为你准备了一些科研实用工具，覆盖论文检索、期刊查询、翻译和演示生成等常用场景。
-        </p>
-      </div>
-
       <div className="shrink-0 px-6 pb-3">
         <CapsuleTabs
           options={TOOL_TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}

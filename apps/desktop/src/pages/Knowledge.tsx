@@ -80,15 +80,6 @@ export default function Knowledge({
   return (
     <div className={clsx("rc-app-page flex h-full min-w-0 flex-col", hideFolders && "rc-knowledge-focus-page")}>
       <div className="min-w-0 space-y-4">
-        {!hideFolders && (
-          <div className="shrink-0">
-            <h1 className="text-2xl font-bold text-ink-primary">知识库</h1>
-            <p className="mt-1 text-sm text-ink-tertiary">
-              不只是记笔记。把论文、观点、证据和实验串联成可追溯的知识图谱，让每个结论都有据可查。
-            </p>
-          </div>
-        )}
-
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div
             className="inline-flex rounded-2xl border p-1"
