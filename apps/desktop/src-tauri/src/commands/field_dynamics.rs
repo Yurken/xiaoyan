@@ -8,8 +8,7 @@ use uuid::Uuid;
 
 use super::papers::papers_upload;
 
-const FIELD_DYNAMICS_IMPORT_USER_AGENT: &str =
-    "XiaoYanDesktop/0.5.0 (+https://github.com/openai)";
+const FIELD_DYNAMICS_IMPORT_USER_AGENT: &str = "XiaoYanDesktop/0.5.0 (+https://github.com/openai)";
 
 fn resolve_pdf_url(raw_pdf_url: &str, external_id: &str, source: &str) -> String {
     let pdf_url = raw_pdf_url.trim();
@@ -50,8 +49,10 @@ async fn download_briefing_pdf(pdf_url: &str) -> Result<PathBuf, String> {
         return Err("下载结果不是有效的 PDF 文件。".to_string());
     }
 
-    let temp_path =
-        std::env::temp_dir().join(format!("xiaoyan-field-dynamics-import-{}.pdf", Uuid::new_v4()));
+    let temp_path = std::env::temp_dir().join(format!(
+        "xiaoyan-field-dynamics-import-{}.pdf",
+        Uuid::new_v4()
+    ));
     fs::write(&temp_path, bytes).map_err(|error| format!("保存临时 PDF 失败：{error}"))?;
     Ok(temp_path)
 }
@@ -68,8 +69,11 @@ pub async fn field_dynamics_scan(
     let settings = state.settings.read().await.clone();
 
     field_dynamics_service::ensure_table(&state.db).await?;
-    let briefings =
+    let generated_briefings =
         field_dynamics_service::scan_interests(&state.db, &settings, days, max_per).await?;
+    // Return the complete latest view. A failed or empty individual scan must
+    // never make an existing briefing disappear from the workspace.
+    let briefings = field_dynamics_service::get_briefings(&state.db, None).await?;
     let unread = field_dynamics_service::count_unread(&state.db)
         .await
         .unwrap_or(0);
@@ -77,11 +81,24 @@ pub async fn field_dynamics_scan(
     let result = json!({
         "briefings": briefings,
         "unread_count": unread,
-        "scanned_interests": briefings.len(),
+        "scanned_interests": generated_briefings.len(),
     });
 
     let _ = app.emit("field-dynamics:scan-complete", result.clone());
     Ok(result)
+}
+
+#[tauri::command]
+pub async fn field_dynamics_history(
+    state: State<'_, AppState>,
+    interest_id: Option<String>,
+    limit: Option<i64>,
+) -> Result<serde_json::Value, String> {
+    field_dynamics_service::ensure_table(&state.db).await?;
+    let briefings =
+        field_dynamics_service::get_briefing_history(&state.db, interest_id, limit.unwrap_or(24))
+            .await?;
+    Ok(json!({ "briefings": briefings }))
 }
 
 #[tauri::command]

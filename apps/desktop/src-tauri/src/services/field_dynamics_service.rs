@@ -1,46 +1,17 @@
 use crate::commands::arxiv::{build_recent_hint_request, run_arxiv_search};
 use crate::commands::paper_search::fetch_semantic_scholar_candidates;
-use crate::llm::{resolve_model, resolve_temperature_chain, LlmClient, LlmMessage};
+use crate::llm::{resolve_model, resolve_temperature_chain, LlmClient};
 use sqlx::{Row, SqlitePool};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
-const BRIEFING_GENERATION_PROMPT: &str = r#"你是一位研究情报分析助手。请基于下面某个研究兴趣在近期（最近 7 天）收集到的论文和会议截稿信息，生成一份结构化的「领域动态简报」。
+mod briefing;
+mod storage;
 
-输出必须是合法 JSON，格式如下：
-{
-  "summary": "用 2-4 句话概括本周该领域最值得关注的动态，中文。",
-  "trends": ["趋势/热点 1", "趋势/热点 2", ...],
-  "key_papers": [
-    {
-      "external_id": "论文唯一标识",
-      "source": "arxiv 或 semantic_scholar",
-      "title": "论文标题",
-      "authors": "作者",
-      "published_at": "发表日期",
-      "url": "详情页链接",
-      "pdf_url": "PDF 链接（可为空）",
-      "relevance_score": 85,
-      "relevance_reason": "为什么值得关注的 1 句话中文说明"
-    }
-  ],
-  "upcoming_deadlines": [
-    {
-      "external_id": "会议唯一标识",
-      "name": "会议名",
-      "deadline": "截稿日期",
-      "url": "投稿页链接（可为空）",
-      "days_remaining": 30
-    }
-  ]
-}
-
-要求：
-- summary 要凝练、有洞察力，避免简单罗列标题。
-- trends 控制在 3-6 条，每条是短语或短句。
-- key_papers 只选最相关的 3-6 篇。
-- upcoming_deadlines 只选与该兴趣明显相关且尚未截稿的会议，最多 4 个。
-- 不要输出 Markdown 代码块，只输出纯 JSON。"#;
+pub use storage::{
+    append_briefing_history, count_unread, ensure_table, get_briefing_by_id, get_briefing_history,
+    get_briefings, mark_briefing_read, upsert_briefing,
+};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ResearchFieldBriefing {
@@ -55,6 +26,15 @@ pub struct ResearchFieldBriefing {
     pub upcoming_deadlines: Vec<BriefingDeadline>,
     pub generated_at: String,
     pub is_read: bool,
+    pub stats: FieldDynamicsStats,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct FieldDynamicsStats {
+    pub candidate_paper_count: usize,
+    pub selected_paper_count: usize,
+    pub upcoming_deadline_count: usize,
+    pub trend_count: usize,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -80,7 +60,7 @@ pub struct BriefingDeadline {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
-struct RawPaperCandidate {
+pub(super) struct RawPaperCandidate {
     source: String,
     external_id: String,
     title: String,
@@ -92,51 +72,12 @@ struct RawPaperCandidate {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
-struct RawDeadlineCandidate {
+pub(super) struct RawDeadlineCandidate {
     external_id: String,
     name: String,
     deadline: String,
     url: String,
     days_remaining: i32,
-}
-
-pub async fn ensure_table(pool: &SqlitePool) -> Result<(), String> {
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS research_field_briefings (
-            id              TEXT PRIMARY KEY,
-            interest_id     TEXT NOT NULL UNIQUE,
-            interest_topic  TEXT NOT NULL,
-            period_start    TEXT NOT NULL,
-            period_end      TEXT NOT NULL,
-            summary         TEXT NOT NULL DEFAULT '',
-            trends          TEXT NOT NULL DEFAULT '[]',
-            key_papers      TEXT NOT NULL DEFAULT '[]',
-            upcoming_deadlines TEXT NOT NULL DEFAULT '[]',
-            generated_at    TEXT NOT NULL,
-            is_read         INTEGER NOT NULL DEFAULT 0
-        )",
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
-
-    let _ = sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_field_briefings_interest ON research_field_briefings(interest_id)",
-    )
-    .execute(pool)
-    .await;
-
-    let _ = sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_field_briefings_generated ON research_field_briefings(generated_at DESC)",
-    )
-    .execute(pool)
-    .await;
-
-    let _ = sqlx::query("DROP TABLE IF EXISTS research_field_updates")
-        .execute(pool)
-        .await;
-
-    Ok(())
 }
 
 pub async fn scan_interests(
@@ -154,7 +95,9 @@ pub async fn scan_interests(
         return Ok(vec![]);
     }
 
-    let client = LlmClient::from_settings(settings).map_err(|e| e.to_string())?;
+    // A usable briefing is still preferable to no briefing when the model is
+    // temporarily unavailable or has not been configured yet.
+    let client = LlmClient::from_settings(settings).ok();
     let model = resolve_model(settings, &["copilot_simple_model"]);
     let temperature = resolve_temperature_chain(settings, &["copilot_simple_temperature"], 0.3);
 
@@ -185,8 +128,8 @@ pub async fn scan_interests(
             continue;
         }
 
-        let generated = match generate_briefing(
-            &client,
+        let generated = briefing::generate_briefing(
+            client.as_ref(),
             model.as_deref(),
             temperature,
             &topic,
@@ -194,11 +137,10 @@ pub async fn scan_interests(
             &papers,
             &deadlines,
         )
-        .await
-        {
-            Some(b) => b,
-            None => continue,
-        };
+        .await;
+        let selected_paper_count = generated.key_papers.len();
+        let upcoming_deadline_count = generated.upcoming_deadlines.len();
+        let trend_count = generated.trends.len();
 
         let briefing = ResearchFieldBriefing {
             id: Uuid::new_v4().to_string(),
@@ -212,11 +154,20 @@ pub async fn scan_interests(
             upcoming_deadlines: generated.upcoming_deadlines,
             generated_at: generated_at.clone(),
             is_read: false,
+            stats: FieldDynamicsStats {
+                candidate_paper_count: papers.len(),
+                selected_paper_count,
+                upcoming_deadline_count,
+                trend_count,
+            },
         };
 
         if let Err(e) = upsert_briefing(pool, &briefing).await {
             eprintln!("[field-dynamics] upsert briefing failed: {}", e);
             continue;
+        }
+        if let Err(e) = append_briefing_history(pool, &briefing).await {
+            eprintln!("[field-dynamics] append history failed: {}", e);
         }
 
         briefings.push(briefing);
@@ -251,10 +202,40 @@ async fn fetch_papers_for_interest(
     .await
     {
         Ok(items) => all_papers.extend(items),
-        Err(e) => eprintln!("[field-dynamics] semantic scholar failed for {}: {}", topic, e),
+        Err(e) => eprintln!(
+            "[field-dynamics] semantic scholar failed for {}: {}",
+            topic, e
+        ),
     }
 
-    Ok(all_papers)
+    Ok(deduplicate_papers(
+        all_papers,
+        max_per_interest.saturating_mul(2),
+    ))
+}
+
+fn deduplicate_papers(papers: Vec<RawPaperCandidate>, limit: usize) -> Vec<RawPaperCandidate> {
+    let mut seen_external_ids = HashSet::new();
+    let mut seen_titles = HashSet::new();
+
+    papers
+        .into_iter()
+        .filter(|paper| {
+            let external_key = format!("{}:{}", paper.source, paper.external_id.trim());
+            let title_key = paper
+                .title
+                .chars()
+                .filter(|character| character.is_alphanumeric())
+                .flat_map(char::to_lowercase)
+                .collect::<String>();
+            !paper.external_id.trim().is_empty()
+                && !paper.title.trim().is_empty()
+                && seen_external_ids.insert(external_key)
+                && !title_key.is_empty()
+                && seen_titles.insert(title_key)
+        })
+        .take(limit.max(1))
+        .collect()
 }
 
 async fn fetch_arxiv_candidates(
@@ -336,15 +317,10 @@ async fn fetch_semantic_scholar_candidates_for_interest(
     query_terms.extend(keywords.iter().cloned());
     let query = query_terms.join(" ");
 
-    let candidates = fetch_semantic_scholar_candidates(
-        settings,
-        &query,
-        &[],
-        days,
-        max_per_interest.max(6),
-    )
-    .await
-    .map_err(|e| e.to_string())?;
+    let candidates =
+        fetch_semantic_scholar_candidates(settings, &query, &[], days, max_per_interest.max(6))
+            .await
+            .map_err(|e| e.to_string())?;
 
     Ok(candidates
         .into_iter()
@@ -413,7 +389,8 @@ async fn fetch_deadlines_for_interest(
             format!("{} ({})", full_name, name)
         };
 
-        let days_remaining = if let Ok(d) = chrono::NaiveDate::parse_from_str(&deadline, "%Y-%m-%d") {
+        let days_remaining = if let Ok(d) = chrono::NaiveDate::parse_from_str(&deadline, "%Y-%m-%d")
+        {
             d.signed_duration_since(today).num_days() as i32
         } else {
             0
@@ -429,193 +406,4 @@ async fn fetch_deadlines_for_interest(
     }
 
     Ok(candidates)
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct GeneratedBriefing {
-    summary: String,
-    trends: Vec<String>,
-    key_papers: Vec<BriefingPaper>,
-    upcoming_deadlines: Vec<BriefingDeadline>,
-}
-
-async fn generate_briefing(
-    client: &LlmClient,
-    model: Option<&str>,
-    temperature: f32,
-    topic: &str,
-    keywords: &[String],
-    papers: &[RawPaperCandidate],
-    deadlines: &[RawDeadlineCandidate],
-) -> Option<GeneratedBriefing> {
-    if papers.is_empty() && deadlines.is_empty() {
-        return None;
-    }
-
-    let papers_json = serde_json::to_string(papers).unwrap_or_else(|_| "[]".to_string());
-    let deadlines_json = serde_json::to_string(deadlines).unwrap_or_else(|_| "[]".to_string());
-
-    let messages = vec![
-        LlmMessage::system(BRIEFING_GENERATION_PROMPT),
-        LlmMessage::user(format!(
-            "研究兴趣：{}\n关键词：{}\n\n候选论文：{}\n\n候选会议截稿：{}",
-            topic,
-            keywords.join(", "),
-            papers_json,
-            deadlines_json
-        )),
-    ];
-
-    let response = client.chat(&messages, model, temperature).await.ok()?;
-    let trimmed = response.trim();
-    let json_str = if trimmed.starts_with("```") {
-        trimmed
-            .trim_start_matches("```json")
-            .trim_start_matches("```")
-            .trim_end_matches("```")
-            .trim()
-    } else {
-        trimmed
-    };
-
-    serde_json::from_str(json_str).ok()
-}
-
-async fn upsert_briefing(pool: &SqlitePool, briefing: &ResearchFieldBriefing) -> Result<(), String> {
-    sqlx::query(
-        "INSERT INTO research_field_briefings (
-            id, interest_id, interest_topic, period_start, period_end,
-            summary, trends, key_papers, upcoming_deadlines, generated_at, is_read
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(interest_id) DO UPDATE SET
-            interest_topic = excluded.interest_topic,
-            period_start = excluded.period_start,
-            period_end = excluded.period_end,
-            summary = excluded.summary,
-            trends = excluded.trends,
-            key_papers = excluded.key_papers,
-            upcoming_deadlines = excluded.upcoming_deadlines,
-            generated_at = excluded.generated_at,
-            is_read = excluded.is_read",
-    )
-    .bind(&briefing.id)
-    .bind(&briefing.interest_id)
-    .bind(&briefing.interest_topic)
-    .bind(&briefing.period_start)
-    .bind(&briefing.period_end)
-    .bind(&briefing.summary)
-    .bind(&serde_json::to_string(&briefing.trends).unwrap_or_else(|_| "[]".to_string()))
-    .bind(&serde_json::to_string(&briefing.key_papers).unwrap_or_else(|_| "[]".to_string()))
-    .bind(&serde_json::to_string(&briefing.upcoming_deadlines).unwrap_or_else(|_| "[]".to_string()))
-    .bind(&briefing.generated_at)
-    .bind(if briefing.is_read { 1 } else { 0 })
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-pub async fn get_briefings(
-    pool: &SqlitePool,
-    interest_id: Option<String>,
-) -> Result<Vec<ResearchFieldBriefing>, String> {
-    let sql = if interest_id.is_some() {
-        "SELECT id, interest_id, interest_topic, period_start, period_end, summary, trends,
-                key_papers, upcoming_deadlines, generated_at, is_read
-         FROM research_field_briefings
-         WHERE interest_id = ?
-         ORDER BY generated_at DESC"
-    } else {
-        "SELECT id, interest_id, interest_topic, period_start, period_end, summary, trends,
-                key_papers, upcoming_deadlines, generated_at, is_read
-         FROM research_field_briefings
-         ORDER BY generated_at DESC"
-    };
-
-    let rows = if let Some(id) = interest_id {
-        sqlx::query_as::<_, ResearchFieldBriefingRow>(sql)
-            .bind(id)
-            .fetch_all(pool)
-            .await
-    } else {
-        sqlx::query_as::<_, ResearchFieldBriefingRow>(sql)
-            .fetch_all(pool)
-            .await
-    }
-    .map_err(|e| e.to_string())?;
-
-    Ok(rows.into_iter().map(into_briefing).collect())
-}
-
-#[derive(sqlx::FromRow)]
-struct ResearchFieldBriefingRow {
-    id: String,
-    interest_id: String,
-    interest_topic: String,
-    period_start: String,
-    period_end: String,
-    summary: String,
-    trends: String,
-    key_papers: String,
-    upcoming_deadlines: String,
-    generated_at: String,
-    is_read: i32,
-}
-
-fn into_briefing(row: ResearchFieldBriefingRow) -> ResearchFieldBriefing {
-    ResearchFieldBriefing {
-        id: row.id,
-        interest_id: row.interest_id,
-        interest_topic: row.interest_topic,
-        period_start: row.period_start,
-        period_end: row.period_end,
-        summary: row.summary,
-        trends: serde_json::from_str(&row.trends).unwrap_or_default(),
-        key_papers: serde_json::from_str(&row.key_papers).unwrap_or_default(),
-        upcoming_deadlines: serde_json::from_str(&row.upcoming_deadlines).unwrap_or_default(),
-        generated_at: row.generated_at,
-        is_read: row.is_read != 0,
-    }
-}
-
-pub async fn mark_briefing_read(pool: &SqlitePool, id: Option<String>) -> Result<(), String> {
-    if let Some(briefing_id) = id {
-        sqlx::query("UPDATE research_field_briefings SET is_read = 1 WHERE id = ?")
-            .bind(&briefing_id)
-            .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-    } else {
-        sqlx::query("UPDATE research_field_briefings SET is_read = 1")
-            .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-pub async fn count_unread(pool: &SqlitePool) -> Result<i64, String> {
-    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM research_field_briefings WHERE is_read = 0")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(row.0)
-}
-
-pub async fn get_briefing_by_id(
-    pool: &SqlitePool,
-    id: &str,
-) -> Result<Option<ResearchFieldBriefing>, String> {
-    let row = sqlx::query_as::<_, ResearchFieldBriefingRow>(
-        "SELECT id, interest_id, interest_topic, period_start, period_end, summary, trends,
-                key_papers, upcoming_deadlines, generated_at, is_read
-         FROM research_field_briefings WHERE id = ?",
-    )
-    .bind(id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| e.to_string())?;
-
-    Ok(row.map(into_briefing))
 }

@@ -77,7 +77,7 @@ use commands::{
     },
     export::export_to_obsidian,
     field_dynamics::{
-        field_dynamics_import_paper, field_dynamics_list, field_dynamics_mark_read,
+        field_dynamics_history, field_dynamics_import_paper, field_dynamics_list, field_dynamics_mark_read,
         field_dynamics_scan,
     },
     github_project::{
@@ -728,6 +728,7 @@ pub fn run() {
             active_researcher_mark_read,
             field_dynamics_scan,
             field_dynamics_list,
+            field_dynamics_history,
             field_dynamics_import_paper,
             field_dynamics_mark_read,
             // Cross-paper Analysis

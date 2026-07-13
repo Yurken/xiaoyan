@@ -401,6 +401,15 @@ export interface ResearchFieldBriefing {
   upcoming_deadlines: BriefingDeadline[];
   generated_at: string;
   is_read: boolean;
+  stats: FieldDynamicsStats;
+}
+
+/** A stable activity snapshot captured each time a field briefing is generated. */
+export interface FieldDynamicsStats {
+  candidate_paper_count: number;
+  selected_paper_count: number;
+  upcoming_deadline_count: number;
+  trend_count: number;
 }
 
 export interface FieldDynamicsListResult {
@@ -410,6 +419,10 @@ export interface FieldDynamicsListResult {
 
 export interface FieldDynamicsScanResult extends FieldDynamicsListResult {
   scanned_interests: number;
+}
+
+export interface FieldDynamicsHistoryResult {
+  briefings: ResearchFieldBriefing[];
 }
 
 export interface KnowledgeNote {

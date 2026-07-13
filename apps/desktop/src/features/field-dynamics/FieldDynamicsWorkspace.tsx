@@ -1,14 +1,20 @@
-import { RefreshCw } from "lucide-react";
+import { Archive, CheckCheck, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@research-copilot/ui";
 import { useFieldDynamics } from "./useFieldDynamics";
 import { FieldDynamicsFilters } from "./FieldDynamicsFilters";
 import { FieldDynamicsPanel } from "./FieldDynamicsPanel";
+import { FieldDynamicsHistoryPanel } from "./FieldDynamicsHistoryPanel";
+import { FieldDynamicsInsightsPanel } from "./FieldDynamicsInsightsPanel";
 
 export function FieldDynamicsWorkspace() {
+  const [showHistory, setShowHistory] = useState(false);
   const {
     briefings,
+    history,
     unreadCount,
     loading,
+    historyLoading,
     scanning,
     interestId,
     setInterestId,
@@ -49,6 +55,25 @@ export function FieldDynamicsWorkspace() {
             {!scanning ? <RefreshCw className="h-4 w-4" /> : null}
             {scanning ? "生成中…" : "立即刷新"}
           </Button>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => setShowHistory((visible) => !visible)}
+            className="inline-flex items-center gap-2"
+          >
+            <Archive className="h-4 w-4" />
+            {showHistory ? "当前简报" : "历史简报"}
+          </Button>
+          {unreadCount > 0 ? (
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={() => void markRead()}
+              className="inline-flex items-center gap-1.5"
+            >
+              <CheckCheck className="h-4 w-4" /> 全部已读
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -74,16 +99,34 @@ export function FieldDynamicsWorkspace() {
           </div>
         ) : null}
 
-        <FieldDynamicsPanel
-          briefings={briefings}
-          loading={loading}
-          importingPaper={importingPaper}
-          importErrors={importErrors}
-          onImportPaper={(briefingId, externalId, source, title) =>
-            void importPaper(briefingId, externalId, source, title)
-          }
-          onMarkRead={(id) => void markRead(id)}
-        />
+        {showHistory ? (
+          <FieldDynamicsHistoryPanel
+            briefings={history}
+            importingPaper={importingPaper}
+            importErrors={importErrors}
+            onImportPaper={(briefingId, externalId, source, title) =>
+              void importPaper(briefingId, externalId, source, title)
+            }
+          />
+        ) : (
+          <>
+            <FieldDynamicsInsightsPanel
+              briefings={briefings}
+              history={history}
+              loading={historyLoading}
+            />
+            <FieldDynamicsPanel
+              briefings={briefings}
+              loading={loading}
+              importingPaper={importingPaper}
+              importErrors={importErrors}
+              onImportPaper={(briefingId, externalId, source, title) =>
+                void importPaper(briefingId, externalId, source, title)
+              }
+              onMarkRead={(id) => void markRead(id)}
+            />
+          </>
+        )}
       </div>
     </div>
   );

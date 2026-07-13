@@ -30,6 +30,7 @@ import type {
   ExperimentSnapshot,
   FieldDynamicsListResult,
   FieldDynamicsScanResult,
+  FieldDynamicsHistoryResult,
   SettingsHistoryEntry,
   SurveySummary,
   SavedSurvey,
@@ -946,6 +947,11 @@ export const fieldDynamicsApi = {
     invoke("field_dynamics_scan", { days: days ?? null, maxPerInterest: maxPerInterest ?? null }),
   list: (interestId?: string): Promise<FieldDynamicsListResult> =>
     invoke("field_dynamics_list", { interestId: interestId ?? null }),
+  history: (interestId?: string, limit?: number): Promise<FieldDynamicsHistoryResult> =>
+    invoke("field_dynamics_history", {
+      interestId: interestId ?? null,
+      limit: limit ?? null,
+    }),
   importPaper: (briefingId: string, paperExternalId: string, paperSource: string) =>
     invoke<{ paper_id: string; title: string; briefing_id: string; paper_external_id: string }>("field_dynamics_import_paper", { briefingId, paperExternalId, paperSource }),
   markRead: (id?: string): Promise<void> =>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ResearchFieldBriefing, ResearchInterest } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
+import { useDomainEventRefresh } from "../../hooks/useDomainEventRefresh";
 
 type ScanningListener = (scanning: boolean) => void;
 
@@ -19,6 +20,7 @@ const scanningState = {
 
 export function useFieldDynamics() {
   const [briefings, setBriefings] = useState<ResearchFieldBriefing[]>([]);
+  const [history, setHistory] = useState<ResearchFieldBriefing[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(scanningState.scanning);
@@ -32,6 +34,8 @@ export function useFieldDynamics() {
   const [error, setError] = useState("");
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
   const mountedRef = useRef(true);
+  const loadRequestRef = useRef(0);
+  const historyRequestRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -45,23 +49,43 @@ export function useFieldDynamics() {
   const loadInterests = useCallback(async () => {
     try {
       const result = await apiClient.knowledge.listInterests();
-      setInterests(result);
+      if (mountedRef.current) setInterests(result);
     } catch {
       // Non-critical
     }
   }, []);
 
   const loadBriefings = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     setError("");
     try {
       const result = await apiClient.fieldDynamics.list(interestId || undefined);
+      if (!mountedRef.current || requestId !== loadRequestRef.current) return;
       setBriefings(result.briefings);
       setUnreadCount(result.unread_count);
     } catch (err) {
-      setError(formatErrorMessage(err));
+      if (mountedRef.current && requestId === loadRequestRef.current) {
+        setError(formatErrorMessage(err));
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current && requestId === loadRequestRef.current) setLoading(false);
+    }
+  }, [interestId]);
+
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const loadHistory = useCallback(async () => {
+    const requestId = ++historyRequestRef.current;
+    setHistoryLoading(true);
+    try {
+      const result = await apiClient.fieldDynamics.history(interestId || undefined, 24);
+      if (mountedRef.current && requestId === historyRequestRef.current) {
+        setHistory(result.briefings);
+      }
+    } catch {
+      // The current briefing remains useful even when history is unavailable.
+    } finally {
+      if (mountedRef.current && requestId === historyRequestRef.current) setHistoryLoading(false);
     }
   }, [interestId]);
 
@@ -75,6 +99,7 @@ export function useFieldDynamics() {
         setBriefings(result.briefings);
         setUnreadCount(result.unread_count);
         setNotice(`已更新 ${result.scanned_interests} 个研究兴趣的简报`);
+        void loadHistory();
       }
     } catch (err) {
       if (mountedRef.current) {
@@ -83,7 +108,7 @@ export function useFieldDynamics() {
     } finally {
       scanningState.set(false);
     }
-  }, []);
+  }, [loadHistory]);
 
   const markRead = useCallback(
     async (id?: string) => {
@@ -145,10 +170,25 @@ export function useFieldDynamics() {
     void loadBriefings();
   }, [loadBriefings]);
 
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  const refreshFromBackgroundScan = useCallback(() => {
+    if (!scanningState.scanning) {
+      void loadBriefings();
+      void loadHistory();
+    }
+  }, [loadBriefings, loadHistory]);
+
+  useDomainEventRefresh("field-dynamics:scan-complete", refreshFromBackgroundScan);
+
   return {
     briefings,
+    history,
     unreadCount,
     loading,
+    historyLoading,
     scanning,
     interestId,
     setInterestId,
@@ -159,6 +199,7 @@ export function useFieldDynamics() {
     error,
     interests,
     loadBriefings,
+    loadHistory,
     scan,
     markRead,
     importPaper,

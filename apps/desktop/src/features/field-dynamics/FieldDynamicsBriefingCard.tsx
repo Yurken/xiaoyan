@@ -16,6 +16,7 @@ interface FieldDynamicsBriefingCardProps {
     title: string,
   ) => void;
   onMarkRead: (id: string) => void;
+  readOnly?: boolean;
 }
 
 const sourceLabel: Record<string, string> = {
@@ -29,6 +30,7 @@ export function FieldDynamicsBriefingCard({
   importErrors,
   onImportPaper,
   onMarkRead,
+  readOnly = false,
 }: FieldDynamicsBriefingCardProps) {
   const [expanded, setExpanded] = useState(false);
   const period = formatPeriod(briefing.period_start, briefing.period_end);
@@ -62,7 +64,7 @@ export function FieldDynamicsBriefingCard({
           ) : null}
         </div>
 
-        {!briefing.is_read ? (
+        {!readOnly && !briefing.is_read ? (
           <button
             type="button"
             onClick={() => onMarkRead(briefing.id)}
