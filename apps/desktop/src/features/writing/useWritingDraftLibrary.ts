@@ -10,16 +10,19 @@ import {
   type WritingDraft,
   type WritingImageAsset,
   type WritingResearchInterestSummary,
+  type WritingTexFile,
   type WritingTemplateId,
   writingResearchInterestTitle,
 } from "./shared";
 import { getDefaultWritingTemplate, getWritingTemplate } from "./templates";
+import { normalizeWritingTexFiles } from "./texFiles";
 
 interface PersistedWritingState {
   projectName?: string;
   templateId?: WritingTemplateId;
   mainTex?: string;
   bibtex?: string;
+  texFiles?: WritingTexFile[];
   notes?: string;
 }
 
@@ -28,7 +31,7 @@ interface PersistedWritingLibrary {
 }
 
 type WritingDraftPatch = Partial<
-  Pick<WritingDraft, "projectName" | "researchInterestId" | "templateId" | "mainTex" | "bibtex" | "notes" | "imageAssets">
+  Pick<WritingDraft, "projectName" | "researchInterestId" | "templateId" | "mainTex" | "bibtex" | "texFiles" | "notes" | "imageAssets">
 >;
 
 interface LoadedDraftLibrary {
@@ -209,6 +212,7 @@ function normalizePersistedDraft(value: unknown): WritingDraft | null {
     templateId,
     mainTex: typeof value.mainTex === "string" ? value.mainTex : template.mainTex,
     bibtex: typeof value.bibtex === "string" ? value.bibtex : template.bibtex,
+    texFiles: normalizeWritingTexFiles(Array.isArray(value.texFiles) ? value.texFiles.filter(isWritingTexFile) : []),
     notes: typeof value.notes === "string" ? value.notes : "",
     imageAssets: normalizePersistedImageAssets(value.imageAssets),
     createdAt,
@@ -228,6 +232,7 @@ function createDraftFromTemplate(
     templateId: overrides.templateId ?? template.id,
     mainTex: overrides.mainTex ?? template.mainTex,
     bibtex: overrides.bibtex ?? template.bibtex,
+    texFiles: normalizeWritingTexFiles(overrides.texFiles ?? []),
     notes: overrides.notes ?? "",
     imageAssets: overrides.imageAssets ?? [],
     createdAt: overrides.createdAt ?? now,
@@ -264,6 +269,10 @@ function normalizePersistedImageAssets(value: unknown): WritingImageAsset[] {
   return value
     .map(normalizePersistedImageAsset)
     .filter((asset): asset is WritingImageAsset => Boolean(asset));
+}
+
+function isWritingTexFile(value: unknown): value is WritingTexFile {
+  return isRecord(value) && typeof value.path === "string" && typeof value.content === "string";
 }
 
 function normalizePersistedImageAsset(value: unknown): WritingImageAsset | null {

@@ -26,41 +26,39 @@ export default function WritingSidebarSection({
   return (
     <section
       className={clsx(
-        "rounded-xl border shadow-sm transition-all",
+        "writing-sidebar-section",
+        !isOpen && "writing-sidebar-section--collapsed",
         className,
       )}
-      style={{ background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }}
     >
-      <div
-        className={clsx(
-          "flex cursor-pointer items-center justify-between px-4 py-2.5 transition-colors hover:bg-white/5",
-          isOpen ? "border-b" : "rounded-xl",
-        )}
-        style={{ borderColor: "var(--rc-border)" }}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-apple-blue/10 text-apple-blue">
-            {icon}
-          </div>
-          <p className="text-sm font-bold tracking-tight text-ink-primary">{title}</p>
-          {badge}
-        </div>
-        <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
-          {action}
-          <div
+      <div className="writing-sidebar-section__header">
+        <button
+          type="button"
+          className="writing-sidebar-section__toggle"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+        >
+          <span className="writing-sidebar-section__identity">
+            <span className="writing-sidebar-section__icon">{icon}</span>
+            <span className="writing-sidebar-section__title">{title}</span>
+            {badge}
+          </span>
+          <span
             className={clsx(
-              "flex h-6 w-6 items-center justify-center rounded-md text-ink-tertiary transition-transform duration-200",
-              isOpen ? "rotate-0" : "-rotate-90",
+              "writing-sidebar-section__chevron",
+              !isOpen && "writing-sidebar-section__chevron--collapsed",
             )}
-            onClick={() => setIsOpen(!isOpen)}
+            aria-hidden="true"
           >
             <ChevronDown className="h-4 w-4" />
-          </div>
+          </span>
+        </button>
+        <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+          {action}
         </div>
       </div>
 
-      {isOpen && <div className="relative">{children}</div>}
+      {isOpen && <div className="writing-sidebar-section__content">{children}</div>}
     </section>
   );
 }

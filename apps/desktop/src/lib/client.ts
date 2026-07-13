@@ -1024,6 +1024,11 @@ export interface WritingImageAssetPayload {
   createdAt: string;
 }
 
+export interface WritingTexFilePayload {
+  path: string;
+  content: string;
+}
+
 export const writingApi = {
   polish: (request: { text: string; section?: string; direction?: string }) =>
     invoke<{ polished: string; revision_notes: string[]; warnings: string[] }>("writing_polish_text", { request }),
@@ -1033,6 +1038,7 @@ export const writingApi = {
     projectName: string;
     mainTex: string;
     bibtex: string;
+    texFiles: WritingTexFilePayload[];
     notes: string;
     imageAssets: WritingImageAssetPayload[];
   }) =>

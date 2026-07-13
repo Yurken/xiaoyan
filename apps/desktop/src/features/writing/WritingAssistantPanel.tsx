@@ -16,6 +16,7 @@ import {
   type LatexOutlineEntry,
   type LatexStats,
   type WritingAssistantActionId,
+  type WritingTexFile,
 } from "./shared";
 import { WRITING_ASSISTANT_ACTION_ICONS } from "./WritingEditorContextMenuData";
 import { useWritingAssistant } from "./useWritingAssistant";
@@ -25,6 +26,7 @@ interface WritingAssistantPanelProps {
   projectName: string;
   mainTex: string;
   bibtex: string;
+  texFiles: WritingTexFile[];
   notes: string;
   outline: LatexOutlineEntry[];
   diagnostics: LatexDiagnostic[];
@@ -39,6 +41,7 @@ export default function WritingAssistantPanel({
   projectName,
   mainTex,
   bibtex,
+  texFiles,
   notes,
   outline,
   diagnostics,
@@ -59,6 +62,7 @@ export default function WritingAssistantPanel({
     projectName,
     mainTex,
     bibtex,
+    texFiles,
     notes,
     outline,
     diagnostics,
