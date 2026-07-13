@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Yurken/xiaoyan/releases/latest"><img src="https://img.shields.io/badge/release-v0.4.9-863bff?style=flat-square" alt="Release" /></a>
+  <a href="https://github.com/Yurken/xiaoyan/releases/latest"><img src="https://img.shields.io/badge/release-v0.5.0-863bff?style=flat-square" alt="Release" /></a>
   <a href="https://github.com/Yurken/xiaoyan/actions/workflows/desktop-release.yml"><img src="https://github.com/Yurken/xiaoyan/actions/workflows/desktop-release.yml/badge.svg" alt="Build" /></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-333?style=flat-square" alt="Platform" />
   <img src="https://img.shields.io/badge/stack-Tauri%20v2%20+%20React%20+%20Rust-f5a623?style=flat-square" alt="Stack" />
