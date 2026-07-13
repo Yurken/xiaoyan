@@ -901,26 +901,26 @@ mod tests {
 
     #[test]
     fn resolve_working_path_keeps_absolute_base() {
-        let resolved = resolve_working_path(".", "/Users/sen/hit/AiChildDrawingBoard").unwrap();
+        let resolved = resolve_working_path(".", "/Users/researcher/projects/example").unwrap();
         assert_eq!(
             resolved,
-            PathBuf::from("/Users/sen/hit/AiChildDrawingBoard")
+            PathBuf::from("/Users/researcher/projects/example")
         );
     }
 
     #[test]
     fn resolve_working_path_treats_empty_input_as_workspace_root() {
-        let resolved = resolve_working_path("", "/Users/sen/hit/AiChildDrawingBoard").unwrap();
+        let resolved = resolve_working_path("", "/Users/researcher/projects/example").unwrap();
         assert_eq!(
             resolved,
-            PathBuf::from("/Users/sen/hit/AiChildDrawingBoard")
+            PathBuf::from("/Users/researcher/projects/example")
         );
     }
 
     #[test]
     fn resolve_working_path_rejects_escape_paths() {
-        assert!(resolve_working_path("../outside", "/Users/sen/hit/project").is_err());
-        assert!(resolve_working_path("/tmp/outside", "/Users/sen/hit/project").is_err());
+        assert!(resolve_working_path("../outside", "/Users/researcher/projects/example").is_err());
+        assert!(resolve_working_path("/tmp/outside", "/Users/researcher/projects/example").is_err());
     }
 
     #[test]

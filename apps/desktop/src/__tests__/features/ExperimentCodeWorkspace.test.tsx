@@ -18,7 +18,7 @@ vi.mock("../../lib/client", async () => {
 
 function createWorkspace(overrides: Record<string, unknown> = {}) {
   return {
-    workingDir: "/Users/sen/hit/xiaoyan",
+    workingDir: "/Users/researcher/projects/xiaoyan",
     setWorkingDir: vi.fn(),
     chooseWorkingDir: vi.fn(),
     openFile: null,
@@ -39,7 +39,7 @@ function createWorkspace(overrides: Record<string, unknown> = {}) {
         experiment_id: "exp-1",
         title: "复现实验脚本",
         messages: [],
-        working_dir: "/Users/sen/hit/xiaoyan",
+        working_dir: "/Users/researcher/projects/xiaoyan",
         tool_id: "claude",
         model: "sonnet",
         created_at: "2026-06-29T00:00:00.000Z",
@@ -134,7 +134,7 @@ describe("ExperimentCodeWorkspace", () => {
   it("打开文件后在弹窗中编辑，而不占用右侧工具栏", () => {
     useCodeWorkspaceMock.mockReturnValue(createWorkspace({
       openFile: {
-        path: "/Users/sen/hit/xiaoyan/example.ts",
+        path: "/Users/researcher/projects/xiaoyan/example.ts",
         name: "example.ts",
         content: "export const answer = 42;",
         originalContent: "export const answer = 42;",

@@ -2,6 +2,7 @@
 name = "xiaoyan-desktop"
 version = "0.5.0"
 edition = "2021"
+license = "Apache-2.0"
 
 [lib]
 name = "xiaoyan_desktop_lib"

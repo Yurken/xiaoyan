@@ -1,6 +1,7 @@
 {
   "name": "@research-copilot/types",
   "version": "0.5.0",
+  "license": "Apache-2.0",
   "private": true,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
