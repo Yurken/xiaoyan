@@ -60,8 +60,7 @@ export default function KnowledgeGraphInspector({
               {bundle.provenance.slice(0, 4).map((item) => (
                 <div
                   key={item.link.id}
-                  className="rounded-2xl border px-3 py-2"
-                  style={{ borderColor: "var(--rc-border)" }}
+                  className="knowledge-graph-provenance rounded-2xl px-3 py-2"
                 >
                   <p className="text-sm font-medium text-ink-primary">{item.title}</p>
                   <p className="text-xs text-ink-tertiary">{sourceKindLabel(item.sourceKind)}</p>

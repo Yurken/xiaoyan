@@ -1,11 +1,11 @@
 import { Card, CardHeader, CardTitle } from "@research-copilot/ui";
-import { Beaker, BookOpen, Flag, Sparkles } from "lucide-react";
+import { Beaker, BookOpen, Flag, Lightbulb } from "lucide-react";
 import { type KnowledgeGraphTimelineEntry } from "./graphView";
 
 const TIMELINE_ICONS = {
   interest: Flag,
   paper: BookOpen,
-  claim: Sparkles,
+  claim: Lightbulb,
   experiment: Beaker,
 } as const;
 
@@ -46,31 +46,29 @@ export default function KnowledgeTimelinePanel({
         <CardTitle>研究主题演进时间线</CardTitle>
       </CardHeader>
 
-      <div className="space-y-5">
+      <div className="knowledge-graph-timeline space-y-5">
         {Object.entries(groups).map(([year, items]) => (
           <div key={year} className="grid gap-3 md:grid-cols-[92px,1fr]">
             <div className="text-2xl font-semibold text-ink-primary">{year}</div>
-            <div className="space-y-3">
+            <div className="knowledge-graph-timeline-events space-y-3">
               {items.map((item) => {
                 const Icon = TIMELINE_ICONS[item.kind];
                 return (
                   <div
                     key={item.id}
-                    className="rounded-2xl border px-4 py-3"
-                    style={{ borderColor: "var(--rc-border)", background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.48))" }}
+                    className={`knowledge-graph-timeline-event knowledge-graph-timeline-event--${item.kind} rounded-2xl px-4 py-3`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
                         <div
-                          className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl"
-                          style={{ background: "rgba(0, 122, 255, 0.1)", color: "#0F5FD7" }}
+                          className="knowledge-graph-timeline-event__icon mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl"
                         >
                           <Icon className="h-4 w-4" />
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-semibold text-ink-primary">{item.title}</p>
-                            <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-tertiary">
+                            <span className="knowledge-graph-timeline-event__kind rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-tertiary">
                               {labelForKind(item.kind)}
                             </span>
                           </div>

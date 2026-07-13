@@ -20,30 +20,28 @@ import KnowledgeGraphInspector from "./KnowledgeGraphInspector";
 import KnowledgeTimelinePanel from "./KnowledgeTimelinePanel";
 import { buildInterestSelectOptions } from "./shared";
 import { type KnowledgeGraphWorkspaceController } from "./useKnowledgeGraphWorkspace";
+import "./knowledge-graph.css";
+
+type MetricTone = "interests" | "claims" | "evidence" | "citations";
 
 interface MetricTileProps {
   label: string;
   value: number;
   icon: LucideIcon;
-  tone: {
-    background: string;
-    color: string;
-  };
+  tone: MetricTone;
 }
 
 function MetricTile({ label, value, icon: Icon, tone }: MetricTileProps) {
   return (
     <div
-      className="flex items-center gap-1.5 rounded-2xl px-3 py-1.5"
-      style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
+      className={`knowledge-graph-metric knowledge-graph-metric--${tone}`}
     >
       <span
-        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg"
-        style={{ background: tone.background, color: tone.color }}
+        className="knowledge-graph-metric__icon"
       >
         <Icon className="h-3 w-3" />
       </span>
-      <span className="text-lg font-bold tabular-nums" style={{ color: tone.color }}>{value}</span>
+      <span className="knowledge-graph-metric__value text-lg font-bold tabular-nums">{value}</span>
       <span className="text-[11px] text-ink-tertiary">{label}</span>
     </div>
   );
@@ -167,43 +165,31 @@ export default function KnowledgeGraphWorkspace({
     [snapshot?.interests],
   );
 
-  const metrics = useMemo(
+  const metrics = useMemo<MetricTileProps[]>(
     () => [
       {
         label: "研究主题",
         value: snapshot?.summary.interestCount ?? 0,
         icon: Compass,
-        tone: {
-          background: "rgba(0, 122, 255, 0.12)",
-          color: "#007AFF",
-        },
+        tone: "interests",
       },
       {
         label: "结论节点",
         value: snapshot?.summary.claimCount ?? 0,
         icon: Lightbulb,
-        tone: {
-          background: "rgba(52, 199, 89, 0.12)",
-          color: "#2E7D32",
-        },
+        tone: "claims",
       },
       {
         label: "证据关系",
         value: snapshot?.summary.evidenceCount ?? 0,
         icon: Link2,
-        tone: {
-          background: "rgba(255, 149, 0, 0.12)",
-          color: "#B86A00",
-        },
+        tone: "evidence",
       },
       {
         label: "引用边",
         value: snapshot?.summary.citationCount ?? 0,
         icon: GitBranch,
-        tone: {
-          background: "rgba(88, 86, 214, 0.12)",
-          color: "#5856D6",
-        },
+        tone: "citations",
       },
     ],
     [snapshot?.summary.citationCount, snapshot?.summary.claimCount, snapshot?.summary.evidenceCount, snapshot?.summary.interestCount],
@@ -229,11 +215,10 @@ export default function KnowledgeGraphWorkspace({
   }
 
   return (
-    <div className="mt-2 min-w-0 space-y-6 overflow-hidden">
+    <div className="knowledge-graph-workspace mt-2 min-w-0 space-y-6 overflow-hidden">
       {error ? (
         <div
-          className="flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm"
-          style={{ borderColor: "rgba(255, 59, 48, 0.22)", background: "rgba(255, 59, 48, 0.08)" }}
+          className="knowledge-graph-alert flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 text-apple-red" />
           <span className="text-ink-secondary">{error}</span>
@@ -307,20 +292,13 @@ export default function KnowledgeGraphWorkspace({
 
       {isCanvasExpanded ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          className="knowledge-graph-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-6"
           style={{
-            background: "rgba(15, 23, 42, 0.18)",
-            backdropFilter: "blur(10px)",
             paddingTop: IS_MACOS_DESKTOP ? `calc(1.5rem + ${MACOS_WINDOW_DRAG_HEIGHT}px)` : undefined,
           }}
         >
           <div
-            className="flex h-full w-full max-w-[1440px] flex-col rounded-[32px] p-5"
-            style={{
-              background: "var(--rc-card-bg)",
-              border: "1px solid var(--rc-card-outline)",
-              boxShadow: "var(--rc-card-shadow)",
-            }}
+            className="knowledge-graph-modal-surface flex h-full w-full max-w-[1440px] flex-col rounded-[32px] p-5"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>

@@ -36,20 +36,19 @@ export default function KnowledgeCitationPanel({
             return (
               <div
                 key={citation.id}
-                className="rounded-2xl border px-4 py-3"
-                style={{ borderColor: "var(--rc-border)", background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.48))" }}
+                className="knowledge-graph-citation-card rounded-2xl px-4 py-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-ink-primary">
-                      <span>{truncateText(citing.title, 54)}</span>
-                      <ArrowRight className="h-3.5 w-3.5 text-ink-tertiary" />
-                      <span>{truncateText(cited.title, 54)}</span>
+                    <div className="knowledge-graph-citation-route flex items-center gap-2 text-sm font-semibold text-ink-primary">
+                      <span className="knowledge-graph-citation-route__paper">{truncateText(citing.title, 54)}</span>
+                      <span className="knowledge-graph-citation-route__arrow"><ArrowRight className="h-3.5 w-3.5" /></span>
+                      <span className="knowledge-graph-citation-route__paper">{truncateText(cited.title, 54)}</span>
                     </div>
-                    <p className="text-xs text-ink-tertiary">
-                      {[citing.year, citing.venue].filter(Boolean).join(" · ") || "引用论文"}
-                      {"  ->  "}
-                      {[cited.year, cited.venue].filter(Boolean).join(" · ") || "被引论文"}
+                    <p className="knowledge-graph-citation-meta text-xs text-ink-tertiary">
+                      <span>{[citing.year, citing.venue].filter(Boolean).join(" · ") || "引用论文"}</span>
+                      <ArrowRight className="h-3 w-3" />
+                      <span>{[cited.year, cited.venue].filter(Boolean).join(" · ") || "被引论文"}</span>
                     </p>
                     {citation.context ? (
                       <p className="text-xs leading-5 text-ink-secondary">{citation.context}</p>

@@ -41,16 +41,14 @@ export default function KnowledgeClaimPanel({
             return (
               <div
                 key={claim.id}
-                className="rounded-[26px] border px-5 py-4"
-                style={{ borderColor: "var(--rc-border)", background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.54))" }}
+                className="knowledge-graph-claim-bundle rounded-[26px] px-5 py-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-base font-semibold text-ink-primary">{claim.title}</p>
                       <span
-                        className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-                        style={{ background: meta.tone, color: "var(--rc-text)" }}
+                        className={`knowledge-graph-claim-status knowledge-graph-claim-status--${claim.status} rounded-full px-2.5 py-0.5 text-[11px] font-semibold`}
                       >
                         {meta.label}
                       </span>
@@ -71,11 +69,10 @@ export default function KnowledgeClaimPanel({
                   </Button>
                 </div>
 
-                <div className="mt-4 space-y-3">
+                <div className="knowledge-graph-evidence-list mt-4 space-y-3">
                   {provenance.length === 0 ? (
                     <div
-                      className="rounded-2xl border px-4 py-3 text-sm text-ink-tertiary"
-                      style={{ borderColor: "var(--rc-border)" }}
+                      className="knowledge-graph-evidence-empty rounded-2xl px-4 py-3 text-sm text-ink-tertiary"
                     >
                       这条结论还没有挂证据来源。
                     </div>
@@ -86,14 +83,12 @@ export default function KnowledgeClaimPanel({
                       return (
                         <div
                           key={item.link.id}
-                          className="rounded-2xl border px-4 py-3"
-                          style={{ borderColor: "var(--rc-border)" }}
+                          className={`knowledge-graph-evidence-link knowledge-graph-evidence-link--${item.link.relationKind} rounded-2xl px-4 py-3`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3">
                               <div
-                                className="flex h-9 w-9 items-center justify-center rounded-2xl"
-                                style={{ background: relation.tone, color: "var(--rc-text)" }}
+                                className="knowledge-graph-evidence-link__icon flex h-9 w-9 items-center justify-center rounded-2xl"
                               >
                                 <Icon className="h-4 w-4" />
                               </div>
@@ -101,8 +96,7 @@ export default function KnowledgeClaimPanel({
                                 <div className="flex flex-wrap items-center gap-2">
                                   <p className="text-sm font-semibold text-ink-primary">{item.title}</p>
                                   <span
-                                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                                    style={{ background: relation.tone, color: "var(--rc-text)" }}
+                                    className="knowledge-graph-relation-pill rounded-full px-2 py-0.5 text-[10px] font-semibold"
                                   >
                                     {relation.label}
                                   </span>
