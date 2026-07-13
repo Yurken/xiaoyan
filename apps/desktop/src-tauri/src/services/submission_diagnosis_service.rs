@@ -7,6 +7,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct ReviewerDiagnosisInput {
     pub reviewer: String,
+    pub focus: String,
     pub raw: String,
 }
 
@@ -198,6 +199,7 @@ pub async fn save_ai_review_diagnosis_report(
         "content_preview": preview_text(content_preview, 1200),
         "reviewers": reviewer_inputs.iter().map(|item| json!({
             "reviewer": item.reviewer,
+            "focus": item.focus,
             "raw": item.raw,
         })).collect::<Vec<_>>(),
         "parsed_reviews": parsed_reviews,
@@ -402,6 +404,7 @@ mod tests {
             "paper preview",
             &[ReviewerDiagnosisInput {
                 reviewer: "reviewer-1".into(),
+                focus: "方法与创新性".into(),
                 raw: json!({
                     "verdict": "weak_reject",
                     "score": 4,

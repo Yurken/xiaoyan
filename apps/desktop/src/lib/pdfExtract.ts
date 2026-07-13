@@ -6,7 +6,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /**
  * 从本地 PDF 文件路径中提取全文文本（通过 Tauri fs plugin 读取）。
- * 返回各页文本拼接后的字符串，供模拟审稿等功能使用。
+ * 返回各页文本拼接后的字符串，供多视角预审等功能使用。
  */
 export async function extractTextFromPdf(filePath: string): Promise<string> {
   const { readFile } = await import("@tauri-apps/plugin-fs");

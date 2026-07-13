@@ -3,15 +3,13 @@ import { submissionApi } from "../../lib/client";
 import {
   rowToComment,
   rowToRound,
-  type MockReviewInput,
-  type MockReviewerResult,
   type ReviewComment,
   type ReviewFormState,
   type ReviewRound,
   type ReviewVerdict,
 } from "./shared";
 
-export type { MockReviewInput, MockReviewerResult, ReviewFormState };
+export type { ReviewFormState };
 
 export function useSubmissionReview(onError: (error: unknown) => void) {
   const [comments, setComments] = useState<ReviewComment[]>([]);
@@ -23,15 +21,6 @@ export function useSubmissionReview(onError: (error: unknown) => void) {
     reviewer: "", content: "", tags: [] as string[], verdict: "major_revision" as ReviewVerdict,
   });
 
-  // AI review state
-  const [showMockModal, setShowMockModal] = useState(false);
-  const [mockInput, setMockInput] = useState<MockReviewInput>({
-    abstract: "", reviewerCount: 3, strictness: "balanced",
-  });
-  const [mockLoading, setMockLoading] = useState(false);
-  const [mockResult, setMockResult] = useState<MockReviewerResult[] | null>(null);
-  const [mockFileExtracting, setMockFileExtracting] = useState(false);
-  const [mockFileName, setMockFileName] = useState<string | null>(null);
   const reloadRequestRef = useRef(0);
 
   const reloadReview = useCallback(() => {
@@ -106,10 +95,5 @@ export function useSubmissionReview(onError: (error: unknown) => void) {
     showAddModal, setShowAddModal,
     form, setForm, handleReviewSubmit,
     toggleResolved, updateResponse, reloadReview,
-    showMockModal, setShowMockModal,
-    mockInput, setMockInput, mockLoading, setMockLoading,
-    mockResult, setMockResult,
-    mockFileExtracting, setMockFileExtracting,
-    mockFileName, setMockFileName,
   };
 }

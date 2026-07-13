@@ -71,8 +71,8 @@ export default function MockReviewModal({
               <Bot className="w-4 h-4" style={{ color: "#AF52DE" }} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-ink-primary">AI 模拟审稿</h2>
-              <p className="text-xs text-ink-tertiary mt-0.5">基于论文内容生成模拟审稿意见，辅助投稿前自查</p>
+              <h2 className="text-lg font-bold text-ink-primary">AI 多视角预审</h2>
+              <p className="text-xs text-ink-tertiary mt-0.5">由不同职责的 AI 审稿人独立诊断，辅助投稿前自查</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-black/5 transition-colors">
@@ -155,7 +155,7 @@ export default function MockReviewModal({
                                 : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
                             }
                           >
-                            {count === 4 ? "3+AC" : `${count} 人`}
+                            {count === 2 ? "方法+实验" : count === 3 ? "三视角" : "三审稿人+AC"}
                           </button>
                         ))}
                       </div>
@@ -194,7 +194,7 @@ export default function MockReviewModal({
                   {mockReviewLoading ? (
                     <div className="flex items-center gap-2 text-sm text-ink-tertiary">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      正在等待模拟审稿结果…
+                      正在等待多视角审稿结果…
                     </div>
                   ) : null}
                 </>
@@ -298,7 +298,7 @@ export default function MockReviewModal({
             </>
           ) : (
             <>
-              <p className="text-xs text-ink-tertiary">生成结果仅供参考，不代表真实审稿意见</p>
+              <p className="text-xs text-ink-tertiary">结果供投稿前自查，不替代编辑或真实同行评审</p>
               <button
                 disabled={!mockReviewInput.abstract.trim() || mockReviewLoading || mockFileExtracting}
                 onClick={onGenerate}
@@ -311,7 +311,7 @@ export default function MockReviewModal({
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4" />生成模拟审稿
+                    <Sparkles className="w-4 h-4" />开始多视角预审
                   </>
                 )}
               </button>
