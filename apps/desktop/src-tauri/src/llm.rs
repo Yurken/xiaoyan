@@ -305,7 +305,10 @@ impl LlmClient {
         let model = s
             .get("vision_model")
             .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())?;
+            .filter(|v| !v.is_empty());
+        let Some(model) = model else {
+            return Self::from_settings(s).ok().map(|client| (client, None));
+        };
         let base_url = s
             .get("vision_base_url")
             .map(|v| v.trim().to_string())
