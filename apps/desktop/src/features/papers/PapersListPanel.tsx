@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { AlertCircle, FileText, Loader2 } from "lucide-react";
+import { AlertCircle, FileText, LayoutGrid, List, Loader2 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { Paper, KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 import NewFolderButton from "./NewFolderButton";
@@ -12,6 +12,7 @@ import PaperFolderSection, {
 import { buildFolderSelectOptions, type InterestTreeNode } from "./interestTree";
 import type { PaperSortDirection, PaperSortKey, PaperTaskProgress } from "./shared";
 import type { NoteDraft } from "../knowledge/NoteEditorModal";
+import { usePaperDisplayMode } from "./usePaperDisplayMode";
 
 interface PapersListPanelProps {
   papers: Paper[];
@@ -56,6 +57,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
     onOpenDetail, onCloseDetail, onGenerateNote, onCreateNote, onSortKeyChange,
     onMovePaper, onReorderPaper, onCreateFolder, onMoveFolder,
   } = props;
+  const [displayMode, setDisplayMode] = usePaperDisplayMode();
 
   const groupMap = useMemo(() => {
     const map = new Map<string, PaperGroup>();
@@ -70,7 +72,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
 
   const ctx: PaperFolderContext = {
     groupMap, interests, interestMap, paperNotesMap, folderOptions,
-    detailPaperId, deletingPaperId, deletingGroupId, savingEdit, taskProgressByPaperId,
+    detailPaperId, deletingPaperId, deletingGroupId, savingEdit, displayMode, taskProgressByPaperId,
     getSortKey, getSortDirection,
     onSortKeyChange,
     resolveGroupPaperIds,
@@ -122,7 +124,20 @@ export function PapersListPanel(props: PapersListPanelProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 px-1">
         <p className="text-xs text-ink-tertiary">右键论文可移动到文件夹；文件夹支持子级整理。</p>
-        <NewFolderButton label="新建文件夹" onCreate={(name) => onCreateFolder(name, null)} />
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setDisplayMode((mode) => (mode === "card" ? "minimal" : "card"))}
+            className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-ink-tertiary transition-colors hover:text-ink-primary"
+            style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
+            title={displayMode === "card" ? "切换为极简展示" : "切换为卡片展示"}
+            aria-label={displayMode === "card" ? "切换为极简展示" : "切换为卡片展示"}
+          >
+            {displayMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+            <span className="hidden sm:inline">{displayMode === "card" ? "极简展示" : "卡片展示"}</span>
+          </button>
+          <NewFolderButton label="新建文件夹" onCreate={(name) => onCreateFolder(name, null)} />
+        </div>
       </div>
 
       {folderForest.map((node) => (

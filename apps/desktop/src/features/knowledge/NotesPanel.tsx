@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertCircle, CheckSquare, Download, Globe, LayoutGrid, List, Loader2, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
+import { AlertCircle, CheckSquare, Download, Globe, LayoutGrid, List, Loader2, Minus, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
 import { Badge, Button, CapsuleTabs, Card, ConfirmDialog, Input } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
@@ -8,6 +8,7 @@ import { usePersistentStringState } from "../../hooks/usePersistentStringState";
 import { useKnowledgeNotesWorkspace } from "./useKnowledgeNotesWorkspace";
 import { useNotesExport } from "./useNotesExport";
 import NoteCard from "./NoteCard";
+import NoteCompactRow from "./NoteCompactRow";
 import WebClipDialog from "./WebClipDialog";
 import NoteImportZip from "./NoteImportZip";
 import { sourceLabel } from "./notesShared";
@@ -56,10 +57,10 @@ export default function NotesPanel({
   const [showWebClip, setShowWebClip] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [selectionMode, setSelectionMode] = useState(false);
-  const [viewMode, setViewMode] = usePersistentStringState<"card" | "list">(
+  const [viewMode, setViewMode] = usePersistentStringState<"card" | "list" | "minimal">(
     "rc:knowledge:notes-view-mode",
     "card",
-    ["card", "list"],
+    ["card", "list", "minimal"],
   );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { exporting, exportError, clearExportError, exportMarkdown } = useNotesExport();
@@ -158,8 +159,22 @@ export default function NotesPanel({
     />
   );
 
+  const renderCompactNote = (note: KnowledgeNote) => (
+    <NoteCompactRow
+      key={note.id}
+      note={note}
+      linkedClaimCount={linkedNoteClaimCounts?.[note.id] ?? 0}
+      onDelete={setPendingDeleteNote}
+      selectionMode={selectionMode}
+      selected={selectedIds.has(note.id)}
+      onToggleSelect={toggleSelect}
+    />
+  );
+
   const renderNotes = (notes: KnowledgeNote[]) =>
-    viewMode === "list" ? (
+    viewMode === "minimal" ? (
+      <div className="grid gap-2">{notes.map(renderCompactNote)}</div>
+    ) : viewMode === "list" ? (
       <div className="grid gap-3">{notes.map(renderNoteCard)}</div>
     ) : (
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{notes.map(renderNoteCard)}</div>
@@ -201,14 +216,16 @@ export default function NotesPanel({
                   className="pl-10"
                 />
               </div>
-              <button
-                type="button"
-                onClick={() => setViewMode((prev) => (prev === "card" ? "list" : "card"))}
-                className="flex items-center justify-center rounded-xl px-2.5 py-1.5 text-ink-tertiary transition-colors hover:bg-white/50 hover:text-ink-primary"
-                title={viewMode === "card" ? "切换为列表视图" : "切换为卡片视图"}
-              >
-                {viewMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-              </button>
+              <CapsuleTabs
+                compact
+                value={viewMode}
+                onChange={(value) => setViewMode(value as "card" | "list" | "minimal")}
+                options={[
+                  { value: "card", label: "卡片", icon: <LayoutGrid className="h-3.5 w-3.5" /> },
+                  { value: "list", label: "列表", icon: <List className="h-3.5 w-3.5" /> },
+                  { value: "minimal", label: "极简", icon: <Minus className="h-3.5 w-3.5" /> },
+                ]}
+              />
               {selectionMode ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={exitSelection}>

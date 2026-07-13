@@ -56,6 +56,7 @@ const defaultProps = {
 describe("PapersListPanel paper ordering and move menu", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.removeItem("rc:papers:display-mode");
   });
 
   it("should render paper cards as non-draggable", () => {
@@ -103,5 +104,15 @@ describe("PapersListPanel paper ordering and move menu", () => {
     );
 
     expect(screen.getAllByText("导入时间")[0]).toHaveStyle({ background: "#34C759" });
+  });
+
+  it("should switch to a minimal paper list without metadata", () => {
+    renderWithRouter(<PapersListPanel {...defaultProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "切换为极简展示" }));
+
+    expect(screen.getAllByTestId("paper-compact-row")).toHaveLength(3);
+    expect(document.querySelector("[data-paper-card]")).toBeNull();
+    expect(window.localStorage.getItem("rc:papers:display-mode")).toBe("minimal");
   });
 });

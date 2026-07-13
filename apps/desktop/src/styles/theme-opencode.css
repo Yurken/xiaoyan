@@ -483,12 +483,13 @@
   line-height: 1.6;
 }
 
-.code-opencode-main .code-chat-panel__empty svg {
+.code-opencode-main .code-chat-panel__empty-illustration {
   display: block;
-  width: 44px;
-  height: 44px;
-  color: var(--rc-text-soft);
-  opacity: 0.8;
+  width: 96px;
+  height: 96px;
+  flex: none;
+  border-radius: 1.5rem;
+  object-fit: cover;
 }
 
 /* User messages: right-aligned bubble, no avatar */

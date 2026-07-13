@@ -237,7 +237,11 @@ export default function CodeChatPanel({
       <div ref={messagesRef} className="code-chat-panel__messages">
         {messages.length === 0 && !streamingContent && (
           <div className="code-chat-panel__empty">
-            <Sparkles size={20} />
+            <img
+              src="/illustrations/xiaoyan-code-assistant.png"
+              alt="小妍正在编写代码"
+              className="code-chat-panel__empty-illustration"
+            />
             <p>描述你的代码需求，我来帮你写代码、调试或解释</p>
           </div>
         )}

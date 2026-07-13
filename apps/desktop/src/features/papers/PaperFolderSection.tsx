@@ -4,8 +4,9 @@ import { Button, Select } from "@research-copilot/ui";
 import type { KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import PaperCard from "./PaperCard";
+import PaperCompactRow from "./PaperCompactRow";
 import NewFolderButton from "./NewFolderButton";
-import type { PaperSortDirection, PaperSortKey, PaperTaskProgress } from "./shared";
+import type { PaperDisplayMode, PaperSortDirection, PaperSortKey, PaperTaskProgress } from "./shared";
 import type { NoteDraft } from "../knowledge/NoteEditorModal";
 import type { FolderSelectOption, InterestTreeNode } from "./interestTree";
 import { buildFolderSelectOptions, collectInterestSubtreeIds } from "./interestTree";
@@ -29,6 +30,7 @@ export interface PaperFolderContext {
   deletingPaperId: string | null;
   deletingGroupId: string | null;
   savingEdit: boolean;
+  displayMode: PaperDisplayMode;
   taskProgressByPaperId: Record<string, PaperTaskProgress>;
   getSortKey: (groupId: string) => PaperSortKey;
   getSortDirection: (groupId: string) => PaperSortDirection;
@@ -99,6 +101,19 @@ export function CtxPaperCard({ ctx, paper, groupKey }: { ctx: PaperFolderContext
     [orderedIds[index], orderedIds[target]] = [orderedIds[target], orderedIds[index]];
     ctx.onReorderPaper(groupKey, orderedIds);
   };
+
+  if (ctx.displayMode === "minimal") {
+    return (
+      <PaperCompactRow
+        paper={paper}
+        detailPaperId={ctx.detailPaperId}
+        onAnalyze={ctx.onAnalyze}
+        onReproduce={ctx.onReproduce}
+        onOpenDetail={ctx.onOpenDetail}
+        onCloseDetail={ctx.onCloseDetail}
+      />
+    );
+  }
 
   return (
     <PaperCard
