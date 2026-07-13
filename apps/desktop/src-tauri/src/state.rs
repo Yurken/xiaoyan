@@ -289,6 +289,8 @@ pub struct AppState {
     pub settings: Arc<RwLock<HashMap<String, String>>>,
     /// Active chat stream handles keyed by request_id.
     pub chat_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
+    /// Active translation stream handles keyed by request_id.
+    pub translation_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// Active code assistant stream handles keyed by request_id.
     pub code_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// Pending code tool permission senders keyed by permission_id.
@@ -306,6 +308,7 @@ impl AppState {
             db,
             settings: Arc::new(RwLock::new(settings)),
             chat_handles: Arc::new(Mutex::new(HashMap::new())),
+            translation_handles: Arc::new(Mutex::new(HashMap::new())),
             code_handles: Arc::new(Mutex::new(HashMap::new())),
             code_permissions: Arc::new(Mutex::new(HashMap::new())),
             sync_lock: Arc::new(Mutex::new(())),

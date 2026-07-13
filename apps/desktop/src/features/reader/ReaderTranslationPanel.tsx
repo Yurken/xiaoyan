@@ -189,7 +189,12 @@ export default function ReaderTranslationPanel({
                 </div>
 
                 {current.status === "loading" ? (
-                  <p className="text-xs text-ink-tertiary">小妍翻译中…</p>
+                  current.result ? (
+                    <div>
+                      <p className="whitespace-pre-wrap text-ink-primary" style={{ fontSize, lineHeight: 1.7 }}>{current.result}</p>
+                      <p className="mt-1 text-[11px] text-ink-tertiary">小妍翻译中…</p>
+                    </div>
+                  ) : <p className="text-xs text-ink-tertiary">小妍翻译中…</p>
                 ) : current.status === "error" ? (
                   <p className="text-xs text-apple-red">{current.error}</p>
                 ) : (

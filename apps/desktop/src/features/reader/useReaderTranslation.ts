@@ -76,6 +76,7 @@ export function useReaderTranslation() {
   const seqRef = useRef(0);
   const currentRef = useRef<TranslationState | null>(null);
   const continuousRef = useRef(continuous);
+  const translateAbortRef = useRef<AbortController | null>(null);
   const interpretAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -84,8 +85,11 @@ export function useReaderTranslation() {
   useEffect(() => {
     continuousRef.current = continuous;
   }, [continuous]);
-  // 卸载时中止仍在进行的解读流，避免卸载后 setState 与未释放的网络流。
-  useEffect(() => () => interpretAbortRef.current?.abort(), []);
+  // 卸载时中止仍在进行的流，避免卸载后 setState 与未释放的网络流。
+  useEffect(() => () => {
+    translateAbortRef.current?.abort();
+    interpretAbortRef.current?.abort();
+  }, []);
 
   // 初始化译衡模型：优先使用设置中保存的 translation_model；未指定时回退到小妍默认模型。
   useEffect(() => {
@@ -120,13 +124,33 @@ export function useReaderTranslation() {
   const runTranslate = useCallback(async (source: string, page?: number) => {
     const trimmed = normalizeSourceText(source);
     if (!trimmed) return;
+    translateAbortRef.current?.abort();
+    const ac = new AbortController();
+    translateAbortRef.current = ac;
     const id = (seqRef.current += 1);
     setInterpretation(null); // 译文变化，旧解读作废
     setCurrent({ id, source: trimmed, page, result: "", status: "loading" });
     try {
-      const result = await translateApi.translate(trimmed, "zh", undefined, translationModel);
-      setCurrent((prev) => (prev && prev.id === id ? { ...prev, result: result.trim(), status: "done" } : prev));
+      let result = "";
+      for await (const chunk of translateApi.stream(trimmed, "zh", undefined, translationModel, ac.signal)) {
+        if (translateAbortRef.current !== ac) break;
+        if (chunk.type === "delta") {
+          result += chunk.value;
+          setCurrent((prev) => (prev && prev.id === id ? { ...prev, result } : prev));
+        }
+        if (chunk.type === "error") {
+          setCurrent((prev) => (prev && prev.id === id ? { ...prev, status: "error", error: chunk.value || "翻译失败" } : prev));
+        }
+      }
+      if (translateAbortRef.current === ac) {
+        setCurrent((prev) => (
+          prev && prev.id === id && prev.status !== "error"
+            ? { ...prev, result: result.trim(), status: "done" }
+            : prev
+        ));
+      }
     } catch (err) {
+      if ((err as Error)?.name === "AbortError") return;
       const message = err instanceof Error ? err.message : "翻译失败";
       setCurrent((prev) => (prev && prev.id === id ? { ...prev, status: "error", error: message } : prev));
     }
@@ -236,6 +260,8 @@ export function useReaderTranslation() {
   const toggleLock = useCallback(() => setLocked((value) => !value), []);
 
   const clear = useCallback(() => {
+    translateAbortRef.current?.abort();
+    translateAbortRef.current = null;
     interpretAbortRef.current?.abort();
     interpretAbortRef.current = null;
     setCurrent(null);

@@ -113,7 +113,7 @@ use commands::{
     },
     misc::{
         markdown_format_chunk, planner_generate, survey_delete, survey_generate, survey_get,
-        survey_list, survey_search, translate_text,
+        survey_list, survey_search,
     },
     paper_corpus::{
         paper_corpus_create, paper_corpus_delete, paper_corpus_list, paper_corpus_update,
@@ -152,6 +152,7 @@ use commands::{
     },
     sync::{sync_configure, sync_disable, sync_get_config, sync_now, sync_status},
     token_usage::token_usage_stats,
+    translation::{translate_cancel, translate_stream, translate_text},
     update::{update_check, update_install, PendingUpdate},
     webdav_sync::{
         webdav_delete_backup, webdav_download_backup, webdav_list_backups, webdav_test_connection,
@@ -656,6 +657,8 @@ pub fn run() {
             survey_delete,
             survey_search,
             translate_text,
+            translate_stream,
+            translate_cancel,
             markdown_format_chunk,
             code_create_session,
             code_delete_session,

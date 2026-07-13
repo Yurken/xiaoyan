@@ -37,6 +37,7 @@ import type {
   WebSearchOutcome,
 } from "@research-copilot/types";
 import { streamChat } from "./chatStream";
+import { streamTranslation } from "./translationStream";
 export { streamChat } from "./chatStream";
 import type {
   CitationCentralityEntry,
@@ -605,6 +606,8 @@ export const surveyApi = {
 export const translateApi = {
   translate: (text: string, targetLang: string, sourceLang?: string, model?: string): Promise<string> =>
     invoke("translate_text", { text, targetLang, sourceLang: sourceLang ?? null, model: model ?? null }),
+  stream: (text: string, targetLang: string, sourceLang?: string, model?: string, signal?: AbortSignal) =>
+    streamTranslation({ text, targetLang, sourceLang, model }, signal),
 };
 
 // ── Markdown Format ───────────────────────────────────────────────

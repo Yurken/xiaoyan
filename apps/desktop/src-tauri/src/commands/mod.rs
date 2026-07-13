@@ -42,6 +42,7 @@ pub mod submission;
 pub mod survey_support;
 pub mod sync;
 pub mod token_usage;
+pub mod translation;
 pub mod update;
 pub mod webdav_sync;
 pub mod workbench;

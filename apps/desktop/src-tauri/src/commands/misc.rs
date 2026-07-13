@@ -974,64 +974,6 @@ fn survey_paper_identity(paper: &serde_json::Value) -> Option<String> {
         .map(|value| value.to_lowercase())
 }
 
-// ── Translate ─────────────────────────────────────────────────────
-
-#[tauri::command]
-pub async fn translate_text(
-    state: State<'_, AppState>,
-    text: String,
-    target_lang: String,
-    source_lang: Option<String>,
-    model: Option<String>,
-) -> Result<String, String> {
-    let settings = state.settings.read().await.clone();
-    let client = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
-
-    let model = model
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| resolve_model(&settings, &["translation_model"]));
-    let temperature = resolve_temperature(&settings, "translation_temperature", 0.1);
-
-    let lang_map: &[(&str, &str)] = &[
-        ("zh", "简体中文"),
-        ("en", "English"),
-        ("ja", "日本語"),
-        ("de", "Deutsch"),
-        ("fr", "Français"),
-    ];
-    let target_display = lang_map
-        .iter()
-        .find(|(code, _)| *code == target_lang.as_str())
-        .map(|(_, name)| *name)
-        .unwrap_or(target_lang.as_str());
-
-    let source_hint = match &source_lang {
-        Some(src) => {
-            let src_display = lang_map
-                .iter()
-                .find(|(code, _)| *code == src.as_str())
-                .map(|(_, name)| *name)
-                .unwrap_or(src.as_str());
-            format!("原文语言：{src_display}\n")
-        }
-        None => "原文语言：自动识别\n".to_string(),
-    };
-
-    let system = specialist_system(
-        "学术翻译专家",
-        "将学术文本精准翻译为目标语言，严格保留专业术语、保持学术写作风格，不增删原文内容。",
-        Some("只返回译文，不加任何解释、标注或前缀。"),
-    );
-
-    let user = format!("{source_hint}目标语言：{target_display}\n\n原文：\n{text}");
-
-    let msgs = vec![LlmMessage::system(system), LlmMessage::user(&user)];
-    client
-        .chat(&msgs, model.as_deref(), temperature)
-        .await
-        .map_err(|e| e.to_string())
-}
-
 // ── Markdown Format ───────────────────────────────────────────────
 
 #[tauri::command]
