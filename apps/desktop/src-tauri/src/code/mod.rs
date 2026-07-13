@@ -5,12 +5,13 @@
 
 pub mod context;
 pub mod git;
+mod prompt;
 pub mod store;
 pub mod tools;
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
@@ -18,6 +19,7 @@ use uuid::Uuid;
 use crate::llm::{
     resolve_model, resolve_temperature_chain, LlmClient, LlmMessage, StreamOutcome, ToolCall,
 };
+use prompt::{build_code_system_prompt, build_title_prompt};
 
 use store::now;
 
@@ -70,6 +72,8 @@ pub struct CodeMessage {
     pub tool_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
     pub created_at: String,
 }
 
@@ -107,6 +111,7 @@ struct DoneEvent {
     request_id: String,
     message_id: String,
     full_content: String,
+    duration_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -149,6 +154,7 @@ pub async fn send_message_stream(
     request_id: &str,
     user_message_id: Option<String>,
 ) {
+    let task_started_at = Instant::now();
     let request_id = request_id.to_string();
     let working_dir = working_dir.and_then(|dir| {
         let trimmed = dir.trim();
@@ -169,6 +175,7 @@ pub async fn send_message_stream(
         tool_call_id: None,
         tool_id: None,
         model: None,
+        duration_ms: None,
         created_at: now(),
     };
     if let Err(e) = store::persist_message(&db, &session_id, &user_msg).await {
@@ -229,6 +236,8 @@ pub async fn send_message_stream(
     // 4. Agent 工具循环：模型请求工具 -> 后端执行 -> 工具结果回填 -> 继续生成。
     let tool_definitions = if working_dir.is_some() {
         tools::code_tool_definitions_for_mode(mode_str)
+    } else if mode_str == "scout" {
+        tools::web_tool_definitions()
     } else {
         Vec::new()
     };
@@ -285,6 +294,7 @@ pub async fn send_message_stream(
                     tool_call_id: None,
                     tool_id: None,
                     model: model.clone(),
+                    duration_ms: Some(elapsed_millis(task_started_at)),
                     created_at: now(),
                 };
                 let _ = store::persist_message(&db, &session_id, &assistant_msg).await;
@@ -295,6 +305,7 @@ pub async fn send_message_stream(
                         request_id,
                         message_id: assistant_msg.id.clone(),
                         full_content: full,
+                        duration_ms: assistant_msg.duration_ms.unwrap_or_default(),
                     },
                 );
 
@@ -331,6 +342,7 @@ pub async fn send_message_stream(
                     tool_call_id: None,
                     tool_id: None,
                     model: model.clone(),
+                    duration_ms: None,
                     created_at: now(),
                 };
                 let _ = store::persist_message(&db, &session_id, &tool_call_msg).await;
@@ -367,6 +379,7 @@ pub async fn send_message_stream(
                         tool_call_id: Some(result.tool_call_id.clone()),
                         tool_id: None,
                         model: None,
+                        duration_ms: None,
                         created_at: now(),
                     };
                     let _ = store::persist_message(&db, &session_id, &tool_msg).await;
@@ -394,6 +407,10 @@ pub async fn send_message_stream(
             }
         }
     }
+}
+
+fn elapsed_millis(started_at: Instant) -> u64 {
+    started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
 }
 
 fn emit_stream_delta(app: &AppHandle, session_id: &str, request_id: &str, chunk: String) {
@@ -541,89 +558,6 @@ async fn ask_tool_permission(
     }
 }
 
-/// 构建代码助手的 system prompt，注入工作目录、当前文件上下文和模式指令。
-fn build_code_system_prompt(
-    working_dir: Option<&str>,
-    current_file: Option<&str>,
-    mode: &str,
-    workspace_context: &str,
-) -> String {
-    let dir_line = working_dir
-        .map(|d| format!("当前工作目录：{d}"))
-        .unwrap_or_else(|| "当前未选择工作目录。".to_string());
-    let file_line = current_file
-        .map(|f| format!("用户当前打开的文件：{f}"))
-        .unwrap_or_else(|| "用户当前没有打开特定文件。".to_string());
-
-    let mode_instruction = match mode {
-        "build" => "你处于 Build 模式：你可以编写代码、修改文件、运行命令和测试。涉及写文件、编辑文件或执行命令时，系统会通过可视化权限面板向用户确认。",
-        "plan" => "你处于 Plan 模式：你的主要职责是分析代码、制定方案和进行 Code Review。\
-            在执行任何写操作（编辑文件、运行命令）之前，必须先向用户说明计划并获得确认。\
-            优先使用只读工具（搜索、查看）来理解代码，然后给出清晰的分析和建议。",
-        "general" => "你处于 General 模式：你可以处理通用任务，包括代码编写和分析。\
-            对于复杂的多步骤任务，可以将其拆解为子任务逐步完成；副作用工具会通过可视化权限面板确认。",
-        "explore" => "你处于 Explore 模式：你只能进行只读操作——搜索、查看、分析代码。\
-            禁止编辑文件、写入文件或执行任何可能修改系统的命令。\
-            专注于帮助用户理解代码架构、查找问题和梳理逻辑。",
-        "scout" => "你处于 Scout 模式：你专注于查询外部资源——文档、依赖源码、上游仓库。\
-            可以使用搜索和网络工具获取信息，但不能修改本地文件。\
-            帮助用户了解第三方库的用法、API 文档和最佳实践。",
-        _ => "你处于 Build 模式：你可以自由编写代码、修改文件、运行命令和测试。",
-    };
-
-    let workspace_context_section = if workspace_context.trim().is_empty() {
-        "未加载额外工作区上下文。".to_string()
-    } else {
-        workspace_context.to_string()
-    };
-    let final_response_instruction = build_final_response_instruction(mode);
-
-    format!(
-        "你是小妍代码助手，一位面向科研实验场景的编程助手。你帮助用户理解、编写、调试和重构代码。\n\
-        \n\
-        当前上下文：\n\
-        - {dir_line}\n\
-        - {file_line}\n\
-        \n\
-        工作区上下文：\n\
-        {workspace_context_section}\n\
-        \n\
-        模式指令：\n\
-        - {mode_instruction}\n\
-        \n\
-        可用能力：\n\
-        - 选择了工作目录时，你可以用工具列目录、glob 匹配、搜索、读取、写入/编辑文件，并运行命令。\n\
-        - 所有文件路径都应相对工作目录书写；不要访问工作目录之外的路径。\n\
-        - 运行命令前先判断必要性，优先选择可验证、影响小的命令。\n\
-        \n\
-        请遵循以下原则：\n\
-        1. 回答简洁、准确；需要了解代码时先读取或搜索，不要编造文件内容。\n\
-        2. 用户要求你修改代码时，优先直接使用工具完成修改，并在最后说明改了什么、如何验证。\n\
-        3. 不要执行明显危险或破坏性的命令；不要删除用户文件，除非用户明确要求。\n\
-        4. 使用 Markdown 格式化代码块，必要时用中文注释说明关键步骤。\n\
-        5. 如果没有选择工作目录，请先提醒用户选择目录，再给出能基于现有上下文回答的部分。\n\
-        6. 工作区上下文可能被截断；涉及具体实现时必须再读取相关文件，不要只凭摘要修改。\n\
-        \n\
-        收尾回复预算：\n\
-        {final_response_instruction}"
-    )
-}
-
-fn build_final_response_instruction(mode: &str) -> &'static str {
-    match mode {
-        "plan" | "explore" | "scout" => {
-            "- 默认用 3 条以内要点收束：结论 / 关键依据 / 下一步。\n\
-             - 不要展开完整文件清单、长过程回放或工具调用细节，除非用户明确要求。\n\
-             - 不报告内部 token、耗时、上下文来源或未请求的元信息。"
-        }
-        _ => {
-            "- 完成代码修改后默认只输出：已完成内容、验证结果、未完成/未运行项；总长控制在 6 行以内。\n\
-             - 文件很多时只点名 1-3 个代表性文件，不逐文件复盘；细节留给用户追问。\n\
-             - 不报告内部 token、耗时、上下文来源或未请求的元信息。"
-        }
-    }
-}
-
 /// 判断是否是第一个用户-助手交换（会话刚创建，需要自动生成标题）
 fn is_first_exchange(session: &CodeSession) -> bool {
     // messages: [user_msg, ..., assistant_msg]
@@ -631,24 +565,6 @@ fn is_first_exchange(session: &CodeSession) -> bool {
     // 但这里 session 是发送前读取的，消息还没有我们刚持久化的那两条
     // 所以判断：刚发送的消息是 user + 当前正在生成 assistant → session 原有消息=0 即为新建
     session.messages.is_empty()
-}
-
-fn build_title_prompt(user_text: &str, assistant_text: &str) -> String {
-    let trunc_user = if user_text.len() > 200 {
-        &user_text[..200]
-    } else {
-        user_text
-    };
-    let trunc_assistant = if assistant_text.len() > 300 {
-        &assistant_text[..300]
-    } else {
-        assistant_text
-    };
-    format!(
-        "根据以下对话，生成一个简短的中文标题（不超过20个字，只返回标题本身，不要引号或解释）：\n\
-         用户：{trunc_user}\n\
-         助手：{trunc_assistant}"
-    )
 }
 
 async fn auto_generate_title(
@@ -674,25 +590,5 @@ async fn auto_generate_title(
             let _ = store::update_session_title(&db, &session_id, &title).await;
         }
         Err(_) => {}
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_build_code_system_prompt_contains_context() {
-        let prompt = build_code_system_prompt(
-            Some("/tmp/project"),
-            Some("main.py"),
-            "build",
-            "package scripts",
-        );
-        assert!(prompt.contains("/tmp/project"));
-        assert!(prompt.contains("main.py"));
-        assert!(prompt.contains("package scripts"));
-        assert!(prompt.contains("收尾回复预算"));
-        assert!(prompt.contains("小妍代码助手"));
     }
 }

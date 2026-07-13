@@ -1477,20 +1477,6 @@
   color: var(--rc-accent, #007AFF);
 }
 
-/* Editor inside right panel */
-.code-opencode-tools .code-editor {
-  height: 100%;
-  border: none;
-  border-radius: 0;
-}
-
-.code-opencode-tools .code-editor__header {
-  border-radius: 0;
-  border-left: none;
-  border-right: none;
-  border-top: none;
-}
-
 /* Responsive */
 @media (max-width: 1180px) {
   .code-opencode-body {
@@ -1924,6 +1910,106 @@ html[data-style="liquid-glass"] .code-editor__save-btn {
   opacity: 0.5;
 }
 
+/* ── Code Editor Modal ───────────────────────────────────────── */
+.code-editor-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 4vw, 48px);
+  background: rgb(var(--rc-text-rgb) / 0.24);
+  backdrop-filter: blur(3px);
+}
+
+.code-editor-modal__surface {
+  display: flex;
+  flex-direction: column;
+  width: min(1080px, 100%);
+  height: min(760px, 84dvh);
+  overflow: hidden;
+  border: 1px solid var(--rc-card-outline);
+  border-radius: 20px;
+  background: var(--rc-elevated);
+  box-shadow: var(--rc-raised-shadow);
+}
+
+.code-editor-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 58px;
+  padding: 10px 12px 10px 18px;
+  border-bottom: 1px solid var(--rc-border);
+  background: var(--rc-surface);
+}
+
+.code-editor-modal__header .code-editor__filename {
+  margin: 0;
+}
+
+.code-editor-modal__path {
+  max-width: min(660px, 56vw);
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--rc-text-muted);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-modal__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--rc-bg);
+}
+
+.code-editor-modal__body .code-editor__textarea {
+  border-radius: 0;
+}
+
+.code-editor-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 34px;
+  padding: 7px 18px;
+  border-top: 1px solid var(--rc-border);
+  background: var(--rc-surface);
+  color: var(--rc-text-muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.code-editor-modal__footer span:last-child {
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .code-editor-modal {
+    padding: 10px;
+  }
+
+  .code-editor-modal__surface {
+    height: calc(100dvh - 20px);
+    border-radius: 16px;
+  }
+
+  .code-editor-modal__path {
+    max-width: 42vw;
+  }
+
+  .code-editor-modal__footer span:last-child {
+    display: none;
+  }
+}
+
 /* ── Chat Panel ───────────────────────────────────────────────── */
 .code-chat-collapsed {
   flex-shrink: 0;
@@ -2006,6 +2092,17 @@ html[data-style="liquid-glass"] .code-editor__save-btn {
   font-size: 10px;
   color: var(--rc-text-muted);
   letter-spacing: 0.02em;
+}
+
+.code-task-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  color: var(--rc-text-muted);
+  font-size: 11px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
 }
 
 .code-chat-cursor {

@@ -177,6 +177,13 @@ pub async fn code_send_message(
     let db = state.db.clone();
     let settings = state.settings.read().await.clone();
 
+    // 会话一旦在新的工作目录里继续，就应随之归档到该项目，保证最近项目和会话分组准确。
+    if let Some(dir) = working_dir.as_deref().filter(|dir| !dir.trim().is_empty()) {
+        code::store::update_session(&db, &session_id, None, Some(dir), None, None)
+            .await
+            .map_err(|err| err.to_string())?;
+    }
+
     code::store::maybe_autotitle(&db, &session_id, &content).await;
     let _ = app.emit(
         "code:title_changed",

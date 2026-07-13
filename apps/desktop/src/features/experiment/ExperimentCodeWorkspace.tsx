@@ -1,14 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  FileCode,
-  GitBranch,
   Loader2,
   MoreHorizontal,
   Pencil,
   Pin,
   Plus,
-  Search,
   Trash2,
   FolderOpen,
   ChevronRight,
@@ -16,30 +13,18 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import type { ExperimentCodeSession, Skill } from "@research-copilot/types";
-import { CapsuleTabs } from "@research-copilot/ui";
 import { useCodeWorkspace } from "../code/useCodeWorkspace";
 import { useCodeGit } from "../code/useCodeGit";
 import { extractSkillVariables, applySkillVariables } from "../copilot/shared";
 import SkillVariableFillModal from "../copilot/SkillVariableFillModal";
 import type { PendingSkillFill } from "../copilot/useCopilotChat";
-import CodeFileTree from "../code/CodeFileTree";
-import CodeEditor from "../code/CodeEditor";
+import CodeEditorModal from "../code/CodeEditorModal";
 import CodeChatPanel from "../code/CodeChatPanel";
-import CodeReviewPanel from "../code/CodeReviewPanel";
-import CodeGitPanel from "../code/CodeGitPanel";
 import CodePermissionPanel from "../code/CodePermissionPanel";
 import { skillsApi, codeApi } from "../../lib/client";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
 import { useCopilotDropZone } from "../copilot/useCopilotDropZone";
-
-type RightTab = "files" | "editor" | "review" | "git";
-
-const TAB_DEFS: { id: RightTab; label: string; icon: ReactNode }[] = [
-  { id: "files", label: "文件", icon: <FolderOpen className="h-4 w-4" /> },
-  { id: "editor", label: "编辑器", icon: <FileCode className="h-4 w-4" /> },
-  { id: "review", label: "审查", icon: <Search className="h-4 w-4" /> },
-  { id: "git", label: "Git", icon: <GitBranch className="h-4 w-4" /> },
-];
+import { ExperimentCodeToolsPanel } from "./ExperimentCodeToolsPanel";
 
 interface ExperimentCodeWorkspaceProps {
   experimentId: string;
@@ -123,7 +108,6 @@ export function ExperimentCodeWorkspace({
     if (!Array.isArray(pinnedIds)) return new Set<string>();
     return new Set(pinnedIds);
   }, [pinnedIds]);
-  const [activeTab, setActiveTab] = useState<RightTab>("files");
 
   // 点击外部关闭 context menu / project menu
   useEffect(() => {
@@ -193,21 +177,6 @@ export function ExperimentCodeWorkspace({
       document.removeEventListener("mouseup", handleMouseUp);
     };
   }, [setLeftWidth, setRightWidth]);
-
-  // 打开文件时自动切换到编辑器标签。
-  useEffect(() => {
-    if (ws.openFile?.path) {
-      setActiveTab("editor");
-    }
-  }, [ws.openFile?.path]);
-
-  const refreshGit = git.refresh;
-
-  useEffect(() => {
-    if (activeTab === "files" || activeTab === "review" || activeTab === "git") {
-      void refreshGit();
-    }
-  }, [activeTab, refreshGit]);
 
   async function onConfirmDelete() {
     if (!pendingDeleteId) return;
@@ -644,6 +613,7 @@ export function ExperimentCodeWorkspace({
             messages={ws.selected?.messages ?? []}
             streamingContent={ws.streamingContent}
             sending={ws.sending}
+            taskStartedAt={ws.taskStartedAt}
             input={ws.input}
             onInputChange={ws.setInput}
             onSend={handleSendWithSkill}
@@ -682,97 +652,24 @@ export function ExperimentCodeWorkspace({
         )}
 
         {rightCollapsed ? null : (
-          <aside
-            className="code-opencode-tools relative"
-            aria-label="工具"
-            style={{ width: rightWidth, minWidth: rightWidth }}
-          >
-            <button
-              type="button"
-              onClick={() => setRightCollapsed(true)}
-              aria-label="收起工具栏"
-              title="收起工具栏"
-              className="absolute right-2 top-4 z-10 flex h-6 w-6 items-center justify-center rounded-full border text-ink-tertiary transition-colors hover:text-ink-primary"
-              style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-bg)" }}
-            >
-              <ChevronRight size={14} />
-            </button>
-            <div className="code-opencode-tabs">
-              <CapsuleTabs
-                compact
-                display={rightWidth < 200 ? "icon" : rightWidth < 298 ? "text" : "full"}
-                options={TAB_DEFS.map((t) => ({ value: t.id, label: t.label, icon: t.icon }))}
-                value={activeTab}
-                onChange={(v) => setActiveTab(v as RightTab)}
-              />
-            </div>
-
-          <div className="code-opencode-tab-content">
-            {activeTab === "files" && ws.workingDir && (
-              <CodeFileTree
-                rootPath={ws.workingDir}
-                entries={ws.fs.entries}
-                loading={ws.fs.loading}
-                onListDir={ws.fs.listDir}
-                onOpenFile={ws.openFileByPath}
-                activePath={ws.openFile?.path ?? null}
-                gitFiles={git.snapshot?.files}
-              />
-            )}
-            {activeTab === "files" && !ws.workingDir && (
-              <div className="code-opencode-tab-placeholder">
-                <FolderOpen size={24} />
-                <p>请先选择工作目录</p>
-              </div>
-            )}
-            {activeTab === "editor" && (
-              <CodeEditor
-                path={ws.openFile?.path ?? null}
-                name={ws.openFile?.name ?? ""}
-                content={ws.openFile?.content ?? ""}
-                dirty={ws.openFile?.dirty ?? false}
-                onChange={ws.updateFileContent}
-                onSave={ws.saveOpenFile}
-                onClose={ws.closeOpenFile}
-              />
-            )}
-            {activeTab === "review" && (
-              <CodeReviewPanel
-                workingDir={ws.workingDir}
-                snapshot={git.snapshot}
-                loading={git.loading}
-                reviewing={git.reviewing}
-                review={git.review}
-                error={git.error}
-                onRefresh={git.refresh}
-                onRunReview={git.runReview}
-              />
-            )}
-            {activeTab === "git" && (
-              <CodeGitPanel
-                workingDir={ws.workingDir}
-                snapshot={git.snapshot}
-                loading={git.loading}
-                actionLoading={git.actionLoading}
-                generatingCommitMessage={git.generatingMessage}
-                switchingBranch={git.switchingBranch}
-                branches={git.branches}
-                error={git.error}
-                commitMessage={git.commitMessage}
-                onCommitMessageChange={git.setCommitMessage}
-                onRefresh={git.refresh}
-                onStage={git.stage}
-                onUnstage={git.unstage}
-                onCommit={git.commit}
-                onGenerateCommitMessage={git.generateCommitMessage}
-                onLoadBranches={git.loadBranches}
-                onCheckoutBranch={git.checkoutBranch}
-              />
-            )}
-          </div>
-        </aside>
+          <ExperimentCodeToolsPanel
+            workingDir={ws.workingDir}
+            width={rightWidth}
+            fileSystem={ws.fs}
+            openFile={ws.openFile}
+            onOpenFile={ws.openFileByPath}
+            git={git}
+            onCollapse={() => setRightCollapsed(true)}
+          />
         )}
       </div>
+
+      <CodeEditorModal
+        file={ws.openFile}
+        onChange={ws.updateFileContent}
+        onSave={ws.saveOpenFile}
+        onClose={ws.closeOpenFile}
+      />
 
       {ws.toast && <div className="code-toast">{ws.toast}</div>}
 

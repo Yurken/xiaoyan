@@ -7,12 +7,14 @@ import { codeToolLabel, CODE_MODES, CODE_MODE_MAP } from "./shared";
 import type { CodeAgentMode, CodeFileAttachment, CodeModelOption } from "./shared";
 import CodeAssistantMessage from "./CodeAssistantMessage";
 import CodeChatContextControls from "./CodeChatContextControls";
+import { CodeTaskSummary } from "./CodeTaskSummary";
 import { CodeToolCallCard, CodeToolResultCard } from "./CodeToolMessage";
 
 interface CodeChatPanelProps {
   messages: CodeMessage[];
   streamingContent: string;
   sending: boolean;
+  taskStartedAt?: number | null;
   input: string;
   onInputChange: (value: string) => void;
   onSend: () => void;
@@ -45,6 +47,7 @@ export default function CodeChatPanel({
   messages,
   streamingContent,
   sending,
+  taskStartedAt,
   input,
   onInputChange,
   onSend,
@@ -353,6 +356,7 @@ export default function CodeChatPanel({
                       {msg.model ? ` · ${msg.model}` : ""}
                     </div>
                   )}
+                  <CodeTaskSummary durationMs={msg.duration_ms} />
                 </div>
               </div>
             )}
@@ -368,6 +372,7 @@ export default function CodeChatPanel({
               <div className="code-chat-msg__assistant-content">
                 <CodeAssistantMessage content={streamingContent} streaming />
                 <span className="code-chat-cursor" />
+                <CodeTaskSummary startedAt={taskStartedAt} running />
               </div>
             </div>
           </div>
@@ -384,6 +389,7 @@ export default function CodeChatPanel({
                 <span className="code-chat-thinking__dot" />
                 <span className="code-chat-thinking__dot" />
               </div>
+              <CodeTaskSummary startedAt={taskStartedAt} running />
             </div>
           </div>
         )}

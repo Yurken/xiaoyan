@@ -961,7 +961,7 @@ export interface CodePermissionRequest {
 export interface CodeMessage {
   id: string; role: "user" | "assistant" | "tool"; content: string;
   tool_calls?: CodeToolCall[]; tool_results?: CodeToolResult[]; tool_call_id?: string | null;
-  tool_id?: string | null; model?: string | null; created_at: string;
+  tool_id?: string | null; model?: string | null; duration_ms?: number | null; created_at: string;
 }
 export interface CodeSession extends ExperimentCodeSession {}
 export interface DirEntry { name: string; path: string; is_dir: boolean; }

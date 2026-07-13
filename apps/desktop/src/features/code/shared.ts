@@ -4,6 +4,13 @@ import type { LlmProvider } from "@research-copilot/types";
 
 export type { DirEntry };
 
+export function formatCodeTaskDuration(durationMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1_000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
 // ── Code File Attachments ─────────────────────────────────────
 export interface CodeFileAttachment {
   id: string;
@@ -106,6 +113,7 @@ export interface OpenFile {
   path: string;
   name: string;
   content: string;
+  originalContent: string;
   dirty: boolean;
 }
 

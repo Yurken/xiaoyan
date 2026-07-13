@@ -52,7 +52,7 @@ export function useCodeContextPack({
 
     onInputChange(
       [
-        "请基于下面的工作区上下文处理我的需求；最终回复保持简短，只说结果、验证和必要风险。",
+        "请基于下面的工作区上下文处理我的需求。最终回复直接说明结果和必要验证；不要使用标题、emoji 或工具过程回放。",
         "",
         "<workspace-context>",
         next.content,

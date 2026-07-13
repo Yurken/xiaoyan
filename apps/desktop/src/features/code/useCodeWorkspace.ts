@@ -35,6 +35,7 @@ interface DoneEvent {
   request_id: string;
   message_id: string;
   full_content: string;
+  duration_ms: number;
 }
 
 interface ErrorEvent {
@@ -85,6 +86,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [taskStartedAt, setTaskStartedAt] = useState<number | null>(null);
   const [creatingSession, setCreatingSession] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
@@ -155,7 +157,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
 
       const unlistenDone = await listen<DoneEvent>("code:done", (event) => {
         if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
-        const { session_id, message_id, full_content } = event.payload;
+        const { session_id, message_id, full_content, duration_ms } = event.payload;
 
         const assistantMsg: CodeMessage = {
           id: message_id,
@@ -166,6 +168,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
           tool_call_id: null,
           tool_id: null,
           model: null,
+          duration_ms,
           created_at: new Date().toISOString(),
         };
 
@@ -184,6 +187,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         streamingRef.current = "";
         setStreamingContent("");
         setSending(false);
+        setTaskStartedAt(null);
         setRequestId(null);
         requestIdRef.current = null;
       });
@@ -263,6 +267,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
         streamingRef.current = "";
         setStreamingContent("");
         setSending(false);
+        setTaskStartedAt(null);
         setRequestId(null);
         requestIdRef.current = null;
       });
@@ -380,19 +385,19 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   async function openFileByPath(path: string, name: string) {
     const content = await fs.readFile(path);
     if (content !== null) {
-      setOpenFile({ path, name, content, dirty: false });
+      setOpenFile({ path, name, content, originalContent: content, dirty: false });
     }
   }
 
   function updateFileContent(value: string) {
-    setOpenFile((prev) => (prev ? { ...prev, content: value, dirty: value !== prev.content } : null));
+    setOpenFile((prev) => (prev ? { ...prev, content: value, dirty: value !== prev.originalContent } : null));
   }
 
   async function saveOpenFile() {
     if (!openFile || !openFile.dirty) return;
     const ok = await fs.writeFile(openFile.path, openFile.content);
     if (ok) {
-      setOpenFile((prev) => (prev ? { ...prev, dirty: false } : null));
+      setOpenFile((prev) => (prev ? { ...prev, originalContent: prev.content, dirty: false } : null));
       showToast("文件已保存");
     }
   }
@@ -447,6 +452,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       void codeApi.cancelMessage(rid);
     }
     setSending(false);
+    setTaskStartedAt(null);
     setPermissionRequests([]);
     streamingRef.current = "";
     setStreamingContent("");
@@ -510,6 +516,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     }
 
     setSending(true);
+    setTaskStartedAt(Date.now());
     setRequestId(null);
     requestIdRef.current = null;
     streamingRef.current = "";
@@ -542,6 +549,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     } catch (err) {
       showToast(formatErrorMessage(err));
       setSending(false);
+      setTaskStartedAt(null);
     }
   }
 
@@ -600,6 +608,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     selectSession,
     chatLoading,
     sending,
+    taskStartedAt,
     creatingSession,
     requestId,
     streamingContent,

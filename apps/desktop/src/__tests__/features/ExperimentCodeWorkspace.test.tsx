@@ -116,9 +116,9 @@ describe("ExperimentCodeWorkspace", () => {
 
     // Right tools tabs
     expect(screen.getByText("文件")).toBeInTheDocument();
-    expect(screen.getByText("编辑器")).toBeInTheDocument();
     expect(screen.getByText("审查")).toBeInTheDocument();
     expect(screen.getByText("Git")).toBeInTheDocument();
+    expect(screen.queryByText("编辑器")).not.toBeInTheDocument();
 
     // Chat input
     expect(screen.getByPlaceholderText(/让小妍做点什么/)).toBeInTheDocument();
@@ -129,6 +129,24 @@ describe("ExperimentCodeWorkspace", () => {
     // 不再提供旧版工作面板与终端条
     expect(screen.queryByText("工作面板")).not.toBeInTheDocument();
     expect(screen.queryByText("终端 ⌘J")).not.toBeInTheDocument();
+  });
+
+  it("打开文件后在弹窗中编辑，而不占用右侧工具栏", () => {
+    useCodeWorkspaceMock.mockReturnValue(createWorkspace({
+      openFile: {
+        path: "/Users/sen/hit/xiaoyan/example.ts",
+        name: "example.ts",
+        content: "export const answer = 42;",
+        originalContent: "export const answer = 42;",
+        dirty: false,
+      },
+    }));
+
+    render(<ExperimentCodeWorkspace experimentId="exp-1" />);
+
+    expect(screen.getByRole("dialog", { name: "example.ts" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "example.ts 编辑器" })).toHaveValue("export const answer = 42;");
+    expect(screen.queryByText("编辑器")).not.toBeInTheDocument();
   });
 
   it("可收起并重新展开左右侧边栏", async () => {

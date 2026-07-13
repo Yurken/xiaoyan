@@ -136,7 +136,10 @@ pub async fn update_session(
     sets.push("updated_at = ?");
     binds.push(now());
 
-    let sql = format!("UPDATE experiment_code_sessions SET {} WHERE id = ?", sets.join(", "));
+    let sql = format!(
+        "UPDATE experiment_code_sessions SET {} WHERE id = ?",
+        sets.join(", ")
+    );
     let mut query = sqlx::query(&sql);
     for b in &binds {
         query = query.bind(b);
@@ -177,12 +180,14 @@ pub async fn persist_message(
         .execute(db)
         .await?;
     } else {
-        sqlx::query("UPDATE experiment_code_sessions SET messages_json = ?, updated_at = ? WHERE id = ?")
-            .bind(&json)
-            .bind(&ts)
-            .bind(session_id)
-            .execute(db)
-            .await?;
+        sqlx::query(
+            "UPDATE experiment_code_sessions SET messages_json = ?, updated_at = ? WHERE id = ?",
+        )
+        .bind(&json)
+        .bind(&ts)
+        .bind(session_id)
+        .execute(db)
+        .await?;
     }
     Ok(())
 }
@@ -191,15 +196,19 @@ pub async fn persist_message(
 pub async fn maybe_autotitle(db: &SqlitePool, session_id: &str, content: &str) {
     if let Ok(session) = get_session(db, session_id).await {
         // 兼容前端默认标题 "新会话" 与旧默认 "新对话"
-        let is_default_title = session.title == "新会话" || session.title == "新对话" || session.title.trim().is_empty();
+        let is_default_title = session.title == "新会话"
+            || session.title == "新对话"
+            || session.title.trim().is_empty();
         if session.messages.len() <= 1 && is_default_title {
             let truncated: String = content.chars().take(50).collect();
-            let _ = sqlx::query("UPDATE experiment_code_sessions SET title = ?, updated_at = ? WHERE id = ?")
-                .bind(&truncated)
-                .bind(now())
-                .bind(session_id)
-                .execute(db)
-                .await;
+            let _ = sqlx::query(
+                "UPDATE experiment_code_sessions SET title = ?, updated_at = ? WHERE id = ?",
+            )
+            .bind(&truncated)
+            .bind(now())
+            .bind(session_id)
+            .execute(db)
+            .await;
         }
     }
 }
@@ -232,7 +241,11 @@ pub async fn edit_message(
 }
 
 /// 更新会话标题（用于 AI 自动标题生成）
-pub async fn update_session_title(db: &SqlitePool, session_id: &str, title: &str) -> anyhow::Result<()> {
+pub async fn update_session_title(
+    db: &SqlitePool,
+    session_id: &str,
+    title: &str,
+) -> anyhow::Result<()> {
     sqlx::query("UPDATE experiment_code_sessions SET title = ?, updated_at = ? WHERE id = ?")
         .bind(title)
         .bind(now())
