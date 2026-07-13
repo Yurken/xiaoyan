@@ -277,18 +277,6 @@ export default function VenueTrackerWorkspace({
         onCreateSubmission={onCreateSubmissionFromRecommendation}
       />
 
-      {/*
-      <div
-        className="rounded-3xl p-4 flex items-center gap-3 border-2 border-dashed opacity-50"
-        style={{ borderColor: "var(--rc-border)" }}
-      >
-        <Users className="w-5 h-5 text-ink-tertiary flex-shrink-0" />
-        <div>
-          <p className="text-sm font-medium text-ink-secondary">课题组共享日历（即将上线）</p>
-          <p className="text-xs text-ink-tertiary mt-0.5">邀请课题组成员，共同追踪会议与期刊，统一管理投稿节奏。</p>
-        </div>
-      </div>
-      */}
     </div>
   );
 }
