@@ -1,4 +1,4 @@
-import { Button, Card, CardHeader, CardTitle } from "@research-copilot/ui";
+import { Card, CardHeader, CardTitle, IconButton } from "@research-copilot/ui";
 import { ArrowRight, Trash2 } from "lucide-react";
 import { type KnowledgeGraphCitation, type KnowledgeGraphPaper, truncateText } from "./shared";
 
@@ -55,15 +55,15 @@ export default function KnowledgeCitationPanel({
                     ) : null}
                   </div>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <IconButton
                     disabled={busy}
                     onClick={() => onDeleteCitation(citation.id)}
+                    aria-label="删除引用关系"
+                    title="删除引用关系"
+                    size="sm"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    删除
-                  </Button>
+                  </IconButton>
                 </div>
               </div>
             );

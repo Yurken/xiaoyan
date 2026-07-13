@@ -1,4 +1,4 @@
-import { Badge, Button, Card, CardHeader, CardTitle } from "@research-copilot/ui";
+import { Badge, Card, CardHeader, CardTitle, IconButton } from "@research-copilot/ui";
 import { FlaskConical, Link2, NotebookPen, Quote, Trash2 } from "lucide-react";
 import { type KnowledgeGraphClaimBundle } from "./graphView";
 import {
@@ -58,15 +58,15 @@ export default function KnowledgeClaimPanel({
                     </div>
                     <p className="text-sm leading-6 text-ink-secondary">{claim.statement}</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <IconButton
                     disabled={busy}
                     onClick={() => onDeleteClaim(claim.id)}
+                    aria-label="删除结论"
+                    title="删除结论"
+                    size="sm"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    删除
-                  </Button>
+                  </IconButton>
                 </div>
 
                 <div className="knowledge-graph-evidence-list mt-4 space-y-3">
@@ -113,15 +113,15 @@ export default function KnowledgeClaimPanel({
                               </div>
                             </div>
 
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                            <IconButton
                               disabled={busy}
                               onClick={() => onDeleteEvidence(item.link.id)}
+                              aria-label="解绑证据"
+                              title="解绑证据"
+                              size="sm"
                             >
                               <Link2 className="h-3.5 w-3.5" />
-                              解绑
-                            </Button>
+                            </IconButton>
                           </div>
                         </div>
                       );
