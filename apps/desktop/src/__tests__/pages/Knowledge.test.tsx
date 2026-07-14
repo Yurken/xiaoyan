@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { renderWithRouter } from "../helpers/render";
 import { resetInvokeMock } from "../mocks/tauri";
 import Knowledge from "../../pages/Knowledge";
@@ -85,9 +85,10 @@ describe("Knowledge 页面", () => {
     expect(screen.getByText("知识笔记")).toBeInTheDocument();
   });
 
-  it("应显示研究 Wiki 视图", () => {
+  it("发布前应隐藏研究 Wiki 入口", () => {
     renderWithRouter(<Knowledge />);
-    expect(screen.getByText("研究 Wiki")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "研究 Wiki" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("wiki-workspace")).not.toBeInTheDocument();
   });
 
   it("默认应显示知识图谱工作区", () => {
@@ -95,9 +96,9 @@ describe("Knowledge 页面", () => {
     expect(screen.getByTestId("graph-workspace")).toBeInTheDocument();
   });
 
-  it("切换后应显示研究 Wiki 工作区", () => {
-    renderWithRouter(<Knowledge researchInterestId="interest-1" />);
-    fireEvent.click(screen.getByRole("button", { name: "研究 Wiki" }));
-    expect(screen.getByTestId("wiki-workspace")).toBeInTheDocument();
+  it("旧的 Wiki 视图记录应回退到知识图谱", () => {
+    localStorage.setItem("rc:knowledge:view", "wiki");
+    renderWithRouter(<Knowledge />);
+    expect(screen.getByTestId("graph-workspace")).toBeInTheDocument();
   });
 });

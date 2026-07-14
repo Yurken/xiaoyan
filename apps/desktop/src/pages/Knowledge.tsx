@@ -10,11 +10,15 @@ import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 
 type KnowledgeView = "graph" | "notes" | "wiki";
-const KNOWLEDGE_VIEWS: readonly KnowledgeView[] = ["graph", "notes", "wiki"];
+const KNOWLEDGE_VIEWS: readonly KnowledgeView[] = [
+  "graph",
+  "notes",
+  // "wiki", // 暂缓发布研究 Wiki；恢复时与下方页签一并取消注释。
+];
 const KNOWLEDGE_VIEW_TABS = [
   { value: "graph", label: "知识图谱" },
   { value: "notes", label: "知识笔记" },
-  { value: "wiki", label: "研究 Wiki" },
+  // { value: "wiki", label: "研究 Wiki" },
 ] as const;
 
 export default function Knowledge({
