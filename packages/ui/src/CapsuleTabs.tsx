@@ -6,6 +6,7 @@ export interface CapsuleTab {
   value: string;
   label: string;
   icon?: ReactNode;
+  testId?: string;
 }
 
 export type CapsuleTabsDisplay = "full" | "text" | "icon";
@@ -78,6 +79,7 @@ export function CapsuleTabs({ options, value, onChange, compact, display = "full
             if (el) buttonRefs.current.set(tab.value, el);
           }}
           type="button"
+          data-testid={tab.testId}
           onClick={() => onChange(tab.value)}
           className={`relative z-10 inline-flex shrink-0 items-center whitespace-nowrap rounded-xl font-medium transition-colors duration-200 ${
             display === "icon"

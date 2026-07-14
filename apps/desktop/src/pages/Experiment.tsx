@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { usePersistentState } from "../hooks/usePersistentStringState";
 import type { ExperimentRecord, ExperimentCodeSession } from "@research-copilot/types";
+import { CapsuleTabs } from "@research-copilot/ui";
 import { experimentApi } from "../lib/client";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 import { ExperimentCodeWorkspace } from "../features/experiment/ExperimentCodeWorkspace";
@@ -98,34 +99,15 @@ export default function Experiment({ experimentId }: ExperimentProps) {
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       {/* Header + horizontal segmented tabs */}
       <div className="app-header flex items-center justify-between flex-shrink-0 px-6 pb-3 border-b border-nm-dark/10">
-        <div
-          className="inline-flex rounded-2xl border p-1"
-          style={{ borderColor: "var(--rc-border)", background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.52))" }}
-        >
-          {visibleTabs.map((tab) => {
-            const active = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                data-testid={`tab-${tab.key}`}
-                onClick={() => setActiveTab(tab.key)}
-                className="rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150"
-                style={active
-                  ? {
-                      background: "var(--rc-button-secondary-bg)",
-                      boxShadow: "var(--rc-button-secondary-shadow)",
-                      color: "var(--rc-text)",
-                    }
-                  : {
-                      color: "var(--rc-text-muted)",
-                    }}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        <CapsuleTabs
+          options={visibleTabs.map((tab) => ({
+            value: tab.key,
+            label: tab.label,
+            testId: `tab-${tab.key}`,
+          }))}
+          value={activeTab}
+          onChange={(nextTab) => setActiveTab(nextTab as ExperimentTab)}
+        />
       </div>
 
       {/* Main workspace */}

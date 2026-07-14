@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { clsx } from "clsx";
-import { Select } from "@research-copilot/ui";
+import { CapsuleTabs, Select } from "@research-copilot/ui";
 import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspace";
 import { buildInterestSelectOptions, buildNoteClaimCountMap } from "../features/knowledge/shared";
 import { useKnowledgeGraphWorkspace } from "../features/knowledge/useKnowledgeGraphWorkspace";
@@ -11,6 +11,11 @@ import { usePersistentStringState } from "../hooks/usePersistentStringState";
 
 type KnowledgeView = "graph" | "notes" | "wiki";
 const KNOWLEDGE_VIEWS: readonly KnowledgeView[] = ["graph", "notes", "wiki"];
+const KNOWLEDGE_VIEW_TABS = [
+  { value: "graph", label: "知识图谱" },
+  { value: "notes", label: "知识笔记" },
+  { value: "wiki", label: "研究 Wiki" },
+] as const;
 
 export default function Knowledge({
   hideFolders = false,
@@ -88,37 +93,11 @@ export default function Knowledge({
           </header>
         ) : null}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div
-            className="inline-flex rounded-2xl border p-1"
-            style={{ borderColor: "var(--rc-border)", background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.52))" }}
-          >
-            {([
-              { key: "graph", label: "知识图谱" },
-              { key: "notes", label: "知识笔记" },
-              { key: "wiki", label: "研究 Wiki" },
-            ] as const).map((item) => {
-              const active = view === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setView(item.key)}
-                  className="rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150"
-                  style={active
-                    ? {
-                        background: "var(--rc-button-secondary-bg)",
-                        boxShadow: "var(--rc-button-secondary-shadow)",
-                        color: "var(--rc-text)",
-                      }
-                    : {
-                        color: "var(--rc-text-muted)",
-                      }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
+          <CapsuleTabs
+            options={KNOWLEDGE_VIEW_TABS}
+            value={view}
+            onChange={(nextView) => setView(nextView as KnowledgeView)}
+          />
 
           {(view === "notes" || view === "wiki") && graphController.snapshot && !researchInterestId ? (
             <Select
