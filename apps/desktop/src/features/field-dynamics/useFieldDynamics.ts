@@ -96,10 +96,8 @@ export function useFieldDynamics() {
     try {
       const result = await apiClient.fieldDynamics.scan(7, 10);
       if (mountedRef.current) {
-        setBriefings(result.briefings);
-        setUnreadCount(result.unread_count);
         setNotice(`已更新 ${result.scanned_interests} 个研究兴趣的简报`);
-        void loadHistory();
+        await Promise.all([loadBriefings(), loadHistory()]);
       }
     } catch (err) {
       if (mountedRef.current) {
@@ -108,7 +106,7 @@ export function useFieldDynamics() {
     } finally {
       scanningState.set(false);
     }
-  }, [loadHistory]);
+  }, [loadBriefings, loadHistory]);
 
   const markRead = useCallback(
     async (id?: string) => {
