@@ -8,6 +8,7 @@ import {
   FileText,
   FolderOpen,
   LayoutPanelLeft,
+  PenLine,
   Plus,
   Upload,
 } from "lucide-react";
@@ -69,7 +70,7 @@ export default function WritingWorkspace({
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-apple-blue/10 text-apple-blue">
-              <FileText className="h-5 w-5" />
+              <PenLine className="h-5 w-5" />
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-lg font-bold tracking-tight text-ink-primary">论文撰写</h1>
