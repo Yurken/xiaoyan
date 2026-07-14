@@ -1,4 +1,5 @@
-import { FileText, FileSearch, Github, Globe2, Languages, Presentation, Sparkles } from "lucide-react";
+import { useEffect } from "react";
+import { FileCheck2, FileText, FileSearch, Github, Globe2, Languages, Presentation, Scale, Sparkles } from "lucide-react";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 import { ArxivFieldSearchPanel } from "../features/tools/ArxivFieldSearchPanel";
 import { ArxivSearchResults } from "../features/tools/ArxivSearchResults";
@@ -20,6 +21,10 @@ import { useTranslationTool } from "../features/tools/useTranslationTool";
 import { TranslationPanel } from "../features/tools/TranslationPanel";
 import { WebSupplementPanel } from "../features/tools/WebSupplementPanel";
 import { useWebSupplement } from "../features/tools/useWebSupplement";
+import PatentWorkspace from "../features/patent-tool/PatentWorkspace";
+import DocumentCheckerWorkspace from "../features/document-checker/DocumentCheckerWorkspace";
+import { useModuleVisibility } from "../features/module-visibility/useModuleVisibility";
+import type { ToolModuleKey } from "../features/module-visibility/shared";
 
 const TOOL_TABS = [
   { key: "arxiv", icon: <Sparkles className="h-4 w-4" />, label: "论文检索" },
@@ -28,13 +33,17 @@ const TOOL_TABS = [
   { key: "translate", icon: <Languages className="h-4 w-4" />, label: "学术翻译" },
   { key: "md", icon: <FileText className="h-4 w-4" />, label: "MD 整理" },
   { key: "ppt", icon: <Presentation className="h-4 w-4" />, label: "生成 PPT" },
+  { key: "patent", icon: <Scale className="h-4 w-4" />, label: "专利检索" },
+  { key: "document-check", icon: <FileCheck2 className="h-4 w-4" />, label: "文档校验" },
   { key: "links", icon: <Globe2 className="h-4 w-4" />, label: "科研友链" },
-] as const;
+] as const satisfies ReadonlyArray<{ key: ToolModuleKey; icon: React.ReactNode; label: string }>;
 
 type ToolTabKey = (typeof TOOL_TABS)[number]["key"];
 const TOOL_TAB_KEYS = TOOL_TABS.map((tab) => tab.key);
 
 export default function Tools() {
+  const { config: moduleVisibility } = useModuleVisibility();
+  const visibleToolTabs = TOOL_TABS.filter((tab) => moduleVisibility.tools[tab.key]);
   const {
     query: sourceQuery,
     sections: sourceSections,
@@ -64,6 +73,10 @@ export default function Tools() {
     "arxiv",
     TOOL_TAB_KEYS,
   );
+
+  useEffect(() => {
+    if (!moduleVisibility.tools[activeTab]) setActiveTab(visibleToolTabs[0]?.key ?? "arxiv");
+  }, [activeTab, moduleVisibility.tools, setActiveTab, visibleToolTabs]);
 
   const {
     input: mdInput,
@@ -127,11 +140,17 @@ export default function Tools() {
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       <div className="app-header shrink-0 px-6 pb-3">
-        <CapsuleTabs
-          options={TOOL_TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
-          value={activeTab}
-          onChange={(v) => setActiveTab(v as ToolTabKey)}
-        />
+        <div className="mb-3">
+          <h1 className="text-lg font-semibold text-ink-primary">实用工具</h1>
+          <p className="mt-1 text-xs text-ink-tertiary">小妍为你准备了一些科研实用工具，可在设置的界面布局中按研究方向精简页签。</p>
+        </div>
+        <div className="overflow-x-auto pb-1">
+          <CapsuleTabs
+            options={visibleToolTabs.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
+            value={activeTab}
+            onChange={(v) => setActiveTab(v as ToolTabKey)}
+          />
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pt-3 pb-6 space-y-5">
@@ -267,6 +286,10 @@ export default function Tools() {
           onDownload={handlePptDownload}
         />
       ) : null}
+
+      {activeTab === "patent" ? <PatentWorkspace /> : null}
+
+      {activeTab === "document-check" ? <DocumentCheckerWorkspace /> : null}
 
       {activeTab === "links" ? (
         <FriendLinksPanel {...friendLinks.panelProps} />

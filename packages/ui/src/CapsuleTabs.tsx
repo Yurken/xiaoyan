@@ -79,7 +79,7 @@ export function CapsuleTabs({ options, value, onChange, compact, display = "full
           }}
           type="button"
           onClick={() => onChange(tab.value)}
-          className={`relative z-10 inline-flex items-center rounded-xl font-medium transition-colors duration-200 ${
+          className={`relative z-10 inline-flex shrink-0 items-center whitespace-nowrap rounded-xl font-medium transition-colors duration-200 ${
             display === "icon"
               ? "p-2"
               : compact

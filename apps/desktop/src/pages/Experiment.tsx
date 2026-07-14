@@ -7,8 +7,10 @@ import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 import { ExperimentCodeWorkspace } from "../features/experiment/ExperimentCodeWorkspace";
 import { ExperimentSnapshotPanel } from "../features/experiment/ExperimentSnapshotPanel";
 import { ExperimentRecordPanel } from "../features/experiment/ExperimentRecordPanel";
+import { EXPERIMENT_MODULES, type ExperimentModuleKey } from "../features/module-visibility/shared";
+import { useModuleVisibility } from "../features/module-visibility/useModuleVisibility";
 
-type ExperimentTab = "code" | "snapshots" | "records";
+type ExperimentTab = ExperimentModuleKey;
 
 function rowToExperiment(row: unknown): ExperimentRecord {
   const r = row as Record<string, unknown>;
@@ -36,6 +38,8 @@ interface ExperimentProps {
 }
 
 export default function Experiment({ experimentId }: ExperimentProps) {
+  const { config: moduleVisibility } = useModuleVisibility();
+  const visibleTabs = EXPERIMENT_MODULES.filter((tab) => moduleVisibility.experiment[tab.key]);
   const [experiment, setExperiment] = useState<ExperimentRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
@@ -76,6 +80,13 @@ export default function Experiment({ experimentId }: ExperimentProps) {
     loadExperiment().finally(() => setLoading(false));
   }, [loadExperiment]);
 
+  useEffect(() => {
+    if (!moduleVisibility.experiment[activeTab]) {
+      const fallback = EXPERIMENT_MODULES.find((tab) => moduleVisibility.experiment[tab.key]);
+      setActiveTab(fallback?.key ?? "records");
+    }
+  }, [activeTab, moduleVisibility.experiment]);
+
   useDomainEventRefresh("experiment:created", () => { loadExperiment(); });
 
   function showToast(msg: string) {
@@ -91,11 +102,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
           className="inline-flex rounded-2xl border p-1"
           style={{ borderColor: "var(--rc-border)", background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.52))" }}
         >
-          {([
-            { key: "code", label: "代码" },
-            { key: "snapshots", label: "快照" },
-            { key: "records", label: "记录" },
-          ] as const).map((tab) => {
+          {visibleTabs.map((tab) => {
             const active = activeTab === tab.key;
             return (
               <button
