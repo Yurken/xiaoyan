@@ -131,9 +131,9 @@ describe("Papers 页面", () => {
     });
   });
 
-  it("应渲染页面标题", () => {
+  it("应显示论文库页签", () => {
     renderWithRouter(<Papers />);
-    expect(screen.getByRole("heading", { name: "论文库" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "论文库" })).toBeInTheDocument();
   });
 
   it("应显示论文列表面板", () => {

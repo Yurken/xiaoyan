@@ -65,16 +65,6 @@ describe("Knowledge 页面", () => {
     localStorage.clear();
   });
 
-  it("应渲染知识库页面标题", () => {
-    renderWithRouter(<Knowledge />);
-    expect(screen.getByText("知识库")).toBeInTheDocument();
-  });
-
-  it("应显示页面描述", () => {
-    renderWithRouter(<Knowledge />);
-    expect(screen.getByText(/不只是记笔记/)).toBeInTheDocument();
-  });
-
   it("应显示知识图谱视图", () => {
     renderWithRouter(<Knowledge />);
     expect(screen.getByText("知识图谱")).toBeInTheDocument();

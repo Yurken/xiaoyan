@@ -69,6 +69,15 @@ vi.mock("../../features/tools/useFriendLinks", () => ({
   }),
 }));
 
+vi.mock("../../features/tools/useGithubProjectSearch", () => ({
+  useGithubProjectSearch: () => ({
+    query: "", result: null, loading: false, error: "", searched: false,
+    history: [], historyLoading: false,
+    setQuery: vi.fn(), submit: vi.fn(), applyHistory: vi.fn(),
+    removeHistory: vi.fn(), refreshHistory: vi.fn(),
+  }),
+}));
+
 vi.mock("../../features/tools/useWebSupplement", () => ({
   // Tools.tsx 解构 outcome/loading/error/searched/run（非 panelProps 形态）。
   useWebSupplement: () => ({
@@ -143,9 +152,9 @@ describe("Tools 页面", () => {
     localStorage.clear();
   });
 
-  it("应渲染页面标题", () => {
+  it("应渲染紧凑工具页签导航", () => {
     render(<Tools />);
-    expect(screen.getByText("实用工具")).toBeInTheDocument();
+    expect(screen.getByTestId("capsule-tabs")).toBeInTheDocument();
   });
 
   it("应显示所有工具标签", () => {
@@ -206,10 +215,5 @@ describe("Tools 页面", () => {
     render(<Tools />);
     fireEvent.click(screen.getByText("文档校验"));
     expect(screen.getByTestId("document-checker-workspace")).toBeInTheDocument();
-  });
-
-  it("应显示页面描述", () => {
-    render(<Tools />);
-    expect(screen.getByText(/小妍为你准备了一些科研实用工具/)).toBeInTheDocument();
   });
 });
