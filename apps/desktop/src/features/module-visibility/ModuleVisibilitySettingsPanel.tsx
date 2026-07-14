@@ -79,8 +79,8 @@ function ModuleGroup({
                 borderColor: visible
                   ? "color-mix(in srgb, var(--rc-accent) 24%, var(--rc-control-border))"
                   : "var(--rc-card-outline)",
-                background: visible ? "var(--rc-card-inset-bg)" : "var(--rc-chip-bg)",
-                boxShadow: visible ? "var(--rc-card-inset-shadow)" : "var(--rc-chip-shadow)",
+                background: visible ? "var(--rc-chip-bg)" : "var(--rc-card-inset-bg)",
+                boxShadow: visible ? "var(--rc-chip-shadow)" : "var(--rc-card-inset-shadow)",
               }}
             >
               <span
