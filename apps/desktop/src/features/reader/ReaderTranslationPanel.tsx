@@ -4,7 +4,8 @@ import {
   type InterpretationState,
   type TranslationState,
 } from "./useReaderTranslation";
-import InterpretationContent, { splitReasoning } from "./InterpretationContent";
+import InterpretationContent from "./InterpretationContent";
+import { splitReasoning } from "./readerReasoning";
 
 interface ReaderTranslationPanelProps {
   current: TranslationState | null;
@@ -168,7 +169,7 @@ export default function ReaderTranslationPanel({
                   <div className="ml-auto flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={onInterpret}
+                      onClick={() => void onInterpret()}
                       disabled={!canInterpret}
                       className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-violet-500 transition-colors hover:text-violet-600 disabled:opacity-40"
                       title="让小妍解读这段内容"

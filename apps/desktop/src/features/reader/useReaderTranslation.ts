@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppSettings, LlmProvider } from "@research-copilot/types";
 import { chatApi, translateApi, settingsApi } from "../../lib/client";
 import type { ReaderImageSelection } from "./readerTypes";
+import { splitReasoning } from "./readerReasoning";
 
 function getDefaultChatModel(settings: AppSettings): string {
   const map: Record<LlmProvider, string> = {
@@ -131,11 +132,12 @@ export function useReaderTranslation() {
     setInterpretation(null); // 译文变化，旧解读作废
     setCurrent({ id, source: trimmed, page, result: "", status: "loading" });
     try {
-      let result = "";
+      let rawResult = "";
       for await (const chunk of translateApi.stream(trimmed, "zh", undefined, translationModel, ac.signal)) {
         if (translateAbortRef.current !== ac) break;
         if (chunk.type === "delta") {
-          result += chunk.value;
+          rawResult += chunk.value;
+          const result = splitReasoning(rawResult).answer;
           setCurrent((prev) => (prev && prev.id === id ? { ...prev, result } : prev));
         }
         if (chunk.type === "error") {
@@ -145,7 +147,7 @@ export function useReaderTranslation() {
       if (translateAbortRef.current === ac) {
         setCurrent((prev) => (
           prev && prev.id === id && prev.status !== "error"
-            ? { ...prev, result: result.trim(), status: "done" }
+            ? { ...prev, result: splitReasoning(rawResult).answer, status: "done" }
             : prev
         ));
       }

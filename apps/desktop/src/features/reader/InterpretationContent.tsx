@@ -2,28 +2,7 @@ import { useState } from "react";
 import { Brain, ChevronDown } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
 import { openLink } from "../../lib/links";
-
-/**
- * 从流式解读文本里拆出 <think> 思考与正文答案。
- * 兼容流式中尚未闭合的 <think>：其后内容暂记为思考，正文留空到闭合为止。
- */
-export function splitReasoning(raw: string): { thought: string; answer: string } {
-  const thoughts: string[] = [];
-  const closed = /<think>([\s\S]*?)<\/think>/gi;
-  let match: RegExpExecArray | null = null;
-  while ((match = closed.exec(raw)) !== null) {
-    const text = (match[1] || "").trim();
-    if (text) thoughts.push(text);
-  }
-  let rest = raw.replace(closed, "");
-  const openIdx = rest.search(/<think>/i);
-  if (openIdx !== -1) {
-    const tail = rest.slice(openIdx).replace(/<think>/i, "").trim();
-    if (tail) thoughts.push(tail);
-    rest = rest.slice(0, openIdx);
-  }
-  return { thought: thoughts.join("\n\n"), answer: rest.trim() };
-}
+import { splitReasoning } from "./readerReasoning";
 
 interface InterpretationContentProps {
   text: string;
