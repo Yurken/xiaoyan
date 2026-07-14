@@ -101,11 +101,8 @@ export default function DocumentCheckerWorkspace() {
     <div className="space-y-5">
       <Card padding="lg" className="space-y-5">
         <div className="flex items-start gap-3">
-          <span
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl text-ink-secondary"
-            style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
-          >
-            <FileCheck2 className="h-[18px] w-[18px]" />
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
+            <FileCheck2 className="h-5 w-5" />
           </span>
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-ink-primary">论文与申请材料格式校验</h2>

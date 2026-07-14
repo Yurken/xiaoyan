@@ -65,11 +65,8 @@ export default function PatentWorkspace() {
     <div className="space-y-5">
       <Card padding="lg" className="space-y-5">
         <div className="flex items-start gap-3">
-          <span
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl text-ink-secondary"
-            style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
-          >
-            <FileSearch className="h-[18px] w-[18px]" />
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-apple-blue/10 text-apple-blue">
+            <FileSearch className="h-5 w-5" />
           </span>
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-ink-primary">中国专利检索与专利性预评估</h2>
