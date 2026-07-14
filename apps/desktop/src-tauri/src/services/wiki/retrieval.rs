@@ -70,6 +70,25 @@ pub async fn hybrid_search(
     expand_wiki_links(db, direct, top_k).await
 }
 
+pub async fn hybrid_search_notes(
+    db: &SqlitePool,
+    query: &str,
+    query_embedding: Option<&[f32]>,
+    top_k: usize,
+) -> Result<Vec<SearchResult>> {
+    if top_k == 0 {
+        return Ok(Vec::new());
+    }
+    let semantic = match query_embedding {
+        Some(embedding) => crate::rag::search_knowledge_notes(db, embedding, top_k * 4).await?,
+        None => Vec::new(),
+    };
+    let terms = query_terms(query);
+    let mut lexical = lexical_note_results(db, &terms).await?;
+    sort_and_truncate(&mut lexical, top_k * 6);
+    Ok(reciprocal_rank_fusion(semantic, lexical, top_k))
+}
+
 async fn lexical_search(db: &SqlitePool, query: &str, top_k: usize) -> Result<Vec<SearchResult>> {
     let terms = query_terms(query);
     if terms.is_empty() {
@@ -105,29 +124,7 @@ async fn lexical_search(db: &SqlitePool, query: &str, top_k: usize) -> Result<Ve
         });
     }
 
-    let note_rows = sqlx::query(
-        "SELECT id, title, content FROM knowledge_notes ORDER BY updated_at DESC LIMIT 2000",
-    )
-    .fetch_all(db)
-    .await?;
-    for row in note_rows {
-        let title: String = row.get("title");
-        let content: String = row.get("content");
-        let score = lexical_score(&title, &content, &terms);
-        if score <= 0.0 {
-            continue;
-        }
-        let id: String = row.get("id");
-        results.push(SearchResult {
-            id: id.clone(),
-            entity_type: "note".into(),
-            entity_id: id,
-            content,
-            source: title,
-            url: None,
-            score,
-        });
-    }
+    results.extend(lexical_note_results(db, &terms).await?);
 
     let wiki_rows = sqlx::query(
         "SELECT c.id, c.content, c.heading_path, p.id AS page_id, p.title, p.status
@@ -161,6 +158,37 @@ async fn lexical_search(db: &SqlitePool, query: &str, top_k: usize) -> Result<Ve
         });
     }
     sort_and_truncate(&mut results, top_k);
+    Ok(results)
+}
+
+async fn lexical_note_results(db: &SqlitePool, terms: &[String]) -> Result<Vec<SearchResult>> {
+    if terms.is_empty() {
+        return Ok(Vec::new());
+    }
+    let note_rows = sqlx::query(
+        "SELECT id, title, content FROM knowledge_notes ORDER BY updated_at DESC LIMIT 2000",
+    )
+    .fetch_all(db)
+    .await?;
+    let mut results = Vec::new();
+    for row in note_rows {
+        let title: String = row.get("title");
+        let content: String = row.get("content");
+        let score = lexical_score(&title, &content, &terms);
+        if score <= 0.0 {
+            continue;
+        }
+        let id: String = row.get("id");
+        results.push(SearchResult {
+            id: id.clone(),
+            entity_type: "note".into(),
+            entity_id: id,
+            content,
+            source: title,
+            url: None,
+            score,
+        });
+    }
     Ok(results)
 }
 
@@ -379,6 +407,11 @@ mod tests {
         assert!(entity_types.contains("note"));
         assert!(entity_types.contains("wiki"));
         assert!(results.iter().any(|result| result.entity_id == "page-2"));
+
+        let note_results = hybrid_search_notes(&pool, "graph retrieval", None, 1).await?;
+        assert_eq!(note_results.len(), 1);
+        assert_eq!(note_results[0].entity_type, "note");
+        assert_eq!(note_results[0].entity_id, "note-1");
         Ok(())
     }
 }

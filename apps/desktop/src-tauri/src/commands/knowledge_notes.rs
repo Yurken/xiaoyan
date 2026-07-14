@@ -78,20 +78,16 @@ pub async fn knowledge_list_notes(
             .get("rag_top_k")
             .and_then(|value| value.parse().ok())
             .unwrap_or(10);
-        let results = crate::services::wiki::retrieval::hybrid_search(
+        let results = crate::services::wiki::retrieval::hybrid_search_notes(
             &state.db,
             &q,
             embedding.as_deref(),
-            top_k.saturating_mul(3),
+            top_k,
         )
         .await
         .map_err(|error| error.to_string())?;
         let mut notes = Vec::new();
-        for result in results
-            .into_iter()
-            .filter(|result| result.entity_type == "note")
-            .take(top_k)
-        {
+        for result in results {
             if let Some(row) = sqlx::query(
                 "SELECT id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at FROM knowledge_notes WHERE id = ?",
             )
