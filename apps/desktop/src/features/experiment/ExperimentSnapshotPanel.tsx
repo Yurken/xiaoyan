@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import type { ExperimentCodeSession, ExperimentSnapshot } from "@research-copilot/types";
-import { Button, Card, ConfirmDialog } from "@research-copilot/ui";
+import { Badge, Button, Card, ConfirmDialog } from "@research-copilot/ui";
 import RenameSavedEntryModal from "../../components/RenameSavedEntryModal";
 import { useSnapshotCompare } from "./useSnapshotCompare";
 import { useExperimentSnapshots } from "./useExperimentSnapshots";
@@ -220,6 +220,7 @@ export function ExperimentSnapshotPanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-ink-primary">快照</h2>
+            <Badge variant="warning" className="uppercase tracking-wider">Beta</Badge>
             {!loading && snapshots.length > 0 && (
               <span
                 className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-semibold"
