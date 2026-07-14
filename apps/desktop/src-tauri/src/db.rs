@@ -428,6 +428,9 @@ pub const SYNC_MUTABLE_TABLES: &[&str] = &[
     "papers",
     "knowledge_notes",
     "knowledge_graph_claims",
+    "wiki_pages",
+    "wiki_compile_sources",
+    "wiki_compile_runs",
     "submissions",
     "experiment_records",
     "agent_runs",
@@ -483,6 +486,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_experiment_tables(&pool).await?;
     ensure_submission_revision_task_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
+    crate::services::wiki::schema::ensure_wiki_tables(&pool).await?;
     ensure_paper_notes_table(&pool).await?;
     ensure_opencode_tables(&pool).await?;
     ensure_paper_corpus_table(&pool).await?;
@@ -631,6 +635,7 @@ async fn ensure_schema(pool: &SqlitePool) -> Result<()> {
     ensure_experiment_tables(pool).await?;
     ensure_submission_revision_task_tables(pool).await?;
     ensure_knowledge_graph_tables(pool).await?;
+    crate::services::wiki::schema::ensure_wiki_tables(pool).await?;
     Ok(())
 }
 
@@ -1335,6 +1340,13 @@ mod tests {
             "submission_revision_tasks",
             "experiment_records",
             "knowledge_graph_claims",
+            "wiki_pages",
+            "wiki_page_revisions",
+            "wiki_page_sources",
+            "wiki_page_links",
+            "wiki_page_chunks",
+            "wiki_compile_runs",
+            "wiki_issues",
         ] {
             assert!(table_exists(&pool, table).await?, "{table}");
         }

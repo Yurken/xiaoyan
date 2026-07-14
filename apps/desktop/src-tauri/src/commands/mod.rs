@@ -45,6 +45,7 @@ pub mod token_usage;
 pub mod translation;
 pub mod update;
 pub mod webdav_sync;
+pub mod wiki;
 pub mod workbench;
 pub mod writing;
 pub mod writing_support;

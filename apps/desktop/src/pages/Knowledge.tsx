@@ -5,11 +5,12 @@ import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspa
 import { buildInterestSelectOptions, buildNoteClaimCountMap } from "../features/knowledge/shared";
 import { useKnowledgeGraphWorkspace } from "../features/knowledge/useKnowledgeGraphWorkspace";
 import NotesPanel from "../features/knowledge/NotesPanel";
+import WikiWorkspace from "../features/wiki/WikiWorkspace";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 
-type KnowledgeView = "graph" | "notes";
-const KNOWLEDGE_VIEWS: readonly KnowledgeView[] = ["graph", "notes"];
+type KnowledgeView = "graph" | "notes" | "wiki";
+const KNOWLEDGE_VIEWS: readonly KnowledgeView[] = ["graph", "notes", "wiki"];
 
 export default function Knowledge({
   hideFolders = false,
@@ -80,6 +81,12 @@ export default function Knowledge({
   return (
     <div className={clsx("rc-app-page flex h-full min-w-0 flex-col", hideFolders && "rc-knowledge-focus-page")}>
       <div className="min-w-0 space-y-4">
+        {!hideFolders ? (
+          <header>
+            <h1 className="text-2xl font-semibold tracking-[-0.025em]" style={{ color: "var(--rc-text)" }}>知识库</h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--rc-text-muted)" }}>不只是记笔记：把材料沉淀为可追溯、可连接、可审阅的研究知识。</p>
+          </header>
+        ) : null}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div
             className="inline-flex rounded-2xl border p-1"
@@ -88,6 +95,7 @@ export default function Knowledge({
             {([
               { key: "graph", label: "知识图谱" },
               { key: "notes", label: "知识笔记" },
+              { key: "wiki", label: "研究 Wiki" },
             ] as const).map((item) => {
               const active = view === item.key;
               return (
@@ -112,7 +120,7 @@ export default function Knowledge({
             })}
           </div>
 
-          {view === "notes" && graphController.snapshot && !researchInterestId ? (
+          {(view === "notes" || view === "wiki") && graphController.snapshot && !researchInterestId ? (
             <Select
               className="w-full lg:w-[260px]"
               prefix="聚焦："
@@ -131,7 +139,7 @@ export default function Knowledge({
             controller={graphController}
             hideFocusControls={Boolean(researchInterestId)}
           />
-        ) : (
+        ) : view === "notes" ? (
           <NotesPanel
             hideFolders={hideFolders}
             researchInterestId={researchInterestId ?? graphController.activeInterestId ?? undefined}
@@ -139,6 +147,10 @@ export default function Knowledge({
             initialInterests={initialInterests}
             linkedNoteClaimCounts={linkedNoteClaimCounts}
             onNotesChanged={() => graphController.refresh()}
+          />
+        ) : (
+          <WikiWorkspace
+            interestId={researchInterestId ?? graphController.activeInterestId ?? undefined}
           />
         )}
       </div>

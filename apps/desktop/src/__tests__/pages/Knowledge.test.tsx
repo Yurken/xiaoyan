@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { renderWithRouter } from "../helpers/render";
 import { resetInvokeMock } from "../mocks/tauri";
 import Knowledge from "../../pages/Knowledge";
@@ -35,6 +35,10 @@ vi.mock("../../features/knowledge/KnowledgeGraphWorkspace", () => ({
 
 vi.mock("../../features/knowledge/NotesPanel", () => ({
   default: () => <div data-testid="notes-panel">笔记面板</div>,
+}));
+
+vi.mock("../../features/wiki/WikiWorkspace", () => ({
+  default: () => <div data-testid="wiki-workspace">研究 Wiki 工作区</div>,
 }));
 
 // Mock Select component
@@ -81,8 +85,19 @@ describe("Knowledge 页面", () => {
     expect(screen.getByText("知识笔记")).toBeInTheDocument();
   });
 
+  it("应显示研究 Wiki 视图", () => {
+    renderWithRouter(<Knowledge />);
+    expect(screen.getByText("研究 Wiki")).toBeInTheDocument();
+  });
+
   it("默认应显示知识图谱工作区", () => {
     renderWithRouter(<Knowledge />);
     expect(screen.getByTestId("graph-workspace")).toBeInTheDocument();
+  });
+
+  it("切换后应显示研究 Wiki 工作区", () => {
+    renderWithRouter(<Knowledge researchInterestId="interest-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "研究 Wiki" }));
+    expect(screen.getByTestId("wiki-workspace")).toBeInTheDocument();
   });
 });

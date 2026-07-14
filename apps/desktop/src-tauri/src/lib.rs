@@ -111,6 +111,10 @@ use commands::{
         memory_privacy_clear_password, memory_privacy_set_password, memory_privacy_status,
         memory_privacy_verify_password,
     },
+    wiki::{
+        wiki_compile_interest, wiki_get_page, wiki_lint_interest, wiki_list_compile_runs,
+        wiki_list_issues, wiki_list_pages, wiki_update_page,
+    },
     misc::{
         markdown_format_chunk, planner_generate, survey_delete, survey_generate, survey_get,
         survey_list, survey_search,
@@ -563,6 +567,13 @@ pub fn run() {
             knowledge_graph_citation_centrality,
             knowledge_graph_citation_shortest_path,
             knowledge_graph_citation_subgraph,
+            wiki_list_pages,
+            wiki_get_page,
+            wiki_compile_interest,
+            wiki_update_page,
+            wiki_lint_interest,
+            wiki_list_issues,
+            wiki_list_compile_runs,
             // Chat
             chat_list_sessions,
             chat_get_session,

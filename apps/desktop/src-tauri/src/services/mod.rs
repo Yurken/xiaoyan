@@ -21,3 +21,4 @@ pub mod field_dynamics_service;
 pub mod secure_store;
 pub mod sync_service;
 pub mod webdav_service;
+pub mod wiki;

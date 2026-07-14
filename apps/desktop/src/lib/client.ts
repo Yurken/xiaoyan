@@ -49,6 +49,16 @@ import type {
   KnowledgeGraphSnapshot,
 } from "../features/knowledge/shared";
 import type {
+  WikiCompileRun,
+  WikiCompileSummary,
+  WikiIssue,
+  WikiLintSummary,
+  WikiPage,
+  WikiPageDetail,
+  WikiPageStatus,
+  WikiPageType,
+} from "../features/wiki/shared";
+import type {
   ResearchTheme,
   ResearchActivityEvent,
   EvidenceLink,
@@ -542,6 +552,36 @@ export const knowledgeApi = {
         maxNodes: maxNodes ?? null,
       }),
   },
+};
+
+export const wikiApi = {
+  listPages: (interestId: string, query?: string, status?: WikiPageStatus): Promise<WikiPage[]> =>
+    invoke("wiki_list_pages", {
+      interestId,
+      query: query ?? null,
+      status: status ?? null,
+    }),
+  getPage: (pageId: string): Promise<WikiPageDetail | null> =>
+    invoke("wiki_get_page", { pageId }),
+  compileInterest: (interestId: string, force = false): Promise<WikiCompileSummary> =>
+    invoke("wiki_compile_interest", { interestId, force }),
+  updatePage: (
+    pageId: string,
+    update: {
+      title?: string;
+      summary?: string;
+      content?: string;
+      status?: WikiPageStatus;
+      page_type?: WikiPageType;
+      change_summary?: string;
+    },
+  ): Promise<WikiPageDetail> => invoke("wiki_update_page", { pageId, update }),
+  lintInterest: (interestId: string): Promise<WikiLintSummary> =>
+    invoke("wiki_lint_interest", { interestId }),
+  listIssues: (interestId: string): Promise<WikiIssue[]> =>
+    invoke("wiki_list_issues", { interestId }),
+  listCompileRuns: (interestId: string): Promise<WikiCompileRun[]> =>
+    invoke("wiki_list_compile_runs", { interestId }),
 };
 
 // ── Chat / Streaming ──────────────────────────────────────────────
@@ -1132,6 +1172,7 @@ export const apiClient = {
   updates: updatesApi,
   papers: papersApi,
   knowledge: knowledgeApi,
+  wiki: wikiApi,
   chat: chatApi,
   planner: plannerApi,
   survey: surveyApi,
