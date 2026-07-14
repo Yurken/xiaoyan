@@ -21,6 +21,7 @@ export function useSettingsHistory({
   const [saving, setSaving] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
@@ -148,6 +149,26 @@ export function useSettingsHistory({
     }
   };
 
+  const renameHistory = async (id: string, name: string): Promise<boolean> => {
+    if (!id || !name.trim() || !beginAction()) return false;
+    setRenamingId(id);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const entry = await apiClient.settings.history.rename(id, name.trim());
+      setEntries((current) => current.map((item) => (item.id === id ? entry : item)));
+      setActionMessage(`已重命名为“${entry.name}”。`);
+      return true;
+    } catch (error) {
+      setActionError(formatErrorMessage(error));
+      return false;
+    } finally {
+      setRenamingId(null);
+      endAction();
+    }
+  };
+
   return {
     entries,
     loading,
@@ -157,6 +178,7 @@ export function useSettingsHistory({
     saving,
     applyingId,
     updatingId,
+    renamingId,
     deletingId,
     actionError,
     actionMessage,
@@ -166,6 +188,7 @@ export function useSettingsHistory({
     saveCurrent,
     applyHistory,
     updateHistory,
+    renameHistory,
     deleteHistory,
     reload: loadHistory,
   };

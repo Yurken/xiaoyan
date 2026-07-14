@@ -624,14 +624,18 @@ export default function Settings() {
       entries={settingsHistory.entries}
       loading={settingsHistory.loading}
       loadError={settingsHistory.loadError}
+      actionError={settingsHistory.actionError}
+      actionMessage={settingsHistory.actionMessage}
       selectedId={settingsHistory.selectedId}
       applyingId={settingsHistory.applyingId}
       updatingId={settingsHistory.updatingId}
+      renamingId={settingsHistory.renamingId}
       deletingId={settingsHistory.deletingId}
       busy={settingsHistory.busy}
       setSelectedId={settingsHistory.setSelectedId}
       onApplyHistory={settingsHistory.applyHistory}
       onUpdateHistory={settingsHistory.updateHistory}
+      onRenameHistory={settingsHistory.renameHistory}
       onDeleteHistory={settingsHistory.deleteHistory}
       onReload={settingsHistory.reload}
       onClose={() => setConfigManageOpen(false)}

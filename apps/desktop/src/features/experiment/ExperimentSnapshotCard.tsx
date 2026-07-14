@@ -5,6 +5,9 @@ import {
   ChevronDown,
   Code2,
   Download,
+  GitBranch,
+  Pencil,
+  RotateCcw,
   Trash2,
 } from "lucide-react";
 import type { ExperimentSnapshot } from "@research-copilot/types";
@@ -22,6 +25,8 @@ interface ExperimentSnapshotCardProps {
   onCompare: (id: string) => void;
   onExport: (snapshot: ExperimentSnapshot) => void;
   onDelete: (id: string) => void;
+  onRename: (snapshot: ExperimentSnapshot) => void;
+  onRestore: (id: string) => void;
 }
 
 type DetailSection = "config" | "result" | "notes" | "env";
@@ -30,7 +35,7 @@ const DETAIL_TABS: { key: DetailSection; label: string }[] = [
   { key: "config", label: "配置" },
   { key: "result", label: "结果" },
   { key: "notes", label: "备注" },
-  { key: "env", label: "环境" },
+  { key: "env", label: "代码状态" },
 ];
 
 export function ExperimentSnapshotCard({
@@ -44,11 +49,13 @@ export function ExperimentSnapshotCard({
   onCompare,
   onExport,
   onDelete,
+  onRename,
+  onRestore,
 }: ExperimentSnapshotCardProps) {
   const [detailTab, setDetailTab] = useState<DetailSection>("config");
   const rel = relativeTime(snapshot.createdAt);
   const cfgKeys = Object.keys(snapshot.configSnapshot ?? {});
-  const hasEnv = Object.keys(snapshot.envSnapshot ?? {}).length > 0;
+  const hasEnv = Object.keys(snapshot.envSnapshot ?? {}).length > 0 || Boolean(snapshot.workingDir);
 
   return (
     <Card
@@ -61,6 +68,7 @@ export function ExperimentSnapshotCard({
         {selectMode && (
           <button
             type="button"
+            aria-label={`选择快照：${snapshot.title}`}
             onClick={() => onToggleSelect(snapshot.id)}
             className="mt-1 flex-shrink-0 w-4 h-4 rounded-sm border flex items-center justify-center transition-colors"
             style={{
@@ -110,6 +118,23 @@ export function ExperimentSnapshotCard({
         {/* Action buttons */}
         {!selectMode && (
           <div className="flex items-center gap-0.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRename(snapshot); }}
+              className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary hover:bg-nm-dark/10 transition-colors"
+              title="重命名快照"
+              aria-label={`重命名快照：${snapshot.title}`}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRestore(snapshot.id); }}
+              className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary hover:bg-nm-dark/10 transition-colors"
+              title="恢复实验记录"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onExport(snapshot); }}
@@ -238,16 +263,76 @@ export function ExperimentSnapshotCard({
               </pre>
             )}
             {detailTab === "env" && (
-              <pre
-                className="p-3 rounded-2xl overflow-auto text-[11px] font-mono leading-relaxed"
-                style={{ maxHeight: 200, background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}
-              >
-                {hasEnv ? JSON.stringify(snapshot.envSnapshot, null, 2) : "无环境变量"}
-              </pre>
+              <CodeStateDetails snapshot={snapshot} />
             )}
           </div>
         </div>
       )}
     </Card>
+  );
+}
+
+function CodeStateDetails({ snapshot }: { snapshot: ExperimentSnapshot }) {
+  const state = snapshot.envSnapshot ?? {};
+  const git = state.git && typeof state.git === "object"
+    ? state.git as Record<string, unknown>
+    : null;
+  const warning = typeof state.captureWarning === "string" ? state.captureWarning : "";
+  const directory = typeof state.workingDirectory === "string" ? state.workingDirectory : snapshot.workingDir;
+
+  if (!git && !warning && Object.keys(state).length > 0) {
+    return (
+      <pre className="p-3 rounded-2xl overflow-auto text-[11px] font-mono leading-relaxed" style={{ maxHeight: 240, background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}>
+        {JSON.stringify(state, null, 2)}
+      </pre>
+    );
+  }
+
+  if (!git && !warning) {
+    return <p className="text-xs text-ink-tertiary">此快照未记录代码状态。</p>;
+  }
+
+  const files = Array.isArray(git?.files) ? git.files : [];
+  const stagedDiff = typeof git?.stagedDiff === "string" ? git.stagedDiff : "";
+  const unstagedDiff = typeof git?.unstagedDiff === "string" ? git.unstagedDiff : "";
+  const branch = typeof git?.branch === "string" ? git.branch : "";
+  const head = typeof git?.head === "string" ? git.head : "";
+  const isRepo = git?.isRepo === true;
+
+  return (
+    <div className="space-y-2 text-[11px]">
+      {directory && <p className="font-mono text-ink-tertiary break-all">{directory}</p>}
+      {warning ? (
+        <p className="rounded-xl px-3 py-2 text-ink-secondary" style={{ background: "var(--rc-card-inset-bg)" }}>
+          代码状态采集失败：{warning}
+        </p>
+      ) : !isRepo ? (
+        <p className="text-ink-tertiary">所选目录不是 Git 仓库。</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2 text-ink-secondary">
+            <span className="inline-flex items-center gap-1"><GitBranch className="h-3 w-3" />{branch || "未知分支"}</span>
+            {head && <span className="font-mono">@ {head}</span>}
+            <span>{files.length} 个变更文件</span>
+          </div>
+          <CodeDiffDetails label="已暂存 diff" content={stagedDiff} />
+          <CodeDiffDetails label="未暂存 diff" content={unstagedDiff} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function CodeDiffDetails({ label, content }: { label: string; content: string }) {
+  if (!content) return null;
+  return (
+    <details className="rounded-xl px-3 py-2" style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-inset-shadow)" }}>
+      <summary className="cursor-pointer select-none font-medium text-ink-secondary">
+        {label} · {content.split("\n").length} 行
+      </summary>
+      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px] leading-relaxed text-ink-secondary">
+        {content}
+      </pre>
+    </details>
   );
 }

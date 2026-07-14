@@ -1,6 +1,7 @@
-import type { Dispatch, SetStateAction } from "react";
-import { Bot, Download, History, Save, Sparkles, Upload } from "lucide-react";
+import { useState, type Dispatch, type SetStateAction } from "react";
+import { Bot, Download, History, Pencil, Save, Sparkles, Upload } from "lucide-react";
 import { Button } from "@research-copilot/ui";
+import RenameSavedEntryModal from "../../components/RenameSavedEntryModal";
 import SubmissionPaperSidebar from "./SubmissionPaperSidebar";
 import type { PaperVersion, Submission as SubmissionItem } from "./shared";
 import { STATUS_CFG, computeLineDiff } from "./shared";
@@ -11,9 +12,11 @@ interface VersionWorkspaceProps {
   versionCounts: Record<string, number>;
   versionSubId: string;
   compareIds: [string, string] | null;
+  renamingVersionId: string | null;
   onSelectSubmission: (submissionId: string) => void;
   onSetCompareIds: Dispatch<SetStateAction<[string, string] | null>>;
   onOpenSaveModal: () => void;
+  onRenameVersion: (versionId: string, label: string) => Promise<boolean>;
   onUploadVersionFile: (versionId: string) => void | Promise<void>;
   onDownloadVersionFile: (filePath?: string) => void | Promise<void>;
   onPolishVersion: (version: PaperVersion) => void;
@@ -26,14 +29,17 @@ export default function VersionWorkspace({
   versionCounts,
   versionSubId,
   compareIds,
+  renamingVersionId,
   onSelectSubmission,
   onSetCompareIds,
   onOpenSaveModal,
+  onRenameVersion,
   onUploadVersionFile,
   onDownloadVersionFile,
   onPolishVersion,
   onOpenMockReview,
 }: VersionWorkspaceProps) {
+  const [renamingVersion, setRenamingVersion] = useState<PaperVersion | null>(null);
   const subVersions = versions;
   const currentSub = submissions.find((submission) => submission.id === versionSubId);
   const versionMap = new Map(versions.map((version) => [version.id, version]));
@@ -195,6 +201,16 @@ export default function VersionWorkspace({
 
                       <div className="mt-3 flex items-center gap-2 flex-wrap">
                         <button
+                          type="button"
+                          onClick={() => setRenamingVersion(version)}
+                          className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                          style={{ background: "var(--rc-card-inset-bg)", color: "var(--rc-text-tertiary)" as string }}
+                          title="重命名版本标签"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          重命名
+                        </button>
+                        <button
                           onClick={() => onUploadVersionFile(version.id)}
                           className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors"
                           style={{
@@ -301,6 +317,20 @@ export default function VersionWorkspace({
           </>
         )}
       </div>
+
+      <RenameSavedEntryModal
+        open={renamingVersion !== null}
+        title="重命名论文版本"
+        description={renamingVersion ? `修改 ${renamingVersion.tag || "该版本"} 的显示标签，不会改变稿件内容。` : undefined}
+        label="版本标签"
+        initialValue={renamingVersion?.label ?? ""}
+        placeholder="例如：按审稿意见修改"
+        busy={renamingVersion !== null && renamingVersionId === renamingVersion.id}
+        onClose={() => {
+          if (!renamingVersionId) setRenamingVersion(null);
+        }}
+        onRename={(label) => renamingVersion ? onRenameVersion(renamingVersion.id, label) : false}
+      />
     </div>
   );
 }

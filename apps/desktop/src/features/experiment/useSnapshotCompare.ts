@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ExperimentSnapshot } from "@research-copilot/types";
 import {
   compareSnapshots,
@@ -32,6 +32,24 @@ export function useSnapshotCompare({ snapshots }: UseSnapshotCompareOptions) {
 
   const isComparing = compareLeftId !== null && compareRightId !== null;
 
+  useEffect(() => {
+    const leftExists = compareLeftId !== null && snapshots.some((snapshot) => snapshot.id === compareLeftId);
+    const rightExists = compareRightId !== null && snapshots.some((snapshot) => snapshot.id === compareRightId);
+    if (compareLeftId && !leftExists) {
+      setCompareLeftId(rightExists ? compareRightId : null);
+      setCompareRightId(null);
+    } else if (compareRightId && !rightExists) {
+      setCompareRightId(null);
+    }
+  }, [compareLeftId, compareRightId, snapshots]);
+
+  function startCompare(leftId: string, rightId: string) {
+    if (leftId === rightId) return;
+    setCompareLeftId(leftId);
+    setCompareRightId(rightId);
+    setActiveDimension("config");
+  }
+
   function toggleCompare(id: string) {
     if (compareLeftId === null) {
       setCompareLeftId(id);
@@ -55,6 +73,7 @@ export function useSnapshotCompare({ snapshots }: UseSnapshotCompareOptions) {
   function clearCompare() {
     setCompareLeftId(null);
     setCompareRightId(null);
+    setActiveDimension("config");
   }
 
   function exportLeft() {
@@ -78,6 +97,7 @@ export function useSnapshotCompare({ snapshots }: UseSnapshotCompareOptions) {
     isComparing,
     activeDimension,
     setActiveDimension,
+    startCompare,
     toggleCompare,
     clearCompare,
     exportLeft,

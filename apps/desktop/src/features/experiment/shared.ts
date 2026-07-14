@@ -36,7 +36,7 @@ export const DIMENSION_LABELS: Record<CompareDimension, string> = {
   config: "配置",
   result: "结果",
   notes: "备注",
-  env: "环境变量",
+  env: "代码状态",
   meta: "元信息",
 };
 
@@ -192,6 +192,11 @@ export function snapshotSummary(snapshot: ExperimentSnapshot): string {
   }
   if (snapshot.codeSessionId) {
     parts.push("关联代码会话");
+  }
+  const git = snapshot.envSnapshot?.git;
+  if (git && typeof git === "object") {
+    const files = (git as Record<string, unknown>).files;
+    parts.push(Array.isArray(files) ? `${files.length} 个代码变更` : "含代码状态");
   }
   return parts.length > 0 ? parts.join(" · ") : "无摘要";
 }

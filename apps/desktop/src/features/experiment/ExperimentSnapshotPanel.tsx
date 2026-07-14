@@ -1,34 +1,56 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeftRight,
   ArrowUpDown,
   Camera,
   Loader2,
+  RefreshCw,
   Search,
   Trash2,
   X,
 } from "lucide-react";
 import type { ExperimentCodeSession, ExperimentSnapshot } from "@research-copilot/types";
 import { Button, Card, ConfirmDialog } from "@research-copilot/ui";
-import { experimentApi, formatErrorMessage } from "../../lib/client";
+import RenameSavedEntryModal from "../../components/RenameSavedEntryModal";
 import { useSnapshotCompare } from "./useSnapshotCompare";
+import { useExperimentSnapshots } from "./useExperimentSnapshots";
 import { ExperimentSnapshotCompare } from "./ExperimentSnapshotCompare";
 import { ExperimentSnapshotCard } from "./ExperimentSnapshotCard";
+import { ExperimentSnapshotCreateModal } from "./ExperimentSnapshotCreateModal";
 import { exportSnapshotAsJson } from "./shared";
 
 interface ExperimentSnapshotPanelProps {
   experimentId: string;
+  experimentTitle: string;
   activeSession: ExperimentCodeSession | null;
+  workingDir: string | null;
   onError: (message: string) => void;
+  onNotify?: (message: string) => void;
+  onRestored?: () => void | Promise<void>;
 }
 
 type SortOrder = "newest" | "oldest";
 
-export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }: ExperimentSnapshotPanelProps) {
-  // ── Data ─────────────────────────────────────────────────────
-  const [snapshots, setSnapshots] = useState<ExperimentSnapshot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+export function ExperimentSnapshotPanel({
+  experimentId,
+  experimentTitle,
+  activeSession,
+  workingDir,
+  onError,
+  onNotify,
+  onRestored,
+}: ExperimentSnapshotPanelProps) {
+  const snapshotData = useExperimentSnapshots({
+    experimentId,
+    activeSession,
+    workingDir,
+    onError,
+    onRestored,
+  });
+  const { snapshots, loading, loadError, creating, deleting, renamingId, restoring } = snapshotData;
+  const [createOpen, setCreateOpen] = useState(false);
+  const [renamingSnapshot, setRenamingSnapshot] = useState<ExperimentSnapshot | null>(null);
 
   // ── Search & sort ───────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,7 +62,7 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
 
   // ── Pending delete ───────────────────────────────────────────
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null);
 
   // ── Expand detail ────────────────────────────────────────────
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -48,84 +70,67 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
   // ── Compare ──────────────────────────────────────────────────
   const compare = useSnapshotCompare({ snapshots });
 
-  // ── Load ─────────────────────────────────────────────────────
-  const loadSnapshots = useCallback(async () => {
-    try {
-      const result = await experimentApi.snapshots.list(experimentId);
-      setSnapshots(result.snapshots ?? []);
-    } catch (err) {
-      console.warn("Failed to load snapshots:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [experimentId]);
-
+  const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
   useEffect(() => {
-    setLoading(true);
-    void loadSnapshots();
-  }, [loadSnapshots]);
+    const timer = window.setTimeout(() => setDebouncedQuery(searchQuery), 200);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  const searchIndex = useMemo(() => new Map(
+    snapshots.map((snapshot) => [
+      snapshot.id,
+      [
+        snapshot.title,
+        JSON.stringify(snapshot.configSnapshot),
+        snapshot.resultSnapshot ?? "",
+        snapshot.notesSnapshot ?? "",
+        JSON.stringify(snapshot.envSnapshot),
+        snapshot.workingDir ?? "",
+        snapshot.model ?? "",
+      ].join(" ").toLowerCase(),
+    ]),
+  ), [snapshots]);
 
   // ── Filtered & sorted ────────────────────────────────────────
   const filteredSnapshots = useMemo(() => {
     let list = snapshots;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.title.toLowerCase().includes(q) ||
-          JSON.stringify(s.configSnapshot).toLowerCase().includes(q) ||
-          (s.resultSnapshot ?? "").toLowerCase().includes(q) ||
-          (s.notesSnapshot ?? "").toLowerCase().includes(q),
-      );
+    if (debouncedQuery.trim()) {
+      const q = debouncedQuery.trim().toLowerCase();
+      list = list.filter((snapshot) => searchIndex.get(snapshot.id)?.includes(q) ?? false);
     }
     // Snapshots come from backend newest-first. For oldest-first, reverse.
     if (sortOrder === "oldest") {
       list = [...list].reverse();
     }
     return list;
-  }, [snapshots, searchQuery, sortOrder]);
+  }, [snapshots, debouncedQuery, searchIndex, sortOrder]);
 
   // ── Create ───────────────────────────────────────────────────
-  async function handleCreate() {
-    setCreating(true);
-    try {
-      const snapshot = await experimentApi.snapshots.create(experimentId, {
-        title: `快照 ${new Date().toLocaleString("zh-CN")}`,
-        codeSessionId: activeSession?.id,
-        toolId: activeSession?.tool_id ?? undefined,
-        model: activeSession?.model ?? undefined,
-        workingDir: activeSession?.working_dir ?? undefined,
-      });
-      setSnapshots((prev) => [snapshot, ...prev]);
-    } catch (err) {
-      onError(formatErrorMessage(err));
-    } finally {
-      setCreating(false);
-    }
+  async function handleCreate(title: string) {
+    const created = await snapshotData.createSnapshot(title);
+    if (created) onNotify?.("快照已创建");
+    return created;
   }
 
   // ── Delete ───────────────────────────────────────────────────
   async function executeDelete(ids: string[]) {
-    setDeleting(true);
-    let failed = 0;
-    for (const id of ids) {
-      try {
-        await experimentApi.snapshots.delete(id);
-        setSnapshots((prev) => prev.filter((s) => s.id !== id));
-        if (expandedId === id) setExpandedId(null);
-      } catch {
-        failed++;
-      }
-    }
-    if (failed > 0) onError(`${failed} 个快照删除失败`);
-    setSelectedIds(new Set());
-    setSelectMode(false);
+    const failedIds = await snapshotData.deleteSnapshots(ids);
+    const failed = new Set(failedIds);
+    setSelectedIds(failed);
+    setSelectMode(failed.size > 0);
+    if (expandedId && ids.includes(expandedId) && !failed.has(expandedId)) setExpandedId(null);
     setPendingDeleteIds(null);
-    setDeleting(false);
   }
 
   function requestDelete(ids: string[]) {
     setPendingDeleteIds(ids);
+  }
+
+  async function executeRestore(id: string) {
+    if (await snapshotData.restoreSnapshot(id)) {
+      setPendingRestoreId(null);
+      onNotify?.("实验记录已恢复，并已自动备份恢复前内容");
+    }
   }
 
   // ── Select / compare ─────────────────────────────────────────
@@ -146,10 +151,9 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
   function exitSelectMode() { setSelectMode(false); setSelectedIds(new Set()); }
 
   function handleCompareClick() {
-    const ids = Array.from(selectedIds);
-    if (ids.length >= 2) {
-      compare.toggleCompare(ids[0]);
-      compare.toggleCompare(ids[1]);
+    const orderedIds = filteredSnapshots.filter((snapshot) => selectedIds.has(snapshot.id)).map((snapshot) => snapshot.id);
+    if (orderedIds.length === 2) {
+      compare.startCompare(orderedIds[0], orderedIds[1]);
       setSelectMode(false);
       setSelectedIds(new Set());
     }
@@ -236,9 +240,9 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
                   {selectAllChecked ? "取消全选" : "全选"}
                 </button>
                 {selectedIds.size >= 2 && (
-                  <Button onClick={handleCompareClick} variant="secondary" size="sm">
+                  <Button onClick={handleCompareClick} disabled={selectedIds.size !== 2} variant="secondary" size="sm">
                     <ArrowLeftRight className="w-3.5 h-3.5" />
-                    对比 ({selectedIds.size})
+                    {selectedIds.size === 2 ? "对比" : "仅可对比 2 个"}
                   </Button>
                 )}
                 {selectedIds.size > 0 && (
@@ -263,15 +267,15 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
             ) : (
               <>
                 {snapshots.length > 0 && !selectMode && (
-              <button
-                type="button"
-                onClick={enterSelectMode}
-                className="text-xs font-medium text-ink-tertiary hover:text-ink-primary hover:bg-nm-dark/10 transition-colors px-2.5 py-1 rounded-xl"
-              >
-                选择
-              </button>
-            )}
-                <Button onClick={handleCreate} disabled={creating} variant="secondary" size="sm">
+                  <button
+                    type="button"
+                    onClick={enterSelectMode}
+                    className="text-xs font-medium text-ink-tertiary hover:text-ink-primary hover:bg-nm-dark/10 transition-colors px-2.5 py-1 rounded-xl"
+                  >
+                    选择
+                  </button>
+                )}
+                <Button onClick={() => setCreateOpen(true)} disabled={creating} variant="secondary" size="sm">
                   {creating ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
@@ -360,6 +364,16 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
         <div className="flex justify-center py-12">
           <Loader2 className="w-5 h-5 animate-spin text-ink-tertiary" />
         </div>
+      ) : loadError ? (
+        <Card variant="inset" padding="md" className="text-center py-10">
+          <AlertTriangle className="w-5 h-5 mx-auto text-ink-tertiary" />
+          <p className="mt-3 text-sm font-medium text-ink-secondary">快照加载失败</p>
+          <p className="mt-1 text-xs text-ink-tertiary">{loadError}</p>
+          <Button onClick={() => void snapshotData.reload()} variant="secondary" size="sm" className="mt-4">
+            <RefreshCw className="w-3.5 h-3.5" />
+            重试
+          </Button>
+        </Card>
       ) : filteredSnapshots.length === 0 ? (
         <Card variant="inset" padding="md" className="text-center py-10">
           {searchQuery ? (
@@ -377,7 +391,7 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
               </div>
               <p className="text-sm text-ink-secondary">暂无快照</p>
               <p className="text-xs text-ink-tertiary mt-1 mb-4">保存当前实验状态，记录配置与结果。</p>
-              <Button onClick={handleCreate} disabled={creating} variant="secondary" size="sm">
+              <Button onClick={() => setCreateOpen(true)} disabled={creating} variant="secondary" size="sm">
                 {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
                 创建第一个快照
               </Button>
@@ -399,6 +413,8 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
               onCompare={handleCardCompareToggle}
               onExport={handleExport}
               onDelete={(id) => requestDelete([id])}
+              onRename={setRenamingSnapshot}
+              onRestore={setPendingRestoreId}
             />
           ))}
         </div>
@@ -419,6 +435,45 @@ export function ExperimentSnapshotPanel({ experimentId, activeSession, onError }
         loading={deleting}
         onClose={() => { if (!deleting) setPendingDeleteIds(null); }}
         onConfirm={() => { if (pendingDeleteIds) void executeDelete(pendingDeleteIds); }}
+      />
+
+      <ConfirmDialog
+        open={pendingRestoreId !== null}
+        title="恢复实验记录"
+        description="将用此快照覆盖当前实验的配置、结果和备注。系统会先自动创建一份恢复前备份；代码文件不会被改动。"
+        confirmLabel="恢复记录"
+        cancelLabel="取消"
+        loading={restoring}
+        onClose={() => { if (!restoring) setPendingRestoreId(null); }}
+        onConfirm={() => { if (pendingRestoreId) void executeRestore(pendingRestoreId); }}
+      />
+
+      <ExperimentSnapshotCreateModal
+        open={createOpen}
+        experimentTitle={experimentTitle}
+        capturesCodeState={Boolean(workingDir ?? activeSession?.working_dir)}
+        creating={creating}
+        onClose={() => { if (!creating) setCreateOpen(false); }}
+        onCreate={handleCreate}
+      />
+
+      <RenameSavedEntryModal
+        open={renamingSnapshot !== null}
+        title="重命名实验快照"
+        description="只修改快照名称，已保存的配置、结果、备注和代码状态不会改变。"
+        label="快照名称"
+        initialValue={renamingSnapshot?.title ?? ""}
+        placeholder="例如：最佳验证集结果"
+        busy={renamingSnapshot !== null && renamingId === renamingSnapshot.id}
+        onClose={() => {
+          if (!renamingId) setRenamingSnapshot(null);
+        }}
+        onRename={async (title) => {
+          if (!renamingSnapshot) return false;
+          const renamed = await snapshotData.renameSnapshot(renamingSnapshot.id, title);
+          if (renamed) onNotify?.(`快照已重命名为“${title.trim()}”`);
+          return renamed;
+        }}
       />
     </div>
   );

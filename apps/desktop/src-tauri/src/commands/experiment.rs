@@ -13,7 +13,7 @@ fn now() -> String {
 #[tauri::command]
 pub async fn experiment_list(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let rows = sqlx::query(
-        "SELECT id, title, config, result, notes, linked_submission_id, created_at, updated_at
+        "SELECT id, title, config, result, notes, linked_submission_id, default_working_dir, created_at, updated_at
          FROM experiment_records ORDER BY updated_at DESC",
     )
     .fetch_all(&state.db)
@@ -33,6 +33,7 @@ pub async fn experiment_list(state: State<'_, AppState>) -> Result<serde_json::V
                 "result": row.get::<String, _>("result"),
                 "notes": row.get::<String, _>("notes"),
                 "linkedSubmissionId": row.get::<Option<String>, _>("linked_submission_id"),
+                "defaultWorkingDir": row.get::<Option<String>, _>("default_working_dir"),
                 "createdAt": row.get::<String, _>("created_at"),
                 "updatedAt": row.get::<String, _>("updated_at"),
             })
@@ -48,7 +49,7 @@ pub async fn experiment_get(
     id: String,
 ) -> Result<serde_json::Value, String> {
     let row = sqlx::query(
-        "SELECT id, title, config, result, notes, linked_submission_id, created_at, updated_at
+        "SELECT id, title, config, result, notes, linked_submission_id, default_working_dir, created_at, updated_at
          FROM experiment_records WHERE id = ?",
     )
     .bind(&id)
@@ -68,6 +69,7 @@ pub async fn experiment_get(
                 "result": row.get::<String, _>("result"),
                 "notes": row.get::<String, _>("notes"),
                 "linkedSubmissionId": row.get::<Option<String>, _>("linked_submission_id"),
+                "defaultWorkingDir": row.get::<Option<String>, _>("default_working_dir"),
                 "createdAt": row.get::<String, _>("created_at"),
                 "updatedAt": row.get::<String, _>("updated_at"),
             }))
@@ -366,14 +368,13 @@ pub async fn experiment_create_snapshot(
     tool_id: Option<String>,
     model: Option<String>,
     working_dir: Option<String>,
+    env_snapshot: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
-    let row = sqlx::query(
-        "SELECT config, result, notes FROM experiment_records WHERE id = ?",
-    )
-    .bind(&experiment_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| e.to_string())?;
+    let row = sqlx::query("SELECT config, result, notes FROM experiment_records WHERE id = ?")
+        .bind(&experiment_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let (config_raw, result, notes) = match row {
         Some(row) => {
@@ -387,7 +388,14 @@ pub async fn experiment_create_snapshot(
 
     let id = Uuid::new_v4().to_string();
     let ts = now();
-    let title_val = title.as_deref().unwrap_or("快照");
+    let title_val = title
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("快照")
+        .to_string();
+    let env_json = serde_json::to_string(&env_snapshot.clone().unwrap_or_else(|| json!({})))
+        .map_err(|e| format!("序列化代码状态失败：{e}"))?;
 
     sqlx::query(
         "INSERT INTO experiment_snapshots
@@ -397,7 +405,7 @@ pub async fn experiment_create_snapshot(
     )
     .bind(&id)
     .bind(&experiment_id)
-    .bind(title_val)
+    .bind(&title_val)
     .bind(&config_raw)
     .bind(&result)
     .bind(&notes)
@@ -405,7 +413,7 @@ pub async fn experiment_create_snapshot(
     .bind(tool_id.as_deref())
     .bind(model.as_deref())
     .bind(working_dir.as_deref())
-    .bind("{}")
+    .bind(&env_json)
     .bind(&ts)
     .execute(&state.db)
     .await
@@ -424,7 +432,7 @@ pub async fn experiment_create_snapshot(
         "toolId": tool_id,
         "model": model,
         "workingDir": working_dir,
-        "envSnapshot": {},
+        "envSnapshot": env_snapshot.unwrap_or_else(|| json!({})),
         "createdAt": ts,
     }))
 }
@@ -437,7 +445,7 @@ pub async fn experiment_list_snapshots(
     let rows = sqlx::query(
         "SELECT id, experiment_id, title, config_snapshot, result_snapshot, notes_snapshot,
                 code_session_id, tool_id, model, working_dir, env_snapshot, created_at
-         FROM experiment_snapshots WHERE experiment_id = ? ORDER BY created_at DESC",
+         FROM experiment_snapshots WHERE experiment_id = ? ORDER BY created_at DESC, rowid DESC",
     )
     .bind(&experiment_id)
     .fetch_all(&state.db)
@@ -508,15 +516,49 @@ pub async fn experiment_get_snapshot(
 }
 
 #[tauri::command]
+pub async fn experiment_rename_snapshot(
+    state: State<'_, AppState>,
+    snapshot_id: String,
+    title: String,
+) -> Result<(), String> {
+    rename_snapshot_core(&state.db, &snapshot_id, &title).await
+}
+
+async fn rename_snapshot_core(
+    db: &sqlx::SqlitePool,
+    snapshot_id: &str,
+    title: &str,
+) -> Result<(), String> {
+    let normalized_title = title.trim();
+    if normalized_title.is_empty() {
+        return Err("快照名称不能为空".into());
+    }
+
+    let result = sqlx::query("UPDATE experiment_snapshots SET title = ? WHERE id = ?")
+        .bind(normalized_title)
+        .bind(snapshot_id)
+        .execute(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    if result.rows_affected() == 0 {
+        return Err("快照不存在".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn experiment_delete_snapshot(
     state: State<'_, AppState>,
     snapshot_id: String,
 ) -> Result<(), String> {
-    sqlx::query("DELETE FROM experiment_snapshots WHERE id = ?")
+    let result = sqlx::query("DELETE FROM experiment_snapshots WHERE id = ?")
         .bind(&snapshot_id)
         .execute(&state.db)
         .await
         .map_err(|e| e.to_string())?;
+    if result.rows_affected() == 0 {
+        return Err("快照不存在".into());
+    }
     Ok(())
 }
 
@@ -525,28 +567,65 @@ pub async fn experiment_restore_snapshot(
     state: State<'_, AppState>,
     snapshot_id: String,
 ) -> Result<serde_json::Value, String> {
+    restore_snapshot_core(&state.db, &snapshot_id).await
+}
+
+async fn restore_snapshot_core(
+    db: &sqlx::SqlitePool,
+    snapshot_id: &str,
+) -> Result<serde_json::Value, String> {
+    let mut tx = db.begin().await.map_err(|e| e.to_string())?;
     let row = sqlx::query(
-        "SELECT experiment_id, config_snapshot, result_snapshot, notes_snapshot
+        "SELECT experiment_id, title, config_snapshot, result_snapshot, notes_snapshot
          FROM experiment_snapshots WHERE id = ?",
     )
     .bind(&snapshot_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|e| e.to_string())?;
 
-    let (experiment_id, config_snapshot, result_snapshot, notes_snapshot) = match row {
-        Some(row) => {
-            let experiment_id: String = row.get("experiment_id");
-            let config_raw: String = row.get("config_snapshot");
-            let result: String = row.get("result_snapshot");
-            let notes: String = row.get("notes_snapshot");
-            (experiment_id, config_raw, result, notes)
-        }
-        None => return Err("快照不存在".into()),
-    };
+    let (experiment_id, snapshot_title, config_snapshot, result_snapshot, notes_snapshot) =
+        match row {
+            Some(row) => {
+                let experiment_id: String = row.get("experiment_id");
+                let snapshot_title: String = row.get("title");
+                let config_raw: String = row.get("config_snapshot");
+                let result: String = row.get("result_snapshot");
+                let notes: String = row.get("notes_snapshot");
+                (experiment_id, snapshot_title, config_raw, result, notes)
+            }
+            None => return Err("快照不存在".into()),
+        };
 
+    let current = sqlx::query("SELECT config, result, notes FROM experiment_records WHERE id = ?")
+        .bind(&experiment_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "实验记录不存在".to_string())?;
+
+    // 恢复会覆盖当前记录，先在同一事务中保存一份自动备份，使误操作可逆。
+    let backup_id = Uuid::new_v4().to_string();
     let ts = now();
+    let backup_title = format!("恢复「{}」前自动备份", snapshot_title);
     sqlx::query(
+        "INSERT INTO experiment_snapshots
+         (id, experiment_id, title, config_snapshot, result_snapshot, notes_snapshot,
+          code_session_id, tool_id, model, working_dir, env_snapshot, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, '{}', ?)",
+    )
+    .bind(&backup_id)
+    .bind(&experiment_id)
+    .bind(&backup_title)
+    .bind(current.get::<String, _>("config"))
+    .bind(current.get::<String, _>("result"))
+    .bind(current.get::<String, _>("notes"))
+    .bind(&ts)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let result = sqlx::query(
         "UPDATE experiment_records
          SET config = ?, result = ?, notes = ?, updated_at = ?
          WHERE id = ?",
@@ -556,12 +635,87 @@ pub async fn experiment_restore_snapshot(
     .bind(&notes_snapshot)
     .bind(&ts)
     .bind(&experiment_id)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await
     .map_err(|e| e.to_string())?;
+    if result.rows_affected() == 0 {
+        return Err("实验记录不存在".into());
+    }
+    tx.commit().await.map_err(|e| e.to_string())?;
 
     Ok(json!({
         "experimentId": experiment_id,
         "restoredAt": ts,
+        "backupSnapshotId": backup_id,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    #[tokio::test]
+    async fn restore_snapshot_creates_reversible_backup() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await?;
+        sqlx::query("CREATE TABLE submissions (id TEXT PRIMARY KEY)")
+            .execute(&pool)
+            .await?;
+        crate::db::ensure_experiment_tables(&pool).await?;
+
+        sqlx::query(
+            "INSERT INTO experiment_records
+             (id, title, config, result, notes, created_at, updated_at)
+             VALUES ('experiment-1', 'test', '{\"lr\":2}', 'current result', 'current notes', '2026-07-14', '2026-07-14')",
+        )
+        .execute(&pool)
+        .await?;
+        sqlx::query(
+            "INSERT INTO experiment_snapshots
+             (id, experiment_id, title, config_snapshot, result_snapshot, notes_snapshot, created_at)
+             VALUES ('snapshot-1', 'experiment-1', 'baseline', '{\"lr\":1}', 'old result', 'old notes', '2026-07-13')",
+        )
+        .execute(&pool)
+        .await?;
+
+        let restored = restore_snapshot_core(&pool, "snapshot-1").await?;
+        let backup_id = restored["backupSnapshotId"].as_str().expect("backup id");
+
+        let record = sqlx::query(
+            "SELECT config, result, notes FROM experiment_records WHERE id = 'experiment-1'",
+        )
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(record.get::<String, _>("config"), "{\"lr\":1}");
+        assert_eq!(record.get::<String, _>("result"), "old result");
+        assert_eq!(record.get::<String, _>("notes"), "old notes");
+
+        let backup = sqlx::query(
+            "SELECT config_snapshot, result_snapshot, notes_snapshot
+             FROM experiment_snapshots WHERE id = ?",
+        )
+        .bind(backup_id)
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(backup.get::<String, _>("config_snapshot"), "{\"lr\":2}");
+        assert_eq!(backup.get::<String, _>("result_snapshot"), "current result");
+        assert_eq!(backup.get::<String, _>("notes_snapshot"), "current notes");
+
+        rename_snapshot_core(&pool, "snapshot-1", "  新基线  ").await?;
+        let renamed = sqlx::query(
+            "SELECT title, config_snapshot, result_snapshot, notes_snapshot
+             FROM experiment_snapshots WHERE id = 'snapshot-1'",
+        )
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(renamed.get::<String, _>("title"), "新基线");
+        assert_eq!(renamed.get::<String, _>("config_snapshot"), "{\"lr\":1}");
+        assert_eq!(renamed.get::<String, _>("result_snapshot"), "old result");
+        assert_eq!(renamed.get::<String, _>("notes_snapshot"), "old notes");
+        Ok(())
+    }
 }

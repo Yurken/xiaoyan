@@ -86,12 +86,12 @@ export default function Knowledge({
   return (
     <div className={clsx("rc-app-page flex h-full min-w-0 flex-col", hideFolders && "rc-knowledge-focus-page")}>
       <div className="min-w-0 space-y-4">
-        {!hideFolders ? (
+        {/* {!hideFolders ? (
           <header>
             <h1 className="text-2xl font-semibold tracking-[-0.025em]" style={{ color: "var(--rc-text)" }}>知识库</h1>
             <p className="mt-1 text-sm" style={{ color: "var(--rc-text-muted)" }}>不只是记笔记：把材料沉淀为可追溯、可连接、可审阅的研究知识。</p>
           </header>
-        ) : null}
+        ) : null} */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <CapsuleTabs
             options={KNOWLEDGE_VIEW_TABS}

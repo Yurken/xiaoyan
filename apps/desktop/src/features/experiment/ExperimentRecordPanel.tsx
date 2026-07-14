@@ -9,20 +9,10 @@ import {
   X,
 } from "lucide-react";
 import { Button, Card, ConfirmDialog, Input, Select, Textarea } from "@research-copilot/ui";
+import type { ExperimentRecord } from "@research-copilot/types";
 import { experimentApi, submissionApi, formatErrorMessage } from "../../lib/client";
 import { useDomainEventRefresh } from "../../hooks/useDomainEventRefresh";
 import { ExperimentAttachmentPanel } from "./ExperimentAttachmentPanel";
-
-interface ExperimentRecord {
-  id: string;
-  title: string;
-  config: Record<string, unknown>;
-  result: string;
-  notes: string;
-  linkedSubmissionId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface SubmissionItem {
   id: string;
@@ -44,6 +34,7 @@ function rowToExperiment(row: unknown): ExperimentRecord {
     result: String(r.result ?? ""),
     notes: String(r.notes ?? ""),
     linkedSubmissionId: r.linkedSubmissionId ? String(r.linkedSubmissionId) : null,
+    defaultWorkingDir: r.defaultWorkingDir ? String(r.defaultWorkingDir) : null,
     createdAt: String(r.createdAt ?? r.created_at ?? ""),
     updatedAt: String(r.updatedAt ?? r.updated_at ?? ""),
   };
@@ -51,12 +42,18 @@ function rowToExperiment(row: unknown): ExperimentRecord {
 
 interface ExperimentRecordPanelProps {
   onError?: (message: string) => void;
+  activeExperimentId?: string | null;
+  onActiveExperimentChange?: (experiment: ExperimentRecord | null) => void;
 }
 
-export function ExperimentRecordPanel({ onError }: ExperimentRecordPanelProps) {
+export function ExperimentRecordPanel({
+  onError,
+  activeExperimentId,
+  onActiveExperimentChange,
+}: ExperimentRecordPanelProps) {
   const [experiments, setExperiments] = useState<ExperimentRecord[]>([]);
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -73,7 +70,13 @@ export function ExperimentRecordPanel({ onError }: ExperimentRecordPanelProps) {
   const [configError, setConfigError] = useState("");
 
   const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const selectedId = activeExperimentId === undefined ? internalSelectedId : activeExperimentId;
   const selected = experiments.find((e) => e.id === selectedId) ?? null;
+
+  function selectExperiment(experiment: ExperimentRecord | null) {
+    setInternalSelectedId(experiment?.id ?? null);
+    onActiveExperimentChange?.(experiment);
+  }
 
   const loadExperiments = useCallback(async () => {
     try {
@@ -121,10 +124,11 @@ export function ExperimentRecordPanel({ onError }: ExperimentRecordPanelProps) {
       const res = await experimentApi.create({ title: "新实验记录" });
       const newExp: ExperimentRecord = {
         id: res.id, title: "新实验记录", config: {}, result: "", notes: "",
-        linkedSubmissionId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        linkedSubmissionId: null, defaultWorkingDir: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       setExperiments((prev) => [newExp, ...prev]);
-      setSelectedId(res.id);
+      selectExperiment(newExp);
       setNewlyCreatedId(res.id);
       setTimeout(() => titleInputRef.current?.select(), 50);
     } catch (err) {
@@ -135,7 +139,7 @@ export function ExperimentRecordPanel({ onError }: ExperimentRecordPanelProps) {
   }
 
   async function handleSave() {
-    if (!selectedId) return;
+    if (!selectedId || !selected) return;
     let parsedConfig: Record<string, unknown> = {};
     try {
       parsedConfig = JSON.parse(editConfig);
@@ -148,12 +152,19 @@ export function ExperimentRecordPanel({ onError }: ExperimentRecordPanelProps) {
     try {
       await experimentApi.update(selectedId, {
         title: editTitle, config: parsedConfig, result: editResult,
-        notes: editNotes, linkedSubmissionId: editLinked || undefined,
+        notes: editNotes, linkedSubmissionId: editLinked,
       });
-      setExperiments((prev) => prev.map((e) => e.id === selectedId
-        ? { ...e, title: editTitle, config: parsedConfig, result: editResult, notes: editNotes, linkedSubmissionId: editLinked || null, updatedAt: new Date().toISOString() }
-        : e
-      ));
+      const updated: ExperimentRecord = {
+        ...selected,
+        title: editTitle,
+        config: parsedConfig,
+        result: editResult,
+        notes: editNotes,
+        linkedSubmissionId: editLinked || null,
+        updatedAt: new Date().toISOString(),
+      };
+      setExperiments((prev) => prev.map((experiment) => experiment.id === selectedId ? updated : experiment));
+      onActiveExperimentChange?.(updated);
       setNewlyCreatedId(null);
       showToast("已保存");
     } catch (err) {
@@ -172,8 +183,9 @@ export function ExperimentRecordPanel({ onError }: ExperimentRecordPanelProps) {
     try {
       setDeleting(true);
       await experimentApi.delete(pendingDeleteId);
-      setExperiments((prev) => prev.filter((e) => e.id !== pendingDeleteId));
-      if (selectedId === pendingDeleteId) setSelectedId(null);
+      const remaining = experiments.filter((experiment) => experiment.id !== pendingDeleteId);
+      setExperiments(remaining);
+      if (selectedId === pendingDeleteId) selectExperiment(remaining[0] ?? null);
       if (newlyCreatedId === pendingDeleteId) setNewlyCreatedId(null);
       setPendingDeleteId(null);
     } catch (err) {
@@ -213,8 +225,8 @@ export function ExperimentRecordPanel({ onError }: ExperimentRecordPanelProps) {
                     key={exp.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setSelectedId(exp.id)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(exp.id); } }}
+                    onClick={() => selectExperiment(exp)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectExperiment(exp); } }}
                     className="w-full text-left rounded-2xl px-3 py-2.5 transition-all duration-150 group cursor-pointer"
                     style={
                       selectedId === exp.id

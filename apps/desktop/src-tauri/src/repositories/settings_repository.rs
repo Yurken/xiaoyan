@@ -90,6 +90,21 @@ pub async fn update_settings_history(
     Ok(result.rows_affected() > 0)
 }
 
+pub async fn rename_settings_history(
+    pool: &SqlitePool,
+    id: &str,
+    name: &str,
+) -> Result<bool, String> {
+    let result = sqlx::query("UPDATE settings_history SET name = ? WHERE id = ?")
+        .bind(name)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn list_settings_history(pool: &SqlitePool) -> Result<Vec<SettingsHistoryRow>, String> {
     let rows = sqlx::query(
         "SELECT id, name, settings_json, created_at
@@ -141,4 +156,44 @@ pub async fn delete_settings_history(pool: &SqlitePool, id: &str) -> Result<bool
         .map_err(|e| e.to_string())?;
 
     Ok(result.rows_affected() > 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    #[tokio::test]
+    async fn rename_history_preserves_saved_settings() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await?;
+        sqlx::query(
+            "CREATE TABLE settings_history (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                settings_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await?;
+        insert_settings_history(
+            &pool,
+            "history-1",
+            "原方案",
+            "{\"chat_model\":\"gpt-5\"}",
+            "2026-07-14",
+        )
+        .await?;
+
+        assert!(rename_settings_history(&pool, "history-1", "主力方案").await?);
+        let row = get_settings_history(&pool, "history-1")
+            .await?
+            .expect("renamed row");
+        assert_eq!(row.name, "主力方案");
+        assert_eq!(row.settings_json, "{\"chat_model\":\"gpt-5\"}");
+        Ok(())
+    }
 }

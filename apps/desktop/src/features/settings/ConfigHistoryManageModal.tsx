@@ -1,21 +1,26 @@
 import { useMemo, useState } from "react";
 import { ConfirmDialog, Select } from "@research-copilot/ui";
-import { Loader2, RefreshCw, RotateCcw, Save, Trash2, X } from "lucide-react";
+import { Loader2, Pencil, RefreshCw, RotateCcw, Save, Trash2, X } from "lucide-react";
 import type { SettingsHistoryEntry } from "@research-copilot/types";
+import RenameSavedEntryModal from "../../components/RenameSavedEntryModal";
 
 interface ConfigHistoryManageModalProps {
   open: boolean;
   entries: SettingsHistoryEntry[];
   loading: boolean;
   loadError: string;
+  actionError: string;
+  actionMessage: string;
   selectedId: string;
   applyingId: string | null;
   updatingId: string | null;
+  renamingId: string | null;
   deletingId: string | null;
   busy?: boolean;
   setSelectedId: (value: string) => void;
   onApplyHistory: (id: string) => Promise<void> | void;
   onUpdateHistory: (id: string) => Promise<void> | void;
+  onRenameHistory: (id: string, name: string) => Promise<boolean>;
   onDeleteHistory: (id: string) => Promise<void> | void;
   onReload: () => Promise<void> | void;
   onClose: () => void;
@@ -59,19 +64,25 @@ export default function ConfigHistoryManageModal({
   entries,
   loading,
   loadError,
+  actionError,
+  actionMessage,
   selectedId,
   applyingId,
   updatingId,
+  renamingId,
   deletingId,
   busy,
   setSelectedId,
   onApplyHistory,
   onUpdateHistory,
+  onRenameHistory,
   onDeleteHistory,
   onReload,
   onClose,
 }: ConfigHistoryManageModalProps) {
   const [pendingAction, setPendingAction] = useState<PendingHistoryAction | null>(null);
+  const [renamingEntry, setRenamingEntry] = useState<SettingsHistoryEntry | null>(null);
+  const [renameAttempted, setRenameAttempted] = useState(false);
 
   const selectOptions = useMemo(
     () => entries.map((item) => ({ value: item.id, label: `${item.name} · ${formatCreatedAt(item.created_at)}` })),
@@ -171,6 +182,16 @@ export default function ConfigHistoryManageModal({
                 {loadError}
               </div>
             ) : null}
+            {actionError ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                {actionError}
+              </div>
+            ) : null}
+            {actionMessage ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-700">
+                {actionMessage}
+              </div>
+            ) : null}
 
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr),auto] lg:items-end">
               <Select
@@ -206,6 +227,7 @@ export default function ConfigHistoryManageModal({
                 {entries.map((entry) => {
                   const isApplying = applyingId === entry.id;
                   const isUpdating = updatingId === entry.id;
+                  const isRenaming = renamingId === entry.id;
                   const isDeleting = deletingId === entry.id;
                   const isSelected = selectedId === entry.id;
                   return (
@@ -244,6 +266,19 @@ export default function ConfigHistoryManageModal({
                           >
                             {isApplying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
                             应用
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRenameAttempted(false);
+                              setRenamingEntry(entry);
+                            }}
+                            disabled={renamingId !== null || busy}
+                            className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
+                            style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
+                          >
+                            {isRenaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                            重命名
                           </button>
                           <button
                             type="button"
@@ -289,6 +324,28 @@ export default function ConfigHistoryManageModal({
           if (!confirmLoading) setPendingAction(null);
         }}
         onConfirm={confirmPendingAction}
+      />
+
+      <RenameSavedEntryModal
+        open={renamingEntry !== null}
+        title="重命名配置方案"
+        description="只修改方案名称，不会覆盖其中保存的 API、模型或小妍步骤配置。"
+        label="方案名称"
+        initialValue={renamingEntry?.name ?? ""}
+        placeholder="例如：主力 API 配置"
+        error={renameAttempted ? actionError : ""}
+        busy={renamingEntry !== null && renamingId === renamingEntry.id}
+        onClose={() => {
+          if (!renamingId) {
+            setRenamingEntry(null);
+            setRenameAttempted(false);
+          }
+        }}
+        onRename={async (name) => {
+          if (!renamingEntry) return false;
+          setRenameAttempted(true);
+          return onRenameHistory(renamingEntry.id, name);
+        }}
       />
     </>
   );

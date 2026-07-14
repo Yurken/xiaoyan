@@ -41,7 +41,7 @@ export default function Submission() {
   const review = useSubmissionReview(showError);
 
   const [versionSubId, setVersionSubId] = useState<string>("");
-  const { versions, versionCounts, appendVersion, patchVersion } = useSubmissionVersions(
+  const { versions, versionCounts, renamingVersionId, appendVersion, patchVersion, renameVersion } = useSubmissionVersions(
     board.submissions, versionSubId, showError,
   );
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
@@ -349,6 +349,7 @@ export default function Submission() {
           versionCounts={versionCounts}
           versionSubId={versionSubId}
           compareIds={compareIds}
+          renamingVersionId={renamingVersionId}
           onSelectSubmission={setVersionSubId}
           onSetCompareIds={setCompareIds}
           onOpenSaveModal={() => {
@@ -356,6 +357,7 @@ export default function Submission() {
             setSaveForm(prev => ({ ...prev, content: latest?.content ?? "" }));
             setShowSaveModal(true);
           }}
+          onRenameVersion={renameVersion}
           onUploadVersionFile={handleUploadVersionFile}
           onDownloadVersionFile={handleDownloadVersionFile}
           onPolishVersion={handlePolishVersion}

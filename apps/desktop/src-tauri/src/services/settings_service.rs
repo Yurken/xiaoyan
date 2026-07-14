@@ -1,7 +1,7 @@
 use crate::llm::{anthropic_auth_header, is_anthropic_compatible_base_url, LlmClient};
 use crate::repositories::settings_repository::{
     delete_settings_history, get_settings_history, insert_settings_history, list_settings_history,
-    load_all_settings, update_settings_history, upsert_settings,
+    load_all_settings, rename_settings_history, update_settings_history, upsert_settings,
 };
 use crate::state::{default_settings, AppState, SENSITIVE_KEYS};
 use aes_gcm::aead::{Aead, KeyInit};
@@ -1180,6 +1180,36 @@ pub async fn update_settings_history_entry(
         normalized_name,
         row.created_at,
         &settings,
+    ))
+}
+
+pub async fn rename_settings_history_entry(
+    state: &AppState,
+    id: &str,
+    name: &str,
+) -> Result<SettingsHistoryEntry, String> {
+    let normalized_name = name.trim();
+    if normalized_name.is_empty() {
+        return Err("配置名称不能为空。".to_string());
+    }
+
+    let row = get_settings_history(&state.db, id)
+        .await?
+        .ok_or_else(|| ERR_SETTINGS_HISTORY_NOT_FOUND.to_string())?;
+    let defaults = default_settings();
+    let snapshot: HashMap<String, String> = serde_json::from_str(&row.settings_json)
+        .map_err(|e| format!("解析配置历史失败（{}）: {e}", row.name))?;
+    let merged = merge_with_defaults(&defaults, &snapshot);
+    let updated = rename_settings_history(&state.db, id, normalized_name).await?;
+    if !updated {
+        return Err(ERR_SETTINGS_HISTORY_NOT_FOUND.to_string());
+    }
+
+    Ok(settings_history_entry(
+        row.id,
+        normalized_name.to_string(),
+        row.created_at,
+        &merged,
     ))
 }
 

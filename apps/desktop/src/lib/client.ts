@@ -222,6 +222,8 @@ export const settingsApi = {
       invoke("settings_history_save", { data, name: name ?? null }),
     update: (id: string, data: Partial<AppSettings>, name?: string): Promise<SettingsHistoryEntry> =>
       invoke("settings_history_update", { id, data, name: name ?? null }),
+    rename: (id: string, name: string): Promise<SettingsHistoryEntry> =>
+      invoke("settings_history_rename", { id, name }),
     apply: (id: string): Promise<AppSettings> =>
       invoke("settings_history_apply", { id }),
     delete: (id: string): Promise<void> =>
@@ -944,14 +946,17 @@ export const experimentApi = {
     list: (experimentId: string) =>
       invoke<{ snapshots: ExperimentSnapshot[] }>("experiment_list_snapshots", { experimentId }),
     get: (snapshotId: string) => invoke<ExperimentSnapshot>("experiment_get_snapshot", { snapshotId }),
-    create: (experimentId: string, params: { title?: string; codeSessionId?: string; toolId?: string; model?: string; workingDir?: string }) =>
+    create: (experimentId: string, params: { title?: string; codeSessionId?: string; toolId?: string; model?: string; workingDir?: string; envSnapshot?: Record<string, unknown> }) =>
       invoke<ExperimentSnapshot>("experiment_create_snapshot", {
         experimentId, title: params.title ?? null, codeSessionId: params.codeSessionId ?? null,
         toolId: params.toolId ?? null, model: params.model ?? null, workingDir: params.workingDir ?? null,
+        envSnapshot: params.envSnapshot ?? null,
       }),
+    rename: (snapshotId: string, title: string) =>
+      invoke<void>("experiment_rename_snapshot", { snapshotId, title }),
     delete: (snapshotId: string) => invoke<void>("experiment_delete_snapshot", { snapshotId }),
     restore: (snapshotId: string) =>
-      invoke<{ experimentId: string; restoredAt: string }>("experiment_restore_snapshot", { snapshotId }),
+      invoke<{ experimentId: string; restoredAt: string; backupSnapshotId: string }>("experiment_restore_snapshot", { snapshotId }),
   },
   attachments: {
     list: (experimentId: string) =>

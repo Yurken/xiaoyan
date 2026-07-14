@@ -8,11 +8,26 @@ vi.mock("../../hooks/useDomainEventRefresh", () => ({
 }));
 
 vi.mock("../../features/experiment/ExperimentCodeWorkspace", () => ({
-  ExperimentCodeWorkspace: () => <div data-testid="code-workspace">代码工作区</div>,
+  ExperimentCodeWorkspace: ({ experimentId }: { experimentId: string }) => <div data-testid="code-workspace">代码工作区 {experimentId}</div>,
 }));
 
 vi.mock("../../features/experiment/ExperimentSnapshotPanel", () => ({
-  ExperimentSnapshotPanel: () => <div data-testid="snapshot-panel">快照面板</div>,
+  ExperimentSnapshotPanel: ({ experimentId }: { experimentId: string }) => <div data-testid="snapshot-panel">快照面板 {experimentId}</div>,
+}));
+
+vi.mock("../../features/experiment/ExperimentRecordPanel", () => ({
+  ExperimentRecordPanel: ({ onActiveExperimentChange }: { onActiveExperimentChange: (experiment: {
+    id: string; title: string; config: Record<string, unknown>; result: string; notes: string;
+    linkedSubmissionId: null; defaultWorkingDir: null; createdAt: string; updatedAt: string;
+  }) => void }) => (
+    <button type="button" data-testid="choose-experiment-2" onClick={() => onActiveExperimentChange({
+      id: "exp-2", title: "Second Experiment", config: {}, result: "", notes: "",
+      linkedSubmissionId: null, defaultWorkingDir: null,
+      createdAt: "2026-07-14T08:00:00", updatedAt: "2026-07-14T08:00:00",
+    })}>
+      选择第二个实验
+    </button>
+  ),
 }));
 
 describe("Experiment 页面", () => {
@@ -66,5 +81,19 @@ describe("Experiment 页面", () => {
       expect(screen.getByTestId("code-workspace")).toBeInTheDocument();
     });
     expect(getInvokeMock()).toHaveBeenCalledWith("experiment_get", { id: "exp-1" });
+  });
+
+  it("记录页切换实验后，代码与快照使用同一条实验记录", async () => {
+    const exp = createMockExperiment();
+    mockInvoke({ "experiment_list": { experiments: [exp] } });
+    render(<Experiment />);
+    await screen.findByTestId("code-workspace");
+
+    fireEvent.click(screen.getByTestId("tab-records"));
+    fireEvent.click(await screen.findByTestId("choose-experiment-2"));
+    fireEvent.click(screen.getByTestId("tab-snapshots"));
+
+    expect(await screen.findByTestId("snapshot-panel")).toHaveTextContent("exp-2");
+    expect(screen.getByText("Second Experiment")).toBeInTheDocument();
   });
 });

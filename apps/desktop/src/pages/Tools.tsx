@@ -140,10 +140,10 @@ export default function Tools() {
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       <div className="app-header shrink-0 px-6 pb-3">
-        <div className="mb-3">
+        {/* <div className="mb-3">
           <h1 className="text-lg font-semibold text-ink-primary">实用工具</h1>
           <p className="mt-1 text-xs text-ink-tertiary">小妍为你准备了一些科研实用工具，可在设置的界面布局中按研究方向精简页签。</p>
-        </div>
+        </div> */}
         <div className="overflow-x-auto pb-1">
           <CapsuleTabs
             options={visibleToolTabs.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}

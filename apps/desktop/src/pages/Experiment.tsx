@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { usePersistentState } from "../hooks/usePersistentStringState";
 import type { ExperimentRecord, ExperimentCodeSession } from "@research-copilot/types";
 import { CapsuleTabs } from "@research-copilot/ui";
 import { experimentApi } from "../lib/client";
@@ -8,6 +7,7 @@ import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 import { ExperimentCodeWorkspace } from "../features/experiment/ExperimentCodeWorkspace";
 import { ExperimentSnapshotPanel } from "../features/experiment/ExperimentSnapshotPanel";
 import { ExperimentRecordPanel } from "../features/experiment/ExperimentRecordPanel";
+import { useExperimentWorkingDirectory } from "../features/experiment/useExperimentWorkingDirectory";
 import { EXPERIMENT_MODULES, type ExperimentModuleKey } from "../features/module-visibility/shared";
 import { useModuleVisibility } from "../features/module-visibility/useModuleVisibility";
 
@@ -47,11 +47,15 @@ export default function Experiment({ experimentId }: ExperimentProps) {
 
   const [activeTab, setActiveTab] = useState<ExperimentTab>("code");
   const [activeCodeSession, setActiveCodeSession] = useState<ExperimentCodeSession | null>(null);
-  const defaultDirRestoredRef = useRef(false);
-  const [workingDir, setWorkingDir] = usePersistentState<string | null>(
-    experimentId ? `rc:experiment:${experimentId}:code:working-dir` : "rc:experiment:code:working-dir",
-    null,
+  const [workingDir, setWorkingDir] = useExperimentWorkingDirectory(
+    experiment?.id ?? null,
+    experiment?.defaultWorkingDir ?? null,
   );
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 2500);
+  }, []);
 
   const loadExperiment = useCallback(async () => {
     try {
@@ -63,23 +67,28 @@ export default function Experiment({ experimentId }: ExperimentProps) {
         record = (result.experiments ?? []).map(rowToExperiment)[0] ?? null;
       }
       setExperiment(record);
-      // 只在首次加载 experiment 且本地没有缓存工作目录时，自动恢复到默认目录；
-      // 避免用户点击“不使用文件夹”后被再次覆盖。
-      if (!defaultDirRestoredRef.current) {
-        defaultDirRestoredRef.current = true;
-        if (!workingDir && record?.defaultWorkingDir) {
-          setWorkingDir(record.defaultWorkingDir);
-        }
-      }
     } catch {
       // keep existing data on refresh failure
     }
-  }, [experimentId, workingDir, setWorkingDir]);
+  }, [experimentId]);
+
+  const refreshActiveExperiment = useCallback(async () => {
+    if (!experiment?.id) return;
+    try {
+      setExperiment(rowToExperiment(await experimentApi.get(experiment.id)));
+    } catch {
+      showToast("恢复成功，但实验记录刷新失败，请重新进入页面");
+    }
+  }, [experiment?.id, showToast]);
 
   useEffect(() => {
     setLoading(true);
     loadExperiment().finally(() => setLoading(false));
   }, [loadExperiment]);
+
+  useEffect(() => {
+    setActiveCodeSession(null);
+  }, [experiment?.id]);
 
   useEffect(() => {
     if (!moduleVisibility.experiment[activeTab]) {
@@ -89,11 +98,6 @@ export default function Experiment({ experimentId }: ExperimentProps) {
   }, [activeTab, moduleVisibility.experiment]);
 
   useDomainEventRefresh("experiment:created", () => { loadExperiment(); });
-
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(""), 2500);
-  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
@@ -108,6 +112,11 @@ export default function Experiment({ experimentId }: ExperimentProps) {
           value={activeTab}
           onChange={(nextTab) => setActiveTab(nextTab as ExperimentTab)}
         />
+        {experiment && (
+          <p className="max-w-[45%] truncate text-xs text-ink-tertiary" title={experiment.title}>
+            当前实验：<span className="font-medium text-ink-secondary">{experiment.title}</span>
+          </p>
+        )}
       </div>
 
       {/* Main workspace */}
@@ -116,10 +125,28 @@ export default function Experiment({ experimentId }: ExperimentProps) {
           <div className="flex h-full items-center justify-center">
             <Loader2 className="w-5 h-5 animate-spin text-ink-tertiary" />
           </div>
+        ) : activeTab === "records" ? (
+          <div className="h-full overflow-hidden">
+            <ExperimentRecordPanel
+              onError={showToast}
+              activeExperimentId={experiment?.id ?? null}
+              onActiveExperimentChange={(nextExperiment) => {
+                setExperiment(nextExperiment);
+                setActiveCodeSession(null);
+              }}
+            />
+          </div>
         ) : !experiment ? (
           <div className="flex h-full items-center justify-center p-5">
-            <div className="text-center space-y-2">
+            <div className="text-center space-y-3">
               <p className="text-sm text-ink-tertiary">暂无实验记录</p>
+              <button
+                type="button"
+                className="text-sm font-medium text-[var(--rc-accent)] hover:underline"
+                onClick={() => setActiveTab(moduleVisibility.experiment.records ? "records" : visibleTabs[0]?.key ?? "records")}
+              >
+                {moduleVisibility.experiment.records ? "新建第一条实验记录" : `打开${visibleTabs[0]?.label ?? "可见"}页签`}
+              </button>
             </div>
           </div>
         ) : (
@@ -127,6 +154,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
             {activeTab === "code" && (
               <div className="h-full p-2">
                 <ExperimentCodeWorkspace
+                  key={experiment.id}
                   experimentId={experiment.id}
                   workingDir={workingDir}
                   onWorkingDirChange={setWorkingDir}
@@ -138,16 +166,15 @@ export default function Experiment({ experimentId }: ExperimentProps) {
             {activeTab === "snapshots" && (
               <div className="h-full overflow-y-auto p-5 max-lg:p-4">
                 <ExperimentSnapshotPanel
+                  key={experiment.id}
                   experimentId={experiment.id}
+                  experimentTitle={experiment.title}
                   activeSession={activeCodeSession}
+                  workingDir={workingDir}
                   onError={showToast}
+                  onNotify={showToast}
+                  onRestored={refreshActiveExperiment}
                 />
-              </div>
-            )}
-
-            {activeTab === "records" && (
-              <div className="h-full overflow-hidden">
-                <ExperimentRecordPanel onError={showToast} />
               </div>
             )}
           </div>

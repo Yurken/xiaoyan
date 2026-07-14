@@ -193,21 +193,21 @@ function JsonDiffView({ entries }: { entries: JsonDiffEntry[] }) {
             <div className="mt-1">
               {entry.kind === "changed" && (
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[11px] line-through" style={{ color: "var(--rc-apple-red, #FF3B30)" }}>
+                  <span className="block max-h-64 overflow-auto whitespace-pre-wrap break-all text-[11px] line-through" style={{ color: "var(--rc-apple-red, #FF3B30)" }}>
                     − {formatJsonDiffValue(entry.oldValue)}
                   </span>
-                  <span className="text-[11px]" style={{ color: "var(--rc-apple-green, #34C759)" }}>
+                  <span className="block max-h-64 overflow-auto whitespace-pre-wrap break-all text-[11px]" style={{ color: "var(--rc-apple-green, #34C759)" }}>
                     + {formatJsonDiffValue(entry.newValue)}
                   </span>
                 </div>
               )}
               {entry.kind === "added" && (
-                <span className="text-[11px]" style={{ color: "var(--rc-apple-green, #34C759)" }}>
+                <span className="block max-h-64 overflow-auto whitespace-pre-wrap break-all text-[11px]" style={{ color: "var(--rc-apple-green, #34C759)" }}>
                   {formatJsonDiffValue(entry.newValue)}
                 </span>
               )}
               {entry.kind === "removed" && (
-                <span className="text-[11px] line-through" style={{ color: "var(--rc-apple-red, #FF3B30)" }}>
+                <span className="block max-h-64 overflow-auto whitespace-pre-wrap break-all text-[11px] line-through" style={{ color: "var(--rc-apple-red, #FF3B30)" }}>
                   {formatJsonDiffValue(entry.oldValue)}
                 </span>
               )}
