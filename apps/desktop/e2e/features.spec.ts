@@ -14,6 +14,7 @@ test.describe("实验记录完整流程", () => {
       }),
     );
     await page.goto("/experiment");
+    await page.getByTestId("tab-records").click();
   });
 
   test("应显示实验记录列表", async ({ page }) => {
