@@ -7,7 +7,7 @@ use tauri::{Manager, State};
 use uuid::Uuid;
 
 fn now() -> String {
-    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string()
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
 #[tauri::command]

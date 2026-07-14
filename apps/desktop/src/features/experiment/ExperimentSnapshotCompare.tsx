@@ -2,7 +2,9 @@ import { ArrowLeftRight, Download, X } from "lucide-react";
 import type { ExperimentSnapshot } from "@research-copilot/types";
 import {
   DIMENSION_LABELS,
+  formatSnapshotTime,
   formatJsonDiffValue,
+  snapshotTimestamp,
   type CompareDimension,
   type JsonDiffEntry,
   type MetaDiffEntry,
@@ -35,8 +37,8 @@ export function ExperimentSnapshotCompare({
 }: ExperimentSnapshotCompareProps) {
   const stats = buildStats(diffResult);
 
-  const leftTime = new Date(leftSnapshot.createdAt).getTime();
-  const rightTime = new Date(rightSnapshot.createdAt).getTime();
+  const leftTime = snapshotTimestamp(leftSnapshot.createdAt);
+  const rightTime = snapshotTimestamp(rightSnapshot.createdAt);
   const timeHint = leftTime < rightTime ? "较早" : leftTime > rightTime ? "较晚" : null;
 
   return (
@@ -90,7 +92,7 @@ export function ExperimentSnapshotCompare({
             )}
           </div>
           <p className="text-[10px] text-ink-tertiary mt-0.5">
-            {new Date(leftSnapshot.createdAt).toLocaleString("zh-CN")}
+            {formatSnapshotTime(leftSnapshot.createdAt)}
           </p>
           <button
             type="button"
@@ -111,7 +113,7 @@ export function ExperimentSnapshotCompare({
             )}
           </div>
           <p className="text-[10px] text-ink-tertiary mt-0.5">
-            {new Date(rightSnapshot.createdAt).toLocaleString("zh-CN")}
+            {formatSnapshotTime(rightSnapshot.createdAt)}
           </p>
           <button
             type="button"

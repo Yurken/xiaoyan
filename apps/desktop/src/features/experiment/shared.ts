@@ -147,8 +147,31 @@ const MINUTE = 60;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
+/**
+ * Parse snapshot timestamps from both the current RFC 3339 format and the
+ * legacy timezone-less UTC strings written by SQLite / older app versions.
+ */
+export function snapshotTimestamp(value: string): number {
+  const timestamp = value.trim();
+  if (!timestamp) return Number.NaN;
+
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(timestamp);
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(timestamp);
+  const normalized = hasTimezone || isDateOnly
+    ? timestamp
+    : `${timestamp.replace(" ", "T")}Z`;
+
+  return new Date(normalized).getTime();
+}
+
+export function formatSnapshotTime(value: string): string {
+  const timestamp = snapshotTimestamp(value);
+  return Number.isNaN(timestamp) ? value : new Date(timestamp).toLocaleString("zh-CN");
+}
+
 export function relativeTime(iso: string): string {
-  const then = new Date(iso).getTime();
+  const then = snapshotTimestamp(iso);
+  if (Number.isNaN(then)) return iso;
   const diffSec = Math.floor((Date.now() - then) / 1000);
   if (diffSec < 0) return "刚刚";
   if (diffSec < MINUTE) return "刚刚";

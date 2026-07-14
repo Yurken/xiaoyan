@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { ExperimentSnapshot } from "@research-copilot/types";
 import { Card } from "@research-copilot/ui";
-import { relativeTime, snapshotSummary } from "./shared";
+import { formatSnapshotTime, relativeTime, snapshotSummary } from "./shared";
 
 interface ExperimentSnapshotCardProps {
   snapshot: ExperimentSnapshot;
@@ -103,7 +103,7 @@ export function ExperimentSnapshotCard({
 
           {/* Time + summary */}
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[11px] text-ink-tertiary flex-shrink-0" title={new Date(snapshot.createdAt).toLocaleString("zh-CN")}>
+            <span className="text-[11px] text-ink-tertiary flex-shrink-0" title={formatSnapshotTime(snapshot.createdAt)}>
               {rel}
             </span>
             {cfgKeys.length > 0 && (
