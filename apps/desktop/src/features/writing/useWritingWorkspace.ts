@@ -125,6 +125,29 @@ export function useWritingWorkspace() {
     return true;
   }, [setTexFiles, showError, showMessage, texFiles]);
 
+  const renameTexFile = useCallback((currentPath: string, rawNextPath: string) => {
+    const nextPath = normalizeWritingTexFilePath(rawNextPath);
+    if (!nextPath) {
+      showError("章节文件路径无效。请使用相对 .tex 路径，例如 sections/introduction.tex。");
+      return false;
+    }
+    if (!texFiles.some((file) => file.path === currentPath)) {
+      showError("章节文件不存在，无法重命名。");
+      return false;
+    }
+    if (nextPath !== currentPath && texFiles.some((file) => file.path === nextPath)) {
+      showError(`章节文件已存在：${nextPath}`);
+      return false;
+    }
+
+    setTexFiles(texFiles.map((file) => (file.path === currentPath ? { ...file, path: nextPath } : file)));
+    if (writingTexFilePathFromSource(activeSource) === currentPath) {
+      setActiveSource(writingTexFileSource(nextPath));
+    }
+    showMessage(`已重命名章节文件：${nextPath}`);
+    return true;
+  }, [activeSource, setTexFiles, showError, showMessage, texFiles]);
+
   const deleteTexFile = useCallback((path: string) => {
     const nextFiles = texFiles.filter((file) => file.path !== path);
     if (nextFiles.length === texFiles.length) return;
@@ -347,6 +370,7 @@ export function useWritingWorkspace() {
     createDraft,
     deleteDraft,
     createTexFile,
+    renameTexFile,
     deleteTexFile,
     insertText,
     insertImage,

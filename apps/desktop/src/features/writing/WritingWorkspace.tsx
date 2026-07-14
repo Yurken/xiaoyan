@@ -219,6 +219,7 @@ export default function WritingWorkspace({
             onActiveSourceChange={workspace.setActiveSource}
             onSourceChange={workspace.updateSourceContent}
             onCreateTexFile={workspace.createTexFile}
+            onRenameTexFile={workspace.renameTexFile}
             onDeleteTexFile={workspace.deleteTexFile}
             onInsertText={workspace.insertText}
             onInsertImage={workspace.insertImage}

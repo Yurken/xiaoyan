@@ -2,14 +2,18 @@ import { useState } from "react";
 import { clsx } from "clsx";
 import { Braces, FilePlus2, FileText, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { ConfirmDialog } from "@research-copilot/ui";
+import RenameSavedEntryModal from "../../components/RenameSavedEntryModal";
 import type { WritingEditorSource, WritingTexFile } from "./shared";
 import { writingTexFileSource } from "./texFiles";
+import WritingSourceFileContextMenu from "./WritingSourceFileContextMenu";
 
 interface WritingSourceTabsProps {
   activeSource: WritingEditorSource;
   texFiles: WritingTexFile[];
   onActiveSourceChange: (source: WritingEditorSource) => void;
   onCreateTexFile: (path: string) => boolean;
+  onRenameTexFile: (path: string, nextPath: string) => boolean;
   onDeleteTexFile: (path: string) => void;
 }
 
@@ -18,15 +22,27 @@ export default function WritingSourceTabs({
   texFiles,
   onActiveSourceChange,
   onCreateTexFile,
+  onRenameTexFile,
   onDeleteTexFile,
 }: WritingSourceTabsProps) {
   const [creating, setCreating] = useState(false);
   const [path, setPath] = useState("");
+  const [fileMenu, setFileMenu] = useState<{ path: string; x: number; y: number } | null>(null);
+  const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const [pendingDeletePath, setPendingDeletePath] = useState<string | null>(null);
+
+  const cancelCreation = () => {
+    setCreating(false);
+    setPath("");
+  };
 
   const createFile = () => {
+    if (!path.trim()) {
+      cancelCreation();
+      return;
+    }
     if (!onCreateTexFile(path)) return;
-    setPath("");
-    setCreating(false);
+    cancelCreation();
   };
 
   const activeTexFile = texFiles.find((file) => writingTexFileSource(file.path) === activeSource);
@@ -46,6 +62,10 @@ export default function WritingSourceTabs({
           icon={<FileText className="h-3.5 w-3.5" />}
           label={file.path}
           onClick={() => onActiveSourceChange(writingTexFileSource(file.path))}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setFileMenu({ path: file.path, x: event.clientX, y: event.clientY });
+          }}
         />
       ))}
       <SourceTab
@@ -69,8 +89,10 @@ export default function WritingSourceTabs({
             onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Escape") return;
-              setCreating(false);
-              setPath("");
+              cancelCreation();
+            }}
+            onBlur={() => {
+              if (!path.trim()) cancelCreation();
             }}
             placeholder="sections/intro.tex"
             aria-label="章节文件路径"
@@ -95,15 +117,55 @@ export default function WritingSourceTabs({
       {activeTexFile ? (
         <button
           type="button"
-          onClick={() => {
-            if (window.confirm(`确定移除章节文件「${activeTexFile.path}」吗？`)) onDeleteTexFile(activeTexFile.path);
-          }}
+          onClick={() => setPendingDeletePath(activeTexFile.path)}
           title="移除当前章节文件"
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-tertiary transition-colors hover:bg-apple-red/10 hover:text-apple-red"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       ) : null}
+
+      {fileMenu ? (
+        <WritingSourceFileContextMenu
+          {...fileMenu}
+          onClose={() => setFileMenu(null)}
+          onRename={() => {
+            setRenamingPath(fileMenu.path);
+            setFileMenu(null);
+          }}
+          onRequestDelete={() => {
+            setPendingDeletePath(fileMenu.path);
+            setFileMenu(null);
+          }}
+        />
+      ) : null}
+
+      <RenameSavedEntryModal
+        open={renamingPath !== null}
+        title="重命名章节文件"
+        description="文件内容会保留；请使用相对 .tex 路径。"
+        label="文件路径"
+        initialValue={renamingPath ?? ""}
+        placeholder="sections/introduction.tex"
+        onClose={() => setRenamingPath(null)}
+        onRename={(nextPath) => {
+          if (!renamingPath) return false;
+          return onRenameTexFile(renamingPath, nextPath);
+        }}
+      />
+
+      <ConfirmDialog
+        open={pendingDeletePath !== null}
+        title="删除章节文件"
+        description={`确定删除「${pendingDeletePath ?? ""}」吗？文件内容将从当前写作项目中移除。`}
+        confirmLabel="删除"
+        tone="danger"
+        onClose={() => setPendingDeletePath(null)}
+        onConfirm={() => {
+          if (pendingDeletePath) onDeleteTexFile(pendingDeletePath);
+          setPendingDeletePath(null);
+        }}
+      />
     </div>
   );
 }
@@ -113,16 +175,19 @@ function SourceTab({
   icon,
   label,
   onClick,
+  onContextMenu,
 }: {
   active: boolean;
   icon: ReactNode;
   label: string;
   onClick: () => void;
+  onContextMenu?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      onContextMenu={onContextMenu}
       title={label}
       className={clsx(
         "flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition-all",

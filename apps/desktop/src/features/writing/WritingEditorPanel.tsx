@@ -17,6 +17,7 @@ interface WritingEditorPanelProps {
   onActiveSourceChange: (source: WritingEditorSource) => void;
   onSourceChange: (source: WritingEditorSource, value: string) => void;
   onCreateTexFile: (path: string) => boolean;
+  onRenameTexFile: (path: string, nextPath: string) => boolean;
   onDeleteTexFile: (path: string) => void;
   onInsertText: (before: string, after?: string) => void;
   onInsertImage: () => void;
@@ -35,6 +36,7 @@ export default function WritingEditorPanel({
   onActiveSourceChange,
   onSourceChange,
   onCreateTexFile,
+  onRenameTexFile,
   onDeleteTexFile,
   onInsertText,
   onInsertImage,
@@ -179,6 +181,7 @@ export default function WritingEditorPanel({
           texFiles={texFiles}
           onActiveSourceChange={onActiveSourceChange}
           onCreateTexFile={onCreateTexFile}
+          onRenameTexFile={onRenameTexFile}
           onDeleteTexFile={onDeleteTexFile}
         />
         <div className="ml-auto flex items-center gap-3 px-2">
