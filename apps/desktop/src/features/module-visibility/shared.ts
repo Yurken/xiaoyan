@@ -15,7 +15,7 @@ export const TOOL_MODULES = [
   { key: "md", label: "MD 整理", description: "清理并规范 Markdown 内容" },
   { key: "ppt", label: "生成 PPT", description: "根据主题、提纲或文档生成演示文稿" },
   { key: "patent", label: "专利检索", description: "面向中国申请场景检索现有技术并预评估" },
-  { key: "document-check", label: "文档校验", description: "检查 PDF、Word 的页面、字体与编号问题" },
+  { key: "document-check", label: "文档校验", description: "将规范文档与成稿进行格式和编号比对" },
   { key: "links", label: "科研友链", description: "常用科研网站与资源入口" },
 ] as const;
 
