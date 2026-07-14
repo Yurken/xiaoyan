@@ -267,7 +267,7 @@ fn fetch_url_preview(args: serde_json::Value) -> CodePermissionPreview {
 }
 
 /// 将用户输入的路径解析为工作目录内的绝对路径。
-/// 拒绝绝对路径、`..` 以及越界路径；空路径等价于当前工作目录。
+/// 拒绝绝对路径、`..`、符号链接越界以及其他越界路径；空路径等价于当前工作目录。
 pub fn resolve_working_path(input: &str, working_dir: &str) -> Result<PathBuf, String> {
     let working_dir = working_dir.trim();
     if working_dir.is_empty() {
@@ -287,30 +287,50 @@ pub fn resolve_working_path(input: &str, working_dir: &str) -> Result<PathBuf, S
         return Err(format!("路径不能包含 ..：{input}"));
     }
 
-    let base = Path::new(working_dir);
-    let base_normalized = normalize_path(base);
-    let normalized = normalize_path(&base_normalized.join(input_path));
+    let base = std::fs::canonicalize(Path::new(working_dir))
+        .map_err(|error| format!("工作目录不可访问：{error}"))?;
+    let resolved = canonicalize_with_missing_tail(&base.join(input_path))?;
 
-    if !normalized.starts_with(&base_normalized) {
+    if !resolved.starts_with(&base) {
         return Err(format!("路径越界：{input}"));
     }
-    Ok(normalized)
+    Ok(resolved)
 }
 
-fn normalize_path(path: &Path) -> PathBuf {
-    let mut result = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::Prefix(prefix) => result.push(prefix.as_os_str()),
-            Component::RootDir => result.push(component.as_os_str()),
-            Component::CurDir => {}
-            Component::Normal(name) => result.push(name),
-            Component::ParentDir => {
-                result.pop();
+/// 规范化目标路径；目标尚不存在时，从最近的已存在祖先开始补回缺失路径。
+/// 这样既允许创建新文件，也能识别中间目录和悬空符号链接的越界行为。
+fn canonicalize_with_missing_tail(path: &Path) -> Result<PathBuf, String> {
+    let mut cursor = path;
+    let mut missing = Vec::new();
+
+    loop {
+        match std::fs::canonicalize(cursor) {
+            Ok(mut canonical) => {
+                for component in missing.iter().rev() {
+                    canonical.push(component);
+                }
+                return Ok(canonical);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if std::fs::symlink_metadata(cursor)
+                    .map(|metadata| metadata.file_type().is_symlink())
+                    .unwrap_or(false)
+                {
+                    return Err(format!("无法解析符号链接：{}", cursor.display()));
+                }
+                let name = cursor
+                    .file_name()
+                    .ok_or_else(|| format!("路径不可访问：{}", path.display()))?;
+                missing.push(name.to_os_string());
+                cursor = cursor
+                    .parent()
+                    .ok_or_else(|| format!("路径不可访问：{}", path.display()))?;
+            }
+            Err(error) => {
+                return Err(format!("路径不可访问：{}（{error}）", path.display()));
             }
         }
     }
-    result
 }
 
 /// 执行单个工具调用，返回给 LLM 的结果字符串。
@@ -899,28 +919,81 @@ pub fn to_code_tool_call(tc: &ToolCall) -> super::CodeToolCall {
 mod tests {
     use super::*;
 
+    fn create_temp_workspace() -> PathBuf {
+        let root =
+            std::env::temp_dir().join(format!("xiaoyan-code-tools-{}", uuid::Uuid::new_v4()));
+        let workspace = root.join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        workspace
+    }
+
     #[test]
     fn resolve_working_path_keeps_absolute_base() {
-        let resolved = resolve_working_path(".", "/Users/researcher/projects/example").unwrap();
-        assert_eq!(
-            resolved,
-            PathBuf::from("/Users/researcher/projects/example")
-        );
+        let workspace = create_temp_workspace();
+        let resolved = resolve_working_path(".", workspace.to_str().unwrap()).unwrap();
+        assert_eq!(resolved, std::fs::canonicalize(&workspace).unwrap());
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
     }
 
     #[test]
     fn resolve_working_path_treats_empty_input_as_workspace_root() {
-        let resolved = resolve_working_path("", "/Users/researcher/projects/example").unwrap();
-        assert_eq!(
-            resolved,
-            PathBuf::from("/Users/researcher/projects/example")
-        );
+        let workspace = create_temp_workspace();
+        let resolved = resolve_working_path("", workspace.to_str().unwrap()).unwrap();
+        assert_eq!(resolved, std::fs::canonicalize(&workspace).unwrap());
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
     }
 
     #[test]
     fn resolve_working_path_rejects_escape_paths() {
-        assert!(resolve_working_path("../outside", "/Users/researcher/projects/example").is_err());
-        assert!(resolve_working_path("/tmp/outside", "/Users/researcher/projects/example").is_err());
+        let workspace = create_temp_workspace();
+        assert!(resolve_working_path("../outside", workspace.to_str().unwrap()).is_err());
+        assert!(resolve_working_path(
+            std::env::temp_dir().to_str().unwrap(),
+            workspace.to_str().unwrap(),
+        )
+        .is_err());
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn resolve_working_path_allows_missing_paths_inside_workspace() {
+        let workspace = create_temp_workspace();
+        let resolved = resolve_working_path("nested/new.txt", workspace.to_str().unwrap()).unwrap();
+        assert_eq!(
+            resolved,
+            std::fs::canonicalize(&workspace)
+                .unwrap()
+                .join("nested/new.txt")
+        );
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_working_path_rejects_symlink_traversal_outside_workspace() {
+        let workspace = create_temp_workspace();
+        let root = workspace.parent().unwrap();
+        let outside = root.join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("secret.txt"), "secret").unwrap();
+        std::os::unix::fs::symlink(&outside, workspace.join("data")).unwrap();
+
+        let error =
+            resolve_working_path("data/secret.txt", workspace.to_str().unwrap()).unwrap_err();
+        assert!(error.contains("路径越界"));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_working_path_rejects_dangling_symlinks() {
+        let workspace = create_temp_workspace();
+        let root = workspace.parent().unwrap();
+        std::os::unix::fs::symlink(root.join("outside.txt"), workspace.join("linked.txt")).unwrap();
+
+        let error = resolve_working_path("linked.txt", workspace.to_str().unwrap()).unwrap_err();
+        assert!(error.contains("无法解析符号链接"));
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
