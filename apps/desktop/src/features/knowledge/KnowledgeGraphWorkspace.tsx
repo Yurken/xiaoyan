@@ -8,7 +8,6 @@ import {
   Maximize2,
   Minimize2,
   RefreshCw,
-  type LucideIcon,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, IconButton, Select } from "@research-copilot/ui";
 import { IS_MACOS_DESKTOP, MACOS_WINDOW_DRAG_HEIGHT } from "../../lib/windowChrome";
@@ -17,35 +16,11 @@ import KnowledgeCitationPanel from "./KnowledgeCitationPanel";
 import KnowledgeGraphCanvas from "./KnowledgeGraphCanvas";
 import KnowledgeGraphComposer from "./KnowledgeGraphComposer";
 import KnowledgeGraphInspector from "./KnowledgeGraphInspector";
+import KnowledgeGraphMetric, { type KnowledgeGraphMetricProps } from "./KnowledgeGraphMetric";
 import KnowledgeTimelinePanel from "./KnowledgeTimelinePanel";
 import { buildInterestSelectOptions } from "./shared";
 import { type KnowledgeGraphWorkspaceController } from "./useKnowledgeGraphWorkspace";
 import "./knowledge-graph.css";
-
-type MetricTone = "interests" | "claims" | "evidence" | "citations";
-
-interface MetricTileProps {
-  label: string;
-  value: number;
-  icon: LucideIcon;
-  tone: MetricTone;
-}
-
-function MetricTile({ label, value, icon: Icon, tone }: MetricTileProps) {
-  return (
-    <div
-      className={`knowledge-graph-metric knowledge-graph-metric--${tone}`}
-    >
-      <span
-        className="knowledge-graph-metric__icon"
-      >
-        <Icon className="h-3 w-3" />
-      </span>
-      <span className="knowledge-graph-metric__value text-lg font-bold tabular-nums">{value}</span>
-      <span className="text-[11px] text-ink-tertiary">{label}</span>
-    </div>
-  );
-}
 
 function GraphOverviewControls({
   activeInterestId,
@@ -102,7 +77,7 @@ function GraphOverviewStrip({
   interestOptions: Array<{ value: string; label: string }>;
   hideFocusControls?: boolean;
   loading: boolean;
-  metrics: Array<MetricTileProps>;
+  metrics: Array<KnowledgeGraphMetricProps>;
   onChangeInterest: (value: string | null) => void;
   onRefresh: () => void;
 }) {
@@ -110,7 +85,7 @@ function GraphOverviewStrip({
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap gap-2">
         {metrics.map((item) => (
-          <MetricTile key={item.label} {...item} />
+          <KnowledgeGraphMetric key={item.label} {...item} />
         ))}
       </div>
       {!hideFocusControls ? (
@@ -165,7 +140,7 @@ export default function KnowledgeGraphWorkspace({
     [snapshot?.interests],
   );
 
-  const metrics = useMemo<MetricTileProps[]>(
+  const metrics = useMemo<KnowledgeGraphMetricProps[]>(
     () => [
       {
         label: "研究主题",

@@ -48,12 +48,11 @@
 .knowledge-graph-canvas {
   isolation: isolate;
   border-color: var(--rc-panel-border);
-  background-color: var(--rc-card-inset-bg);
+  background-color: #fff;
   background-image:
     linear-gradient(var(--kg-canvas-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--kg-canvas-grid) 1px, transparent 1px),
-    radial-gradient(circle at 12% 2%, color-mix(in srgb, var(--rc-accent) 9%, transparent), transparent 30%);
-  background-size: 28px 28px, 28px 28px, auto;
+    linear-gradient(90deg, var(--kg-canvas-grid) 1px, transparent 1px);
+  background-size: 28px 28px;
   box-shadow: var(--rc-card-inset-shadow);
 }
 
