@@ -32,7 +32,7 @@
     "lucide-react": "^0.469.0",
     "pdfjs-dist": "^5.6.205",
     "pptxgenjs": "^4.0.1",
-    "react": "^19.0.0",
+    "react": "^19.2.7",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.6.2",
     "tailwind-merge": "^2.6.0"
@@ -45,7 +45,7 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22",
-    "@types/react": "^19.0.0",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.0.0",
     "@typescript-eslint/parser": "^8.46.2",
     "@vitejs/plugin-react": "^4.0.0",
