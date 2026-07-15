@@ -39,24 +39,25 @@ describe("Experiment 页面", () => {
     mockInvoke({ "experiment_list": { experiments: [] } });
     render(<Experiment />);
     await waitFor(() => {
-      expect(screen.getByText("暂无实验记录")).toBeInTheDocument();
+      expect(screen.getByTestId("tab-records")).toHaveAttribute("aria-pressed", "true");
     });
   });
 
   it("无记录应显示空状态", async () => {
     mockInvoke({ "experiment_list": { experiments: [] } });
     render(<Experiment />);
+    fireEvent.click(screen.getByTestId("tab-code"));
     await waitFor(() => {
       expect(screen.getByText("暂无实验记录")).toBeInTheDocument();
     });
   });
 
-  it("有记录时默认加载第一个并显示代码工作区", async () => {
+  it("有记录时默认加载第一个并显示记录面板", async () => {
     const exp = createMockExperiment();
     mockInvoke({ "experiment_list": { experiments: [exp] } });
     render(<Experiment />);
     await waitFor(() => {
-      expect(screen.getByTestId("code-workspace")).toBeInTheDocument();
+      expect(screen.getByTestId("tab-records")).toHaveAttribute("aria-pressed", "true");
     });
   });
 
@@ -64,9 +65,6 @@ describe("Experiment 页面", () => {
     const exp = createMockExperiment();
     mockInvoke({ "experiment_list": { experiments: [exp] } });
     render(<Experiment />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-workspace")).toBeInTheDocument();
-    });
     fireEvent.click(screen.getByTestId("tab-snapshots"));
     await waitFor(() => {
       expect(screen.getByTestId("snapshot-panel")).toBeInTheDocument();
@@ -77,6 +75,7 @@ describe("Experiment 页面", () => {
     const exp = createMockExperiment();
     mockInvoke({ "experiment_get": exp });
     render(<Experiment experimentId="exp-1" />);
+    fireEvent.click(screen.getByTestId("tab-code"));
     await waitFor(() => {
       expect(screen.getByTestId("code-workspace")).toBeInTheDocument();
     });
@@ -87,9 +86,7 @@ describe("Experiment 页面", () => {
     const exp = createMockExperiment();
     mockInvoke({ "experiment_list": { experiments: [exp] } });
     render(<Experiment />);
-    await screen.findByTestId("code-workspace");
 
-    fireEvent.click(screen.getByTestId("tab-records"));
     fireEvent.click(await screen.findByTestId("choose-experiment-2"));
     fireEvent.click(screen.getByTestId("tab-snapshots"));
 
