@@ -7,8 +7,26 @@ updates:
       day: monday
       time: "09:00"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     groups:
+      react-minor-and-patch:
+        patterns:
+          - react
+          - react-dom
+          - "@types/react"
+          - "@types/react-dom"
+        update-types:
+          - minor
+          - patch
+      mobile-runtime-patch:
+        patterns:
+          - expo
+          - "expo-*"
+          - "@expo/*"
+          - react-native
+          - "react-native-*"
+        update-types:
+          - patch
       production-minor-and-patch:
         dependency-type: production
         update-types:
@@ -19,6 +37,30 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # Mobile uses React 18 while desktop and web use React 19. Keep major
+      # upgrades manual so Dependabot cannot force every workspace onto one line.
+      - dependency-name: react
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@types/react"
+        update-types:
+          - version-update:semver-major
+      # Expo SDK upgrades must be coordinated with React Native and Expo Router.
+      - dependency-name: "expo*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@expo/*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: react-native
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
+      - dependency-name: "react-native-*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
 
   - package-ecosystem: cargo
     directory: /apps/desktop/src-tauri
@@ -27,7 +69,21 @@ updates:
       day: monday
       time: "09:15"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      cargo-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+    ignore:
+      # These releases currently require source migrations and fail Rust CI.
+      - dependency-name: pbkdf2
+        versions:
+          - "0.13.x"
+      - dependency-name: sqlx
+        versions:
+          - "0.9.x"
 
   - package-ecosystem: github-actions
     directory: /
@@ -36,4 +92,8 @@ updates:
       day: monday
       time: "09:30"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns:
+          - "*"
