@@ -54,7 +54,7 @@ hmac = "0.12"
 rand = "0.8"
 # Regex for HTML parsing in web clip
 regex = "1"
-petgraph = "0.6"
+petgraph = "0.8"
 serde_yaml = "0.9"
 # ZIP archive extraction for note import
 zip = "2"
