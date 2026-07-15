@@ -215,7 +215,7 @@ export function ExperimentSnapshotPanel({
   return (
     <div className="max-w-3xl mx-auto space-y-4">
       {/* ── Toolbar ─────────────────────────────────────────── */}
-      <div className="space-y-3">
+      <Card variant="raised" padding="md" className="space-y-3">
         {/* Top row: title + count + actions */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -236,7 +236,8 @@ export function ExperimentSnapshotPanel({
                 <button
                   type="button"
                   onClick={toggleSelectAll}
-                  className="text-xs text-ink-secondary hover:text-ink-primary transition-colors px-2 py-1"
+                  className="text-xs font-medium text-ink-secondary hover:text-ink-primary transition-colors px-2.5 py-1.5 rounded-xl"
+                  style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
                 >
                   {selectAllChecked ? "取消全选" : "全选"}
                 </button>
@@ -260,7 +261,8 @@ export function ExperimentSnapshotPanel({
                 <button
                   type="button"
                   onClick={exitSelectMode}
-                  className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary transition-colors"
+                  className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary transition-all active:scale-95"
+                  style={{ background: "var(--rc-icon-button-bg)", border: "1px solid var(--rc-icon-button-border)", boxShadow: "var(--rc-icon-button-shadow)" }}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -271,7 +273,8 @@ export function ExperimentSnapshotPanel({
                   <button
                     type="button"
                     onClick={enterSelectMode}
-                    className="text-xs font-medium text-ink-tertiary hover:text-ink-primary hover:bg-nm-dark/10 transition-colors px-2.5 py-1 rounded-xl"
+                    className="text-xs font-medium text-ink-tertiary hover:text-ink-primary transition-all active:scale-95 px-2.5 py-1.5 rounded-xl"
+                    style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
                   >
                     选择
                   </button>
@@ -299,11 +302,12 @@ export function ExperimentSnapshotPanel({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="搜索快照标题、配置、结果…"
-                className="w-full pl-9 pr-8 py-2 rounded-2xl text-xs outline-none transition-colors"
+                className="w-full pl-9 pr-8 py-2 rounded-2xl text-xs outline-none transition-all"
                 style={{
-                  borderColor: "var(--rc-control-border)",
-                  background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.52))",
+                  border: "1px solid var(--rc-control-border)",
+                  background: "var(--rc-control-bg)",
                   color: "var(--rc-text)",
+                  boxShadow: "var(--rc-control-shadow)",
                 }}
               />
               {searchQuery && (
@@ -320,15 +324,11 @@ export function ExperimentSnapshotPanel({
               <button
                 type="button"
                 onClick={() => setSortOrder((prev) => (prev === "newest" ? "oldest" : "newest"))}
-                className={`flex items-center gap-1 px-2.5 py-2 rounded-xl text-[11px] font-medium transition-colors ${
-                  sortOrder === "oldest"
-                    ? "text-ink-primary"
-                    : "text-ink-tertiary hover:text-ink-secondary"
-                }`}
+                className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-[11px] font-medium transition-all active:scale-95"
                 style={
                   sortOrder === "oldest"
-                    ? { background: "var(--rc-button-secondary-bg)", boxShadow: "var(--rc-button-secondary-shadow)" }
-                    : { borderColor: "var(--rc-control-border)", borderWidth: 1, borderStyle: "solid" }
+                    ? { background: "var(--rc-button-secondary-bg)", boxShadow: "var(--rc-button-secondary-shadow)", color: "var(--rc-text)" }
+                    : { background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-muted)" }
                 }
                 title={sortOrder === "newest" ? "最新在前" : "最早在前"}
               >
@@ -338,7 +338,7 @@ export function ExperimentSnapshotPanel({
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* ── Compare bar ──────────────────────────────────────── */}
       {compare.compareLeftId && !compare.isComparing && (
