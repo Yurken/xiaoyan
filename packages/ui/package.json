@@ -20,6 +20,6 @@
     "react": ">=18"
   },
   "devDependencies": {
-    "katex": "^0.16.40"
+    "katex": "^0.17.0"
   }
 }
