@@ -2,9 +2,9 @@ export const MODULE_VISIBILITY_STORAGE_KEY = "rc:layout:module-visibility";
 export const MODULE_VISIBILITY_CHANGE_EVENT = "rc:module-visibility-change";
 
 export const EXPERIMENT_MODULES = [
+  { key: "records", label: "记录", description: "创建实验并维护配置、结果与备注" },
   { key: "code", label: "代码", description: "代码助手、终端与实验工作目录" },
   { key: "snapshots", label: "快照", description: "保存和比较实验状态与关键文件" },
-  { key: "records", label: "记录", description: "创建实验并维护配置、结果与备注" },
 ] as const;
 
 export const TOOL_MODULES = [

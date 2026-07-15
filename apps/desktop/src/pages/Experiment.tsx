@@ -45,7 +45,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
 
-  const [activeTab, setActiveTab] = useState<ExperimentTab>("code");
+  const [activeTab, setActiveTab] = useState<ExperimentTab>("records");
   const [activeCodeSession, setActiveCodeSession] = useState<ExperimentCodeSession | null>(null);
   const [workingDir, setWorkingDir] = useExperimentWorkingDirectory(
     experiment?.id ?? null,

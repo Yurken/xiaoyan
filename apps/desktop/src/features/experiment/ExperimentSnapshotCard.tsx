@@ -70,10 +70,11 @@ export function ExperimentSnapshotCard({
             type="button"
             aria-label={`选择快照：${snapshot.title}`}
             onClick={() => onToggleSelect(snapshot.id)}
-            className="mt-1 flex-shrink-0 w-4 h-4 rounded-sm border flex items-center justify-center transition-colors"
+            className="mt-1 flex-shrink-0 w-4 h-4 rounded-md flex items-center justify-center transition-all active:scale-95"
             style={{
-              borderColor: isSelected ? "var(--rc-accent)" : "var(--rc-border)",
-              background: isSelected ? "var(--rc-accent)" : "transparent",
+              border: "1px solid var(--rc-control-border)",
+              background: isSelected ? "var(--rc-accent)" : "var(--rc-control-bg)",
+              boxShadow: isSelected ? "none" : "var(--rc-control-shadow)",
             }}
           >
             {isSelected && <Check className="w-3 h-3 text-white" />}
@@ -117,11 +118,12 @@ export function ExperimentSnapshotCard({
 
         {/* Action buttons */}
         {!selectMode && (
-          <div className="flex items-center gap-0.5 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onRename(snapshot); }}
-              className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary hover:bg-nm-dark/10 transition-colors"
+              className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary transition-all active:scale-95"
+              style={{ background: "var(--rc-icon-button-bg)", border: "1px solid var(--rc-icon-button-border)", boxShadow: "var(--rc-icon-button-shadow)" }}
               title="重命名快照"
               aria-label={`重命名快照：${snapshot.title}`}
             >
@@ -130,7 +132,8 @@ export function ExperimentSnapshotCard({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onRestore(snapshot.id); }}
-              className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary hover:bg-nm-dark/10 transition-colors"
+              className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary transition-all active:scale-95"
+              style={{ background: "var(--rc-icon-button-bg)", border: "1px solid var(--rc-icon-button-border)", boxShadow: "var(--rc-icon-button-shadow)" }}
               title="恢复实验记录"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -138,7 +141,8 @@ export function ExperimentSnapshotCard({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onExport(snapshot); }}
-              className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary hover:bg-nm-dark/10 transition-colors"
+              className="p-1.5 rounded-xl text-ink-tertiary hover:text-ink-primary transition-all active:scale-95"
+              style={{ background: "var(--rc-icon-button-bg)", border: "1px solid var(--rc-icon-button-border)", boxShadow: "var(--rc-icon-button-shadow)" }}
               title="导出 JSON"
             >
               <Download className="w-3.5 h-3.5" />
@@ -146,20 +150,21 @@ export function ExperimentSnapshotCard({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onCompare(snapshot.id); }}
-              className="p-1.5 rounded-xl transition-colors"
+              className="p-1.5 rounded-xl transition-all active:scale-95"
               style={
                 isCompareTarget
-                  ? { color: "var(--rc-accent)", background: "var(--rc-accent-alpha, rgba(0,122,255,0.10))" }
-                  : {}
+                  ? { color: "var(--rc-accent)", background: "var(--rc-accent-alpha, rgba(0,122,255,0.10))", border: "1px solid var(--rc-accent-alpha, rgba(0,122,255,0.10))", boxShadow: "var(--rc-chip-inset-shadow)" }
+                  : { color: "var(--rc-icon-button-color)", background: "var(--rc-icon-button-bg)", border: "1px solid var(--rc-icon-button-border)", boxShadow: "var(--rc-icon-button-shadow)" }
               }
               title={isCompareTarget ? "已选为对比基准" : "选择对比"}
             >
-              <ArrowLeftRight className="w-3.5 h-3.5 text-ink-tertiary" style={isCompareTarget ? { color: "var(--rc-accent)" } : undefined} />
+              <ArrowLeftRight className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onDelete(snapshot.id); }}
-              className="p-1.5 rounded-xl text-ink-tertiary hover:text-[var(--rc-apple-red,#FF3B30)] hover:bg-[var(--rc-apple-red-alpha,rgba(255,59,48,0.06))] transition-colors"
+              className="p-1.5 rounded-xl text-ink-tertiary hover:text-[var(--rc-apple-red,#FF3B30)] transition-all active:scale-95"
+              style={{ background: "var(--rc-icon-button-bg)", border: "1px solid var(--rc-icon-button-border)", boxShadow: "var(--rc-icon-button-shadow)" }}
               title="删除"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -172,7 +177,12 @@ export function ExperimentSnapshotCard({
       <button
         type="button"
         onClick={() => onToggleExpand(snapshot.id)}
-        className="flex items-center gap-1 mt-1 text-[11px] text-ink-tertiary hover:text-ink-secondary transition-colors"
+        className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-xl text-[11px] font-medium transition-all active:scale-95"
+        style={{
+          background: "var(--rc-chip-bg)",
+          boxShadow: "var(--rc-chip-shadow)",
+          color: "var(--rc-text-muted)",
+        }}
       >
         <ChevronDown
           className="w-3 h-3 transition-transform duration-150"
@@ -221,13 +231,13 @@ export function ExperimentSnapshotCard({
                   type="button"
                   onClick={() => setDetailTab(tab.key)}
                   disabled={!hasContent}
-                  className="relative px-3 py-1 rounded-xl text-[11px] font-medium transition-all duration-150"
+                  className="relative px-3 py-1.5 rounded-xl text-[11px] font-medium transition-all active:scale-95"
                   style={
                     active
                       ? { background: "var(--rc-button-secondary-bg)", boxShadow: "var(--rc-button-secondary-shadow)", color: "var(--rc-text)" }
                       : hasContent
-                        ? { color: "var(--rc-text-muted)" }
-                        : { color: "var(--rc-text-muted)", opacity: 0.35, cursor: "default" }
+                        ? { background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)", color: "var(--rc-text-muted)" }
+                        : { background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-card-inset-shadow)", color: "var(--rc-text-muted)", opacity: 0.5, cursor: "default" }
                   }
                 >
                   {tab.label}
