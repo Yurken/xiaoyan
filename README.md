@@ -161,11 +161,13 @@ docs: 补充本地开发说明
 
 如果小妍对你有帮助，欢迎点一个 Star。它会帮助更多研究者发现项目。
 
-<p align="center">
-  <a href="https://star-history.com/#Yurken/xiaoyan&Date">
-    <img src="https://api.star-history.com/svg?repos=Yurken/xiaoyan&type=Date" alt="小妍 GitHub Star 历史曲线" width="680" />
-  </a>
-</p>
+<a href="https://www.star-history.com/?type=date&repos=Yurken%2Fxiaoyan">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Yurken/xiaoyan&type=date&theme=dark&legend=top-left&sealed_token=x85YP6wH0H_fYrh94oYtmnIyStrNxFHtj61xHIGYKjPB8Qdy29vTA3irisqFtyM67s1VvYoRyVJGGdWcs3a9H6kF0tymBrZtooxNKTXn9c77rkdN9J9afD9XQEIX1FlPRgHer8BxtCYPPWQukbhLw-hkQuktrEUeEyqpe0g8FKDZbIGtsF80R7AXoRV8" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Yurken/xiaoyan&type=date&legend=top-left&sealed_token=x85YP6wH0H_fYrh94oYtmnIyStrNxFHtj61xHIGYKjPB8Qdy29vTA3irisqFtyM67s1VvYoRyVJGGdWcs3a9H6kF0tymBrZtooxNKTXn9c77rkdN9J9afD9XQEIX1FlPRgHer8BxtCYPPWQukbhLw-hkQuktrEUeEyqpe0g8FKDZbIGtsF80R7AXoRV8" />
+    <img alt="小妍 GitHub Star 历史曲线" src="https://api.star-history.com/chart?repos=Yurken/xiaoyan&type=date&legend=top-left&sealed_token=x85YP6wH0H_fYrh94oYtmnIyStrNxFHtj61xHIGYKjPB8Qdy29vTA3irisqFtyM67s1VvYoRyVJGGdWcs3a9H6kF0tymBrZtooxNKTXn9c77rkdN9J9afD9XQEIX1FlPRgHer8BxtCYPPWQukbhLw-hkQuktrEUeEyqpe0g8FKDZbIGtsF80R7AXoRV8" />
+  </picture>
+</a>
 
 ## 许可证
 
