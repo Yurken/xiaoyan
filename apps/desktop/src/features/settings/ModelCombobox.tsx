@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Loader2, RefreshCw } from "lucide-react";
+import { useEndpointModels, type EndpointModelConfig } from "./useEndpointModels";
 
 interface ModelComboboxProps {
   label: string;
@@ -152,5 +153,28 @@ export default function ModelCombobox({
       </div>
       {hint ? <p className="ml-1 text-xs leading-5 text-ink-tertiary">{hint}</p> : null}
     </div>
+  );
+}
+
+interface EndpointModelComboboxProps extends Omit<ModelComboboxProps, "models" | "loading" | "error" | "onQuery"> {
+  /** 返回该模型对应的独立端点配置；返回 null 时禁用查询。 */
+  endpointConfig: () => EndpointModelConfig | null;
+}
+
+/**
+ * 自带模型列表查询的 ModelCombobox。
+ * 使用传入的 endpointConfig 中的 base_url/api_key 去查 `/models`，
+ * 而不是走主服务商配置。
+ */
+export function EndpointModelCombobox({ endpointConfig, ...rest }: EndpointModelComboboxProps) {
+  const { models, loading, error, load } = useEndpointModels(endpointConfig);
+  return (
+    <ModelCombobox
+      {...rest}
+      models={models}
+      loading={loading}
+      error={error}
+      onQuery={load}
+    />
   );
 }

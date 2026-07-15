@@ -329,32 +329,21 @@ async fn dispatch_search_knowledge(
         return Ok("搜索关键词为空，无法执行搜索。".into());
     }
 
-    let like = format!("%{}%", query);
-    let rows = sqlx::query(
-        "SELECT id, title, content, source_type, tags, created_at
-         FROM knowledge_notes
-         WHERE title LIKE ? OR content LIKE ?
-         ORDER BY created_at DESC LIMIT ?",
-    )
-    .bind(&like)
-    .bind(&like)
-    .bind(top_k)
-    .fetch_all(db)
-    .await
-    .map_err(|e| format!("知识库搜索失败: {}", e))?;
+    let rows =
+        crate::services::wiki::retrieval::hybrid_search(db, &query, None, top_k.max(1) as usize)
+            .await
+            .map_err(|e| format!("知识库搜索失败: {}", e))?;
 
     if rows.is_empty() {
-        return Ok(format!("在知识库中未找到与「{}」相关的笔记。", query));
+        return Ok(format!("在知识库中未找到与「{}」相关的内容。", query));
     }
 
     let results: Vec<String> = rows
         .iter()
         .enumerate()
-        .map(|(i, r)| {
-            let title: String = r.get("title");
-            let content: String = r.get("content");
-            let snippet: String = content.chars().take(200).collect();
-            format!("{}. {} — {}", i + 1, title, snippet)
+        .map(|(i, result)| {
+            let snippet: String = result.content.chars().take(200).collect();
+            format!("{}. {} — {}", i + 1, result.source, snippet)
         })
         .collect();
 

@@ -428,6 +428,9 @@ pub const SYNC_MUTABLE_TABLES: &[&str] = &[
     "papers",
     "knowledge_notes",
     "knowledge_graph_claims",
+    "wiki_pages",
+    "wiki_compile_sources",
+    "wiki_compile_runs",
     "submissions",
     "experiment_records",
     "agent_runs",
@@ -483,6 +486,8 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_experiment_tables(&pool).await?;
     ensure_submission_revision_task_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
+    crate::services::wiki::schema::ensure_wiki_tables(&pool).await?;
+    crate::services::wiki::auto_compile::ensure_auto_compile_schema(&pool).await?;
     ensure_paper_notes_table(&pool).await?;
     ensure_opencode_tables(&pool).await?;
     ensure_paper_corpus_table(&pool).await?;
@@ -631,6 +636,8 @@ async fn ensure_schema(pool: &SqlitePool) -> Result<()> {
     ensure_experiment_tables(pool).await?;
     ensure_submission_revision_task_tables(pool).await?;
     ensure_knowledge_graph_tables(pool).await?;
+    crate::services::wiki::schema::ensure_wiki_tables(pool).await?;
+    crate::services::wiki::auto_compile::ensure_auto_compile_schema(pool).await?;
     Ok(())
 }
 
@@ -1060,6 +1067,33 @@ pub async fn ensure_experiment_tables(pool: &SqlitePool) -> Result<()> {
             file_path     TEXT NOT NULL,
             label         TEXT NOT NULL DEFAULT '',
             created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS experiment_code_sessions (
+            id            TEXT PRIMARY KEY,
+            experiment_id TEXT NOT NULL REFERENCES experiment_records(id) ON DELETE CASCADE,
+            title         TEXT NOT NULL DEFAULT '新会话',
+            working_dir   TEXT,
+            tool_id       TEXT,
+            model         TEXT,
+            messages_json TEXT NOT NULL DEFAULT '[]',
+            created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_experiment_code_sessions_updated
+            ON experiment_code_sessions(experiment_id, updated_at DESC);
+        CREATE TABLE IF NOT EXISTS experiment_snapshots (
+            id               TEXT PRIMARY KEY,
+            experiment_id    TEXT NOT NULL REFERENCES experiment_records(id) ON DELETE CASCADE,
+            title            TEXT NOT NULL DEFAULT '快照',
+            config_snapshot  TEXT NOT NULL DEFAULT '{}',
+            result_snapshot  TEXT NOT NULL DEFAULT '',
+            notes_snapshot   TEXT NOT NULL DEFAULT '',
+            code_session_id  TEXT,
+            tool_id          TEXT,
+            model            TEXT,
+            working_dir      TEXT,
+            env_snapshot     TEXT NOT NULL DEFAULT '{}',
+            created_at       TEXT NOT NULL DEFAULT (datetime('now'))
         );",
     )
     .execute(pool)
@@ -1308,6 +1342,14 @@ mod tests {
             "submission_revision_tasks",
             "experiment_records",
             "knowledge_graph_claims",
+            "wiki_pages",
+            "wiki_page_revisions",
+            "wiki_page_sources",
+            "wiki_page_links",
+            "wiki_page_chunks",
+            "wiki_compile_runs",
+            "wiki_compile_queue",
+            "wiki_issues",
         ] {
             assert!(table_exists(&pool, table).await?, "{table}");
         }
@@ -1318,6 +1360,74 @@ mod tests {
         .fetch_one(&pool)
         .await?;
         assert_eq!(folder_name, "Graph RAG");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn master_experiment_schema_upgrade_preserves_records_and_attachments() -> Result<()> {
+        let pool = memory_pool().await?;
+
+        // 模拟 master 已发布版本的实验数据：无工作目录、快照与代码会话字段。
+        sqlx::raw_sql(
+            "CREATE TABLE experiment_records (
+                id                   TEXT PRIMARY KEY,
+                title                TEXT NOT NULL,
+                config               TEXT NOT NULL DEFAULT '{}',
+                result               TEXT NOT NULL DEFAULT '',
+                notes                TEXT NOT NULL DEFAULT '',
+                linked_submission_id TEXT,
+                created_at           TEXT NOT NULL,
+                updated_at           TEXT NOT NULL
+            );
+            CREATE TABLE experiment_attachments (
+                id            TEXT PRIMARY KEY,
+                experiment_id TEXT NOT NULL,
+                file_path     TEXT NOT NULL,
+                label         TEXT NOT NULL DEFAULT '',
+                created_at    TEXT NOT NULL
+            );",
+        )
+        .execute(&pool)
+        .await?;
+        sqlx::query(
+            "INSERT INTO experiment_records (id, title, config, result, notes, created_at, updated_at)
+             VALUES ('experiment-1', '旧实验', '{\"seed\": 7}', '旧结果', '旧备注', '2026-01-01', '2026-01-02')",
+        )
+        .execute(&pool)
+        .await?;
+        sqlx::query(
+            "INSERT INTO experiment_attachments (id, experiment_id, file_path, label, created_at)
+             VALUES ('attachment-1', 'experiment-1', '/tmp/figure.png', '旧附件', '2026-01-02')",
+        )
+        .execute(&pool)
+        .await?;
+
+        ensure_experiment_tables(&pool).await?;
+
+        let record: (String, String, String) = sqlx::query_as(
+            "SELECT title, result, notes FROM experiment_records WHERE id = 'experiment-1'",
+        )
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(record, ("旧实验".into(), "旧结果".into(), "旧备注".into()));
+
+        let attachment: (String, String) = sqlx::query_as(
+            "SELECT experiment_id, label FROM experiment_attachments WHERE id = 'attachment-1'",
+        )
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(attachment, ("experiment-1".into(), "旧附件".into()));
+
+        for (table, column) in [
+            ("experiment_records", "default_working_dir"),
+            ("experiment_attachments", "snapshot_id"),
+        ] {
+            assert!(column_exists(&pool, table, column).await?, "{table}.{column}");
+        }
+        for table in ["experiment_code_sessions", "experiment_snapshots"] {
+            assert!(table_exists(&pool, table).await?, "{table}");
+        }
 
         Ok(())
     }

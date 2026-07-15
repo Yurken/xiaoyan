@@ -1,16 +1,19 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertCircle, CheckSquare, Download, Globe, LayoutGrid, List, Loader2, Plus, Search, StickyNote, Trash2, X } from "lucide-react";
-import { Badge, Button, CapsuleTabs, Card, ConfirmDialog, Input } from "@research-copilot/ui";
+import { AlertCircle, CheckSquare, Download, Globe, Link2, Loader2, Plus, StickyNote, Trash2, X } from "lucide-react";
+import { Badge, Button, Card, ConfirmDialog } from "@research-copilot/ui";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 import { usePersistentStringState } from "../../hooks/usePersistentStringState";
 import { useKnowledgeNotesWorkspace } from "./useKnowledgeNotesWorkspace";
 import { useNotesExport } from "./useNotesExport";
 import NoteCard from "./NoteCard";
+import NoteCompactRow from "./NoteCompactRow";
 import WebClipDialog from "./WebClipDialog";
 import NoteImportZip from "./NoteImportZip";
-import { sourceLabel } from "./notesShared";
+import NotesFilterBar from "./NotesFilterBar";
+import KnowledgeGraphMetric from "./KnowledgeGraphMetric";
+import { sourceLabel, type NotesViewMode } from "./notesShared";
 
 export default function NotesPanel({
   hideFolders = false,
@@ -56,14 +59,13 @@ export default function NotesPanel({
   const [showWebClip, setShowWebClip] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [selectionMode, setSelectionMode] = useState(false);
-  const [viewMode, setViewMode] = usePersistentStringState<"card" | "list">(
+  const [viewMode, setViewMode] = usePersistentStringState<NotesViewMode>(
     "rc:knowledge:notes-view-mode",
     "card",
-    ["card", "list"],
+    ["card", "list", "minimal"],
   );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { exporting, exportError, clearExportError, exportMarkdown } = useNotesExport();
-
   const handleConfirmDeleteNote = async () => {
     if (!pendingDeleteNote) return;
     setDeletingNote(true);
@@ -99,7 +101,7 @@ export default function NotesPanel({
     [linkedNoteClaimCounts, scopedNotes],
   );
 
-  const sourceTabs = useMemo(() => {
+  const sourceOptions = useMemo(() => {
     const present = Array.from(new Set(scopedNotes.map((note) => note.source_type)));
     if (present.length <= 1) return [];
     return [
@@ -107,7 +109,7 @@ export default function NotesPanel({
       ...present.map((source) => ({ value: source, label: sourceLabel(source) })),
     ];
   }, [scopedNotes]);
-  const activeSource = sourceTabs.some((tab) => tab.value === sourceFilter) ? sourceFilter : "all";
+  const activeSource = sourceOptions.some((option) => option.value === sourceFilter) ? sourceFilter : "all";
   const bySource = (note: KnowledgeNote) => activeSource === "all" || note.source_type === activeSource;
 
   const visibleNotes = scopedNotes.filter(bySource);
@@ -158,8 +160,22 @@ export default function NotesPanel({
     />
   );
 
+  const renderCompactNote = (note: KnowledgeNote) => (
+    <NoteCompactRow
+      key={note.id}
+      note={note}
+      linkedClaimCount={linkedNoteClaimCounts?.[note.id] ?? 0}
+      onDelete={setPendingDeleteNote}
+      selectionMode={selectionMode}
+      selected={selectedIds.has(note.id)}
+      onToggleSelect={toggleSelect}
+    />
+  );
+
   const renderNotes = (notes: KnowledgeNote[]) =>
-    viewMode === "list" ? (
+    viewMode === "minimal" ? (
+      <div className="grid gap-2">{notes.map(renderCompactNote)}</div>
+    ) : viewMode === "list" ? (
       <div className="grid gap-3">{notes.map(renderNoteCard)}</div>
     ) : (
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{notes.map(renderNoteCard)}</div>
@@ -168,83 +184,74 @@ export default function NotesPanel({
   return (
     <>
     <div className="min-w-0 space-y-4">
-      <Card padding="sm" className="min-w-0 space-y-4 overflow-hidden">
+      <Card padding="sm" className="min-w-0 space-y-4">
         <div className="flex min-w-0 flex-col gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-ink-primary">知识卡片库</p>
-            <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-              支持语义搜索、标签归档，并可把笔记关联到具体研究主题。
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {researchInterestId ? <Badge variant="default">已按研究主题聚焦</Badge> : null}
-              {hasGraphCoverage && scopedNotes.length > 0 ? (
-                <Badge variant={linkedVisibleNoteCount > 0 ? "info" : "default"}>
-                  图谱关联 {linkedVisibleNoteCount}/{scopedNotes.length}
-                </Badge>
+          <div className="flex min-w-0 items-start justify-between gap-3 max-sm:flex-col">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink-primary">知识卡片库</p>
+              <p className="mt-1 text-xs leading-5 text-ink-tertiary">
+                支持语义搜索、标签归档，并可把笔记关联到具体研究主题。
+              </p>
+              {researchInterestId ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Badge variant="default">已按研究主题聚焦</Badge>
+                </div>
               ) : null}
             </div>
-          </div>
-          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
-            {sourceTabs.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-ink-tertiary">来源</span>
-                <CapsuleTabs compact options={sourceTabs} value={activeSource} onChange={setSourceFilter} />
-              </div>
-            )}
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <div className="relative w-64 sm:w-72">
-                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="请输入关键词搜索笔记、术语或方法"
-                  className="pl-10"
+            {hasGraphCoverage && scopedNotes.length > 0 ? (
+              <div className="shrink-0 max-sm:self-start">
+                <KnowledgeGraphMetric
+                  label="图谱关联"
+                  value={`${linkedVisibleNoteCount}/${scopedNotes.length}`}
+                  icon={Link2}
+                  tone="evidence"
                 />
               </div>
-              <button
-                type="button"
-                onClick={() => setViewMode((prev) => (prev === "card" ? "list" : "card"))}
-                className="flex items-center justify-center rounded-xl px-2.5 py-1.5 text-ink-tertiary transition-colors hover:bg-white/50 hover:text-ink-primary"
-                title={viewMode === "card" ? "切换为列表视图" : "切换为卡片视图"}
-              >
-                {viewMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-              </button>
-              {selectionMode ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={exitSelection}>
-                    <X className="h-4 w-4" />
-                    退出选择
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={enterSelection} disabled={scopedNotes.length === 0}>
-                    <CheckSquare className="h-4 w-4" />
-                    选择
-                  </Button>
-                  <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={() => {
-                    clearError();
-                    setShowWebClip(true);
-                  }}>
-                    <Globe className="h-4 w-4" />
-                    剪辑网页
-                  </Button>
-                  <NoteImportZip
-                    interests={interests}
-                    researchInterestId={researchInterestId}
-                    onImport={importZip}
-                  />
-                  <Button size="sm" className="whitespace-nowrap" onClick={() => {
-                    clearError();
-                    navigate("/notes/new", { state: { researchInterestId } });
-                  }}>
-                    <Plus className="h-4 w-4" />
-                    新建笔记
-                  </Button>
-                </div>
-              )}
-            </div>
+            ) : null}
           </div>
+          <NotesFilterBar
+            sourceOptions={sourceOptions}
+            sourceValue={activeSource}
+            onSourceChange={setSourceFilter}
+            search={search}
+            onSearchChange={setSearch}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            actions={selectionMode ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={exitSelection}>
+                  <X className="h-4 w-4" />
+                  退出选择
+                </Button>
+              </div>
+            ) : (
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={enterSelection} disabled={scopedNotes.length === 0}>
+                  <CheckSquare className="h-4 w-4" />
+                  选择
+                </Button>
+                <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={() => {
+                  clearError();
+                  setShowWebClip(true);
+                }}>
+                  <Globe className="h-4 w-4" />
+                  剪辑网页
+                </Button>
+                <NoteImportZip
+                  interests={interests}
+                  researchInterestId={researchInterestId}
+                  onImport={importZip}
+                />
+                <Button size="sm" className="whitespace-nowrap" onClick={() => {
+                  clearError();
+                  navigate("/notes/new", { state: { researchInterestId } });
+                }}>
+                  <Plus className="h-4 w-4" />
+                  新建笔记
+                </Button>
+              </div>
+            )}
+          />
         </div>
 
         {selectionMode && (

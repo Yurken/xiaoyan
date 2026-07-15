@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, Users } from "lucide-react";
+import { CheckCircle2, Circle } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
 import DiagnosisReportPanel from "./DiagnosisReportPanel";
 import RevisionTaskPanel from "./RevisionTaskPanel";
@@ -228,17 +228,6 @@ export default function ChecklistWorkspace({
               </Card>
             </div>
           ))}
-        </div>
-
-        <div
-          className="rounded-2xl border p-3.5 flex items-center gap-3 opacity-60"
-          style={{ background: "var(--rc-card-inset-bg)", borderColor: "var(--rc-card-inset-outline)" }}
-        >
-          <Users className="w-4 h-4 text-ink-tertiary flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-ink-secondary">团队协作清单（即将上线）</p>
-            <p className="text-xs text-ink-tertiary mt-0.5">为每位共同作者分配清单项，追踪各自完成进度。</p>
-          </div>
         </div>
       </div>
     </div>

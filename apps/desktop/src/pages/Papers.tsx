@@ -179,19 +179,29 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
       ) : null}
 
       <div className={clsx("mx-auto w-full space-y-5", hideFolders && "max-w-5xl px-4 pb-10")}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between shrink-0">
-          {!hideFolders && (
-            <div>
-              <h1 className="text-2xl font-bold text-ink-primary">论文库</h1>
-              <p className="mt-1 text-sm text-ink-tertiary">
-                {`共 ${papers.papers.length} 篇论文 · ${papers.interests.length} 个主题分组`}
-              </p>
-              <p className="mt-1 text-sm text-ink-tertiary">
-                上传 PDF，小妍会按论文类型精读内容；需要时可单独生成复现/验证指南。
-              </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <CapsuleTabs
+            value={view}
+            onChange={(v) => setView(v as "papers" | "corpus")}
+            options={[
+              { value: "papers", label: "论文库" },
+              { value: "corpus", label: "语料库" },
+            ]}
+          />
+          <div className={clsx("min-w-0 flex-wrap items-center justify-end gap-2", view === "papers" ? "flex" : "hidden")}>
+            <div
+              className="relative w-full overflow-hidden rounded-[24px] sm:w-[280px]"
+              style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
+            >
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
+              <input
+                type="text"
+                value={papers.keywordFilter}
+                onChange={(event) => papers.setKeywordFilter(event.target.value)}
+                placeholder="请输入关键词或标签搜索论文"
+                className="h-10 w-full border-none bg-transparent pl-11 pr-4 text-sm text-ink-primary outline-none placeholder:text-ink-tertiary/75"
+              />
             </div>
-          )}
-          <div className={clsx("min-w-0 w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end", view === "papers" ? "flex" : "hidden")}>
             <div ref={recognizeRef} className="relative flex-shrink-0">
               <button type="button" onClick={() => setRecognizeOpen((v) => !v)} data-open={recognizeOpen}
                 className="rc-dropdown-trigger flex items-center gap-1.5 rounded-2xl px-3 py-2 transition-all duration-150"
@@ -230,32 +240,6 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
               {papers.batchProgress ? `导入中 (${papers.batchProgress.done}/${papers.batchProgress.total})` : "导入 PDF"}
             </Button>
           </div>
-        </div>
-
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <CapsuleTabs
-            value={view}
-            onChange={(v) => setView(v as "papers" | "corpus")}
-            options={[
-              { value: "papers", label: "论文库" },
-              { value: "corpus", label: "语料库" },
-            ]}
-          />
-          {view === "papers" ? (
-            <div
-              className="relative w-full overflow-hidden rounded-[24px] sm:max-w-[320px] lg:ml-auto"
-              style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
-            >
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
-              <input
-                type="text"
-                value={papers.keywordFilter}
-                onChange={(event) => papers.setKeywordFilter(event.target.value)}
-                placeholder="请输入关键词或标签搜索论文"
-                className="h-11 w-full border-none bg-transparent pl-11 pr-4 text-sm text-ink-primary outline-none placeholder:text-ink-tertiary/75"
-              />
-            </div>
-          ) : null}
         </div>
 
         {view === "corpus" ? (

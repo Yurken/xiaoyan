@@ -3,20 +3,6 @@ import { type KnowledgeGraphCanvasEdge } from "./graphView";
 import { computeKnowledgeGraphCanvasHeight, computeKnowledgeGraphEdgeGeometry, type KnowledgeGraphCanvasNode } from "./knowledgeGraphLayout";
 import { useElementWidth } from "../../hooks/useElementWidth";
 
-const KIND_STYLES = {
-  interest: { fill: "rgba(0, 122, 255, 0.12)", border: "rgba(0, 122, 255, 0.26)", color: "#0F4FA8" },
-  claim: { fill: "rgba(40, 82, 58, 0.12)", border: "rgba(40, 82, 58, 0.24)", color: "#215137" },
-  paper: { fill: "rgba(107, 76, 154, 0.11)", border: "rgba(107, 76, 154, 0.2)", color: "#5A3C90" },
-  experiment: { fill: "rgba(198, 110, 20, 0.12)", border: "rgba(198, 110, 20, 0.22)", color: "#9A570A" },
-  note: { fill: "rgba(86, 94, 108, 0.12)", border: "rgba(86, 94, 108, 0.18)", color: "#495466" },
-} as const;
-
-function edgeColor(kind: KnowledgeGraphCanvasEdge["kind"]) {
-  if (kind === "evidence") return "rgba(42, 99, 65, 0.34)";
-  if (kind === "citation") return "rgba(121, 92, 170, 0.3)";
-  return "rgba(0, 122, 255, 0.18)";
-}
-
 export default function KnowledgeGraphCanvas({
   nodes,
   edges,
@@ -44,8 +30,7 @@ export default function KnowledgeGraphCanvas({
   if (nodes.length === 0) {
     return (
       <div
-        className="rounded-3xl border px-5 py-10 text-center text-sm"
-        style={{ borderColor: "var(--rc-border)", background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.58))" }}
+        className="knowledge-graph-empty rounded-3xl px-5 py-10 text-center text-sm text-ink-secondary"
       >
         当前还没有可视化关系。先新增一条结论，或把论文、实验、笔记绑定为证据。
       </div>
@@ -98,7 +83,7 @@ export default function KnowledgeGraphCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative overflow-hidden rounded-[28px] border select-none"
+      className="knowledge-graph-canvas relative overflow-hidden rounded-[28px] border select-none"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -106,9 +91,6 @@ export default function KnowledgeGraphCanvas({
       onWheel={handleWheel}
       style={{
         height,
-        borderColor: "var(--rc-border)",
-        background:
-          "radial-gradient(circle at top left, rgba(0,122,255,0.06), transparent 28%), linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.52))",
         cursor: dragStateRef.current ? "grabbing" : "grab",
       }}
     >
@@ -116,12 +98,9 @@ export default function KnowledgeGraphCanvas({
         {laneLabels.map((lane) => (
           <div
             key={lane.key}
-            className="absolute top-4 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold tracking-wide"
+            className="knowledge-graph-lane absolute top-4 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold tracking-wide"
             style={{
               left: lane.x,
-              color: "var(--rc-text-muted)",
-              background: "rgba(255,255,255,0.78)",
-              border: "1px solid rgba(15, 23, 42, 0.06)",
             }}
           >
             {lane.label}
@@ -149,7 +128,7 @@ export default function KnowledgeGraphCanvas({
                 key={edge.id}
                 d={`M ${geo.startX} ${geo.startY} Q ${geo.controlX} ${geo.controlY} ${geo.endX} ${geo.endY}`}
                 fill="none"
-                stroke={edgeColor(edge.kind)}
+                className={`knowledge-graph-edge knowledge-graph-edge--${edge.kind}`}
                 strokeWidth={edge.kind === "citation" ? 1.4 : 1.8}
                 strokeDasharray={edge.kind === "citation" ? "6 5" : edge.kind === "belongs" ? "4 7" : undefined}
               />
@@ -158,33 +137,28 @@ export default function KnowledgeGraphCanvas({
         </svg>
 
         {nodes.map((node) => {
-          const kindStyle = KIND_STYLES[node.kind];
           const active = selectedNodeId === node.id;
 
           return (
             <button
               key={node.id}
               type="button"
+              aria-pressed={active}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={() => {
                 if (dragStateRef.current?.moved) return;
                 onSelectNode?.(node.id);
               }}
-              className="absolute -translate-x-1/2 rounded-2xl border px-4 py-3 text-left transition-all duration-150 hover:-translate-y-0.5"
+              className={`knowledge-graph-node knowledge-graph-node--${node.kind} absolute -translate-x-1/2 rounded-2xl border px-4 py-3 text-left transition-all duration-150 hover:-translate-y-0.5`}
               style={{
                 width: node.width,
                 minHeight: node.height,
                 left: `${node.x}%`,
                 top: node.y,
-                background: kindStyle.fill,
-                borderColor: active ? kindStyle.color : kindStyle.border,
-                boxShadow: active
-                  ? `0 16px 34px ${kindStyle.fill}, 0 0 0 1px ${kindStyle.color}`
-                  : "0 10px 24px rgba(15, 23, 42, 0.06)",
                 cursor: "pointer",
               }}
             >
-              <p className="line-clamp-2 text-sm font-semibold" style={{ color: kindStyle.color }}>
+              <p className="knowledge-graph-node__title line-clamp-2 text-sm font-semibold">
                 {node.title}
               </p>
               {node.subtitle ? (

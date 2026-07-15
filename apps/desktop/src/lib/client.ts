@@ -25,6 +25,12 @@ import type {
   AppSettings,
   AppUpdateInfo,
   AgentRun,
+  ExperimentCodeSession,
+  ExperimentRecord,
+  ExperimentSnapshot,
+  FieldDynamicsListResult,
+  FieldDynamicsScanResult,
+  FieldDynamicsHistoryResult,
   SettingsHistoryEntry,
   SurveySummary,
   SavedSurvey,
@@ -32,6 +38,7 @@ import type {
   WebSearchOutcome,
 } from "@research-copilot/types";
 import { streamChat } from "./chatStream";
+import { streamTranslation } from "./translationStream";
 export { streamChat } from "./chatStream";
 import type {
   CitationCentralityEntry,
@@ -172,7 +179,7 @@ export const settingsApi = {
   tokenUsage: (): Promise<TokenUsageStats> => invoke("token_usage_stats"),
   listOllamaModels: (baseUrl?: string): Promise<string[]> =>
     invoke("settings_list_ollama_models", { baseUrl: baseUrl ?? null }),
-  listModels: (data: Partial<AppSettings>): Promise<string[]> =>
+  listModels: (data: Partial<AppSettings> & { list_models_base_url?: string; list_models_api_key?: string }): Promise<string[]> =>
     invoke("settings_list_models", { data }),
   testTavily: (data: Partial<AppSettings>): Promise<TavilyKeyTest[]> =>
     invoke("settings_test_tavily", { data }),
@@ -205,6 +212,8 @@ export const settingsApi = {
       invoke("settings_history_save", { data, name: name ?? null }),
     update: (id: string, data: Partial<AppSettings>, name?: string): Promise<SettingsHistoryEntry> =>
       invoke("settings_history_update", { id, data, name: name ?? null }),
+    rename: (id: string, name: string): Promise<SettingsHistoryEntry> =>
+      invoke("settings_history_rename", { id, name }),
     apply: (id: string): Promise<AppSettings> =>
       invoke("settings_history_apply", { id }),
     delete: (id: string): Promise<void> =>
@@ -470,8 +479,6 @@ export const knowledgeApi = {
     }),
   deleteNote: (id: string): Promise<void> =>
     invoke("knowledge_delete_note", { id }),
-  search: (q: string, topK = 5): Promise<{ id: string; content: string; source: string; score: number }[]> =>
-    invoke("knowledge_search", { q, topK }),
   webClip: (url: string, researchInterestId?: string): Promise<KnowledgeNote> =>
     invoke("knowledge_web_clip", { url, researchInterestId: researchInterestId ?? null }),
   importZip: (filePath: string, researchInterestId?: string): Promise<KnowledgeImportZipResult> =>
@@ -600,6 +607,8 @@ export const surveyApi = {
 export const translateApi = {
   translate: (text: string, targetLang: string, sourceLang?: string, model?: string): Promise<string> =>
     invoke("translate_text", { text, targetLang, sourceLang: sourceLang ?? null, model: model ?? null }),
+  stream: (text: string, targetLang: string, sourceLang?: string, model?: string, signal?: AbortSignal) =>
+    streamTranslation({ text, targetLang, sourceLang, model }, signal),
 };
 
 // ── Markdown Format ───────────────────────────────────────────────
@@ -872,6 +881,7 @@ export const submissionApi = {
 export interface ExperimentAttachment {
   id: string;
   experimentId: string;
+  snapshotId: string | null;
   filePath: string;
   label: string;
   dataUrl: string;
@@ -880,7 +890,7 @@ export interface ExperimentAttachment {
 
 export const experimentApi = {
   list: () => invoke<{ experiments: unknown[] }>("experiment_list"),
-  get: (id: string) => invoke<unknown>("experiment_get", { id }),
+  get: (id: string) => invoke<ExperimentRecord>("experiment_get", { id }),
   create: (params: { title: string; config?: Record<string, unknown>; result?: string; notes?: string; linkedSubmissionId?: string }) =>
     invoke<{ id: string }>("experiment_create", {
       title: params.title, config: params.config ?? null,
@@ -890,6 +900,22 @@ export const experimentApi = {
   update: (id: string, params: Partial<{ title: string; config: Record<string, unknown>; result: string; notes: string; linkedSubmissionId: string }>) =>
     invoke<void>("experiment_update", { id, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, v ?? null])) }),
   delete: (id: string) => invoke<void>("experiment_delete", { id }),
+  snapshots: {
+    list: (experimentId: string) =>
+      invoke<{ snapshots: ExperimentSnapshot[] }>("experiment_list_snapshots", { experimentId }),
+    get: (snapshotId: string) => invoke<ExperimentSnapshot>("experiment_get_snapshot", { snapshotId }),
+    create: (experimentId: string, params: { title?: string; codeSessionId?: string; toolId?: string; model?: string; workingDir?: string; envSnapshot?: Record<string, unknown> }) =>
+      invoke<ExperimentSnapshot>("experiment_create_snapshot", {
+        experimentId, title: params.title ?? null, codeSessionId: params.codeSessionId ?? null,
+        toolId: params.toolId ?? null, model: params.model ?? null, workingDir: params.workingDir ?? null,
+        envSnapshot: params.envSnapshot ?? null,
+      }),
+    rename: (snapshotId: string, title: string) =>
+      invoke<void>("experiment_rename_snapshot", { snapshotId, title }),
+    delete: (snapshotId: string) => invoke<void>("experiment_delete_snapshot", { snapshotId }),
+    restore: (snapshotId: string) =>
+      invoke<{ experimentId: string; restoredAt: string; backupSnapshotId: string }>("experiment_restore_snapshot", { snapshotId }),
+  },
   attachments: {
     list: (experimentId: string) =>
       invoke<{ attachments: ExperimentAttachment[] }>("experiment_list_attachments", { experimentId }),
@@ -919,6 +945,70 @@ export const workbenchApi = {
     }>("workbench_generate_overview_text", { sourceJson }),
 };
 
+export const fieldDynamicsApi = {
+  scan: (days?: number, maxPerInterest?: number): Promise<FieldDynamicsScanResult> =>
+    invoke("field_dynamics_scan", { days: days ?? null, maxPerInterest: maxPerInterest ?? null }),
+  list: (interestId?: string): Promise<FieldDynamicsListResult> =>
+    invoke("field_dynamics_list", { interestId: interestId ?? null }),
+  history: (interestId?: string, limit?: number): Promise<FieldDynamicsHistoryResult> =>
+    invoke("field_dynamics_history", {
+      interestId: interestId ?? null,
+      limit: limit ?? null,
+    }),
+  importPaper: (briefingId: string, paperExternalId: string, paperSource: string) =>
+    invoke<{ paper_id: string; title: string; briefing_id: string; paper_external_id: string }>("field_dynamics_import_paper", { briefingId, paperExternalId, paperSource }),
+  markRead: (id?: string): Promise<void> =>
+    invoke("field_dynamics_mark_read", { id: id ?? null }),
+};
+
+export interface CodeToolCall { id: string; name: string; arguments: string; }
+export interface CodeToolResult { tool_call_id: string; name: string; output: string; is_error: boolean; }
+export interface CodePermissionRequest {
+  id: string; session_id: string; request_id: string; tool_call: CodeToolCall;
+  title: string; summary: string; risk_level: "low" | "medium" | "high" | string; preview: string;
+}
+export interface CodeMessage {
+  id: string; role: "user" | "assistant" | "tool"; content: string;
+  tool_calls?: CodeToolCall[]; tool_results?: CodeToolResult[]; tool_call_id?: string | null;
+  tool_id?: string | null; model?: string | null; duration_ms?: number | null; created_at: string;
+}
+export interface CodeSession extends ExperimentCodeSession {}
+export interface DirEntry { name: string; path: string; is_dir: boolean; }
+export interface CodeGitFile { path: string; index_status: string; worktree_status: string; staged: boolean; unstaged: boolean; untracked: boolean; }
+export interface CodeGitSnapshot {
+  is_repo: boolean; branch: string | null; head: string | null; upstream: string | null;
+  ahead: number; behind: number; files: CodeGitFile[]; staged_diff: string; unstaged_diff: string; recent_commits: string[];
+}
+export interface CodeReviewReport { content: string; diff_chars: number; }
+export interface CodeWorkspaceContext {
+  working_dir: string; current_file: string | null; is_git_repo: boolean; git_status: string;
+  package_scripts: string[]; instruction_files: string[]; key_files: string[]; content: string;
+}
+
+export const codeApi = {
+  listDir: (path: string): Promise<{ entries: DirEntry[] }> => invoke("code_list_dir", { path }),
+  readFile: (path: string): Promise<{ content: string }> => invoke("code_read_file", { path }),
+  writeFile: (path: string, content: string): Promise<void> => invoke("code_write_file", { path, content }),
+  workspaceContext: (workingDir: string, currentFile?: string): Promise<CodeWorkspaceContext> => invoke("code_workspace_context", { workingDir, currentFile: currentFile ?? null }),
+  listSessions: (experimentId: string): Promise<{ sessions: CodeSession[] }> => invoke("code_list_sessions", { experimentId }),
+  getSession: (sessionId: string): Promise<CodeSession> => invoke("code_get_session", { sessionId }),
+  createSession: (experimentId: string, title?: string, workingDir?: string): Promise<CodeSession> => invoke("code_create_session", { experimentId, title: title ?? null, workingDir: workingDir ?? null }),
+  deleteSession: (sessionId: string): Promise<void> => invoke("code_delete_session", { sessionId }),
+  sendMessage: (sessionId: string, content: string, workingDir?: string, currentFile?: string, mode?: string, userMessageId?: string): Promise<void> => invoke("code_send_message", { sessionId, content, workingDir: workingDir ?? null, currentFile: currentFile ?? null, mode: mode ?? null, userMessageId: userMessageId ?? null }),
+  editMessage: (sessionId: string, messageId: string): Promise<void> => invoke("code_edit_message", { sessionId, messageId }),
+  cancelMessage: (requestId: string): Promise<void> => invoke("code_cancel", { requestId }),
+  resolvePermission: (permissionId: string, approved: boolean, message?: string): Promise<void> => invoke("code_resolve_permission", { permissionId, approved, message: message ?? null }),
+  updateSession: (sessionId: string, input: { title?: string; workingDir?: string }): Promise<void> => invoke("code_update_session", { sessionId, title: input.title ?? null, workingDir: input.workingDir ?? null }),
+  gitSnapshot: (workingDir: string): Promise<CodeGitSnapshot> => invoke("code_git_snapshot", { workingDir }),
+  gitStagePath: (workingDir: string, path: string): Promise<void> => invoke("code_git_stage_path", { workingDir, path }),
+  gitUnstagePath: (workingDir: string, path: string): Promise<void> => invoke("code_git_unstage_path", { workingDir, path }),
+  gitCommit: (workingDir: string, message: string): Promise<string> => invoke("code_git_commit", { workingDir, message }),
+  gitListBranches: (workingDir: string): Promise<string[]> => invoke("code_git_list_branches", { workingDir }),
+  gitCheckoutBranch: (workingDir: string, branch: string): Promise<void> => invoke("code_git_checkout_branch", { workingDir, branch }),
+  generateCommitMessage: (workingDir: string): Promise<string> => invoke("code_generate_commit_message", { workingDir }),
+  reviewChanges: (workingDir: string): Promise<CodeReviewReport> => invoke("code_review_changes", { workingDir }),
+};
+
 // ── Writing API ───────────────────────────────────────────────────
 
 export interface WritingCompileResult {
@@ -937,6 +1027,11 @@ export interface WritingImageAssetPayload {
   createdAt: string;
 }
 
+export interface WritingTexFilePayload {
+  path: string;
+  content: string;
+}
+
 export const writingApi = {
   polish: (request: { text: string; section?: string; direction?: string }) =>
     invoke<{ polished: string; revision_notes: string[]; warnings: string[] }>("writing_polish_text", { request }),
@@ -946,6 +1041,7 @@ export const writingApi = {
     projectName: string;
     mainTex: string;
     bibtex: string;
+    texFiles: WritingTexFilePayload[];
     notes: string;
     imageAssets: WritingImageAssetPayload[];
   }) =>
@@ -1024,6 +1120,7 @@ export const activeResearcherApi = {
 };
 
 export const apiClient = {
+  fieldDynamics: fieldDynamicsApi,
   memory: memoryApi,
   arxiv: arxivApi,
   paperSearch: paperSearchApi,

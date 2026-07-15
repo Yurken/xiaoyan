@@ -46,6 +46,7 @@ export default function UpdateNotification({
   installError,
   install,
   dismiss,
+  skipVersion,
 }: AutoUpdateState) {
   if (!updateInfo?.available) return null;
 
@@ -139,12 +140,12 @@ export default function UpdateNotification({
       {showProgress && <ProgressBar progress={downloadProgress} />}
 
       {/* Actions */}
-      <div className="flex items-center gap-2">
+      <div className="space-y-2">
         <button
           type="button"
           onClick={() => void install()}
           disabled={installing}
-          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-3 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-60"
+          className="flex w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-60"
           style={{
             background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
             boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
@@ -153,24 +154,35 @@ export default function UpdateNotification({
           {installing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           {installError && !installing ? "重试下载并安装" : label}
         </button>
-        <button
-          type="button"
-          onClick={() => void openLink(OFFICIAL_SITE_URL)}
-          className="flex items-center justify-center gap-1.5 whitespace-nowrap px-3 py-2.5 rounded-2xl text-sm font-medium text-ink-secondary transition-all duration-150 active:scale-95"
-          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
-        >
-          <Globe className="w-3.5 h-3.5" />
-          官网
-        </button>
-        <button
-          type="button"
-          onClick={dismiss}
-          disabled={installing}
-          className="whitespace-nowrap px-3 py-2.5 rounded-2xl text-sm font-medium text-ink-secondary transition-all duration-150 active:scale-95 disabled:opacity-40"
-          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
-        >
-          稍后
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void openLink(OFFICIAL_SITE_URL)}
+            className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-2.5 py-2.5 rounded-2xl text-xs font-medium text-ink-secondary transition-all duration-150 active:scale-95"
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            官网
+          </button>
+          <button
+            type="button"
+            onClick={skipVersion}
+            disabled={installing}
+            className="flex-1 whitespace-nowrap px-2.5 py-2.5 rounded-2xl text-xs font-medium text-ink-secondary transition-all duration-150 active:scale-95 disabled:opacity-40"
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
+          >
+            跳过此版本
+          </button>
+          <button
+            type="button"
+            onClick={dismiss}
+            disabled={installing}
+            className="flex-1 whitespace-nowrap px-2.5 py-2.5 rounded-2xl text-xs font-medium text-ink-secondary transition-all duration-150 active:scale-95 disabled:opacity-40"
+            style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
+          >
+            稍后
+          </button>
+        </div>
       </div>
     </div>
   );

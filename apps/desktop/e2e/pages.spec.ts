@@ -22,12 +22,22 @@ test.describe("工具页面", () => {
     await page.goto("/tools");
   });
 
-  test("应显示页面标题", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "实用工具" })).toBeVisible();
+  test("应显示工具页签导航", async ({ page }) => {
+    await expect(page.getByRole("button", { name: "论文检索" })).toBeVisible();
   });
 
   test("应显示所有工具标签", async ({ page }) => {
-    for (const label of ["论文检索", "刊会查询", "学术翻译", "MD 整理", "生成 PPT", "科研友链"]) {
+    for (const label of [
+      "论文检索",
+      "GitHub 项目",
+      "刊会查询",
+      "学术翻译",
+      "MD 整理",
+      "生成 PPT",
+      "专利检索",
+      "文档校验",
+      "科研友链",
+    ]) {
       await expect(page.getByRole("button", { name: label })).toBeVisible();
     }
   });
@@ -61,8 +71,8 @@ test.describe("工具页面", () => {
     await expect(page.getByText("科研友链")).toHaveCount(2);
   });
 
-  test("应显示页面描述", async ({ page }) => {
-    await expect(page.getByText(/小妍为你准备了一些科研实用工具/)).toBeVisible();
+  test("默认工具页签应处于激活状态", async ({ page }) => {
+    await expect(page.getByRole("button", { name: "论文检索" })).toHaveAttribute("aria-pressed", "true");
   });
 });
 
@@ -70,14 +80,17 @@ test.describe("实验记录页面", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(TAURI_MOCK_SCRIPT);
     await page.goto("/experiment");
+    await page.getByTestId("tab-records").click();
   });
 
-  test("应显示页面标题", async ({ page }) => {
-    await expect(page.getByText("实验记录")).toBeVisible();
+  test("应显示实验模块页签", async ({ page }) => {
+    await expect(page.getByTestId("tab-code")).toBeVisible();
+    await expect(page.getByTestId("tab-snapshots")).toBeVisible();
+    await expect(page.getByTestId("tab-records")).toBeVisible();
   });
 
-  test("应显示页面描述", async ({ page }) => {
-    await expect(page.getByText(/记录实验配置与结果/)).toBeVisible();
+  test("记录页签应处于激活状态", async ({ page }) => {
+    await expect(page.getByTestId("tab-records")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("应显示新建记录按钮", async ({ page }) => {
@@ -117,8 +130,8 @@ test.describe("论文库页面", () => {
     await page.goto("/papers");
   });
 
-  test("应显示页面标题", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "论文库" })).toBeVisible();
+  test("应显示论文库页签", async ({ page }) => {
+    await expect(page.getByRole("button", { name: "论文库" })).toBeVisible();
   });
 
   test("应显示导入按钮", async ({ page }) => {
@@ -144,7 +157,8 @@ test.describe("知识库页面", () => {
   });
 
   test("应显示知识库页面", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "知识库" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "知识图谱" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "知识笔记" })).toBeVisible();
   });
 });
 
@@ -155,7 +169,7 @@ test.describe("综述页面", () => {
   });
 
   test("应显示综述页面", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "文献综述" })).toBeVisible();
+    await expect(page.getByText("结构化文献综述生成")).toBeVisible();
   });
 });
 
@@ -166,7 +180,7 @@ test.describe("投稿管理页面", () => {
   });
 
   test("应显示投稿管理页面", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "投稿管理" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "DDL 日历" })).toBeVisible();
   });
 });
 
@@ -188,6 +202,7 @@ test.describe("规划页面", () => {
   });
 
   test("应显示规划页面", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "研究主题规划" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "研究兴趣" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "领域动态" })).toBeVisible();
   });
 });

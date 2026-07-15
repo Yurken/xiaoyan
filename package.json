@@ -1,14 +1,13 @@
 {
   "name": "research-copilot",
-  "version": "0.4.9",
+  "version": "0.5.0",
+  "license": "Apache-2.0",
   "private": true,
   "scripts": {
     "dev:web": "turbo run dev --filter=@research-copilot/web",
     "dev:desktop": "pnpm --dir apps/desktop run dev",
-    "dev:promo": "pnpm --dir apps/promo run studio",
     "build:web": "turbo run build --filter=@research-copilot/web",
     "build:desktop": "pnpm --dir apps/desktop run tauri build",
-    "render:promo": "pnpm --dir apps/promo run render",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",

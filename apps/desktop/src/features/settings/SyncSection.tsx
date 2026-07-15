@@ -90,12 +90,6 @@ export default function SyncSection() {
         <div className="flex-1">
           <h2 className="flex items-center gap-2 text-base font-semibold text-ink-primary">
             WebDAV 同步
-            <span
-              className="rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-              style={{ background: "rgba(255,159,10,0.15)", color: "#FF9F0A" }}
-            >
-              beta
-            </span>
           </h2>
           <p className="mt-0.5 text-xs text-ink-tertiary">
             填一次账号即可多设备自动同步：启动后、每 15 分钟及切回前台会检查；后台请求最多每 15 分钟一次。

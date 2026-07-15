@@ -10,6 +10,7 @@ export function useSubmissionVersions(
   onError?: (error: unknown) => void,
 ) {
   const [versionsBySubmission, setVersionsBySubmission] = useState<VersionsBySubmission>({});
+  const [renamingVersionId, setRenamingVersionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (submissions.length === 0) {
@@ -108,5 +109,27 @@ export function useSubmissionVersions(
     });
   };
 
-  return { versions, versionCounts, appendVersion, updateVersion, patchVersion };
+  const renameVersion = async (versionId: string, label: string): Promise<boolean> => {
+    const normalizedLabel = label.trim();
+    if (!normalizedLabel || renamingVersionId) return false;
+    setRenamingVersionId(versionId);
+    try {
+      await patchVersion(versionId, { label: normalizedLabel });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setRenamingVersionId(null);
+    }
+  };
+
+  return {
+    versions,
+    versionCounts,
+    renamingVersionId,
+    appendVersion,
+    updateVersion,
+    patchVersion,
+    renameVersion,
+  };
 }

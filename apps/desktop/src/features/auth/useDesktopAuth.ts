@@ -1,8 +1,6 @@
 import { useState, useCallback } from "react";
 import { getToken, setToken, clearToken, getApiBaseUrl } from "../../lib/apiBridge";
 
-type AuthMethod = "email" | "phone";
-
 async function authFetch(
   path: string,
   body: Record<string, string>,
@@ -59,17 +57,6 @@ export function useDesktopAuth() {
     }
   }, []);
 
-  // ── Phone auth (reserved for future SMS verification) ──
-  const sendPhoneCode = useCallback(async (_phone: string) => {
-    setError("手机验证码功能即将上线");
-    return false;
-  }, []);
-
-  const loginWithPhone = useCallback(async (_phone: string, _code: string) => {
-    setError("手机验证码登录即将上线");
-    return false;
-  }, []);
-
   const logout = useCallback(() => {
     clearToken();
   }, []);
@@ -79,10 +66,6 @@ export function useDesktopAuth() {
     error,
     loginWithEmail,
     registerWithEmail,
-    sendPhoneCode,
-    loginWithPhone,
     logout,
   };
 }
-
-export type { AuthMethod };

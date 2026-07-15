@@ -99,10 +99,6 @@ export default function AssistantSettingsSection(props: AssistantSettingsSection
           getSharedValue={props.getSharedValue}
           hasMixedValue={props.hasMixedValue}
           toggleAgent={props.toggleAgent}
-          availableModels={props.availableModels}
-          loadingModels={props.loadingModels}
-          modelsError={props.modelsError}
-          loadModels={props.loadModels}
         />
       ) : null}
     </div>

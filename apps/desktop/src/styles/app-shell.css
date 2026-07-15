@@ -30,7 +30,7 @@
   .app-shell--macos-overlay {
     --rc-shell-sidebar-top-gap: 0px;
     --rc-window-drag-height: 28px;
-    --rc-page-top-gap: 28px;
+    --rc-page-top-gap: 32px;
   }
 
   .app-sidebar__window-drag-region {
@@ -195,14 +195,14 @@
     background: transparent;
   }
 
-  .app-shell--macos-overlay .app-header,
-  .app-shell--macos-overlay .rc-settings-header,
-  .app-shell--macos-overlay .rc-copilot-session-sidebar-header,
-  .app-shell--macos-overlay .rc-copilot-chat-area,
-  .app-shell--macos-overlay .rc-copilot-overview-sidebar,
-  .app-shell--macos-overlay .rc-reader-header,
-  .app-shell--macos-overlay .rc-home-container {
-    padding-top: 32px !important;
+  .app-header,
+  .rc-settings-header,
+  .rc-copilot-session-sidebar-header,
+  .rc-copilot-chat-area,
+  .rc-copilot-overview-sidebar,
+  .rc-reader-header,
+  .rc-home-container {
+    padding-top: var(--rc-page-top-gap) !important;
   }
 
   .app-main::before {
@@ -230,7 +230,7 @@
     box-sizing: border-box;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: calc(var(--rc-page-top-gap, 16px) - 2px) var(--rc-page-inline-gap, 24px) var(--rc-page-bottom-gap, 24px);
+    padding: var(--rc-page-top-gap) var(--rc-page-inline-gap) var(--rc-page-bottom-gap);
   }
 
   @media (max-width: 1279px) {
@@ -295,7 +295,7 @@
 
     .app-shell--macos-overlay {
       --rc-window-drag-height: 24px;
-      --rc-page-top-gap: 24px;
+      --rc-page-top-gap: 28px;
     }
 
     .app-sidebar {

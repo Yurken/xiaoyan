@@ -292,7 +292,7 @@ export default function ConfigHistorySwitcher({
                 className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-ink-tertiary transition-colors duration-150 hover:bg-[var(--rc-chip-bg)]"
               >
                 <Settings2 className="h-3.5 w-3.5" />
-                更多管理（命名、删除、导入导出）
+                更多管理（重命名、删除、导入导出）
               </button>
             ) : null}
           </div>

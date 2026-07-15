@@ -4,6 +4,7 @@ import { LayoutDashboard, Monitor, Moon, Sun } from "lucide-react";
 import type { LayoutMode } from "../../lib/layoutMode";
 import type { ThemePreference } from "../../lib/themeMode";
 import { SectionIcon } from "./shared";
+import ModuleVisibilitySettingsPanel from "../module-visibility/ModuleVisibilitySettingsPanel";
 
 function OptionCard({
   selected,
@@ -172,6 +173,8 @@ export default function LayoutSettingsSection({
           ))}
         </div>
       </div>
+
+      <ModuleVisibilitySettingsPanel />
 
       <div
         className="rounded-2xl px-4 py-3 text-xs leading-5 text-ink-tertiary"

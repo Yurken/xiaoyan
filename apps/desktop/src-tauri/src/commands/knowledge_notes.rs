@@ -4,7 +4,7 @@ use crate::commands::memory::{
     record_knowledge_note_updated_event,
 };
 use crate::llm::LlmClient;
-use crate::rag::{combined_search, serialize_embedding};
+use crate::rag::serialize_embedding;
 use crate::state::AppState;
 use regex::Regex;
 use serde_json::json;
@@ -65,44 +65,41 @@ pub async fn knowledge_list_notes(
 ) -> Result<serde_json::Value, String> {
     if let Some(q) = search.filter(|value| !value.is_empty()) {
         let settings = state.settings.read().await.clone();
-        if let Ok(client) = LlmClient::embed_client_from_settings(&settings) {
-            if let Ok(embeddings) = client.embed(&[q.clone()]).await {
-                if let Some(embedding) = embeddings.into_iter().next() {
-                    let top_k: usize = settings
-                        .get("rag_top_k")
-                        .and_then(|value| value.parse().ok())
-                        .unwrap_or(10);
-                    let results = crate::rag::search_knowledge_notes(&state.db, &embedding, top_k)
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    let mut notes = Vec::new();
-                    for result in results {
-                        if let Ok(Some(row)) = sqlx::query(
-                            "SELECT id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at FROM knowledge_notes WHERE id = ?",
-                        )
-                        .bind(&result.id)
-                        .fetch_optional(&state.db)
-                        .await
-                        {
-                            notes.push(note_row_to_json(&row));
-                        }
-                    }
-                    return Ok(json!(notes));
-                }
+        let embedding = if let Ok(client) = LlmClient::embed_client_from_settings(&settings) {
+            client
+                .embed(&[q.clone()])
+                .await
+                .ok()
+                .and_then(|items| items.into_iter().next())
+        } else {
+            None
+        };
+        let top_k: usize = settings
+            .get("rag_top_k")
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(10);
+        let results = crate::services::wiki::retrieval::hybrid_search_notes(
+            &state.db,
+            &q,
+            embedding.as_deref(),
+            top_k,
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+        let mut notes = Vec::new();
+        for result in results {
+            if let Some(row) = sqlx::query(
+                "SELECT id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at FROM knowledge_notes WHERE id = ?",
+            )
+            .bind(&result.entity_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|error| error.to_string())?
+            {
+                notes.push(note_row_to_json(&row));
             }
         }
-
-        let like = format!("%{q}%");
-        let rows = sqlx::query(
-            "SELECT id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at
-             FROM knowledge_notes WHERE title LIKE ? OR content LIKE ? ORDER BY created_at DESC LIMIT 20",
-        )
-        .bind(&like)
-        .bind(&like)
-        .fetch_all(&state.db)
-        .await
-        .map_err(|e| e.to_string())?;
-        return Ok(json!(rows.iter().map(note_row_to_json).collect::<Vec<_>>()));
+        return Ok(json!(notes));
     }
 
     let rows = sqlx::query(
@@ -410,40 +407,6 @@ pub async fn knowledge_delete_note(state: State<'_, AppState>, id: String) -> Re
     }
 
     Ok(())
-}
-
-#[tauri::command]
-pub async fn knowledge_search(
-    state: State<'_, AppState>,
-    q: String,
-    top_k: Option<i64>,
-) -> Result<serde_json::Value, String> {
-    let top_k = top_k.unwrap_or(5) as usize;
-    let settings = state.settings.read().await.clone();
-    let client = match LlmClient::embed_client_from_settings(&settings) {
-        Ok(client) => client,
-        Err(_) => return Ok(json!([])),
-    };
-    let embeddings = match client.embed(&[q]).await {
-        Ok(value) => value,
-        Err(_) => return Ok(json!([])),
-    };
-    let embedding = match embeddings.into_iter().next() {
-        Some(value) => value,
-        None => return Ok(json!([])),
-    };
-    let results = combined_search(&state.db, &embedding, top_k)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(json!(results
-        .into_iter()
-        .map(|result| json!({
-            "id": result.id,
-            "content": result.content,
-            "source": result.source,
-            "score": result.score
-        }))
-        .collect::<Vec<_>>()))
 }
 
 // ── Markdown/Zip import helpers ──────────────────────────────────

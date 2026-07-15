@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { ArrowDown, ArrowUp, ChevronRight, Clipboard, Code2, FileText, ImagePlus, Replace, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, Clipboard, ImagePlus, Replace, Search, X } from "lucide-react";
 import type { MouseEvent, RefObject } from "react";
-import type { WritingAssistantActionId, WritingImageAsset } from "./shared";
+import type { WritingAssistantActionId, WritingEditorSource, WritingImageAsset, WritingTexFile } from "./shared";
 import WritingEditorContextMenu from "./WritingEditorContextMenu";
+import WritingSourceTabs from "./WritingSourceTabs";
+import { findWritingTexFile } from "./texFiles";
 
 interface WritingEditorPanelProps {
   editorRef: RefObject<HTMLTextAreaElement>;
   mainTex: string;
   bibtex: string;
+  texFiles: WritingTexFile[];
   imageAssets: WritingImageAsset[];
-  activeSource: "main" | "bib";
-  onActiveSourceChange: (source: "main" | "bib") => void;
-  onMainTexChange: (value: string) => void;
-  onBibtexChange: (value: string) => void;
+  activeSource: WritingEditorSource;
+  onActiveSourceChange: (source: WritingEditorSource) => void;
+  onSourceChange: (source: WritingEditorSource, value: string) => void;
+  onCreateTexFile: (path: string) => boolean;
+  onRenameTexFile: (path: string, nextPath: string) => boolean;
+  onDeleteTexFile: (path: string) => void;
   onInsertText: (before: string, after?: string) => void;
   onInsertImage: () => void;
   onAssistantAction: (actionId: WritingAssistantActionId) => void;
@@ -25,11 +30,14 @@ export default function WritingEditorPanel({
   editorRef,
   mainTex,
   bibtex,
+  texFiles,
   imageAssets,
   activeSource,
   onActiveSourceChange,
-  onMainTexChange,
-  onBibtexChange,
+  onSourceChange,
+  onCreateTexFile,
+  onRenameTexFile,
+  onDeleteTexFile,
   onInsertText,
   onInsertImage,
   onAssistantAction,
@@ -39,7 +47,11 @@ export default function WritingEditorPanel({
   const lineNumbersRef = useRef<HTMLPreElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const value = activeSource === "main" ? mainTex : bibtex;
+  const value = activeSource === "main"
+    ? mainTex
+    : activeSource === "bib"
+      ? bibtex
+      : findWritingTexFile(texFiles, activeSource)?.content ?? "";
   const lineNumbers = useMemo(() => {
     const count = Math.max(1, value.split("\n").length);
     return Array.from({ length: count }, (_, index) => index + 1).join("\n");
@@ -84,18 +96,16 @@ export default function WritingEditorPanel({
     const idx = matchIndex % matches.length;
     const pos = matches[idx];
     const newValue = value.slice(0, pos) + replaceTerm + value.slice(pos + searchTerm.length);
-    if (activeSource === "main") onMainTexChange(newValue);
-    else onBibtexChange(newValue);
+    onSourceChange(activeSource, newValue);
     setMatchIndex(idx);
-  }, [matches, matchIndex, searchTerm, replaceTerm, value, activeSource, onMainTexChange, onBibtexChange]);
+  }, [matches, matchIndex, searchTerm, replaceTerm, value, activeSource, onSourceChange]);
 
   const handleReplaceAll = useCallback(() => {
     if (matches.length === 0) return;
     const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
     const newValue = value.replaceAll(regex, replaceTerm);
-    if (activeSource === "main") onMainTexChange(newValue);
-    else onBibtexChange(newValue);
-  }, [matches, searchTerm, replaceTerm, value, activeSource, onMainTexChange, onBibtexChange]);
+    onSourceChange(activeSource, newValue);
+  }, [matches, searchTerm, replaceTerm, value, activeSource, onSourceChange]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -133,12 +143,11 @@ export default function WritingEditorPanel({
   }, [value]);
 
   const handleChange = useCallback((next: string) => {
-    if (activeSource === "main") onMainTexChange(next);
-    else onBibtexChange(next);
-  }, [activeSource, onMainTexChange, onBibtexChange]);
+    onSourceChange(activeSource, next);
+  }, [activeSource, onSourceChange]);
 
   const handleContextMenu = useCallback((event: MouseEvent<HTMLTextAreaElement>) => {
-    if (activeSource !== "main") return;
+    if (activeSource === "bib") return;
     event.preventDefault();
     event.currentTarget.focus();
     setContextMenu({ open: true, x: event.clientX, y: event.clientY });
@@ -167,28 +176,14 @@ export default function WritingEditorPanel({
             <ChevronRight className="h-4 w-4" />
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => onActiveSourceChange("main")}
-          className={clsx(
-            "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
-            activeSource === "main" ? "bg-apple-blue text-white shadow-sm" : "text-ink-tertiary hover:bg-white/5 hover:text-ink-secondary"
-          )}
-        >
-          <FileText className="h-3.5 w-3.5" />
-          main.tex
-        </button>
-        <button
-          type="button"
-          onClick={() => onActiveSourceChange("bib")}
-          className={clsx(
-            "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
-            activeSource === "bib" ? "bg-apple-blue text-white shadow-sm" : "text-ink-tertiary hover:bg-white/5 hover:text-ink-secondary"
-          )}
-        >
-          <Code2 className="h-3.5 w-3.5" />
-          references.bib
-        </button>
+        <WritingSourceTabs
+          activeSource={activeSource}
+          texFiles={texFiles}
+          onActiveSourceChange={onActiveSourceChange}
+          onCreateTexFile={onCreateTexFile}
+          onRenameTexFile={onRenameTexFile}
+          onDeleteTexFile={onDeleteTexFile}
+        />
         <div className="ml-auto flex items-center gap-3 px-2">
           <button
             type="button"
@@ -205,8 +200,7 @@ export default function WritingEditorPanel({
           <button
             type="button"
             onClick={() => {
-              const text = activeSource === "main" ? mainTex : bibtex;
-              void navigator.clipboard.writeText(text);
+              void navigator.clipboard.writeText(value);
             }}
             title="复制源码"
             className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-secondary"
@@ -331,10 +325,8 @@ export default function WritingEditorPanel({
         <textarea
           ref={(el) => {
             textareaRef.current = el;
-            if (activeSource === "main" && editorRef && "current" in editorRef) {
+            if (editorRef && "current" in editorRef) {
               (editorRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
-            } else if (editorRef && "current" in editorRef) {
-              (editorRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = null;
             }
           }}
           defaultValue={value}
@@ -346,7 +338,7 @@ export default function WritingEditorPanel({
             }
           }}
           onKeyDown={(event) => {
-            if (event.key !== "Tab" || activeSource !== "main") return;
+            if (event.key !== "Tab" || activeSource === "bib") return;
             event.preventDefault();
             onInsertText("  ");
           }}

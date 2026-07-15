@@ -1,6 +1,6 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::{Command, Output},
 };
 
@@ -21,6 +21,8 @@ pub struct WritingCompileRequest {
     pub project_name: String,
     pub main_tex: String,
     pub bibtex: String,
+    #[serde(default)]
+    pub tex_files: Vec<WritingTexFile>,
     pub notes: String,
     #[serde(default)]
     pub image_assets: Vec<WritingImageAsset>,
@@ -44,6 +46,13 @@ pub struct WritingImageAsset {
     pub project_path: String,
     pub stored_path: String,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WritingTexFile {
+    pub path: String,
+    pub content: String,
 }
 
 #[tauri::command]
@@ -271,6 +280,7 @@ fn write_project_files(
         },
     )
     .map_err(|e| format!("写入 references.bib 失败：{e}"))?;
+    write_tex_files(work_dir, &request.tex_files)?;
     fs::create_dir_all(work_dir.join("figures"))
         .map_err(|e| format!("创建 figures 目录失败：{e}"))?;
     copy_image_assets(app, work_dir, &request.image_assets)?;
@@ -289,6 +299,19 @@ fn write_project_files(
         "$pdf_mode = 1;\n$pdflatex = 'xelatex -interaction=nonstopmode %O %S';\n",
     )
     .map_err(|e| format!("写入 latexmkrc 失败：{e}"))?;
+    Ok(())
+}
+
+fn write_tex_files(work_dir: &Path, tex_files: &[WritingTexFile]) -> Result<(), String> {
+    for tex_file in tex_files {
+        let relative_path = safe_project_tex_path(&tex_file.path)?;
+        let destination = work_dir.join(relative_path);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("无法创建章节目录：{e}"))?;
+        }
+        fs::write(&destination, &tex_file.content)
+            .map_err(|e| format!("写入章节文件失败（{}）：{e}", tex_file.path))?;
+    }
     Ok(())
 }
 
@@ -505,6 +528,41 @@ fn safe_project_image_path(project_path: &str) -> Result<PathBuf, String> {
     Ok(PathBuf::from("figures").join(format!("{stem}.{ext}")))
 }
 
+fn safe_project_tex_path(project_path: &str) -> Result<PathBuf, String> {
+    let normalized = project_path.trim().replace('\\', "/");
+    if normalized.is_empty() || normalized.eq_ignore_ascii_case("main.tex") {
+        return Err("章节文件路径不合法。".to_string());
+    }
+
+    let path = Path::new(&normalized);
+    if path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err("章节文件路径必须是项目内的相对路径。".to_string());
+    }
+    if path
+        .components()
+        .any(|component| matches!(component, Component::CurDir))
+    {
+        return Err("章节文件路径不合法。".to_string());
+    }
+    let is_tex = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("tex"))
+        .unwrap_or(false);
+    if !is_tex || path.file_name().is_none() {
+        return Err("章节文件必须使用 .tex 扩展名。".to_string());
+    }
+
+    Ok(path.to_path_buf())
+}
+
 fn trim_log(log: String) -> String {
     const MAX_LOG_CHARS: usize = 60_000;
     if log.chars().count() <= MAX_LOG_CHARS {
@@ -519,4 +577,27 @@ fn trim_log(log: String) -> String {
         .rev()
         .collect();
     format!("日志过长，已保留最后 {MAX_LOG_CHARS} 个字符。\n\n{tail}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::safe_project_tex_path;
+
+    #[test]
+    fn accepts_relative_tex_file_paths() {
+        assert_eq!(
+            safe_project_tex_path("sections/introduction.tex")
+                .unwrap()
+                .to_string_lossy(),
+            "sections/introduction.tex"
+        );
+    }
+
+    #[test]
+    fn rejects_unsafe_or_root_tex_file_paths() {
+        assert!(safe_project_tex_path("../outside.tex").is_err());
+        assert!(safe_project_tex_path("/tmp/outside.tex").is_err());
+        assert!(safe_project_tex_path("main.tex").is_err());
+        assert!(safe_project_tex_path("sections/introduction.md").is_err());
+    }
 }

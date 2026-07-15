@@ -1,7 +1,7 @@
-use crate::llm::{LlmClient, LlmMessage};
+use crate::llm::{anthropic_auth_header, is_anthropic_compatible_base_url, LlmClient};
 use crate::repositories::settings_repository::{
     delete_settings_history, get_settings_history, insert_settings_history, list_settings_history,
-    load_all_settings, update_settings_history, upsert_settings,
+    load_all_settings, rename_settings_history, update_settings_history, upsert_settings,
 };
 use crate::state::{default_settings, AppState, SENSITIVE_KEYS};
 use aes_gcm::aead::{Aead, KeyInit};
@@ -111,6 +111,7 @@ pub(crate) const BACKUP_TABLES: &[&str] = &[
     "papers",
     "knowledge_notes",
     "knowledge_graph_claims",
+    "wiki_pages",
     "submissions",
     "experiment_records",
     "chat_messages",
@@ -130,6 +131,13 @@ pub(crate) const BACKUP_TABLES: &[&str] = &[
     "experiment_attachments",
     "knowledge_graph_evidence_links",
     "knowledge_paper_citations",
+    "wiki_page_revisions",
+    "wiki_page_sources",
+    "wiki_page_links",
+    "wiki_page_chunks",
+    "wiki_compile_sources",
+    "wiki_compile_runs",
+    "wiki_issues",
     "agent_artifacts",
     "memory_events",
     "memory_observations",
@@ -764,13 +772,11 @@ pub async fn test_settings(state: &AppState, data: &serde_json::Value) -> Result
     }
 
     let client = LlmClient::from_settings(&merged).map_err(|e| e.to_string())?;
-    // Minimal connectivity check: single-token chat to confirm the API is reachable.
-    let messages = vec![LlmMessage::user("hi")];
-    let reply = client
-        .chat_with_max_tokens(&messages, None, 0.0, 1)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(reply.trim().to_string())
+    // Minimal connectivity check: confirm the API is reachable and returns valid JSON.
+    // We do not require non-empty text, because some Anthropic-compatible endpoints
+    // (e.g. Kimi Coding) may return a 200 response with an empty content block.
+    client.test().await.map_err(|e| e.to_string())?;
+    Ok("连接正常".to_string())
 }
 
 /// 视觉模型连接测试：不同于普通文本测试，发送一张 1x1 测试图 + 文本，
@@ -892,9 +898,69 @@ pub async fn list_ollama_models(base_url: Option<String>) -> Result<Vec<String>,
         .collect())
 }
 
-/// 查询当前主服务商的可用模型列表（OpenAI / 兼容服务的 `/models`，Anthropic 的 `/v1/models`）。
-/// 复用 test_settings 的口径：以已保存的真实设置为底，再用前端传入的草稿覆盖（跳过掩码值），
-/// 从而拿到真实密钥而不需把掩码 key 在前后端来回传。
+/// 判断一个端点是否是 Ollama（原生 /api/tags，而不是 OpenAI 兼容的 /v1/models）。
+fn is_ollama_endpoint(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    lower.contains("localhost:11434")
+        || lower.contains("127.0.0.1:11434")
+        || lower.contains("ollama.com/api")
+        || lower.contains(":11434")
+}
+
+/// 构造模型列表 URL。
+/// Anthropic 兼容端点若 base_url 没有 /v1 后缀，需要补成 /v1/models；
+/// OpenAI 兼容端点默认 base_url 已含 /v1，直接拼 /models。
+fn build_models_url(base_url: &str, is_anthropic: bool) -> String {
+    let trimmed = base_url.trim_end_matches('/');
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.ends_with("/v1") {
+        format!("{}/models", trimmed)
+    } else if is_anthropic {
+        format!("{}/v1/models", trimmed)
+    } else {
+        format!("{}/models", trimmed)
+    }
+}
+
+/// 查询 Ollama 原生 /api/tags 端点。
+async fn list_models_ollama(base_url: &str, api_key: &str) -> Result<Vec<String>, String> {
+    let api_url = format!(
+        "{}/api/tags",
+        base_url.trim_end_matches('/').trim_end_matches("/v1")
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let mut request = client.get(&api_url);
+    if !api_key.is_empty() {
+        request = request.header("Authorization", format!("Bearer {api_key}"));
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("请求模型列表失败: {e}"))?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        let detail = body.chars().take(160).collect::<String>();
+        return Err(format!("接口返回 {status}：{detail}"));
+    }
+    let json: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+    let mut models: Vec<String> = json["models"]
+        .as_array()
+        .unwrap_or(&vec![])
+        .iter()
+        .filter_map(|item| item["name"].as_str().map(|name| name.to_string()))
+        .collect();
+    models.sort();
+    models.dedup();
+    Ok(models)
+}
+
+/// 查询当前主服务商或指定端点的可用模型列表。
+/// 如果 `data` 里包含 `list_models_base_url`，则优先用该独立地址 + `list_models_api_key`，
+/// 并按 URL 特征自动判断是 Anthropic 兼容、Ollama 原生还是 OpenAI 兼容；否则回退到主服务商配置。
 pub async fn list_models(
     state: &AppState,
     data: &serde_json::Value,
@@ -909,45 +975,78 @@ pub async fn list_models(
         }
     }
 
+    // 独立端点覆盖：供各角色/视觉/embedding 等有自己的 base_url/api_key 时使用。
+    let override_base_url = merged
+        .get("list_models_base_url")
+        .cloned()
+        .unwrap_or_default();
+    let override_api_key = merged
+        .get("list_models_api_key")
+        .cloned()
+        .unwrap_or_default();
+
     let provider = merged
         .get("llm_provider")
         .cloned()
         .unwrap_or_else(|| "openai".to_string());
 
-    let (models_url, api_key, is_anthropic) = match provider.as_str() {
-        "anthropic" => (
-            "https://api.anthropic.com/v1/models".to_string(),
-            merged.get("anthropic_api_key").cloned().unwrap_or_default(),
-            true,
-        ),
-        "openai_compatible" => {
-            let base = merged
-                .get("openai_compatible_base_url")
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| "请先填写接口地址".to_string())?;
-            (
-                format!("{}/models", base.trim_end_matches('/')),
-                merged
+    // 先拿到最终要查询的 base_url、api_key 和协议类型。
+    let (base_url, api_key, is_anthropic) = if !override_base_url.is_empty() {
+        let is_anthropic = is_anthropic_compatible_base_url(&override_base_url);
+        // 如果独立端点没填 key，回退到主服务商 key，避免发送空 Authorization。
+        let api_key = if override_api_key.is_empty() {
+            match provider.as_str() {
+                "anthropic" => merged.get("anthropic_api_key").cloned().unwrap_or_default(),
+                "openai_compatible" => merged
                     .get("openai_compatible_api_key")
                     .cloned()
                     .unwrap_or_default(),
-                false,
-            )
-        }
-        _ => {
-            let base = merged
-                .get("openai_base_url")
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty())
-                .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
-            (
-                format!("{}/models", base.trim_end_matches('/')),
-                merged.get("openai_api_key").cloned().unwrap_or_default(),
-                false,
-            )
+                _ => merged.get("openai_api_key").cloned().unwrap_or_default(),
+            }
+        } else {
+            override_api_key
+        };
+        (override_base_url, api_key, is_anthropic)
+    } else {
+        match provider.as_str() {
+            "anthropic" => (
+                "https://api.anthropic.com/v1".to_string(),
+                merged.get("anthropic_api_key").cloned().unwrap_or_default(),
+                true,
+            ),
+            "openai_compatible" => {
+                let base = merged
+                    .get("openai_compatible_base_url")
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| "请先填写接口地址".to_string())?;
+                let is_anthropic = is_anthropic_compatible_base_url(&base);
+                (
+                    base,
+                    merged
+                        .get("openai_compatible_api_key")
+                        .cloned()
+                        .unwrap_or_default(),
+                    is_anthropic,
+                )
+            }
+            _ => {
+                let base = merged
+                    .get("openai_base_url")
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+                (base, merged.get("openai_api_key").cloned().unwrap_or_default(), false)
+            }
         }
     };
+
+    // Ollama 原生端点走 /api/tags，而不是 /v1/models。
+    if is_ollama_endpoint(&base_url) {
+        return list_models_ollama(&base_url, &api_key).await;
+    }
+
+    let models_url = build_models_url(&base_url, is_anthropic);
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -955,10 +1054,20 @@ pub async fn list_models(
         .map_err(|e| e.to_string())?;
 
     let request = if is_anthropic {
-        client
-            .get(&models_url)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
+        // Kimi Code 的 /models 端点实际走 OpenAI 兼容认证（Authorization: Bearer），
+        // 而不是 Anthropic 的 x-api-key；/messages 仍保持 x-api-key。
+        let is_kimi_coding = models_url.to_ascii_lowercase().contains("api.kimi.com/coding");
+        if is_kimi_coding {
+            client
+                .get(&models_url)
+                .header("Authorization", format!("Bearer {api_key}"))
+        } else {
+            let (auth_header, auth_value) = anthropic_auth_header(&models_url, &api_key);
+            client
+                .get(&models_url)
+                .header(auth_header, auth_value)
+                .header("anthropic-version", "2023-06-01")
+        }
     } else {
         client
             .get(&models_url)
@@ -1071,6 +1180,36 @@ pub async fn update_settings_history_entry(
         normalized_name,
         row.created_at,
         &settings,
+    ))
+}
+
+pub async fn rename_settings_history_entry(
+    state: &AppState,
+    id: &str,
+    name: &str,
+) -> Result<SettingsHistoryEntry, String> {
+    let normalized_name = name.trim();
+    if normalized_name.is_empty() {
+        return Err("配置名称不能为空。".to_string());
+    }
+
+    let row = get_settings_history(&state.db, id)
+        .await?
+        .ok_or_else(|| ERR_SETTINGS_HISTORY_NOT_FOUND.to_string())?;
+    let defaults = default_settings();
+    let snapshot: HashMap<String, String> = serde_json::from_str(&row.settings_json)
+        .map_err(|e| format!("解析配置历史失败（{}）: {e}", row.name))?;
+    let merged = merge_with_defaults(&defaults, &snapshot);
+    let updated = rename_settings_history(&state.db, id, normalized_name).await?;
+    if !updated {
+        return Err(ERR_SETTINGS_HISTORY_NOT_FOUND.to_string());
+    }
+
+    Ok(settings_history_entry(
+        row.id,
+        normalized_name.to_string(),
+        row.created_at,
+        &merged,
     ))
 }
 

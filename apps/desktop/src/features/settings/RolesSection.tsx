@@ -3,6 +3,7 @@ import { Bot, Check, ChevronRight, Route, Sparkles, Wand2 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppSettings } from "@research-copilot/types";
 import { apiClient } from "../../lib/client";
+import type { EndpointModelConfig } from "./useEndpointModels";
 import {
   AGENT_GUIDES,
   AGENT_OPTIONS,
@@ -35,11 +36,6 @@ interface RolesSectionProps {
   toggleAgent: (agentName: string) => void;
   /** 批量设置多个 key（用于预设应用） */
   setManyFlat: (updates: Partial<Record<keyof AppSettings, string>>) => void;
-  /** 主服务商可用模型查询（供各角色「统一模型」下拉） */
-  availableModels: string[];
-  loadingModels: boolean;
-  modelsError: string;
-  loadModels: () => Promise<void>;
 }
 
 export default function RolesSection({
@@ -51,10 +47,6 @@ export default function RolesSection({
   hasMixedValue,
   toggleAgent,
   setManyFlat,
-  availableModels,
-  loadingModels,
-  modelsError,
-  loadModels,
 }: RolesSectionProps) {
   const [showAllCards, setShowAllCards] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -80,6 +72,42 @@ export default function RolesSection({
     form.llm_provider === "openai" ? "openai_api_key"
       : form.llm_provider === "anthropic" ? "anthropic_api_key"
         : "openai_compatible_api_key";
+
+  // 主服务商的端点配置，供未填独立地址的角色卡片回退使用。
+  const mainEndpointConfig = (): EndpointModelConfig | null => {
+    if (form.llm_provider === "anthropic") {
+      return {
+        baseUrl: "https://api.anthropic.com/v1",
+        apiKey: form.anthropic_api_key.trim(),
+      };
+    }
+    const isOpenAI = form.llm_provider === "openai";
+    const baseUrl = isOpenAI
+      ? form.openai_base_url.trim()
+      : form.openai_compatible_base_url.trim();
+    const apiKey = isOpenAI
+      ? form.openai_api_key.trim()
+      : form.openai_compatible_api_key.trim();
+    if (!baseUrl) return null;
+    return { baseUrl, apiKey };
+  };
+
+  const effectiveApiKey = (value: string) =>
+    value.trim() === MASK ? "" : value.trim();
+
+  const cardEndpointConfig = (
+    baseUrlValue: string,
+    apiKeyValue: string,
+    mixedBaseUrl: boolean,
+    mixedApiKey: boolean,
+  ): EndpointModelConfig | null => {
+    if (mixedBaseUrl || mixedApiKey) return null;
+    const main = mainEndpointConfig();
+    const baseUrl = baseUrlValue.trim() || main?.baseUrl || "";
+    const apiKey = effectiveApiKey(apiKeyValue) || main?.apiKey || "";
+    if (!baseUrl) return null;
+    return { baseUrl, apiKey };
+  };
 
   // 测试某个角色：把该角色的模型（及独立地址/密钥，若有）覆盖进表单后调用 settings.test，
   // 结果只反映到该角色卡片，不影响全局连接状态。
@@ -232,6 +260,8 @@ export default function RolesSection({
         <div className="space-y-1.5">
           {CHARACTERISTIC_MODEL_CARDS.map((item) => {
             const customized = isCardCustomized(form, item);
+            const mixedBaseUrl = hasMixedValue(item.baseUrlKeys);
+            const mixedApiKey = hasMixedValue(item.apiKeyKeys);
             // If not showing all, only show customized cards
             if (!showAllCards && !customized) {
               return null;
@@ -249,8 +279,8 @@ export default function RolesSection({
                 temperatureValue={getSharedValue(item.temperatureKeys)}
                 baseUrlValue={getSharedValue(item.baseUrlKeys)}
                 apiKeyValue={getSharedValue(item.apiKeyKeys)}
-                mixedBaseUrl={hasMixedValue(item.baseUrlKeys)}
-                mixedApiKey={hasMixedValue(item.apiKeyKeys)}
+                mixedBaseUrl={mixedBaseUrl}
+                mixedApiKey={mixedApiKey}
                 onModelChange={setMany(item.modelKeys)}
                 onTemperatureChange={setMany(item.temperatureKeys)}
                 onBaseUrlChange={setMany(item.baseUrlKeys)}
@@ -259,10 +289,14 @@ export default function RolesSection({
                 temperaturePlaceholder={item.temperaturePlaceholder}
                 secondaryFieldLabel={item.secondaryFieldLabel}
                 secondaryFieldHint={item.secondaryFieldHint}
-                availableModels={availableModels}
-                loadingModels={loadingModels}
-                modelsError={modelsError}
-                onQueryModels={() => void loadModels()}
+                endpointConfig={() =>
+                  cardEndpointConfig(
+                    getSharedValue(item.baseUrlKeys),
+                    getSharedValue(item.apiKeyKeys),
+                    mixedBaseUrl,
+                    mixedApiKey,
+                  )
+                }
                 statusSummary={getCardStatusSummary(form, item)}
                 isCustomized={customized}
                 roleTestState={roleTestStates[item.title] ?? "idle"}

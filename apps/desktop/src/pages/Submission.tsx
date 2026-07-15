@@ -10,6 +10,7 @@ import { useSubmissionChecklist } from "../features/submission/useSubmissionChec
 import { useSubmissionDiagnosisReports } from "../features/submission/useSubmissionDiagnosisReports";
 import { useSubmissionRevisionTasks } from "../features/submission/useSubmissionRevisionTasks";
 import { useSubmissionReview } from "../features/submission/useSubmissionReview";
+import { useAiSubmissionReview } from "../features/submission/useAiSubmissionReview";
 import SubmissionPageHeader from "../features/submission/SubmissionPageHeader";
 import SubmissionFeedbackBanner from "../features/submission/SubmissionFeedbackBanner";
 import VenueTrackerWorkspace from "../features/submission/VenueTrackerWorkspace";
@@ -25,12 +26,9 @@ import SaveVersionModal from "../features/submission/SaveVersionModal";
 import CoverLetterModal from "../features/submission/CoverLetterModal";
 import PolishPanel from "../features/submission/PolishPanel";
 import { SUBMISSION_TAB_KEYS, type SubmissionTab } from "../features/submission/SubmissionTabs";
-import { papersApi, submissionApi } from "../lib/client";
-import { countVerdicts, getDominantVerdict } from "../features/submission/shared";
+import { submissionApi } from "../lib/client";
 import type { PaperVersion } from "../features/submission/shared";
-import type {
-  SaveVersionFormState, MockReviewerResult, ReviewVerdict,
-} from "../features/submission/shared";
+import type { SaveVersionFormState } from "../features/submission/shared";
 
 export default function Submission() {
   const [feedback, setFeedback] = useState("");
@@ -43,7 +41,7 @@ export default function Submission() {
   const review = useSubmissionReview(showError);
 
   const [versionSubId, setVersionSubId] = useState<string>("");
-  const { versions, versionCounts, appendVersion, patchVersion } = useSubmissionVersions(
+  const { versions, versionCounts, renamingVersionId, appendVersion, patchVersion, renameVersion } = useSubmissionVersions(
     board.submissions, versionSubId, showError,
   );
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
@@ -61,6 +59,12 @@ export default function Submission() {
   const revision = useSubmissionRevisionTasks(checklist.checklistSubId, {
     onError: showError,
     onImported: (created: number) => setFeedback(created > 0 ? `已转入 ${created} 个修改任务` : "修改任务已是最新"),
+  });
+  const aiReview = useAiSubmissionReview({
+    onError: showError,
+    onDiagnosisSaved: (submissionId) => {
+      if (submissionId === checklist.checklistSubId) void diagnosis.refreshReports();
+    },
   });
 
   // Cover letter / polish state
@@ -88,63 +92,10 @@ export default function Submission() {
     }
   }, [board.submissions, versionSubId, review.subId, review]);
 
-  // AI review event listeners
-  const mockBufferRef = useRef<MockReviewerResult[]>([]);
-  const activeMockSubRef = useRef<string>("");
   // 当前 cover letter / 润色请求的 requestId，用于过滤对应流式事件：
   // requestId 每次请求唯一，既隔离多投稿并发，也防止同一投稿连续两次请求时旧 done 覆盖新流。
   const activeCoverReqRef = useRef<string>("");
   const activePolishReqRef = useRef<string>("");
-  // ai_review 监听只在 mount 注册一次（依赖 [showError]），故对会变化的值用 ref 读取，
-  // 避免 review/diagnosis 每次渲染换引用导致反复重订阅、在异步重注册窗口内丢失 reviewer 事件。
-  const checklistSubIdRef = useRef(checklist.checklistSubId);
-  checklistSubIdRef.current = checklist.checklistSubId;
-  const refreshReportsRef = useRef(diagnosis.refreshReports);
-  refreshReportsRef.current = diagnosis.refreshReports;
-  useEffect(() => {
-    let unlistenR: (() => void) | undefined, unlistenD: (() => void) | undefined, unlistenE: (() => void) | undefined;
-    let mounted = true;
-    safeListen<{ submissionId: string; index: number; reviewer: string; raw: string }>("submission:ai_review:reviewer",
-      ({ payload }) => {
-        if (payload.submissionId !== activeMockSubRef.current) return;
-        try {
-          const parsed = JSON.parse(payload.raw);
-          const result = { reviewer: payload.reviewer, content: [
-            parsed.summary ? `**Summary:** ${parsed.summary}` : "",
-            parsed.strengths?.length ? `**Strengths:**\n${(parsed.strengths as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
-            parsed.weaknesses?.length ? `**Weaknesses:**\n${(parsed.weaknesses as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
-            parsed.questions?.length ? `**Questions:**\n${(parsed.questions as string[]).map((s: string) => `- ${s}`).join("\n")}` : "",
-          ].filter(Boolean).join("\n\n"), tags: [], verdict: (
-            parsed.verdict === "accept" ? "accept" : parsed.verdict === "weak_accept" ? "minor_revision"
-            : parsed.verdict === "weak_reject" ? "major_revision" : "reject") as ReviewVerdict };
-          mockBufferRef.current = [...mockBufferRef.current, result];
-          review.setMockResult([...mockBufferRef.current]);
-        } catch {
-          mockBufferRef.current = [...mockBufferRef.current, {
-            reviewer: payload.reviewer, content: payload.raw, tags: [], verdict: "major_revision" as ReviewVerdict,
-          }];
-          review.setMockResult([...mockBufferRef.current]);
-        }
-      }).then(u => { if (!mounted) { u(); return; } unlistenR = u; });
-    safeListen<{ submissionId: string }>("submission:ai_review:done", ({ payload }) => {
-      if (payload.submissionId !== activeMockSubRef.current) return;
-      review.setMockLoading(false);
-      if (payload.submissionId === checklistSubIdRef.current) void refreshReportsRef.current();
-    }).then(u => { if (!mounted) { u(); return; } unlistenD = u; });
-    safeListen<{ submissionId: string; error: string }>("submission:ai_review:error", ({ payload }) => {
-      if (payload.submissionId !== activeMockSubRef.current) return;
-      review.setMockLoading(false); showError(payload.error);
-    }).then(u => { if (!mounted) { u(); return; } unlistenE = u; });
-    return () => {
-      mounted = false;
-      unlistenR?.(); unlistenD?.(); unlistenE?.();
-      unlistenR = undefined; unlistenD = undefined; unlistenE = undefined;
-    };
-    // review 的 setMockResult/setMockLoading 是稳定的 useState setter，只在 mount 捕获一次即可；
-    // 刻意不依赖 review/diagnosis，避免它们每次渲染换引用导致重订阅丢事件。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showError]);
-
   // Cover letter / polish event listeners
   // 均按 active*ReqRef（requestId）过滤：隔离多投稿并发，且防止同一投稿连续两次请求时旧 done 覆盖新流；
   // 同时监听 error 事件，防止流式中途失败导致面板永久停在 loading。
@@ -252,55 +203,11 @@ export default function Submission() {
     } catch (err) { showError(err); }
   };
 
-  // 模拟审稿：选 PDF 提取文本、触发生成、导入归档
-  const handlePickMockPdf = async () => {
-    review.setMockFileExtracting(true);
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selected = await open({ multiple: false, filters: [{ name: "PDF", extensions: ["pdf"] }] });
-      if (typeof selected !== "string") return;
-      const text = await papersApi.extractPdfText(selected, 8000);
-      review.setMockInput(prev => ({ ...prev, abstract: text.slice(0, 5000) }));
-      review.setMockFileName(selected.split("/").pop() ?? null);
-    } catch (err) { showError(err); }
-    finally { review.setMockFileExtracting(false); }
-  };
-  const handleGenerateMockReview = () => {
-    const submissionId = activeMockSubRef.current || review.subId;
-    if (!submissionId) return;
-    activeMockSubRef.current = submissionId;
-    mockBufferRef.current = [];
-    review.setMockResult(null);
-    review.setMockLoading(true);
-    submissionApi.aiReview({
-      submissionId,
-      content: review.mockInput.abstract,
-      reviewerCount: review.mockInput.reviewerCount,
-      strictness: review.mockInput.strictness,
-    }).catch((err) => { review.setMockLoading(false); showError(err); });
-  };
-  const handleImportMockReview = async () => {
-    const submissionId = activeMockSubRef.current || review.subId;
-    const results = review.mockResult ?? [];
-    if (!submissionId || results.length === 0) return;
-    try {
-      // 该轮裁决取各 reviewer 的主导意见，避免落到后端默认值、与生成时展示的主导裁决不一致。
-      await submissionApi.upsertRound({
-        submissionId,
-        round: review.round,
-        verdict: getDominantVerdict(countVerdicts(results)),
-      });
-      for (const result of results) {
-        await submissionApi.createComment({
-          submissionId, round: review.round,
-          reviewer: result.reviewer, content: result.content, tags: result.tags,
-        });
-      }
-      review.setShowMockModal(false);
-      review.setMockResult(null);
-      if (submissionId === review.subId) review.reloadReview();
-      setFeedback(`已导入 ${results.length} 条模拟审稿意见`);
-    } catch (err) { showError(err); }
+  const handleImportAiReview = async () => {
+    const imported = await aiReview.importResults(review.round);
+    if (!imported) return;
+    if (imported.submissionId === review.subId) void review.reloadReview();
+    setFeedback(`已归档 ${imported.count} 条多视角审稿意见`);
   };
 
   // Cover letter：打开弹窗即触发流式生成（监听器写入 coverLetterText）
@@ -442,6 +349,7 @@ export default function Submission() {
           versionCounts={versionCounts}
           versionSubId={versionSubId}
           compareIds={compareIds}
+          renamingVersionId={renamingVersionId}
           onSelectSubmission={setVersionSubId}
           onSetCompareIds={setCompareIds}
           onOpenSaveModal={() => {
@@ -449,16 +357,12 @@ export default function Submission() {
             setSaveForm(prev => ({ ...prev, content: latest?.content ?? "" }));
             setShowSaveModal(true);
           }}
+          onRenameVersion={renameVersion}
           onUploadVersionFile={handleUploadVersionFile}
           onDownloadVersionFile={handleDownloadVersionFile}
           onPolishVersion={handlePolishVersion}
           onOpenMockReview={(version) => {
-            activeMockSubRef.current = version.submissionId;
-            mockBufferRef.current = [];
-            review.setMockResult(null);
-            review.setMockFileName(null);
-            review.setMockInput(prev => ({ ...prev, abstract: version.content }));
-            review.setShowMockModal(true);
+            aiReview.openForSubmission(version.submissionId, version.content);
           }}
         />}
       </div>
@@ -499,18 +403,18 @@ export default function Submission() {
         onClose={() => review.setShowAddModal(false)}
       />
       <MockReviewModal
-        open={review.showMockModal}
-        mockReviewInput={review.mockInput}
-        mockReviewResult={review.mockResult}
-        mockReviewLoading={review.mockLoading}
-        mockFileExtracting={review.mockFileExtracting}
-        mockFileName={review.mockFileName}
-        onSetInput={review.setMockInput}
-        onPickPdf={handlePickMockPdf}
-        onReset={() => { mockBufferRef.current = []; review.setMockResult(null); }}
-        onImport={handleImportMockReview}
-        onGenerate={handleGenerateMockReview}
-        onClose={() => { review.setShowMockModal(false); review.setMockResult(null); }}
+        open={aiReview.showModal}
+        mockReviewInput={aiReview.input}
+        mockReviewResult={aiReview.results}
+        mockReviewLoading={aiReview.loading}
+        mockFileExtracting={aiReview.fileExtracting}
+        mockFileName={aiReview.fileName}
+        onSetInput={aiReview.setInput}
+        onPickPdf={aiReview.pickPdf}
+        onReset={aiReview.reset}
+        onImport={handleImportAiReview}
+        onGenerate={aiReview.generate}
+        onClose={aiReview.close}
       />
       <SaveVersionModal
         open={showSaveModal}

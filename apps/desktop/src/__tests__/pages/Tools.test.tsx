@@ -69,6 +69,15 @@ vi.mock("../../features/tools/useFriendLinks", () => ({
   }),
 }));
 
+vi.mock("../../features/tools/useGithubProjectSearch", () => ({
+  useGithubProjectSearch: () => ({
+    query: "", result: null, loading: false, error: "", searched: false,
+    history: [], historyLoading: false,
+    setQuery: vi.fn(), submit: vi.fn(), applyHistory: vi.fn(),
+    removeHistory: vi.fn(), refreshHistory: vi.fn(),
+  }),
+}));
+
 vi.mock("../../features/tools/useWebSupplement", () => ({
   // Tools.tsx 解构 outcome/loading/error/searched/run（非 panelProps 形态）。
   useWebSupplement: () => ({
@@ -108,6 +117,12 @@ vi.mock("../../features/tools/FriendLinksPanel", () => ({
 vi.mock("../../features/tools/WebSupplementPanel", () => ({
   WebSupplementPanel: () => <div data-testid="web-supplement-panel">网页补充</div>,
 }));
+vi.mock("../../features/patent-tool/PatentWorkspace", () => ({
+  default: () => <div data-testid="patent-workspace">专利工具</div>,
+}));
+vi.mock("../../features/document-checker/DocumentCheckerWorkspace", () => ({
+  default: () => <div data-testid="document-checker-workspace">文档校验工具</div>,
+}));
 
 // Mock CapsuleTabs from @research-copilot/ui
 vi.mock("@research-copilot/ui", async (importOriginal) => {
@@ -137,9 +152,9 @@ describe("Tools 页面", () => {
     localStorage.clear();
   });
 
-  it("应渲染页面标题", () => {
+  it("应渲染紧凑工具页签导航", () => {
     render(<Tools />);
-    expect(screen.getByText("实用工具")).toBeInTheDocument();
+    expect(screen.getByTestId("capsule-tabs")).toBeInTheDocument();
   });
 
   it("应显示所有工具标签", () => {
@@ -149,6 +164,8 @@ describe("Tools 页面", () => {
     expect(screen.getByText("学术翻译")).toBeInTheDocument();
     expect(screen.getByText("MD 整理")).toBeInTheDocument();
     expect(screen.getByText("生成 PPT")).toBeInTheDocument();
+    expect(screen.getByText("专利检索")).toBeInTheDocument();
+    expect(screen.getByText("文档校验")).toBeInTheDocument();
     expect(screen.getByText("科研友链")).toBeInTheDocument();
   });
 
@@ -188,8 +205,15 @@ describe("Tools 页面", () => {
     expect(screen.getByTestId("friend-links-panel")).toBeInTheDocument();
   });
 
-  it("应显示页面描述", () => {
+  it("点击专利检索应切换到专利工具", () => {
     render(<Tools />);
-    expect(screen.getByText(/小妍为你准备了一些科研实用工具/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("专利检索"));
+    expect(screen.getByTestId("patent-workspace")).toBeInTheDocument();
+  });
+
+  it("点击文档校验应切换到校验工具", () => {
+    render(<Tools />);
+    fireEvent.click(screen.getByText("文档校验"));
+    expect(screen.getByTestId("document-checker-workspace")).toBeInTheDocument();
   });
 });

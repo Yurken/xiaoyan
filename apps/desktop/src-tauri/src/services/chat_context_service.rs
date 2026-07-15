@@ -1,5 +1,5 @@
 use crate::{
-    commands::memory, graph_rag::collect_graph_rag_sources, llm::LlmClient, rag::combined_search,
+    commands::memory, graph_rag::collect_graph_rag_sources, llm::LlmClient,
     services::research_context_service::build_research_context_summary,
 };
 use serde_json::{json, Value};
@@ -54,18 +54,22 @@ pub async fn collect_chat_sources(
 ) -> Vec<Value> {
     // 复用上游已算好的 query 向量；缺省时再自行 embed，避免一轮对话重复向量化。
     let embedding = match query_embedding {
-        Some(value) => value.to_vec(),
-        None => match embed_query(settings, message).await {
-            Some(value) => value,
-            None => return Vec::new(),
-        },
+        Some(value) => Some(value.to_vec()),
+        None => embed_query(settings, message).await,
     };
 
     let top_k = settings
         .get("rag_top_k")
         .and_then(|value| value.parse().ok())
         .unwrap_or(5);
-    let results = match combined_search(db, &embedding, top_k).await {
+    let results = match crate::services::wiki::retrieval::hybrid_search(
+        db,
+        message,
+        embedding.as_deref(),
+        top_k,
+    )
+    .await
+    {
         Ok(value) => value,
         Err(_) => return Vec::new(),
     };
@@ -75,8 +79,10 @@ pub async fn collect_chat_sources(
         .map(|item| json!({ "content": item.content, "source": item.source, "url": item.url }))
         .collect::<Vec<_>>();
 
-    if let Ok(graph_sources) = collect_graph_rag_sources(db, &embedding, top_k).await {
-        merged.extend(graph_sources);
+    if let Some(embedding) = embedding.as_deref() {
+        if let Ok(graph_sources) = collect_graph_rag_sources(db, embedding, top_k).await {
+            merged.extend(graph_sources);
+        }
     }
 
     merged

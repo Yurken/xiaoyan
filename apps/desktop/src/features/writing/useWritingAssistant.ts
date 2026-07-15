@@ -7,12 +7,14 @@ import {
   type LatexStats,
   type WritingAssistantActionId,
   type WritingAssistantMessage,
+  type WritingTexFile,
 } from "./shared";
 
 interface UseWritingAssistantOptions {
   projectName: string;
   mainTex: string;
   bibtex: string;
+  texFiles: WritingTexFile[];
   notes: string;
   outline: LatexOutlineEntry[];
   diagnostics: LatexDiagnostic[];
@@ -24,6 +26,7 @@ export function useWritingAssistant({
   projectName,
   mainTex,
   bibtex,
+  texFiles,
   notes,
   outline,
   diagnostics,
@@ -110,6 +113,7 @@ export function useWritingAssistant({
         projectName,
         mainTex,
         bibtex,
+        texFiles,
         notes,
         selectedText,
         outline,
@@ -180,6 +184,7 @@ export function useWritingAssistant({
     sending,
     sessionId,
     stats,
+    texFiles,
   ]);
 
   return {

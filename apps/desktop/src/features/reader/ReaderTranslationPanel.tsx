@@ -4,7 +4,8 @@ import {
   type InterpretationState,
   type TranslationState,
 } from "./useReaderTranslation";
-import InterpretationContent, { splitReasoning } from "./InterpretationContent";
+import InterpretationContent from "./InterpretationContent";
+import { splitReasoning } from "./readerReasoning";
 
 interface ReaderTranslationPanelProps {
   current: TranslationState | null;
@@ -168,7 +169,7 @@ export default function ReaderTranslationPanel({
                   <div className="ml-auto flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={onInterpret}
+                      onClick={() => void onInterpret()}
                       disabled={!canInterpret}
                       className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-violet-500 transition-colors hover:text-violet-600 disabled:opacity-40"
                       title="让小妍解读这段内容"
@@ -189,7 +190,12 @@ export default function ReaderTranslationPanel({
                 </div>
 
                 {current.status === "loading" ? (
-                  <p className="text-xs text-ink-tertiary">小妍翻译中…</p>
+                  current.result ? (
+                    <div>
+                      <p className="whitespace-pre-wrap text-ink-primary" style={{ fontSize, lineHeight: 1.7 }}>{current.result}</p>
+                      <p className="mt-1 text-[11px] text-ink-tertiary">小妍翻译中…</p>
+                    </div>
+                  ) : <p className="text-xs text-ink-tertiary">小妍翻译中…</p>
                 ) : current.status === "error" ? (
                   <p className="text-xs text-apple-red">{current.error}</p>
                 ) : (

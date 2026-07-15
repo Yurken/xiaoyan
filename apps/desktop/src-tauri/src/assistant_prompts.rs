@@ -82,13 +82,14 @@ pub fn specialist_system(role: &str, responsibility: &str, extra_rules: Option<&
 pub fn ai_review_prompt(
     text: &str,
     reviewer: &str,
+    focus: &str,
     strictness_desc: &str,
     index: u8,
     total: u8,
 ) -> String {
     format!(
-        "你是第 {index}/{total} 位审稿人（{reviewer}），审稿风格：{strictness_desc}。\n\
-请对以下论文全文（或摘要）进行投稿前诊断式学术审稿，重点覆盖录用风险、创新性、方法可靠性、实验充分性、相关工作覆盖、写作清晰度和目标刊会适配度。\n\
+        "你是第 {index}/{total} 位审稿人（{reviewer}），职责重点：{focus}，审稿风格：{strictness_desc}。\n\
+请对以下论文全文（或摘要）进行投稿前诊断式学术审稿。优先从你的职责重点发现问题，同时指出会影响录用的跨维度风险。\n\
 审稿要求：\n\
 - strengths 每一条必须指向论文中的具体内容，不要泛泛而谈「有创新性」「实验充分」。\n\
 - weaknesses 每一条必须说出问题在哪、影响多严重，并给出一个可执行的修改方向。\n\

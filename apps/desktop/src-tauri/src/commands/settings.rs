@@ -99,6 +99,15 @@ pub async fn settings_history_update(
 }
 
 #[tauri::command]
+pub async fn settings_history_rename(
+    state: State<'_, AppState>,
+    id: String,
+    name: String,
+) -> Result<settings_service::SettingsHistoryEntry, String> {
+    settings_service::rename_settings_history_entry(state.inner(), &id, &name).await
+}
+
+#[tauri::command]
 pub async fn settings_history_apply(
     state: State<'_, AppState>,
     id: String,

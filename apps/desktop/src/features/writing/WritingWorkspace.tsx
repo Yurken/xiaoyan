@@ -8,6 +8,7 @@ import {
   FileText,
   FolderOpen,
   LayoutPanelLeft,
+  PenLine,
   Plus,
   Upload,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import {
   type WritingViewMode,
 } from "./shared";
 import { useWritingWorkspace } from "./useWritingWorkspace";
+import "./writing-sidebar.css";
 
 const VIEW_OPTIONS = [
   { value: "split", label: "分栏", icon: <LayoutPanelLeft className="h-3.5 w-3.5" /> },
@@ -62,12 +64,13 @@ export default function WritingWorkspace({
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+    <div className="writing-workspace-frame">
+      <div className="writing-workspace flex min-h-0 flex-1 flex-col">
       <header className="shrink-0 border-b px-4 py-3 app-header" style={{ borderColor: "var(--rc-border)", background: "var(--rc-header-bg)" }}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-apple-blue/10 text-apple-blue">
-              <FileText className="h-5 w-5" />
+              <PenLine className="h-5 w-5" />
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-lg font-bold tracking-tight text-ink-primary">论文撰写</h1>
@@ -119,6 +122,10 @@ export default function WritingWorkspace({
               <Button type="button" size="sm" variant="secondary" onClick={() => void workspace.importTexFile()} title="导入 .tex">
                 <Upload className="h-3.5 w-3.5" />
                 <span className="hidden lg:inline">导入</span>
+              </Button>
+              <Button type="button" size="sm" variant="secondary" onClick={() => void workspace.importTexProject()} title="导入包含章节文件的 LaTeX 项目目录">
+                <FolderOpen className="h-3.5 w-3.5" />
+                <span className="hidden xl:inline">导入项目</span>
               </Button>
 
               <div className="flex items-center gap-1 rounded-xl bg-apple-blue/5 p-1">
@@ -206,11 +213,14 @@ export default function WritingWorkspace({
             editorRef={workspace.editorRef}
             mainTex={workspace.mainTex}
             bibtex={workspace.bibtex}
+            texFiles={workspace.texFiles}
             imageAssets={workspace.imageAssets}
             activeSource={workspace.activeSource}
             onActiveSourceChange={workspace.setActiveSource}
-            onMainTexChange={workspace.setMainTex}
-            onBibtexChange={workspace.setBibtex}
+            onSourceChange={workspace.updateSourceContent}
+            onCreateTexFile={workspace.createTexFile}
+            onRenameTexFile={workspace.renameTexFile}
+            onDeleteTexFile={workspace.deleteTexFile}
             onInsertText={workspace.insertText}
             onInsertImage={workspace.insertImage}
             onAssistantAction={handleAssistantAction}
@@ -281,6 +291,7 @@ export default function WritingWorkspace({
         projectName={workspace.projectName}
         mainTex={workspace.mainTex}
         bibtex={workspace.bibtex}
+        texFiles={workspace.texFiles}
         notes={workspace.notes}
         outline={workspace.outline}
         diagnostics={workspace.diagnostics}
@@ -289,6 +300,7 @@ export default function WritingWorkspace({
         requestedAction={assistantRequest}
         onClose={() => setAssistantOpen(false)}
       />
+      </div>
     </div>
   );
 }

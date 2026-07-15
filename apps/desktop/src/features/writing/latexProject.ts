@@ -5,6 +5,7 @@ import {
   type WritingImageAsset,
   type WritingProjectSnapshot,
 } from "./shared";
+import { normalizeWritingTexFiles } from "./texFiles";
 
 export function sanitizeLatexProjectName(value: string): string {
   const sanitized = value
@@ -22,9 +23,11 @@ export function buildLatexProjectFiles(project: WritingProjectSnapshot, target: 
   const bibtex = project.bibtex.trimEnd();
   const notes = project.notes.trim();
   const hasImages = project.imageAssets.length > 0;
+  const texFiles = normalizeWritingTexFiles(project.texFiles);
 
   return [
     { path: "main.tex", content: `${mainTex}\n` },
+    ...texFiles.map((file) => ({ path: file.path, content: `${file.content.trimEnd()}\n` })),
     { path: "references.bib", content: bibtex ? `${bibtex}\n` : "% Add BibTeX entries here.\n" },
     { path: "latexmkrc", content: "$pdf_mode = 1;\n$pdflatex = 'xelatex -interaction=nonstopmode %O %S';\n" },
     ...(hasImages ? [] : [{ path: "figures/.gitkeep", content: "" }]),
@@ -77,6 +80,7 @@ ${targetLine}
 ## Files
 
 - \`main.tex\`: paper source
+- \`*.tex\`: included chapter sources (when present)
 - \`references.bib\`: BibTeX database
 - \`latexmkrc\`: XeLaTeX build profile
 - \`figures/\`: place images here

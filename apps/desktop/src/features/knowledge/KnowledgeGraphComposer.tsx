@@ -169,7 +169,7 @@ export default function KnowledgeGraphComposer({
         </CardHeader>
         <div className="space-y-3">
           {activeInterest ? (
-            <p className="rounded-2xl bg-black/5 px-3 py-2 text-xs text-ink-tertiary">
+            <p className="knowledge-graph-context rounded-2xl px-3 py-2 text-xs text-ink-tertiary">
               当前会默认写入方向：{interestDisplayName(activeInterest)}
             </p>
           ) : null}

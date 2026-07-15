@@ -140,6 +140,9 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
+!.env.*.example
 .envrc
 .venv
 env/
@@ -229,6 +232,13 @@ slide-outline.md
 outputs/*.html
 outputs/*.md
 tmp/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+!apps/mobile/android/app/debug.keystore
 agent-collaboration-flowcharts.md
 multi-agent-system-overview.png
 

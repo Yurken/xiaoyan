@@ -13,6 +13,7 @@ mod agent_workspace;
 mod assistant_prompts;
 mod ccf;
 mod citation_graph;
+mod code;
 mod commands;
 mod db;
 mod graph_rag;
@@ -57,14 +58,28 @@ use commands::{
         knowledge_graph_citation_centrality, knowledge_graph_citation_shortest_path,
         knowledge_graph_citation_subgraph,
     },
+    code::{
+        code_cancel, code_create_session, code_delete_session, code_edit_message,
+        code_generate_commit_message, code_get_session, code_git_checkout_branch,
+        code_git_commit, code_git_list_branches, code_git_snapshot, code_git_stage_path,
+        code_git_unstage_path, code_list_dir, code_list_sessions, code_read_file,
+        code_resolve_permission, code_review_changes, code_send_message, code_update_session,
+        code_workspace_context, code_write_file,
+    },
     data_backup::{data_backup_export, data_backup_import},
     evidence::evidence_get_links,
     experiment::{
-        experiment_add_attachment, experiment_create, experiment_delete,
-        experiment_delete_attachment, experiment_get, experiment_list, experiment_list_attachments,
+        experiment_add_attachment, experiment_create, experiment_create_snapshot, experiment_delete,
+        experiment_delete_attachment, experiment_delete_snapshot, experiment_get,
+        experiment_get_snapshot, experiment_list, experiment_list_attachments,
+        experiment_list_snapshots, experiment_rename_snapshot, experiment_restore_snapshot,
         experiment_update, experiment_update_attachment_label,
     },
     export::export_to_obsidian,
+    field_dynamics::{
+        field_dynamics_history, field_dynamics_import_paper, field_dynamics_list, field_dynamics_mark_read,
+        field_dynamics_scan,
+    },
     github_project::{
         github_project_delete_search_history, github_project_get_search_history,
         github_project_save_search_history, github_project_search,
@@ -83,8 +98,7 @@ use commands::{
     },
     knowledge_notes::{
         knowledge_create_note, knowledge_delete_note, knowledge_import_zip, knowledge_list_notes,
-        knowledge_list_notes_by_source, knowledge_move_note, knowledge_search,
-        knowledge_update_note,
+        knowledge_list_notes_by_source, knowledge_move_note, knowledge_update_note,
     },
     memory::{
         memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list,
@@ -98,7 +112,7 @@ use commands::{
     },
     misc::{
         markdown_format_chunk, planner_generate, survey_delete, survey_generate, survey_get,
-        survey_list, survey_search, translate_text,
+        survey_list, survey_search,
     },
     paper_corpus::{
         paper_corpus_create, paper_corpus_delete, paper_corpus_list, paper_corpus_update,
@@ -115,9 +129,10 @@ use commands::{
     research_context::{research_context_get_recent_themes, research_context_get_theme_context},
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
-        settings_history_list, settings_history_save, settings_history_update, settings_import,
-        settings_list_models, settings_list_ollama_models, settings_test, settings_test_tavily,
-        settings_test_vision, settings_update,
+        settings_history_list, settings_history_rename, settings_history_save,
+        settings_history_update, settings_import, settings_list_models,
+        settings_list_ollama_models, settings_test, settings_test_tavily, settings_test_vision,
+        settings_update,
     },
     skills::{skills_create, skills_delete, skills_list, skills_reset_builtins, skills_update},
     source::source_lookup,
@@ -137,6 +152,7 @@ use commands::{
     },
     sync::{sync_configure, sync_disable, sync_get_config, sync_now, sync_status},
     token_usage::token_usage_stats,
+    translation::{translate_cancel, translate_stream, translate_text},
     update::{update_check, update_install, PendingUpdate},
     webdav_sync::{
         webdav_delete_backup, webdav_download_backup, webdav_list_backups, webdav_test_connection,
@@ -345,6 +361,12 @@ pub fn run() {
                 let app_state = AppState::new(pool.clone(), settings);
                 handle.manage(app_state);
 
+                // 小妍内部 Wiki：论文/笔记变更由持久化队列去抖后自动增量编译。
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    services::wiki::auto_compile::start_auto_compile_worker(state);
+                }
+
                 // Auto-sync CCF DDL from bundled data on first launch
                 {
                     let state = handle.state::<AppState>().inner().clone();
@@ -362,6 +384,16 @@ pub fn run() {
                         // Delay to avoid blocking startup
                         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                         commands::active_researcher::auto_researcher_scan_on_startup(&state, &app_handle).await;
+                    });
+                }
+
+                // 领域动态在活跃研究者扫描后执行，避免启动阶段并发检索过多。
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    let app_handle = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+                        commands::field_dynamics::auto_field_dynamics_scan_on_startup(&state, &app_handle).await;
                     });
                 }
 
@@ -460,6 +492,7 @@ pub fn run() {
             settings_history_list,
             settings_history_save,
             settings_history_update,
+            settings_history_rename,
             settings_history_apply,
             settings_history_delete,
             token_usage_stats,
@@ -525,7 +558,6 @@ pub fn run() {
             knowledge_update_note,
             knowledge_move_note,
             knowledge_delete_note,
-            knowledge_search,
             knowledge_import_zip,
             knowledge_graph_snapshot,
             knowledge_graph_create_claim,
@@ -610,6 +642,12 @@ pub fn run() {
             experiment_list_attachments,
             experiment_delete_attachment,
             experiment_update_attachment_label,
+            experiment_create_snapshot,
+            experiment_list_snapshots,
+            experiment_get_snapshot,
+            experiment_rename_snapshot,
+            experiment_delete_snapshot,
+            experiment_restore_snapshot,
             // Export
             export_to_obsidian,
             // Knowledge extras
@@ -626,7 +664,30 @@ pub fn run() {
             survey_delete,
             survey_search,
             translate_text,
+            translate_stream,
+            translate_cancel,
             markdown_format_chunk,
+            code_create_session,
+            code_delete_session,
+            code_edit_message,
+            code_get_session,
+            code_generate_commit_message,
+            code_git_checkout_branch,
+            code_git_commit,
+            code_git_list_branches,
+            code_git_snapshot,
+            code_git_stage_path,
+            code_git_unstage_path,
+            code_list_dir,
+            code_list_sessions,
+            code_read_file,
+            code_review_changes,
+            code_resolve_permission,
+            code_send_message,
+            code_cancel,
+            code_update_session,
+            code_write_file,
+            code_workspace_context,
             github_project_search,
             github_project_save_search_history,
             github_project_get_search_history,
@@ -672,6 +733,11 @@ pub fn run() {
             active_researcher_findings,
             active_researcher_import_finding,
             active_researcher_mark_read,
+            field_dynamics_scan,
+            field_dynamics_list,
+            field_dynamics_history,
+            field_dynamics_import_paper,
+            field_dynamics_mark_read,
             // Cross-paper Analysis
             papers_cross_analysis,
             // Research Context

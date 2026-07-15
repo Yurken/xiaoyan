@@ -29,11 +29,11 @@ interface WritingSidebarProps {
 
 const severityStyle: Record<
   LatexDiagnostic["severity"],
-  { icon: typeof AlertCircle; text: string; bg: string }
+  { icon: typeof AlertCircle; iconClassName: string; tone: string }
 > = {
-  error: { icon: AlertCircle, text: "#FF3B30", bg: "rgba(255,59,48,0.10)" },
-  warning: { icon: AlertCircle, text: "#FF9500", bg: "rgba(255,149,0,0.12)" },
-  info: { icon: CheckCircle2, text: "#34A853", bg: "rgba(52,199,89,0.12)" },
+  error: { icon: AlertCircle, iconClassName: "text-apple-red", tone: "error" },
+  warning: { icon: AlertCircle, iconClassName: "text-apple-orange", tone: "warning" },
+  info: { icon: CheckCircle2, iconClassName: "text-apple-green", tone: "info" },
 };
 
 export default function WritingSidebar({
@@ -47,22 +47,19 @@ export default function WritingSidebar({
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
   return (
-    <aside className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pr-1">
+    <aside className="writing-sidebar flex h-full min-h-0 flex-col gap-4 overflow-y-auto pr-1">
       <WritingSidebarSection
         title="论文大纲"
         icon={<ListTree className="h-4 w-4" />}
         badge={
-          <span className="rounded-full bg-apple-blue/10 px-2 py-0.5 text-[10px] font-bold text-apple-blue">
+          <span className="writing-sidebar-badge writing-sidebar-badge--accent">
             {outline.length} 章节
           </span>
         }
       >
-        <div className="p-1.5">
+        <div className="writing-sidebar-outline">
           {outline.length === 0 ? (
-            <div
-              className="m-2 flex h-28 flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 text-center"
-              style={{ borderColor: "var(--rc-border)" }}
-            >
+            <div className="writing-sidebar-empty-state">
               <p className="text-[11px] leading-relaxed text-ink-tertiary">
                 在源码中使用 \section 等命令，大纲将自动在此生成。
               </p>
@@ -89,7 +86,7 @@ export default function WritingSidebar({
         title="稿件状态"
         icon={<BarChart3 className="h-4 w-4" />}
       >
-        <div className="grid grid-cols-3 gap-2 p-3.5">
+        <div className="writing-stat-grid">
           <StatTile label="字数" value={stats.words} />
           <StatTile label="公式" value={stats.equations} />
           <StatTile label="引用" value={stats.citations} />
@@ -105,19 +102,19 @@ export default function WritingSidebar({
         badge={
           <span
             className={clsx(
-              "rounded-full px-2 py-0.5 text-[10px] font-bold",
+              "writing-sidebar-badge",
               diagnostics.length === 0
-                ? "bg-[#34C759]/10 text-[#34C759]"
-                : "bg-apple-orange/10 text-apple-orange",
+                ? "writing-sidebar-badge--success"
+                : "writing-sidebar-badge--warning",
             )}
           >
             {diagnostics.length} 提示
           </span>
         }
       >
-        <div className="p-3.5">
+        <div className="writing-sidebar-diagnostics">
           {diagnostics.length === 0 ? (
-            <div className="flex items-center gap-2 rounded-lg bg-[#34C759]/5 p-3 text-xs text-[#248A3D]">
+            <div className="writing-sidebar-diagnostics__empty">
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               <p className="font-medium">基本结构完整且正确。</p>
             </div>
@@ -131,10 +128,10 @@ export default function WritingSidebar({
                     key={item.id}
                     type="button"
                     onClick={() => item.line && onJumpToLine(item.line)}
-                    className="flex w-full items-start gap-3 rounded-lg border p-2.5 text-left transition-all hover:border-apple-blue/30 hover:bg-apple-blue/5"
-                    style={{ borderColor: "var(--rc-border)" }}
+                    className="writing-sidebar-diagnostic"
+                    data-severity={style.tone}
                   >
-                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: style.text }} />
+                    <Icon className={clsx("mt-0.5 h-3.5 w-3.5 shrink-0", style.iconClassName)} />
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-ink-primary">{item.title}</p>
                       <p className="mt-1 text-[10px] leading-relaxed text-ink-tertiary line-clamp-2">
@@ -153,13 +150,12 @@ export default function WritingSidebar({
         title="写作便签"
         icon={<StickyNote className="h-4 w-4" />}
       >
-        <div className="p-3.5">
+        <div className="writing-sidebar-notes">
           <Textarea
             value={notes}
             onChange={(event) => onNotesChange(event.target.value)}
             placeholder="记录审稿要求、待补实验、下一轮修改计划..."
-            className="min-h-28 text-xs leading-relaxed transition-all focus:ring-2 focus:ring-apple-blue/20"
-            style={{ background: "var(--rc-card-inset-bg)" }}
+            className="min-h-28 text-xs leading-relaxed"
           />
         </div>
       </WritingSidebarSection>
@@ -169,12 +165,9 @@ export default function WritingSidebar({
 
 function StatTile({ label, value }: { label: string; value: number }) {
   return (
-    <div
-      className="flex flex-col items-center justify-center rounded-xl border p-2 shadow-sm"
-      style={{ background: "var(--rc-card-inset-bg)", borderColor: "var(--rc-border)" }}
-    >
-      <p className="text-sm font-black tracking-tight text-ink-primary">{value.toLocaleString()}</p>
-      <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-ink-tertiary/60">{label}</p>
+    <div className="writing-stat-tile">
+      <p className="writing-stat-tile__value">{value.toLocaleString()}</p>
+      <p className="writing-stat-tile__label">{label}</p>
     </div>
   );
 }
@@ -211,11 +204,11 @@ function OutlineTree({ outline, collapsedIds, onToggle, onJumpToLine }: OutlineT
   }
 
   return (
-    <div className="space-y-0.5">
+    <div className="writing-outline-tree">
       {visibleEntries.map((entry) => (
         <div
           key={entry.id}
-          className="group flex w-full items-center rounded-lg px-2 py-1 text-left transition-all hover:bg-apple-blue/5"
+          className="writing-outline-tree__entry group"
           style={{ paddingLeft: `${8 + entry.level * 12}px` }}
         >
           {hasChildrenSet.has(entry.id) ? (

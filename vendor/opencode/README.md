@@ -1,0 +1,1 @@
+# opencode 参考代码\n\n本目录仅作设计参考，不参与小妍构建。\n\n- 来源：https://github.com/opencode-ai/opencode\n- 许可证：MIT（见 LICENSE）\n- 用途：参考其 agent 循环、工具定义、coder prompt 设计，用于小妍实验-代码的原生 AI 改造。\n\n## 目录\n\n- agent/：agent 主循环与 tool 调用编排\n- tools/：bash、file、grep、view 等工具实现\n- prompt/：system prompt 与任务拆分\n

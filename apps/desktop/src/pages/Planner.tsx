@@ -1,16 +1,5 @@
-import InterestsPanel from "../features/knowledge/InterestsPanel";
+import { PlannerWorkspace } from "../features/planner/PlannerWorkspace";
 
 export default function Planner() {
-  return (
-    <div className="rc-app-page space-y-5" style={{ background: "var(--rc-surface)" }}>
-      <div className="shrink-0">
-        <h1 className="text-2xl font-bold text-ink-primary">研究主题规划</h1>
-        <p className="mt-1 text-sm text-ink-tertiary">
-          告诉小妍你感兴趣的研究主题，她来帮你梳理学习路线、找到关键论文和值得探索的开放问题。
-        </p>
-      </div>
-
-      <InterestsPanel />
-    </div>
-  );
+  return <PlannerWorkspace />;
 }

@@ -7,7 +7,7 @@ import { ANTHROPIC_ENDPOINT, PROVIDER_PRESETS, type ProviderPresetId } from "./p
 import ConfigHistorySwitcher, { type ConfigHistoryControls } from "./ConfigHistorySwitcher";
 import OllamaEmbeddingPanel from "./OllamaEmbeddingPanel";
 import ProviderIcon from "./ProviderIcon";
-import ModelCombobox from "./ModelCombobox";
+import ModelCombobox, { EndpointModelCombobox } from "./ModelCombobox";
 import WebSearchSection from "./WebSearchSection";
 import ExternalLink from "../../components/ExternalLink";
 
@@ -300,16 +300,22 @@ export default function ConnectionSection({
 
             <div className="md:col-span-2">
               {!isAnthropic ? (
-                <ModelCombobox
+                <EndpointModelCombobox
                   label="默认向量模型"
                   value={embeddingModelValue}
                   onChange={set(isOpenAI ? "openai_embedding_model" : "openai_compatible_embedding_model")}
                   placeholder={activePresetMeta?.defaultEmbedModel || "text-embedding-3-small"}
                   hint={embeddingHint}
-                  models={availableModels}
-                  loading={loadingModels}
-                  error={modelsError}
-                  onQuery={() => void loadModels()}
+                  endpointConfig={() => {
+                    const baseUrl =
+                      form.embedding_base_url.trim() ||
+                      (isOpenAI ? form.openai_base_url.trim() : form.openai_compatible_base_url.trim());
+                    const apiKey =
+                      form.embedding_api_key.trim() ||
+                      (isOpenAI ? form.openai_api_key.trim() : form.openai_compatible_api_key.trim());
+                    if (!baseUrl) return null;
+                    return { baseUrl, apiKey };
+                  }}
                 />
               ) : (
                 <div

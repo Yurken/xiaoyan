@@ -41,7 +41,7 @@ export default function WritingPreviewPanel({
       >
         <div className="flex items-center justify-between border-b p-4" style={{ borderColor: "var(--rc-border)" }}>
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-apple-blue/10 text-apple-blue">
+            <div className="writing-inset-icon">
               <BookOpen className="h-4 w-4" />
             </div>
             <p className="text-sm font-bold tracking-tight text-ink-primary">文稿预览</p>

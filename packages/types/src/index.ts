@@ -369,6 +369,62 @@ export interface WebSearchOutcome {
   items: WebSearchItem[];
 }
 
+export interface BriefingPaper {
+  external_id: string;
+  source: "arxiv" | "semantic_scholar";
+  title: string;
+  authors: string;
+  published_at: string;
+  url: string;
+  pdf_url: string;
+  relevance_score: number;
+  relevance_reason: string;
+}
+
+export interface BriefingDeadline {
+  external_id: string;
+  name: string;
+  deadline: string;
+  url: string;
+  days_remaining: number;
+}
+
+export interface ResearchFieldBriefing {
+  id: string;
+  interest_id: string;
+  interest_topic: string;
+  period_start: string;
+  period_end: string;
+  summary: string;
+  trends: string[];
+  key_papers: BriefingPaper[];
+  upcoming_deadlines: BriefingDeadline[];
+  generated_at: string;
+  is_read: boolean;
+  stats: FieldDynamicsStats;
+}
+
+/** A stable activity snapshot captured each time a field briefing is generated. */
+export interface FieldDynamicsStats {
+  candidate_paper_count: number;
+  selected_paper_count: number;
+  upcoming_deadline_count: number;
+  trend_count: number;
+}
+
+export interface FieldDynamicsListResult {
+  briefings: ResearchFieldBriefing[];
+  unread_count: number;
+}
+
+export interface FieldDynamicsScanResult extends FieldDynamicsListResult {
+  scanned_interests: number;
+}
+
+export interface FieldDynamicsHistoryResult {
+  briefings: ResearchFieldBriefing[];
+}
+
 export interface KnowledgeNote {
   id: string;
   title: string;
@@ -779,9 +835,27 @@ export interface Job {
 
 export interface OpenCodeMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "tool";
   content: string;
+  tool_calls?: OpenCodeToolCall[];
+  tool_results?: OpenCodeToolResult[];
+  tool_call_id?: string | null;
+  tool_id?: string | null;
+  model?: string | null;
   created_at: string;
+}
+
+export interface OpenCodeToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface OpenCodeToolResult {
+  tool_call_id: string;
+  name: string;
+  output: string;
+  is_error: boolean;
 }
 
 export interface OpenCodeSession {
@@ -791,6 +865,45 @@ export interface OpenCodeSession {
   messages: OpenCodeMessage[];
   created_at: string;
   updated_at: string;
+}
+
+export interface ExperimentRecord {
+  id: string;
+  title: string;
+  config: Record<string, unknown>;
+  result: string;
+  notes: string;
+  linkedSubmissionId: string | null;
+  defaultWorkingDir: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExperimentCodeSession {
+  id: string;
+  experiment_id: string;
+  title: string;
+  working_dir: string | null;
+  tool_id: string | null;
+  model: string | null;
+  messages: OpenCodeMessage[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExperimentSnapshot {
+  id: string;
+  experimentId: string;
+  title: string;
+  configSnapshot: Record<string, unknown>;
+  resultSnapshot: string;
+  notesSnapshot: string;
+  codeSessionId: string | null;
+  toolId: string | null;
+  model: string | null;
+  workingDir: string | null;
+  envSnapshot: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface OpenCodeDetectResult {

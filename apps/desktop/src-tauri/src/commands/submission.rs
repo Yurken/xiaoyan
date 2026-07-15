@@ -881,11 +881,31 @@ pub async fn submission_ai_review(
     tauri::async_runtime::spawn(async move {
         let mut diagnosis_reviews = Vec::new();
 
+        let reviewer_roles = [
+            (
+                "方法与创新审稿人",
+                "问题定义、创新性、方法设计与理论或技术合理性",
+            ),
+            (
+                "实验与复现审稿人",
+                "实验设定、基线对比、消融分析、统计可信度与可复现性",
+            ),
+            (
+                "写作与相关工作审稿人",
+                "相关工作覆盖、贡献边界、论文结构、表述清晰度与目标刊会匹配",
+            ),
+            (
+                "领域主席",
+                "综合录用风险、审稿意见冲突与投稿前最高优先级修改项",
+            ),
+        ];
+
         for i in 0..count {
-            let reviewer = format!("Reviewer {}", i + 1);
+            let (reviewer, focus) = reviewer_roles[i as usize];
             let prompt = crate::assistant_prompts::ai_review_prompt(
                 &text,
-                &reviewer,
+                reviewer,
+                focus,
                 strictness_desc,
                 i + 1,
                 count,
@@ -898,7 +918,8 @@ pub async fn submission_ai_review(
             match client.chat(&messages, model.as_deref(), temperature).await {
                 Ok(result) => {
                     diagnosis_reviews.push(ReviewerDiagnosisInput {
-                        reviewer: reviewer.clone(),
+                        reviewer: reviewer.to_string(),
+                        focus: focus.to_string(),
                         raw: result.clone(),
                     });
                     let _ = app.emit(
@@ -907,6 +928,7 @@ pub async fn submission_ai_review(
                             "submissionId": submission_id,
                             "index": i,
                             "reviewer": reviewer,
+                            "focus": focus,
                             "raw": result,
                         }),
                     );

@@ -3,6 +3,12 @@ import { safeListen } from "./tauriEvent";
 import { formatErrorMessage, updatesApi } from "./client";
 import type { AppUpdateInfo } from "@research-copilot/types";
 import type { DownloadProgress } from "./updateProgress";
+import { readPersistentValue, writePersistentValue } from "../hooks/usePersistentStringState";
+import {
+  isUpdateVersionSkipped,
+  normalizeUpdateVersion,
+  SKIPPED_UPDATE_VERSION_STORAGE_KEY,
+} from "../features/update/shared";
 
 const INTERVAL_MS = 30 * 60 * 1000;
 
@@ -15,6 +21,7 @@ export interface AutoUpdateState {
   installError: string;
   install: () => Promise<void>;
   dismiss: () => void;
+  skipVersion: () => void;
 }
 
 export function useAutoUpdate(): AutoUpdateState {
@@ -31,6 +38,12 @@ export function useAutoUpdate(): AutoUpdateState {
     try {
       const info = await updatesApi.check();
       if (info.configured && info.available) {
+        const skippedVersion = readPersistentValue(SKIPPED_UPDATE_VERSION_STORAGE_KEY);
+        if (isUpdateVersionSkipped(info.version, skippedVersion)) {
+          setUpdateInfo(null);
+          setInstallError("");
+          return;
+        }
         setUpdateInfo(info);
         setInstallError("");
         setDismissed(false);
@@ -59,6 +72,15 @@ export function useAutoUpdate(): AutoUpdateState {
     setDismissed(true);
     setInstallError("");
   }, []);
+
+  const skipVersion = useCallback(() => {
+    const version = normalizeUpdateVersion(updateInfo?.version);
+    if (version) {
+      writePersistentValue(SKIPPED_UPDATE_VERSION_STORAGE_KEY, version);
+    }
+    setDismissed(true);
+    setInstallError("");
+  }, [updateInfo?.version]);
 
   useEffect(() => {
     void check();
@@ -92,5 +114,6 @@ export function useAutoUpdate(): AutoUpdateState {
     installError,
     install,
     dismiss,
+    skipVersion,
   };
 }

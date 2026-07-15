@@ -1,6 +1,8 @@
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
 import { interestFolderName } from "../../lib/interestUtils";
 
+export type NotesViewMode = "card" | "list" | "minimal";
+
 /** 将 Markdown 文本压成单行纯文本，用于卡片摘要展示。 */
 export function stripMarkdown(text: string): string {
   return text

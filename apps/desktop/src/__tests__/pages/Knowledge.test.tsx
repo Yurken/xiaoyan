@@ -61,16 +61,6 @@ describe("Knowledge 页面", () => {
     localStorage.clear();
   });
 
-  it("应渲染知识库页面标题", () => {
-    renderWithRouter(<Knowledge />);
-    expect(screen.getByText("知识库")).toBeInTheDocument();
-  });
-
-  it("应显示页面描述", () => {
-    renderWithRouter(<Knowledge />);
-    expect(screen.getByText(/不只是记笔记/)).toBeInTheDocument();
-  });
-
   it("应显示知识图谱视图", () => {
     renderWithRouter(<Knowledge />);
     expect(screen.getByText("知识图谱")).toBeInTheDocument();
@@ -81,7 +71,18 @@ describe("Knowledge 页面", () => {
     expect(screen.getByText("知识笔记")).toBeInTheDocument();
   });
 
+  it("不应暴露小妍的内部 Wiki 入口", () => {
+    renderWithRouter(<Knowledge />);
+    expect(screen.queryByRole("button", { name: "研究 Wiki" })).not.toBeInTheDocument();
+  });
+
   it("默认应显示知识图谱工作区", () => {
+    renderWithRouter(<Knowledge />);
+    expect(screen.getByTestId("graph-workspace")).toBeInTheDocument();
+  });
+
+  it("旧的 Wiki 视图记录应回退到知识图谱", () => {
+    localStorage.setItem("rc:knowledge:view", "wiki");
     renderWithRouter(<Knowledge />);
     expect(screen.getByTestId("graph-workspace")).toBeInTheDocument();
   });

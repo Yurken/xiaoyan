@@ -2,6 +2,7 @@ import type { Paper } from "@research-copilot/types";
 
 export type PaperSortKey = "created_at" | "title" | "importance" | "manual";
 export type PaperSortDirection = "desc" | "asc";
+export type PaperDisplayMode = "card" | "minimal";
 
 export type PaperFigure = {
   id: string;

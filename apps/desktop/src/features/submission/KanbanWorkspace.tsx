@@ -1,4 +1,4 @@
-import { FilePlus, Trophy, Users } from "lucide-react";
+import { FilePlus, Trophy } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
 import RejectionRecoveryPanel from "./RejectionRecoveryPanel";
 import SubmissionTimelineStrip from "./SubmissionTimelineStrip";
@@ -161,17 +161,6 @@ export default function KanbanWorkspace({
         plans={rejectionRecoveryPlans}
         onPrepareTransfer={onPrepareTransfer}
       />
-
-      <div
-        className="rounded-3xl border p-4 flex items-center gap-3 opacity-60"
-        style={{ background: "var(--rc-card-inset-bg)", borderColor: "var(--rc-card-inset-outline)" }}
-      >
-        <Users className="w-5 h-5 text-ink-tertiary flex-shrink-0" />
-        <div>
-          <p className="text-sm font-medium text-ink-secondary">多人协作（即将上线）</p>
-          <p className="text-xs text-ink-tertiary mt-0.5">邀请共同作者加入投稿项目，分配章节任务、标注评论、共享看板进度。</p>
-        </div>
-      </div>
     </div>
   );
 }

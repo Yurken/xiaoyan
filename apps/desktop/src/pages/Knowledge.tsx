@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { clsx } from "clsx";
-import { Select } from "@research-copilot/ui";
+import { CapsuleTabs, Select } from "@research-copilot/ui";
 import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspace";
 import { buildInterestSelectOptions, buildNoteClaimCountMap } from "../features/knowledge/shared";
 import { useKnowledgeGraphWorkspace } from "../features/knowledge/useKnowledgeGraphWorkspace";
@@ -10,6 +10,10 @@ import { usePersistentStringState } from "../hooks/usePersistentStringState";
 
 type KnowledgeView = "graph" | "notes";
 const KNOWLEDGE_VIEWS: readonly KnowledgeView[] = ["graph", "notes"];
+const KNOWLEDGE_VIEW_TABS = [
+  { value: "graph", label: "知识图谱" },
+  { value: "notes", label: "知识笔记" },
+] as const;
 
 export default function Knowledge({
   hideFolders = false,
@@ -80,46 +84,18 @@ export default function Knowledge({
   return (
     <div className={clsx("rc-app-page flex h-full min-w-0 flex-col", hideFolders && "rc-knowledge-focus-page")}>
       <div className="min-w-0 space-y-4">
-        {!hideFolders && (
-          <div className="shrink-0">
-            <h1 className="text-2xl font-bold text-ink-primary">知识库</h1>
-            <p className="mt-1 text-sm text-ink-tertiary">
-              不只是记笔记。把论文、观点、证据和实验串联成可追溯的知识图谱，让每个结论都有据可查。
-            </p>
-          </div>
-        )}
-
+        {/* {!hideFolders ? (
+          <header>
+            <h1 className="text-2xl font-semibold tracking-[-0.025em]" style={{ color: "var(--rc-text)" }}>知识库</h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--rc-text-muted)" }}>不只是记笔记：把材料沉淀为可追溯、可连接、可审阅的研究知识。</p>
+          </header>
+        ) : null} */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div
-            className="inline-flex rounded-2xl border p-1"
-            style={{ borderColor: "var(--rc-border)", background: "var(--rc-panel-bg-soft, rgba(255,255,255,0.52))" }}
-          >
-            {([
-              { key: "graph", label: "知识图谱" },
-              { key: "notes", label: "知识笔记" },
-            ] as const).map((item) => {
-              const active = view === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setView(item.key)}
-                  className="rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150"
-                  style={active
-                    ? {
-                        background: "var(--rc-button-secondary-bg)",
-                        boxShadow: "var(--rc-button-secondary-shadow)",
-                        color: "var(--rc-text)",
-                      }
-                    : {
-                        color: "var(--rc-text-muted)",
-                      }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
+          <CapsuleTabs
+            options={KNOWLEDGE_VIEW_TABS}
+            value={view}
+            onChange={(nextView) => setView(nextView as KnowledgeView)}
+          />
 
           {view === "notes" && graphController.snapshot && !researchInterestId ? (
             <Select
@@ -134,7 +110,7 @@ export default function Knowledge({
         </div>
       </div>
 
-      <div key={view} className="mt-6 min-w-0" style={{ animation: "rc-view-enter 0.28s ease-out" }}>
+      <div key={view} className="mt-3 min-w-0" style={{ animation: "rc-view-enter 0.28s ease-out" }}>
         {view === "graph" ? (
           <KnowledgeGraphWorkspace
             controller={graphController}

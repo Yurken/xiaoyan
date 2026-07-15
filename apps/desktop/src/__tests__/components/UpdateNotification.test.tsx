@@ -20,6 +20,7 @@ function renderNotification(overrides: Partial<AutoUpdateState> = {}) {
     installError: "",
     install: vi.fn(),
     dismiss: vi.fn(),
+    skipVersion: vi.fn(),
     ...overrides,
   };
 
@@ -53,5 +54,14 @@ describe("UpdateNotification", () => {
     fireEvent.click(screen.getByRole("button", { name: "官网" }));
 
     expect(open).toHaveBeenCalledWith(OFFICIAL_SITE_URL);
+  });
+
+  it("点击跳过此版本时记录跳过操作", () => {
+    const state = renderNotification();
+
+    fireEvent.click(screen.getByRole("button", { name: "跳过此版本" }));
+
+    expect(state.skipVersion).toHaveBeenCalledTimes(1);
+    expect(state.dismiss).not.toHaveBeenCalled();
   });
 });

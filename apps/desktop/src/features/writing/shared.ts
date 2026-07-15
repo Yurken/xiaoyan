@@ -6,6 +6,7 @@ export type WritingTemplateId = "journal" | "conference" | "thesis-note";
 export type LatexDiagnosticSeverity = "error" | "warning" | "info";
 export type WritingCompileStatus = "idle" | "compiling" | "ready" | "failed";
 export type WritingAssistantActionId = "freeform" | "polish" | "continue" | "abstract" | "review";
+export type WritingEditorSource = "main" | "bib" | `tex:${string}`;
 
 export interface WritingResearchInterestSummary {
   id: string;
@@ -20,10 +21,16 @@ export interface WritingDraft {
   templateId: WritingTemplateId;
   mainTex: string;
   bibtex: string;
+  texFiles: WritingTexFile[];
   notes: string;
   imageAssets: WritingImageAsset[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WritingTexFile {
+  path: string;
+  content: string;
 }
 
 export interface WritingCreateDraftOptions {
@@ -111,6 +118,7 @@ export interface WritingProjectSnapshot {
   projectName: string;
   mainTex: string;
   bibtex: string;
+  texFiles: WritingTexFile[];
   notes: string;
   imageAssets: WritingImageAsset[];
 }
@@ -220,6 +228,7 @@ export function buildWritingAssistantPrompt(input: {
   projectName: string;
   mainTex: string;
   bibtex: string;
+  texFiles: WritingTexFile[];
   notes: string;
   selectedText: string;
   outline: LatexOutlineEntry[];
@@ -235,6 +244,11 @@ export function buildWritingAssistantPrompt(input: {
   const diagnosticsText = input.diagnostics.length > 0
     ? input.diagnostics.map((item) => `- ${item.severity}: ${item.title}${item.line ? ` (L${item.line})` : ""} - ${item.detail}`).join("\n")
     : "暂无结构诊断提示";
+  const texFilesText = input.texFiles.length > 0
+    ? input.texFiles
+      .map((file) => `--- ${file.path} ---\n${truncateForAssistant(file.content, 3200)}`)
+      .join("\n\n")
+    : "无独立章节文件";
 
   return `你是小妍，正在桌面端“论文撰写”功能中辅助用户写 LaTeX 论文草稿。
 
@@ -264,6 +278,9 @@ ${selected ? truncateForAssistant(selected, 4000) : "无选区。若任务需要
 
 main.tex：
 ${truncateForAssistant(input.mainTex, 12000)}
+
+章节文件：
+${texFilesText}
 
 references.bib：
 ${truncateForAssistant(input.bibtex || "无", 3000)}

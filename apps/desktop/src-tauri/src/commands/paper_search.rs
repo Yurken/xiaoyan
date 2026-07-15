@@ -11,7 +11,7 @@ use std::time::Duration;
 use tauri::State;
 
 const SEMANTIC_SCHOLAR_API_URL: &str = "https://api.semanticscholar.org/graph/v1/paper/search";
-const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.4.9";
+const SEMANTIC_SCHOLAR_USER_AGENT: &str = "xiaoyan-desktop/0.5.0";
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", default)]
@@ -120,17 +120,17 @@ struct SemanticScholarSearchResponse {
 }
 
 #[derive(Debug, Clone)]
-struct PaperCandidate {
-    id: String,
-    title: String,
-    authors: String,
-    venue: String,
-    year: Option<i32>,
-    published_at: String,
-    abstract_text: String,
-    detail_url: String,
-    pdf_url: String,
-    citation_count: i32,
+pub(crate) struct PaperCandidate {
+    pub(crate) id: String,
+    pub(crate) title: String,
+    pub(crate) authors: String,
+    pub(crate) venue: String,
+    pub(crate) year: Option<i32>,
+    pub(crate) published_at: String,
+    pub(crate) abstract_text: String,
+    pub(crate) detail_url: String,
+    pub(crate) pdf_url: String,
+    pub(crate) citation_count: i32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -405,7 +405,7 @@ fn collect_survey_search_terms(
         .collect()
 }
 
-async fn fetch_semantic_scholar_candidates(
+pub(crate) async fn fetch_semantic_scholar_candidates(
     settings: &HashMap<String, String>,
     query: &str,
     exclude_terms: &[String],

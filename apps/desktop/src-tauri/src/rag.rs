@@ -46,10 +46,14 @@ pub fn chunk_text(text: &str, chunk_size: usize, overlap: usize) -> Vec<Chunk> {
         }
 
         let end = if end < text.len() {
+            let minimum = chunk_size / 2;
             text[start_idx..end]
-                .rfind(". ")
-                .filter(|&p| p > chunk_size / 2)
-                .map(|p| start_idx + p + 1)
+                .char_indices()
+                .rev()
+                .find(|(offset, ch)| {
+                    *offset > minimum && matches!(ch, '.' | '。' | '！' | '？' | '!' | '?' | '\n')
+                })
+                .map(|(offset, ch)| start_idx + offset + ch.len_utf8())
                 .unwrap_or(end)
         } else {
             end
@@ -118,6 +122,7 @@ pub fn serialize_embedding(v: &[f32]) -> String {
 
 // ── Semantic search ─────────────────────────────────────────────
 
+#[derive(Clone, Debug)]
 pub struct SearchResult {
     pub id: String,
     pub entity_type: String,
@@ -263,6 +268,9 @@ pub async fn combined_search(
     let mut results = Vec::new();
     results.extend(search_paper_chunks(db, query_embedding, None, top_k).await?);
     results.extend(search_knowledge_notes(db, query_embedding, top_k).await?);
+    results.extend(
+        crate::services::wiki::retrieval::search_wiki_chunks(db, query_embedding, top_k).await?,
+    );
     results.sort_by(|a, b| {
         b.score
             .partial_cmp(&a.score)
@@ -270,4 +278,18 @@ pub async fn combined_search(
     });
     results.truncate(top_k);
     Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chunks_cjk_on_sentence_boundaries_without_breaking_utf8() {
+        let text = "第一段介绍知识图谱。第二段介绍向量检索。第三段介绍混合排序。";
+        let chunks = chunk_text(text, 36, 6);
+        assert!(chunks.len() >= 2);
+        assert!(chunks.iter().all(|chunk| !chunk.content.is_empty()));
+        assert!(chunks[0].content.ends_with('。'));
+    }
 }
