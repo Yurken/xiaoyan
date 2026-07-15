@@ -145,7 +145,7 @@ packages/
 
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request。开始前请先阅读 [开发原则](docs/development-principles.md)：页面只负责组合，功能进入 `features/<domain>/`，副作用与状态机逻辑进入 hook。
+欢迎提交 Issue 和 Pull Request。开始前请先阅读 [参与贡献](CONTRIBUTING.md)、[社区行为准则](CODE_OF_CONDUCT.md) 与 [开发原则](docs/development-principles.md)：页面只负责组合，功能进入 `features/<domain>/`，副作用与状态机逻辑进入 hook。
 
 提交信息使用 `type: 中文描述`，例如：
 
@@ -155,7 +155,7 @@ fix: 修复切换论文后阅读位置丢失
 docs: 补充本地开发说明
 ```
 
-提交 PR 前至少运行与改动范围相符的检查；跨工作区修改需运行 `pnpm type-check` 和 `pnpm lint`。安全漏洞请不要创建公开 Issue，使用 [GitHub Security Advisory](https://github.com/Yurken/xiaoyan/security/advisories/new) 私下报告。
+提交 PR 前至少运行与改动范围相符的检查；跨工作区修改需运行 `pnpm type-check` 和 `pnpm lint`。一般使用问题请查看 [获取帮助](SUPPORT.md)；安全漏洞请不要创建公开 Issue，按照 [安全政策](SECURITY.md) 私下报告。
 
 ## Star History
 

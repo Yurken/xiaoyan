@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用问题与社区讨论
+    url: https://github.com/Yurken/xiaoyan/discussions
+    about: 使用方法、经验交流和开放式想法请优先前往 Discussions。
+  - name: 私下报告安全漏洞
+    url: https://github.com/Yurken/xiaoyan/security/advisories/new
+    about: 请勿公开披露漏洞、凭据或用户数据。

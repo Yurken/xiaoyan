@@ -1,13 +1,4 @@
 ---
-name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: bug
-assignees: ''
-
----
-
----
 name: 错误报告
 about: 报告可以稳定复现的问题，帮助小妍持续改进
 title: "[Bug] "
