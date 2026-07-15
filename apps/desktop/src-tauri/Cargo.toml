@@ -50,7 +50,7 @@ gag = "1"
 aes-gcm = "0.10"
 pbkdf2 = "0.12"
 sha2 = "0.10"
-hmac = "0.12"
+hmac = "0.13"
 rand = "0.8"
 # Regex for HTML parsing in web clip
 regex = "1"
