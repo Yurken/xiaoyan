@@ -8,9 +8,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Github,
 } from "lucide-react";
 import { SectionIcon } from "./shared";
 import { apiClient } from "../../lib/client";
+import { openLink, GITHUB_URL } from "../../lib/links";
 
 interface PastedImage {
   id: string;
@@ -139,6 +141,15 @@ export default function FeedbackSection() {
             遇到问题或有建议都可以告诉我们，可直接粘贴截图、附带运行日志。
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => void openLink(`${GITHUB_URL}/issues`)}
+          className="flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-95"
+          style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
+        >
+          <Github className="h-4 w-4" />
+          GitHub Issues
+        </button>
       </div>
 
       <div
