@@ -22,7 +22,7 @@ tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Database
-sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+sqlx = { version = "0.9", features = ["sqlite", "runtime-tokio"] }
 # HTTP client for LLM API calls
 reqwest = { version = "0.12", features = ["json", "stream"] }
 # Async utilities
