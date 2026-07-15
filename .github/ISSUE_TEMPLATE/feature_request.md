@@ -1,13 +1,4 @@
 ---
-name: Feature request
-about: Suggest an idea for this project
-title: ''
-labels: enhancement
-assignees: ''
-
----
-
----
 name: 功能建议
 about: 提议一个能够改进小妍的新功能
 title: "[Feature] "

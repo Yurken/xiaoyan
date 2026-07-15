@@ -145,7 +145,7 @@ packages/
 
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request。开始前请先阅读 [开发原则](docs/development-principles.md)：页面只负责组合，功能进入 `features/<domain>/`，副作用与状态机逻辑进入 hook。
+欢迎提交 Issue 和 Pull Request。开始前请先阅读 [参与贡献](CONTRIBUTING.md)、[社区行为准则](CODE_OF_CONDUCT.md) 与 [开发原则](docs/development-principles.md)：页面只负责组合，功能进入 `features/<domain>/`，副作用与状态机逻辑进入 hook。
 
 提交信息使用 `type: 中文描述`，例如：
 
@@ -155,17 +155,19 @@ fix: 修复切换论文后阅读位置丢失
 docs: 补充本地开发说明
 ```
 
-提交 PR 前至少运行与改动范围相符的检查；跨工作区修改需运行 `pnpm type-check` 和 `pnpm lint`。安全漏洞请不要创建公开 Issue，使用 [GitHub Security Advisory](https://github.com/Yurken/xiaoyan/security/advisories/new) 私下报告。
+提交 PR 前至少运行与改动范围相符的检查；跨工作区修改需运行 `pnpm type-check` 和 `pnpm lint`。一般使用问题请查看 [获取帮助](SUPPORT.md)；安全漏洞请不要创建公开 Issue，按照 [安全政策](SECURITY.md) 私下报告。
 
 ## Star History
 
 如果小妍对你有帮助，欢迎点一个 Star。它会帮助更多研究者发现项目。
 
-<p align="center">
-  <a href="https://star-history.com/#Yurken/xiaoyan&Date">
-    <img src="https://api.star-history.com/svg?repos=Yurken/xiaoyan&type=Date" alt="小妍 GitHub Star 历史曲线" width="680" />
-  </a>
-</p>
+<a href="https://www.star-history.com/?type=date&repos=Yurken%2Fxiaoyan">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Yurken/xiaoyan&type=date&theme=dark&legend=top-left&sealed_token=x85YP6wH0H_fYrh94oYtmnIyStrNxFHtj61xHIGYKjPB8Qdy29vTA3irisqFtyM67s1VvYoRyVJGGdWcs3a9H6kF0tymBrZtooxNKTXn9c77rkdN9J9afD9XQEIX1FlPRgHer8BxtCYPPWQukbhLw-hkQuktrEUeEyqpe0g8FKDZbIGtsF80R7AXoRV8" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Yurken/xiaoyan&type=date&legend=top-left&sealed_token=x85YP6wH0H_fYrh94oYtmnIyStrNxFHtj61xHIGYKjPB8Qdy29vTA3irisqFtyM67s1VvYoRyVJGGdWcs3a9H6kF0tymBrZtooxNKTXn9c77rkdN9J9afD9XQEIX1FlPRgHer8BxtCYPPWQukbhLw-hkQuktrEUeEyqpe0g8FKDZbIGtsF80R7AXoRV8" />
+    <img alt="小妍 GitHub Star 历史曲线" src="https://api.star-history.com/chart?repos=Yurken/xiaoyan&type=date&legend=top-left&sealed_token=x85YP6wH0H_fYrh94oYtmnIyStrNxFHtj61xHIGYKjPB8Qdy29vTA3irisqFtyM67s1VvYoRyVJGGdWcs3a9H6kF0tymBrZtooxNKTXn9c77rkdN9J9afD9XQEIX1FlPRgHer8BxtCYPPWQukbhLw-hkQuktrEUeEyqpe0g8FKDZbIGtsF80R7AXoRV8" />
+  </picture>
+</a>
 
 ## 许可证
 

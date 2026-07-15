@@ -12,7 +12,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: desktop-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
@@ -26,6 +26,7 @@ jobs:
     name: Release Preflight
     runs-on: macos-latest
     timeout-minutes: 30
+    environment: release
     steps:
       - name: Validate release tag
         shell: bash
@@ -93,6 +94,8 @@ jobs:
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
     outputs:
       release_id: ${{ steps.release.outputs.release_id }}
     steps:
@@ -334,6 +337,8 @@ jobs:
     needs: [create-release, build]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write
     steps:
       - name: Install AWS CLI
         run: pip install awscli
@@ -454,6 +459,8 @@ jobs:
     needs: [create-release, build, publish-github-assets, publish-manifests]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       - name: Publish release (remove draft)
         env:
