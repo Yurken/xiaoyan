@@ -1,8 +1,9 @@
-import { Download, Globe, Loader2, RefreshCw } from "lucide-react";
+import { Download, Github, Globe, Loader2, RefreshCw } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import type { AppUpdateInfo } from "@research-copilot/types";
+import ExternalLink from "../../components/ExternalLink";
 import type { UpdateState } from "./useSettingsController";
-import { OFFICIAL_SITE_URL, openLink } from "../../lib/links";
+import { GITHUB_REPOSITORY_URL, OFFICIAL_SITE_URL, openLink } from "../../lib/links";
 import type { DownloadProgress } from "../../lib/updateProgress";
 import {
   getUpdateButtonLabel,
@@ -65,7 +66,7 @@ export default function AboutSection({
   return (
     <div className="space-y-4">
       <Card padding="md" className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <SectionIcon icon={RefreshCw} color="#5AC8FA" />
             <div>
@@ -73,19 +74,33 @@ export default function AboutSection({
               <p className="text-xs text-ink-tertiary mt-0.5">发布版会从已配置的更新源检查新版本，并支持一键安装。</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void openLink(OFFICIAL_SITE_URL)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 flex-shrink-0"
-            style={{
-              background: "var(--rc-chip-bg)",
-              color: "var(--rc-text-soft)",
-              boxShadow: "var(--rc-chip-shadow)",
-            }}
-          >
-            <Globe className="w-3.5 h-3.5" />
-            官网
-          </button>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <ExternalLink
+              href={GITHUB_REPOSITORY_URL}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-150 active:scale-95"
+              style={{
+                background: "var(--rc-chip-bg)",
+                color: "var(--rc-text-soft)",
+                boxShadow: "var(--rc-chip-shadow)",
+              }}
+            >
+              <Github className="h-3.5 w-3.5" />
+              GitHub
+            </ExternalLink>
+            <button
+              type="button"
+              onClick={() => void openLink(OFFICIAL_SITE_URL)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 flex-shrink-0"
+              style={{
+                background: "var(--rc-chip-bg)",
+                color: "var(--rc-text-soft)",
+                boxShadow: "var(--rc-chip-shadow)",
+              }}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              官网
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr),auto] lg:items-center">
