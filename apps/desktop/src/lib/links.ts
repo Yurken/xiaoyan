@@ -1,6 +1,7 @@
 import { open } from "@tauri-apps/plugin-shell";
 
 export const OFFICIAL_SITE_URL = "https://xiaoyan.net.cn/";
+export const GITHUB_URL = "https://github.com/Yurken/xiaoyan";
 
 export function normalizeDoi(doi?: string | null): string | undefined {
   const value = doi?.trim();
