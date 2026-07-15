@@ -18,37 +18,37 @@ test.describe("实验记录完整流程", () => {
   });
 
   test("应显示实验记录列表", async ({ page }) => {
-    await expect(page.getByText("BERT 微调实验")).toBeVisible();
+    await expect(page.getByRole("button", { name: /BERT 微调实验/ })).toBeVisible();
   });
 
   test("点击记录应显示详情", async ({ page }) => {
-    await page.getByText("BERT 微调实验").click();
+    await page.getByRole("button", { name: /BERT 微调实验/ }).click();
     await expect(page.getByRole("textbox", { name: "标题" })).toHaveValue("BERT 微调实验");
     await expect(page.getByRole("button", { name: "保存" })).toBeVisible();
   });
 
   test("应显示关联投稿下拉", async ({ page }) => {
-    await page.getByText("BERT 微调实验").click();
+    await page.getByRole("button", { name: /BERT 微调实验/ }).click();
     await expect(page.getByText("关联投稿（可选）")).toBeVisible();
   });
 
   test("应显示实验配置区域", async ({ page }) => {
-    await page.getByText("BERT 微调实验").click();
+    await page.getByRole("button", { name: /BERT 微调实验/ }).click();
     await expect(page.getByText("实验配置", { exact: true })).toBeVisible();
   });
 
   test("应显示实验结果区域", async ({ page }) => {
-    await page.getByText("BERT 微调实验").click();
+    await page.getByRole("button", { name: /BERT 微调实验/ }).click();
     await expect(page.getByText("实验结果", { exact: true })).toBeVisible();
   });
 
   test("应显示备注与分析区域", async ({ page }) => {
-    await page.getByText("BERT 微调实验").click();
+    await page.getByRole("button", { name: /BERT 微调实验/ }).click();
     await expect(page.getByText("备注与分析")).toBeVisible();
   });
 
   test("应显示附件面板", async ({ page }) => {
-    await page.getByText("BERT 微调实验").click();
+    await page.getByRole("button", { name: /BERT 微调实验/ }).click();
     await expect(page.getByText("截图 / 附件")).toBeVisible();
   });
 });

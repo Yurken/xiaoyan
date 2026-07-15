@@ -80,6 +80,7 @@ export function CapsuleTabs({ options, value, onChange, compact, display = "full
           }}
           type="button"
           data-testid={tab.testId}
+          aria-pressed={value === tab.value}
           onClick={() => onChange(tab.value)}
           className={`relative z-10 inline-flex shrink-0 items-center whitespace-nowrap rounded-xl font-medium transition-colors duration-200 ${
             display === "icon"
