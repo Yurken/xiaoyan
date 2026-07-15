@@ -37,10 +37,6 @@ vi.mock("../../features/knowledge/NotesPanel", () => ({
   default: () => <div data-testid="notes-panel">笔记面板</div>,
 }));
 
-vi.mock("../../features/wiki/WikiWorkspace", () => ({
-  default: () => <div data-testid="wiki-workspace">研究 Wiki 工作区</div>,
-}));
-
 // Mock Select component
 vi.mock("@research-copilot/ui", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@research-copilot/ui")>();
@@ -75,10 +71,9 @@ describe("Knowledge 页面", () => {
     expect(screen.getByText("知识笔记")).toBeInTheDocument();
   });
 
-  it("发布前应隐藏研究 Wiki 入口", () => {
+  it("不应暴露小妍的内部 Wiki 入口", () => {
     renderWithRouter(<Knowledge />);
     expect(screen.queryByRole("button", { name: "研究 Wiki" })).not.toBeInTheDocument();
-    expect(screen.queryByTestId("wiki-workspace")).not.toBeInTheDocument();
   });
 
   it("默认应显示知识图谱工作区", () => {

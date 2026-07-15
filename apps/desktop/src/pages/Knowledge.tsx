@@ -5,20 +5,14 @@ import KnowledgeGraphWorkspace from "../features/knowledge/KnowledgeGraphWorkspa
 import { buildInterestSelectOptions, buildNoteClaimCountMap } from "../features/knowledge/shared";
 import { useKnowledgeGraphWorkspace } from "../features/knowledge/useKnowledgeGraphWorkspace";
 import NotesPanel from "../features/knowledge/NotesPanel";
-import WikiWorkspace from "../features/wiki/WikiWorkspace";
 import { useDomainEventRefresh } from "../hooks/useDomainEventRefresh";
 import { usePersistentStringState } from "../hooks/usePersistentStringState";
 
-type KnowledgeView = "graph" | "notes" | "wiki";
-const KNOWLEDGE_VIEWS: readonly KnowledgeView[] = [
-  "graph",
-  "notes",
-  // "wiki", // 暂缓发布研究 Wiki；恢复时与下方页签一并取消注释。
-];
+type KnowledgeView = "graph" | "notes";
+const KNOWLEDGE_VIEWS: readonly KnowledgeView[] = ["graph", "notes"];
 const KNOWLEDGE_VIEW_TABS = [
   { value: "graph", label: "知识图谱" },
   { value: "notes", label: "知识笔记" },
-  // { value: "wiki", label: "研究 Wiki" },
 ] as const;
 
 export default function Knowledge({
@@ -103,7 +97,7 @@ export default function Knowledge({
             onChange={(nextView) => setView(nextView as KnowledgeView)}
           />
 
-          {(view === "notes" || view === "wiki") && graphController.snapshot && !researchInterestId ? (
+          {view === "notes" && graphController.snapshot && !researchInterestId ? (
             <Select
               className="w-full lg:w-[260px]"
               prefix="聚焦："
@@ -122,7 +116,7 @@ export default function Knowledge({
             controller={graphController}
             hideFocusControls={Boolean(researchInterestId)}
           />
-        ) : view === "notes" ? (
+        ) : (
           <NotesPanel
             hideFolders={hideFolders}
             researchInterestId={researchInterestId ?? graphController.activeInterestId ?? undefined}
@@ -130,10 +124,6 @@ export default function Knowledge({
             initialInterests={initialInterests}
             linkedNoteClaimCounts={linkedNoteClaimCounts}
             onNotesChanged={() => graphController.refresh()}
-          />
-        ) : (
-          <WikiWorkspace
-            interestId={researchInterestId ?? graphController.activeInterestId ?? undefined}
           />
         )}
       </div>

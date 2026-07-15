@@ -98,8 +98,7 @@ use commands::{
     },
     knowledge_notes::{
         knowledge_create_note, knowledge_delete_note, knowledge_import_zip, knowledge_list_notes,
-        knowledge_list_notes_by_source, knowledge_move_note, knowledge_search,
-        knowledge_update_note,
+        knowledge_list_notes_by_source, knowledge_move_note, knowledge_update_note,
     },
     memory::{
         memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list,
@@ -110,10 +109,6 @@ use commands::{
         memory_list_auto_records, memory_list_manual_records, memory_list_private_observations,
         memory_privacy_clear_password, memory_privacy_set_password, memory_privacy_status,
         memory_privacy_verify_password,
-    },
-    wiki::{
-        wiki_compile_interest, wiki_get_page, wiki_lint_interest, wiki_list_compile_runs,
-        wiki_list_issues, wiki_list_pages, wiki_update_page,
     },
     misc::{
         markdown_format_chunk, planner_generate, survey_delete, survey_generate, survey_get,
@@ -366,6 +361,12 @@ pub fn run() {
                 let app_state = AppState::new(pool.clone(), settings);
                 handle.manage(app_state);
 
+                // 小妍内部 Wiki：论文/笔记变更由持久化队列去抖后自动增量编译。
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    services::wiki::auto_compile::start_auto_compile_worker(state);
+                }
+
                 // Auto-sync CCF DDL from bundled data on first launch
                 {
                     let state = handle.state::<AppState>().inner().clone();
@@ -557,7 +558,6 @@ pub fn run() {
             knowledge_update_note,
             knowledge_move_note,
             knowledge_delete_note,
-            knowledge_search,
             knowledge_import_zip,
             knowledge_graph_snapshot,
             knowledge_graph_create_claim,
@@ -569,13 +569,6 @@ pub fn run() {
             knowledge_graph_citation_centrality,
             knowledge_graph_citation_shortest_path,
             knowledge_graph_citation_subgraph,
-            wiki_list_pages,
-            wiki_get_page,
-            wiki_compile_interest,
-            wiki_update_page,
-            wiki_lint_interest,
-            wiki_list_issues,
-            wiki_list_compile_runs,
             // Chat
             chat_list_sessions,
             chat_get_session,

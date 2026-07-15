@@ -202,9 +202,9 @@ fn wiki_status_weight(status: &str) -> f32 {
 
 fn wiki_source_prefix(status: &str) -> &'static str {
     match status {
-        "reviewed" => "Wiki",
-        "contested" => "Wiki（有争议）",
-        _ => "Wiki（待审阅）",
+        "reviewed" => "内部 Wiki（已核验）",
+        "contested" => "内部 Wiki（来源冲突）",
+        _ => "内部 Wiki（自动整理）",
     }
 }
 

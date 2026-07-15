@@ -487,6 +487,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_submission_revision_task_tables(&pool).await?;
     ensure_knowledge_graph_tables(&pool).await?;
     crate::services::wiki::schema::ensure_wiki_tables(&pool).await?;
+    crate::services::wiki::auto_compile::ensure_auto_compile_schema(&pool).await?;
     ensure_paper_notes_table(&pool).await?;
     ensure_opencode_tables(&pool).await?;
     ensure_paper_corpus_table(&pool).await?;
@@ -636,6 +637,7 @@ async fn ensure_schema(pool: &SqlitePool) -> Result<()> {
     ensure_submission_revision_task_tables(pool).await?;
     ensure_knowledge_graph_tables(pool).await?;
     crate::services::wiki::schema::ensure_wiki_tables(pool).await?;
+    crate::services::wiki::auto_compile::ensure_auto_compile_schema(pool).await?;
     Ok(())
 }
 
@@ -1346,6 +1348,7 @@ mod tests {
             "wiki_page_links",
             "wiki_page_chunks",
             "wiki_compile_runs",
+            "wiki_compile_queue",
             "wiki_issues",
         ] {
             assert!(table_exists(&pool, table).await?, "{table}");

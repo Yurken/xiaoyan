@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::Result;
 use sqlx::{Row, SqlitePool};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 pub(super) async fn persist_pages(
@@ -168,6 +168,82 @@ pub(super) async fn persist_pages(
     Ok((created, updated, page_ids))
 }
 
+/// 来源删除或移出研究方向时，立即让受影响页面退出检索，再清空该方向的编译哈希。
+/// 后续自动编译会重新扫描全部现存来源；有剩余依据的页面会以同一 slug 恢复。
+pub(super) async fn invalidate_removed_sources(
+    db: &SqlitePool,
+    interest_id: &str,
+    removed_keys: &[String],
+) -> Result<usize> {
+    if removed_keys.is_empty() {
+        return Ok(0);
+    }
+    let removed = removed_keys
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let rows = sqlx::query(
+        "SELECT DISTINCT sources.page_id, sources.source_kind, sources.source_id
+         FROM wiki_page_sources sources
+         JOIN wiki_pages pages ON pages.id = sources.page_id
+         WHERE pages.research_interest_id = ?",
+    )
+    .bind(interest_id)
+    .fetch_all(db)
+    .await?;
+    let mut affected_page_ids = rows
+        .into_iter()
+        .filter_map(|row| {
+            let source_key = format!(
+                "{}:{}",
+                row.get::<String, _>("source_kind"),
+                row.get::<String, _>("source_id")
+            );
+            removed
+                .contains(source_key.as_str())
+                .then(|| row.get::<String, _>("page_id"))
+        })
+        .collect::<Vec<_>>();
+    affected_page_ids.sort();
+    affected_page_ids.dedup();
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut tx = db.begin().await?;
+    for page_id in &affected_page_ids {
+        sqlx::query("UPDATE wiki_pages SET status = 'archived', updated_at = ? WHERE id = ?")
+            .bind(&now)
+            .bind(page_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM wiki_page_chunks WHERE page_id = ?")
+            .bind(page_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    for key in removed_keys {
+        let Some((source_kind, source_id)) = key.split_once(':') else {
+            continue;
+        };
+        sqlx::query(
+            "DELETE FROM wiki_page_sources
+             WHERE page_id IN (SELECT id FROM wiki_pages WHERE research_interest_id = ?)
+               AND source_kind = ? AND source_id = ?",
+        )
+        .bind(interest_id)
+        .bind(source_kind)
+        .bind(source_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    // 删除全部哈希，使剩余来源分批重新编译，而不是只处理删除事件。
+    sqlx::query("DELETE FROM wiki_compile_sources WHERE research_interest_id = ?")
+        .bind(interest_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(affected_page_ids.len())
+}
+
 pub(super) async fn resolve_links(db: &SqlitePool, interest_id: &str) -> Result<()> {
     sqlx::query(
         "UPDATE wiki_page_links SET to_page_id = (
@@ -227,4 +303,68 @@ pub async fn refresh_embeddings_for_pages(
         }
     }
     refreshed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    #[tokio::test]
+    async fn removed_sources_archive_affected_pages_and_clear_compile_hashes() -> Result<()> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await?;
+        sqlx::query("CREATE TABLE research_interests (id TEXT PRIMARY KEY)")
+            .execute(&pool)
+            .await?;
+        super::super::super::schema::ensure_wiki_tables(&pool).await?;
+        sqlx::query("INSERT INTO research_interests (id) VALUES ('interest-1')")
+            .execute(&pool)
+            .await?;
+        sqlx::raw_sql(
+            "INSERT INTO wiki_pages
+                (id, research_interest_id, slug, title, summary, content, status)
+             VALUES ('page-1', 'interest-1', 'topic', 'Topic', 'Summary', 'Body', 'draft');
+             INSERT INTO wiki_page_sources
+                (id, page_id, source_kind, source_id, source_title)
+             VALUES ('page-source-1', 'page-1', 'note', 'note-1', 'Note');
+             INSERT INTO wiki_page_chunks
+                (id, page_id, chunk_index, content, content_hash)
+             VALUES ('chunk-1', 'page-1', 0, 'Body', 'hash');
+             INSERT INTO wiki_compile_sources
+                (id, research_interest_id, source_kind, source_id, content_hash)
+             VALUES ('compiled-1', 'interest-1', 'note', 'note-1', 'old-hash');",
+        )
+        .execute(&pool)
+        .await?;
+
+        let affected =
+            invalidate_removed_sources(&pool, "interest-1", &["note:note-1".into()]).await?;
+        let status: String =
+            sqlx::query_scalar("SELECT status FROM wiki_pages WHERE id = 'page-1'")
+                .fetch_one(&pool)
+                .await?;
+        let chunk_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM wiki_page_chunks WHERE page_id = 'page-1'")
+                .fetch_one(&pool)
+                .await?;
+        let source_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM wiki_page_sources WHERE page_id = 'page-1'")
+                .fetch_one(&pool)
+                .await?;
+        let compiled_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM wiki_compile_sources WHERE research_interest_id = 'interest-1'",
+        )
+        .fetch_one(&pool)
+        .await?;
+
+        assert_eq!(affected, 1);
+        assert_eq!(status, "archived");
+        assert_eq!(chunk_count, 0);
+        assert_eq!(source_count, 0);
+        assert_eq!(compiled_count, 0);
+        Ok(())
+    }
 }

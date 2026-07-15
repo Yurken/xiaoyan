@@ -13,8 +13,8 @@ mod persistence;
 mod sources;
 
 pub use persistence::refresh_embeddings_for_pages;
-use persistence::{persist_pages, resolve_links};
-use sources::{changed_sources, load_sources};
+use persistence::{invalidate_removed_sources, persist_pages, resolve_links};
+use sources::{load_sources, source_changes};
 
 const MAX_SOURCES_PER_RUN: usize = 10;
 const MAX_SOURCE_CHARS: usize = 6_000;
@@ -84,6 +84,7 @@ pub struct WikiCompileSummary {
     pub status: String,
     pub source_count: usize,
     pub changed_source_count: usize,
+    pub removed_source_count: usize,
     pub remaining_source_count: usize,
     pub pages_created: usize,
     pub pages_updated: usize,
@@ -147,7 +148,17 @@ async fn compile_inner(
     force: bool,
 ) -> Result<WikiCompileSummary> {
     let sources = load_sources(db, interest_id).await?;
-    let changed = changed_sources(db, interest_id, &sources, force).await?;
+    let changes = source_changes(db, interest_id, &sources, force).await?;
+    let removed_source_count = changes.removed_keys.len();
+    if removed_source_count > 0 {
+        invalidate_removed_sources(db, interest_id, &changes.removed_keys).await?;
+    }
+    let changed = if removed_source_count > 0 {
+        // 哈希已在失效处理里清空；本次先处理第一批，其余由后台 continuation 接续。
+        sources.clone()
+    } else {
+        changes.changed
+    };
     let remaining_source_count = changed.len().saturating_sub(MAX_SOURCES_PER_RUN);
     let selected = changed
         .into_iter()
@@ -166,7 +177,7 @@ async fn compile_inner(
         "UPDATE wiki_compile_runs SET source_count = ?, changed_source_count = ?, source_manifest = ? WHERE id = ?",
     )
     .bind(sources.len() as i64)
-    .bind(selected.len() as i64)
+    .bind((selected.len() + removed_source_count) as i64)
     .bind(serde_json::to_string(&manifest)?)
     .bind(run_id)
     .execute(db)
@@ -176,8 +187,13 @@ async fn compile_inner(
         let lint = lint_interest(db, interest_id).await?;
         let finished_at = chrono::Utc::now().to_rfc3339();
         sqlx::query(
-            "UPDATE wiki_compile_runs SET status = 'unchanged', issue_count = ?, finished_at = ? WHERE id = ?",
+            "UPDATE wiki_compile_runs SET status = ?, issue_count = ?, finished_at = ? WHERE id = ?",
         )
+        .bind(if removed_source_count > 0 {
+            "completed"
+        } else {
+            "unchanged"
+        })
         .bind(lint.issue_count as i64)
         .bind(&finished_at)
         .bind(run_id)
@@ -185,9 +201,14 @@ async fn compile_inner(
         .await?;
         return Ok(WikiCompileSummary {
             run_id: run_id.into(),
-            status: "unchanged".into(),
+            status: if removed_source_count > 0 {
+                "completed".into()
+            } else {
+                "unchanged".into()
+            },
             source_count: sources.len(),
             changed_source_count: 0,
+            removed_source_count,
             remaining_source_count: 0,
             pages_created: 0,
             pages_updated: 0,
@@ -231,6 +252,7 @@ async fn compile_inner(
         status: status.into(),
         source_count: sources.len(),
         changed_source_count: selected.len(),
+        removed_source_count,
         remaining_source_count,
         pages_created: created,
         pages_updated: updated,
@@ -246,8 +268,12 @@ async fn extract_candidates(
     sources: &[SourceDocument],
 ) -> Result<Vec<WikiCandidate>> {
     let existing = sqlx::query(
-        "SELECT slug, title, summary FROM wiki_pages
-         WHERE research_interest_id = ? AND status != 'archived' ORDER BY updated_at DESC LIMIT 40",
+        "SELECT slug, title, summary FROM wiki_pages pages
+         WHERE research_interest_id = ? AND (
+            status != 'archived' OR EXISTS (
+                SELECT 1 FROM wiki_page_sources sources WHERE sources.page_id = pages.id
+            )
+         ) ORDER BY updated_at DESC LIMIT 40",
     )
     .bind(interest_id)
     .fetch_all(db)

@@ -409,41 +409,6 @@ pub async fn knowledge_delete_note(state: State<'_, AppState>, id: String) -> Re
     Ok(())
 }
 
-#[tauri::command]
-pub async fn knowledge_search(
-    state: State<'_, AppState>,
-    q: String,
-    top_k: Option<i64>,
-) -> Result<serde_json::Value, String> {
-    let top_k = top_k.unwrap_or(5) as usize;
-    let settings = state.settings.read().await.clone();
-    let embedding = if let Ok(client) = LlmClient::embed_client_from_settings(&settings) {
-        client
-            .embed(&[q.clone()])
-            .await
-            .ok()
-            .and_then(|items| items.into_iter().next())
-    } else {
-        None
-    };
-    let results =
-        crate::services::wiki::retrieval::hybrid_search(&state.db, &q, embedding.as_deref(), top_k)
-            .await
-            .map_err(|e| e.to_string())?;
-    Ok(json!(results
-        .into_iter()
-        .map(|result| json!({
-            "id": result.id,
-            "content": result.content,
-            "source": result.source,
-            "score": result.score,
-            "entity_type": result.entity_type,
-            "entity_id": result.entity_id,
-            "url": result.url
-        }))
-        .collect::<Vec<_>>()))
-}
-
 // ── Markdown/Zip import helpers ──────────────────────────────────
 
 #[derive(Debug, Default, serde::Deserialize)]

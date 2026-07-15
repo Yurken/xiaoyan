@@ -46,7 +46,7 @@
 | 研究规划 | 多 Agent 生成学习路线、代表论文、开放问题与领域动态 |
 | 文献与精读 | PDF 管理、全文提取、语义检索、图表识别、翻译与复现指南 |
 | 小妍协同 | 直接对话、任务拆解、技能模板、附件、来源引用与任务中止 |
-| 知识库 | Markdown 笔记、可审阅 LLM Wiki、知识图谱、证据关系与混合 Graph RAG |
+| 知识库 | Markdown 笔记、小妍内部自动 LLM Wiki、知识图谱、证据关系与混合 Graph RAG |
 | 实验与代码 | 结构化实验记录、代码工作区、Git 审查、快照与差异对比 |
 | 学术写作 | 多文件 LaTeX、预览、诊断、统计、润色、续写与学术翻译 |
 | 投稿管理 | 刊会追踪、投稿看板、版本快照、角色化预审与审稿意见跟踪 |
@@ -115,7 +115,7 @@ Rust 本地内核
     ├── commands      参数校验与命令边界
     ├── services      设置、论文、知识、投稿、同步等领域服务
     ├── agent runtime 多 Agent 编排、工具注册与事件流
-    ├── RAG / Wiki    语义与关键词混合召回、可追溯页面编译
+    ├── RAG / Wiki    小妍后台自动编译、语义与关键词混合召回
     ├── Graph         引用图与证据图谱
     └── SQLite        本地持久化
 ```
@@ -134,7 +134,7 @@ packages/
 
 桌面端是核心产品，新能力默认先在桌面端实现。详细设计见 [桌面端系统介绍](docs/system-introduction-desktop.md) 与 [开发原则](docs/development-principles.md)。
 
-LLM Wiki 的编译流程、数据模型、审核规范和使用教程见 [LLM Wiki 与混合检索](docs/llm-wiki-and-hybrid-retrieval.md)。
+小妍内部 LLM Wiki 的自动整理流程、数据模型和检索边界见 [LLM Wiki 与混合检索](docs/llm-wiki-and-hybrid-retrieval.md)。
 
 ## 数据与隐私
 
