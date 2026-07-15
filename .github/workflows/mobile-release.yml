@@ -49,7 +49,7 @@ jobs:
     if: needs.check-token.outputs.configured == 'true'
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v7.0.0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
