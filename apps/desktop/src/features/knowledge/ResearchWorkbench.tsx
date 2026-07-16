@@ -199,7 +199,12 @@ export default function ResearchWorkbench({ interest, activeTab = "overview", on
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
       markPaperTaskFailed(paperId);
-      setPapers((prev) => prev.map((p) => p.id === paperId ? { ...p, status: "failed" } : p));
+      try {
+        const latest = await apiClient.papers.get(paperId);
+        setPapers((prev) => prev.map((p) => p.id === paperId ? latest : p));
+      } catch {
+        // 保持原有状态，不覆盖为 failed
+      }
     }
   };
 
@@ -212,7 +217,12 @@ export default function ResearchWorkbench({ interest, activeTab = "overview", on
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
       markPaperTaskFailed(paperId);
-      setPapers((prev) => prev.map((p) => p.id === paperId ? { ...p, status: "failed" } : p));
+      try {
+        const latest = await apiClient.papers.get(paperId);
+        setPapers((prev) => prev.map((p) => p.id === paperId ? latest : p));
+      } catch {
+        // 保持原有状态，不覆盖为 failed
+      }
     }
   };
 
