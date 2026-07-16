@@ -223,7 +223,8 @@ async fn load_current_figure_contexts(
             .ok()
             .flatten()
             .unwrap_or_default();
-        kind.trim().is_empty() || source.trim().is_empty()
+        // 旧版「按面积排序的内嵌位图兜底」会产生编号错位/缺失，需要重新抽取。
+        kind.trim().is_empty() || source.trim().is_empty() || source == "embedded"
     });
 
     if has_legacy_rows {
