@@ -4,6 +4,7 @@ use sqlx::{
     SqlitePool,
 };
 use std::path::Path;
+use std::time::Duration;
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS settings (
@@ -454,7 +455,8 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
         .filename(&db_path)
         .create_if_missing(true)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
-        .foreign_keys(true);
+        .foreign_keys(true)
+        .busy_timeout(Duration::from_secs(10));
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
