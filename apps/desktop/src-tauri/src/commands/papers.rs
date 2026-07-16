@@ -1429,7 +1429,21 @@ pub async fn papers_analyze(
 
     tokio::spawn(async move {
         let app = app_for_spawn;
-        let client = match LlmClient::from_settings(&settings) {
+        let client = match LlmClient::scoped_client_from_settings(
+            &settings,
+            &[
+                "paper_analysis_base_url",
+                "multi_agent_paper_analyst_base_url",
+            ],
+            &[
+                "paper_analysis_api_key",
+                "multi_agent_paper_analyst_api_key",
+            ],
+            &[
+                "paper_analysis_model",
+                "multi_agent_paper_analyst_model",
+            ],
+        ) {
             Ok(c) => c,
             Err(e) => {
                 restore_paper_status(&db, &pid, &previous_status).await;
@@ -1836,7 +1850,21 @@ pub async fn papers_reproduce(
         .await;
 
     tokio::spawn(async move {
-        let client = match LlmClient::from_settings(&settings) {
+        let client = match LlmClient::scoped_client_from_settings(
+            &settings,
+            &[
+                "paper_reproduction_base_url",
+                "multi_agent_reproduction_base_url",
+            ],
+            &[
+                "paper_reproduction_api_key",
+                "multi_agent_reproduction_api_key",
+            ],
+            &[
+                "paper_reproduction_model",
+                "multi_agent_reproduction_model",
+            ],
+        ) {
             Ok(c) => c,
             Err(e) => {
                 restore_paper_status(&db, &pid, &previous_status).await;

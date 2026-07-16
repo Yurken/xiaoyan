@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FolderInput, Trash2, X } from "lucide-react";
 import { Button, Select } from "@research-copilot/ui";
 import type { KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/types";
+import { usePersistentState } from "../../hooks/usePersistentStringState";
 import CollapsibleGroup from "../../components/CollapsibleGroup";
 import PaperCard from "./PaperCard";
 import PaperCompactRow from "./PaperCompactRow";
@@ -155,6 +156,11 @@ export default function PaperFolderSection({ node, ctx }: { node: InterestTreeNo
   const title = group?.title ?? interestFolderName(interest);
   const subtitle = group?.subtitle ?? interest.topic;
 
+  const [open, setOpen] = usePersistentState<boolean>(
+    `rc:papers:folder-expanded:${groupKey}`,
+    papers.length > 0 || node.children.length > 0,
+  );
+
   // 移动目标：排除自身及其全部子孙（防环），并提供「顶层」。
   const subtreeSet = new Set(collectInterestSubtreeIds(ctx.interests, groupKey));
   const moveOptions = [
@@ -168,7 +174,8 @@ export default function PaperFolderSection({ node, ctx }: { node: InterestTreeNo
         title={title}
         subtitle={subtitle !== title ? `研究主题：${subtitle}` : undefined}
         countLabel={`${papers.length} 篇`}
-        defaultOpen={papers.length > 0 || node.children.length > 0}
+        open={open}
+        onOpenChange={setOpen}
         bodyClassName="space-y-3"
         actions={
           confirmDelete ? (

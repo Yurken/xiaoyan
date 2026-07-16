@@ -111,7 +111,7 @@ export function usePaperTaskProgress({ setPapers, setError }: UsePaperTaskProgre
       if (status === "error" || status === "failed") {
         pendingTasks.current.delete(paperId);
         clearPaperTaskProgress(paperId);
-        setPapers((prev) => prev.map((paper) => (paper.id === paperId ? { ...paper, status } : paper)));
+        fetchLatestPaper(paperId);
         if (error) setError(error);
         return;
       }

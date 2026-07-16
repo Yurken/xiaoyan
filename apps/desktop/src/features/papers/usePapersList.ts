@@ -112,7 +112,12 @@ export function usePapersList() {
       await apiClient.papers.analyze(id);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
-      setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "failed" } : p)));
+      try {
+        const latest = await apiClient.papers.get(id);
+        setPapers((prev) => prev.map((p) => (p.id === id ? latest : p)));
+      } catch {
+        // 保持原有状态，不覆盖为 failed
+      }
     }
   };
 
@@ -123,7 +128,12 @@ export function usePapersList() {
       await apiClient.papers.reproduce(id);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
-      setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "failed" } : p)));
+      try {
+        const latest = await apiClient.papers.get(id);
+        setPapers((prev) => prev.map((p) => (p.id === id ? latest : p)));
+      } catch {
+        // 保持原有状态，不覆盖为 failed
+      }
     }
   };
 
@@ -135,7 +145,12 @@ export function usePapersList() {
       await apiClient.papers.reparse(id);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
-      setPapers((prev) => prev.map((p) => (p.id === id ? { ...p, status: "failed" } : p)));
+      try {
+        const latest = await apiClient.papers.get(id);
+        setPapers((prev) => prev.map((p) => (p.id === id ? latest : p)));
+      } catch {
+        // 保持原有状态，不覆盖为 failed
+      }
     }
   };
 

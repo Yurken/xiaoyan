@@ -538,7 +538,7 @@ async fn rerank_with_xiaoyan(
     limit: usize,
     candidates: &[PaperCandidate],
 ) -> anyhow::Result<Option<(String, String, Vec<PaperRecommendation>)>> {
-    let client = match LlmClient::from_settings(settings) {
+    let client = match LlmClient::scout_client_from_settings(settings) {
         Ok(client) => client,
         Err(_) => return Ok(None),
     };

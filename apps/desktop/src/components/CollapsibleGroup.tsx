@@ -10,6 +10,8 @@ interface CollapsibleGroupProps {
   actions?: ReactNode;
   children: ReactNode;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   compact?: boolean;
   className?: string;
   bodyClassName?: string;
@@ -22,11 +24,23 @@ export default function CollapsibleGroup({
   actions,
   children,
   defaultOpen = true,
+  open: openProp,
+  onOpenChange,
   compact = false,
   className,
   bodyClassName,
 }: CollapsibleGroupProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const isControlled = openProp !== undefined;
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const open = isControlled ? openProp : internalOpen;
+
+  const toggle = () => {
+    const next = !open;
+    if (!isControlled) {
+      setInternalOpen(next);
+    }
+    onOpenChange?.(next);
+  };
 
   return (
     <Card
@@ -37,7 +51,7 @@ export default function CollapsibleGroup({
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => setOpen((prev) => !prev)}
+          onClick={toggle}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
           <span
