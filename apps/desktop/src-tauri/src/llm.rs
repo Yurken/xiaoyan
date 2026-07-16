@@ -389,45 +389,65 @@ impl LlmClient {
 
     /// Build a client for a scoped model configuration.
     ///
-    /// Checks the provided `base_url_keys` / `api_key_keys` in order. If a dedicated
-    /// endpoint is configured, it is used with the first non-empty model from
-    /// `model_keys`. Otherwise falls back to the main LLM provider.
+    /// Iterates over the provided keys by index and picks the first scope where both
+    /// `base_url` and `api_key` are configured. The model from the matching index is used
+    /// so that base_url/api_key/model are never mixed across scopes. If no scope is fully
+    /// configured, falls back to the main LLM provider.
+    ///
+    /// Returns the client and a flag indicating whether a dedicated scope was selected.
     pub fn scoped_client_from_settings(
         s: &HashMap<String, String>,
         base_url_keys: &[&str],
         api_key_keys: &[&str],
         model_keys: &[&str],
-    ) -> Result<Self> {
-        let base_url = first_non_empty(s, base_url_keys);
-        let api_key = first_non_empty(s, api_key_keys);
-        let model = resolve_model(s, model_keys).unwrap_or_default();
-
-        if !base_url.is_empty() && !api_key.is_empty() {
-            let normalized_base_url = normalize_base_url(&base_url);
-            if is_anthropic_compatible_base_url(&normalized_base_url) {
-                Ok(LlmClient::Anthropic {
-                    base_url: normalized_base_url,
-                    api_key,
-                    chat_model: if model.is_empty() {
-                        "claude-3-5-haiku-20241022".into()
-                    } else {
-                        model
-                    },
-                })
-            } else {
-                Ok(LlmClient::OpenAI {
-                    base_url: normalized_base_url,
-                    api_key,
-                    chat_model: if model.is_empty() {
-                        "deepseek-chat".into()
-                    } else {
-                        model
-                    },
-                    embed_model: String::new(),
-                })
+    ) -> Result<(Self, bool)> {
+        let scopes = base_url_keys
+            .iter()
+            .zip(api_key_keys.iter())
+            .zip(model_keys.iter());
+        for ((&base_url_key, &api_key_key), &model_key) in scopes {
+            let base_url = s
+                .get(base_url_key)
+                .map(|value| value.trim())
+                .unwrap_or_default();
+            let api_key = s
+                .get(api_key_key)
+                .map(|value| value.trim())
+                .unwrap_or_default();
+            if !base_url.is_empty() && !api_key.is_empty() {
+                let model = s
+                    .get(model_key)
+                    .map(|value| value.trim())
+                    .unwrap_or_default();
+                return Ok((
+                    Self::build_scoped_client(base_url, api_key, model)?,
+                    true,
+                ));
             }
+        }
+        Ok((Self::from_settings(s)?, false))
+    }
+
+    fn build_scoped_client(base_url: &str, api_key: &str, model: &str) -> Result<Self> {
+        let normalized_base_url = normalize_base_url(base_url);
+        let chat_model = if model.is_empty() {
+            None
         } else {
-            Self::from_settings(s)
+            Some(model.to_string())
+        };
+        if is_anthropic_compatible_base_url(&normalized_base_url) {
+            Ok(LlmClient::Anthropic {
+                base_url: normalized_base_url,
+                api_key: api_key.to_string(),
+                chat_model: chat_model.unwrap_or_else(|| "claude-3-5-haiku-20241022".into()),
+            })
+        } else {
+            Ok(LlmClient::OpenAI {
+                base_url: normalized_base_url,
+                api_key: api_key.to_string(),
+                chat_model: chat_model.unwrap_or_else(|| "deepseek-chat".into()),
+                embed_model: String::new(),
+            })
         }
     }
 
@@ -836,10 +856,6 @@ pub fn resolve_model(settings: &HashMap<String, String>, keys: &[&str]) -> Optio
         .map(|value| value.trim())
         .find(|value| !value.is_empty())
         .map(|value| value.to_string())
-}
-
-fn first_non_empty(settings: &HashMap<String, String>, keys: &[&str]) -> String {
-    resolve_model(settings, keys).unwrap_or_default()
 }
 
 pub fn resolve_temperature(settings: &HashMap<String, String>, key: &str, default: f32) -> f32 {

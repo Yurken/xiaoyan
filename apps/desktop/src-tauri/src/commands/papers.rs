@@ -1429,7 +1429,7 @@ pub async fn papers_analyze(
 
     tokio::spawn(async move {
         let app = app_for_spawn;
-        let client = match LlmClient::scoped_client_from_settings(
+        let (client, is_scoped) = match LlmClient::scoped_client_from_settings(
             &settings,
             &[
                 "paper_analysis_base_url",
@@ -1444,7 +1444,7 @@ pub async fn papers_analyze(
                 "multi_agent_paper_analyst_model",
             ],
         ) {
-            Ok(c) => c,
+            Ok((c, s)) => (c, s),
             Err(e) => {
                 restore_paper_status(&db, &pid, &previous_status).await;
                 let _ = app.emit(
@@ -1454,14 +1454,18 @@ pub async fn papers_analyze(
                 return;
             }
         };
-        let model = resolve_model(
-            &settings,
-            &[
-                "paper_analysis_model",
-                "multi_agent_paper_analyst_model",
-                "multi_agent_worker_model",
-            ],
-        );
+        let model = if is_scoped {
+            None
+        } else {
+            resolve_model(
+                &settings,
+                &[
+                    "paper_analysis_model",
+                    "multi_agent_paper_analyst_model",
+                    "multi_agent_worker_model",
+                ],
+            )
+        };
         let temperature = resolve_temperature(&settings, "paper_analysis_temperature", 0.3);
         let max_tokens = resolve_max_tokens(
             &settings,
@@ -1850,7 +1854,7 @@ pub async fn papers_reproduce(
         .await;
 
     tokio::spawn(async move {
-        let client = match LlmClient::scoped_client_from_settings(
+        let (client, is_scoped) = match LlmClient::scoped_client_from_settings(
             &settings,
             &[
                 "paper_reproduction_base_url",
@@ -1865,7 +1869,7 @@ pub async fn papers_reproduce(
                 "multi_agent_reproduction_model",
             ],
         ) {
-            Ok(c) => c,
+            Ok((c, s)) => (c, s),
             Err(e) => {
                 restore_paper_status(&db, &pid, &previous_status).await;
                 let _ = app.emit(
@@ -1875,14 +1879,18 @@ pub async fn papers_reproduce(
                 return;
             }
         };
-        let model = resolve_model(
-            &settings,
-            &[
-                "paper_reproduction_model",
-                "multi_agent_reproduction_model",
-                "multi_agent_worker_model",
-            ],
-        );
+        let model = if is_scoped {
+            None
+        } else {
+            resolve_model(
+                &settings,
+                &[
+                    "paper_reproduction_model",
+                    "multi_agent_reproduction_model",
+                    "multi_agent_worker_model",
+                ],
+            )
+        };
         let temperature = resolve_temperature(&settings, "paper_reproduction_temperature", 0.25);
         let max_tokens = resolve_max_tokens(
             &settings,

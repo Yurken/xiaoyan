@@ -110,7 +110,6 @@ export function usePaperTaskProgress({ setPapers, setError }: UsePaperTaskProgre
 
       if (status === "error" || status === "failed") {
         pendingTasks.current.delete(paperId);
-        clearPaperTaskProgress(paperId);
         fetchLatestPaper(paperId);
         if (error) setError(error);
         return;

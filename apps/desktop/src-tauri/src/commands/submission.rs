@@ -864,7 +864,7 @@ pub async fn submission_ai_review(
     strictness: String,
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
-    let client = LlmClient::scoped_client_from_settings(
+    let (client, is_scoped) = LlmClient::scoped_client_from_settings(
         &settings,
         &[
             "paper_analysis_base_url",
@@ -880,7 +880,11 @@ pub async fn submission_ai_review(
         ],
     )
     .map_err(|e| e.to_string())?;
-    let model = resolve_model(&settings, &["paper_analysis_model"]);
+    let model = if is_scoped {
+        None
+    } else {
+        resolve_model(&settings, &["paper_analysis_model"])
+    };
     let temperature = resolve_temperature_chain(&settings, &["paper_analysis_temperature"], 0.7);
 
     // truncate content to avoid token overflow
@@ -981,7 +985,7 @@ pub async fn submission_polish_abstract(
     request_id: Option<String>,
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
-    let client = LlmClient::scoped_client_from_settings(
+    let (client, is_scoped) = LlmClient::scoped_client_from_settings(
         &settings,
         &[
             "paper_analysis_base_url",
@@ -997,7 +1001,11 @@ pub async fn submission_polish_abstract(
         ],
     )
     .map_err(|e| e.to_string())?;
-    let model = resolve_model(&settings, &["paper_analysis_model"]);
+    let model = if is_scoped {
+        None
+    } else {
+        resolve_model(&settings, &["paper_analysis_model"])
+    };
     let temperature = resolve_temperature_chain(&settings, &["paper_analysis_temperature"], 0.5);
 
     let prompt = crate::assistant_prompts::polish_abstract_prompt(&text);
@@ -1052,7 +1060,7 @@ pub async fn submission_generate_cover_letter(
     request_id: Option<String>,
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
-    let client = LlmClient::scoped_client_from_settings(
+    let (client, is_scoped) = LlmClient::scoped_client_from_settings(
         &settings,
         &[
             "paper_analysis_base_url",
@@ -1068,7 +1076,11 @@ pub async fn submission_generate_cover_letter(
         ],
     )
     .map_err(|e| e.to_string())?;
-    let model = resolve_model(&settings, &["paper_analysis_model"]);
+    let model = if is_scoped {
+        None
+    } else {
+        resolve_model(&settings, &["paper_analysis_model"])
+    };
     let temperature = resolve_temperature_chain(&settings, &["paper_analysis_temperature"], 0.5);
 
     // gather context

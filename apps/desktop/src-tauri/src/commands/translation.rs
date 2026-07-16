@@ -66,7 +66,8 @@ pub async fn translate_text(
         &["translation_api_key"],
         &["translation_model"],
     )
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| error.to_string())?
+    .0;
     let messages = translation_messages(&text, &target_lang, source_lang.as_deref());
     client
         .chat(
@@ -98,7 +99,8 @@ pub async fn translate_stream(
         &["translation_api_key"],
         &["translation_model"],
     )
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| error.to_string())?
+    .0;
     let messages = translation_messages(&text, &target_lang, source_lang.as_deref());
     let model = translation_model(&settings, model);
     let temperature = resolve_temperature(&settings, "translation_temperature", 0.1);
