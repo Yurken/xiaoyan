@@ -387,6 +387,70 @@ impl LlmClient {
         }
     }
 
+    /// Build a client for a scoped model configuration.
+    ///
+    /// Iterates over the provided keys by index and picks the first scope where both
+    /// `base_url` and `api_key` are configured. The model from the matching index is used
+    /// so that base_url/api_key/model are never mixed across scopes. If no scope is fully
+    /// configured, falls back to the main LLM provider.
+    ///
+    /// Returns the client and a flag indicating whether a dedicated scope was selected.
+    pub fn scoped_client_from_settings(
+        s: &HashMap<String, String>,
+        base_url_keys: &[&str],
+        api_key_keys: &[&str],
+        model_keys: &[&str],
+    ) -> Result<(Self, bool)> {
+        let scopes = base_url_keys
+            .iter()
+            .zip(api_key_keys.iter())
+            .zip(model_keys.iter());
+        for ((&base_url_key, &api_key_key), &model_key) in scopes {
+            let base_url = s
+                .get(base_url_key)
+                .map(|value| value.trim())
+                .unwrap_or_default();
+            let api_key = s
+                .get(api_key_key)
+                .map(|value| value.trim())
+                .unwrap_or_default();
+            if !base_url.is_empty() && !api_key.is_empty() {
+                let model = s
+                    .get(model_key)
+                    .map(|value| value.trim())
+                    .unwrap_or_default();
+                return Ok((
+                    Self::build_scoped_client(base_url, api_key, model)?,
+                    true,
+                ));
+            }
+        }
+        Ok((Self::from_settings(s)?, false))
+    }
+
+    fn build_scoped_client(base_url: &str, api_key: &str, model: &str) -> Result<Self> {
+        let normalized_base_url = normalize_base_url(base_url);
+        let chat_model = if model.is_empty() {
+            None
+        } else {
+            Some(model.to_string())
+        };
+        if is_anthropic_compatible_base_url(&normalized_base_url) {
+            Ok(LlmClient::Anthropic {
+                base_url: normalized_base_url,
+                api_key: api_key.to_string(),
+                chat_model: chat_model.unwrap_or_else(|| "claude-3-5-haiku-20241022".into()),
+            })
+        } else {
+            Ok(LlmClient::OpenAI {
+                base_url: normalized_base_url,
+                api_key: api_key.to_string(),
+                chat_model: chat_model.unwrap_or_else(|| "deepseek-chat".into()),
+                embed_model: String::new(),
+            })
+        }
+    }
+
     /// Build a client specifically for literature scout tasks.
     /// Reads `multi_agent_literature_scout_base_url/api_key/model`.
     /// Falls back to the main LLM provider if scout-specific settings are not configured.

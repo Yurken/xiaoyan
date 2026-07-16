@@ -1,5 +1,4 @@
 use crate::commands::paper_artifacts::paper_figures_dir;
-use crate::commands::paper_figure_images::{extract_pdf_images, is_likely_paper_figure_image};
 use crate::commands::paper_figure_pages::{
     crop_page_region, extract_rendered_figure_crops, render_pdf_pages,
 };
@@ -190,16 +189,9 @@ pub(crate) async fn ensure_figures_extracted(
     )
     .await;
 
-    add_embedded_image_fallbacks(
-        db,
-        paper_id,
-        &pdf_path,
-        &figures_dir,
-        &captions,
-        &mut extracted,
-        &now,
-    )
-    .await;
+    // 内嵌位图兜底已被移除：原实现按图片面积排序后与缺失编号顺序对齐，
+    // 导致几乎所有论文都出现「Figure 3 显示成 Figure 1」这类错位/缺失问题。
+    // 后续优先依赖渲染截图兜底（已放宽裁剪区域）；视觉模型配置正确时走视觉扫描。
 
     query_figure_contexts(db, paper_id).await
 }
@@ -231,7 +223,8 @@ async fn load_current_figure_contexts(
             .ok()
             .flatten()
             .unwrap_or_default();
-        kind.trim().is_empty() || source.trim().is_empty()
+        // 旧版「按面积排序的内嵌位图兜底」会产生编号错位/缺失，需要重新抽取。
+        kind.trim().is_empty() || source.trim().is_empty() || source == "embedded"
     });
 
     if has_legacy_rows {
@@ -312,81 +305,6 @@ async fn add_rendered_page_fallbacks(
             Some(crop.page_number),
             Some(&crop.bbox),
             "rendered",
-            now,
-        )
-        .await
-        {
-            extracted.insert(key);
-        }
-    }
-}
-
-async fn add_embedded_image_fallbacks(
-    db: &sqlx::SqlitePool,
-    paper_id: &str,
-    pdf_path: &Path,
-    figures_dir: &Path,
-    captions: &CaptionMap,
-    extracted: &mut HashSet<(FigureKind, u32)>,
-    now: &str,
-) {
-    // 没有视觉模型时的兜底：抽取 PDF 内嵌位图。不再只挑“方法图”标题，
-    // 否则结果图/无关键词标题的论文会一张都抽不出来（这是“从来不显示图”的主因）。
-    let mut expected_figures = captions
-        .iter()
-        .filter_map(|((kind, index), caption)| {
-            (kind == &FigureKind::Figure && !extracted.contains(&(kind.clone(), *index)))
-                .then(|| (*index, caption.clone()))
-        })
-        .collect::<Vec<_>>();
-    expected_figures.sort_by_key(|(index, _)| *index);
-    expected_figures.truncate(12);
-
-    if expected_figures.is_empty() {
-        return;
-    }
-
-    let raw_images = {
-        let pdf_p = pdf_path.to_path_buf();
-        let fig_d = figures_dir.to_path_buf();
-        tokio::task::spawn_blocking(move || extract_pdf_images(&pdf_p, &fig_d))
-            .await
-            .unwrap_or_default()
-    };
-    let mut candidates = raw_images
-        .into_iter()
-        .filter(is_likely_paper_figure_image)
-        .collect::<Vec<_>>();
-    // 按面积从大到小，优先取更可能是正文插图的大图；图与编号按顺序对齐。
-    candidates.sort_by(|left, right| right.area().cmp(&left.area()));
-    candidates.truncate(expected_figures.len());
-
-    for ((index, caption), image) in expected_figures.into_iter().zip(candidates.into_iter()) {
-        let key = (FigureKind::Figure, index);
-        if extracted.contains(&key) {
-            continue;
-        }
-        let ext = image
-            .file_path
-            .extension()
-            .and_then(|value| value.to_str())
-            .unwrap_or("png");
-        let dest = figures_dir.join(format!("figure_{index}_embedded.{ext}"));
-        if std::fs::rename(&image.file_path, &dest).is_err()
-            && std::fs::copy(&image.file_path, &dest).is_err()
-        {
-            continue;
-        }
-        if insert_figure_record(
-            db,
-            paper_id,
-            &key.0,
-            key.1,
-            Some(&caption),
-            &dest,
-            None,
-            None,
-            "embedded",
             now,
         )
         .await
@@ -486,7 +404,7 @@ bbox 使用 [x, y, width, height]，坐标范围 0-1，相对于整张页面截�
 }
 
 fn vision_candidate_from_value(value: &serde_json::Value) -> Option<VisionFigureCandidate> {
-    let index = value.get("index")?.as_u64()? as u32;
+    let mut index = value.get("index")?.as_u64()? as u32;
     if index == 0 || index > 200 {
         return None;
     }
@@ -495,6 +413,22 @@ fn vision_candidate_from_value(value: &serde_json::Value) -> Option<VisionFigure
         .and_then(|item| item.as_str())
         .and_then(FigureKind::from_str)
         .unwrap_or(FigureKind::Figure);
+    let caption = value
+        .get("caption")
+        .and_then(|item| item.as_str())
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty());
+
+    // 如果模型返回的 caption 里本身带 Figure/Table 编号，优先以 caption 中的编号为准，
+    // 避免 LLM 把页内第一个图误标为 1。
+    if let Some(ref caption_text) = caption {
+        if let Some((caption_kind, caption_index)) = parse_caption_prefix(caption_text) {
+            if caption_kind == kind {
+                index = caption_index;
+            }
+        }
+    }
+
     let bbox = value.get("bbox").and_then(bbox_from_value)?;
     if bbox.width < 0.08 || bbox.height < 0.06 || bbox.width * bbox.height < 0.008 {
         return None;
@@ -511,11 +445,7 @@ fn vision_candidate_from_value(value: &serde_json::Value) -> Option<VisionFigure
         kind,
         index,
         bbox,
-        caption: value
-            .get("caption")
-            .and_then(|item| item.as_str())
-            .map(|item| item.trim().to_string())
-            .filter(|item| !item.is_empty()),
+        caption,
     })
 }
 

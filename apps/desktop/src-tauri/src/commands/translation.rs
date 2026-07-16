@@ -60,7 +60,14 @@ pub async fn translate_text(
     model: Option<String>,
 ) -> Result<String, String> {
     let settings = state.settings.read().await.clone();
-    let client = LlmClient::from_settings(&settings).map_err(|error| error.to_string())?;
+    let client = LlmClient::scoped_client_from_settings(
+        &settings,
+        &["translation_base_url"],
+        &["translation_api_key"],
+        &["translation_model"],
+    )
+    .map_err(|error| error.to_string())?
+    .0;
     let messages = translation_messages(&text, &target_lang, source_lang.as_deref());
     client
         .chat(
@@ -86,7 +93,14 @@ pub async fn translate_stream(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
     let settings = state.settings.read().await.clone();
-    let client = LlmClient::from_settings(&settings).map_err(|error| error.to_string())?;
+    let client = LlmClient::scoped_client_from_settings(
+        &settings,
+        &["translation_base_url"],
+        &["translation_api_key"],
+        &["translation_model"],
+    )
+    .map_err(|error| error.to_string())?
+    .0;
     let messages = translation_messages(&text, &target_lang, source_lang.as_deref());
     let model = translation_model(&settings, model);
     let temperature = resolve_temperature(&settings, "translation_temperature", 0.1);
