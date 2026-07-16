@@ -567,8 +567,8 @@ fn infer_figure_bbox(
     let min_top = previous_caption_bottom
         .map(|value| value + 8.0)
         .unwrap_or(page_height * 0.055);
-    let window_top = (target.caption_top - 420.0).max(min_top);
-    let heuristic_top = target.caption_top - 330.0;
+    let window_top = min_top;
+    let heuristic_top = min_top;
     let mut cursor = window_top;
     let mut best_gap = 0.0f32;
     let mut best_start = None;
