@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BookMarked, Check, Copy, FileText, Languages, Pencil, RefreshCw, Search, Sparkles, Trash2, Wand2, X } from "lucide-react";
 import { Card } from "@research-copilot/ui";
@@ -37,6 +37,8 @@ export default function CorpusPanel() {
     );
   }, [entries, query]);
 
+  const searchRef = useRef<HTMLDivElement>(null);
+
   const copy = async (entry: CorpusEntry) => {
     await navigator.clipboard.writeText(entry.text);
     setCopiedId(entry.id);
@@ -70,16 +72,28 @@ export default function CorpusPanel() {
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <div
-          className="flex flex-1 items-center gap-2 rounded-2xl border px-3 py-2"
-          style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
+          ref={searchRef}
+          className="relative flex flex-1 items-center overflow-hidden rounded-[24px]"
+          style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
         >
-          <Search className="h-4 w-4 text-ink-tertiary" />
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
           <input
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onFocus={() => {
+              if (searchRef.current) {
+                searchRef.current.style.boxShadow =
+                  "var(--rc-chip-inset-shadow), 0 0 0 2px rgba(0,122,255,0.25)";
+              }
+            }}
+            onBlur={() => {
+              if (searchRef.current) {
+                searchRef.current.style.boxShadow = "var(--rc-chip-inset-shadow)";
+              }
+            }}
             placeholder="搜索语料、备注或论文…"
-            className="rc-selectable w-full border-0 bg-transparent text-sm text-ink-primary outline-none placeholder:text-ink-tertiary/60"
+            className="rc-selectable h-10 w-full border-0 bg-transparent pl-11 pr-4 text-sm text-ink-primary outline-none placeholder:text-ink-tertiary/75"
           />
         </div>
         <span className="text-xs text-ink-tertiary">{entries.length} 条语料</span>
@@ -265,7 +279,7 @@ export default function CorpusPanel() {
                     <Wand2 className="h-3.5 w-3.5" />
                     改写
                   </button>
-                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="flex items-center gap-1">
                     <button type="button" onClick={() => void copy(entry)} className="rounded p-1 hover:text-apple-blue" title="复制">
                       {copiedId === entry.id ? <Check className="h-3.5 w-3.5 text-[#34C759]" /> : <Copy className="h-3.5 w-3.5" />}
                     </button>
