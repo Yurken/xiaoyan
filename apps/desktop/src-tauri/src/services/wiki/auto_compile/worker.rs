@@ -125,14 +125,24 @@ async fn process_pending_compile(state: &AppState, pending: PendingCompile) {
                 "[wiki-auto] interest={} attempt={} failed: {}",
                 pending.interest_id, next_attempt, error
             );
-            if let Err(queue_error) = enqueue_retry(
-                &state.db,
-                &pending.interest_id,
-                next_attempt,
-                &error.to_string(),
-            )
-            .await
-            {
+            let queue_result = if is_database_locked(&error) {
+                // 数据库锁冲突通常是瞬时的，用短延迟快速重试，避免 attempt 指数退避。
+                enqueue_short_retry(&state.db,
+                    &pending.interest_id,
+                    pending.attempt_count,
+                    &error.to_string(),
+                )
+                .await
+            } else {
+                enqueue_retry(
+                    &state.db,
+                    &pending.interest_id,
+                    next_attempt,
+                    &error.to_string(),
+                )
+                .await
+            };
+            if let Err(queue_error) = queue_result {
                 eprintln!("[wiki-auto] retry enqueue failed: {queue_error}");
             }
         }
@@ -177,6 +187,34 @@ async fn enqueue_retry(
     .execute(db)
     .await?;
     Ok(())
+}
+
+async fn enqueue_short_retry(
+    db: &SqlitePool,
+    interest_id: &str,
+    attempt_count: i64,
+    error: &str,
+) -> Result<()> {
+    let now = chrono::Utc::now().timestamp();
+    sqlx::query(
+        "INSERT INTO wiki_compile_queue
+         (research_interest_id, requested_at, not_before, reason, attempt_count, last_error)
+         VALUES (?, ?, ?, 'locked_short_retry', ?, ?)
+         ON CONFLICT(research_interest_id) DO NOTHING",
+    )
+    .bind(interest_id)
+    .bind(now)
+    .bind(now + 2)
+    .bind(attempt_count)
+    .bind(error)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+fn is_database_locked(error: &anyhow::Error) -> bool {
+    let text = error.to_string().to_lowercase();
+    text.contains("database is locked") || text.contains("busy") || text.contains("database locked")
 }
 
 pub(super) fn retry_delay_secs(attempt_count: i64) -> i64 {
