@@ -177,4 +177,4 @@ docs: 补充本地开发说明
 
 ---
 
-<p align="center">让研究过程连续、可检索、可验证。</p>
+<p align="center">🏆 <a href="https://mp.weixin.qq.com/s/Gm-srG5ZGqIFbDmf7MJM1Q">哈尔滨工业大学首届AI智能创新大赛</a> · 学习科研赛道 · 冠军</p>
