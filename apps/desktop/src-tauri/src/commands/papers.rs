@@ -2267,7 +2267,35 @@ pub(crate) fn extract_json(s: &str) -> String {
 }
 
 async fn restore_paper_status(db: &sqlx::SqlitePool, paper_id: &str, fallback_status: &str) {
-    let next_status = if fallback_status.trim().is_empty() {
+    // 优先根据已有产物决定状态：有复现指南 -> reproduced，有解读 -> analyzed。
+    // 这样即使 fallback_status 因为某种原因是 parsed/empty，只要内容没丢，按钮就不会退化成「小妍解读」。
+    let has_reproduction_guide = sqlx::query(
+        "SELECT 1 FROM reproduction_guides WHERE paper_id = ? AND environment_setup IS NOT NULL AND trim(environment_setup) <> '' LIMIT 1",
+    )
+    .bind(paper_id)
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten()
+    .is_some();
+
+    let has_analysis = if has_reproduction_guide {
+        true
+    } else {
+        sqlx::query("SELECT 1 FROM paper_analyses WHERE paper_id = ? LIMIT 1")
+            .bind(paper_id)
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten()
+            .is_some()
+    };
+
+    let next_status = if has_reproduction_guide {
+        "reproduced"
+    } else if has_analysis {
+        "analyzed"
+    } else if fallback_status.trim().is_empty() {
         "parsed"
     } else {
         fallback_status
