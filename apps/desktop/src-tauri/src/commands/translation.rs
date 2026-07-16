@@ -60,19 +60,24 @@ pub async fn translate_text(
     model: Option<String>,
 ) -> Result<String, String> {
     let settings = state.settings.read().await.clone();
-    let client = LlmClient::scoped_client_from_settings(
+    let (client, is_scoped) = LlmClient::scoped_client_from_settings(
         &settings,
         &["translation_base_url"],
         &["translation_api_key"],
         &["translation_model"],
     )
-    .map_err(|error| error.to_string())?
-    .0;
+    .map_err(|error| error.to_string())?;
     let messages = translation_messages(&text, &target_lang, source_lang.as_deref());
+    // 专用翻译端点已自带 model 时，不要让前端传入的主对话模型覆盖它。
+    let model = if is_scoped {
+        resolve_model(&settings, &["translation_model"])
+    } else {
+        translation_model(&settings, model)
+    };
     client
         .chat(
             &messages,
-            translation_model(&settings, model).as_deref(),
+            model.as_deref(),
             resolve_temperature(&settings, "translation_temperature", 0.1),
         )
         .await
@@ -93,16 +98,20 @@ pub async fn translate_stream(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
     let settings = state.settings.read().await.clone();
-    let client = LlmClient::scoped_client_from_settings(
+    let (client, is_scoped) = LlmClient::scoped_client_from_settings(
         &settings,
         &["translation_base_url"],
         &["translation_api_key"],
         &["translation_model"],
     )
-    .map_err(|error| error.to_string())?
-    .0;
+    .map_err(|error| error.to_string())?;
     let messages = translation_messages(&text, &target_lang, source_lang.as_deref());
-    let model = translation_model(&settings, model);
+    // 专用翻译端点已自带 model 时，不要让前端传入的主对话模型覆盖它。
+    let model = if is_scoped {
+        resolve_model(&settings, &["translation_model"])
+    } else {
+        translation_model(&settings, model)
+    };
     let temperature = resolve_temperature(&settings, "translation_temperature", 0.1);
     let handles = state.translation_handles.clone();
     let stream_id = request_id.clone();
