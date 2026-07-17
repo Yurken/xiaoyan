@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle,
@@ -14,6 +14,7 @@ import {
 import { Card, ConfirmDialog } from "@research-copilot/ui";
 import type { Skill } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
+import { SectionIcon } from "./shared";
 
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
   prompt: { bg: "rgba(10,132,255,0.10)", text: "#0A84FF" },
@@ -22,27 +23,6 @@ const TAG_COLORS: Record<string, { bg: string; text: string }> = {
   coding: { bg: "rgba(52,199,89,0.12)", text: "#34C759" },
   research: { bg: "rgba(48,176,199,0.12)", text: "#30B0C7" },
 };
-
-function SectionIcon({
-  icon: Icon,
-  color,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  color: string;
-}) {
-  return (
-    <div
-      className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-      style={{
-        background: `${color}12`,
-        color,
-        boxShadow: "var(--rc-chip-shadow)",
-      }}
-    >
-      <Icon className="w-5 h-5" />
-    </div>
-  );
-}
 
 function TagBadge({ tag }: { tag: string }) {
   const color = TAG_COLORS[tag] ?? { bg: "rgba(120,120,128,0.10)", text: "#8E8E93" };
