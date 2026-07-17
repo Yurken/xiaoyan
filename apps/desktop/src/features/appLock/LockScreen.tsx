@@ -201,8 +201,8 @@ export default function LockScreen({
                 disabled={busy}
                 className="flex items-center gap-1.5 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50 shrink-0"
                 style={{
-                  background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-                  boxShadow: "4px 4px 10px rgba(0,62,204,0.3)",
+                  background: "var(--rc-button-primary-bg)",
+                  boxShadow: "var(--rc-button-primary-shadow)",
                 }}
               >
                 <Lock className="h-4 w-4" />
@@ -212,7 +212,7 @@ export default function LockScreen({
             <button
               type="button"
               onClick={handleStartForgot}
-              className="text-xs text-[#007AFF] hover:underline"
+              className="text-xs text-[var(--rc-accent)] hover:underline"
             >
               忘记密码？
             </button>
@@ -275,8 +275,8 @@ export default function LockScreen({
               disabled={busy || !recoveryHasEmail || !recoveryHasSecurity || !recoveryEmail.trim()}
               className="w-full flex items-center justify-center gap-1.5 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
               style={{
-                background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-                boxShadow: "4px 4px 10px rgba(0,62,204,0.3)",
+                background: "var(--rc-button-primary-bg)",
+                boxShadow: "var(--rc-button-primary-shadow)",
               }}
             >
               <ShieldCheck className="h-4 w-4" />
@@ -316,8 +316,8 @@ export default function LockScreen({
               disabled={busy || !newPassword.trim() || !newPasswordConfirm.trim()}
               className="w-full flex items-center justify-center gap-1.5 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
               style={{
-                background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-                boxShadow: "4px 4px 10px rgba(0,62,204,0.3)",
+                background: "var(--rc-button-primary-bg)",
+                boxShadow: "var(--rc-button-primary-shadow)",
               }}
             >
               <Lock className="h-4 w-4" />

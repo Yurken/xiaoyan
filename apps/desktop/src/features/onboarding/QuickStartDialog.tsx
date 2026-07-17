@@ -28,7 +28,7 @@ export default function QuickStartDialog({ open, steps, onGotoSettings, onClose 
   return (
     <div
       className="fixed inset-0 z-[95] flex items-center justify-center p-4"
-      style={{ background: "rgba(23, 25, 29, 0.28)", backdropFilter: "blur(6px)" }}
+      style={{ background: "var(--rc-modal-backdrop)", backdropFilter: "blur(6px)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -87,7 +87,7 @@ export default function QuickStartDialog({ open, steps, onGotoSettings, onClose 
             type="button"
             onClick={onGotoSettings}
             className="rounded-full px-4 py-2 text-sm font-semibold text-white transition-all active:scale-95"
-            style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)" }}
+            style={{ background: "var(--rc-button-primary-bg)" }}
           >
             去完善设置
           </button>

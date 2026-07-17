@@ -41,14 +41,14 @@ export default function CryptoConfigModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      style={{ background: "var(--rc-modal-backdrop)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         className="w-full max-w-sm mx-4 rounded-3xl p-6 space-y-4"
-        style={{ background: "var(--rc-card-bg)", boxShadow: "12px 12px 28px rgba(0,0,0,0.45), 0 0 0 1px var(--rc-border)" }}
+        style={{ background: "var(--rc-card-bg)", boxShadow: "var(--rc-modal-shadow), 0 0 0 1px var(--rc-border)" }}
       >
         <div className="flex items-center gap-3">
           <div
@@ -122,7 +122,7 @@ export default function CryptoConfigModal({
             onClick={() => void onSubmit()}
             disabled={busy || !password.trim()}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-            style={{ background: "linear-gradient(145deg, #1A8AFF, #0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3)" }}
+            style={{ background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }}
           >
             {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
             {busy ? "处理中…" : modal.mode === "export" ? "加密并保存" : "解密并导入"}

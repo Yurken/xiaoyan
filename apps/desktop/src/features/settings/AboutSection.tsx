@@ -142,8 +142,8 @@ export default function AboutSection({
               disabled={!canInstall}
               className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
               style={{
-                background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-                boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
+                background: "var(--rc-button-primary-bg)",
+                boxShadow: "var(--rc-button-primary-shadow)",
               }}
             >
               {updateState === "installing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}

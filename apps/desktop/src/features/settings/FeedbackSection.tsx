@@ -239,7 +239,7 @@ export default function FeedbackSection() {
             onClick={() => void handleSubmit()}
             disabled={!canSubmit || submitting}
             className="ml-auto flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-            style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3)" }}
+            style={{ background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }}
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             {submitting ? "提交中…" : "提交反馈"}

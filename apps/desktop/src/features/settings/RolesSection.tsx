@@ -190,10 +190,10 @@ export default function RolesSection({
                   isActive
                     ? {
                         background:
-                          "linear-gradient(145deg, #1A8AFF, #0062CC)",
+                          "var(--rc-button-primary-bg)",
                         color: "#FFFFFF",
                         boxShadow:
-                          "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
+                          "var(--rc-button-primary-shadow)",
                       }
                     : {
                         background: "var(--rc-chip-bg)",

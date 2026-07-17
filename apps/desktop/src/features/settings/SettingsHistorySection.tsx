@@ -102,8 +102,8 @@ export default function SettingsHistorySection({
                 disabled={saving || busy}
                 className="flex items-center justify-center gap-1.5 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
                 style={{
-                  background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-                  boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
+                  background: "var(--rc-button-primary-bg)",
+                  boxShadow: "var(--rc-button-primary-shadow)",
                 }}
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

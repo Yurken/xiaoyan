@@ -146,9 +146,9 @@ export default function MemoryPrivacyPanel({ privacy }: MemoryPrivacyPanelProps)
             disabled={privacy.loading || privacy.busy || !unlockPassword.trim()}
             className="flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
             style={{
-              background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
+              background: "var(--rc-button-primary-bg)",
               color: "#fff",
-              boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
+              boxShadow: "var(--rc-button-primary-shadow)",
             }}
           >
             {privacy.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UnlockKeyhole className="h-3.5 w-3.5" />}
