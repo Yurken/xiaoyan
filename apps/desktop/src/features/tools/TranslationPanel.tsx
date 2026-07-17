@@ -3,9 +3,9 @@ import { Card, Textarea } from "@research-copilot/ui";
 
 const raisedShadow = "var(--rc-raised-shadow)";
 const activeChipStyle = {
-  background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
+  background: "var(--rc-button-primary-bg)",
   color: "#fff",
-  boxShadow: "3px 3px 8px rgba(0,62,204,0.3)",
+  boxShadow: "var(--rc-button-primary-shadow)",
 } as const;
 const inactiveChipStyle = {
   background: "var(--rc-surface)",
@@ -13,8 +13,8 @@ const inactiveChipStyle = {
   boxShadow: raisedShadow,
 } as const;
 const primaryButtonStyle = {
-  background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-  boxShadow: "4px 4px 10px rgba(0,62,204,0.3),-3px -3px 8px rgba(58,155,255,0.15)",
+  background: "var(--rc-button-primary-bg)",
+  boxShadow: "var(--rc-button-primary-shadow)",
 } as const;
 
 const SOURCE_LANG_OPTIONS = [

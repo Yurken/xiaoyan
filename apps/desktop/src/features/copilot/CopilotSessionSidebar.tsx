@@ -134,8 +134,8 @@ export function CopilotSessionSidebar(props: CopilotSessionSidebarProps) {
             aria-label="新建对话"
             className="flex-1 px-3 flex items-center gap-2 rounded-2xl py-2.5 text-sm font-medium text-white transition-all duration-150 active:scale-[0.98]"
             style={{
-              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-              boxShadow: "4px 4px 10px rgba(0,62,204,0.35), -3px -3px 8px rgba(58,155,255,0.2)",
+              background: "var(--rc-button-primary-bg)",
+              boxShadow: "var(--rc-button-primary-shadow)",
             }}
           >
             <Plus className="w-4 h-4" />

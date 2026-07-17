@@ -90,9 +90,8 @@ export default function CopilotOverviewSidebar({
       style={
         expanded
           ? {
-              background:
-                "linear-gradient(90deg, rgba(243,246,250,0.96) 0%, rgba(243,246,250,0.92) 28%, rgba(248,250,252,0.98) 100%)",
-              boxShadow: "-10px 0 24px rgba(15,23,42,0.16)",
+              background: "var(--rc-modal-bg)",
+              boxShadow: "var(--rc-modal-shadow)",
             }
           : {
               background: "linear-gradient(180deg, var(--rc-elevated) 0%, var(--rc-surface) 100%)",
@@ -264,8 +263,8 @@ export default function CopilotOverviewSidebar({
                 onClick={() => void onSaveMemory()}
                 className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-white transition-all duration-150 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                 style={{
-                  background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                  boxShadow: memoryInput.trim() ? "3px 3px 8px rgba(0,62,204,0.3)" : "none",
+                  background: "var(--rc-button-primary-bg)",
+                  boxShadow: memoryInput.trim() ? "var(--rc-button-primary-shadow)" : "none",
                 }}
               >
                 <BookMarked className="h-3 w-3" />

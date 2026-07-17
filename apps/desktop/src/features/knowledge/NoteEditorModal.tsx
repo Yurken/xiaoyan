@@ -124,7 +124,7 @@ export default function NoteEditorModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
-      style={{ background: visible ? "rgba(23, 25, 29, 0.32)" : "rgba(23, 25, 29, 0)", backdropFilter: "blur(6px)", transition: "background 0.24s ease" }}
+      style={{ background: visible ? "var(--rc-modal-backdrop)" : "transparent", backdropFilter: "blur(6px)", transition: "background 0.24s ease" }}
       onClick={(event) => { if (event.target === event.currentTarget) handleDismiss(); }}
     >
       <div
@@ -132,9 +132,9 @@ export default function NoteEditorModal({
         aria-modal="true"
         className="flex h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border"
         style={{
-          background: "linear-gradient(160deg, #F3F6FA 0%, var(--rc-surface) 100%)",
+          background: "var(--rc-modal-bg)",
           borderColor: "var(--rc-border)",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.22)",
+          boxShadow: "var(--rc-modal-shadow)",
           opacity: visible ? 1 : 0,
           transform: visible ? "translateY(0) scale(1)" : "translateY(8px) scale(0.98)",
           transition: "opacity 0.24s ease, transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)",
@@ -192,7 +192,7 @@ export default function NoteEditorModal({
             <button
               type="button"
               onClick={requestClose}
-              className="ml-1 rounded-lg p-1.5 text-ink-tertiary transition-colors hover:bg-black/5 hover:text-ink-primary"
+              className="ml-1 rounded-lg p-1.5 text-ink-tertiary transition-colors hover:bg-[var(--rc-list-item-hover-bg)] hover:text-ink-primary"
               aria-label="关闭"
             >
               <X className="h-4 w-4" />
