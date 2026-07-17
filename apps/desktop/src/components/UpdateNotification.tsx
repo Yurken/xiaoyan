@@ -60,7 +60,7 @@ export default function UpdateNotification({
       className="fixed bottom-5 right-5 z-50 w-[320px] rounded-[28px] p-5 space-y-4"
       style={{
         background: "linear-gradient(145deg, var(--rc-surface), var(--rc-surface))",
-        boxShadow: "10px 10px 24px rgba(183,190,199,0.75), -10px -10px 24px rgba(255,255,255,0.9)",
+        boxShadow: "var(--rc-raised-shadow)",
       }}
     >
       <style>{`

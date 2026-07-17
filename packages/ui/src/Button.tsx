@@ -35,9 +35,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 color: "var(--rc-button-ghost-text)",
               }
             : {
-                background: "linear-gradient(180deg, #ff655b, #d92b21)",
+                background: "var(--rc-button-danger-bg)",
                 borderColor: "rgba(255, 255, 255, 0.08)",
-                boxShadow: inactive ? "none" : "0 10px 24px rgba(217, 43, 33, 0.2)",
+                boxShadow: inactive ? "none" : "var(--rc-button-danger-shadow)",
                 color: "#ffffff",
               };
 

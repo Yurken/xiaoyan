@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 export default {
+  darkMode: ["selector", '[data-theme="dark"]'],
   content: [
     "./src/**/*.{ts,tsx}",
     "../../packages/ui/src/**/*.{ts,tsx}",
@@ -40,12 +41,12 @@ export default {
         },
       },
       boxShadow: {
-        "nm-flat":    "5px 5px 12px #05070B, -5px -5px 12px #161C25",
-        "nm-raised":  "10px 10px 20px #05070B, -10px -10px 20px #171E28",
-        "nm-pressed": "inset 4px 4px 8px #05070B, inset -4px -4px 8px #1A2230",
-        "nm-inset":   "inset 2px 2px 5px #05070B, inset -2px -2px 5px #1A2230",
-        "nm-card":    "6px 6px 14px #05070B, -6px -6px 14px #171E28",
-        "nm-sm":      "3px 3px 8px #05070B, -3px -3px 8px #171E28",
+        "nm-flat":    "var(--rc-card-flat-shadow)",
+        "nm-raised":  "var(--rc-card-raised-shadow)",
+        "nm-pressed": "var(--rc-card-inset-shadow)",
+        "nm-inset":   "var(--rc-card-inset-shadow)",
+        "nm-card":    "var(--rc-card-shadow)",
+        "nm-sm":      "var(--rc-card-flat-shadow-sm)",
         "apple-blue": "5px 5px 12px rgba(0,98,204,0.45), -3px -3px 8px rgba(58,155,255,0.30)",
         "apple-blue-pressed": "inset 3px 3px 6px rgba(0,62,128,0.5), inset -2px -2px 5px rgba(58,155,255,0.3)",
       },

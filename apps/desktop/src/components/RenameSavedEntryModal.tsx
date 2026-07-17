@@ -62,7 +62,7 @@ export default function RenameSavedEntryModal({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      style={{ background: "rgba(23, 25, 29, 0.28)", backdropFilter: "blur(6px)" }}
+      style={{ background: "var(--rc-modal-backdrop)", backdropFilter: "blur(6px)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget && !busy) onClose();
       }}
@@ -74,9 +74,9 @@ export default function RenameSavedEntryModal({
         aria-describedby={description ? descriptionId : undefined}
         className="w-full max-w-md rounded-[28px] border p-5"
         style={{
-          background: "var(--rc-elevated, var(--rc-surface))",
+          background: "var(--rc-modal-bg)",
           borderColor: "var(--rc-border)",
-          boxShadow: "var(--rc-card-shadow)",
+          boxShadow: "var(--rc-modal-shadow)",
         }}
         onSubmit={(event) => void handleSubmit(event)}
       >
@@ -98,7 +98,7 @@ export default function RenameSavedEntryModal({
             aria-label="关闭"
             disabled={busy}
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-tertiary transition-colors hover:bg-black/5 hover:text-ink-primary disabled:opacity-40"
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-tertiary transition-colors hover:bg-[var(--rc-list-item-hover-bg)] hover:text-ink-primary disabled:opacity-40"
           >
             <X className="h-4 w-4" />
           </button>

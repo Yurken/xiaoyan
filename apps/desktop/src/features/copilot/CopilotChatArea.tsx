@@ -210,7 +210,7 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                           style={{ color: "var(--rc-text-tertiary)" }}>取消</button>
                         <button type="button" onClick={onSaveEdit} disabled={!editText.trim()}
                           className="rounded-lg px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-40"
-                          style={{ color: "#FFFFFF", background: "#007AFF" }}>保存并发送</button>
+                          style={{ color: "#FFFFFF", background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }}>保存并发送</button>
                       </div>
                     </div>
                   ) : (
@@ -251,7 +251,7 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                         </div>
                       )}
                       <div className="rounded-2xl px-3 py-1.5 text-xs"
-                        style={{ background: "linear-gradient(145deg, #1A8AFF, #0062CC)", boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.2)", color: "#FFFFFF" }}>
+                        style={{ background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)", color: "#FFFFFF" }}>
                         <p className="rc-selectable whitespace-pre-wrap leading-relaxed">
                           {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
                         </p>

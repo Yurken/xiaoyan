@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import changelogRaw from "../../../../../CHANGELOG.md?raw";
-import { RefreshCw } from "lucide-react";
+import { ScrollText } from "lucide-react";
 import { Card, Select } from "@research-copilot/ui";
 import { SectionIcon } from "./shared";
 
@@ -100,7 +100,7 @@ export default function SettingsChangelogCard() {
     <Card padding="md" className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <SectionIcon icon={RefreshCw} color="#34C759" />
+          <SectionIcon icon={ScrollText} color="#34C759" />
           <div>
             <h2 className="text-base font-semibold text-ink-primary">更新日志</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">各版本功能变更记录</p>

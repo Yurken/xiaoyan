@@ -1,5 +1,6 @@
-import { Download, Github, Globe, Loader2, RefreshCw } from "lucide-react";
+import { ArrowUpCircle, Download, Github, Globe, Loader2, RefreshCw } from "lucide-react";
 import { Card } from "@research-copilot/ui";
+import { SectionIcon } from "./shared";
 import type { AppUpdateInfo } from "@research-copilot/types";
 import type { UpdateState } from "./useSettingsController";
 import { GITHUB_URL, OFFICIAL_SITE_URL, openLink } from "../../lib/links";
@@ -21,27 +22,6 @@ interface AboutSectionProps {
   downloadProgress: DownloadProgress | null;
   onCheckUpdate: () => void | Promise<void>;
   onInstallUpdate: () => void | Promise<void>;
-}
-
-function SectionIcon({
-  icon: Icon,
-  color,
-}: {
-  icon: typeof RefreshCw;
-  color: string;
-}) {
-  return (
-    <div
-      className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-      style={{
-        background: `${color}12`,
-        color,
-        boxShadow: "var(--rc-chip-shadow)",
-      }}
-    >
-      <Icon className="w-5 h-5" />
-    </div>
-  );
 }
 
 export default function AboutSection({
@@ -67,7 +47,7 @@ export default function AboutSection({
       <Card padding="md" className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <SectionIcon icon={RefreshCw} color="#5AC8FA" />
+            <SectionIcon icon={ArrowUpCircle} color="#5AC8FA" />
             <div>
               <h2 className="text-base font-semibold text-ink-primary">桌面端升级</h2>
               <p className="text-xs text-ink-tertiary mt-0.5">发布版会从已配置的更新源检查新版本，并支持一键安装。</p>
@@ -142,8 +122,8 @@ export default function AboutSection({
               disabled={!canInstall}
               className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
               style={{
-                background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-                boxShadow: "4px 4px 10px rgba(0,62,204,0.3), -3px -3px 8px rgba(58,155,255,0.15)",
+                background: "var(--rc-button-primary-bg)",
+                boxShadow: "var(--rc-button-primary-shadow)",
               }}
             >
               {updateState === "installing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}

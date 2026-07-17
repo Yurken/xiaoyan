@@ -56,14 +56,14 @@ export default function MockReviewModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      style={{ background: "var(--rc-modal-backdrop)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         className="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden flex flex-col"
-        style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 32px rgba(0,0,0,0.25)", maxHeight: "88vh" }}
+        style={{ background: "var(--rc-modal-bg)", boxShadow: "var(--rc-modal-shadow)", maxHeight: "88vh" }}
       >
         <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid var(--rc-border)" }}>
           <div className="flex items-center gap-2.5">
@@ -75,7 +75,7 @@ export default function MockReviewModal({
               <p className="text-xs text-ink-tertiary mt-0.5">由不同职责的 AI 审稿人独立诊断，辅助投稿前自查</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-black/5 transition-colors">
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-[var(--rc-list-item-hover-bg)] transition-colors">
             <X className="w-5 h-5 text-ink-tertiary" />
           </button>
         </div>
@@ -178,7 +178,7 @@ export default function MockReviewModal({
                             style={
                               mockReviewInput.strictness === key
                                 ? {
-                                    background: key === "lenient" ? "#34C759" : key === "strict" ? "#FF3B30" : "#007AFF",
+                                    background: key === "lenient" ? "#34C759" : key === "strict" ? "#FF3B30" : "var(--rc-button-primary-bg)",
                                     color: "#fff",
                                   }
                                 : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
@@ -268,7 +268,7 @@ export default function MockReviewModal({
             <>
               <button
                 onClick={onReset}
-                className="text-sm font-medium px-4 py-2 rounded-xl hover:bg-black/5 transition-colors"
+                className="text-sm font-medium px-4 py-2 rounded-xl hover:bg-[var(--rc-list-item-hover-bg)] transition-colors"
                 style={{ color: "var(--rc-text-secondary)" as string }}
               >
                 重新生成

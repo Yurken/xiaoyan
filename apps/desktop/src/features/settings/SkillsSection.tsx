@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle,
@@ -14,6 +14,7 @@ import {
 import { Card, ConfirmDialog } from "@research-copilot/ui";
 import type { Skill } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
+import { SectionIcon } from "./shared";
 
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
   prompt: { bg: "rgba(10,132,255,0.10)", text: "#0A84FF" },
@@ -22,27 +23,6 @@ const TAG_COLORS: Record<string, { bg: string; text: string }> = {
   coding: { bg: "rgba(52,199,89,0.12)", text: "#34C759" },
   research: { bg: "rgba(48,176,199,0.12)", text: "#30B0C7" },
 };
-
-function SectionIcon({
-  icon: Icon,
-  color,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  color: string;
-}) {
-  return (
-    <div
-      className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-      style={{
-        background: `${color}12`,
-        color,
-        boxShadow: "var(--rc-chip-shadow)",
-      }}
-    >
-      <Icon className="w-5 h-5" />
-    </div>
-  );
-}
 
 function TagBadge({ tag }: { tag: string }) {
   const color = TAG_COLORS[tag] ?? { bg: "rgba(120,120,128,0.10)", text: "#8E8E93" };
@@ -125,7 +105,7 @@ function SkillEditModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(4px)" }}
+      style={{ background: "var(--rc-modal-backdrop)", backdropFilter: "blur(4px)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -243,8 +223,8 @@ function SkillEditModal({
               disabled={saving}
               className="flex items-center gap-1.5 px-5 py-2 rounded-2xl text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
               style={{
-                background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-                boxShadow: "4px 4px 10px rgba(0,62,204,0.3)",
+                background: "var(--rc-button-primary-bg)",
+                boxShadow: "var(--rc-button-primary-shadow)",
               }}
             >
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
@@ -563,7 +543,7 @@ export default function SkillsSection() {
               type="button"
               onClick={() => setEditingSkill("new")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition-all active:scale-95"
-              style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)", boxShadow: "3px 3px 8px rgba(0,62,204,0.3)" }}
+              style={{ background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }}
             >
               <Plus className="w-3.5 h-3.5" />
               新建技能

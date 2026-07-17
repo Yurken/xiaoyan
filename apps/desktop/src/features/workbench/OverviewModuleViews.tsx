@@ -24,7 +24,7 @@ function surfaceStyle(variant: "inset" | "soft" | "outset" = "inset") {
     return {
       background: "var(--rc-bg)",
       border: "1px solid var(--rc-border)",
-      boxShadow: "4px 4px 10px var(--rc-shadow-dark, rgba(0,0,0,0.04)), -4px -4px 10px var(--rc-shadow-light, rgba(255,255,255,0.7))",
+      boxShadow: "var(--rc-card-flat-shadow)",
     };
   }
   return {

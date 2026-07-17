@@ -46,7 +46,7 @@ export default function CollapsibleGroup({
     <Card
       padding="sm"
       variant={compact ? "flat" : "raised"}
-      className={clsx("space-y-0 border border-nm-dark/10 bg-white/30", compact && "rounded-[24px] p-3", className)}
+      className={clsx("space-y-0", compact && "rounded-[24px] p-3", className)}
     >
       <div className="flex items-center gap-3">
         <button

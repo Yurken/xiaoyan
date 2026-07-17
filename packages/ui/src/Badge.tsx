@@ -15,10 +15,30 @@ const variants: Record<BadgeVariant, { text: string; shadow: string; bg: string;
     shadow: "var(--rc-info-chip-shadow, none)",
     border: "var(--rc-info-chip-border, transparent)",
   },
-  success:  { bg: "rgba(52,199,89,0.14)", text: "#1A9E3F", shadow: "none", border: "transparent" },
-  warning:  { bg: "rgba(255,149,0,0.14)", text: "#C07000", shadow: "none", border: "transparent" },
-  danger:   { bg: "rgba(255,59,48,0.14)", text: "#D92B21", shadow: "none", border: "transparent" },
-  purple:   { bg: "rgba(175,82,222,0.14)", text: "#8B32C2", shadow: "none", border: "transparent" },
+  success:  {
+    bg: "var(--rc-badge-success-bg, rgba(52,199,89,0.14))",
+    text: "var(--rc-badge-success-text, #1A9E3F)",
+    shadow: "none",
+    border: "transparent",
+  },
+  warning:  {
+    bg: "var(--rc-badge-warning-bg, rgba(255,149,0,0.14))",
+    text: "var(--rc-badge-warning-text, #C07000)",
+    shadow: "none",
+    border: "transparent",
+  },
+  danger:   {
+    bg: "var(--rc-badge-danger-bg, rgba(255,59,48,0.14))",
+    text: "var(--rc-badge-danger-text, #D92B21)",
+    shadow: "none",
+    border: "transparent",
+  },
+  purple:   {
+    bg: "var(--rc-badge-purple-bg, rgba(175,82,222,0.14))",
+    text: "var(--rc-badge-purple-text, #8B32C2)",
+    shadow: "none",
+    border: "transparent",
+  },
 };
 
 interface BadgeProps {

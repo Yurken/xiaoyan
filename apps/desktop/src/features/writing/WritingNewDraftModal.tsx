@@ -70,7 +70,7 @@ export default function WritingNewDraftModal({
   return (
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center p-4"
-      style={{ background: "rgba(23, 25, 29, 0.28)", backdropFilter: "blur(6px)" }}
+      style={{ background: "var(--rc-modal-backdrop)", backdropFilter: "blur(6px)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -81,9 +81,9 @@ export default function WritingNewDraftModal({
         aria-labelledby={titleId}
         className="w-full max-w-lg rounded-[28px] border p-5"
         style={{
-          background: "var(--rc-elevated, var(--rc-surface))",
+          background: "var(--rc-modal-bg)",
           borderColor: "var(--rc-border)",
-          boxShadow: "var(--rc-card-shadow)",
+          boxShadow: "var(--rc-modal-shadow)",
         }}
       >
         <header className="flex items-start gap-3">

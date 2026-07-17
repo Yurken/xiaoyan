@@ -43,14 +43,14 @@ export default function AddVenueModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      style={{ background: "var(--rc-modal-backdrop)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         className="w-full max-w-3xl max-h-[85vh] mx-4 rounded-3xl overflow-hidden flex flex-col"
-        style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)" }}
+        style={{ background: "var(--rc-modal-bg)", boxShadow: "var(--rc-modal-shadow)" }}
       >
         <div className="flex-shrink-0 px-6 py-5 border-b" style={{ borderColor: "var(--rc-border)" }}>
           <div className="flex items-center justify-between">
@@ -58,7 +58,7 @@ export default function AddVenueModal({
               <h2 className="text-lg font-bold text-ink-primary">添加会议/期刊</h2>
               <p className="text-xs text-ink-tertiary mt-0.5">从 CCF 推荐目录中选择要追踪的会议或期刊</p>
             </div>
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-black/5 transition-colors">
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-[var(--rc-list-item-hover-bg)] transition-colors">
               <X className="w-5 h-5 text-ink-tertiary" />
             </button>
           </div>
@@ -92,7 +92,7 @@ export default function AddVenueModal({
                   className="px-3 py-2 rounded-xl text-xs font-medium transition-all duration-150"
                   style={
                     typeFilter === venueType
-                      ? { background: "#007AFF", color: "#fff" }
+                      ? { background: "var(--rc-button-primary-bg)", color: "#fff" }
                       : {
                           background: "var(--rc-card-bg)",
                           color: "var(--rc-text-secondary)" as string,
@@ -153,7 +153,7 @@ export default function AddVenueModal({
                         style={
                           added
                             ? { background: "rgba(52,199,89,0.15)", cursor: "default" }
-                            : { background: "#007AFF", boxShadow: "2px 2px 6px rgba(0,122,255,0.3)" }
+                            : { background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }
                         }
                       >
                         {added ? <Check className="w-4 h-4" style={{ color: "#34C759" }} /> : <Plus className="w-4 h-4 text-white" />}

@@ -87,7 +87,7 @@ export default function WritingDraftManagerModal({
     <>
       <div
         className="fixed inset-0 z-[80] flex items-center justify-center p-5"
-        style={{ background: "rgba(23, 25, 29, 0.30)", backdropFilter: "blur(8px)" }}
+        style={{ background: "var(--rc-modal-backdrop)", backdropFilter: "blur(8px)" }}
         onClick={(event) => {
           if (event.target === event.currentTarget) onClose();
         }}
@@ -98,9 +98,9 @@ export default function WritingDraftManagerModal({
           aria-labelledby={titleId}
           className="flex max-h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-[24px] border"
           style={{
-            background: "var(--rc-elevated, var(--rc-surface))",
+            background: "var(--rc-modal-bg)",
             borderColor: "var(--rc-border)",
-            boxShadow: "var(--rc-card-shadow)",
+            boxShadow: "var(--rc-modal-shadow)",
           }}
         >
           <header className="flex shrink-0 items-center gap-3 border-b px-5 py-4" style={{ borderColor: "var(--rc-border)" }}>

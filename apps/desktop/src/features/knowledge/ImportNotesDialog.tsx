@@ -98,7 +98,7 @@ export default function ImportNotesDialog({
   return (
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center p-4"
-      style={{ background: "rgba(23, 25, 29, 0.28)", backdropFilter: "blur(6px)" }}
+      style={{ background: "var(--rc-modal-backdrop)", backdropFilter: "blur(6px)" }}
       onClick={(event) => { if (event.target === event.currentTarget && !loading) onClose(); }}
     >
       <div
@@ -106,9 +106,9 @@ export default function ImportNotesDialog({
         aria-modal="true"
         className="flex h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border"
         style={{
-          background: "var(--rc-elevated, var(--rc-surface))",
+          background: "var(--rc-modal-bg)",
           borderColor: "var(--rc-border)",
-          boxShadow: "var(--rc-card-shadow)",
+          boxShadow: "var(--rc-modal-shadow)",
         }}
       >
         <div className="flex flex-shrink-0 items-center justify-between px-5 py-4">

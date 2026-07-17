@@ -24,18 +24,18 @@ export default function AddSubmissionModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      style={{ background: "var(--rc-modal-backdrop)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         className="w-full max-w-md mx-4 rounded-3xl overflow-hidden flex flex-col"
-        style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)" }}
+        style={{ background: "var(--rc-modal-bg)", boxShadow: "var(--rc-modal-shadow)" }}
       >
         <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--rc-border)" }}>
           <h2 className="text-lg font-bold text-ink-primary">新增投稿</h2>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-black/5 transition-colors">
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-[var(--rc-list-item-hover-bg)] transition-colors">
             <X className="w-5 h-5 text-ink-tertiary" />
           </button>
         </div>
@@ -66,7 +66,7 @@ export default function AddSubmissionModal({
                   className="flex-1 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
                   style={
                     form.venueType === venueType
-                      ? { background: venueType === "conference" ? "#007AFF" : "#AF52DE", color: "#fff" }
+                      ? { background: venueType === "conference" ? "var(--rc-button-primary-bg)" : "#AF52DE", color: "#fff" }
                       : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
                   }
                 >
@@ -108,7 +108,7 @@ export default function AddSubmissionModal({
         <div className="px-6 pb-5 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-black/5 transition-colors"
+            className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-[var(--rc-list-item-hover-bg)] transition-colors"
             style={{ color: "var(--rc-text-secondary)" as string }}
           >
             取消
@@ -117,7 +117,7 @@ export default function AddSubmissionModal({
             onClick={() => void onSubmit()}
             disabled={!form.title.trim() || !form.venue.trim()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
-            style={{ background: "#007AFF", color: "#fff" }}
+            style={{ background: "var(--rc-button-primary-bg)", color: "#fff" }}
           >
             <Check className="w-4 h-4" />
             添加

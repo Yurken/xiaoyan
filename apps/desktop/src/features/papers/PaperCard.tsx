@@ -368,7 +368,7 @@ export default function PaperCard({
             <Button size="sm" variant="secondary" onClick={() => setConfirmReanalyze(false)}>取消</Button>
             <button type="button" onClick={() => { onAnalyze(paper.id); setConfirmReanalyze(false); }}
               className="inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium text-white transition-colors"
-              style={{ background: "#007AFF" }}>确认重新解读</button>
+              style={{ background: "var(--rc-button-primary-bg)" }}>确认重新解读</button>
           </div>
         </div>
       )}
@@ -470,12 +470,12 @@ export default function PaperCard({
       {noteOptionsOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(23, 25, 29, 0.32)", backdropFilter: "blur(6px)" }}
+          style={{ background: "var(--rc-modal-backdrop)", backdropFilter: "blur(6px)" }}
           onClick={(event) => { if (event.target === event.currentTarget) setNoteOptionsOpen(false); }}
         >
           <div
             className="w-full max-w-sm space-y-4 rounded-[24px] border p-6"
-            style={{ background: "var(--rc-surface)", borderColor: "var(--rc-border)", boxShadow: "0 24px 64px rgba(0,0,0,0.22)" }}
+            style={{ background: "var(--rc-modal-bg)", borderColor: "var(--rc-border)", boxShadow: "var(--rc-modal-shadow)" }}
           >
             <div>
               <h3 className="text-base font-semibold text-ink-primary">创建论文笔记</h3>

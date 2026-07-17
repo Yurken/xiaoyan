@@ -4,6 +4,7 @@ export { Card, CardHeader, CardTitle, CardSection, CardSectionTitle } from "./Ca
 export { default as Badge } from "./Badge";
 export { Input, Textarea } from "./Input";
 export { default as Select } from "./Select";
+export { default as Modal } from "./Modal";
 export { default as ConfirmDialog } from "./ConfirmDialog";
 export { default as MarkdownRenderer } from "./MarkdownRenderer";
 export { CapsuleTabs } from "./CapsuleTabs";

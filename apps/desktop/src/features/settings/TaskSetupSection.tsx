@@ -94,7 +94,7 @@ export default function TaskSetupSection({
             <button
               type="button"
               onClick={onOpenPaperLibrary}
-              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#007AFF]"
+              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[var(--rc-accent)]"
             >
               <FileSearch className="w-3.5 h-3.5" />
               打开论文导入设置
@@ -109,7 +109,7 @@ export default function TaskSetupSection({
             <button
               type="button"
               onClick={onOpenDataConfig}
-              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#007AFF]"
+              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[var(--rc-accent)]"
             >
               <ArrowRight className="w-3.5 h-3.5" />
               打开数据与配置
@@ -210,7 +210,7 @@ export default function TaskSetupSection({
                   finally { setLockBusy(false); }
                 }}
                 className="w-full rounded-xl py-2 text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
-                style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)" }}
+                style={{ background: "var(--rc-button-primary-bg)" }}
               >
                 {lockBusy ? "设置中…" : "确认设置"}
               </button>
@@ -243,7 +243,7 @@ export default function TaskSetupSection({
                   className="flex w-full items-center justify-between px-3 py-2.5"
                 >
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-[#007AFF]" />
+                    <ShieldCheck className="h-4 w-4 text-[var(--rc-accent)]" />
                     <span className="text-sm text-ink-primary">
                       {appLockHasSecurity ? "已设置密保" : "设置密保问题"}
                     </span>
@@ -285,7 +285,7 @@ export default function TaskSetupSection({
                         finally { setLockBusy(false); }
                       }}
                       className="w-full rounded-xl py-2 text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
-                      style={{ background: "linear-gradient(145deg,#1A8AFF,#0062CC)" }}
+                      style={{ background: "var(--rc-button-primary-bg)" }}
                     >
                       {lockBusy ? "保存中…" : appLockHasSecurity ? "更新密保" : "保存密保"}
                     </button>
