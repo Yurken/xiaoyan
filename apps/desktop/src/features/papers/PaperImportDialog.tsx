@@ -31,7 +31,7 @@ export default function PaperImportDialog({
   return (
     <div
       className="fixed inset-0 z-[120] flex items-center justify-center p-4"
-      style={{ background: "rgba(23, 25, 29, 0.32)", backdropFilter: "blur(6px)" }}
+      style={{ background: "var(--rc-modal-backdrop)", backdropFilter: "blur(6px)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget && !uploading) onClose();
       }}
@@ -39,9 +39,9 @@ export default function PaperImportDialog({
       <div
         className="w-full max-w-md overflow-hidden rounded-[28px] border"
         style={{
-          background: "var(--rc-elevated, var(--rc-card-bg))",
+          background: "var(--rc-modal-bg)",
           borderColor: "var(--rc-border)",
-          boxShadow: "var(--rc-card-shadow)",
+          boxShadow: "var(--rc-modal-shadow)",
         }}
       >
         <header className="flex items-start gap-3 border-b px-5 py-4" style={{ borderColor: "var(--rc-border)" }}>
@@ -61,7 +61,7 @@ export default function PaperImportDialog({
             type="button"
             onClick={onClose}
             disabled={uploading}
-            className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-tertiary transition-colors hover:bg-black/5 hover:text-ink-primary disabled:opacity-40"
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-tertiary transition-colors hover:bg-[var(--rc-list-item-hover-bg)] hover:text-ink-primary disabled:opacity-40"
             title="关闭"
           >
             <X className="h-4 w-4" />

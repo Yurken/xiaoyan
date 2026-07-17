@@ -26,21 +26,21 @@ export default function SaveVersionModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      style={{ background: "var(--rc-modal-backdrop)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         className="w-full max-w-xl mx-4 rounded-3xl overflow-hidden flex flex-col"
-        style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)" }}
+        style={{ background: "var(--rc-modal-bg)", boxShadow: "var(--rc-modal-shadow)" }}
       >
         <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--rc-border)" }}>
           <div>
             <h2 className="text-lg font-bold text-ink-primary">记录版本快照</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">保存当前稿件内容，防止修改丢失</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-black/5 transition-colors">
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-[var(--rc-list-item-hover-bg)] transition-colors">
             <X className="w-5 h-5 text-ink-tertiary" />
           </button>
         </div>
@@ -107,7 +107,7 @@ export default function SaveVersionModal({
         <div className="px-6 pb-5 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-sm font-medium transition-colors hover:bg-black/5"
+            className="px-4 py-2 rounded-xl text-sm font-medium transition-colors hover:bg-[var(--rc-list-item-hover-bg)]"
             style={{ color: "var(--rc-text-secondary)" as string }}
           >
             取消
@@ -116,7 +116,7 @@ export default function SaveVersionModal({
             onClick={() => void onSubmit()}
             disabled={!form.label.trim() || !form.content.trim()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
-            style={{ background: "#007AFF", color: "#fff" }}
+            style={{ background: "var(--rc-button-primary-bg)", color: "#fff" }}
           >
             <Check className="w-4 h-4" />
             保存版本

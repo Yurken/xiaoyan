@@ -22,21 +22,21 @@ export default function CoverLetterModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      style={{ background: "var(--rc-modal-backdrop)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         className="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden flex flex-col"
-        style={{ background: "var(--rc-card-bg)", boxShadow: "8px 8px 24px rgba(0,0,0,0.2)", maxHeight: "80vh" }}
+        style={{ background: "var(--rc-modal-bg)", boxShadow: "var(--rc-modal-shadow)", maxHeight: "80vh" }}
       >
         <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid var(--rc-border)" }}>
           <div>
             <h2 className="text-lg font-bold text-ink-primary">生成 Cover Letter</h2>
             <p className="text-xs text-ink-tertiary mt-0.5">基于投稿历史与审稿意见自动生成</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-black/5">
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-[var(--rc-list-item-hover-bg)]">
             <X className="w-5 h-5 text-ink-tertiary" />
           </button>
         </div>
@@ -68,7 +68,7 @@ export default function CoverLetterModal({
           >
             复制
           </button>
-          <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-medium" style={{ background: "#007AFF", color: "#fff" }}>
+          <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-medium" style={{ background: "var(--rc-button-primary-bg)", color: "#fff" }}>
             关闭
           </button>
         </div>

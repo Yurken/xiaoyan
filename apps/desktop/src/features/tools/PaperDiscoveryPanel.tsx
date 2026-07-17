@@ -257,9 +257,9 @@ export function PaperDiscoveryPanel({
                         style={
                           selected
                             ? {
-                                background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
+                                background: "var(--rc-button-primary-bg)",
                                 color: "#fff",
-                                boxShadow: "2px 2px 6px rgba(0,62,204,0.3)",
+                                boxShadow: "var(--rc-button-primary-shadow)",
                               }
                             : { background: "var(--rc-surface)", color: "var(--rc-text-soft)", boxShadow: raisedShadow }
                         }
@@ -294,9 +294,9 @@ export function PaperDiscoveryPanel({
                     style={
                       selected
                         ? {
-                            background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
+                            background: "var(--rc-button-primary-bg)",
                             color: "#fff",
-                            boxShadow: "2px 2px 6px rgba(0,62,204,0.3)",
+                            boxShadow: "var(--rc-button-primary-shadow)",
                           }
                         : { background: "var(--rc-elevated)", color: "var(--rc-text-soft)", boxShadow: raisedShadow }
                     }
