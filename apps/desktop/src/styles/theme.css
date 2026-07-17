@@ -33,7 +33,9 @@
   --rc-card-outline: transparent;
   --rc-card-inset-outline: transparent;
   --rc-card-shadow: 6px 6px 14px #05070B, -6px -6px 14px #171E28;
+  --rc-card-raised-shadow: 10px 10px 20px #05070B, -10px -10px 20px #171E28;
   --rc-card-flat-shadow: 5px 5px 12px #05070B, -5px -5px 12px #161C25;
+  --rc-card-flat-shadow-sm: 3px 3px 8px #05070B, -3px -3px 8px #171E28;
   --rc-card-inset-shadow: var(--rc-inset-shadow);
   --rc-panel-bg-soft: rgba(23, 27, 33, 0.82);
   --rc-panel-border: rgba(36, 45, 58, 0.92);
@@ -92,6 +94,24 @@
     inset -3px -3px 7px rgba(26, 34, 48, 0.88),
     0 1px 0 rgba(255, 255, 255, 0.04);
   --rc-modal-backdrop: rgba(5, 7, 11, 0.82);
+  --rc-text-secondary: var(--rc-text-soft);
+  --rc-modal-bg: var(--rc-elevated);
+  --rc-modal-shadow: var(--rc-card-shadow);
+  --rc-button-danger-bg: linear-gradient(180deg, #ff655b, #d92b21);
+  --rc-button-danger-shadow: 5px 5px 12px rgba(217, 43, 33, 0.45), -3px -3px 8px rgba(255, 101, 91, 0.30);
+  --rc-badge-success-bg: rgba(52, 199, 89, 0.16);
+  --rc-badge-success-text: #3DDC74;
+  --rc-badge-warning-bg: rgba(255, 149, 0, 0.16);
+  --rc-badge-warning-text: #FFB340;
+  --rc-badge-danger-bg: rgba(255, 59, 48, 0.16);
+  --rc-badge-danger-text: #FF6961;
+  --rc-badge-purple-bg: rgba(175, 82, 222, 0.18);
+  --rc-badge-purple-text: #C77DFF;
+  --rc-toggle-on-bg: #30D158;
+  --rc-toggle-knob-bg: #FFFFFF;
+  --rc-toggle-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --rc-list-item-hover-bg: var(--rc-nav-item-hover-bg);
+  --rc-chart-grid: rgba(255, 255, 255, 0.08);
   --rc-nm-card-bg: linear-gradient(145deg, #161c28, #0D1117);
   --rc-nm-surface-bg: linear-gradient(145deg, #1A2230, #0A0E14);
   --rc-nm-elevated-bg: linear-gradient(145deg, #202A3C, #131A26);
@@ -131,7 +151,9 @@ html[data-theme="light"] {
   --rc-card-outline: transparent;
   --rc-card-inset-outline: transparent;
   --rc-card-shadow: 6px 6px 14px #C8CDD3, -6px -6px 14px #FFFFFF;
+  --rc-card-raised-shadow: 10px 10px 20px #C8CDD3, -10px -10px 20px #FFFFFF;
   --rc-card-flat-shadow: 5px 5px 12px #C8CDD3, -5px -5px 12px #FFFFFF;
+  --rc-card-flat-shadow-sm: 3px 3px 8px #C8CDD3, -3px -3px 8px #FFFFFF;
   --rc-card-inset-shadow: var(--rc-inset-shadow);
   --rc-panel-bg-soft: rgba(255, 255, 255, 0.46);
   --rc-panel-border: rgba(200, 205, 211, 0.55);
@@ -187,6 +209,24 @@ html[data-theme="light"] {
   --rc-nav-item-active-border: rgba(200, 205, 211, 0.18);
   --rc-nav-item-active-shadow: var(--rc-chip-inset-shadow);
   --rc-modal-backdrop: rgba(200, 205, 211, 0.55);
+  --rc-text-secondary: var(--rc-text-soft);
+  --rc-modal-bg: var(--rc-elevated);
+  --rc-modal-shadow: var(--rc-card-shadow);
+  --rc-button-danger-bg: linear-gradient(180deg, #ff655b, #d92b21);
+  --rc-button-danger-shadow: 5px 5px 12px rgba(217, 43, 33, 0.35), -3px -3px 8px rgba(255, 101, 91, 0.22);
+  --rc-badge-success-bg: rgba(52, 199, 89, 0.14);
+  --rc-badge-success-text: #1A9E3F;
+  --rc-badge-warning-bg: rgba(255, 149, 0, 0.14);
+  --rc-badge-warning-text: #C07000;
+  --rc-badge-danger-bg: rgba(255, 59, 48, 0.14);
+  --rc-badge-danger-text: #D92B21;
+  --rc-badge-purple-bg: rgba(175, 82, 222, 0.14);
+  --rc-badge-purple-text: #8B32C2;
+  --rc-toggle-on-bg: #34C759;
+  --rc-toggle-knob-bg: #FFFFFF;
+  --rc-toggle-knob-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  --rc-list-item-hover-bg: var(--rc-nav-item-hover-bg);
+  --rc-chart-grid: rgba(0, 0, 0, 0.08);
   --rc-nm-card-bg: linear-gradient(145deg, #F8FAFC, #E6EAF0);
   --rc-nm-surface-bg: linear-gradient(145deg, #E2E6EC, #CBD3DC);
   --rc-nm-elevated-bg: linear-gradient(145deg, #F5F7FA, #E6EAF0);
@@ -228,7 +268,9 @@ html[data-style="modern-minimal"] {
   --rc-card-outline: rgba(255, 255, 255, 0.08);
   --rc-card-inset-outline: rgba(255, 255, 255, 0.04);
   --rc-card-shadow: none;
+  --rc-card-raised-shadow: none;
   --rc-card-flat-shadow: none;
+  --rc-card-flat-shadow-sm: none;
   --rc-card-inset-shadow: none;
   --rc-panel-bg-soft: #0d1014;
   --rc-panel-border: var(--rc-border);
@@ -280,6 +322,24 @@ html[data-style="modern-minimal"] {
   --rc-nav-item-active-border: transparent;
   --rc-nav-item-active-shadow: none;
   --rc-modal-backdrop: rgba(0, 0, 0, 0.78);
+  --rc-text-secondary: var(--rc-text-soft);
+  --rc-modal-bg: var(--rc-elevated);
+  --rc-modal-shadow: var(--rc-card-shadow);
+  --rc-button-danger-bg: linear-gradient(180deg, #ff655b, #d92b21);
+  --rc-button-danger-shadow: none;
+  --rc-badge-success-bg: rgba(52, 199, 89, 0.16);
+  --rc-badge-success-text: #3DDC74;
+  --rc-badge-warning-bg: rgba(255, 149, 0, 0.16);
+  --rc-badge-warning-text: #FFB340;
+  --rc-badge-danger-bg: rgba(255, 59, 48, 0.16);
+  --rc-badge-danger-text: #FF6961;
+  --rc-badge-purple-bg: rgba(175, 82, 222, 0.18);
+  --rc-badge-purple-text: #C77DFF;
+  --rc-toggle-on-bg: #30D158;
+  --rc-toggle-knob-bg: #FFFFFF;
+  --rc-toggle-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --rc-list-item-hover-bg: var(--rc-nav-item-hover-bg);
+  --rc-chart-grid: rgba(255, 255, 255, 0.08);
   --rc-nm-card-bg: #13171d;
   --rc-nm-surface-bg: #0d1014;
   --rc-nm-elevated-bg: #171b21;
@@ -321,7 +381,9 @@ html[data-style="modern-minimal"][data-theme="light"] {
   --rc-card-outline: rgba(0, 0, 0, 0.05);
   --rc-card-inset-outline: rgba(0, 0, 0, 0.03);
   --rc-card-shadow: none;
+  --rc-card-raised-shadow: none;
   --rc-card-flat-shadow: none;
+  --rc-card-flat-shadow-sm: none;
   --rc-card-inset-shadow: none;
   --rc-panel-bg-soft: rgba(255, 255, 255, 0.95);
   --rc-panel-border: var(--rc-border);
@@ -373,6 +435,24 @@ html[data-style="modern-minimal"][data-theme="light"] {
   --rc-nav-item-active-border: transparent;
   --rc-nav-item-active-shadow: none;
   --rc-modal-backdrop: rgba(245, 245, 245, 0.65);
+  --rc-text-secondary: var(--rc-text-soft);
+  --rc-modal-bg: var(--rc-elevated);
+  --rc-modal-shadow: var(--rc-card-shadow);
+  --rc-button-danger-bg: linear-gradient(180deg, #ff655b, #d92b21);
+  --rc-button-danger-shadow: none;
+  --rc-badge-success-bg: rgba(52, 199, 89, 0.14);
+  --rc-badge-success-text: #1A9E3F;
+  --rc-badge-warning-bg: rgba(255, 149, 0, 0.14);
+  --rc-badge-warning-text: #C07000;
+  --rc-badge-danger-bg: rgba(255, 59, 48, 0.14);
+  --rc-badge-danger-text: #D92B21;
+  --rc-badge-purple-bg: rgba(175, 82, 222, 0.14);
+  --rc-badge-purple-text: #8B32C2;
+  --rc-toggle-on-bg: #34C759;
+  --rc-toggle-knob-bg: #FFFFFF;
+  --rc-toggle-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  --rc-list-item-hover-bg: var(--rc-nav-item-hover-bg);
+  --rc-chart-grid: rgba(0, 0, 0, 0.06);
   --rc-nm-card-bg: #ffffff;
   --rc-nm-surface-bg: #f3f4f6;
   --rc-nm-elevated-bg: #ffffff;
@@ -414,7 +494,9 @@ html[data-style="liquid-glass"] {
   --rc-card-outline: transparent;
   --rc-card-inset-outline: transparent;
   --rc-card-shadow: var(--rc-raised-shadow);
+  --rc-card-raised-shadow: var(--rc-raised-shadow);
   --rc-card-flat-shadow: var(--rc-flat-shadow);
+  --rc-card-flat-shadow-sm: var(--rc-flat-shadow);
   --rc-card-inset-shadow: var(--rc-inset-shadow);
   --rc-panel-bg-soft: rgba(36, 42, 56, 0.5);
   --rc-panel-border: rgba(255, 255, 255, 0.06);
@@ -469,6 +551,24 @@ html[data-style="liquid-glass"] {
   --rc-nav-item-active-border: rgba(255, 255, 255, 0.16);
   --rc-nav-item-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 16px rgba(0, 0, 0, 0.32);
   --rc-modal-backdrop: rgba(5, 7, 13, 0.5);
+  --rc-text-secondary: var(--rc-text-soft);
+  --rc-modal-bg: var(--rc-elevated);
+  --rc-modal-shadow: var(--rc-card-shadow);
+  --rc-button-danger-bg: linear-gradient(180deg, #ff655b, #d92b21);
+  --rc-button-danger-shadow: 0 2px 8px rgba(217, 43, 33, 0.3);
+  --rc-badge-success-bg: rgba(52, 199, 89, 0.16);
+  --rc-badge-success-text: #3DDC74;
+  --rc-badge-warning-bg: rgba(255, 149, 0, 0.16);
+  --rc-badge-warning-text: #FFB340;
+  --rc-badge-danger-bg: rgba(255, 59, 48, 0.16);
+  --rc-badge-danger-text: #FF6961;
+  --rc-badge-purple-bg: rgba(175, 82, 222, 0.18);
+  --rc-badge-purple-text: #C77DFF;
+  --rc-toggle-on-bg: #30D158;
+  --rc-toggle-knob-bg: #FFFFFF;
+  --rc-toggle-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --rc-list-item-hover-bg: var(--rc-nav-item-hover-bg);
+  --rc-chart-grid: rgba(255, 255, 255, 0.10);
   --rc-nm-card-bg: linear-gradient(155deg, rgba(58, 68, 96, 0.60), rgba(26, 31, 46, 0.46));
   --rc-nm-surface-bg: linear-gradient(155deg, rgba(34, 40, 58, 0.55), rgba(16, 20, 30, 0.42));
   --rc-nm-elevated-bg: linear-gradient(155deg, rgba(64, 74, 102, 0.58), rgba(34, 40, 58, 0.46));
@@ -510,7 +610,9 @@ html[data-style="liquid-glass"][data-theme="light"] {
   --rc-card-outline: transparent;
   --rc-card-inset-outline: transparent;
   --rc-card-shadow: var(--rc-raised-shadow);
+  --rc-card-raised-shadow: var(--rc-raised-shadow);
   --rc-card-flat-shadow: var(--rc-flat-shadow);
+  --rc-card-flat-shadow-sm: var(--rc-flat-shadow);
   --rc-card-inset-shadow: var(--rc-inset-shadow);
   --rc-panel-bg-soft: rgba(255, 255, 255, 0.65);
   --rc-panel-border: rgba(0, 0, 0, 0.05);
@@ -565,6 +667,24 @@ html[data-style="liquid-glass"][data-theme="light"] {
   --rc-nav-item-active-border: rgba(255, 255, 255, 0.8);
   --rc-nav-item-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 6px 16px rgba(54, 84, 150, 0.16);
   --rc-modal-backdrop: rgba(180, 200, 235, 0.4);
+  --rc-text-secondary: var(--rc-text-soft);
+  --rc-modal-bg: var(--rc-elevated);
+  --rc-modal-shadow: var(--rc-card-shadow);
+  --rc-button-danger-bg: linear-gradient(180deg, #ff655b, #d92b21);
+  --rc-button-danger-shadow: 0 2px 8px rgba(217, 43, 33, 0.2);
+  --rc-badge-success-bg: rgba(52, 199, 89, 0.14);
+  --rc-badge-success-text: #1A9E3F;
+  --rc-badge-warning-bg: rgba(255, 149, 0, 0.14);
+  --rc-badge-warning-text: #C07000;
+  --rc-badge-danger-bg: rgba(255, 59, 48, 0.14);
+  --rc-badge-danger-text: #D92B21;
+  --rc-badge-purple-bg: rgba(175, 82, 222, 0.14);
+  --rc-badge-purple-text: #8B32C2;
+  --rc-toggle-on-bg: #34C759;
+  --rc-toggle-knob-bg: #FFFFFF;
+  --rc-toggle-knob-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  --rc-list-item-hover-bg: var(--rc-nav-item-hover-bg);
+  --rc-chart-grid: rgba(0, 0, 0, 0.08);
   --rc-nm-card-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.56));
   --rc-nm-surface-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.4));
   --rc-nm-elevated-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.6));
@@ -801,41 +921,6 @@ html[data-style="liquid-glass"][data-theme="light"] {
   html[data-theme="dark"] [style*="border"][style*="255,255,255"],
   html[data-theme="dark"] [style*="border"][style*="255, 255, 255"] {
     border-color: var(--rc-border) !important;
-  }
-
-  /* neumorphic light: cool-gray shadows */
-  html:not([data-style="modern-minimal"])[data-theme="light"] .shadow-nm-card {
-    box-shadow: 6px 6px 14px #C8CDD3, -6px -6px 14px #FFFFFF !important;
-  }
-
-  html:not([data-style="modern-minimal"])[data-theme="light"] .shadow-nm-raised {
-    box-shadow: 10px 10px 20px #C8CDD3, -10px -10px 20px #FFFFFF !important;
-  }
-
-  html:not([data-style="modern-minimal"])[data-theme="light"] .shadow-nm-flat {
-    box-shadow: 5px 5px 12px #C8CDD3, -5px -5px 12px #FFFFFF !important;
-  }
-
-  html:not([data-style="modern-minimal"])[data-theme="light"] .shadow-nm-pressed,
-  html:not([data-style="modern-minimal"])[data-theme="light"] .shadow-nm-inset {
-    box-shadow: var(--rc-inset-shadow) !important;
-  }
-
-  html:not([data-style="modern-minimal"])[data-theme="light"] .shadow-nm-sm {
-    box-shadow: 3px 3px 8px #C8CDD3, -3px -3px 8px #FFFFFF !important;
-  }
-
-  html[data-style="modern-minimal"] .shadow-nm-card,
-  html[data-style="modern-minimal"] .shadow-nm-raised,
-  html[data-style="modern-minimal"] .shadow-nm-flat {
-    box-shadow: var(--rc-flat-shadow) !important;
-    border: 1px solid var(--rc-border) !important;
-  }
-
-  html[data-style="modern-minimal"] .shadow-nm-pressed,
-  html[data-style="modern-minimal"] .shadow-nm-inset,
-  html[data-style="modern-minimal"] .shadow-nm-sm {
-    box-shadow: none !important;
   }
 
   html[data-style="modern-minimal"] input,

@@ -13,6 +13,7 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
+import { Input } from "@research-copilot/ui";
 import type { AppSettings } from "@research-copilot/types";
 
 export const MASK = "***";
@@ -46,23 +47,12 @@ export function SettingInput({
         ) : null}
       </div>
       <div className="relative">
-        <input
+        <Input
           type={type}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="w-full rounded-2xl px-4 py-2.5 text-sm text-ink-primary placeholder:text-ink-tertiary outline-none border-0 transition-shadow duration-150 pr-10"
-          style={{
-            background: "var(--rc-chip-inset-bg)",
-            boxShadow: "var(--rc-chip-inset-shadow)",
-          }}
-          onFocus={(event) => {
-            event.currentTarget.style.boxShadow =
-              "var(--rc-chip-inset-shadow), 0 0 0 2px rgba(0,122,255,0.25)";
-          }}
-          onBlur={(event) => {
-            event.currentTarget.style.boxShadow = "var(--rc-chip-inset-shadow)";
-          }}
+          className="pr-10"
         />
         {sensitive ? (
           <button
@@ -117,9 +107,9 @@ export function AgentChip({
       style={
         active
           ? {
-              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+              background: "var(--rc-button-primary-bg)",
               color: "#FFFFFF",
-              boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
+              boxShadow: "var(--rc-button-primary-shadow)",
             }
           : {
               background: "var(--rc-chip-bg)",
@@ -150,9 +140,9 @@ export function ProviderTab({
       style={
         active
           ? {
-              background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
+              background: "var(--rc-button-primary-bg)",
               color: "#FFFFFF",
-              boxShadow: "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)",
+              boxShadow: "var(--rc-button-primary-shadow)",
             }
           : {
               background: "var(--rc-chip-bg)",
@@ -193,13 +183,14 @@ export function ToggleRow({
         type="button"
         onClick={onToggle}
         className="w-16 h-9 rounded-full relative transition-colors flex-shrink-0 overflow-hidden"
-        style={{ background: checked ? "#34C759" : "var(--rc-chip-inset-bg)" }}
+        style={{ background: checked ? "var(--rc-toggle-on-bg)" : "var(--rc-chip-inset-bg)" }}
       >
         <span
-          className="absolute left-1 top-1 h-7 w-7 rounded-full bg-white transition-transform"
+          className="absolute left-1 top-1 h-7 w-7 rounded-full transition-transform"
           style={{
+            background: "var(--rc-toggle-knob-bg)",
             transform: checked ? "translateX(28px)" : "translateX(0)",
-            boxShadow: "0 4px 10px rgba(0,0,0,0.12)",
+            boxShadow: "var(--rc-toggle-knob-shadow)",
           }}
         />
       </button>

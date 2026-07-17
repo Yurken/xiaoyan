@@ -48,7 +48,7 @@
 .knowledge-graph-canvas {
   isolation: isolate;
   border-color: var(--rc-panel-border);
-  background-color: #fff;
+  background-color: var(--rc-bg);
   background-image:
     linear-gradient(var(--kg-canvas-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--kg-canvas-grid) 1px, transparent 1px);
@@ -67,7 +67,7 @@
 
 .knowledge-graph-lane {
   color: var(--rc-text-muted);
-  border: 1px solid var(--rc-chip-inset-bg);
+  border: 1px solid var(--rc-panel-border);
   background: var(--rc-chip-bg);
   box-shadow: var(--rc-chip-shadow);
 }

@@ -173,8 +173,8 @@ export default function PaperDetailModal({
         aria-labelledby="paper-detail-title"
         className="flex h-[min(92vh,980px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px]"
         style={{
-          background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(244,247,250,0.98) 100%)",
-          boxShadow: "0 20px 70px rgba(15,23,42,0.18)",
+          background: "var(--rc-modal-bg)",
+          boxShadow: "var(--rc-modal-shadow)",
           transform: visible ? "translateY(0) scale(1)" : "translateY(10px) scale(0.985)",
           opacity: visible ? 1 : 0,
           transition: "transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease",
@@ -182,7 +182,7 @@ export default function PaperDetailModal({
       >
         <div
           className="flex flex-shrink-0 items-start justify-between gap-3 border-b px-5 py-4 sm:px-6"
-          style={{ borderColor: "rgba(15,23,42,0.08)", background: "rgba(255,255,255,0.78)" }}
+          style={{ borderColor: "rgba(15,23,42,0.08)", background: "var(--rc-modal-bg)" }}
         >
           <div className="min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
