@@ -2,7 +2,8 @@ import { SPRITE_COMPANION_ACTION_ATLAS_PACKS } from "./actionExpansion";
 import { COMPANION_ACTION_KEYS, type CompanionActionKey, type SpriteAnimation, type SpriteAtlasSheet } from "./shared";
 
 const SPRITE_SHEET_COLUMNS = 8;
-const SPRITE_SHEET_ROWS = 9;
+const STANDARD_SPRITE_SHEET_ROWS = 9;
+const EXTENDED_SPRITE_SHEET_ROWS = 11;
 
 export const xiaoyanActionSheets = Object.fromEntries(
   SPRITE_COMPANION_ACTION_ATLAS_PACKS.map((pack) => [
@@ -10,7 +11,7 @@ export const xiaoyanActionSheets = Object.fromEntries(
     {
       image: pack.image,
       columns: SPRITE_SHEET_COLUMNS,
-      rows: SPRITE_SHEET_ROWS,
+      rows: pack.id === "core" ? EXTENDED_SPRITE_SHEET_ROWS : STANDARD_SPRITE_SHEET_ROWS,
     },
   ]),
 ) as Record<string, SpriteAtlasSheet>;

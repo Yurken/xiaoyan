@@ -10,6 +10,7 @@ import type {
   SvgSetDefinition,
 } from "./shared";
 import { useCompanionController } from "./useCompanionController";
+import { useCompanionLookDirection } from "./useCompanionLookDirection";
 import { useCompanionPreference } from "./useCompanionPreference";
 import CompanionFindingsDrawer from "./CompanionFindingsDrawer";
 import { apiClient } from "../../lib/client";
@@ -58,16 +59,34 @@ function SpriteAtlasPet({
   animation,
   inline,
   opacity,
+  lookDirectionIndex,
 }: {
   renderer: SpriteAtlasDefinition;
   animation: SpriteAnimation;
   inline: boolean;
   opacity: number;
+  lookDirectionIndex?: number | null;
 }) {
   const [frame, setFrame] = useState(() => getInitialFrame(animation));
   const width = inline ? SPRITE_VISUAL_WIDTH.inline : SPRITE_VISUAL_WIDTH.floating;
   const height = Math.round(width * renderer.cellHeight / renderer.cellWidth);
-  const sheet = resolveSpriteAtlasSheet(renderer, animation);
+  const lookDirections = renderer.lookDirections;
+  const lookFrame = lookDirections && lookDirectionIndex != null
+    ? {
+        row: lookDirections.rows[
+          Math.min(
+            lookDirections.rows.length - 1,
+            Math.floor(lookDirectionIndex / lookDirections.framesPerRow),
+          )
+        ] ?? lookDirections.rows[0],
+        frame: lookDirectionIndex % lookDirections.framesPerRow,
+      }
+    : null;
+  const sheet = lookFrame
+    ? { image: renderer.image, columns: renderer.columns, rows: renderer.rows }
+    : resolveSpriteAtlasSheet(renderer, animation);
+  const displayedFrame = lookFrame?.frame ?? frame;
+  const displayedRow = lookFrame?.row ?? animation.row;
 
   useLayoutEffect(() => {
     const initialFrame = getInitialFrame(animation);
@@ -166,7 +185,7 @@ function SpriteAtlasPet({
         backgroundImage: `url(${sheet.image})`,
         backgroundRepeat: "no-repeat",
         backgroundSize: `${sheet.columns * width}px ${sheet.rows * height}px`,
-        backgroundPosition: `-${frame * width}px -${animation.row * height}px`,
+        backgroundPosition: `-${displayedFrame * width}px -${displayedRow * height}px`,
         imageRendering: "pixelated",
       }}
     />
@@ -254,16 +273,26 @@ export function CompanionVisual({
   actionKey,
   inline,
   opacity,
+  lookDirectionIndex,
 }: {
   definition: CompanionDefinition;
   actionKey: CompanionActionKey;
   inline: boolean;
   opacity: number;
+  lookDirectionIndex?: number | null;
 }) {
   const assetKey = getCompanionAnimationKey(definition, actionKey);
   if (definition.renderer.kind === "sprite-atlas") {
     const animation = definition.renderer.animations[assetKey] ?? definition.renderer.animations.idle;
-    return <SpriteAtlasPet renderer={definition.renderer} animation={animation} inline={inline} opacity={opacity} />;
+    return (
+      <SpriteAtlasPet
+        renderer={definition.renderer}
+        animation={animation}
+        inline={inline}
+        opacity={opacity}
+        lookDirectionIndex={lookDirectionIndex}
+      />
+    );
   }
   if (definition.renderer.kind === "static-image") {
     return <StaticImagePet renderer={definition.renderer} inline={inline} opacity={opacity} />;
@@ -312,6 +341,13 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
   const companionId = useCompanionPreference();
   const definition = useMemo(() => getCompanionDefinition(companionId), [companionId]);
   const controller = useCompanionController({ allowIdleSleep: definition.allowIdleSleep !== false });
+  const lookDirectionIndex = useCompanionLookDirection({
+    enabled: controller.visible
+      && controller.shownAction === "idle"
+      && definition.renderer.kind === "sprite-atlas"
+      && Boolean(definition.renderer.lookDirections),
+    targetRef: controller.containerRef,
+  });
   const { setNotificationCount } = controller;
 
   // 启动时加载未读数
@@ -377,6 +413,7 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
               actionKey={controller.shownAction}
               inline
               opacity={controller.opacity}
+              lookDirectionIndex={lookDirectionIndex}
             />
           </button>
         </div>
@@ -417,6 +454,7 @@ export default function CompanionRenderer({ inline = false }: { inline?: boolean
           actionKey={controller.shownAction}
           inline={false}
           opacity={controller.opacity}
+          lookDirectionIndex={lookDirectionIndex}
         />
       </div>
       {findingsDrawer}
