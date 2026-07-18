@@ -77,6 +77,11 @@ export interface SpriteAtlasSheet {
   rows: number;
 }
 
+export interface SpriteLookDirections {
+  rows: readonly [number, number];
+  framesPerRow: number;
+}
+
 export interface SpriteAtlasDefinition {
   kind: "sprite-atlas";
   image: string;
@@ -84,8 +89,22 @@ export interface SpriteAtlasDefinition {
   cellHeight: number;
   columns: number;
   rows: number;
+  lookDirections?: SpriteLookDirections;
   sheets?: Record<string, SpriteAtlasSheet>;
   animations: Record<string, SpriteAnimation>;
+}
+
+export const LOOK_DIRECTION_COUNT = 16;
+export const LOOK_DIRECTION_STEP_DEGREES = 360 / LOOK_DIRECTION_COUNT;
+
+export function resolveCompanionLookDirection(
+  deltaX: number,
+  deltaY: number,
+  deadzoneRadius: number,
+): number | null {
+  if (Math.hypot(deltaX, deltaY) <= deadzoneRadius) return null;
+  const clockwiseFromUp = (Math.atan2(deltaX, -deltaY) * 180 / Math.PI + 360) % 360;
+  return Math.round(clockwiseFromUp / LOOK_DIRECTION_STEP_DEGREES) % LOOK_DIRECTION_COUNT;
 }
 
 export interface SvgSetDefinition {

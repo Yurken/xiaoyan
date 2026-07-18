@@ -23,7 +23,11 @@ export const COMPANION_DEFINITIONS: Record<CompanionId, CompanionDefinition> = {
       cellWidth: 192,
       cellHeight: 208,
       columns: 8,
-      rows: 9,
+      rows: 11,
+      lookDirections: {
+        rows: [9, 10],
+        framesPerRow: 8,
+      },
       sheets: xiaoyanActionSheets,
       animations: xiaoyanAnimations,
     },
