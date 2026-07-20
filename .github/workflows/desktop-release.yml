@@ -43,7 +43,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -106,7 +106,7 @@ jobs:
 
       - name: Recreate draft release
         id: release
-        uses: actions/github-script@v7.0.1
+        uses: actions/github-script@v9.0.0
         env:
           TAG_NAME: ${{ env.RELEASE_TAG }}
         with:
@@ -191,7 +191,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -232,7 +232,7 @@ jobs:
         run: node scripts/sync-version.mjs --tag "${{ env.RELEASE_TAG }}"
 
       - name: Build application
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
