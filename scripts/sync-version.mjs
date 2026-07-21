@@ -92,6 +92,13 @@ updateText("apps/desktop/src-tauri/Cargo.toml", (text) => {
   return text.replace(/^version = ".*"$/m, `version = "${appVersion}"`);
 }, touched);
 
+updateText("apps/desktop/src-tauri/Cargo.lock", (text) => {
+  return text.replace(
+    /(\[\[package\]\]\nname = "xiaoyan-desktop"\nversion = ")[^"]+("\n)/,
+    `$1${appVersion}$2`,
+  );
+}, touched);
+
 updateText("apps/desktop/src-tauri/src/commands/arxiv.rs", (text) => {
   return text.replace(
     /^(const ARXIV_USER_AGENT: &str = "xiaoyan-desktop\/)[0-9A-Za-z.+-]+(?= )/m,
@@ -99,11 +106,18 @@ updateText("apps/desktop/src-tauri/src/commands/arxiv.rs", (text) => {
   );
 }, touched);
 
-updateText("README.md", (text) => {
+updateText("apps/desktop/src-tauri/src/commands/field_dynamics.rs", (text) => {
   return text.replace(
-    /(badge\/release-v)[0-9A-Za-z.+-]+(-)/,
-    `$1${releaseVersion}$2`,
+    /^(const FIELD_DYNAMICS_IMPORT_USER_AGENT: &str = "XiaoYanDesktop\/)[0-9A-Za-z.+-]+(?= )/m,
+    `$1${appVersion}`,
   );
+}, touched);
+
+updateText("README.md", (text) => {
+  return text
+    .replace(/(badge\/release-v)[0-9A-Za-z.+-]+(-)/, `$1${releaseVersion}$2`)
+    .replace(/(> 当前版本：\*\*v)[0-9A-Za-z.+-]+(\*\*。)/, `$1${releaseVersion}$2`)
+    .replace(/(<summary><strong>查看 v)[0-9A-Za-z.+-]+( 主要更新<\/strong><\/summary>)/, `$1${releaseVersion}$2`);
 }, touched);
 
 updateText("apps/desktop/src-tauri/src/commands/paper_search.rs", (text) => {
