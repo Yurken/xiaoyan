@@ -2,7 +2,8 @@ use crate::assistant_prompts::main_chat_system;
 use crate::commands::chat_tools::{build_chat_tools, dispatch_tool};
 use crate::commands::memory::is_long_term_memory_enabled;
 use crate::llm::{
-    resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMessage, StreamOutcome,
+    explain_vision_error, resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMessage,
+    StreamOutcome,
 };
 use crate::services::agent_runtime_service::{
     run_agent_runtime, AgentRuntimeKind, AgentRuntimeRequest,
@@ -21,6 +22,31 @@ use sqlx::Row;
 use std::collections::HashMap;
 use tauri::{Emitter, State};
 use uuid::Uuid;
+
+fn scoped_context_type(context_type: Option<&str>, has_context_id: bool) -> String {
+    match (context_type, has_context_id) {
+        (Some("interest"), true) => "interest".to_string(),
+        (Some("paper"), true) => "paper".to_string(),
+        _ => "general".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::scoped_context_type;
+
+    #[test]
+    fn preserves_supported_scoped_contexts() {
+        assert_eq!(scoped_context_type(Some("interest"), true), "interest");
+        assert_eq!(scoped_context_type(Some("paper"), true), "paper");
+    }
+
+    #[test]
+    fn falls_back_to_general_without_a_scope_id() {
+        assert_eq!(scoped_context_type(Some("paper"), false), "general");
+        assert_eq!(scoped_context_type(Some("unknown"), true), "general");
+    }
+}
 
 /// 前端 chat_stream 传入的图片块：data 为 base64（不含 data: 前缀），mediaType 为 MIME 类型。
 #[derive(serde::Deserialize)]
@@ -136,11 +162,8 @@ pub async fn chat_update_session_context(
             Some(trimmed)
         }
     });
-    let normalized_context_type = if context_type == "interest" && normalized_context_id.is_some() {
-        "interest".to_string()
-    } else {
-        "general".to_string()
-    };
+    let normalized_context_type =
+        scoped_context_type(Some(&context_type), normalized_context_id.is_some());
 
     sqlx::query(
         "UPDATE chat_sessions SET context_type = ?, context_id = ?, updated_at = ? WHERE id = ?",
@@ -287,12 +310,7 @@ pub async fn chat_stream(
             Some(trimmed)
         }
     });
-    let ctx_type = if context_type.as_deref() == Some("interest") && normalized_context_id.is_some()
-    {
-        "interest".to_string()
-    } else {
-        "general".to_string()
-    };
+    let ctx_type = scoped_context_type(context_type.as_deref(), normalized_context_id.is_some());
 
     let sid = if let Some(id) = session_id {
         let _ = sqlx::query(
@@ -369,6 +387,11 @@ pub async fn chat_stream(
     let ctx_type_clone = ctx_type.clone();
     let context_id_clone = normalized_context_id.clone();
     let chat_handles = state.chat_handles.clone();
+    let uses_vision = !images.is_empty() || history.iter().any(|item| !item.images.is_empty());
+    let vision_model = settings
+        .get("vision_model")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
 
     let handle = tokio::spawn(async move {
         let result = run_chat(
@@ -388,6 +411,11 @@ pub async fn chat_stream(
 
         if let Err(e) = result {
             let error_message = e.to_string();
+            let visible_error = if uses_vision {
+                explain_vision_error(&error_message, vision_model.as_deref())
+            } else {
+                error_message.clone()
+            };
             if long_term_memory_enabled {
                 let _ = crate::commands::memory::record_chat_failure_event(
                     &db,
@@ -413,7 +441,7 @@ pub async fn chat_stream(
             }
             let _ = app.emit(
                 "chat:error",
-                json!({ "request_id": rid, "error": error_message }),
+                json!({ "request_id": rid, "error": visible_error }),
             );
         }
         let _ = app.emit("chat:done", json!({ "request_id": rid }));
