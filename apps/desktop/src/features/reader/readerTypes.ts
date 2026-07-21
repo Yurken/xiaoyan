@@ -5,7 +5,10 @@ export type HighlightColor = "yellow" | "green" | "blue" | "pink" | "purple";
 export type LineStyle = "highlight" | "underline" | "strike";
 /** 形状框选样式（整段外接一个形状）：矩形/圆角矩形/椭圆。 */
 export type ShapeStyle = "rect" | "rounded" | "ellipse";
-export type AnnotationStyle = LineStyle | ShapeStyle;
+/** 自由文本批注（点击页面任意位置后输入文字）。 */
+export type TextStyle = "text";
+export type TextAnnotationStyle = LineStyle | TextStyle;
+export type AnnotationStyle = LineStyle | ShapeStyle | TextStyle;
 
 /** 可选的形状（顺序即 UI 展示顺序）。 */
 export const SHAPE_STYLES: readonly ShapeStyle[] = ["rect", "rounded", "ellipse"];
@@ -26,8 +29,12 @@ export function isShapeStyle(style: AnnotationStyle): style is ShapeStyle {
   return SHAPE_SET.has(style);
 }
 
-/** 阅读器顶部工具栏的模式：view=正常阅读；annotate=预选工具持续批注。 */
-export type ReaderMode = "view" | "annotate";
+export function isTextStyle(style: AnnotationStyle): style is TextStyle {
+  return style === "text";
+}
+
+/** 阅读器顶部工具栏直接区分阅读、文本批注和形状批注。 */
+export type ReaderMode = "view" | "text-annotation" | "shape-annotation";
 
 export const HIGHLIGHT_COLORS: Record<
   HighlightColor,
@@ -133,7 +140,7 @@ export interface PaperNote {
 }
 
 const VALID_COLORS = new Set<string>(["yellow", "green", "blue", "pink", "purple"]);
-const VALID_STYLES = new Set<string>(["highlight", "underline", "strike", "rect", "rounded", "ellipse"]);
+const VALID_STYLES = new Set<string>(["highlight", "underline", "strike", "rect", "rounded", "ellipse", "text"]);
 
 /** 把后端返回的原始记录规整成 PaperNote */
 export function normalizePaperNote(raw: unknown): PaperNote | null {

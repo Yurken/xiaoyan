@@ -153,7 +153,7 @@ export default function ReaderTranslationPanel({
           >
             <Languages className="h-5 w-5 text-ink-tertiary" />
             <p className="text-xs leading-5 text-ink-tertiary">
-              在 PDF 中选中文字即自动翻译，也可以用顶部图像按钮框选图表让小妍解读。锁定后将固定当前内容、不再随划词变化。
+              在 PDF 中直接选择文字即可翻译；按住 Option（Windows 为 Alt）拖拽，可以框选图表或任意内容让小妍解读。锁定后将固定当前内容。
             </p>
           </div>
         ) : (

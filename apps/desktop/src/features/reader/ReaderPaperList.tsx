@@ -1,39 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
-import { FileText, Search } from "lucide-react";
-import type { Paper } from "@research-copilot/types";
-import { papersApi } from "../../lib/client";
+import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
+import { usePaperLibrarySnapshot } from "../papers/usePaperLibrarySnapshot";
 
 interface ReaderPaperListProps {
   currentId?: string;
   onSelect: (id: string) => void;
   width?: number;
   onDragStart?: (event: React.MouseEvent) => void;
+  embedded?: boolean;
 }
 
 /** 阅读页左侧的库内论文列表，点击切换到另一篇论文阅读。 */
-export default function ReaderPaperList({ currentId, onSelect, width, onDragStart }: ReaderPaperListProps) {
-  const [papers, setPapers] = useState<Paper[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function ReaderPaperList({ currentId, onSelect, width, onDragStart, embedded = false }: ReaderPaperListProps) {
+  const { papers, loading } = usePaperLibrarySnapshot();
   const [keyword, setKeyword] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    papersApi
-      .list(0, 200)
-      .then((rows) => {
-        if (!cancelled) setPapers(Array.isArray(rows) ? rows : []);
-      })
-      .catch(() => {
-        if (!cancelled) setPapers([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
@@ -45,16 +25,10 @@ export default function ReaderPaperList({ currentId, onSelect, width, onDragStar
 
   return (
     <aside
-      className="relative flex h-full shrink-0 flex-col border-r"
-      style={{ width, background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }}
+      className={`relative flex h-full shrink-0 flex-col${embedded ? " w-full" : " border-r"}`}
+      style={{ width: embedded ? "100%" : width, background: "var(--rc-card-bg)", borderColor: "var(--rc-border)" }}
     >
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3" style={{ borderColor: "var(--rc-border)" }}>
-        <FileText className="h-4 w-4 text-apple-blue" />
-        <span className="text-sm font-bold text-ink-primary">论文库</span>
-        <span className="ml-auto text-xs text-ink-tertiary">{papers.length}</span>
-      </div>
-
-      <div className="shrink-0 px-2.5 py-2">
+      <div className="shrink-0 border-b px-2.5 py-2" style={{ borderColor: "var(--rc-border)" }}>
         <div
           className="flex items-center gap-1.5 rounded-lg border px-2 py-1.5"
           style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
@@ -64,8 +38,11 @@ export default function ReaderPaperList({ currentId, onSelect, width, onDragStar
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             placeholder="搜索标题/作者"
-            className="rc-selectable w-full bg-transparent text-xs text-ink-primary outline-none placeholder:text-ink-tertiary"
+            className="rc-selectable min-w-0 flex-1 bg-transparent text-xs text-ink-primary outline-none placeholder:text-ink-tertiary"
           />
+          <span className="shrink-0 border-l pl-2 text-[10px] tabular-nums text-ink-tertiary" style={{ borderColor: "var(--rc-border)" }}>
+            {papers.length}
+          </span>
         </div>
       </div>
 

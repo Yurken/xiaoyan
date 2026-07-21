@@ -14,6 +14,7 @@ interface UsePdfAreaSelectionOptions {
   imageRef: RefObject<HTMLImageElement | null>;
   onAreaSelected?: (selection: ReaderImageSelection) => void;
   onError?: (message: string) => void;
+  requireAltKey?: boolean;
 }
 
 const MIN_NORMALIZED_SIZE = 0.015;
@@ -38,12 +39,13 @@ export function usePdfAreaSelection({
   imageRef,
   onAreaSelected,
   onError,
+  requireAltKey = false,
 }: UsePdfAreaSelectionOptions) {
   const [draftRect, setDraftRect] = useState<NormalizedRect | null>(null);
 
   const startAreaSelection = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
-      if (!enabled || !pageSize) return;
+      if (!enabled || !pageSize || (requireAltKey && !event.altKey)) return;
       event.preventDefault();
       event.stopPropagation();
 
@@ -79,7 +81,7 @@ export function usePdfAreaSelection({
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
     },
-    [enabled, imageRef, onAreaSelected, onError, page, pageSize],
+    [enabled, imageRef, onAreaSelected, onError, page, pageSize, requireAltKey],
   );
 
   return { draftRect, startAreaSelection };
