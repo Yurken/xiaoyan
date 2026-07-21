@@ -14,7 +14,7 @@ function roundScale(scale: number, precision: number) {
 }
 
 export function useSmoothReaderZoom(initialScale = 1.4) {
-  const [scale, setScale] = useState(initialScale);
+  const [scale, setVisualScale] = useState(initialScale);
   const [renderScale, setRenderScale] = useState(initialScale);
   const scaleRef = useRef(initialScale);
   const renderTimerRef = useRef<number | null>(null);
@@ -43,7 +43,7 @@ export function useSmoothReaderZoom(initialScale = 1.4) {
     (factor: number) => {
       const next = clampScale(roundScale(scaleRef.current * factor, 2));
       scaleRef.current = next;
-      setScale(next);
+      setVisualScale(next);
       scheduleRenderScale(next);
     },
     [scheduleRenderScale],
@@ -54,11 +54,22 @@ export function useSmoothReaderZoom(initialScale = 1.4) {
       clearRenderTimer();
       const next = clampScale(roundScale(scaleRef.current + delta, 1));
       scaleRef.current = next;
-      setScale(next);
+      setVisualScale(next);
       setRenderScale(next);
     },
     [clearRenderTimer],
   );
 
-  return { scale, renderScale, zoomByFactor, zoomStep };
+  const setScale = useCallback(
+    (requestedScale: number) => {
+      clearRenderTimer();
+      const next = clampScale(roundScale(requestedScale, 2));
+      scaleRef.current = next;
+      setVisualScale(next);
+      setRenderScale(next);
+    },
+    [clearRenderTimer],
+  );
+
+  return { scale, renderScale, zoomByFactor, zoomStep, setScale };
 }

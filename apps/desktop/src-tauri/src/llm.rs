@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 mod shared;
 mod transport;
 
+pub(crate) use self::shared::explain_vision_error;
 use self::shared::{
     build_anthropic_tools, build_anthropic_user_messages,
     build_message_array as build_message_array_impl,

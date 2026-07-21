@@ -37,6 +37,7 @@ import type {
   TavilyKeyTest,
   WebSearchOutcome,
 } from "@research-copilot/types";
+import { invalidatePaperListCache, loadPaperListOnce } from "./paperListCache";
 import { streamChat } from "./chatStream";
 import { streamTranslation } from "./translationStream";
 export { streamChat } from "./chatStream";
@@ -229,16 +230,27 @@ export const updatesApi = {
 // ── Papers ───────────────────────────────────────────────────────
 
 export const papersApi = {
-  list: (offset = 0, limit = 20, research_interest_id?: string): Promise<Paper[]> =>
-    invoke("papers_list", { offset, limit, researchInterestId: research_interest_id ?? null }),
+  list: (offset = 0, limit = 20, research_interest_id?: string): Promise<Paper[]> => {
+    const load = () => invoke<Paper[]>("papers_list", {
+      offset,
+      limit,
+      researchInterestId: research_interest_id ?? null,
+    });
+    return offset === 0 && limit === 500 && !research_interest_id
+      ? loadPaperListOnce(load)
+      : load();
+  },
   get: (id: string): Promise<Paper> =>
     invoke("papers_get", { id }),
   listParseRuns: (paper_id: string): Promise<{ runs: unknown[] }> =>
     invoke("papers_list_parse_runs", { paperId: paper_id }),
-  upload: (filePath: string, research_interest_id?: string, suggested_title?: string): Promise<{ paper_id: string; title: string }> =>
-    invoke("papers_upload", { filePath, researchInterestId: research_interest_id ?? null, suggestedTitle: suggested_title ?? null }),
-  update: (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string; research_interest_id?: string; importance_color?: string; notes?: string; tags?: string[] }): Promise<Paper> =>
-    invoke("papers_update", {
+  upload: async (filePath: string, research_interest_id?: string, suggested_title?: string): Promise<{ paper_id: string; title: string }> => {
+    const result = await invoke<{ paper_id: string; title: string }>("papers_upload", { filePath, researchInterestId: research_interest_id ?? null, suggestedTitle: suggested_title ?? null });
+    invalidatePaperListCache();
+    return result;
+  },
+  update: async (id: string, data: { title?: string; authors?: string; venue?: string; year?: number; doi?: string; research_interest_id?: string; importance_color?: string; notes?: string; tags?: string[] }): Promise<Paper> => {
+    const result = await invoke<Paper>("papers_update", {
       id,
       title: data.title ?? null,
       authors: data.authors ?? null,
@@ -249,23 +261,39 @@ export const papersApi = {
       importanceColor: data.importance_color ?? null,
       notes: data.notes ?? null,
       tags: data.tags ?? null,
-    }),
-  reorder: (orderedIds: string[]): Promise<void> =>
-    invoke("papers_reorder", { orderedIds }),
-  delete: (id: string): Promise<void> =>
-    invoke("papers_delete", { id }),
-  merge: (keepId: string, deleteIds: string[]): Promise<Paper> =>
-    invoke("papers_merge", { keepId, deleteIds }),
+    });
+    invalidatePaperListCache();
+    return result;
+  },
+  reorder: async (orderedIds: string[]): Promise<void> => {
+    await invoke("papers_reorder", { orderedIds });
+    invalidatePaperListCache();
+  },
+  delete: async (id: string): Promise<void> => {
+    await invoke("papers_delete", { id });
+    invalidatePaperListCache();
+  },
+  merge: async (keepId: string, deleteIds: string[]): Promise<Paper> => {
+    const result = await invoke<Paper>("papers_merge", { keepId, deleteIds });
+    invalidatePaperListCache();
+    return result;
+  },
   openFile: (id: string): Promise<void> =>
     invoke("papers_open_pdf", { id }),
   revealInFolder: (id: string): Promise<void> =>
     invoke("papers_reveal_in_folder", { id }),
-  analyze: (id: string): Promise<void> =>
-    invoke("papers_analyze", { id }),
-  reparse: (id: string): Promise<void> =>
-    invoke("papers_reparse", { id }),
-  reproduce: (id: string): Promise<void> =>
-    invoke("papers_reproduce", { id }),
+  analyze: async (id: string): Promise<void> => {
+    await invoke("papers_analyze", { id });
+    invalidatePaperListCache();
+  },
+  reparse: async (id: string): Promise<void> => {
+    await invoke("papers_reparse", { id });
+    invalidatePaperListCache();
+  },
+  reproduce: async (id: string): Promise<void> => {
+    await invoke("papers_reproduce", { id });
+    invalidatePaperListCache();
+  },
   generateNote: (id: string): Promise<KnowledgeNote> =>
     invoke("papers_generate_note", { id }),
   listFigures: (paper_id: string): Promise<Array<{ id: string; paper_id: string; fig_index: number; kind?: string; caption: string | null; data_url: string }>> =>

@@ -84,11 +84,16 @@ export function usePdfTextSelection({
   useEffect(() => {
     if (!enabled) return;
 
+    const isEditingTarget = (target: Element | null) =>
+      Boolean(target?.closest("input, textarea, [contenteditable='true']"));
+
     const handleMouseUp = (event: MouseEvent) => {
       const target = eventElement(event.target);
       if (target?.closest(".pdf-selection-popup")) return;
       // 点击已有高亮交给 PdfPage 的 onClick 打开编辑弹窗，这里不要把它当作“清空选区”。
       if (target?.closest(".pdf-highlight-overlay")) return;
+      // 缩放控件等输入元素由自身管理焦点与选区，避免 removeAllRanges 冲掉 input 焦点。
+      if (isEditingTarget(target)) return;
 
       const startedOnText = selectionStartedOnTextRef.current;
       selectionStartedOnTextRef.current = false;
@@ -133,6 +138,7 @@ export function usePdfTextSelection({
       const target = eventElement(event.target);
       if (target?.closest(".pdf-selection-popup")) return;
       if (target?.closest(".pdf-highlight-overlay")) return;
+      if (isEditingTarget(target)) return;
       selectionStartedOnTextRef.current = isTextSpanTarget(target);
       if (target?.closest(".textLayer") && !selectionStartedOnTextRef.current) {
         event.preventDefault();

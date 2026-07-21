@@ -12,6 +12,62 @@ pub(super) fn compact_preview(text: &str, max_chars: usize) -> String {
         .join(" ")
 }
 
+/// 将视觉模型的网关错误转换为可操作的中文提示；未知错误保留原文供排查。
+pub(crate) fn explain_vision_error(error: &str, model: Option<&str>) -> String {
+    let lower = error.to_ascii_lowercase();
+    let model = model.map(str::trim).filter(|value| !value.is_empty());
+
+    if lower.contains("no endpoints found that support image input")
+        || lower.contains("does not support image input")
+        || lower.contains("image input is not supported")
+    {
+        let target = model
+            .map(|value| format!("视觉模型「{}」", value))
+            .unwrap_or_else(|| "当前使用的模型".to_string());
+        return format!(
+            "{}不支持图片输入。请前往「设置 → 模型角色 → 视界·视觉」更换多模态模型，并通过连接测试后重试。",
+            target
+        );
+    }
+
+    if lower.contains("html") || lower.contains("<html") || lower.contains("<!doctype") {
+        return "接口地址返回了网页而不是 API。请检查视觉模型接口地址是否正确，通常需要以 /v1 结尾。"
+            .to_string();
+    }
+
+    if lower.contains("401") || lower.contains("unauthorized") || lower.contains("invalid api key")
+    {
+        return "视觉模型的 API Key 无效或没有权限。请在设置中检查密钥。".to_string();
+    }
+
+    if lower.contains("403") || lower.contains("forbidden") {
+        return "当前账号没有权限访问该视觉模型。请检查密钥权限或更换模型。".to_string();
+    }
+
+    if lower.contains("model") && (lower.contains("not exist") || lower.contains("not found")) {
+        return model
+            .map(|value| format!("视觉模型「{}」不存在。请检查模型名称。", value))
+            .unwrap_or_else(|| "视觉模型不存在。请检查模型名称。".to_string());
+    }
+
+    if lower.contains("404") || lower.contains("not found") {
+        return "视觉模型的接口地址或模型名称不存在。请检查设置。".to_string();
+    }
+
+    if lower.contains("timeout") || lower.contains("timed out") {
+        return "图片解读请求超时。请检查网络或稍后重试。".to_string();
+    }
+
+    if lower.contains("connection refused")
+        || lower.contains("dns error")
+        || lower.contains("could not connect")
+    {
+        return "无法连接视觉模型接口。请检查网络和接口地址。".to_string();
+    }
+
+    error.trim().to_string()
+}
+
 pub(super) fn build_message_array(messages: &[LlmMessage]) -> serde_json::Value {
     json!(messages
         .iter()
@@ -185,4 +241,27 @@ pub(super) fn extract_anthropic_response_text(
         block_types,
         preview
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::explain_vision_error;
+
+    #[test]
+    fn explains_unsupported_image_input_with_next_step() {
+        let error = r#"LLM streaming API error: HTTP 404 {"error":{"message":"No endpoints found that support image input"}}"#;
+        let message = explain_vision_error(error, Some("text-only-model"));
+
+        assert!(message.contains("不支持图片输入"));
+        assert!(message.contains("视界·视觉"));
+        assert!(message.contains("text-only-model"));
+    }
+
+    #[test]
+    fn keeps_unknown_vision_errors_for_diagnostics() {
+        assert_eq!(
+            explain_vision_error("unexpected upstream failure", None),
+            "unexpected upstream failure"
+        );
+    }
 }

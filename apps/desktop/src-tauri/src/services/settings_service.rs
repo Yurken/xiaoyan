@@ -1,4 +1,6 @@
-use crate::llm::{anthropic_auth_header, is_anthropic_compatible_base_url, LlmClient};
+use crate::llm::{
+    anthropic_auth_header, explain_vision_error, is_anthropic_compatible_base_url, LlmClient,
+};
 use crate::repositories::settings_repository::{
     delete_settings_history, get_settings_history, insert_settings_history, list_settings_history,
     load_all_settings, rename_settings_history, update_settings_history, upsert_settings,
@@ -34,59 +36,6 @@ const ERR_INVALID_CONFIG_CONTENT: &str = "配置文件内容格式错误。";
 const ERR_NO_VALID_CONFIG_ITEMS: &str = "文件中未找到有效配置项。";
 const ERR_SETTINGS_HISTORY_NOT_FOUND: &str = "未找到对应的配置历史。";
 const ERR_SETTINGS_HISTORY_EMPTY: &str = "这份配置历史中没有可应用的设置项。";
-
-/// 把视觉模型测试的原始错误/HTTP 返回转换为用户可读的中文提示。
-fn explain_vision_test_error(error: &str, model: &str) -> String {
-    let lower = error.to_ascii_lowercase();
-
-    if lower.contains("no endpoints found that support image input")
-        || lower.contains("does not support image input")
-        || lower.contains("image input is not supported")
-    {
-        return format!(
-            "当前接口或模型「{}」不支持图片输入，请确认选择的是多模态模型。",
-            model
-        );
-    }
-
-    if lower.contains("html")
-        || lower.contains("<html")
-        || lower.contains("<!doctype")
-    {
-        return "接口地址返回了网页而不是 API，请检查是否以 /v1 结尾。".to_string();
-    }
-
-    if lower.contains("401") || lower.contains("unauthorized") || lower.contains("invalid api key")
-    {
-        return "API Key 无效或没有权限，请检查密钥是否正确。".to_string();
-    }
-
-    if lower.contains("403") || lower.contains("forbidden") {
-        return "当前账号没有权限访问该模型，请检查密钥或模型可用性。".to_string();
-    }
-
-    if lower.contains("404") || lower.contains("not found") {
-        return "接口地址或模型名称不存在，请检查配置。".to_string();
-    }
-
-    if lower.contains("timeout") || lower.contains("timed out") {
-        return "请求超时，模型响应过慢或网络不稳定。".to_string();
-    }
-
-    if lower.contains("connection refused")
-        || lower.contains("dns error")
-        || lower.contains("could not connect")
-    {
-        return "无法连接到接口地址，请检查网络或 base_url 是否正确。".to_string();
-    }
-
-    if lower.contains("model") && (lower.contains("not exist") || lower.contains("not found")) {
-        return format!("模型「{}」不存在，请检查模型名称是否拼写正确。", model);
-    }
-
-    // 兜底：保留原始信息，但用更友好的前缀。
-    format!("测试失败：{}", error.trim())
-}
 
 const SETTINGS_HISTORY_SNAPSHOT_PREFIX: &str = "配置快照";
 const LOCAL_ONLY_SETTINGS_KEYS: &[&str] = &[
@@ -811,7 +760,7 @@ pub async fn test_vision_settings(
             0.0,
         )
         .await
-        .map_err(|e| explain_vision_test_error(&e.to_string(), model.as_deref().unwrap_or("")))?;
+        .map_err(|e| explain_vision_error(&e.to_string(), model.as_deref()))?;
     Ok(reply.trim().to_string())
 }
 
