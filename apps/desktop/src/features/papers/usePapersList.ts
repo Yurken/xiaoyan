@@ -5,6 +5,7 @@ import type { KnowledgeNote, Paper, ResearchInterest } from "@research-copilot/t
 import { buildInterestForest, collectInterestSubtreeIds } from "./interestTree";
 import { type PaperSortDirection, type PaperSortKey } from "./shared";
 import type { NoteDraft } from "../knowledge/NoteEditorModal";
+import { usePaperLibrarySnapshot } from "./usePaperLibrarySnapshot";
 
 type SortKey = PaperSortKey;
 type SortDirection = PaperSortDirection;
@@ -12,12 +13,10 @@ type SortDirection = PaperSortDirection;
 const COLOR_PRIORITY = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#AF52DE"];
 
 export function usePapersList() {
-  const [papers, setPapers] = useState<Paper[]>([]);
+  const { papers, setPapers, loading, loadError, setLoadError } = usePaperLibrarySnapshot();
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
-  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
-  const [loadError, setLoadError] = useState("");
   const [deletingPaperId, setDeletingPaperId] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [selectedInterestId, setSelectedInterestId] = usePersistentState<string>("rc:papers:selected-interest-id", "");
@@ -26,17 +25,6 @@ export function usePapersList() {
   const [sortKeys, setSortKeys] = usePersistentState<Record<string, SortKey>>("rc:papers:sort-keys", {});
   const [sortDirections, setSortDirections] = usePersistentState<Record<string, SortDirection>>("rc:papers:sort-directions", {});
   const [keywordFilter, setKeywordFilter] = usePersistentState<string>("rc:papers:keyword-filter", "");
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setLoadError("");
-    apiClient.papers.list(0, 500)
-      .then((data) => { if (!cancelled) setPapers(data); })
-      .catch((error) => { if (!cancelled) { setLoadError(formatErrorMessage(error)); setPapers([]); } })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,7 +73,7 @@ export function usePapersList() {
       setUploading(false);
       setBatchProgress(null);
     }
-  }, []);
+  }, [setLoadError, setPapers]);
 
   const handleUpload = async (interestId = selectedInterestId) => {
     try {
@@ -342,6 +330,8 @@ export function usePapersList() {
     try {
       setLoadError("");
       await apiClient.papers.reorder(orderedIds);
+      // API 层会先使旧快照失效；排序成功后用已乐观更新的列表恢复缓存。
+      setPapers((prev) => prev);
     } catch (error) {
       setLoadError(formatErrorMessage(error));
       const fresh = await apiClient.papers.list(0, 500).catch(() => null);
