@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from "react";
 import { AlertCircle, FileSearch, Globe2, Loader2, Sparkles } from "lucide-react";
-import { Button, Card, Input, Textarea } from "@research-copilot/ui";
+import { Button, Card, DatePicker, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode } from "@research-copilot/types";
 import {
   ARXIV_MODE_OPTIONS,
@@ -28,12 +28,13 @@ interface PaperDiscoveryPanelProps {
   selectedRanks: RankKey[];
   venueFilterLoading: boolean;
   dynamicJournalTerms: string[];
-  days: string;
+  cutoffDate: string;
+  cutoffDateMax: string;
   limit: string;
   mode: ArxivRankingMode;
   loading: boolean;
   error: string;
-  hasSearchTerms: boolean;
+  canSearch: boolean;
   onTopicChange: (value: string) => void;
   onAllTermsChange: (value: string) => void;
   onTitleTermsChange: (value: string) => void;
@@ -44,7 +45,7 @@ interface PaperDiscoveryPanelProps {
   onDomainsChange: (value: string[]) => void;
   onVenueTypeChange: (value: "all" | "conference" | "journal") => void;
   onRanksChange: (value: RankKey[]) => void;
-  onDaysChange: (value: string) => void;
+  onCutoffDateChange: (value: string) => void;
   onLimitChange: (value: string) => void;
   onModeChange: (value: ArxivRankingMode) => void;
   onSubmit: () => void | Promise<void>;
@@ -63,12 +64,13 @@ export function PaperDiscoveryPanel({
   selectedRanks,
   venueFilterLoading,
   dynamicJournalTerms,
-  days,
+  cutoffDate,
+  cutoffDateMax,
   limit,
   mode,
   loading,
   error,
-  hasSearchTerms,
+  canSearch,
   onTopicChange,
   onAllTermsChange,
   onTitleTermsChange,
@@ -79,7 +81,7 @@ export function PaperDiscoveryPanel({
   onDomainsChange,
   onVenueTypeChange,
   onRanksChange,
-  onDaysChange,
+  onCutoffDateChange,
   onLimitChange,
   onModeChange,
   onSubmit,
@@ -103,7 +105,7 @@ export function PaperDiscoveryPanel({
         <div className="space-y-1">
           <p className="text-sm font-semibold text-ink-primary">论文检索</p>
           <p className="text-xs leading-5 text-ink-tertiary">
-            我会联网检索全网论文，按相关性与研究价值做排序，帮你快速定位值得读的工作。
+            同步检索学术数据源和网络来源，按相关性与研究价值排序，帮你快速定位值得读的工作。
           </p>
         </div>
       </div>
@@ -114,7 +116,7 @@ export function PaperDiscoveryPanel({
           <div>
             <p className="text-sm font-semibold text-ink-primary">论文智能检索模块</p>
             <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-              支持关键词、标题、摘要、作者、排除词组合检索；同一字段内多个词按 OR 合并，不同字段按 AND 组合。
+              可直接描述你想解决的问题，小妍会拆分为多条检索式；也可用关键词、作者和领域条件进一步约束。
             </p>
           </div>
         </div>
@@ -124,15 +126,15 @@ export function PaperDiscoveryPanel({
         value={topic}
         onChange={(event) => onTopicChange(event.target.value)}
         onKeyDown={handleSubmitKeyDown}
-        rows={2}
-        placeholder="例如：LLM, diffusion, reinforcement learning…"
-        label="研究主题说明（可选，我将根据你的描述优化检索策略）"
+        rows={3}
+        placeholder="例如：请帮我查找使用分层神经网络捕获手语视频时空特征的研究，并关注可复现的方法。"
+        label="自然语言检索需求（可选）"
       />
 
       <div className="space-y-3">
         <p className="ml-1 text-xs font-semibold text-ink-tertiary">
-          检索词<span className="ml-0.5 text-apple-red">*</span>
-          <span className="ml-1 font-normal">（通用、标题、摘要、作者、扩展词中至少填写一项）</span>
+          检索词
+          <span className="ml-1 font-normal">（可选，可结合研究主题或领域筛选）</span>
         </p>
         <div className="grid grid-cols-3 gap-3">
           <Input
@@ -399,18 +401,15 @@ export function PaperDiscoveryPanel({
       </div>
 
       <p className="text-xs leading-5 text-ink-tertiary">
-        检索会结合最近时间窗口，并对候选论文做相关性和质量信号排序。
+        学术数据源会查找发布于截止日期及以前的论文；同次检索还会补充相关网络来源。
       </p>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <Input
-          label="最近天数"
-          type="number"
-          min={1}
-          max={365}
-          value={days}
-          onChange={(event) => onDaysChange(event.target.value)}
-          placeholder="14"
+        <DatePicker
+          label="截止日期"
+          max={cutoffDateMax}
+          value={cutoffDate}
+          onChange={onCutoffDateChange}
         />
         <Input
           label="返回篇数"
@@ -448,9 +447,9 @@ export function PaperDiscoveryPanel({
           当前模式：<span className="font-medium text-ink-secondary">{currentMode.label}</span>
           {`，${currentMode.description}`}
         </p>
-        <Button onClick={() => void onSubmit()} loading={loading} disabled={!hasSearchTerms}>
+        <Button onClick={() => void onSubmit()} loading={loading} disabled={!canSearch}>
           <FileSearch className="h-4 w-4" />
-          联网检索论文
+          检索论文与网络来源
         </Button>
       </div>
 

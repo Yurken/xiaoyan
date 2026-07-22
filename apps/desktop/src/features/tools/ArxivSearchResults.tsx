@@ -1,8 +1,9 @@
 import { CalendarDays, Search } from "lucide-react";
 import { Badge, Card } from "@research-copilot/ui";
-import type { ArxivSearchResponse } from "@research-copilot/types";
+import type { ArxivSearchResponse, WebSearchOutcome } from "@research-copilot/types";
 import ExternalLink from "../../components/ExternalLink";
 import { formatDate, scoreVariant, truncateText } from "./shared";
+import { WebSupplementResults } from "./WebSupplementResults";
 
 interface AppliedFilterEntry {
   label: string;
@@ -11,6 +12,8 @@ interface AppliedFilterEntry {
 
 interface ArxivSearchResultsProps {
   result: ArxivSearchResponse | null;
+  webSupplement?: WebSearchOutcome | null;
+  webSupplementError?: string;
   appliedFilters: AppliedFilterEntry[];
   searched: boolean;
   loading: boolean;
@@ -26,6 +29,8 @@ interface ArxivSearchResultsProps {
 
 export function ArxivSearchResults({
   result,
+  webSupplement = null,
+  webSupplementError = "",
   appliedFilters,
   searched,
   loading,
@@ -44,35 +49,59 @@ export function ArxivSearchResults({
         <Card padding="md" className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="info">{result.ranking_mode === "quality" ? "质量预测" : "最相关"}</Badge>
-            <Badge variant={result.llm_used ? "success" : "warning"}>
-              {result.llm_used ? "已使用当前模型设置" : "模型未启用，已降级启发式排序"}
+            <Badge variant={result.candidate_count === 0 ? "default" : result.llm_used ? "success" : "warning"}>
+              {result.candidate_count === 0
+                ? "无候选，未进入模型重排"
+                : result.llm_used
+                  ? "小妍模型已重排"
+                  : "已使用启发式排序"}
             </Badge>
+            {result.search_queries && result.search_queries.length > 0 ? (
+              <Badge variant={result.query_plan_llm_used ? "success" : "info"}>
+                {`${result.query_plan_llm_used ? "小妍" : "本地规则"}拆分 ${result.search_queries.length} 条查询`}
+              </Badge>
+            ) : null}
             <Badge variant="default">{`候选 ${result.candidate_count} 篇`}</Badge>
             <Badge variant="default">{`返回 ${result.papers.length} 篇`}</Badge>
           </div>
 
           <div className="space-y-2">
+            {result.query_plan_note ? (
+              <p className="text-xs leading-5 text-ink-tertiary">{result.query_plan_note}</p>
+            ) : null}
             <p className="text-sm font-semibold text-ink-primary">{result.overall_summary}</p>
             <p className="text-sm leading-6 text-ink-secondary">{result.ranking_note}</p>
             <p className="text-xs leading-5 text-ink-tertiary">{result.disclaimer}</p>
           </div>
 
-          {appliedFilters.length > 0 ? (
+          {appliedFilters.length > 0 || (result.search_queries?.length ?? 0) > 0 ? (
             <div className="space-y-2 rounded-2xl bg-white/40 px-3 py-3">
               <p className="text-xs font-semibold text-ink-secondary">本次检索条件</p>
-              <div className="flex flex-wrap gap-2">
-                {appliedFilters.flatMap((entry) =>
-                  entry.values.map((value) => (
-                    <Badge key={`${entry.label}-${value}`} variant="default">
-                      {`${entry.label}：${value}`}
-                    </Badge>
-                  ))
-                )}
-              </div>
+              {appliedFilters.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {appliedFilters.flatMap((entry) =>
+                    entry.values.map((value) => (
+                      <Badge key={`${entry.label}-${value}`} variant="default">
+                        {`${entry.label}：${value}`}
+                      </Badge>
+                    ))
+                  )}
+                </div>
+              ) : null}
               <p className="text-[11px] leading-5 text-ink-tertiary">{expressionLabel}</p>
-              <p className="break-all rounded-2xl bg-white/55 px-3 py-2 font-mono text-[11px] leading-5 text-ink-tertiary">
-                {result.search_expression}
-              </p>
+              {result.search_queries && result.search_queries.length > 0 ? (
+                <ol className="space-y-1 rounded-2xl bg-white/55 px-3 py-2 font-mono text-[11px] leading-5 text-ink-tertiary">
+                  {result.search_queries.map((query, index) => (
+                    <li key={`${query}-${index}`} className="break-all">
+                      {`${index + 1}. ${query}`}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="break-all rounded-2xl bg-white/55 px-3 py-2 font-mono text-[11px] leading-5 text-ink-tertiary">
+                  {result.search_expression}
+                </p>
+              )}
             </div>
           ) : null}
         </Card>
@@ -147,6 +176,8 @@ export function ArxivSearchResults({
             </div>
           </Card>
         )}
+
+        <WebSupplementResults outcome={webSupplement} error={webSupplementError} />
       </div>
     );
   }

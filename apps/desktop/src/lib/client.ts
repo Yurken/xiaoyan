@@ -392,11 +392,11 @@ export const arxivApi = {
 export const paperSearchApi = {
   search: (
     request: ArxivSearchRequest,
-    days = 14,
+    cutoffDate: string,
     limit = 5,
     ranking_mode: ArxivRankingMode = "relevance"
   ): Promise<ArxivSearchResponse> =>
-    invoke("paper_search", { request, days, limit, rankingMode: ranking_mode }),
+    invoke("paper_search", { request, cutoffDate, limit, rankingMode: ranking_mode }),
 };
 
 export const webSearchApi = {
