@@ -11,6 +11,7 @@ import {
   computeStaticVenues,
   type RankKey,
 } from "./shared";
+import { PaperDiscoveryCollapsibleSection } from "./PaperDiscoveryCollapsibleSection";
 
 const insetShadow = "var(--rc-inset-shadow)";
 const raisedShadow = "var(--rc-raised-shadow)";
@@ -89,6 +90,9 @@ export function PaperDiscoveryPanel({
   const currentMode = ARXIV_MODE_OPTIONS.find((item) => item.value === mode) ?? ARXIV_MODE_OPTIONS[0];
   const { categories, journalTerms: staticTerms } = computeStaticVenues(selectedDomains, venueType, selectedRanks);
   const totalTerms = new Set([...staticTerms, ...dynamicJournalTerms]).size;
+  const filledTermCount = [allTerms, titleTerms, abstractTerms, authors, commentsTerms, excludeTerms]
+    .filter((value) => value.trim().length > 0)
+    .length;
 
   const handleSubmitKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -131,11 +135,11 @@ export function PaperDiscoveryPanel({
         label="自然语言检索需求（可选）"
       />
 
-      <div className="space-y-3">
-        <p className="ml-1 text-xs font-semibold text-ink-tertiary">
-          检索词
-          <span className="ml-1 font-normal">（可选，可结合研究主题或领域筛选）</span>
-        </p>
+      <PaperDiscoveryCollapsibleSection
+        title="检索词"
+        description="可选；补充通用、标题、摘要、作者、扩展与排除条件。"
+        status={filledTermCount > 0 ? `已填写 ${filledTermCount} 项` : undefined}
+      >
         <div className="grid grid-cols-3 gap-3">
           <Input
             value={allTerms}
@@ -183,9 +187,13 @@ export function PaperDiscoveryPanel({
             label="排除词"
           />
         </div>
-      </div>
+      </PaperDiscoveryCollapsibleSection>
 
-      <div className="space-y-4 rounded-2xl p-4" style={{ background: "var(--rc-surface)", boxShadow: insetShadow }}>
+      <PaperDiscoveryCollapsibleSection
+        title="领域筛选步骤"
+        description="可选；按研究领域、刊会类型和等级自动补充检索范围。"
+        status={selectedDomains.length > 0 ? `已选 ${selectedDomains.length} 个领域` : undefined}
+      >
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold tracking-wide text-ink-tertiary">
@@ -398,7 +406,7 @@ export function PaperDiscoveryPanel({
         {selectedDomains.length > 0 && selectedRanks.length === 0 ? (
           <p className="text-[11px] text-ink-tertiary">请在步骤 3 选择至少一个等级以确定检索范围。</p>
         ) : null}
-      </div>
+      </PaperDiscoveryCollapsibleSection>
 
       <p className="text-xs leading-5 text-ink-tertiary">
         学术数据源会查找发布于截止日期及以前的论文；同次检索还会补充相关网络来源。
