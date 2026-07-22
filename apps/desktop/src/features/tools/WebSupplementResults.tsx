@@ -7,6 +7,7 @@ import { truncateText } from "./shared";
 interface WebSupplementResultsProps {
   outcome: WebSearchOutcome | null;
   error: string;
+  cutoffDate?: string;
 }
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -14,7 +15,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   duckduckgo: "DuckDuckGo",
 };
 
-export function WebSupplementResults({ outcome, error }: WebSupplementResultsProps) {
+export function WebSupplementResults({ outcome, error, cutoffDate }: WebSupplementResultsProps) {
   if (!outcome && !error) return null;
 
   return (
@@ -26,6 +27,7 @@ export function WebSupplementResults({ outcome, error }: WebSupplementResultsPro
           <>
             <Badge variant="info">{PROVIDER_LABEL[outcome.provider] ?? outcome.provider}</Badge>
             <Badge variant="default">{`${outcome.items.length} 条结果`}</Badge>
+            {cutoffDate ? <Badge variant="default">{`截止 ${cutoffDate}`}</Badge> : null}
           </>
         ) : null}
       </div>

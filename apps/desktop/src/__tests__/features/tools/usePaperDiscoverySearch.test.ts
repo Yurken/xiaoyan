@@ -75,8 +75,8 @@ describe("usePaperDiscoverySearch", () => {
       6,
       "relevance",
     );
-    expect(mocks.webSearch).toHaveBeenNthCalledWith(1, "hierarchical neural models");
-    expect(mocks.webSearch).toHaveBeenNthCalledWith(2, "spatiotemporal sign language");
+    expect(mocks.webSearch).toHaveBeenNthCalledWith(1, "hierarchical neural models", "2020-05-18");
+    expect(mocks.webSearch).toHaveBeenNthCalledWith(2, "spatiotemporal sign language", "2020-05-18");
     await waitFor(() => expect(first.result.current.resultProps.result).toEqual(response));
     first.unmount();
 

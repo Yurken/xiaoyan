@@ -206,7 +206,7 @@ export function usePaperDiscoverySearch() {
         : [fallbackWebQuery]
       ).slice(0, 4);
       const webSearches = await Promise.allSettled(
-        webQueries.map((query) => apiClient.webSearch.query(query)),
+        webQueries.map((query) => apiClient.webSearch.query(query, cutoffDate)),
       );
       const nextWebSupplement = mergeWebSearchOutcomes(
         webSearches.flatMap((search) => search.status === "fulfilled" ? [search.value] : []),

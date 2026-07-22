@@ -177,7 +177,11 @@ export function ArxivSearchResults({
           </Card>
         )}
 
-        <WebSupplementResults outcome={webSupplement} error={webSupplementError} />
+        <WebSupplementResults
+          outcome={webSupplement}
+          error={webSupplementError}
+          cutoffDate={result.cutoff_date}
+        />
       </div>
     );
   }

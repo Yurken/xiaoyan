@@ -400,7 +400,8 @@ export const paperSearchApi = {
 };
 
 export const webSearchApi = {
-  query: (query: string): Promise<WebSearchOutcome> => invoke("web_search_query", { query }),
+  query: (query: string, cutoffDate?: string): Promise<WebSearchOutcome> =>
+    invoke("web_search_query", { query, cutoffDate: cutoffDate ?? null }),
 };
 
 export const githubProjectApi = {
