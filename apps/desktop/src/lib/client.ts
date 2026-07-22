@@ -925,7 +925,7 @@ export const experimentApi = {
       result: params.result ?? null, notes: params.notes ?? null,
       linkedSubmissionId: params.linkedSubmissionId ?? null,
     }),
-  update: (id: string, params: Partial<{ title: string; config: Record<string, unknown>; result: string; notes: string; linkedSubmissionId: string }>) =>
+  update: (id: string, params: Partial<{ title: string; config: Record<string, unknown>; result: string; notes: string; linkedSubmissionId: string; defaultWorkingDir: string }>) =>
     invoke<void>("experiment_update", { id, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, v ?? null])) }),
   delete: (id: string) => invoke<void>("experiment_delete", { id }),
   snapshots: {
@@ -1022,7 +1022,7 @@ export const codeApi = {
   getSession: (sessionId: string): Promise<CodeSession> => invoke("code_get_session", { sessionId }),
   createSession: (experimentId: string, title?: string, workingDir?: string): Promise<CodeSession> => invoke("code_create_session", { experimentId, title: title ?? null, workingDir: workingDir ?? null }),
   deleteSession: (sessionId: string): Promise<void> => invoke("code_delete_session", { sessionId }),
-  sendMessage: (sessionId: string, content: string, workingDir?: string, currentFile?: string, mode?: string, userMessageId?: string): Promise<void> => invoke("code_send_message", { sessionId, content, workingDir: workingDir ?? null, currentFile: currentFile ?? null, mode: mode ?? null, userMessageId: userMessageId ?? null }),
+  sendMessage: (sessionId: string, displayContent: string, promptContent: string, workingDir?: string, currentFile?: string, mode?: string, userMessageId?: string): Promise<void> => invoke("code_send_message", { sessionId, displayContent, promptContent, workingDir: workingDir ?? null, currentFile: currentFile ?? null, mode: mode ?? null, userMessageId: userMessageId ?? null }),
   editMessage: (sessionId: string, messageId: string): Promise<void> => invoke("code_edit_message", { sessionId, messageId }),
   cancelMessage: (requestId: string): Promise<void> => invoke("code_cancel", { requestId }),
   resolvePermission: (permissionId: string, approved: boolean, message?: string): Promise<void> => invoke("code_resolve_permission", { permissionId, approved, message: message ?? null }),
