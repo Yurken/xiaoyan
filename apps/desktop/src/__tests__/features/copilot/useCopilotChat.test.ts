@@ -72,4 +72,27 @@ describe("useCopilotChat", () => {
     });
     expect(mockStream.mock.results[0]?.value.return).toHaveBeenCalledTimes(1);
   });
+
+  it("发送阅读页交接消息时保留 paper 上下文", async () => {
+    const { result } = renderHook(() => useCopilotChat({
+      currentSession: null,
+      selectedInterestId: "",
+      contextType: "paper",
+      contextId: "paper-1",
+      chatMode: "direct",
+      skills: [],
+      selectedSkillId: null,
+      attachments: [],
+      clearAttachments: vi.fn(),
+      onSessionCreated: vi.fn(),
+    }));
+
+    act(() => result.current.setInput("解释第 3 页"));
+    await act(async () => result.current.handleSend());
+
+    expect(mockStream).toHaveBeenCalledWith(
+      expect.objectContaining({ context_type: "paper", context_id: "paper-1" }),
+      expect.any(AbortSignal),
+    );
+  });
 });
