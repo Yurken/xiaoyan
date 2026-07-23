@@ -265,6 +265,27 @@ pub async fn code_git_unstage_path(working_dir: String, path: String) -> Result<
 }
 
 #[tauri::command]
+pub async fn code_git_discard_path(working_dir: String, path: String) -> Result<(), String> {
+    code::git::discard_path(&working_dir, &path).await
+}
+
+/// 用系统默认编辑器打开工作目录内的文件。
+///
+/// 不引入新的 crate 依赖，直接用 `tauri_plugin_opener`（已在 Cargo.toml）的
+/// Rust API `open_path`，跨平台自动选择 macOS / Windows / Linux 的默认打开方式。
+#[tauri::command]
+pub async fn code_open_file(path: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    if !target.exists() {
+        return Err("文件不存在".into());
+    }
+    if !target.is_file() {
+        return Err("路径不是文件".into());
+    }
+    tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 pub async fn code_git_commit(working_dir: String, message: String) -> Result<String, String> {
     code::git::commit(&working_dir, &message).await
 }

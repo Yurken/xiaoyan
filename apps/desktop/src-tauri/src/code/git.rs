@@ -113,6 +113,42 @@ pub async fn unstage_path(working_dir: &str, path: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// 放弃单个文件的工作区改动（不可逆）。
+///
+/// - 已跟踪文件：`git restore -- <path>` —— 把工作区版本回退到 index/HEAD。
+///   如果文件已经 `git add`，已暂存的改动**不会**被丢弃（仍可重新提交）；
+///   这里只放弃工作区中尚未暂存的修改，跟 VSCode "Discard Changes" 行为一致。
+///   若用户想连暂存一起丢弃，UI 上需要先 "Unstage" 再 "Discard"。
+/// - 未跟踪文件（`??`）：`git clean -f -- <path>` —— 直接删除磁盘上的文件，
+///   因为这类文件 git restore 管不到，只能用 clean 清理。
+pub async fn discard_path(working_dir: &str, path: &str) -> Result<(), String> {
+    ensure_working_dir(working_dir)?;
+    if !is_git_repo(working_dir).await {
+        return Err("当前目录不是 Git 仓库。".into());
+    }
+    let path = sanitize_git_path(path)?;
+
+    // 先用 porcelain 状态判断这个文件是否未跟踪。
+    // git status --porcelain 输出形如 "?? path"，未跟踪文件首两列就是 "??"。
+    let status = git_output(
+        working_dir,
+        &["status", "--porcelain=v1", "--untracked-files=all", "--", &path],
+    )
+    .await?;
+    let is_untracked = status
+        .lines()
+        .next()
+        .map(|line| line.starts_with("??"))
+        .unwrap_or(false);
+
+    if is_untracked {
+        git_output(working_dir, &["clean", "-f", "--", &path]).await?;
+    } else {
+        git_output(working_dir, &["restore", "--", &path]).await?;
+    }
+    Ok(())
+}
+
 pub async fn commit(working_dir: &str, message: &str) -> Result<String, String> {
     ensure_working_dir(working_dir)?;
     let message = message.trim();

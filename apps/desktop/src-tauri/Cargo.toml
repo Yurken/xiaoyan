@@ -62,3 +62,8 @@ zip = "2"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 # 跨平台操作系统类型与版本（用于反馈上报的客户端信息）
 os_info = "3"
+# Fast recursive directory iterator (ripgrep 的核心库)：用纯 Rust 替代 shell 调用 rg/grep
+# 提供跨平台一致的文件遍历 + glob 过滤，避免在用户机器上找不到 ripgrep 二进制导致工具失败
+ignore = "0.4"
+# glob 模式匹配：与 ignore 配合实现 glob_files / search_files / list_key_files
+globset = "0.4"

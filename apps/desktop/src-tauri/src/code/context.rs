@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
 
+use super::glob;
+
 const MAX_CONTEXT_CHARS: usize = 36_000;
 const MAX_INSTRUCTION_CHARS: usize = 7_000;
 const MAX_MANIFEST_CHARS: usize = 8_000;
@@ -216,30 +218,15 @@ async fn read_package_scripts(root: &Path) -> Result<Vec<String>, String> {
 }
 
 async fn list_key_files(root: &Path) -> Result<Vec<String>, String> {
-    let output = Command::new("rg")
-        .arg("--files")
-        .arg("--hidden")
-        .arg("--glob")
-        .arg("!.git")
-        .arg("--glob")
-        .arg("!node_modules")
-        .current_dir(root)
-        .output()
-        .await
-        .map_err(|e| format!("列出文件失败：{e}"))?;
+    // 之前调用 `rg --files`：在未装 ripgrep 的终端用户上会因 ENOENT 失败。
+    // 改用 `ignore` crate 在进程内遍历，与 tools::glob_files 保持一致的行为。
+    let all_files = glob::walk_files(root, None, &["!.git", "!node_modules"], MAX_FILES * 2)?;
 
-    if !output.status.success() {
-        return Ok(Vec::new());
-    }
-
-    let mut files = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
+    let mut files: Vec<String> = all_files
+        .into_iter()
         .filter(|line| is_useful_inventory_file(line))
         .take(MAX_FILES)
-        .map(str::to_string)
-        .collect::<Vec<_>>();
+        .collect();
     files.sort();
     Ok(files)
 }

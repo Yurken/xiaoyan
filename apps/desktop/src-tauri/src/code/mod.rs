@@ -4,6 +4,7 @@
 //! 在工作目录上下文中与用户进行代码对话，并通过受限本地工具读取、修改文件与执行命令。
 
 pub mod context;
+mod glob;
 pub mod git;
 mod prompt;
 pub mod store;
@@ -567,11 +568,20 @@ async fn ask_tool_permission(
 
 /// 判断是否是第一个用户-助手交换（会话刚创建，需要自动生成标题）
 fn is_first_exchange(session: &CodeSession) -> bool {
-    // messages: [user_msg, ..., assistant_msg]
-    // 如果只有 2 条消息且第一条是 user、第二条未持久化（即当前这条），则为首次交换
-    // 但这里 session 是发送前读取的，消息还没有我们刚持久化的那两条
-    // 所以判断：刚发送的消息是 user + 当前正在生成 assistant → session 原有消息=0 即为新建
-    session.messages.is_empty()
+    // 判断"首次交换"的语义：这个会话还没有任何 assistant 回复（用户第一次问，模型第一次答）。
+    //
+    // 注意：调用 is_first_exchange 的位置在 `StreamOutcome::TextCompleted` 分支，
+    // 此时刚把 user_msg 持久化（`persist_message(&user_msg)`）并执行完一轮模型生成，
+    // 但 assistant_msg 还没持久化。所以 session.messages 里此时只有刚写入的 user_msg，
+    // 不含 assistant_msg。
+    //
+    // 旧实现 `session.messages.is_empty()` 永远为 false（user_msg 已落盘），
+    // 导致 `auto_generate_title` 从不触发，标题永远是 `maybe_autotitle` 写的"前 50 字符占位"。
+    // 这里改成"还没有 assistant 消息"，即首次交换判定。
+    session
+        .messages
+        .iter()
+        .all(|msg| msg.role != "assistant")
 }
 
 async fn auto_generate_title(
@@ -597,5 +607,114 @@ async fn auto_generate_title(
             let _ = store::update_session_title(&db, &session_id, &title).await;
         }
         Err(_) => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn user_msg(id: &str, content: &str) -> CodeMessage {
+        CodeMessage {
+            id: id.into(),
+            role: "user".into(),
+            content: content.into(),
+            tool_calls: None,
+            tool_results: None,
+            tool_call_id: None,
+            tool_id: None,
+            model: None,
+            duration_ms: None,
+            created_at: "2026-01-01T00:00:00Z".into(),
+        }
+    }
+
+    fn assistant_msg(id: &str, content: &str) -> CodeMessage {
+        let mut m = user_msg(id, content);
+        m.role = "assistant".into();
+        m
+    }
+
+    /// 回归：之前的实现 `session.messages.is_empty()` 永远为 false（user_msg 已落盘），
+    /// 导致 `auto_generate_title` 永不触发，标题停在 `maybe_autotitle` 写的前 50 字符占位。
+    /// 新实现按"没有 assistant 消息"判断，首次交换（仅 1 条 user 消息）应返回 true。
+    #[test]
+    fn is_first_exchange_returns_true_when_only_user_message_persisted() {
+        let session = CodeSession {
+            id: "s1".into(),
+            experiment_id: "e1".into(),
+            title: "新会话".into(),
+            working_dir: None,
+            tool_id: None,
+            model: None,
+            messages: vec![user_msg("u1", "帮我看下这个错误")],
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+        };
+        assert!(is_first_exchange(&session));
+    }
+
+    #[test]
+    fn is_first_exchange_returns_false_after_assistant_replied() {
+        let session = CodeSession {
+            id: "s1".into(),
+            experiment_id: "e1".into(),
+            title: "新会话".into(),
+            working_dir: None,
+            tool_id: None,
+            model: None,
+            messages: vec![
+                user_msg("u1", "帮我看下这个错误"),
+                assistant_msg("a1", "这是错误的原因…"),
+            ],
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+        };
+        assert!(!is_first_exchange(&session));
+    }
+
+    /// 第二轮对话：session 已有 1 轮 user+assistant，现在 user 又发了一条 → 不应触发标题生成。
+    #[test]
+    fn is_first_exchange_returns_false_on_second_round() {
+        let session = CodeSession {
+            id: "s1".into(),
+            experiment_id: "e1".into(),
+            title: "已经生成过的标题".into(),
+            working_dir: None,
+            tool_id: None,
+            model: None,
+            messages: vec![
+                user_msg("u1", "第一轮问题"),
+                assistant_msg("a1", "第一轮答案"),
+                user_msg("u2", "第二轮问题"),
+            ],
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+        };
+        assert!(!is_first_exchange(&session));
+    }
+
+    /// 首轮对话里 LLM 走了 ToolCalls 分支（assistant 消息角色为 assistant 但只含 tool_calls，
+    /// content 为空）也算"已经回复过"——避免在工具循环里反复触发标题生成。
+    #[test]
+    fn is_first_exchange_returns_false_once_tool_call_assistant_persisted() {
+        let mut tool_assistant = assistant_msg("a1", "");
+        tool_assistant.tool_calls = Some(vec![CodeToolCall {
+            id: "tc1".into(),
+            name: "read_file".into(),
+            arguments: "{}".into(),
+        }]);
+        let session = CodeSession {
+            id: "s1".into(),
+            experiment_id: "e1".into(),
+            title: "新会话".into(),
+            working_dir: None,
+            tool_id: None,
+            model: None,
+            messages: vec![user_msg("u1", "帮我看下"), tool_assistant],
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+        };
+        assert!(!is_first_exchange(&session));
     }
 }

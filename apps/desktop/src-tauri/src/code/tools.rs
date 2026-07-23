@@ -7,6 +7,7 @@ use futures_util::StreamExt;
 use serde_json::json;
 use std::path::{Component, Path, PathBuf};
 
+use super::glob;
 use crate::llm::{ToolCall, ToolDefinition};
 
 const MAX_READ_SIZE: usize = 200 * 1024;
@@ -354,8 +355,205 @@ pub async fn dispatch_tool(
         "write_file" => write_file(args, wd).await,
         "edit_file" => edit_file(args, wd).await,
         "run_command" => run_command(args, wd).await,
-        _ => Err(format!("未知工具：{name}")),
+        // ── 兜底：模型偶发把 shell 命令名当成工具名（grep / cat / ls ...） ──
+        other => fallback_hallucinated_tool(other, &args, wd).await,
     }
+}
+
+/// 当 LLM 误把 shell 命令名当成工具名时，按命令的语义映射到对应的小妍工具。
+///
+/// - `grep` / `rg` / `ripgrep` → search_files（参数对齐 pattern/path/include）
+/// - `find` → glob_files（参数对齐 pattern/path）
+/// - `ls` / `ll` / `dir` → list_dir
+/// - `cat` / `head` / `tail` / `less` / `more` → read_file（head/tail 支持 limit）
+/// - 其他常见 shell 命令 → run_command（用 `command` 字段包裹）
+/// - 完全无法识别的名字 → 返回明确的"未知工具"错误，列出可用工具。
+async fn fallback_hallucinated_tool(
+    name: &str,
+    args: &serde_json::Value,
+    wd: &str,
+) -> Result<String, String> {
+    match name {
+        // 内容搜索类 → 我们的 search_files
+        "grep" | "rg" | "ripgrep" => {
+            let pattern = args
+                .get("pattern")
+                .or_else(|| args.get("query"))
+                .or_else(|| args.get("regex"))
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            if pattern.is_null() || pattern.as_str().is_some_and(str::is_empty) {
+                return Err(unknown_tool_error(name));
+            }
+            let include = args
+                .get("include")
+                .or_else(|| args.get("glob"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let path = args
+                .get("path")
+                .or_else(|| args.get("directory"))
+                .or_else(|| args.get("dir"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let mut adapted = serde_json::json!({ "pattern": pattern });
+            if let Some(include) = include {
+                adapted["include"] = serde_json::Value::String(include);
+            }
+            if let Some(path) = path {
+                adapted["path"] = serde_json::Value::String(path);
+            }
+            eprintln!("[code-assistant] hallucinated tool `{name}` rewritten to search_files");
+            search_files(adapted, wd).await
+        }
+        // 文件名匹配类 → 我们的 glob_files
+        "find" => {
+            let pattern = args
+                .get("pattern")
+                .or_else(|| args.get("name"))
+                .or_else(|| args.get("glob"))
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            if pattern.is_null() || pattern.as_str().is_some_and(str::is_empty) {
+                return Err(unknown_tool_error(name));
+            }
+            let path = args
+                .get("path")
+                .or_else(|| args.get("directory"))
+                .or_else(|| args.get("dir"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let mut adapted = serde_json::json!({ "pattern": pattern });
+            if let Some(path) = path {
+                adapted["path"] = serde_json::Value::String(path);
+            }
+            eprintln!("[code-assistant] hallucinated tool `{name}` rewritten to glob_files");
+            glob_files(adapted, wd).await
+        }
+        // 列目录类 → 我们的 list_dir
+        "ls" | "ll" | "dir" => {
+            let path = args
+                .get("path")
+                .or_else(|| args.get("directory"))
+                .or_else(|| args.get("dir"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let adapted = serde_json::json!({
+                "path": path.unwrap_or_else(|| ".".to_string()),
+            });
+            eprintln!("[code-assistant] hallucinated tool `{name}` rewritten to list_dir");
+            list_dir(adapted, wd).await
+        }
+        // 读文件类 → 我们的 read_file
+        "cat" | "head" | "tail" | "less" | "more" => {
+            let file_path = args
+                .get("file_path")
+                .or_else(|| args.get("path"))
+                .or_else(|| args.get("file"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let file_path = match file_path {
+                Some(p) if !p.is_empty() => p,
+                _ => return Err(unknown_tool_error(name)),
+            };
+            let limit = args
+                .get("limit")
+                .or_else(|| args.get("n"))
+                .or_else(|| args.get("lines"))
+                .and_then(|v| v.as_u64());
+            let mut adapted = serde_json::json!({ "file_path": file_path });
+            if let Some(limit) = limit {
+                adapted["limit"] = serde_json::json!(limit);
+            }
+            eprintln!("[code-assistant] hallucinated tool `{name}` rewritten to read_file");
+            read_file(adapted, wd).await
+        }
+        // 其他常见 shell 命令 → 包成 run_command
+        other if is_known_shell_alias(other) => {
+            let command = if let Some(cmd) = args.get("command").and_then(|v| v.as_str()) {
+                cmd.to_string()
+            } else {
+                // 没有 command 字段：尝试用 shell 名字 + 整个 args 拼出最小命令。
+                // 但这种情况很少见，主要靠 system prompt 防住。
+                return Err(format!(
+                    "工具 `{other}` 不是有效工具。\
+                     如果确实需要执行该 shell 命令，请改用 run_command，\
+                     并把整条 shell 命令作为 `command` 参数传入。\
+                     当前可用工具：read_file / list_dir / glob_files / search_files / \
+                     workspace_context / fetch_url / write_file / edit_file / run_command。"
+                ));
+            };
+            let adapted = serde_json::json!({ "command": command });
+            eprintln!("[code-assistant] hallucinated tool `{other}` rewritten to run_command");
+            run_command(adapted, wd).await
+        }
+        // 真正的未知名字：返回清晰的错误，让 LLM 下一轮改正。
+        other => Err(unknown_tool_error(other)),
+    }
+}
+
+fn unknown_tool_error(name: &str) -> String {
+    format!(
+        "未知工具：{name}。当前可用工具：read_file / list_dir / glob_files / search_files / \
+         workspace_context / fetch_url / write_file / edit_file / run_command。\
+         请使用以上列表中的工具名，不要编造。\
+         如果想用 grep / cat / ls / find 等 shell 命令，请通过 run_command 工具调用。"
+    )
+}
+
+/// 已知会被 LLM 幻觉成工具名的 shell 命令。
+fn is_known_shell_alias(name: &str) -> bool {
+    matches!(
+        name,
+        "wc"
+            | "sort"
+            | "uniq"
+            | "sed"
+            | "awk"
+            | "cut"
+            | "tr"
+            | "xargs"
+            | "echo"
+            | "pwd"
+            | "which"
+            | "file"
+            | "stat"
+            | "du"
+            | "df"
+            | "ps"
+            | "top"
+            | "kill"
+            | "curl"
+            | "wget"
+            | "ping"
+            | "nslookup"
+            | "tar"
+            | "zip"
+            | "unzip"
+            | "cp"
+            | "mv"
+            | "mkdir"
+            | "touch"
+            | "chmod"
+            | "chown"
+            | "rm"
+            | "rmdir"
+            | "make"
+            | "cmake"
+            | "npm"
+            | "pnpm"
+            | "yarn"
+            | "node"
+            | "python"
+            | "python3"
+            | "ruby"
+            | "go"
+            | "rustc"
+            | "cargo"
+            | "java"
+            | "javac"
+            | "git"
+    )
 }
 
 async fn fetch_url(args: serde_json::Value) -> Result<String, String> {
@@ -672,42 +870,23 @@ async fn glob_files(args: serde_json::Value, wd: &str) -> Result<String, String>
         return Err(format!("glob path 不是目录：{rel_path}"));
     }
 
-    let output = tokio::process::Command::new("rg")
-        .arg("--files")
-        .arg("--hidden")
-        .arg("--glob")
-        .arg("!.git")
-        .arg("--glob")
-        .arg("!node_modules")
-        .arg("--glob")
-        .arg(&pattern)
-        .current_dir(&path)
-        .output()
-        .await
-        .map_err(|e| format!("glob 命令失败：{e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "glob 命令未成功执行。".to_string()
-        } else {
-            stderr
-        });
+    // 之前直接 `Command::new("rg")`：当终端用户未安装 ripgrep 时会报
+    // `os error 2 (ENOENT)`。改用 `ignore` crate（ripgrep 自身使用的 Rust 库）
+    // 在进程内完成遍历与 glob 匹配，避免对外部二进制的依赖。
+    let mut lines = glob::walk_files(
+        &path,
+        Some(&pattern),
+        &["!.git", "!node_modules"],
+        101, // 多取 1 条用于判断是否被截断
+    )?;
+    let truncated = lines.len() > 100;
+    if truncated {
+        lines.truncate(100);
     }
-
-    let text = String::from_utf8_lossy(&output.stdout).to_string();
-    let mut lines = text
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .take(100)
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-    lines.sort();
     if lines.is_empty() {
         return Ok("No files found".into());
     }
-    let truncated = text.lines().count() > 100;
+    lines.sort();
     let mut result = lines.join("\n");
     if truncated {
         result.push_str("\n...（结果已截断，请使用更具体的 pattern 或 path）");
@@ -728,47 +907,23 @@ async fn search_files(args: serde_json::Value, wd: &str) -> Result<String, Strin
         return Err(format!("搜索目录不存在：{rel_path}"));
     }
 
-    let mut rg = tokio::process::Command::new("rg");
-    rg.arg("-n")
-        .arg("-I")
-        .arg("--hidden")
-        .arg("--glob")
-        .arg("!.git");
-    if let Some(include) = include {
-        rg.arg("--glob").arg(include);
-    }
-    rg.arg("--").arg(&pattern).arg(&path);
+    // 之前用 `Command::new("rg")` + `grep` 双回退，但 rg 在用户机器上常常缺失。
+    // 改用 `regex` + `ignore` crate 在进程内完成搜索，与 `walk_files` 行为对齐。
+    let hits = glob::search_content(&path, &pattern, include, 100)?;
 
-    let output = match rg.output().await {
-        Ok(output) => output,
-        Err(_) => tokio::process::Command::new("grep")
-            .arg("-R")
-            .arg("-n")
-            .arg("-I")
-            .arg("--exclude-dir=.git")
-            .arg("--")
-            .arg(&pattern)
-            .arg(&path)
-            .output()
-            .await
-            .map_err(|e| format!("搜索命令失败：{e}"))?,
-    };
-
-    let text = String::from_utf8_lossy(&output.stdout).to_string();
-    if text.is_empty() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        if !output.status.success() && !stderr.is_empty() {
-            return Err(format!("搜索失败：{stderr}"));
-        }
+    if hits.is_empty() {
         return Ok("未找到匹配内容。".into());
     }
-    // 限制返回行数，避免结果过长撑爆上下文。
-    let lines: Vec<&str> = text.lines().take(100).collect();
-    let result = lines.join("\n");
-    if text.lines().count() > 100 {
-        Ok(format!("{result}\n...（仅展示前 100 条匹配）"))
+    let total = hits.len();
+    let rendered: String = hits
+        .iter()
+        .map(|(rel, line, text)| format!("{rel}:{line}:{text}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    if total >= 100 {
+        Ok(format!("{rendered}\n...（仅展示前 100 条匹配）"))
     } else {
-        Ok(result)
+        Ok(rendered)
     }
 }
 
@@ -1019,5 +1174,212 @@ mod tests {
         assert!(validate_public_http_url("http://localhost:3000").is_err());
         assert!(validate_public_http_url("http://127.0.0.1:3000").is_err());
         assert!(validate_public_http_url("http://192.168.1.1").is_err());
+    }
+
+    // ── glob_files / search_files 回归测试（之前依赖外部 rg 二进制） ──
+
+    /// 在临时工作区创建一组用于 glob / search 测试的文件。
+    fn seed_glob_workspace() -> PathBuf {
+        let workspace = create_temp_workspace();
+        std::fs::create_dir_all(workspace.join("src")).unwrap();
+        std::fs::write(workspace.join("src/app.ts"), "export const a = 1;\n").unwrap();
+        std::fs::write(workspace.join("src/util.ts"), "export const b = 2;\n").unwrap();
+        std::fs::write(workspace.join("src/skip.tsx"), "export const c = 3;\n").unwrap();
+        std::fs::create_dir_all(workspace.join("node_modules/pkg")).unwrap();
+        std::fs::write(workspace.join("node_modules/pkg/index.js"), "module.exports = {};\n").unwrap();
+        std::fs::create_dir_all(workspace.join(".git")).unwrap();
+        std::fs::write(workspace.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+        std::fs::write(workspace.join("README.md"), "# Project\nTODO: write docs\n").unwrap();
+        workspace
+    }
+
+    /// 关键回归：之前用 `Command::new("rg")` 在未装 ripgrep 的终端上直接 ENOENT；
+    /// 改用 `ignore` crate 进程内遍历后，即便完全没有 rg 也能跑通。
+    #[tokio::test]
+    async fn glob_files_works_without_ripgrep_binary() {
+        let workspace = seed_glob_workspace();
+        let wd = workspace.to_str().unwrap();
+
+        let args = serde_json::json!({ "pattern": "**/*.ts" });
+        let output = glob_files(args, wd).await.expect("glob_files 应成功");
+        let mut lines: Vec<&str> = output.lines().collect();
+        lines.sort();
+        assert_eq!(lines, vec!["src/app.ts", "src/util.ts"]);
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn glob_files_excludes_git_and_node_modules() {
+        let workspace = seed_glob_workspace();
+        let wd = workspace.to_str().unwrap();
+        // 任意 pattern 应能跑通，验证 .git / node_modules 被排除
+        let args = serde_json::json!({ "pattern": "**/*" });
+        let output = glob_files(args, wd).await.expect("glob_files 应成功");
+        assert!(!output.contains(".git"), "不应出现 .git: {output}");
+        assert!(!output.contains("node_modules"), "不应出现 node_modules: {output}");
+        assert!(output.contains("README.md"));
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn glob_files_returns_no_files_found_when_empty() {
+        let workspace = create_temp_workspace();
+        std::fs::create_dir_all(workspace.join("empty")).unwrap();
+        let args = serde_json::json!({
+            "pattern": "**/*.ts",
+            "path": "empty",
+        });
+        let output = glob_files(args, workspace.to_str().unwrap())
+            .await
+            .expect("glob_files 应成功");
+        assert_eq!(output, "No files found");
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn glob_files_rejects_non_existing_directory() {
+        let workspace = create_temp_workspace();
+        let args = serde_json::json!({
+            "pattern": "**/*.ts",
+            "path": "missing",
+        });
+        let err = glob_files(args, workspace.to_str().unwrap())
+            .await
+            .expect_err("应失败");
+        assert!(err.contains("搜索目录不存在"), "实际错误：{err}");
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn search_files_works_without_ripgrep_binary() {
+        let workspace = seed_glob_workspace();
+        let wd = workspace.to_str().unwrap();
+        let args = serde_json::json!({ "pattern": "TODO" });
+        let output = search_files(args, wd).await.expect("search_files 应成功");
+        assert!(output.contains("README.md"), "应命中 README.md: {output}");
+        assert!(output.contains("TODO"), "应包含匹配行: {output}");
+        // 排除目录不应出现在结果里
+        assert!(!output.contains("node_modules"), "不应出现 node_modules: {output}");
+        assert!(!output.contains(".git"), "不应出现 .git: {output}");
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn search_files_respects_include_glob() {
+        let workspace = seed_glob_workspace();
+        std::fs::write(workspace.join("src/notes.md"), "TODO: review later\n").unwrap();
+        let wd = workspace.to_str().unwrap();
+        let args = serde_json::json!({
+            "pattern": "TODO",
+            "include": "*.md",
+        });
+        let output = search_files(args, wd).await.expect("search_files 应成功");
+        assert!(output.contains("README.md"));
+        assert!(output.contains("src/notes.md"));
+        // include 限制下不应出现 .ts 命中
+        assert!(!output.contains(".ts:"), "不应出现 .ts 匹配: {output}");
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    // ── 兜底：模型把 shell 命令名当成工具名时，应自动改写到对应真实工具 ──
+
+    #[tokio::test]
+    async fn dispatch_tool_rewrites_grep_to_search_files() {
+        let workspace = seed_glob_workspace();
+        let wd = workspace.to_str().unwrap();
+        // LLM 幻觉：调 `grep` 工具，参数却用的是 search_files 的语义。
+        let output = dispatch_tool(
+            "grep",
+            r#"{"pattern":"TODO","path":".","include":"*.md"}"#,
+            Some(wd),
+        )
+        .await
+        .expect("应改写到 search_files 并成功");
+        assert!(output.contains("README.md"), "应命中 README.md: {output}");
+        assert!(output.contains("TODO"));
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn dispatch_tool_rewrites_find_to_glob_files() {
+        let workspace = seed_glob_workspace();
+        let wd = workspace.to_str().unwrap();
+        let output = dispatch_tool(
+            "find",
+            r#"{"pattern":"**/*.ts","path":"."}"#,
+            Some(wd),
+        )
+        .await
+        .expect("应改写到 glob_files 并成功");
+        assert!(output.contains("src/app.ts"));
+        assert!(output.contains("src/util.ts"));
+        assert!(!output.contains("node_modules"));
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn dispatch_tool_rewrites_ls_to_list_dir() {
+        let workspace = seed_glob_workspace();
+        let wd = workspace.to_str().unwrap();
+        let output = dispatch_tool("ls", r#"{"path":"."}"#, Some(wd))
+            .await
+            .expect("应改写到 list_dir 并成功");
+        assert!(output.contains("README.md"));
+        assert!(!output.contains(".git"));
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn dispatch_tool_rewrites_cat_to_read_file() {
+        let workspace = seed_glob_workspace();
+        let wd = workspace.to_str().unwrap();
+        let output = dispatch_tool("cat", r#"{"file_path":"README.md"}"#, Some(wd))
+            .await
+            .expect("应改写到 read_file 并成功");
+        assert!(output.contains("# Project"));
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn dispatch_tool_rewrites_known_shell_alias_to_run_command() {
+        let workspace = create_temp_workspace();
+        let wd = workspace.to_str().unwrap();
+        // pnpm 不是小妍工具，但作为已知 shell 命令名应该走 run_command。
+        let output = dispatch_tool(
+            "pnpm",
+            r#"{"command":"echo hello"}"#,
+            Some(wd),
+        )
+        .await
+        .expect("应改写到 run_command 并成功");
+        assert!(output.contains("hello"));
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn dispatch_tool_rejects_truly_unknown_tool_with_helpful_message() {
+        let workspace = create_temp_workspace();
+        let wd = workspace.to_str().unwrap();
+        let err = dispatch_tool("definitely_not_a_tool", r#"{"foo":"bar"}"#, Some(wd))
+            .await
+            .expect_err("应失败");
+        assert!(err.contains("未知工具"), "实际错误：{err}");
+        // 错误信息应列出可用工具名
+        assert!(err.contains("glob_files"));
+        assert!(err.contains("search_files"));
+        assert!(err.contains("run_command"));
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn dispatch_tool_grep_missing_pattern_falls_back_to_run_command() {
+        let workspace = create_temp_workspace();
+        let wd = workspace.to_str().unwrap();
+        // grep 工具但参数不是 search_files 形态：应给出明确指引。
+        let err = dispatch_tool("grep", r#"{}"#, Some(wd))
+            .await
+            .expect_err("应失败");
+        assert!(err.contains("未知工具"), "实际错误：{err}");
+        std::fs::remove_dir_all(workspace.parent().unwrap()).unwrap();
     }
 }
