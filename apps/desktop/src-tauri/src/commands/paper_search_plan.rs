@@ -108,7 +108,17 @@ fn local_plan(queries: Vec<String>, note: &str) -> PaperSearchPlan {
 }
 
 fn merge_queries(primary: Vec<String>, fallback: Vec<String>) -> Vec<String> {
-    normalize_queries(primary.into_iter().chain(fallback).collect())
+    let mut fallback = normalize_queries(fallback).into_iter();
+    let Some(constraint_query) = fallback.next() else {
+        return normalize_queries(primary);
+    };
+
+    normalize_queries(
+        std::iter::once(constraint_query)
+            .chain(primary)
+            .chain(fallback)
+            .collect(),
+    )
 }
 
 fn normalize_queries(values: Vec<String>) -> Vec<String> {
@@ -218,7 +228,7 @@ fn extract_english_keywords(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::build_fallback_search_queries;
+    use super::{build_fallback_search_queries, merge_queries};
     use crate::llm::LlmClient;
     use std::collections::HashMap;
 
@@ -247,6 +257,33 @@ mod tests {
 
         assert!(queries.iter().any(|query| query.contains("benchmark")));
         assert!(queries.iter().any(|query| query.contains("多模态大模型")));
+    }
+
+    #[test]
+    fn reserves_a_constraint_query_when_the_model_plan_reaches_the_limit() {
+        let fallback = build_fallback_search_queries(
+            "hierarchical neural models for sign language",
+            &[
+                "Jane Doe".into(),
+                "Computer Vision and Pattern Recognition".into(),
+                "Computer Science".into(),
+            ],
+        );
+        let queries = merge_queries(
+            vec![
+                "model query one".into(),
+                "model query two".into(),
+                "model query three".into(),
+                "model query four".into(),
+            ],
+            fallback,
+        );
+
+        assert_eq!(queries.len(), 4);
+        assert!(queries[0].contains("Jane Doe"));
+        assert!(queries[0].contains("Computer Vision and Pattern Recognition"));
+        assert!(queries[0].contains("Computer Science"));
+        assert!(!queries.iter().any(|query| query == "model query four"));
     }
 
     #[test]
