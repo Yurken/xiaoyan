@@ -92,7 +92,7 @@ describe("CodeToolActionLine", () => {
 });
 
 describe("CodeToolSteps", () => {
-  it("renders collapsed by default when not sending", () => {
+  it("renders step rows by default", () => {
     const toolCall = makeCall("read_file", { file_path: "src/app.ts" });
     const result: CodeToolResult = {
       tool_call_id: toolCall.id,
@@ -103,21 +103,13 @@ describe("CodeToolSteps", () => {
     const resultsByCallId = new Map<string, CodeToolResult>([[toolCall.id, result]]);
     render(<CodeToolSteps toolCalls={[toolCall]} resultsByCallId={resultsByCallId} sending={false} />);
 
-    expect(screen.getByText("1 个步骤")).toBeInTheDocument();
-    expect(screen.getByText("展开")).toBeInTheDocument();
+    expect(screen.getByText("查看文件")).toBeInTheDocument();
+    expect(screen.getByText("src/app.ts")).toBeInTheDocument();
+    expect(screen.getByText("详情")).toBeInTheDocument();
     expect(screen.queryByText("参数")).not.toBeInTheDocument();
   });
 
-  it("renders expanded by default while sending", () => {
-    const toolCall = makeCall("read_file", { file_path: "src/app.ts" });
-    const resultsByCallId = new Map<string, CodeToolResult>();
-    render(<CodeToolSteps toolCalls={[toolCall]} resultsByCallId={resultsByCallId} sending />);
-
-    expect(screen.getByText("执行中 · 0/1")).toBeInTheDocument();
-    expect(screen.getByText("参数")).toBeInTheDocument();
-  });
-
-  it("toggles step details when clicking header", async () => {
+  it("toggles step details when clicking detail button", async () => {
     const toolCall = makeCall("read_file", { file_path: "src/app.ts" });
     const result: CodeToolResult = {
       tool_call_id: toolCall.id,
@@ -128,14 +120,14 @@ describe("CodeToolSteps", () => {
     const resultsByCallId = new Map<string, CodeToolResult>([[toolCall.id, result]]);
     render(<CodeToolSteps toolCalls={[toolCall]} resultsByCallId={resultsByCallId} sending={false} />);
 
-    await userEvent.click(screen.getByText("展开"));
+    await userEvent.click(screen.getByText("详情"));
     expect(screen.getByText("参数")).toBeInTheDocument();
 
     await userEvent.click(screen.getByText("收起"));
     expect(screen.queryByText("参数")).not.toBeInTheDocument();
   });
 
-  it("shows error count in header", () => {
+  it("shows error status on failed results", () => {
     const toolCall = makeCall("run_command", { command: "exit 1" });
     const result: CodeToolResult = {
       tool_call_id: toolCall.id,
@@ -144,8 +136,16 @@ describe("CodeToolSteps", () => {
       is_error: true,
     };
     const resultsByCallId = new Map<string, CodeToolResult>([[toolCall.id, result]]);
-    render(<CodeToolSteps toolCalls={[toolCall]} resultsByCallId={resultsByCallId} sending={false} />);
+    const node = render(<CodeToolSteps toolCalls={[toolCall]} resultsByCallId={resultsByCallId} sending={false} />);
 
-    expect(screen.getByText("1 失败")).toBeInTheDocument();
+    expect(node.container.querySelector(".code-tool-step")).toHaveClass("is-error");
+  });
+
+  it("shows pending status while sending", () => {
+    const toolCall = makeCall("read_file", { file_path: "src/app.ts" });
+    const resultsByCallId = new Map<string, CodeToolResult>();
+    const node = render(<CodeToolSteps toolCalls={[toolCall]} resultsByCallId={resultsByCallId} sending />);
+
+    expect(node.container.querySelector(".code-tool-step")).toHaveClass("is-pending");
   });
 });

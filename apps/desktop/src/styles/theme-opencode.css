@@ -555,7 +555,7 @@
 }
 
 .code-opencode-main .code-chat-md.prose :where(h1, h2, h3, h4) {
-  margin: 14px 0 8px;
+  margin: 10px 0 6px;
   color: var(--rc-text);
   font-weight: 750;
   line-height: 1.22;
@@ -575,18 +575,18 @@
 }
 
 .code-opencode-main .code-chat-md.prose :where(p) {
-  margin: 7px 0;
+  margin: 4px 0;
   color: var(--rc-text);
 }
 
 .code-opencode-main .code-chat-md.prose :where(ul, ol) {
-  margin: 8px 0 10px;
+  margin: 4px 0 6px;
   padding-left: 22px;
   color: var(--rc-text);
 }
 
 .code-opencode-main .code-chat-md.prose :where(li) {
-  margin: 5px 0;
+  margin: 2px 0;
   padding-left: 2px;
 }
 
@@ -868,94 +868,32 @@
   color: var(--rc-accent);
 }
 
-/* ── 类 Codex 的极简流程步骤面板 ───────────────────────────────── */
+/* ── 极简流程步骤：纯文本 + 轻量按钮，无拟态卡片 ───────────────── */
 
 .code-tool-steps {
   margin: 6px 0;
-  border-radius: 12px;
-  background: var(--rc-surface);
-  box-shadow: var(--rc-inset-shadow);
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.code-tool-steps__header {
+.code-tool-step__row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 6px 10px;
+  padding: 2px 0;
   background: transparent;
   border: none;
   color: var(--rc-text-soft);
   font-size: 11px;
   line-height: 1.4;
+  text-align: left;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: color 0.12s;
 }
 
-.code-tool-steps__header:hover {
-  background: rgba(0, 0, 0, 0.02);
-}
-
-.code-tool-steps__summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 500;
-}
-
-.code-tool-steps__summary svg {
-  flex-shrink: 0;
-}
-
-.code-tool-steps__errors {
-  margin-left: 4px;
-  border-radius: 999px;
-  padding: 1px 6px;
-  background: rgba(220, 38, 38, 0.08);
-  color: #b91c1c;
-  font-size: 10px;
-}
-
-.code-tool-steps__toggle {
-  flex-shrink: 0;
-  color: var(--rc-text-tertiary);
-  font-size: 10px;
-}
-
-.code-tool-steps__list {
-  padding: 0 8px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.code-tool-step {
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.code-tool-step__summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  list-style: none;
-  cursor: pointer;
-  border-radius: 8px;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--rc-text-soft);
-  transition: background 0.12s;
-}
-
-.code-tool-step__summary::-webkit-details-marker {
-  display: none;
-}
-
-.code-tool-step__summary:hover {
-  background: rgba(0, 0, 0, 0.02);
+.code-tool-step__row:hover {
+  color: var(--rc-text-primary);
 }
 
 .code-tool-step__status {
@@ -986,14 +924,6 @@
   background: var(--rc-text-tertiary);
 }
 
-.code-tool-step__number {
-  width: 16px;
-  flex-shrink: 0;
-  text-align: center;
-  color: var(--rc-text-tertiary);
-  font-variant-numeric: tabular-nums;
-}
-
 .code-tool-step__verb {
   font-weight: 500;
   color: var(--rc-text-muted);
@@ -1017,17 +947,35 @@
   flex: 1;
 }
 
+.code-tool-step__action {
+  flex-shrink: 0;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: var(--rc-text-tertiary);
+  font-size: 10px;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.12s;
+}
+
+.code-tool-step__row:hover .code-tool-step__action {
+  text-decoration-color: var(--rc-text-tertiary);
+}
+
 .code-tool-step__body {
-  padding: 6px 8px 8px 46px;
+  padding: 6px 0 8px 22px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .code-tool-step__section {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .code-tool-step__label {
@@ -1039,8 +987,8 @@
 
 .code-tool-step__pre {
   margin: 0;
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
   background: var(--rc-elevated);
   color: var(--rc-text-secondary);
   font-size: 10px;

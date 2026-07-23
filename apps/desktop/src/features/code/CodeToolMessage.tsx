@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -218,7 +218,7 @@ interface StepState {
   status: "pending" | "ok" | "error" | "none";
 }
 
-/** 类 Codex 的极简流程步骤面板：可展开单步、整体收起/展开、执行结束后自动收起。 */
+/** 极简流程步骤：默认直接展示单行步骤，点击轻量按钮展开详情。无拟态卡片。 */
 export function CodeToolSteps({ toolCalls, resultsByCallId, sending }: CodeToolStepsProps) {
   const steps: StepState[] = toolCalls.map((toolCall) => {
     const result = resultsByCallId.get(toolCall.id);
@@ -233,80 +233,60 @@ export function CodeToolSteps({ toolCalls, resultsByCallId, sending }: CodeToolS
     return { toolCall, result, status };
   });
 
-  const okCount = steps.filter((s) => s.status === "ok").length;
-  const errorCount = steps.filter((s) => s.status === "error").length;
-  const pendingCount = steps.filter((s) => s.status === "pending").length;
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  // 执行中时默认展开，结束后默认收起。
-  const [expanded, setExpanded] = useState(sending ?? false);
-
-  // 当 sending 状态变化时同步默认展开/收起。
-  useEffect(() => {
-    setExpanded(sending ?? false);
-  }, [sending]);
+  const toggleStep = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   if (steps.length === 0) return null;
 
   return (
     <div className="code-tool-steps">
-      <button
-        type="button"
-        onClick={() => setExpanded((prev) => !prev)}
-        className="code-tool-steps__header"
-        aria-expanded={expanded}
-      >
-        <span className="code-tool-steps__summary">
-          {pendingCount > 0 ? (
-            <>
-              <Loader2 size={12} className="animate-spin" />
-              <span>执行中 · {okCount}/{steps.length}</span>
-            </>
-          ) : (
-            <>
-              <CheckCircle2 size={12} />
-              <span>{steps.length} 个步骤</span>
-            </>
-          )}
-          {errorCount > 0 && <span className="code-tool-steps__errors">{errorCount} 失败</span>}
-        </span>
-        <span className="code-tool-steps__toggle">
-          {expanded ? "收起" : "展开"}
-        </span>
-      </button>
-
-      {expanded && (
-        <div className="code-tool-steps__list">
-          {steps.map((step, index) => (
-            <details
-              key={step.toolCall.id}
-              className={`code-tool-step is-${step.status}`}
-              open={step.status === "error"}
+      {steps.map((step) => {
+        const isExpanded = expandedIds.has(step.toolCall.id);
+        return (
+          <div
+            key={step.toolCall.id}
+            className={`code-tool-step is-${step.status}`}
+          >
+            <button
+              type="button"
+              onClick={() => toggleStep(step.toolCall.id)}
+              className="code-tool-step__row"
+              aria-expanded={isExpanded}
             >
-              <summary className="code-tool-step__summary">
-                <span className="code-tool-step__status">
-                  {step.status === "pending" ? (
-                    <Loader2 size={11} className="animate-spin" />
-                  ) : step.status === "ok" ? (
-                    <CheckCircle2 size={11} />
-                  ) : step.status === "error" ? (
-                    <AlertTriangle size={11} />
-                  ) : (
-                    <span className="code-tool-step__dot" />
-                  )}
-                </span>
-                <span className="code-tool-step__number">{index + 1}</span>
-                <span className="code-tool-step__verb">
-                  {toolVerb(step.toolCall.name)}
-                </span>
-                {argumentSummary(step.toolCall.arguments) && (
-                  <>
-                    <span className="code-tool-step__sep">·</span>
-                    <code className="code-tool-step__target">
-                      {argumentSummary(step.toolCall.arguments)}
-                    </code>
-                  </>
+              <span className="code-tool-step__status">
+                {step.status === "pending" ? (
+                  <Loader2 size={11} className="animate-spin" />
+                ) : step.status === "ok" ? (
+                  <CheckCircle2 size={11} />
+                ) : step.status === "error" ? (
+                  <AlertTriangle size={11} />
+                ) : (
+                  <span className="code-tool-step__dot" />
                 )}
-              </summary>
+              </span>
+              <span className="code-tool-step__verb">{toolVerb(step.toolCall.name)}</span>
+              {argumentSummary(step.toolCall.arguments) && (
+                <>
+                  <span className="code-tool-step__sep">·</span>
+                  <code className="code-tool-step__target">
+                    {argumentSummary(step.toolCall.arguments)}
+                  </code>
+                </>
+              )}
+              <span className="code-tool-step__action">
+                {isExpanded ? "收起" : "详情"}
+              </span>
+            </button>
+
+            {isExpanded && (
               <div className="code-tool-step__body">
                 <div className="code-tool-step__section">
                   <span className="code-tool-step__label">参数</span>
@@ -325,10 +305,10 @@ export function CodeToolSteps({ toolCalls, resultsByCallId, sending }: CodeToolS
                   </div>
                 )}
               </div>
-            </details>
-          ))}
-        </div>
-      )}
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
