@@ -868,12 +868,80 @@
   color: var(--rc-accent);
 }
 
-/* ── 极简流程步骤：纯文本 + 轻量按钮，无拟态卡片 ───────────────── */
+/* ── 类 Codex 折叠流程面板 ─────────────────────────────────────── */
 
 .code-tool-steps {
-  margin: 6px 0;
+  margin: 8px 0;
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+
+.code-tool-steps__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 0;
+  background: transparent;
+  border: none;
+  color: var(--rc-text-soft);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.code-tool-steps__header:hover {
+  color: var(--rc-text-primary);
+}
+
+.code-tool-steps__header-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.code-tool-steps__header-meta {
+  color: var(--rc-text-tertiary);
+  font-weight: 400;
+}
+
+.code-tool-steps__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rc-text-tertiary);
+  transition: transform 0.2s;
+}
+
+.code-tool-steps__arrow.is-expanded {
+  transform: rotate(90deg);
+}
+
+.code-tool-steps__overview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 2px;
+  color: var(--rc-text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.code-tool-steps__overview svg {
+  flex-shrink: 0;
+  color: var(--rc-text-tertiary);
+}
+
+.code-tool-steps__list {
+  display: flex;
+  flex-direction: column;
+  padding-left: 8px;
+  border-left: 1px solid var(--rc-border);
 }
 
 .code-tool-step__row {
@@ -881,7 +949,8 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 2px 0;
+  padding: 3px 0;
+  padding-left: 8px;
   background: transparent;
   border: none;
   color: var(--rc-text-soft);
@@ -966,7 +1035,7 @@
 }
 
 .code-tool-step__body {
-  padding: 6px 0 8px 22px;
+  padding: 6px 0 8px 30px;
   display: flex;
   flex-direction: column;
   gap: 6px;
