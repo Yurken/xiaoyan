@@ -1,7 +1,7 @@
 "use client";
 
 import { clsx } from "clsx";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 interface DatePickerProps {
@@ -175,18 +175,6 @@ export default function DatePicker({
         }}
       >
         <span>{selectedDate ? formatDateLabel(selectedDate) : "选择日期"}</span>
-        <span
-          aria-hidden="true"
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl border"
-          style={{
-            background: "var(--rc-icon-button-bg)",
-            borderColor: "var(--rc-icon-button-border)",
-            boxShadow: "var(--rc-icon-button-shadow)",
-            color: "var(--rc-icon-button-color)",
-          }}
-        >
-          <CalendarDays className="h-4 w-4" strokeWidth={1.8} />
-        </span>
       </button>
 
       {open ? (

@@ -7,6 +7,7 @@ use anyhow::Context;
 use chrono::{Duration as ChronoDuration, Local, NaiveDate};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sqlx::Row;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tauri::State;
@@ -971,6 +972,107 @@ fn fallback_overall_summary(mode: RankingMode, candidates: usize, limit: usize) 
             candidates.min(limit)
         ),
     }
+}
+
+// ── Search history persistence ─────────────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PaperSearchSaveHistoryRequest {
+    pub draft_json: String,
+    pub result_json: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PaperSearchHistoryEntry {
+    pub id: String,
+    pub draft_json: String,
+    pub result_json: String,
+    pub created_at: String,
+}
+
+#[tauri::command]
+pub async fn paper_search_save_history(
+    state: State<'_, AppState>,
+    request: PaperSearchSaveHistoryRequest,
+) -> Result<PaperSearchHistoryEntry, String> {
+    let trimmed_draft = request.draft_json.trim();
+    if trimmed_draft.is_empty() || trimmed_draft == "{}" {
+        return Err("检索条件为空，无法保存历史记录。".into());
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let created_at = chrono::Utc::now().to_rfc3339();
+    let result_json = if request.result_json.trim().is_empty() {
+        "{}".into()
+    } else {
+        request.result_json
+    };
+
+    sqlx::query(
+        "INSERT INTO paper_search_history (id, draft_json, result_json, created_at)
+         VALUES (?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(trimmed_draft)
+    .bind(&result_json)
+    .bind(&created_at)
+    .execute(&state.db)
+    .await
+    .map_err(|e| format!("保存论文检索历史失败：{e}"))?;
+
+    Ok(PaperSearchHistoryEntry {
+        id,
+        draft_json: trimmed_draft.to_string(),
+        result_json,
+        created_at,
+    })
+}
+
+#[tauri::command]
+pub async fn paper_search_get_history(
+    state: State<'_, AppState>,
+    limit: Option<i32>,
+) -> Result<Vec<PaperSearchHistoryEntry>, String> {
+    let limit = limit.unwrap_or(20).clamp(1, 100);
+
+    let rows = sqlx::query(
+        "SELECT id, draft_json, result_json, created_at
+         FROM paper_search_history
+         ORDER BY created_at DESC
+         LIMIT ?",
+    )
+    .bind(limit)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| format!("读取论文检索历史失败：{e}"))?;
+
+    let mut items = Vec::with_capacity(rows.len());
+    for row in rows {
+        items.push(PaperSearchHistoryEntry {
+            id: row.get("id"),
+            draft_json: row.get("draft_json"),
+            result_json: row.get("result_json"),
+            created_at: row.get("created_at"),
+        });
+    }
+
+    Ok(items)
+}
+
+#[tauri::command]
+pub async fn paper_search_delete_history(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<bool, String> {
+    let result = sqlx::query("DELETE FROM paper_search_history WHERE id = ?")
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| format!("删除论文检索历史失败：{e}"))?;
+
+    Ok(result.rows_affected() > 0)
 }
 
 #[cfg(test)]

@@ -18,7 +18,8 @@ import {
   splitStructuredInput,
   type RankKey,
 } from "./shared";
-import { apiClient, formatErrorMessage, journalApi } from "../../lib/client";
+import { apiClient, formatErrorMessage, journalApi, paperSearchApi } from "../../lib/client";
+import type { PaperSearchHistoryEntry } from "../../lib/client";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
 
 const PAPER_DISCOVERY_SESSION_KEY = "rc:tools:paper-discovery:v1";
@@ -41,9 +42,6 @@ interface PaperDiscoveryDraft {
 
 interface PaperDiscoverySession {
   draft: PaperDiscoveryDraft;
-  searched: boolean;
-  result: ArxivSearchResponse | null;
-  webSupplement?: WebSearchOutcome | null;
 }
 
 function createPaperDiscoverySession(): PaperDiscoverySession {
@@ -63,9 +61,6 @@ function createPaperDiscoverySession(): PaperDiscoverySession {
       limit: "6",
       mode: "relevance",
     },
-    searched: false,
-    result: null,
-    webSupplement: null,
   };
 }
 
@@ -96,6 +91,11 @@ export function usePaperDiscoverySearch() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [webSupplementError, setWebSupplementError] = useState("");
+  const [searched, setSearched] = useState(false);
+  const [result, setResult] = useState<ArxivSearchResponse | null>(null);
+  const [webSupplement, setWebSupplement] = useState<WebSearchOutcome | null>(null);
+  const [history, setHistory] = useState<PaperSearchHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const lastSearchAt = useRef<number>(0);
 
   const updateDraft = <Key extends keyof PaperDiscoveryDraft>(
@@ -106,6 +106,16 @@ export function usePaperDiscoverySearch() {
       ...current,
       draft: { ...current.draft, [key]: value },
     }));
+  };
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const items = await paperSearchApi.getHistory(20);
+      setHistory(items);
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -160,6 +170,10 @@ export function usePaperDiscoverySearch() {
     };
   }, [selectedDomains, selectedRanks, venueType]);
 
+  useEffect(() => {
+    void loadHistory();
+  }, []);
+
   const request = useMemo<ArxivSearchRequest>(
     () => ({
       topic: topic.trim(),
@@ -176,8 +190,8 @@ export function usePaperDiscoverySearch() {
   );
   const canSearch = useMemo(() => hasPaperDiscoveryCriteria(request), [request]);
   const appliedFilters = useMemo(
-    () => buildAppliedFilterEntries(session.result?.applied_filters, session.result?.cutoff_date),
-    [session.result],
+    () => buildAppliedFilterEntries(result?.applied_filters, result?.cutoff_date),
+    [result],
   );
 
   const submit = async () => {
@@ -194,12 +208,9 @@ export function usePaperDiscoverySearch() {
       setLoading(true);
       setError("");
       setWebSupplementError("");
-      setSession((current) => ({
-        ...current,
-        searched: true,
-        result: null,
-        webSupplement: null,
-      }));
+      setSearched(true);
+      setResult(null);
+      setWebSupplement(null);
       const paperSearch = await apiClient.paperSearch.search(
         request,
         cutoffDate,
@@ -222,16 +233,61 @@ export function usePaperDiscoverySearch() {
           `网络补充有 ${failedWebSearches.length}/${webSearches.length} 条查询未完成，已保留其余结果。`,
         );
       }
-      setSession((current) => ({
-        ...current,
-        searched: true,
-        result: paperSearch,
-        webSupplement: nextWebSupplement,
-      }));
+      setResult(paperSearch);
+      setWebSupplement(nextWebSupplement);
+
+      try {
+        const draftJson = JSON.stringify(session.draft);
+        const resultJson = JSON.stringify({
+          ...paperSearch,
+          web_supplement: nextWebSupplement,
+        });
+        await paperSearchApi.saveHistory(draftJson, resultJson);
+        await loadHistory();
+      } catch (historyError) {
+        console.error("保存论文检索历史失败：", historyError);
+      }
     } catch (nextError) {
       setError(formatErrorMessage(nextError));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const applyHistory = (entry: PaperSearchHistoryEntry) => {
+    try {
+      const parsed = JSON.parse(entry.draft_json) as PaperDiscoveryDraft;
+      setSession((current) => ({
+        ...current,
+        draft: { ...createPaperDiscoverySession().draft, ...parsed },
+      }));
+    } catch (e) {
+      console.error("恢复检索历史失败：", e);
+      return;
+    }
+
+    try {
+      const parsedResult = JSON.parse(entry.result_json) as {
+        web_supplement?: WebSearchOutcome | null;
+      } & ArxivSearchResponse;
+      const { web_supplement: restoredWebSupplement, ...restoredResult } = parsedResult;
+      setSearched(true);
+      setResult(restoredResult);
+      setWebSupplement(restoredWebSupplement ?? null);
+    } catch (e) {
+      console.error("恢复检索结果失败：", e);
+      setSearched(false);
+      setResult(null);
+      setWebSupplement(null);
+    }
+  };
+
+  const removeHistory = async (id: string) => {
+    try {
+      await paperSearchApi.deleteHistory(id);
+      await loadHistory();
+    } catch (e) {
+      console.error("删除检索历史失败：", e);
     }
   };
 
@@ -270,13 +326,17 @@ export function usePaperDiscoverySearch() {
       onLimitChange: (value: string) => updateDraft("limit", value),
       onModeChange: (value: ArxivRankingMode) => updateDraft("mode", value),
       onSubmit: submit,
+      history,
+      historyLoading,
+      onApplyHistory: applyHistory,
+      onRemoveHistory: removeHistory,
     },
     resultProps: {
-      result: session.result,
-      webSupplement: session.webSupplement ?? null,
+      result,
+      webSupplement: webSupplement ?? null,
       webSupplementError,
       appliedFilters,
-      searched: session.searched,
+      searched,
       loading,
       error,
     },

@@ -327,6 +327,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               editingMessageId={editingMessageId}
               editText={editText}
               copiedId={copiedId}
+              sessionId={sessions.currentSession?.id}
               onClearError={() => { sessions.setLoadError(""); chat.setLoadError(""); }}
               onCopy={handleCopy}
               onRetry={chat.retry}

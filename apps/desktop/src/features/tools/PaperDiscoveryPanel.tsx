@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from "react";
-import { AlertCircle, FileSearch, Globe2, Loader2, Sparkles } from "lucide-react";
+import { AlertCircle, Clock, FileSearch, Globe2, Loader2, Trash2 } from "lucide-react";
+import type { PaperSearchHistoryEntry } from "../../lib/client";
 import { Button, Card, DatePicker, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode } from "@research-copilot/types";
 import {
@@ -36,6 +37,10 @@ interface PaperDiscoveryPanelProps {
   loading: boolean;
   error: string;
   canSearch: boolean;
+  history?: PaperSearchHistoryEntry[];
+  historyLoading?: boolean;
+  onApplyHistory?: (entry: PaperSearchHistoryEntry) => void;
+  onRemoveHistory?: (id: string) => void;
   onTopicChange: (value: string) => void;
   onAllTermsChange: (value: string) => void;
   onTitleTermsChange: (value: string) => void;
@@ -72,6 +77,10 @@ export function PaperDiscoveryPanel({
   loading,
   error,
   canSearch,
+  history,
+  historyLoading,
+  onApplyHistory,
+  onRemoveHistory,
   onTopicChange,
   onAllTermsChange,
   onTitleTermsChange,
@@ -114,17 +123,59 @@ export function PaperDiscoveryPanel({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-apple-blue/15 bg-apple-blue/5 px-4 py-3">
-        <div className="flex items-start gap-2">
-          <Sparkles className="mt-0.5 h-4 w-4 text-apple-blue" />
-          <div>
-            <p className="text-sm font-semibold text-ink-primary">论文智能检索模块</p>
-            <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-              可直接描述你想解决的问题，小妍会拆分为多条检索式；也可用关键词、作者和领域条件进一步约束。
-            </p>
+      {historyLoading || (history && history.length > 0) ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-ink-tertiary">
+            <Clock className="h-3.5 w-3.5" />
+            <span>最近检索</span>
+            {historyLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {history?.map((entry) => {
+              let label = entry.draft_json.slice(0, 40);
+              try {
+                const parsed = JSON.parse(entry.draft_json) as Record<string, unknown>;
+                const parts: string[] = [];
+                if (parsed.topic) parts.push(String(parsed.topic));
+                if (parsed.allTerms) parts.push(String(parsed.allTerms));
+                if (parsed.titleTerms) parts.push(String(parsed.titleTerms));
+                const selectedDomains = parsed.selectedDomains;
+                if (parts.length === 0 && Array.isArray(selectedDomains) && selectedDomains.length > 0) {
+                  parts.push(String(selectedDomains.join(", ")));
+                }
+                if (parts.length > 0) {
+                  label = parts.join(" · ").slice(0, 60);
+                }
+              } catch {
+                // keep fallback
+              }
+              return (
+                <div
+                  key={entry.id}
+                  className="group inline-flex max-w-full items-center gap-1.5 rounded-xl border border-apple-blue/15 bg-apple-blue/5 px-2.5 py-1 text-xs text-ink-secondary transition-colors hover:border-apple-blue/30 hover:bg-apple-blue/10"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onApplyHistory?.(entry)}
+                    className="min-w-0 truncate text-left"
+                    title="应用此检索条件"
+                  >
+                    {label || "未命名检索"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveHistory?.(entry.id)}
+                    className="shrink-0 rounded p-0.5 text-ink-tertiary opacity-60 transition-opacity hover:text-apple-red hover:opacity-100"
+                    title="删除"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
-      </div>
+      ) : null}
 
       <Textarea
         value={topic}
@@ -132,7 +183,7 @@ export function PaperDiscoveryPanel({
         onKeyDown={handleSubmitKeyDown}
         rows={3}
         placeholder="例如：请帮我查找使用分层神经网络捕获手语视频时空特征的研究，并关注可复现的方法。"
-        label="自然语言检索需求（可选）"
+        label="告诉小妍你的检索需求"
       />
 
       <PaperDiscoveryCollapsibleSection

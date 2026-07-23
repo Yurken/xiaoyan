@@ -389,6 +389,13 @@ export const arxivApi = {
     invoke("arxiv_search", { request, days, limit, rankingMode: ranking_mode }),
 };
 
+export interface PaperSearchHistoryEntry {
+  id: string;
+  draft_json: string;
+  result_json: string;
+  created_at: string;
+}
+
 export const paperSearchApi = {
   search: (
     request: ArxivSearchRequest,
@@ -397,6 +404,12 @@ export const paperSearchApi = {
     ranking_mode: ArxivRankingMode = "relevance"
   ): Promise<ArxivSearchResponse> =>
     invoke("paper_search", { request, cutoffDate, limit, rankingMode: ranking_mode }),
+  saveHistory: (draft_json: string, result_json: string): Promise<PaperSearchHistoryEntry> =>
+    invoke("paper_search_save_history", { request: { draft_json, result_json } }),
+  getHistory: (limit = 20): Promise<PaperSearchHistoryEntry[]> =>
+    invoke("paper_search_get_history", { limit }),
+  deleteHistory: (id: string): Promise<boolean> =>
+    invoke("paper_search_delete_history", { id }),
 };
 
 export const webSearchApi = {

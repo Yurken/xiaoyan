@@ -18,18 +18,18 @@ export function PaperDiscoveryCollapsibleSection({
 
   return (
     <section
-      className="rounded-2xl p-4"
+      className="rounded-2xl p-3"
       style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
     >
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-4 text-left"
+        className="flex w-full items-center justify-between gap-3 text-left"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="min-w-0">
-          <span className="block text-xs font-semibold text-ink-secondary">{title}</span>
-          <span className="mt-1 block text-[11px] leading-5 text-ink-tertiary">{description}</span>
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="text-xs font-semibold text-ink-secondary">{title}</span>
+          <span className="text-[11px] leading-5 text-ink-tertiary">{description}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {status ? (
