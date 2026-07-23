@@ -15,6 +15,11 @@ vi.mock("../../../lib/client", () => ({
     webSearch: { query: mocks.webSearch },
   },
   journalApi: { rankFilter: mocks.rankFilter },
+  paperSearchApi: {
+    getHistory: vi.fn().mockResolvedValue([]),
+    saveHistory: vi.fn().mockResolvedValue({}),
+    deleteHistory: vi.fn().mockResolvedValue(true),
+  },
   formatErrorMessage: (error: unknown) => String(error),
 }));
 
@@ -51,7 +56,7 @@ describe("usePaperDiscoverySearch", () => {
     mocks.rankFilter.mockReset();
   });
 
-  it("跨页面卸载后恢复填写内容和最近一次检索结果", async () => {
+  it("跨页面卸载后恢复填写内容但结果不常驻", async () => {
     mocks.paperSearch.mockResolvedValue(response);
     mocks.webSearch.mockResolvedValue(webSupplement);
     const first = renderHook(() => usePaperDiscoverySearch());
@@ -84,9 +89,9 @@ describe("usePaperDiscoverySearch", () => {
     expect(restored.result.current.panelProps.topic).toBe("hierarchical neural models");
     expect(restored.result.current.panelProps.allTerms).toBe("sign language");
     expect(restored.result.current.panelProps.cutoffDate).toBe("2020-05-18");
-    expect(restored.result.current.resultProps.searched).toBe(true);
-    expect(restored.result.current.resultProps.result).toEqual(response);
-    expect(restored.result.current.resultProps.webSupplement).toEqual({ ...webSupplement, note: null });
+    expect(restored.result.current.resultProps.searched).toBe(false);
+    expect(restored.result.current.resultProps.result).toBeNull();
+    expect(restored.result.current.resultProps.webSupplement).toBeNull();
   });
 
   it("新检索失败时清空并持久化移除上一轮结果", async () => {
@@ -119,8 +124,39 @@ describe("usePaperDiscoverySearch", () => {
 
     const restored = renderHook(() => usePaperDiscoverySearch());
     expect(restored.result.current.panelProps.topic).toBe("second query");
-    expect(restored.result.current.resultProps.searched).toBe(true);
+    expect(restored.result.current.resultProps.searched).toBe(false);
     expect(restored.result.current.resultProps.result).toBeNull();
     expect(restored.result.current.resultProps.webSupplement).toBeNull();
+  });
+
+  it("应用历史记录时恢复草稿和结果", async () => {
+    mocks.paperSearch.mockResolvedValue(response);
+    mocks.webSearch.mockResolvedValue(webSupplement);
+    const historyEntry = {
+      id: "entry-1",
+      draft_json: JSON.stringify({
+        topic: "historical query",
+        allTerms: "sign language",
+        cutoffDate: "2020-05-18",
+        limit: "6",
+        mode: "relevance",
+      }),
+      result_json: JSON.stringify({
+        ...response,
+        web_supplement: { ...webSupplement, note: null },
+      }),
+      created_at: "2026-07-23T00:00:00Z",
+    };
+    const { result } = renderHook(() => usePaperDiscoverySearch());
+
+    act(() => {
+      result.current.panelProps.onApplyHistory?.(historyEntry);
+    });
+
+    expect(result.current.panelProps.topic).toBe("historical query");
+    expect(result.current.panelProps.allTerms).toBe("sign language");
+    expect(result.current.resultProps.searched).toBe(true);
+    expect(result.current.resultProps.result).toEqual(response);
+    expect(result.current.resultProps.webSupplement).toEqual({ ...webSupplement, note: null });
   });
 });

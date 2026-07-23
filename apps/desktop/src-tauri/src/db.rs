@@ -30,6 +30,15 @@ CREATE TABLE IF NOT EXISTS github_project_search_history (
 CREATE INDEX IF NOT EXISTS idx_github_project_search_history_created_at
     ON github_project_search_history(created_at DESC);
 
+CREATE TABLE IF NOT EXISTS paper_search_history (
+    id          TEXT PRIMARY KEY,
+    draft_json  TEXT NOT NULL,
+    result_json TEXT NOT NULL DEFAULT '{}',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_paper_search_history_created_at
+    ON paper_search_history(created_at DESC);
+
 CREATE TABLE IF NOT EXISTS papers (
     id         TEXT PRIMARY KEY,
     title      TEXT NOT NULL,
@@ -497,6 +506,7 @@ pub async fn init_db(app_data_dir: &Path) -> Result<SqlitePool> {
     ensure_sync_tables(&pool).await?;
     reset_stale_research_interest_plans(&pool).await?;
     ensure_github_project_search_history_table(&pool).await?;
+    ensure_paper_search_history_table(&pool).await?;
 
     Ok(pool)
 }
@@ -511,6 +521,22 @@ pub async fn ensure_github_project_search_history_table(pool: &SqlitePool) -> Re
         );
         CREATE INDEX IF NOT EXISTS idx_github_project_search_history_created_at
             ON github_project_search_history(created_at DESC);",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn ensure_paper_search_history_table(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS paper_search_history (
+            id          TEXT PRIMARY KEY,
+            draft_json  TEXT NOT NULL,
+            result_json TEXT NOT NULL DEFAULT '{}',
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_paper_search_history_created_at
+            ON paper_search_history(created_at DESC);",
     )
     .execute(pool)
     .await?;
