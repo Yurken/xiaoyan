@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Check, ChevronDown, ChevronRight, Copy, FolderOpen, Lock, LockOpen, Pencil, Sparkles, PanelTopClose, PanelTopOpen, Square, X, Zap } from "lucide-react";
 import type { Skill } from "@research-copilot/types";
-import type { CodeMessage } from "../../lib/client";
+import type { CodeMessage, CodeToolResult } from "../../lib/client";
 import { useResizableHeight } from "../../hooks/useResizableHeight";
 import { codeToolLabel, CODE_MODES, CODE_MODE_MAP } from "./shared";
 import type { CodeAgentMode, CodeFileAttachment, CodeModelOption } from "./shared";
 import CodeAssistantMessage from "./CodeAssistantMessage";
 import CodeChatContextControls from "./CodeChatContextControls";
 import { CodeTaskSummary } from "./CodeTaskSummary";
-import { CodeToolCallCard, CodeToolResultCard } from "./CodeToolMessage";
+import { CodeToolActionLine } from "./CodeToolMessage";
 
 interface CodeChatPanelProps {
   messages: CodeMessage[];
@@ -246,126 +246,138 @@ export default function CodeChatPanel({
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div key={msg.id} className={`code-chat-msg code-chat-msg--${msg.role}`}>
-            {msg.role === "user" ? (() => {
-              const isEditing = editingMessageId === msg.id;
-              return (
-                <div className="code-chat-msg__user group">
-                  <div className="code-chat-msg__user-avatar">你</div>
-                  <div
-                    className="code-chat-msg__user-content"
-                    style={isEditing ? { background: "transparent", boxShadow: "none", padding: 0 } : undefined}
-                  >
-                    {isEditing ? (
-                      <textarea
-                        rows={3}
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            onEditMessage?.(msg.id, editText);
-                          }
-                          if (e.key === "Escape") {
-                            setEditingMessageId(null);
-                            setEditText("");
-                          }
-                        }}
-                        onInput={handleEditInput}
-                        className="w-full rounded-2xl px-3 py-2 text-xs text-ink-primary outline-none border-0 resize-none"
-                        style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
-                        autoFocus
-                      />
-                    ) : (
-                      <div className="whitespace-pre-wrap">{msg.content}</div>
-                    )}
-                  </div>
-                  {isEditing ? (
-                    <div className="flex justify-end gap-1 mt-1">
-                      <button
-                        type="button"
-                        onClick={() => { setEditingMessageId(null); setEditText(""); }}
-                        className="rounded-lg px-2 py-1 text-[11px] transition-colors"
-                        style={{ color: "var(--rc-text-tertiary)" }}
-                      >
-                        取消
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onEditMessage?.(msg.id, editText)}
-                        disabled={!editText.trim() || sending}
-                        className="rounded-lg px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-40"
-                        style={{ color: "#FFFFFF", background: "#007AFF" }}
-                      >
-                        保存并发送
-                      </button>
+        {messages.map((msg) => {
+          // 把 tool 结果按 call_id 收集，便于单行合并 call+result。
+          // 这里不需要 useMemo：聊天面板的消息规模通常 < 100，扁平扫一次可忽略不计；
+          // 若将来成为热点再加 useMemo。
+          const resultsByCallId = new Map<string, CodeToolResult>();
+          for (const result of msg.tool_results ?? []) {
+            resultsByCallId.set(result.tool_call_id, result);
+          }
+          // 旧实现里 role==="tool" 的消息单独渲染 result card。
+          // 新版把 call + result 合并到 assistant 消息的同一行，所以这里跳过 tool 消息。
+          if (msg.role === "tool") return null;
+
+          return (
+            <div key={msg.id} className={`code-chat-msg code-chat-msg--${msg.role}`}>
+              {msg.role === "user" ? (() => {
+                const isEditing = editingMessageId === msg.id;
+                return (
+                  <div className="code-chat-msg__user group">
+                    <div className="code-chat-msg__user-avatar">你</div>
+                    <div
+                      className="code-chat-msg__user-content"
+                      style={isEditing ? { background: "transparent", boxShadow: "none", padding: 0 } : undefined}
+                    >
+                      {isEditing ? (
+                        <textarea
+                          rows={3}
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              onEditMessage?.(msg.id, editText);
+                            }
+                            if (e.key === "Escape") {
+                              setEditingMessageId(null);
+                              setEditText("");
+                            }
+                          }}
+                          onInput={handleEditInput}
+                          className="w-full rounded-2xl px-3 py-2 text-xs text-ink-primary outline-none border-0 resize-none"
+                          style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-inset-shadow)" }}
+                          autoFocus
+                        />
+                      ) : (
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                      )}
                     </div>
-                  ) : (
-                    !sending && onEditMessage && (
-                      <div className="flex justify-end gap-0.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {isEditing ? (
+                      <div className="flex justify-end gap-1 mt-1">
                         <button
                           type="button"
-                          onClick={() => handleCopy(msg.content, msg.id)}
-                          aria-label={copiedMessageId === msg.id ? "已复制" : "复制消息"}
-                          title={copiedMessageId === msg.id ? "已复制" : "复制消息"}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors"
+                          onClick={() => { setEditingMessageId(null); setEditText(""); }}
+                          className="rounded-lg px-2 py-1 text-[11px] transition-colors"
                           style={{ color: "var(--rc-text-tertiary)" }}
                         >
-                          {copiedMessageId === msg.id ? (
-                            <Check className="w-3 h-3" />
-                          ) : (
-                            <Copy className="w-3 h-3" />
-                          )}
+                          取消
                         </button>
                         <button
                           type="button"
-                          onClick={() => { setEditingMessageId(msg.id); setEditText(msg.content); }}
-                          aria-label="编辑消息"
-                          title="编辑消息"
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors"
-                          style={{ color: "var(--rc-text-tertiary)" }}
+                          onClick={() => onEditMessage?.(msg.id, editText)}
+                          disabled={!editText.trim() || sending}
+                          className="rounded-lg px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-40"
+                          style={{ color: "#FFFFFF", background: "#007AFF" }}
                         >
-                          <Pencil className="w-3 h-3" />
+                          保存并发送
                         </button>
                       </div>
-                    )
-                  )}
+                    ) : (
+                      !sending && onEditMessage && (
+                        <div className="flex justify-end gap-0.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(msg.content, msg.id)}
+                            aria-label={copiedMessageId === msg.id ? "已复制" : "复制消息"}
+                            title={copiedMessageId === msg.id ? "已复制" : "复制消息"}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors"
+                            style={{ color: "var(--rc-text-tertiary)" }}
+                          >
+                            {copiedMessageId === msg.id ? (
+                              <Check className="w-3 h-3" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setEditingMessageId(msg.id); setEditText(msg.content); }}
+                            aria-label="编辑消息"
+                            title="编辑消息"
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors"
+                            style={{ color: "var(--rc-text-tertiary)" }}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )
+                    )}
+                  </div>
+                );
+              })() : (
+                <div className="code-chat-msg__assistant">
+                  <div className="code-chat-msg__assistant-avatar">
+                    <Sparkles size={12} />
+                  </div>
+                  <div className="code-chat-msg__assistant-content">
+                    {msg.content && <CodeAssistantMessage content={msg.content} />}
+                    {msg.tool_calls?.map((toolCall) => {
+                      const result = resultsByCallId.get(toolCall.id);
+                      // 还在执行中（assistant 已发出调用但 tool 消息尚未到达）显示 pending
+                      const pending = !result && sending;
+                      return (
+                        <CodeToolActionLine
+                          key={toolCall.id}
+                          toolCall={toolCall}
+                          result={result}
+                          pending={pending}
+                        />
+                      );
+                    })}
+                    {msg.tool_id && (
+                      <div className="code-chat-msg__meta">
+                        {codeToolLabel(msg.tool_id)}
+                        {msg.model ? ` · ${msg.model}` : ""}
+                      </div>
+                    )}
+                    <CodeTaskSummary durationMs={msg.duration_ms} />
+                  </div>
                 </div>
-              );
-            })() : msg.role === "tool" ? (
-              <div className="code-chat-msg__assistant">
-                <div className="code-chat-msg__assistant-avatar">
-                  <Sparkles size={12} />
-                </div>
-                <div className="code-chat-msg__assistant-content">
-                  {msg.tool_results?.map((result) => (
-                    <CodeToolResultCard key={result.tool_call_id} result={result} />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="code-chat-msg__assistant">
-                <div className="code-chat-msg__assistant-avatar">
-                  <Sparkles size={12} />
-                </div>
-                <div className="code-chat-msg__assistant-content">
-                  {msg.content && <CodeAssistantMessage content={msg.content} />}
-                  {msg.tool_calls?.map((toolCall) => (
-                    <CodeToolCallCard key={toolCall.id} toolCall={toolCall} />
-                  ))}
-                  {msg.tool_id && (
-                    <div className="code-chat-msg__meta">
-                      {codeToolLabel(msg.tool_id)}
-                      {msg.model ? ` · ${msg.model}` : ""}
-                    </div>
-                  )}
-                  <CodeTaskSummary durationMs={msg.duration_ms} />
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+              )}
+            </div>
+          );
+        })}
 
         {sending && streamingContent && (
           <div className="code-chat-msg code-chat-msg--assistant">

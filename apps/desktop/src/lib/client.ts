@@ -1044,11 +1044,13 @@ export const codeApi = {
   gitSnapshot: (workingDir: string): Promise<CodeGitSnapshot> => invoke("code_git_snapshot", { workingDir }),
   gitStagePath: (workingDir: string, path: string): Promise<void> => invoke("code_git_stage_path", { workingDir, path }),
   gitUnstagePath: (workingDir: string, path: string): Promise<void> => invoke("code_git_unstage_path", { workingDir, path }),
+  gitDiscardPath: (workingDir: string, path: string): Promise<void> => invoke("code_git_discard_path", { workingDir, path }),
   gitCommit: (workingDir: string, message: string): Promise<string> => invoke("code_git_commit", { workingDir, message }),
   gitListBranches: (workingDir: string): Promise<string[]> => invoke("code_git_list_branches", { workingDir }),
   gitCheckoutBranch: (workingDir: string, branch: string): Promise<void> => invoke("code_git_checkout_branch", { workingDir, branch }),
   generateCommitMessage: (workingDir: string): Promise<string> => invoke("code_generate_commit_message", { workingDir }),
   reviewChanges: (workingDir: string): Promise<CodeReviewReport> => invoke("code_review_changes", { workingDir }),
+  openFile: (path: string): Promise<void> => invoke("code_open_file", { path }),
 };
 
 // ── Writing API ───────────────────────────────────────────────────

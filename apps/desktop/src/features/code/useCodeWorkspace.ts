@@ -385,10 +385,10 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   }
 
   // ── File operations ──────────────────────────────────────────
-  async function openFileByPath(path: string, name: string) {
+  async function openFileByPath(path: string, name: string, diffContent?: string) {
     const content = await fs.readFile(path);
     if (content !== null) {
-      setOpenFile({ path, name, content, originalContent: content, dirty: false });
+      setOpenFile({ path, name, content, originalContent: content, dirty: false, diffContent });
     }
   }
 

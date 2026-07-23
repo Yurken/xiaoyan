@@ -115,6 +115,8 @@ export interface OpenFile {
   content: string;
   originalContent: string;
   dirty: boolean;
+  /** 来自 Git 的 diff 内容（可选），非 Git 打开时为空。 */
+  diffContent?: string;
 }
 
 export interface FileNode {

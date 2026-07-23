@@ -61,6 +61,54 @@ export function useCodeGit(workingDir: string | null | undefined) {
     await withAction(() => codeApi.gitUnstagePath(workingDir ?? "", path));
   }
 
+  async function discard(path: string) {
+    await withAction(() => codeApi.gitDiscardPath(workingDir ?? "", path));
+  }
+
+  async function stageAll(paths: string[]) {
+    if (!workingDir || paths.length === 0) return;
+    setActionLoading(true);
+    setError("");
+    try {
+      for (const path of paths) {
+        await codeApi.gitStagePath(workingDir, path);
+      }
+      await refresh();
+    } catch (err) {
+      setError(formatErrorMessage(err));
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function unstageAll(paths: string[]) {
+    if (!workingDir || paths.length === 0) return;
+    setActionLoading(true);
+    setError("");
+    try {
+      for (const path of paths) {
+        await codeApi.gitUnstagePath(workingDir, path);
+      }
+      await refresh();
+    } catch (err) {
+      setError(formatErrorMessage(err));
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function openFile(path: string) {
+    if (!workingDir) return;
+    setError("");
+    try {
+      // workingDir 是规范化后的绝对路径，path 是相对路径，拼接成绝对路径交给后端 opener。
+      const absolute = workingDir.replace(/[\\/]+$/, "") + "/" + path;
+      await codeApi.openFile(absolute);
+    } catch (err) {
+      setError(formatErrorMessage(err));
+    }
+  }
+
   async function commit() {
     const message = commitMessage.trim();
     if (!message) {
@@ -142,6 +190,10 @@ export function useCodeGit(workingDir: string | null | undefined) {
     refresh,
     stage,
     unstage,
+    discard,
+    stageAll,
+    unstageAll,
+    openFile,
     commit,
     generateCommitMessage,
     branches,
