@@ -8,7 +8,7 @@ import type { CodeAgentMode, CodeFileAttachment, CodeModelOption } from "./share
 import CodeAssistantMessage from "./CodeAssistantMessage";
 import CodeChatContextControls from "./CodeChatContextControls";
 import { CodeTaskSummary } from "./CodeTaskSummary";
-import { CodeToolActionLine } from "./CodeToolMessage";
+import { CodeToolSteps } from "./CodeToolMessage";
 
 interface CodeChatPanelProps {
   messages: CodeMessage[];
@@ -352,19 +352,13 @@ export default function CodeChatPanel({
                   </div>
                   <div className="code-chat-msg__assistant-content">
                     {msg.content && <CodeAssistantMessage content={msg.content} />}
-                    {msg.tool_calls?.map((toolCall) => {
-                      const result = resultsByCallId.get(toolCall.id);
-                      // 还在执行中（assistant 已发出调用但 tool 消息尚未到达）显示 pending
-                      const pending = !result && sending;
-                      return (
-                        <CodeToolActionLine
-                          key={toolCall.id}
-                          toolCall={toolCall}
-                          result={result}
-                          pending={pending}
-                        />
-                      );
-                    })}
+                    {msg.tool_calls && msg.tool_calls.length > 0 && (
+                      <CodeToolSteps
+                        toolCalls={msg.tool_calls}
+                        resultsByCallId={resultsByCallId}
+                        sending={sending}
+                      />
+                    )}
                     {msg.tool_id && (
                       <div className="code-chat-msg__meta">
                         {codeToolLabel(msg.tool_id)}

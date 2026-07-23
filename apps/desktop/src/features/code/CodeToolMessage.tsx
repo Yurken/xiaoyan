@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -200,6 +201,134 @@ export function CodeToolActionLine({
           <AlertTriangle size={11} />
         ) : null}
       </span>
+    </div>
+  );
+}
+
+interface CodeToolStepsProps {
+  toolCalls: CodeToolCall[];
+  resultsByCallId: Map<string, CodeToolResult>;
+  /** 是否仍在执行中；false 时默认收起全部步骤。 */
+  sending?: boolean;
+}
+
+interface StepState {
+  toolCall: CodeToolCall;
+  result?: CodeToolResult;
+  status: "pending" | "ok" | "error" | "none";
+}
+
+/** 类 Codex 的极简流程步骤面板：可展开单步、整体收起/展开、执行结束后自动收起。 */
+export function CodeToolSteps({ toolCalls, resultsByCallId, sending }: CodeToolStepsProps) {
+  const steps: StepState[] = toolCalls.map((toolCall) => {
+    const result = resultsByCallId.get(toolCall.id);
+    const isError = result?.is_error === true;
+    const status: StepState["status"] = sending && !result
+      ? "pending"
+      : result
+        ? isError
+          ? "error"
+          : "ok"
+        : "none";
+    return { toolCall, result, status };
+  });
+
+  const okCount = steps.filter((s) => s.status === "ok").length;
+  const errorCount = steps.filter((s) => s.status === "error").length;
+  const pendingCount = steps.filter((s) => s.status === "pending").length;
+
+  // 执行中时默认展开，结束后默认收起。
+  const [expanded, setExpanded] = useState(sending ?? false);
+
+  // 当 sending 状态变化时同步默认展开/收起。
+  useEffect(() => {
+    setExpanded(sending ?? false);
+  }, [sending]);
+
+  if (steps.length === 0) return null;
+
+  return (
+    <div className="code-tool-steps">
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        className="code-tool-steps__header"
+        aria-expanded={expanded}
+      >
+        <span className="code-tool-steps__summary">
+          {pendingCount > 0 ? (
+            <>
+              <Loader2 size={12} className="animate-spin" />
+              <span>执行中 · {okCount}/{steps.length}</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 size={12} />
+              <span>{steps.length} 个步骤</span>
+            </>
+          )}
+          {errorCount > 0 && <span className="code-tool-steps__errors">{errorCount} 失败</span>}
+        </span>
+        <span className="code-tool-steps__toggle">
+          {expanded ? "收起" : "展开"}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="code-tool-steps__list">
+          {steps.map((step, index) => (
+            <details
+              key={step.toolCall.id}
+              className={`code-tool-step is-${step.status}`}
+              open={step.status === "error"}
+            >
+              <summary className="code-tool-step__summary">
+                <span className="code-tool-step__status">
+                  {step.status === "pending" ? (
+                    <Loader2 size={11} className="animate-spin" />
+                  ) : step.status === "ok" ? (
+                    <CheckCircle2 size={11} />
+                  ) : step.status === "error" ? (
+                    <AlertTriangle size={11} />
+                  ) : (
+                    <span className="code-tool-step__dot" />
+                  )}
+                </span>
+                <span className="code-tool-step__number">{index + 1}</span>
+                <span className="code-tool-step__verb">
+                  {toolVerb(step.toolCall.name)}
+                </span>
+                {argumentSummary(step.toolCall.arguments) && (
+                  <>
+                    <span className="code-tool-step__sep">·</span>
+                    <code className="code-tool-step__target">
+                      {argumentSummary(step.toolCall.arguments)}
+                    </code>
+                  </>
+                )}
+              </summary>
+              <div className="code-tool-step__body">
+                <div className="code-tool-step__section">
+                  <span className="code-tool-step__label">参数</span>
+                  <pre className="code-tool-step__pre">
+                    <code>{formatArguments(step.toolCall.arguments)}</code>
+                  </pre>
+                </div>
+                {step.result && (
+                  <div className="code-tool-step__section">
+                    <span className="code-tool-step__label">
+                      {step.result.is_error ? "错误输出" : "输出"}
+                    </span>
+                    <pre className="code-tool-step__pre">
+                      <code>{step.result.output}</code>
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

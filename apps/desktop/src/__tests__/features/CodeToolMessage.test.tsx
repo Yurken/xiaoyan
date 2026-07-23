@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { CodeToolActionLine } from "../../features/code/CodeToolMessage";
+import { CodeToolActionLine, CodeToolSteps } from "../../features/code/CodeToolMessage";
 import type { CodeToolCall, CodeToolResult } from "../../lib/client";
 
 function makeCall(name: string, args: Record<string, unknown>): CodeToolCall {
@@ -87,5 +88,64 @@ describe("CodeToolActionLine", () => {
     );
     expect(screen.getByText("执行命令")).toBeInTheDocument();
     expect(screen.getByText("pnpm test")).toBeInTheDocument();
+  });
+});
+
+describe("CodeToolSteps", () => {
+  it("renders collapsed by default when not sending", () => {
+    const toolCall = makeCall("read_file", { file_path: "src/app.ts" });
+    const result: CodeToolResult = {
+      tool_call_id: toolCall.id,
+      name: "read_file",
+      output: "content",
+      is_error: false,
+    };
+    const resultsByCallId = new Map<string, CodeToolResult>([[toolCall.id, result]]);
+    render(<CodeToolSteps toolCalls={[toolCall]} resultsByCallId={resultsByCallId} sending={false} />);
+
+    expect(screen.getByText("1 个步骤")).toBeInTheDocument();
+    expect(screen.getByText("展开")).toBeInTheDocument();
+    expect(screen.queryByText("参数")).not.toBeInTheDocument();
+  });
+
+  it("renders expanded by default while sending", () => {
+    const toolCall = makeCall("read_file", { file_path: "src/app.ts" });
+    const resultsByCallId = new Map<string, CodeToolResult>();
+    render(<CodeToolSteps toolCalls={[toolCall]} resultsByCallId={resultsByCallId} sending />);
+
+    expect(screen.getByText("执行中 · 0/1")).toBeInTheDocument();
+    expect(screen.getByText("参数")).toBeInTheDocument();
+  });
+
+  it("toggles step details when clicking header", async () => {
+    const toolCall = makeCall("read_file", { file_path: "src/app.ts" });
+    const result: CodeToolResult = {
+      tool_call_id: toolCall.id,
+      name: "read_file",
+      output: "content",
+      is_error: false,
+    };
+    const resultsByCallId = new Map<string, CodeToolResult>([[toolCall.id, result]]);
+    render(<CodeToolSteps toolCalls={[toolCall]} resultsByCallId={resultsByCallId} sending={false} />);
+
+    await userEvent.click(screen.getByText("展开"));
+    expect(screen.getByText("参数")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("收起"));
+    expect(screen.queryByText("参数")).not.toBeInTheDocument();
+  });
+
+  it("shows error count in header", () => {
+    const toolCall = makeCall("run_command", { command: "exit 1" });
+    const result: CodeToolResult = {
+      tool_call_id: toolCall.id,
+      name: "run_command",
+      output: "error",
+      is_error: true,
+    };
+    const resultsByCallId = new Map<string, CodeToolResult>([[toolCall.id, result]]);
+    render(<CodeToolSteps toolCalls={[toolCall]} resultsByCallId={resultsByCallId} sending={false} />);
+
+    expect(screen.getByText("1 失败")).toBeInTheDocument();
   });
 });
