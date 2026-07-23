@@ -194,7 +194,12 @@ export function usePaperDiscoverySearch() {
       setLoading(true);
       setError("");
       setWebSupplementError("");
-      setSession((current) => ({ ...current, searched: true }));
+      setSession((current) => ({
+        ...current,
+        searched: true,
+        result: null,
+        webSupplement: null,
+      }));
       const paperSearch = await apiClient.paperSearch.search(
         request,
         cutoffDate,

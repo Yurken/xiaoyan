@@ -88,4 +88,39 @@ describe("usePaperDiscoverySearch", () => {
     expect(restored.result.current.resultProps.result).toEqual(response);
     expect(restored.result.current.resultProps.webSupplement).toEqual({ ...webSupplement, note: null });
   });
+
+  it("新检索失败时清空并持久化移除上一轮结果", async () => {
+    mocks.paperSearch.mockResolvedValueOnce(response);
+    mocks.webSearch.mockResolvedValue(webSupplement);
+    const first = renderHook(() => usePaperDiscoverySearch());
+
+    act(() => {
+      first.result.current.panelProps.onTopicChange("first query");
+    });
+    await act(async () => {
+      await first.result.current.panelProps.onSubmit();
+    });
+    expect(first.result.current.resultProps.result).toEqual(response);
+    first.unmount();
+
+    mocks.paperSearch.mockRejectedValueOnce(new Error("academic search failed"));
+    const failed = renderHook(() => usePaperDiscoverySearch());
+    act(() => {
+      failed.result.current.panelProps.onTopicChange("second query");
+    });
+    await act(async () => {
+      await failed.result.current.panelProps.onSubmit();
+    });
+
+    expect(failed.result.current.resultProps.error).toContain("academic search failed");
+    expect(failed.result.current.resultProps.result).toBeNull();
+    expect(failed.result.current.resultProps.webSupplement).toBeNull();
+    failed.unmount();
+
+    const restored = renderHook(() => usePaperDiscoverySearch());
+    expect(restored.result.current.panelProps.topic).toBe("second query");
+    expect(restored.result.current.resultProps.searched).toBe(true);
+    expect(restored.result.current.resultProps.result).toBeNull();
+    expect(restored.result.current.resultProps.webSupplement).toBeNull();
+  });
 });
