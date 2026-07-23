@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";  
 import type { ExperimentRecord, ExperimentCodeSession } from "@research-copilot/types";
 import { CapsuleTabs } from "@research-copilot/ui";
 import { experimentApi, formatErrorMessage } from "../lib/client";
@@ -25,8 +25,15 @@ export default function Experiment({ experimentId }: ExperimentProps) {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
 
-  const [activeTab, setActiveTab] = useState<ExperimentTab>("records");
+  const ACTIVE_TAB_KEY = "experiment-active-tab";
+
+  const [activeTab, setActiveTab] = useState<ExperimentTab>(() => {
+    const saved = localStorage.getItem(ACTIVE_TAB_KEY);
+    const validKeys: string[] = EXPERIMENT_MODULES.map((m) => m.key);
+    return validKeys.includes(saved ?? "") ? (saved as ExperimentTab) : "records";
+  });
   const [activeCodeSession, setActiveCodeSession] = useState<ExperimentCodeSession | null>(null);
+  const [codeRightCollapsed, setCodeRightCollapsed] = useState(true);
   const showToast = useCallback((message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2500);
@@ -90,14 +97,31 @@ export default function Experiment({ experimentId }: ExperimentProps) {
             label: tab.label,
             testId: `tab-${tab.key}`,
           }))}
-          value={activeTab}
-          onChange={(nextTab) => setActiveTab(nextTab as ExperimentTab)}
+            value={activeTab}
+            onChange={(nextTab) => {
+              const tab = nextTab as ExperimentTab;
+              setActiveTab(tab);
+              localStorage.setItem(ACTIVE_TAB_KEY, tab);
+            }}
         />
-        {experiment && (
-          <p className="max-w-[45%] truncate text-xs text-ink-tertiary" title={experiment.title}>
-            当前实验：<span className="font-medium text-ink-secondary">{experiment.title}</span>
-          </p>
-        )}
+        <div className="flex items-center gap-3">
+          {experiment && (
+            <p className="truncate text-xs text-ink-tertiary" title={experiment.title}>
+              当前实验：<span className="font-medium text-ink-secondary">{experiment.title}</span>
+            </p>
+          )}
+          {activeTab === "code" && (
+            <button
+              type="button"
+              onClick={() => setCodeRightCollapsed(!codeRightCollapsed)}
+              aria-label={codeRightCollapsed ? "展开工具栏" : "收起工具栏"}
+              title={codeRightCollapsed ? "展开工具栏" : "收起工具栏"}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-ink-tertiary transition-colors hover:bg-nm-dark/5 hover:text-ink-primary"
+            >
+              {codeRightCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main workspace */}
@@ -124,7 +148,11 @@ export default function Experiment({ experimentId }: ExperimentProps) {
               <button
                 type="button"
                 className="text-sm font-medium text-[var(--rc-accent)] hover:underline"
-                onClick={() => setActiveTab(moduleVisibility.experiment.records ? "records" : visibleTabs[0]?.key ?? "records")}
+                onClick={() => {
+                const tab = moduleVisibility.experiment.records ? "records" as const : visibleTabs[0]?.key ?? ("records" as const);
+                setActiveTab(tab);
+                localStorage.setItem(ACTIVE_TAB_KEY, tab);
+              }}
               >
                 {moduleVisibility.experiment.records ? "新建第一条实验记录" : `打开${visibleTabs[0]?.label ?? "可见"}页签`}
               </button>
@@ -140,6 +168,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
                   workingDir={workingDir}
                   onWorkingDirChange={setWorkingDir}
                   onActiveSessionChange={setActiveCodeSession}
+                  rightCollapsed={codeRightCollapsed}
                 />
               </div>
             )}

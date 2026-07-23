@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronRight, FolderOpen, GitBranch, Search } from "lucide-react";
+import { FolderOpen, GitBranch, Search } from "lucide-react"; 
 import { CapsuleTabs } from "@research-copilot/ui";
 import CodeFileTree from "../code/CodeFileTree";
 import CodeGitPanel from "../code/CodeGitPanel";
@@ -26,7 +26,6 @@ interface ExperimentCodeToolsPanelProps {
   openFile: OpenFile | null;
   onOpenFile: (path: string, name: string) => void;
   git: ReturnType<typeof useCodeGit>;
-  onCollapse: () => void;
 }
 
 export function ExperimentCodeToolsPanel({
@@ -36,7 +35,6 @@ export function ExperimentCodeToolsPanel({
   openFile,
   onOpenFile,
   git,
-  onCollapse,
 }: ExperimentCodeToolsPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTab>("files");
   const { refresh } = git;
@@ -47,20 +45,10 @@ export function ExperimentCodeToolsPanel({
 
   return (
     <aside
-      className="code-opencode-tools relative"
+      className="code-opencode-tools"
       aria-label="工具"
       style={{ width, minWidth: width }}
     >
-      <button
-        type="button"
-        onClick={onCollapse}
-        aria-label="收起工具栏"
-        title="收起工具栏"
-        className="absolute right-2 top-4 z-10 flex h-6 w-6 items-center justify-center rounded-full border text-ink-tertiary transition-colors hover:text-ink-primary"
-        style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-bg)" }}
-      >
-        <ChevronRight size={14} />
-      </button>
       <div className="code-opencode-tabs">
         <CapsuleTabs
           compact
@@ -120,6 +108,10 @@ export function ExperimentCodeToolsPanel({
             onGenerateCommitMessage={git.generateCommitMessage}
             onLoadBranches={git.loadBranches}
             onCheckoutBranch={git.checkoutBranch}
+            onOpenFile={onOpenFile}
+            onDiscard={git.discard}
+            onStageAll={git.stageAll}
+            onUnstageAll={git.unstageAll}
           />
         )}
       </div>

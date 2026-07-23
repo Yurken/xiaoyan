@@ -31,6 +31,7 @@ interface ExperimentCodeWorkspaceProps {
   workingDir?: string | null;
   onWorkingDirChange?: (dir: string | null) => void;
   onActiveSessionChange?: (session: ExperimentCodeSession | null) => void;
+  rightCollapsed?: boolean;
 }
 
 export function ExperimentCodeWorkspace({
@@ -38,6 +39,7 @@ export function ExperimentCodeWorkspace({
   workingDir,
   onWorkingDirChange,
   onActiveSessionChange,
+  rightCollapsed: controlledRightCollapsed,
 }: ExperimentCodeWorkspaceProps) {
   const ws = useCodeWorkspace(experimentId, { workingDir, onWorkingDirChange });
   const git = useCodeGit(ws.workingDir);
@@ -136,7 +138,7 @@ export function ExperimentCodeWorkspace({
     300,
   );
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const rightCollapsed = controlledRightCollapsed ?? true;
   const [isResizing, setIsResizing] = useState(false);
 
   const resizingRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number } | null>(null);
@@ -594,17 +596,7 @@ export function ExperimentCodeWorkspace({
               <ChevronRight size={16} />
             </button>
           )}
-          {rightCollapsed && (
-            <button
-              type="button"
-              onClick={() => setRightCollapsed(false)}
-              aria-label="展开工具栏"
-              title="展开工具栏"
-              className="absolute right-2 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-lg text-ink-tertiary transition-colors hover:bg-white/5 hover:text-ink-primary"
-            >
-              <ChevronLeft size={16} />
-            </button>
-          )}
+          {/* 展开按钮已移至 Experiment.tsx header */}
           <CodePermissionPanel
             requests={ws.permissionRequests}
             onResolve={ws.resolvePermission}
@@ -659,7 +651,6 @@ export function ExperimentCodeWorkspace({
             openFile={ws.openFile}
             onOpenFile={ws.openFileByPath}
             git={git}
-            onCollapse={() => setRightCollapsed(true)}
           />
         )}
       </div>
