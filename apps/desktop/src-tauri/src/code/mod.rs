@@ -10,6 +10,8 @@ mod prompt;
 pub mod store;
 pub mod tools;
 
+pub use prompt::build_title_prompt;
+
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::{collections::HashMap, sync::Arc, time::Instant};
@@ -18,9 +20,10 @@ use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
 
 use crate::llm::{
-    resolve_model, resolve_temperature_chain, LlmClient, LlmMessage, StreamOutcome, ToolCall,
+    default_simple_model, resolve_model, resolve_temperature_chain, LlmClient, LlmMessage,
+    StreamOutcome, ToolCall,
 };
-use prompt::{build_code_system_prompt, build_title_prompt};
+use prompt::build_code_system_prompt;
 
 use store::now;
 
@@ -594,9 +597,14 @@ async fn auto_generate_title(
         Ok(c) => c,
         Err(_) => return,
     };
-    let model = resolve_model(&settings, &["copilot_simple_model"]);
+    let model = resolve_model(&settings, &["copilot_simple_model"])
+        .or_else(|| default_simple_model(&settings));
     let messages = vec![LlmMessage::user(prompt)];
-    match client.chat(&messages, model.as_deref(), 0.4).await {
+    // 标题极短，max_tokens 压到 50，减少 provider 侧预留和首 token 等待。
+    match client
+        .chat_with_max_tokens(&messages, model.as_deref(), 0.4, 50)
+        .await
+    {
         Ok(title) => {
             let title = title.trim().replace(['"', '\''], "").trim().to_string();
             let title = if title.is_empty() || title.len() > 40 {

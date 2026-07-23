@@ -1,9 +1,10 @@
 use crate::assistant_prompts::main_chat_system;
+use crate::code::build_title_prompt;
 use crate::commands::chat_tools::{build_chat_tools, dispatch_tool};
 use crate::commands::memory::is_long_term_memory_enabled;
 use crate::llm::{
-    explain_vision_error, resolve_model, resolve_temperature, LlmClient, LlmImage, LlmMessage,
-    StreamOutcome,
+    default_simple_model, explain_vision_error, resolve_model, resolve_temperature, LlmClient,
+    LlmImage, LlmMessage, StreamOutcome,
 };
 use crate::services::agent_runtime_service::{
     run_agent_runtime, AgentRuntimeKind, AgentRuntimeRequest,
@@ -624,8 +625,9 @@ async fn run_chat(
 
 /// 用 LLM 为 chat 会话生成简短中文标题（≤20 字），覆盖占位标题。
 ///
-/// 与 code 模块的 `auto_generate_title` 行为一致：
-/// - 用 `copilot_simple_model` 配置的模型；
+/// 行为约定：
+/// - 优先用 `copilot_simple_model`（流光 · 快速响应）配置的轻量模型；
+/// - 未配置时，fallback 到当前 provider 的默认轻量模型，避免标题生成蹭到主对话的慢/贵模型；
 /// - 失败时静默（不影响主对话流程）；
 /// - 成功后更新 `chat_sessions.title` 并 emit `chat:title_changed`，
 ///   前端会刷新会话列表里这一条。
@@ -641,16 +643,15 @@ async fn auto_generate_chat_title(
         Ok(c) => c,
         Err(_) => return,
     };
-    let model = resolve_model(settings, &["copilot_simple_model"]);
-    let prompt = format!(
-        "根据以下对话，生成一个简短的中文标题（不超过20个字，只返回标题本身，不要引号或解释）：\n\
-         用户：{trunc_user}\n\
-         助手：{trunc_assistant}",
-        trunc_user = truncate_for_title(user_text, 200),
-        trunc_assistant = truncate_for_title(assistant_text, 300),
-    );
+    let model = resolve_model(settings, &["copilot_simple_model"])
+        .or_else(|| default_simple_model(settings));
+    let prompt = build_title_prompt(user_text, assistant_text);
     let messages = vec![LlmMessage::user(prompt)];
-    let title = match client.chat(&messages, model.as_deref(), 0.4).await {
+    // 标题极短，max_tokens 压到 50，减少 provider 侧预留和首 token 等待。
+    let title = match client
+        .chat_with_max_tokens(&messages, model.as_deref(), 0.4, 50)
+        .await
+    {
         Ok(title) => title,
         Err(_) => return,
     };
@@ -674,15 +675,6 @@ async fn auto_generate_chat_title(
         "chat:title_changed",
         json!({ "session_id": session_id, "title": title }),
     );
-}
-
-fn truncate_for_title(s: &str, max_chars: usize) -> String {
-    let trimmed = s.trim();
-    if trimmed.chars().count() <= max_chars {
-        return trimmed.to_string();
-    }
-    let prefix: String = trimmed.chars().take(max_chars).collect();
-    format!("{prefix}…")
 }
 
 /// 去掉所有 <think>…</think> 推理片段后，判断是否还剩可读回答。

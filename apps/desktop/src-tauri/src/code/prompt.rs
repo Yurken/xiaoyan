@@ -81,22 +81,23 @@ pub(crate) fn build_code_system_prompt(
     )
 }
 
-pub(crate) fn build_title_prompt(user_text: &str, assistant_text: &str) -> String {
-    let trunc_user = if user_text.len() > 200 {
-        &user_text[..200]
-    } else {
-        user_text
-    };
-    let trunc_assistant = if assistant_text.len() > 300 {
-        &assistant_text[..300]
-    } else {
-        assistant_text
-    };
+pub fn build_title_prompt(user_text: &str, assistant_text: &str) -> String {
+    let trunc_user = truncate_chars(user_text, 200);
+    let trunc_assistant = truncate_chars(assistant_text, 300);
     format!(
         "根据以下对话，生成一个简短的中文标题（不超过20个字，只返回标题本身，不要引号或解释）：\n\
          用户：{trunc_user}\n\
          助手：{trunc_assistant}"
     )
+}
+
+fn truncate_chars(s: &str, max_chars: usize) -> String {
+    let trimmed = s.trim();
+    if trimmed.chars().count() <= max_chars {
+        return trimmed.to_string();
+    }
+    let prefix: String = trimmed.chars().take(max_chars).collect();
+    format!("{prefix}…")
 }
 
 #[cfg(test)]

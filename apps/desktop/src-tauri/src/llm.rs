@@ -884,6 +884,16 @@ pub fn resolve_model(settings: &HashMap<String, String>, keys: &[&str]) -> Optio
         .map(|value| value.to_string())
 }
 
+/// 当 `copilot_simple_model` 未配置时，按当前 provider 返回默认轻量模型，
+/// 避免标题生成等轻量任务 fallback 到用户主对话用的慢/贵模型。
+pub fn default_simple_model(settings: &HashMap<String, String>) -> Option<String> {
+    match settings.get("llm_provider").map(|s| s.as_str()) {
+        Some("anthropic") => Some("claude-3-5-haiku-20241022".into()),
+        Some("openai_compatible") => Some("deepseek-chat".into()),
+        _ => Some("gpt-4o-mini".into()),
+    }
+}
+
 pub fn resolve_temperature(settings: &HashMap<String, String>, key: &str, default: f32) -> f32 {
     settings
         .get(key)
@@ -1578,5 +1588,33 @@ async fn stream_anthropic_with_tools(
         Ok(StreamOutcome::ToolCalls(tool_calls_acc))
     } else {
         Ok(StreamOutcome::TextCompleted(full))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_simple_model;
+    use std::collections::HashMap;
+
+    #[test]
+    fn default_simple_model_falls_back_by_provider() {
+        let mut settings = HashMap::new();
+        settings.insert("llm_provider".into(), "anthropic".into());
+        assert_eq!(
+            default_simple_model(&settings),
+            Some("claude-3-5-haiku-20241022".into())
+        );
+
+        settings.insert("llm_provider".into(), "openai_compatible".into());
+        assert_eq!(
+            default_simple_model(&settings),
+            Some("deepseek-chat".into())
+        );
+
+        settings.insert("llm_provider".into(), "openai".into());
+        assert_eq!(default_simple_model(&settings), Some("gpt-4o-mini".into()));
+
+        settings.remove("llm_provider");
+        assert_eq!(default_simple_model(&settings), Some("gpt-4o-mini".into()));
     }
 }
