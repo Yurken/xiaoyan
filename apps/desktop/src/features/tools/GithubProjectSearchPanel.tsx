@@ -1,5 +1,5 @@
 import { AlertCircle, Github, History, Search, Star, Trash2 } from "lucide-react";
-import { Badge, Button, Card, IconButton, Input } from "@research-copilot/ui";
+import { Badge, Button, Card, Input } from "@research-copilot/ui";
 import type { GithubProjectSearchResponse, GithubProjectSearchHistoryEntry } from "@research-copilot/types";
 import ExternalLink from "../../components/ExternalLink";
 
@@ -99,25 +99,25 @@ export function GithubProjectSearchPanel({
               {history.map((entry) => (
                 <div
                   key={entry.id}
-                  className="group flex items-center gap-1 rounded-full border border-apple-separator bg-surface px-2.5 py-1 text-xs text-ink-secondary hover:border-apple-blue/30 hover:bg-apple-blue/5"
+                  className="group inline-flex max-w-full items-center gap-1.5 rounded-xl border border-apple-blue/15 bg-apple-blue/5 px-2.5 py-1 text-xs text-ink-secondary transition-colors hover:border-apple-blue/30 hover:bg-apple-blue/10"
                 >
                   <button
                     type="button"
                     onClick={() => onApplyHistory(entry)}
-                    className="max-w-[180px] truncate"
+                    className="min-w-0 truncate text-left"
                     title={entry.query}
                   >
                     {entry.query}
                   </button>
-                  <IconButton
-                    size="sm"
-                    className="h-5 w-5 shrink-0"
+                  <button
+                    type="button"
                     onClick={() => void onRemoveHistory(entry.id)}
+                    className="shrink-0 rounded p-0.5 text-ink-tertiary opacity-60 transition-opacity hover:text-apple-red hover:opacity-100"
                     title="删除该条历史"
                     aria-label="删除该条历史"
                   >
                     <Trash2 className="h-3 w-3" />
-                  </IconButton>
+                  </button>
                 </div>
               ))}
             </div>
