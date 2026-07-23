@@ -595,7 +595,94 @@ async fn run_chat(
             json!({ "request_id": request_id, "value": sources }),
         );
     }
+
+    // 首轮对话（history 为空 = 用户首次提问）→ 异步用 LLM 重新生成更短更准确的标题，
+    // 覆盖创建会话时用"前 40 字符"占位的临时标题。
+    // 之前没有这一步，会话列表里全是"复制第一次对话内容"的占位标题，体验很差。
+    if history.is_empty() {
+        let app_clone = app.clone();
+        let db_clone = db.clone();
+        let settings_clone = settings.clone();
+        let sid_clone = session_id.to_string();
+        let user_text = message.to_string();
+        let assistant_text = full.clone();
+        tokio::spawn(async move {
+            auto_generate_chat_title(
+                &app_clone,
+                &db_clone,
+                &settings_clone,
+                &sid_clone,
+                &user_text,
+                &assistant_text,
+            )
+            .await;
+        });
+    }
+
     Ok(())
+}
+
+/// 用 LLM 为 chat 会话生成简短中文标题（≤20 字），覆盖占位标题。
+///
+/// 与 code 模块的 `auto_generate_title` 行为一致：
+/// - 用 `copilot_simple_model` 配置的模型；
+/// - 失败时静默（不影响主对话流程）；
+/// - 成功后更新 `chat_sessions.title` 并 emit `chat:title_changed`，
+///   前端会刷新会话列表里这一条。
+async fn auto_generate_chat_title(
+    app: &tauri::AppHandle,
+    db: &sqlx::SqlitePool,
+    settings: &HashMap<String, String>,
+    session_id: &str,
+    user_text: &str,
+    assistant_text: &str,
+) {
+    let client = match LlmClient::from_settings(settings) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let model = resolve_model(settings, &["copilot_simple_model"]);
+    let prompt = format!(
+        "根据以下对话，生成一个简短的中文标题（不超过20个字，只返回标题本身，不要引号或解释）：\n\
+         用户：{trunc_user}\n\
+         助手：{trunc_assistant}",
+        trunc_user = truncate_for_title(user_text, 200),
+        trunc_assistant = truncate_for_title(assistant_text, 300),
+    );
+    let messages = vec![LlmMessage::user(prompt)];
+    let title = match client.chat(&messages, model.as_deref(), 0.4).await {
+        Ok(title) => title,
+        Err(_) => return,
+    };
+    let title = title.trim().replace(['"', '\''], "").trim().to_string();
+    // 防御：空 / 过长 / 含换行的标题做兜底，避免列表展示被破坏。
+    let title = if title.is_empty() {
+        return;
+    } else if title.chars().count() > 30 {
+        title.chars().take(30).collect::<String>()
+    } else {
+        title
+    };
+    let now = chrono::Utc::now().to_rfc3339();
+    let _ = sqlx::query("UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?")
+        .bind(&title)
+        .bind(&now)
+        .bind(session_id)
+        .execute(db)
+        .await;
+    let _ = app.emit(
+        "chat:title_changed",
+        json!({ "session_id": session_id, "title": title }),
+    );
+}
+
+fn truncate_for_title(s: &str, max_chars: usize) -> String {
+    let trimmed = s.trim();
+    if trimmed.chars().count() <= max_chars {
+        return trimmed.to_string();
+    }
+    let prefix: String = trimmed.chars().take(max_chars).collect();
+    format!("{prefix}…")
 }
 
 /// 去掉所有 <think>…</think> 推理片段后，判断是否还剩可读回答。

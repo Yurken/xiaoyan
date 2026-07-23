@@ -5,6 +5,7 @@ import {
   writePersistentValue,
 } from "../../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../../lib/client";
+import { safeListen } from "../../lib/tauriEvent";
 import type { ChatSession, ResearchInterest } from "@research-copilot/types";
 
 export const COPILOT_LAST_SESSION_KEY = "rc:copilot:last-session-id";
@@ -44,6 +45,41 @@ export function useCopilotSessions() {
         }
       });
     return () => { cancelled = true; };
+  }, []);
+
+  // 后端在 chat 模块首次对话完成后会用 LLM 重新生成更准确的标题，
+  // 并 emit `chat:title_changed` 事件；这里监听该事件并同步更新本地会话列表，
+  // 避免用户继续看到"前 40 字符占位"标题。
+  // payload 同时带 session_id 和 title，直接本地更新，不重新拉列表，避免无谓的 API 往返。
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    safeListen<{ session_id: string; title: string }>(
+      "chat:title_changed",
+      (event) => {
+        if (cancelled) return;
+        const { session_id, title } = event.payload;
+        setSessions((prev) => {
+          // 列表里没这个会话就跳过——可能用户已经切换到别的上下文。
+          if (!prev.some((s) => s.id === session_id)) return prev;
+          return prev.map((s) => (s.id === session_id ? { ...s, title } : s));
+        });
+        setCurrentSession((prev) =>
+          prev?.id === session_id ? { ...prev, title } : prev,
+        );
+      },
+    ).then((un) => {
+      if (cancelled) {
+        // effect 已被卸载，立刻清理掉 listener
+        un();
+      } else {
+        unlisten = un;
+      }
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
