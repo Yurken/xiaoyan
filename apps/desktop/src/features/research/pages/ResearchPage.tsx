@@ -29,88 +29,92 @@ function Welcome({
   onShowNewResearch: () => void
 }) {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
-      <p className="rc-kicker">研究工作台</p>
-      <h1
-        className="mt-3 text-4xl font-bold leading-snug"
-        style={{
-          color: 'var(--rc-text)',
-          fontFamily: 'Georgia, "Times New Roman", serif',
-        }}
-      >
-        从一个问题，<br />到经得起审查的候选假设。
-      </h1>
-      <p
-        className="mt-4 max-w-xl text-base leading-relaxed"
-        style={{ color: 'var(--rc-text-soft)' }}
-      >
-        系统从真实文献与材料出发，一次提出 3–5 个可检验的候选假设；
-        每个候选都必须经过你的决定——采纳、驳回或保留未知——才能进入验证。
-        每一步都有记录，每个结论都能回到真实来源。
-      </p>
-      <div className="mt-6">
-        <button
-          className="rc-focus-cta"
-          onClick={onShowNewResearch}
-        >
-          开始一个新研究
-          <ArrowRight size={16} />
-        </button>
-      </div>
-
-      {sessionList.length > 0 ? (
-        <div className="mt-12">
-          <p className="rc-kicker mb-3">继续之前的研究</p>
-          <div className="space-y-2">
-            {sessionList.map((s) => (
-              <div
-                key={s.id}
-                className="rc-focus-card flex w-full items-center gap-3 rounded-2xl p-4 transition-colors"
-                style={{ cursor: 'pointer' }}
-                onClick={() => onSelectSession(s.id)}
-              >
-                <button
-                  className="min-w-0 flex-1 text-left"
-                  onClick={() => onSelectSession(s.id)}
-                >
-                  <span
-                    className="block truncate text-base font-medium"
-                    style={{
-                      color: 'var(--rc-text)',
-                      fontFamily: 'Georgia, "Times New Roman", serif',
-                    }}
-                  >
-                    {s.title}
-                  </span>
-                  <span className="text-xs" style={{ color: 'var(--rc-text-muted)' }}>
-                    {s.created_at.slice(0, 10)}
-                  </span>
-                </button>
-                <span
-                  className="rc-focus-stat-chip"
-                  style={{ color: 'var(--rc-text-soft)' }}
-                >
-                  {SESSION_STATUS_LABEL[s.status] ?? s.status}
-                </span>
-                <button
-                  className="rc-icon-button flex items-center justify-center"
-                  style={{ width: 28, height: 28 }}
-                  title="删除研究"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (confirm(`确定删除「${s.title}」？此操作不可恢复。`)) {
-                      onDeleteResearch(s.id)
-                    }
-                  }}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
+    <div className="flex h-full flex-col items-center justify-center p-5">
+      <div className="w-full max-w-3xl">
+        <div className="mb-8 text-center">
+          <p className="rc-kicker">研究工作台</p>
+          <h1
+            className="mt-3 text-4xl font-bold leading-snug"
+            style={{
+              color: 'var(--rc-text)',
+              fontFamily: 'Georgia, "Times New Roman", serif',
+            }}
+          >
+            从一个问题，<br />到经得起审查的候选假设。
+          </h1>
+          <p
+            className="mt-4 mx-auto max-w-xl text-base leading-relaxed"
+            style={{ color: 'var(--rc-text-soft)' }}
+          >
+            系统从真实文献与材料出发，一次提出 3–5 个可检验的候选假设；
+            每个候选都必须经过你的决定——采纳、驳回或保留未知——才能进入验证。
+            每一步都有记录，每个结论都能回到真实来源。
+          </p>
+          <div className="mt-6">
+            <button
+              className="rc-focus-cta"
+              onClick={onShowNewResearch}
+            >
+              开始一个新研究
+              <ArrowRight size={16} />
+            </button>
           </div>
         </div>
-      ) : null}
-    </main>
+
+        {sessionList.length > 0 ? (
+          <div className="mt-8">
+            <p className="rc-kicker mb-3">继续之前的研究</p>
+            <div className="space-y-2">
+              {sessionList.map((s) => (
+                <div
+                  key={s.id}
+                  className="rc-focus-card flex w-full items-center gap-3 rounded-2xl p-4 transition-colors"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => onSelectSession(s.id)}
+                >
+                  <button
+                    className="min-w-0 flex-1 text-left"
+                    onClick={() => onSelectSession(s.id)}
+                  >
+                    <span
+                      className="block truncate text-base font-medium"
+                      style={{
+                        color: 'var(--rc-text)',
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                      }}
+                    >
+                      {s.title}
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--rc-text-muted)' }}>
+                      {s.created_at.slice(0, 10)}
+                    </span>
+                  </button>
+                  <span
+                    className="rc-focus-stat-chip"
+                    style={{ color: 'var(--rc-text-soft)' }}
+                  >
+                    {SESSION_STATUS_LABEL[s.status] ?? s.status}
+                  </span>
+                  <button
+                    className="rc-icon-button flex items-center justify-center"
+                    style={{ width: 28, height: 28 }}
+                    title="删除研究"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (confirm(`确定删除「${s.title}」？此操作不可恢复。`)) {
+                        onDeleteResearch(s.id)
+                      }
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -204,16 +208,16 @@ export default function ResearchPage() {
   }
 
   return (
-    <div className="rc-app-page" style={{ height: '100%', overflow: 'hidden' }}>
+    <div className="rc-app-page space-y-5">
       <TopBar
         session={session}
         workflow={workflow}
         ui={ui}
       />
       {session.sessionId ? (
-        <main className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <main className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
           <ExecutionTrace workflow={workflow} />
-          <div className="min-w-0 space-y-12">
+          <div className="min-w-0 space-y-6">
             <ProblemSection
               protocol={session.protocol}
               onSave={handleSaveProtocol}
