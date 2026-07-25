@@ -6,7 +6,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::platform::desktop_assistant::{get_platform_adapter, PlatformAdapter};
+use crate::platform::desktop_assistant::get_platform_adapter;
 
 /// 权限状态
 #[derive(Debug, Clone, Serialize, Deserialize)]

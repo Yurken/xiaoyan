@@ -6,27 +6,9 @@ use serde::{Deserialize, Serialize};
 use tauri::{command, State};
 
 use crate::llm::LlmClient;
-use crate::services::desktop_assistant::action_service::{
-    ActionMetadata, ActionResult, ActionService, AssistantAction,
-};
-use crate::services::desktop_assistant::{
-    CaptureService, CleanupService, PermissionService,
-};
+use crate::services::desktop_assistant::action_service::ActionService;
+use crate::services::desktop_assistant::{CaptureService, CleanupService, PermissionService};
 use crate::state::AppState;
-
-/// 助手偏好设置
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AssistantPreferences {
-    pub enabled: bool,
-    pub shortcut: String,
-    pub show_dock: bool,
-    pub dock_position: String,
-    pub allowed_apps: Vec<String>,
-    pub blocked_apps: Vec<String>,
-    pub skip_preview: bool,
-    pub retain_policy: String,
-    pub language: String,
-}
 
 /// 权限状态
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,19 +16,6 @@ pub struct PermissionStatusResponse {
     pub accessibility: bool,
     pub screen_recording: bool,
     pub clipboard: bool,
-}
-
-/// 采集会话响应
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CaptureSessionResponse {
-    pub id: String,
-    pub source_type: String,
-    pub content: Option<String>,
-    pub screenshot_path: Option<String>,
-    pub source_app: Option<String>,
-    pub source_app_bundle_id: Option<String>,
-    pub window_title: Option<String>,
-    pub status: String,
 }
 
 /// 动作结果响应
@@ -277,153 +246,30 @@ pub async fn assistant_chat(
 #[command]
 pub async fn assistant_import(
     state: State<'_, AppState>,
+    app: tauri::AppHandle,
     session_id: String,
     content: String,
     target: String,
     title: Option<String>,
     tags: Option<Vec<String>>,
-    preserve_original: Option<bool>,
 ) -> Result<ActionResultResponse, String> {
-    use crate::services::desktop_assistant::action_service::ImportTarget;
+    // 获取应用数据目录
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
 
-    let target_enum: ImportTarget = target.parse().map_err(|e: anyhow::Error| e.to_string())?;
-
-    let result = match target_enum {
-        ImportTarget::Note => {
-            // 调用知识笔记保存接口
-            let note_title = title.unwrap_or_else(|| {
-                let preview: String = content.chars().take(50).collect();
-                format!("从悬浮助手导入 - {}", preview)
-            });
-
-            let tags_str = tags
-                .unwrap_or_default()
-                .iter()
-                .map(|t| t.as_str())
-                .collect::<Vec<_>>()
-                .join(",");
-
-            // 插入知识笔记
-            let note_id = sqlx::query_scalar::<_, String>(
-                "INSERT INTO knowledge_notes (title, content, tags, source_type, source_id, created_at, updated_at) VALUES (?, ?, ?, 'assistant', ?, datetime('now'), datetime('now')) RETURNING id"
-            )
-            .bind(&note_title)
-            .bind(&content)
-            .bind(&tags_str)
-            .bind(&session_id)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(|e| format!("Failed to save note: {}", e))?
-            .unwrap_or_default();
-
-            ActionResult {
-                id: uuid::Uuid::new_v4().to_string(),
-                session_id: session_id.clone(),
-                action: AssistantAction::Import,
-                content: format!("已保存为知识笔记\n\nID: {}\n标题: {}", note_id, note_title),
-                format: "text".to_string(),
-                metadata: Some(ActionMetadata {
-                    model: None,
-                    token_usage: None,
-                    duration_ms: None,
-                    sources: Some(vec![format!("note:{}", note_id)]),
-                }),
-                created_at: chrono::Utc::now(),
-            }
-        }
-        ImportTarget::Image => {
-            // 保存截图到本地应用数据目录
-            let asset_id = uuid::Uuid::new_v4().to_string();
-
-            // 创建图片资产记录（content 作为 base64 图片数据）
-            let asset_path = format!("assistant_images/{}.png", asset_id);
-
-            ActionResult {
-                id: asset_id.clone(),
-                session_id: session_id.clone(),
-                action: AssistantAction::Import,
-                content: format!("截图已保存\n\nID: {}\n路径: {}", asset_id, asset_path),
-                format: "text".to_string(),
-                metadata: Some(ActionMetadata {
-                    model: None,
-                    token_usage: None,
-                    duration_ms: None,
-                    sources: Some(vec![format!("image:{}", asset_id)]),
-                }),
-                created_at: chrono::Utc::now(),
-            }
-        }
-        ImportTarget::Paper => {
-            // 创建论文导入候选记录
-            let paper_title = title.unwrap_or_else(|| {
-                let preview: String = content.chars().take(100).collect();
-                format!("从悬浮助手导入 - {}", preview)
-            });
-
-            let content_preview: String = content.chars().take(500).collect();
-
-            // 创建候选记录
-            let candidate_id = sqlx::query_scalar::<_, String>(
-                "INSERT INTO assistant_paper_candidates (id, session_id, title, content_preview, status, created_at) VALUES (?, ?, ?, ?, 'pending', datetime('now')) RETURNING id"
-            )
-            .bind(uuid::Uuid::new_v4().to_string())
-            .bind(&session_id)
-            .bind(&paper_title)
-            .bind(&content_preview)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(|e| format!("Failed to create paper candidate: {}", e))?
-            .unwrap_or_default();
-
-            ActionResult {
-                id: candidate_id.clone(),
-                session_id: session_id.clone(),
-                action: AssistantAction::Import,
-                content: format!("已创建论文导入候选\n\nID: {}\n标题: {}\n请在论文库中完成导入", candidate_id, paper_title),
-                format: "text".to_string(),
-                metadata: Some(ActionMetadata {
-                    model: None,
-                    token_usage: None,
-                    duration_ms: None,
-                    sources: Some(vec![format!("paper:{}", candidate_id)]),
-                }),
-                created_at: chrono::Utc::now(),
-            }
-        }
-        ImportTarget::Later => {
-            // 放入稍后处理箱
-            let later_title = title.unwrap_or_else(|| {
-                let preview: String = content.chars().take(50).collect();
-                format!("稍后处理 - {}", preview)
-            });
-
-            let item_id = sqlx::query_scalar::<_, String>(
-                "INSERT INTO assistant_later_items (title, content, session_id, created_at) VALUES (?, ?, ?, datetime('now')) RETURNING id"
-            )
-            .bind(&later_title)
-            .bind(&content)
-            .bind(&session_id)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(|e| format!("Failed to save later item: {}", e))?
-            .unwrap_or_default();
-
-            ActionResult {
-                id: uuid::Uuid::new_v4().to_string(),
-                session_id: session_id.clone(),
-                action: AssistantAction::Import,
-                content: format!("已放入稍后处理\n\nID: {}\n标题: {}", item_id, later_title),
-                format: "text".to_string(),
-                metadata: Some(ActionMetadata {
-                    model: None,
-                    token_usage: None,
-                    duration_ms: None,
-                    sources: Some(vec![format!("later:{}", item_id)]),
-                }),
-                created_at: chrono::Utc::now(),
-            }
-        }
-    };
+    let result = ActionService::import(
+        &state.db,
+        &app_data_dir,
+        &session_id,
+        &content,
+        &target,
+        title.as_deref(),
+        tags.as_deref(),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     Ok(ActionResultResponse {
         id: result.id,

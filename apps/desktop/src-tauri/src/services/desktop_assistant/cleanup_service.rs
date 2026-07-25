@@ -116,39 +116,4 @@ impl CleanupService {
         let later_items = Self::cleanup_old_later_items(db).await?;
         Ok((sessions, later_items))
     }
-
-    /// 获取临时数据统计
-    pub async fn get_stats(db: &SqlitePool) -> Result<CleanupStats> {
-        let sessions: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM assistant_capture_sessions"
-        )
-        .fetch_one(db)
-        .await?;
-
-        let expired_sessions: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM assistant_capture_sessions WHERE expires_at < datetime('now')"
-        )
-        .fetch_one(db)
-        .await?;
-
-        let later_items: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM assistant_later_items"
-        )
-        .fetch_one(db)
-        .await?;
-
-        Ok(CleanupStats {
-            total_sessions: sessions.0 as u32,
-            expired_sessions: expired_sessions.0 as u32,
-            later_items: later_items.0 as u32,
-        })
-    }
-}
-
-/// 清理统计
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct CleanupStats {
-    pub total_sessions: u32,
-    pub expired_sessions: u32,
-    pub later_items: u32,
 }
