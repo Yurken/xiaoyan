@@ -11,7 +11,7 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
 }
 
 // Tauri listen 包装
-async function listen<T>(event: string, handler: (payload: T) => void): Promise<() => void> {
+async function listen<T>(event: string, handler: (event: { payload: T }) => void): Promise<() => void> {
   const { listen: tauriListen } = await import('@tauri-apps/api/event')
   return tauriListen<T>(event, handler)
 }
@@ -103,9 +103,9 @@ export function useAssistantShortcut(
     let unlisten: (() => void) | null = null
 
     const setup = async () => {
-      unlisten = await listen('global-shortcut://trigger', (event: { shortcut?: string }) => {
+      unlisten = await listen<{ shortcut?: string }>('global-shortcut://trigger', (event) => {
         // 检查是否是我们的快捷键
-        if (event.shortcut === shortcut) {
+        if (event.payload.shortcut === shortcut) {
           onTrigger()
         }
       })
