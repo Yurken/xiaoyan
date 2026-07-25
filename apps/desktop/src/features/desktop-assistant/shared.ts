@@ -127,11 +127,62 @@ export const DEFAULT_PREFERENCES: AssistantPreferences = {
     'com.apple.Keychain',
     'com.1password.1password',
     'com.agilebits.onepassword7',
+    'com.apple.loginwindow',
+    'com.apple.SystemPreferences',
   ],
   skipPreview: false,
   retainPolicy: '24h',
   language: 'auto',
 }
+
+// ─── 隐私与安全 ──────────────────────────────────────────────────────────────
+
+/** 默认禁止采集的应用 */
+export const DEFAULT_BLOCKED_APPS: string[] = [
+  // 密码管理器
+  'com.1password.1password',
+  'com.agilebits.onepassword7',
+  'com.agilebits.onepassword',
+  'com.bitwarden.desktop',
+  'com.keepersecurity.keeper',
+  // 系统安全
+  'com.apple.Keychain',
+  'com.apple.securityagent',
+  'com.apple.loginwindow',
+  // 金融应用
+  'com.apple.bank',
+  'com.alipay.mac',
+  'com.tencent.macWeChat',
+  // DRM
+  'com.apple.TV',
+  'com.apple.iTunes',
+]
+
+/** 禁止采集的窗口标题关键词 */
+export const BLOCKED_WINDOW_KEYWORDS: string[] = [
+  '密码',
+  'password',
+  '登录',
+  'login',
+  'sign in',
+  '认证',
+  'auth',
+  '支付',
+  'payment',
+  '银行',
+  'bank',
+]
+
+/** 敏感字段检测模式 */
+export const SENSITIVE_FIELD_PATTERNS: RegExp[] = [
+  /password/i,
+  /passwd/i,
+  /secret/i,
+  /token/i,
+  /api.?key/i,
+  /access.?key/i,
+  /private.?key/i,
+]
 
 // ─── 状态映射 ──────────────────────────────────────────────────────────────
 
@@ -167,6 +218,44 @@ export function generateId(): string {
 export function isAppBlocked(bundleId: string | null, blockedApps: string[]): boolean {
   if (!bundleId) return false
   return blockedApps.some((blocked) => bundleId.toLowerCase().includes(blocked.toLowerCase()))
+}
+
+/**
+ * 检查窗口标题是否包含敏感关键词
+ */
+export function isWindowBlocked(windowTitle: string | null, keywords: string[]): boolean {
+  if (!windowTitle) return false
+  const lowerTitle = windowTitle.toLowerCase()
+  return keywords.some((keyword) => lowerTitle.includes(keyword.toLowerCase()))
+}
+
+/**
+ * 检测内容是否包含敏感字段
+ */
+export function containsSensitiveFields(content: string): boolean {
+  return SENSITIVE_FIELD_PATTERNS.some((pattern) => pattern.test(content))
+}
+
+/**
+ * 脱敏处理：移除敏感内容
+ */
+export function sanitizeContent(content: string): string {
+  let sanitized = content
+
+  // 移除邮箱地址
+  sanitized = sanitized.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL]')
+
+  // 移除电话号码
+  sanitized = sanitized.replace(/(\+?86)?1[3-9]\d{9}/g, '[PHONE]')
+  sanitized = sanitized.replace(/\d{3}-\d{4}-\d{4}/g, '[PHONE]')
+
+  // 移除信用卡号
+  sanitized = sanitized.replace(/\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}/g, '[CARD]')
+
+  // 移除身份证号
+  sanitized = sanitized.replace(/\d{17}[\dXx]/g, '[ID]')
+
+  return sanitized
 }
 
 /**
