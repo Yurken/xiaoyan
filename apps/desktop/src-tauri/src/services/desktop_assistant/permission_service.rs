@@ -48,6 +48,7 @@ const DEFAULT_BLOCKED_APPS: &[&str] = &[
     "com.apple.loginwindow",
     // 金融应用
     "com.alipay.mac",
+    "com.tencent.macWeChat",
     // DRM
     "com.apple.TV",
     "com.apple.iTunes",

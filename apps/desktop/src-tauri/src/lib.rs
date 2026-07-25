@@ -348,6 +348,11 @@ pub fn run() {
                 // Init SQLite
                 let pool = db::init_db(&app_data_dir).await.expect("failed to init DB");
 
+                // 初始化桌面助手数据库表
+                if let Err(e) = services::desktop_assistant::CleanupService::init_tables(&pool).await {
+                    append_diagnostic_log(&format!("startup: failed to init assistant tables: {e}"));
+                }
+
                 // 注入全局 token 用量落库连接池（供所有 LLM 调用累加用量）
                 token_usage::init(pool.clone());
 

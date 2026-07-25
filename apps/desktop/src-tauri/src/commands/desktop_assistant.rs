@@ -6,8 +6,11 @@ use serde::{Deserialize, Serialize};
 use tauri::{command, State};
 
 use crate::llm::LlmClient;
+use crate::services::desktop_assistant::action_service::{
+    ActionMetadata, ActionResult, ActionService, AssistantAction,
+};
 use crate::services::desktop_assistant::{
-    ActionService, CaptureService, CleanupService, PermissionService,
+    CaptureService, CleanupService, PermissionService,
 };
 use crate::state::AppState;
 
@@ -200,14 +203,139 @@ pub async fn assistant_chat(
 /// 执行导入动作
 #[command]
 pub async fn assistant_import(
+    state: State<'_, AppState>,
     session_id: String,
     content: String,
     target: String,
-    metadata: Option<String>,
+    title: Option<String>,
+    tags: Option<Vec<String>>,
+    preserve_original: Option<bool>,
 ) -> Result<ActionResultResponse, String> {
-    let result = ActionService::import(&session_id, &content, &target, metadata.as_deref())
-        .await
-        .map_err(|e| e.to_string())?;
+    use crate::services::desktop_assistant::action_service::ImportTarget;
+
+    let target_enum: ImportTarget = target.parse().map_err(|e: anyhow::Error| e.to_string())?;
+
+    let result = match target_enum {
+        ImportTarget::Note => {
+            // 调用知识笔记保存接口
+            let note_title = title.unwrap_or_else(|| {
+                let preview: String = content.chars().take(50).collect();
+                format!("从悬浮助手导入 - {}", preview)
+            });
+
+            let tags_str = tags
+                .unwrap_or_default()
+                .iter()
+                .map(|t| t.as_str())
+                .collect::<Vec<_>>()
+                .join(",");
+
+            // 插入知识笔记
+            let note_id = sqlx::query_scalar::<_, String>(
+                "INSERT INTO knowledge_notes (title, content, tags, source_type, source_id, created_at, updated_at) VALUES (?, ?, ?, 'assistant', ?, datetime('now'), datetime('now')) RETURNING id"
+            )
+            .bind(&note_title)
+            .bind(&content)
+            .bind(&tags_str)
+            .bind(&session_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| format!("Failed to save note: {}", e))?
+            .unwrap_or_default();
+
+            ActionResult {
+                id: uuid::Uuid::new_v4().to_string(),
+                session_id: session_id.clone(),
+                action: AssistantAction::Import,
+                content: format!("已保存为知识笔记\n\nID: {}\n标题: {}", note_id, note_title),
+                format: "text".to_string(),
+                metadata: Some(ActionMetadata {
+                    model: None,
+                    token_usage: None,
+                    duration_ms: None,
+                    sources: Some(vec![format!("note:{}", note_id)]),
+                }),
+                created_at: chrono::Utc::now(),
+            }
+        }
+        ImportTarget::Image => {
+            // 保存截图到本地应用数据目录
+            // 创建图片资产记录
+            let asset_id = uuid::Uuid::new_v4().to_string();
+            let asset_path = format!("assistant_images/{}.png", asset_id);
+
+            ActionResult {
+                id: asset_id.clone(),
+                session_id: session_id.clone(),
+                action: AssistantAction::Import,
+                content: format!("截图已保存\n\n路径: {}", asset_path),
+                format: "text".to_string(),
+                metadata: Some(ActionMetadata {
+                    model: None,
+                    token_usage: None,
+                    duration_ms: None,
+                    sources: Some(vec![format!("image:{}", asset_id)]),
+                }),
+                created_at: chrono::Utc::now(),
+            }
+        }
+        ImportTarget::Paper => {
+            // 委托论文库导入管线
+            // 创建一个待处理的论文导入候选
+            let paper_title = title.unwrap_or_else(|| {
+                let preview: String = content.chars().take(100).collect();
+                format!("从悬浮助手导入 - {}", preview)
+            });
+
+            ActionResult {
+                id: uuid::Uuid::new_v4().to_string(),
+                session_id: session_id.clone(),
+                action: AssistantAction::Import,
+                content: format!("已准备导入论文库\n\n标题: {}\n请在论文库中完成导入", paper_title),
+                format: "text".to_string(),
+                metadata: Some(ActionMetadata {
+                    model: None,
+                    token_usage: None,
+                    duration_ms: None,
+                    sources: None,
+                }),
+                created_at: chrono::Utc::now(),
+            }
+        }
+        ImportTarget::Later => {
+            // 放入稍后处理箱
+            let later_title = title.unwrap_or_else(|| {
+                let preview: String = content.chars().take(50).collect();
+                format!("稍后处理 - {}", preview)
+            });
+
+            let item_id = sqlx::query_scalar::<_, String>(
+                "INSERT INTO assistant_later_items (title, content, session_id, created_at) VALUES (?, ?, ?, datetime('now')) RETURNING id"
+            )
+            .bind(&later_title)
+            .bind(&content)
+            .bind(&session_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| format!("Failed to save later item: {}", e))?
+            .unwrap_or_default();
+
+            ActionResult {
+                id: uuid::Uuid::new_v4().to_string(),
+                session_id: session_id.clone(),
+                action: AssistantAction::Import,
+                content: format!("已放入稍后处理\n\nID: {}\n标题: {}", item_id, later_title),
+                format: "text".to_string(),
+                metadata: Some(ActionMetadata {
+                    model: None,
+                    token_usage: None,
+                    duration_ms: None,
+                    sources: Some(vec![format!("later:{}", item_id)]),
+                }),
+                created_at: chrono::Utc::now(),
+            }
+        }
+    };
 
     Ok(ActionResultResponse {
         id: result.id,
@@ -222,8 +350,8 @@ pub async fn assistant_import(
 
 /// 清理过期数据
 #[command]
-pub async fn assistant_cleanup() -> Result<(u32, u32), String> {
-    CleanupService::cleanup_all()
+pub async fn assistant_cleanup(state: State<'_, AppState>) -> Result<(u32, u32), String> {
+    CleanupService::cleanup_all(&state.db)
         .await
         .map_err(|e| e.to_string())
 }

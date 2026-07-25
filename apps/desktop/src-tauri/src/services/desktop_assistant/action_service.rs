@@ -2,7 +2,7 @@
 //!
 //! 解读、翻译、对话、导入的路由和执行
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -16,6 +16,41 @@ pub enum AssistantAction {
     Translate,
     Chat,
     Import,
+}
+
+/// 导入目标类型
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImportTarget {
+    Note,
+    Image,
+    Paper,
+    Later,
+}
+
+impl std::fmt::Display for ImportTarget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ImportTarget::Note => write!(f, "note"),
+            ImportTarget::Image => write!(f, "image"),
+            ImportTarget::Paper => write!(f, "paper"),
+            ImportTarget::Later => write!(f, "later"),
+        }
+    }
+}
+
+impl std::str::FromStr for ImportTarget {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "note" => Ok(ImportTarget::Note),
+            "image" => Ok(ImportTarget::Image),
+            "paper" => Ok(ImportTarget::Paper),
+            "later" => Ok(ImportTarget::Later),
+            _ => Err(anyhow!("Unknown import target: {}", s)),
+        }
+    }
 }
 
 /// 动作结果
@@ -196,26 +231,22 @@ impl ActionService {
         target: &str,
         metadata: Option<&str>,
     ) -> Result<ActionResult> {
+        let target_enum: ImportTarget = target.parse()?;
+
         // 导入动作不需要调用 LLM，只需要记录和保存
-        let result = match target {
-            "note" => {
-                // TODO: 调用知识笔记保存
-                format!("已保存为知识笔记\n\n{}", content)
+        let result = match target_enum {
+            ImportTarget::Note => {
+                // 实际保存在 command 层完成，这里返回确认信息
+                format!("已准备保存为知识笔记")
             }
-            "image" => {
-                // TODO: 保存截图到本地
-                "截图已保存".to_string()
+            ImportTarget::Image => {
+                "截图已准备保存".to_string()
             }
-            "paper" => {
-                // TODO: 添加到论文库
-                "已添加到论文库".to_string()
+            ImportTarget::Paper => {
+                "已准备添加到论文库".to_string()
             }
-            "later" => {
-                // TODO: 放入待处理箱
-                "已放入稍后处理".to_string()
-            }
-            _ => {
-                return Err(anyhow::anyhow!("Unknown import target: {}", target));
+            ImportTarget::Later => {
+                "已准备放入稍后处理".to_string()
             }
         };
 
