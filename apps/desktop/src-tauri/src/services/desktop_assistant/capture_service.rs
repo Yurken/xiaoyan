@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::platform::desktop_assistant::{get_platform_adapter, PlatformAdapter};
+use crate::platform::desktop_assistant::get_platform_adapter;
 use super::permission_service::{PermissionService, PrivacyCheckResult};
 
 /// 上下文来源类型
@@ -139,12 +139,6 @@ impl CaptureService {
             session,
             sanitized_content,
         })
-    }
-
-    /// 获取选中文本
-    pub async fn get_selection() -> Result<Option<String>> {
-        let adapter = get_platform_adapter();
-        adapter.get_selection()
     }
 
     /// 获取剪贴板内容

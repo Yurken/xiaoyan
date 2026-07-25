@@ -1,9 +1,11 @@
 //! 动作路由服务
 //!
 //! 解读、翻译、对话、导入的路由和执行
+//! 所有落库逻辑统一在此层完成，command 层只做参数校验和调用
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::llm::{LlmClient, LlmMessage};
@@ -234,53 +236,207 @@ impl ActionService {
         })
     }
 
-    /// 执行导入动作
+    /// 执行导入动作（统一落库逻辑）
     pub async fn import(
+        db: &SqlitePool,
+        app_data_dir: &std::path::Path,
         session_id: &str,
         content: &str,
         target: &str,
-        metadata: Option<&str>,
+        title: Option<&str>,
+        tags: Option<&[String]>,
     ) -> Result<ActionResult> {
         let target_enum: ImportTarget = target.parse()?;
 
-        // 导入动作不需要调用 LLM，只需要记录和保存
-        let result = match target_enum {
-            ImportTarget::Note => {
-                // 在 command 层完成实际保存
-                format!("已准备保存为知识笔记")
-            }
-            ImportTarget::Image => {
-                // 在 command 层完成图片保存
-                "截图已准备保存".to_string()
-            }
-            ImportTarget::Paper => {
-                // 在 command 层创建论文导入候选
-                "已准备添加到论文库".to_string()
-            }
-            ImportTarget::Later => {
-                // 在 command 层保存到稍后处理箱
-                "已准备放入稍后处理".to_string()
+        match target_enum {
+            ImportTarget::Note => Self::import_as_note(db, session_id, content, title, tags).await,
+            ImportTarget::Image => Self::import_as_image(app_data_dir, session_id, content, title).await,
+            ImportTarget::Paper => Self::import_as_paper(db, session_id, content, title).await,
+            ImportTarget::Later => Self::import_as_later(db, session_id, content, title).await,
+        }
+    }
+
+    /// 导入为知识笔记
+    async fn import_as_note(
+        db: &SqlitePool,
+        session_id: &str,
+        content: &str,
+        title: Option<&str>,
+        tags: Option<&[String]>,
+    ) -> Result<ActionResult> {
+        let note_title = match title {
+            Some(t) => t.to_string(),
+            None => {
+                let preview: String = content.chars().take(50).collect();
+                format!("从悬浮助手导入 - {}", preview)
             }
         };
+
+        let tags_str = tags
+            .unwrap_or(&[])
+            .iter()
+            .map(|t| t.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+
+        let note_id = sqlx::query_scalar::<_, String>(
+            "INSERT INTO knowledge_notes (title, content, tags, source_type, source_id, created_at, updated_at) VALUES (?, ?, ?, 'assistant', ?, datetime('now'), datetime('now')) RETURNING id"
+        )
+        .bind(&note_title)
+        .bind(content)
+        .bind(&tags_str)
+        .bind(session_id)
+        .fetch_optional(db)
+        .await?
+        .unwrap_or_default();
 
         Ok(ActionResult {
             id: Uuid::new_v4().to_string(),
             session_id: session_id.to_string(),
             action: AssistantAction::Import,
-            content: result,
+            content: format!("已保存为知识笔记\n\nID: {}\n标题: {}", note_id, note_title),
             format: "text".to_string(),
             metadata: Some(ActionMetadata {
                 model: None,
                 token_usage: None,
                 duration_ms: None,
-                sources: None,
+                sources: Some(vec![format!("note:{}", note_id)]),
+            }),
+            created_at: chrono::Utc::now(),
+        })
+    }
+
+    /// 导入为图片资产
+    async fn import_as_image(
+        app_data_dir: &std::path::Path,
+        session_id: &str,
+        content: &str,
+        _title: Option<&str>,
+    ) -> Result<ActionResult> {
+        let asset_id = Uuid::new_v4().to_string();
+
+        // content 应该是 base64 编码的图片数据
+        let image_data = if content.starts_with("data:image") {
+            // 处理 data URL
+            let base64_data = content.split(',').nth(1).unwrap_or(content);
+            base64::Engine::decode(
+                &base64::engine::general_purpose::STANDARD,
+                base64_data,
+            )?
+        } else {
+            // 尝试直接作为 base64 解码
+            base64::Engine::decode(
+                &base64::engine::general_purpose::STANDARD,
+                content,
+            )?
+        };
+
+        // 保存图片到本地
+        let image_path = Self::save_image(app_data_dir, &asset_id, &image_data)?;
+
+        Ok(ActionResult {
+            id: asset_id.clone(),
+            session_id: session_id.to_string(),
+            action: AssistantAction::Import,
+            content: format!("截图已保存\n\nID: {}\n路径: {}", asset_id, image_path.display()),
+            format: "text".to_string(),
+            metadata: Some(ActionMetadata {
+                model: None,
+                token_usage: None,
+                duration_ms: None,
+                sources: Some(vec![format!("image:{}", asset_id)]),
+            }),
+            created_at: chrono::Utc::now(),
+        })
+    }
+
+    /// 导入为论文候选
+    async fn import_as_paper(
+        db: &SqlitePool,
+        session_id: &str,
+        content: &str,
+        title: Option<&str>,
+    ) -> Result<ActionResult> {
+        let paper_title = match title {
+            Some(t) => t.to_string(),
+            None => {
+                let preview: String = content.chars().take(100).collect();
+                format!("从悬浮助手导入 - {}", preview)
+            }
+        };
+
+        let content_preview: String = content.chars().take(500).collect();
+
+        let candidate_id = sqlx::query_scalar::<_, String>(
+            "INSERT INTO assistant_paper_candidates (id, session_id, title, content_preview, status, created_at) VALUES (?, ?, ?, ?, 'pending', datetime('now')) RETURNING id"
+        )
+        .bind(Uuid::new_v4().to_string())
+        .bind(session_id)
+        .bind(&paper_title)
+        .bind(&content_preview)
+        .fetch_optional(db)
+        .await?
+        .unwrap_or_default();
+
+        Ok(ActionResult {
+            id: candidate_id.clone(),
+            session_id: session_id.to_string(),
+            action: AssistantAction::Import,
+            content: format!("已创建论文导入候选\n\nID: {}\n标题: {}\n请在论文库中完成导入", candidate_id, paper_title),
+            format: "text".to_string(),
+            metadata: Some(ActionMetadata {
+                model: None,
+                token_usage: None,
+                duration_ms: None,
+                sources: Some(vec![format!("paper:{}", candidate_id)]),
+            }),
+            created_at: chrono::Utc::now(),
+        })
+    }
+
+    /// 导入为稍后处理
+    async fn import_as_later(
+        db: &SqlitePool,
+        session_id: &str,
+        content: &str,
+        title: Option<&str>,
+    ) -> Result<ActionResult> {
+        let later_title = match title {
+            Some(t) => t.to_string(),
+            None => {
+                let preview: String = content.chars().take(50).collect();
+                format!("稍后处理 - {}", preview)
+            }
+        };
+
+        let item_id = sqlx::query_scalar::<_, String>(
+            "INSERT INTO assistant_later_items (title, content, session_id, created_at) VALUES (?, ?, ?, datetime('now')) RETURNING id"
+        )
+        .bind(&later_title)
+        .bind(content)
+        .bind(session_id)
+        .fetch_optional(db)
+        .await?
+        .unwrap_or_default();
+
+        Ok(ActionResult {
+            id: Uuid::new_v4().to_string(),
+            session_id: session_id.to_string(),
+            action: AssistantAction::Import,
+            content: format!("已放入稍后处理\n\nID: {}\n标题: {}", item_id, later_title),
+            format: "text".to_string(),
+            metadata: Some(ActionMetadata {
+                model: None,
+                token_usage: None,
+                duration_ms: None,
+                sources: Some(vec![format!("later:{}", item_id)]),
             }),
             created_at: chrono::Utc::now(),
         })
     }
 
     /// 保存图片到本地
-    pub fn save_image(
+    fn save_image(
         app_data_dir: &std::path::Path,
         asset_id: &str,
         image_data: &[u8],
@@ -293,26 +449,18 @@ impl ActionService {
 
         Ok(image_path)
     }
+}
 
-    /// 创建论文导入候选记录
-    pub async fn create_paper_candidate(
-        db: &sqlx::SqlitePool,
-        session_id: &str,
-        title: &str,
-        content_preview: &str,
-    ) -> Result<String> {
-        let candidate_id = Uuid::new_v4().to_string();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        sqlx::query(
-            "INSERT INTO assistant_paper_candidates (id, session_id, title, content_preview, status, created_at) VALUES (?, ?, ?, ?, 'pending', datetime('now'))"
-        )
-        .bind(&candidate_id)
-        .bind(session_id)
-        .bind(title)
-        .bind(content_preview)
-        .execute(db)
-        .await?;
-
-        Ok(candidate_id)
+    #[test]
+    fn test_import_target_parse() {
+        assert!(matches!("note".parse::<ImportTarget>(), Ok(ImportTarget::Note)));
+        assert!(matches!("image".parse::<ImportTarget>(), Ok(ImportTarget::Image)));
+        assert!(matches!("paper".parse::<ImportTarget>(), Ok(ImportTarget::Paper)));
+        assert!(matches!("later".parse::<ImportTarget>(), Ok(ImportTarget::Later)));
+        assert!("unknown".parse::<ImportTarget>().is_err());
     }
 }
