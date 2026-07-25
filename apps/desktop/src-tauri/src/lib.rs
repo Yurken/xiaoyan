@@ -71,8 +71,10 @@ use commands::{
     desktop_assistant::{
         assistant_capture_screen, assistant_check_permissions, assistant_chat,
         assistant_cleanup, assistant_get_clipboard, assistant_get_frontmost_app,
-        assistant_get_selection, assistant_import, assistant_interpret,
+        assistant_get_selection, assistant_hide_dock, assistant_hide_panel,
+        assistant_import, assistant_interpret, assistant_is_panel_visible,
         assistant_request_accessibility, assistant_request_screen_recording,
+        assistant_show_dock, assistant_show_panel, assistant_toggle_panel,
         assistant_translate,
     },
     evidence::evidence_get_links,
@@ -772,6 +774,13 @@ pub fn run() {
             assistant_chat,
             assistant_import,
             assistant_cleanup,
+            // Window control
+            assistant_show_dock,
+            assistant_hide_dock,
+            assistant_show_panel,
+            assistant_hide_panel,
+            assistant_toggle_panel,
+            assistant_is_panel_visible,
         ])
         .run(tauri::generate_context!());
 

@@ -200,3 +200,72 @@ pub async fn assistant_cleanup() -> Result<(u32, u32), String> {
         .await
         .map_err(|e| e.to_string())
 }
+
+// ─── 窗口控制命令 ──────────────────────────────────────────────────────────
+
+use tauri::Manager;
+
+/// 显示悬浮球窗口
+#[command]
+pub async fn assistant_show_dock(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("assistant-dock") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// 隐藏悬浮球窗口
+#[command]
+pub async fn assistant_hide_dock(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("assistant-dock") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// 显示动作面板窗口
+#[command]
+pub async fn assistant_show_panel(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("assistant-panel") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// 隐藏动作面板窗口
+#[command]
+pub async fn assistant_hide_panel(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("assistant-panel") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// 切换面板显示状态
+#[command]
+pub async fn assistant_toggle_panel(app: tauri::AppHandle) -> Result<bool, String> {
+    if let Some(window) = app.get_webview_window("assistant-panel") {
+        if window.is_visible().unwrap_or(false) {
+            window.hide().map_err(|e| e.to_string())?;
+            Ok(false)
+        } else {
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+            Ok(true)
+        }
+    } else {
+        Err("Panel window not found".to_string())
+    }
+}
+
+/// 获取面板可见状态
+#[command]
+pub async fn assistant_is_panel_visible(app: tauri::AppHandle) -> Result<bool, String> {
+    if let Some(window) = app.get_webview_window("assistant-panel") {
+        window.is_visible().map_err(|e| e.to_string())
+    } else {
+        Ok(false)
+    }
+}
