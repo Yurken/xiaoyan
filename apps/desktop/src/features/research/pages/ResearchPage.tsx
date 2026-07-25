@@ -4,6 +4,7 @@
  */
 import React from 'react'
 import { ArrowRight, Trash2 } from 'lucide-react'
+import { Button, Card, IconButton } from '@research-copilot/ui'
 import { useResearchStore } from '../stores/researchStore'
 import { useResearchSession, useResearchWorkflow, useResearchProtocol, useResearchCandidates } from '../hooks'
 import { TopBar } from '../components/TopBar'
@@ -51,13 +52,10 @@ function Welcome({
             每一步都有记录，每个结论都能回到真实来源。
           </p>
           <div className="mt-6">
-            <button
-              className="rc-focus-cta"
-              onClick={onShowNewResearch}
-            >
+            <Button variant="primary" size="md" onClick={onShowNewResearch}>
               开始一个新研究
               <ArrowRight size={16} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -66,10 +64,10 @@ function Welcome({
             <p className="rc-kicker mb-3">继续之前的研究</p>
             <div className="space-y-2">
               {sessionList.map((s) => (
-                <div
+                <Card
                   key={s.id}
-                  className="rc-focus-card flex w-full items-center gap-3 rounded-2xl p-4 transition-colors"
-                  style={{ cursor: 'pointer' }}
+                  padding="md"
+                  className="flex w-full items-center gap-3 cursor-pointer"
                   onClick={() => onSelectSession(s.id)}
                 >
                   <button
@@ -90,14 +88,13 @@ function Welcome({
                     </span>
                   </button>
                   <span
-                    className="rc-focus-stat-chip"
-                    style={{ color: 'var(--rc-text-soft)' }}
+                    className="inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                    style={{ background: 'var(--rc-badge-bg)', color: 'var(--rc-text-soft)', borderColor: 'var(--rc-badge-border)' }}
                   >
                     {SESSION_STATUS_LABEL[s.status] ?? s.status}
                   </span>
-                  <button
-                    className="rc-icon-button flex items-center justify-center"
-                    style={{ width: 28, height: 28 }}
+                  <IconButton
+                    size="sm"
                     title="删除研究"
                     onClick={(e) => {
                       e.stopPropagation()
@@ -107,8 +104,8 @@ function Welcome({
                     }}
                   >
                     <Trash2 size={14} />
-                  </button>
-                </div>
+                  </IconButton>
+                </Card>
               ))}
             </div>
           </div>

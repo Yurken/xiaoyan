@@ -13,12 +13,11 @@ import ConfigHistoryManageModal from "../features/settings/ConfigHistoryManageMo
 import SkillsSection from "../features/settings/SkillsSection";
 import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from "../features/settings/SettingsChangelogCard";
 import FeedbackSection from "../features/settings/FeedbackSection";
-import TaskSetupSection from "../features/settings/TaskSetupSection";
+import DesktopAssistantSettingsSection from "../features/settings/DesktopAssistantSettingsSection";
 import LayoutSettingsSection from "../features/settings/LayoutSettingsSection";
 import { DEFAULT_SETTINGS, SETTINGS_ACTIVE_SECTION_STORAGE_KEY, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
-import { computeQuickStartReadiness } from "../features/onboarding/quickStart";
 import { AgentChip, SectionIcon } from "../features/settings/shared";
-import { applyProviderPreset, detectPreset, PROVIDER_PRESETS, type ProviderPresetId } from "../features/settings/providerPresets";
+import { applyProviderPreset, detectPreset, type ProviderPresetId } from "../features/settings/providerPresets";
 import { useDataBackup } from "../features/settings/useDataBackup";
 import { useSettingsController } from "../features/settings/useSettingsController";
 import { useSettingsCrypto } from "../features/settings/useSettingsCrypto";
@@ -155,7 +154,7 @@ export default function Settings() {
   } = useSettingsController(DEFAULT_SETTINGS);
   const [activeSection, setActiveSection] = usePersistentStringState<SettingsSectionKey>(
     SETTINGS_ACTIVE_SECTION_STORAGE_KEY,
-    "guided",
+    "assistant",
     SETTINGS_SECTION_KEYS,
   );
   // 「切换与管理」弹窗（由小妍配置弹层的「更多管理」触发）。
@@ -234,7 +233,6 @@ export default function Settings() {
 
   const provider = form.llm_provider as LlmProvider;
   const activePreset = detectPreset(form);
-  const activePresetMeta = PROVIDER_PRESETS.find((preset) => preset.id === activePreset);
 
   const applyPreset = (presetId: ProviderPresetId) => {
     setForm((current) => applyProviderPreset(current, presetId));
@@ -292,14 +290,6 @@ export default function Settings() {
   const displayVersion = updateInfo?.available ? updateInfo.version : appVersion || getUpdateCurrentVersion(updateInfo);
   const changelogPublishedAt = getChangelogReleaseDate(displayVersion);
   const updatePublishedAt = formatUpdateDate(getUpdatePublishedAt(updateInfo) || changelogPublishedAt);
-  const { connectionReady, rolesReady, multiAgentReady } = computeQuickStartReadiness(form);
-  const paperImportReady = [
-    form.paper_import_recognize_title,
-    form.paper_import_recognize_authors,
-    form.paper_import_recognize_year,
-    form.paper_import_recognize_venue,
-    form.paper_import_recognize_keywords,
-  ].some((value) => value !== "false");
 
   return (
     <>
@@ -344,43 +334,8 @@ export default function Settings() {
           </Card>
         ) : null}
 
-        {activeSection === "guided" ? (
-          <TaskSetupSection
-            currentProviderLabel={activePresetMeta?.label ?? "自定义兼容服务"}
-            connectionReady={connectionReady}
-            rolesReady={rolesReady}
-            multiAgentReady={multiAgentReady}
-            paperImportReady={paperImportReady}
-            appLockEnabled={form.app_lock_enabled === "true"}
-            appLockTimeoutMinutes={Number(form.app_lock_timeout_minutes) || 0}
-            onOpenAssistant={() => setActiveSection("assistant")}
-            onOpenPaperLibrary={() => setActiveSection("paper_tags")}
-            onOpenDataConfig={() => setActiveSection("history")}
-            onSetAppLockPassword={async (password, hint, email) => {
-              await apiClient.settings.appLock.setPassword(password, hint, email);
-              set("app_lock_enabled")("true");
-              emitAppLockStatusChange({
-                enabled: true,
-                timeoutMinutes: Number(form.app_lock_timeout_minutes) || 0,
-              });
-            }}
-            onSetAppLockSecurity={async (question, answer) => {
-              await apiClient.settings.appLock.setSecurity(question, answer);
-            }}
-            onClearAppLock={async () => {
-              await apiClient.settings.appLock.clearPassword();
-              set("app_lock_enabled")("false");
-              emitAppLockStatusChange({ enabled: false, timeoutMinutes: 0 });
-            }}
-            onSetAppLockTimeout={async (minutes) => {
-              await apiClient.settings.appLock.setTimeout(minutes);
-              set("app_lock_timeout_minutes")(minutes);
-              emitAppLockStatusChange({
-                enabled: form.app_lock_enabled === "true",
-                timeoutMinutes: Number(minutes) || 0,
-              });
-            }}
-          />
+        {activeSection === "desktop_assistant" ? (
+          <DesktopAssistantSettingsSection />
         ) : null}
 
         {activeSection === "assistant" ? (

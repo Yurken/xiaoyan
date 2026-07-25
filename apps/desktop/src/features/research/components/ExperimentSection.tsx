@@ -3,6 +3,7 @@
  */
 import { useState } from 'react'
 import { FileText, Lock, Unlock } from 'lucide-react'
+import { Card, Button } from '@research-copilot/ui'
 import { Section } from './Section'
 import { EXPERIMENT_STATUS_CONFIG } from '../shared'
 import type { ExperimentProtocol } from '../shared'
@@ -40,7 +41,7 @@ function ExperimentCard({
   }
 
   return (
-    <div className="rc-focus-card-inset rounded-xl p-4">
+    <Card variant="inset" padding="md">
       <div className="mb-2 flex items-start justify-between">
         <div className="flex items-center gap-2">
           <FileText size={14} style={{ color: 'var(--rc-accent)' }} />
@@ -50,22 +51,23 @@ function ExperimentCard({
         </div>
         <div className="flex items-center gap-2">
           <span
-            className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-            style={{ background: statusConfig.bg, color: statusConfig.color }}
+            className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+            style={{ background: statusConfig.bg, color: statusConfig.color, borderColor: 'transparent' }}
           >
             {exp.status === 'frozen' ? <Lock size={10} /> : <Unlock size={10} />}
             {statusConfig.label}
           </span>
           {exp.status === 'draft' && (
-            <button
+            <Button
+              variant="primary"
+              size="sm"
+              loading={isFreezing}
               onClick={() => void handleFreeze()}
-              disabled={isFreezing}
-              className="rc-focus-cta text-xs"
-              style={{ padding: '4px 10px', opacity: isFreezing ? 0.5 : 1 }}
+              className="text-xs"
             >
               <Lock size={12} />
               {isFreezing ? '冻结中...' : '冻结'}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -83,7 +85,7 @@ function ExperimentCard({
           <span>冻结时间：{exp.frozen_at?.slice(0, 10)}</span>
         )}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -93,16 +95,13 @@ export function ExperimentSection({
   onFreeze,
 }: ExperimentSectionProps) {
   return (
-    <Section
-      title="验证方案"
-      description="为采纳的候选假设设计的实验方案"
-    >
+    <Section title="验证方案" description="为采纳的候选假设设计的实验方案">
       {experimentProtocols.length === 0 ? (
-        <div className="rc-focus-card-inset rounded-xl p-4 text-center">
+        <Card variant="inset" padding="md" className="text-center">
           <p className="text-sm" style={{ color: 'var(--rc-text-muted)' }}>
             暂无验证方案，采纳候选假设后可创建
           </p>
-        </div>
+        </Card>
       ) : (
         <div className="space-y-3">
           {experimentProtocols.map((exp) => (

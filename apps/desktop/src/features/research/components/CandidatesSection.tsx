@@ -3,6 +3,7 @@
  */
 import { useState } from 'react'
 import { CheckCircle, XCircle, HelpCircle, FlaskConical } from 'lucide-react'
+import { Card, Button, Input, Textarea } from '@research-copilot/ui'
 import { Section } from './Section'
 import { CANDIDATE_STATUS_CONFIG } from '../shared'
 import type { CandidateHypothesis, CandidateDecisionType, CandidateSet } from '../shared'
@@ -69,18 +70,17 @@ function CandidateCard({
   }
 
   return (
-    <div
-      className="rc-focus-card-inset rounded-xl p-4"
-      style={{
-        borderLeft: `3px solid ${statusConfig.color}`,
-      }}
+    <Card
+      variant="inset"
+      padding="md"
+      style={{ borderLeft: `3px solid ${statusConfig.color}` }}
     >
       <div className="mb-2 flex items-start justify-between">
         <div className="flex items-center gap-2">
           <FlaskConical size={14} style={{ color: 'var(--rc-accent)' }} />
           <span
-            className="rounded-full px-2 py-0.5 text-xs font-medium"
-            style={{ background: statusConfig.bg, color: statusConfig.color }}
+            className="inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+            style={{ background: statusConfig.bg, color: statusConfig.color, borderColor: 'transparent' }}
           >
             v{candidate.version} · {statusConfig.label}
           </span>
@@ -100,7 +100,7 @@ function CandidateCard({
 
       {candidate.decision_reason && (
         <div
-          className="mb-2 rounded-lg p-2 text-xs"
+          className="mb-2 rounded-xl p-2 text-xs"
           style={{
             background: 'var(--rc-chip-bg)',
             color: 'var(--rc-text-muted)',
@@ -112,46 +112,43 @@ function CandidateCard({
 
       {!isDecided && (
         <div className="mt-3 space-y-2">
-          <input
-            type="text"
+          <Input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="决定理由（可选）"
-            className="w-full rounded-lg px-2 py-1 text-xs"
-            style={{
-              background: 'var(--rc-control-bg)',
-              border: '1px solid var(--rc-control-border)',
-              color: 'var(--rc-text)',
-            }}
+            className="text-xs"
           />
           <div className="flex gap-2">
-            <button
+            <Button
+              variant="primary"
+              size="sm"
+              loading={isSubmitting}
               onClick={() => void handleDecide('select')}
-              disabled={isSubmitting}
-              className="rc-focus-cta flex items-center gap-1 text-xs"
-              style={{ padding: '4px 10px', opacity: isSubmitting ? 0.5 : 1 }}
+              className="flex items-center gap-1 text-xs"
             >
               <CheckCircle size={12} />
               采纳
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={isSubmitting}
               onClick={() => void handleDecide('reject')}
-              disabled={isSubmitting}
-              className="rc-focus-btn-secondary flex items-center gap-1 text-xs"
-              style={{ padding: '4px 10px', opacity: isSubmitting ? 0.5 : 1 }}
+              className="flex items-center gap-1 text-xs"
             >
               <XCircle size={12} />
               驳回
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={isSubmitting}
               onClick={() => void handleDecide('defer')}
-              disabled={isSubmitting}
-              className="rc-focus-btn-secondary flex items-center gap-1 text-xs"
-              style={{ padding: '4px 10px', opacity: isSubmitting ? 0.5 : 1 }}
+              className="flex items-center gap-1 text-xs"
             >
               <HelpCircle size={12} />
               保留
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -160,54 +157,48 @@ function CandidateCard({
         <div className="mt-3 space-y-2">
           {showDesignInput ? (
             <>
-              <textarea
+              <Textarea
                 value={design}
                 onChange={(e) => setDesign(e.target.value)}
                 rows={3}
-                className="w-full rounded-lg px-2 py-1 text-xs"
-                style={{
-                  background: 'var(--rc-control-bg)',
-                  border: '1px solid var(--rc-control-border)',
-                  color: 'var(--rc-text)',
-                }}
                 placeholder="描述实验设计方案..."
+                className="text-xs"
               />
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={isSubmitting}
+                  disabled={!design.trim()}
                   onClick={() => void handleCreateExperiment()}
-                  disabled={isSubmitting || !design.trim()}
-                  className="rc-focus-cta text-xs"
-                  style={{ padding: '4px 10px', opacity: isSubmitting || !design.trim() ? 0.5 : 1 }}
+                  className="text-xs"
                 >
                   <FlaskConical size={12} />
                   {isSubmitting ? '创建中...' : '确认创建'}
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={isSubmitting}
                   onClick={() => {
                     setShowDesignInput(false)
                     setDesign('')
                   }}
-                  disabled={isSubmitting}
-                  className="rc-focus-btn-secondary text-xs"
-                  style={{ padding: '4px 10px' }}
+                  className="text-xs"
                 >
                   取消
-                </button>
+                </Button>
               </div>
             </>
           ) : (
-            <button
-              onClick={() => setShowDesignInput(true)}
-              className="rc-focus-btn-secondary text-xs"
-              style={{ padding: '4px 10px' }}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setShowDesignInput(true)} className="text-xs">
               <FlaskConical size={12} />
               创建验证方案
-            </button>
+            </Button>
           )}
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -220,16 +211,13 @@ export function CandidatesSection({
   const allCandidates = candidateSets.flatMap((set) => set.candidates)
 
   return (
-    <Section
-      title="候选假设"
-      description="系统生成的可检验假设，需要你的决定"
-    >
+    <Section title="候选假设" description="系统生成的可检验假设，需要你的决定">
       {allCandidates.length === 0 ? (
-        <div className="rc-focus-card-inset rounded-xl p-4 text-center">
+        <Card variant="inset" padding="md" className="text-center">
           <p className="text-sm" style={{ color: 'var(--rc-text-muted)' }}>
             等待工作流运行后生成候选假设
           </p>
-        </div>
+        </Card>
       ) : (
         <div className="space-y-3">
           {allCandidates.map((candidate) => (

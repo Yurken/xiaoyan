@@ -4,6 +4,7 @@
  */
 import { useState } from 'react'
 import { Copy, Download, ExternalLink, Check, RotateCcw } from 'lucide-react'
+import { Card, CardHeader, CardTitle, IconButton, Badge, Button } from '@research-copilot/ui'
 import type { ActionResult } from '../shared'
 
 interface ResultCardProps {
@@ -24,40 +25,21 @@ export function ResultCard({ result, onCopy, onImport, onExpand, onRetry }: Resu
   }
 
   return (
-    <div
-      className="rc-focus-card overflow-hidden"
-      style={{ width: 380, maxHeight: 520 }}
-    >
+    <Card className="w-[380px] overflow-hidden" padding="none">
       {/* 标题栏 */}
-      <div
-        className="flex items-center justify-between px-4 py-3"
-        style={{ borderBottom: '1px solid var(--rc-border)' }}
-      >
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--rc-text)' }}>
-          结果
-        </h3>
-        <span
-          className="rounded-full px-2 py-0.5 text-xs"
-          style={{
-            background: 'var(--rc-badge-success-bg)',
-            color: 'var(--rc-badge-success-text)',
-          }}
-        >
-          完成
-        </span>
-      </div>
+      <CardHeader className="px-4 py-3" style={{ borderBottom: '1px solid var(--rc-border)' }}>
+        <CardTitle className="text-sm">结果</CardTitle>
+        <Badge variant="success">完成</Badge>
+      </CardHeader>
 
       {/* 内容区域 */}
       <div className="p-4">
         {/* 结果内容 */}
-        <div
-          className="mb-4 rounded-xl p-3"
-          style={{ background: 'var(--rc-card-inset-bg)', minHeight: 100 }}
-        >
+        <Card variant="inset" padding="sm" className="mb-4" style={{ minHeight: 100 }}>
           <div className="prose prose-sm max-w-none text-sm" style={{ color: 'var(--rc-text)' }}>
             {result.content}
           </div>
-        </div>
+        </Card>
 
         {/* 元数据 */}
         {result.metadata?.sources && result.metadata.sources.length > 0 && (
@@ -74,10 +56,7 @@ export function ResultCard({ result, onCopy, onImport, onExpand, onRetry }: Resu
 
         {/* 操作按钮 */}
         <div className="flex gap-2">
-          <button
-            onClick={handleCopy}
-            className="rc-focus-btn-secondary flex flex-1 items-center justify-center gap-2 text-sm"
-          >
+          <Button variant="secondary" size="sm" onClick={handleCopy} className="flex-1">
             {copied ? (
               <>
                 <Check size={14} />
@@ -89,34 +68,23 @@ export function ResultCard({ result, onCopy, onImport, onExpand, onRetry }: Resu
                 复制
               </>
             )}
-          </button>
-          <button
-            onClick={onImport}
-            className="rc-focus-btn-secondary flex flex-1 items-center justify-center gap-2 text-sm"
-          >
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onImport} className="flex-1">
             <Download size={14} />
             导入
-          </button>
+          </Button>
           {onExpand && (
-            <button
-              onClick={onExpand}
-              className="rc-focus-btn-secondary flex items-center justify-center gap-2 text-sm"
-              style={{ padding: '0 12px' }}
-            >
+            <IconButton size="sm" onClick={onExpand}>
               <ExternalLink size={14} />
-            </button>
+            </IconButton>
           )}
           {onRetry && (
-            <button
-              onClick={onRetry}
-              className="rc-focus-btn-secondary flex items-center justify-center gap-2 text-sm"
-              style={{ padding: '0 12px' }}
-            >
+            <IconButton size="sm" onClick={onRetry}>
               <RotateCcw size={14} />
-            </button>
+            </IconButton>
           )}
         </div>
       </div>
-    </div>
+    </Card>
   )
 }

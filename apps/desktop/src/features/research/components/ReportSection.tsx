@@ -2,6 +2,7 @@
  * 研究报告导出区域
  */
 import { Download, FileText, FileCode, FileImage } from 'lucide-react'
+import { Card, Button } from '@research-copilot/ui'
 import { Section } from './Section'
 import { exportUrl } from '../services/backend'
 import type { ResearchOutput } from '../shared'
@@ -19,20 +20,17 @@ export function ReportSection({ sessionId, output }: ReportSectionProps) {
   ]
 
   return (
-    <Section
-      title="研究报告"
-      description="导出研究成果"
-    >
+    <Section title="研究报告" description="导出研究成果">
       {!output ? (
-        <div className="rc-focus-card-inset rounded-xl p-4 text-center">
+        <Card variant="inset" padding="md" className="text-center">
           <p className="text-sm" style={{ color: 'var(--rc-text-muted)' }}>
             工作流完成后将生成研究报告
           </p>
-        </div>
+        </Card>
       ) : (
         <div className="space-y-4">
           {/* 报告预览 */}
-          <div className="rc-focus-card-inset rounded-xl p-4">
+          <Card variant="inset" padding="md">
             <h4 className="mb-2 text-sm font-semibold" style={{ color: 'var(--rc-text)' }}>
               {output.title || '研究标题'}
             </h4>
@@ -51,7 +49,7 @@ export function ReportSection({ sessionId, output }: ReportSectionProps) {
                 </p>
               </div>
             )}
-          </div>
+          </Card>
 
           {/* 导出按钮 */}
           <div>
@@ -65,11 +63,12 @@ export function ReportSection({ sessionId, output }: ReportSectionProps) {
                   href={exportUrl(sessionId, format)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rc-focus-btn-secondary flex items-center gap-2"
                 >
-                  <Icon size={14} />
-                  {label}
-                  <Download size={12} />
+                  <Button variant="secondary" size="sm" className="flex items-center gap-2">
+                    <Icon size={14} />
+                    {label}
+                    <Download size={12} />
+                  </Button>
                 </a>
               ))}
             </div>

@@ -2,6 +2,7 @@
  * 研究工作流执行追踪
  */
 import { CheckCircle2, Circle, Loader2, XCircle, AlertCircle } from 'lucide-react'
+import { Card, Badge } from '@research-copilot/ui'
 import type { ResearchWorkflowState } from '../hooks'
 
 const STATUS_ICON: Record<string, typeof Circle> = {
@@ -13,13 +14,13 @@ const STATUS_ICON: Record<string, typeof Circle> = {
   skipped: Circle,
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  pending: 'var(--rc-text-muted)',
-  running: 'var(--rc-accent)',
-  completed: 'var(--rc-badge-success-text)',
-  failed: 'var(--rc-badge-danger-text)',
-  cancelled: 'var(--rc-text-muted)',
-  skipped: 'var(--rc-text-muted)',
+const STATUS_VARIANT: Record<string, 'default' | 'success' | 'danger' | 'warning'> = {
+  pending: 'default',
+  running: 'warning',
+  completed: 'success',
+  failed: 'danger',
+  cancelled: 'default',
+  skipped: 'default',
 }
 
 interface ExecutionTraceProps {
@@ -30,26 +31,20 @@ export function ExecutionTrace({ workflow }: ExecutionTraceProps) {
   const { workflowSteps, currentStage, isRunning, processLog } = workflow
 
   return (
-    <aside
-      className="rc-focus-card flex flex-col rounded-2xl p-4"
-      style={{ maxHeight: 'calc(100vh - 120px)' }}
-    >
-      <h3
-        className="mb-3 text-sm font-semibold"
-        style={{ color: 'var(--rc-text)' }}
-      >
+    <Card className="flex flex-col" padding="md" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+      <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--rc-text)' }}>
         执行追踪
       </h3>
 
       {/* 当前状态 */}
-      <div className="rc-focus-card-inset mb-4 rounded-xl p-3">
+      <Card variant="inset" padding="sm" className="mb-4">
         <div className="text-xs" style={{ color: 'var(--rc-text-muted)' }}>
           {isRunning ? '当前阶段' : '状态'}
         </div>
         <div className="mt-1 text-sm font-medium" style={{ color: 'var(--rc-text)' }}>
           {currentStage || '等待开始'}
         </div>
-      </div>
+      </Card>
 
       {/* 工作流步骤 */}
       {workflowSteps.length > 0 && (
@@ -60,7 +55,7 @@ export function ExecutionTrace({ workflow }: ExecutionTraceProps) {
           <div className="space-y-1">
             {workflowSteps.map((step) => {
               const Icon = STATUS_ICON[step.status] || Circle
-              const color = STATUS_COLOR[step.status] || 'var(--rc-text-muted)'
+              const variant = STATUS_VARIANT[step.status] || 'default'
               return (
                 <div
                   key={step.id}
@@ -69,14 +64,12 @@ export function ExecutionTrace({ workflow }: ExecutionTraceProps) {
                     background: step.status === 'running' ? 'rgba(0, 122, 255, 0.08)' : 'transparent',
                   }}
                 >
-                  <Icon
-                    size={14}
-                    className={step.status === 'running' ? 'animate-spin' : ''}
-                    style={{
-                      color,
-                      flexShrink: 0,
-                    }}
-                  />
+                  <Badge variant={variant} className="h-5 w-5 items-center justify-center p-0">
+                    <Icon
+                      size={14}
+                      className={step.status === 'running' ? 'animate-spin' : ''}
+                    />
+                  </Badge>
                   <span
                     className="truncate text-xs"
                     style={{
@@ -125,6 +118,6 @@ export function ExecutionTrace({ workflow }: ExecutionTraceProps) {
           )}
         </div>
       </div>
-    </aside>
+    </Card>
   )
 }
