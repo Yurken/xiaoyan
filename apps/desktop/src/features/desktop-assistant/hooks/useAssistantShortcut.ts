@@ -4,6 +4,18 @@
  */
 import { useState, useCallback, useEffect } from 'react'
 
+// Tauri invoke 包装
+async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke: tauriInvoke } = await import('@tauri-apps/api/core')
+  return tauriInvoke<T>(command, args)
+}
+
+// Tauri listen 包装
+async function listen<T>(event: string, handler: (payload: T) => void): Promise<() => void> {
+  const { listen: tauriListen } = await import('@tauri-apps/api/event')
+  return tauriListen<T>(event, handler)
+}
+
 export interface UseAssistantShortcut {
   shortcut: string
   isRegistered: boolean
@@ -28,56 +40,92 @@ export function useAssistantShortcut(
   }, [])
 
   const checkConflict = useCallback(async (shortcutToCheck: string): Promise<string | null> => {
-    // TODO: 调用 Tauri 全局快捷键 API 检查冲突
-    // 模拟检查
-    const commonConflicts: Record<string, string> = {
+    // 系统快捷键冲突检查
+    const systemShortcuts: Record<string, string> = {
       'Command+C': '复制',
       'Command+V': '粘贴',
       'Command+X': '剪切',
       'Command+Z': '撤销',
       'Command+Tab': '应用切换',
+      'Command+Space': 'Spotlight',
       'Alt+Tab': '窗口切换',
+      'Alt+Command+Esc': '强制退出',
+      'Control+Up': 'Mission Control',
+      'Control+Down': '应用窗口',
+      'Control+Left': '左桌面',
+      'Control+Right': '右桌面',
     }
-    return commonConflicts[shortcutToCheck] ?? null
+    return systemShortcuts[shortcutToCheck] ?? null
   }, [])
 
   const registerShortcut = useCallback(async (): Promise<boolean> => {
     try {
+      // 检查冲突
       const conflictApp = await checkConflict(shortcut)
       if (conflictApp) {
         setConflict(conflictApp)
         return false
       }
 
-      // TODO: 调用 Tauri 全局快捷键 API 注册
-      // await invoke('plugin:global-shortcut|register', { shortcut })
+      // 调用 Tauri global-shortcut 插件注册
+      await invoke('plugin:global-shortcut|register', {
+        shortcut,
+      })
+
       setIsRegistered(true)
       setConflict(null)
       return true
     } catch (err) {
       console.error('[assistant] Failed to register shortcut:', err)
+      // 如果是冲突错误，尝试解析
+      if (err instanceof Error && err.message.includes('Conflict')) {
+        setConflict('与其他应用冲突')
+      }
       return false
     }
   }, [shortcut, checkConflict])
 
   const unregisterShortcut = useCallback(async (): Promise<void> => {
     try {
-      // TODO: 调用 Tauri 全局快捷键 API 注销
-      // await invoke('plugin:global-shortcut|unregister', { shortcut })
+      await invoke('plugin:global-shortcut|unregister', {
+        shortcut,
+      })
       setIsRegistered(false)
     } catch (err) {
       console.error('[assistant] Failed to unregister shortcut:', err)
     }
   }, [shortcut])
 
-  // 监听快捷键触发
+  // 监听快捷键触发事件
   useEffect(() => {
-    // TODO: 监听 Tauri 全局快捷键事件
-    // const unlisten = await listen('global-shortcut-triggered', () => {
-    //   onTrigger?.()
-    // })
-    // return () => unlisten()
-  }, [onTrigger])
+    if (!onTrigger) return
+
+    let unlisten: (() => void) | null = null
+
+    const setup = async () => {
+      unlisten = await listen('global-shortcut://trigger', (event: { shortcut?: string }) => {
+        // 检查是否是我们的快捷键
+        if (event.shortcut === shortcut) {
+          onTrigger()
+        }
+      })
+    }
+
+    void setup()
+
+    return () => {
+      unlisten?.()
+    }
+  }, [shortcut, onTrigger])
+
+  // 组件卸载时自动注销
+  useEffect(() => {
+    return () => {
+      if (isRegistered) {
+        void unregisterShortcut()
+      }
+    }
+  }, [isRegistered, unregisterShortcut])
 
   return {
     shortcut,
