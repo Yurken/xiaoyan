@@ -12,6 +12,7 @@ import {
   Send,
   Settings as SettingsIcon,
   Wrench,
+  Microscope,
 } from "lucide-react";
 import RouteErrorBoundary from "./components/RouteErrorBoundary";
 
@@ -30,6 +31,8 @@ const Experiment = lazy(() => import("./pages/Experiment"));
 const Writing = lazy(() => import("./pages/Writing"));
 const ResearchTheme = lazy(() => import("./pages/ResearchTheme"));
 const FocusApp = lazy(() => import("./pages/FocusLayout"));
+const ResearchPage = lazy(() => import("./features/research/pages/ResearchPage"));
+
 import LockScreen from "./features/appLock/LockScreen";
 import { useAppLock } from "./features/appLock/useAppLock";
 import { apiClient } from "./lib/client";
@@ -61,6 +64,7 @@ const navItems = [
   { to: "/writing", icon: PenLine, label: "写作" },
   { to: "/knowledge", icon: Library, label: "知识" },
   { to: "/experiment", icon: FlaskConical, label: "实验" },
+  { to: "/research", icon: Microscope, label: "研究" },
   { to: "/submission", icon: Send, label: "投稿" },
   { to: "/tools", icon: Wrench, label: "工具" },
   { to: "/settings", icon: SettingsIcon, label: "设置" },
@@ -208,6 +212,7 @@ export default function App() {
             <Route path="/writing" element={<RouteErrorBoundary><Writing /></RouteErrorBoundary>} />
             <Route path="/submission" element={<RouteErrorBoundary><Submission /></RouteErrorBoundary>} />
             <Route path="/experiment" element={<RouteErrorBoundary><Experiment /></RouteErrorBoundary>} />
+            <Route path="/research" element={<RouteErrorBoundary><ResearchPage /></RouteErrorBoundary>} />
             <Route path="/tools" element={<RouteErrorBoundary><Tools /></RouteErrorBoundary>} />
             <Route path="/code" element={<Navigate to="/experiment" replace />} />
             <Route path="/chat" element={<RouteErrorBoundary><Copilot /></RouteErrorBoundary>} />
