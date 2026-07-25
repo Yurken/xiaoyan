@@ -3,11 +3,13 @@
 //! 参数校验后委托 service，禁止承载业务逻辑
 
 use serde::{Deserialize, Serialize};
-use tauri::command;
+use tauri::{command, State};
 
+use crate::llm::LlmClient;
 use crate::services::desktop_assistant::{
     ActionService, CaptureService, CleanupService, PermissionService,
 };
+use crate::state::AppState;
 
 /// 助手偏好设置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,65 +131,90 @@ pub async fn assistant_get_frontmost_app() -> Result<(Option<String>, Option<Str
 /// 执行解读动作
 #[command]
 pub async fn assistant_interpret(
+    state: State<'_, AppState>,
+    session_id: String,
     content: String,
     question: Option<String>,
 ) -> Result<ActionResultResponse, String> {
-    // TODO: 实现解读
+    let settings = state.settings.read().await.clone();
+    let llm = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
+    let result = ActionService::interpret(&llm, &session_id, &content, question.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(ActionResultResponse {
-        id: "placeholder".to_string(),
-        session_id: "placeholder".to_string(),
+        id: result.id,
+        session_id: result.session_id,
         action: "interpret".to_string(),
-        content: "解读结果占位符".to_string(),
-        format: "text".to_string(),
+        content: result.content,
+        format: result.format,
     })
 }
 
 /// 执行翻译动作
 #[command]
 pub async fn assistant_translate(
+    state: State<'_, AppState>,
+    session_id: String,
     content: String,
     target_lang: Option<String>,
 ) -> Result<ActionResultResponse, String> {
-    // TODO: 实现翻译
+    let settings = state.settings.read().await.clone();
+    let llm = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
+    let result = ActionService::translate(&llm, &session_id, &content, target_lang.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(ActionResultResponse {
-        id: "placeholder".to_string(),
-        session_id: "placeholder".to_string(),
+        id: result.id,
+        session_id: result.session_id,
         action: "translate".to_string(),
-        content: "翻译结果占位符".to_string(),
-        format: "text".to_string(),
+        content: result.content,
+        format: result.format,
     })
 }
 
 /// 执行对话动作
 #[command]
 pub async fn assistant_chat(
-    content: String,
+    state: State<'_, AppState>,
+    session_id: String,
+    context: String,
     question: String,
 ) -> Result<ActionResultResponse, String> {
-    // TODO: 实现对话
+    let settings = state.settings.read().await.clone();
+    let llm = LlmClient::from_settings(&settings).map_err(|e| e.to_string())?;
+    let result = ActionService::chat(&llm, &session_id, &context, &question)
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(ActionResultResponse {
-        id: "placeholder".to_string(),
-        session_id: "placeholder".to_string(),
+        id: result.id,
+        session_id: result.session_id,
         action: "chat".to_string(),
-        content: "对话结果占位符".to_string(),
-        format: "text".to_string(),
+        content: result.content,
+        format: result.format,
     })
 }
 
 /// 执行导入动作
 #[command]
 pub async fn assistant_import(
+    session_id: String,
     content: String,
     target: String,
     metadata: Option<String>,
 ) -> Result<ActionResultResponse, String> {
-    // TODO: 实现导入
+    let result = ActionService::import(&session_id, &content, &target, metadata.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(ActionResultResponse {
-        id: "placeholder".to_string(),
-        session_id: "placeholder".to_string(),
+        id: result.id,
+        session_id: result.session_id,
         action: "import".to_string(),
-        content: "导入成功".to_string(),
-        format: "text".to_string(),
+        content: result.content,
+        format: result.format,
     })
 }
 
