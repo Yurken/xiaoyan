@@ -59,6 +59,36 @@ pub struct ActionResultResponse {
     pub format: String,
 }
 
+/// 采集上下文响应
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaptureContextResponse {
+    pub session_id: String,
+    pub content: Option<String>,
+    pub sanitized_content: Option<String>,
+    pub source_app: Option<String>,
+    pub source_app_bundle_id: Option<String>,
+    pub window_title: Option<String>,
+    pub status: String,
+    pub privacy_check: Option<crate::services::desktop_assistant::permission_service::PrivacyCheckResult>,
+}
+
+impl From<crate::services::desktop_assistant::capture_service::CaptureStatus> for String {
+    fn from(status: crate::services::desktop_assistant::capture_service::CaptureStatus) -> Self {
+        match status {
+            crate::services::desktop_assistant::capture_service::CaptureStatus::Idle => "idle".to_string(),
+            crate::services::desktop_assistant::capture_service::CaptureStatus::Capturing => "capturing".to_string(),
+            crate::services::desktop_assistant::capture_service::CaptureStatus::Ready => "ready".to_string(),
+            crate::services::desktop_assistant::capture_service::CaptureStatus::Processing => "processing".to_string(),
+            crate::services::desktop_assistant::capture_service::CaptureStatus::Error => "error".to_string(),
+            crate::services::desktop_assistant::capture_service::CaptureStatus::Blocked => "blocked".to_string(),
+        }
+    }
+}
+
+fn status_to_string(status: crate::services::desktop_assistant::capture_service::CaptureStatus) -> String {
+    status.into()
+}
+
 // ─── 权限相关命令 ──────────────────────────────────────────────────────────
 
 /// 检查权限状态
@@ -93,32 +123,75 @@ pub async fn assistant_request_screen_recording() -> Result<bool, String> {
 
 // ─── 采集相关命令 ──────────────────────────────────────────────────────────
 
-/// 获取选中文本
+/// 获取选中文本（带隐私检查）
 #[command]
-pub async fn assistant_get_selection() -> Result<Option<String>, String> {
-    CaptureService::get_selection()
-        .await
-        .map_err(|e| e.to_string())
+pub async fn assistant_get_selection(state: State<'_, AppState>) -> Result<CaptureContextResponse, String> {
+    let settings = state.settings.read().await.clone();
+    let blocked_apps: Vec<String> = settings
+        .get("assistant_blocked_apps")
+        .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
+        .unwrap_or_default();
+
+    let result = CaptureService::get_context(
+        &crate::services::desktop_assistant::capture_service::ContextSourceType::Selection,
+        &blocked_apps,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(CaptureContextResponse {
+        session_id: result.session.id,
+        content: result.session.content,
+        sanitized_content: result.sanitized_content,
+        source_app: result.session.source_app,
+        source_app_bundle_id: result.session.source_app_bundle_id,
+        window_title: result.session.window_title,
+        status: status_to_string(result.session.status),
+        privacy_check: result.session.privacy_check,
+    })
 }
 
-/// 获取剪贴板内容
+/// 获取剪贴板内容（带隐私检查）
 #[command]
-pub async fn assistant_get_clipboard() -> Result<Option<String>, String> {
-    CaptureService::get_clipboard()
-        .await
-        .map_err(|e| e.to_string())
+pub async fn assistant_get_clipboard(state: State<'_, AppState>) -> Result<CaptureContextResponse, String> {
+    let settings = state.settings.read().await.clone();
+    let blocked_apps: Vec<String> = settings
+        .get("assistant_blocked_apps")
+        .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
+        .unwrap_or_default();
+
+    let result = CaptureService::get_context(
+        &crate::services::desktop_assistant::capture_service::ContextSourceType::Clipboard,
+        &blocked_apps,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(CaptureContextResponse {
+        session_id: result.session.id,
+        content: result.session.content,
+        sanitized_content: result.sanitized_content,
+        source_app: result.session.source_app,
+        source_app_bundle_id: result.session.source_app_bundle_id,
+        window_title: result.session.window_title,
+        status: status_to_string(result.session.status),
+        privacy_check: result.session.privacy_check,
+    })
 }
 
 /// 截取屏幕区域
 #[command]
 pub async fn assistant_capture_screen(
-    x: i32,
-    y: i32,
-    width: u32,
-    height: u32,
+    _x: i32,
+    _y: i32,
+    _width: u32,
+    _height: u32,
 ) -> Result<Vec<u8>, String> {
-    // TODO: 实现截图
-    Ok(Vec::new())
+    // 使用 CaptureService 获取屏幕区域
+    // 注意：当前实现使用 screencapture 命令行工具
+    CaptureService::capture_screen_region(_x, _y, _width, _height)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 获取前台应用信息
@@ -260,15 +333,16 @@ pub async fn assistant_import(
         }
         ImportTarget::Image => {
             // 保存截图到本地应用数据目录
-            // 创建图片资产记录
             let asset_id = uuid::Uuid::new_v4().to_string();
+
+            // 创建图片资产记录（content 作为 base64 图片数据）
             let asset_path = format!("assistant_images/{}.png", asset_id);
 
             ActionResult {
                 id: asset_id.clone(),
                 session_id: session_id.clone(),
                 action: AssistantAction::Import,
-                content: format!("截图已保存\n\n路径: {}", asset_path),
+                content: format!("截图已保存\n\nID: {}\n路径: {}", asset_id, asset_path),
                 format: "text".to_string(),
                 metadata: Some(ActionMetadata {
                     model: None,
@@ -280,24 +354,38 @@ pub async fn assistant_import(
             }
         }
         ImportTarget::Paper => {
-            // 委托论文库导入管线
-            // 创建一个待处理的论文导入候选
+            // 创建论文导入候选记录
             let paper_title = title.unwrap_or_else(|| {
                 let preview: String = content.chars().take(100).collect();
                 format!("从悬浮助手导入 - {}", preview)
             });
 
+            let content_preview: String = content.chars().take(500).collect();
+
+            // 创建候选记录
+            let candidate_id = sqlx::query_scalar::<_, String>(
+                "INSERT INTO assistant_paper_candidates (id, session_id, title, content_preview, status, created_at) VALUES (?, ?, ?, ?, 'pending', datetime('now')) RETURNING id"
+            )
+            .bind(uuid::Uuid::new_v4().to_string())
+            .bind(&session_id)
+            .bind(&paper_title)
+            .bind(&content_preview)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| format!("Failed to create paper candidate: {}", e))?
+            .unwrap_or_default();
+
             ActionResult {
-                id: uuid::Uuid::new_v4().to_string(),
+                id: candidate_id.clone(),
                 session_id: session_id.clone(),
                 action: AssistantAction::Import,
-                content: format!("已准备导入论文库\n\n标题: {}\n请在论文库中完成导入", paper_title),
+                content: format!("已创建论文导入候选\n\nID: {}\n标题: {}\n请在论文库中完成导入", candidate_id, paper_title),
                 format: "text".to_string(),
                 metadata: Some(ActionMetadata {
                     model: None,
                     token_usage: None,
                     duration_ms: None,
-                    sources: None,
+                    sources: Some(vec![format!("paper:{}", candidate_id)]),
                 }),
                 created_at: chrono::Utc::now(),
             }

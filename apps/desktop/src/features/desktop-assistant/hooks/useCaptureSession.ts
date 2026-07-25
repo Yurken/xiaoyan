@@ -1,7 +1,7 @@
 /**
  * 采集会话管理 hook
  * 职责：一次性采集会话、预览、重试、取消
- * 调用 Tauri 命令获取上下文
+ * 调用 Tauri 命令获取上下文，集成隐私检查
  */
 import { useState, useCallback, useRef } from 'react'
 import type { CaptureSession, ContextSourceType, CaptureStatus } from '../shared'
@@ -13,9 +13,31 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
   return tauriInvoke<T>(command, args)
 }
 
+/** 隐私检查结果 */
+interface PrivacyCheckResult {
+  allowed: boolean
+  reason: string | null
+  app_blocked: boolean
+  window_blocked: boolean
+  content_sensitive: boolean
+}
+
+/** 采集上下文响应 */
+interface CaptureContextResponse {
+  session_id: string
+  content: string | null
+  sanitized_content: string | null
+  source_app: string | null
+  source_app_bundle_id: string | null
+  window_title: string | null
+  status: string
+  privacy_check: PrivacyCheckResult | null
+}
+
 export interface UseCaptureSession {
   session: CaptureSession | null
   status: CaptureStatus
+  privacyError: string | null
   startCapture: (sourceType: ContextSourceType) => Promise<void>
   updateContent: (content: string) => void
   confirmCapture: () => void
@@ -29,89 +51,91 @@ export function useCaptureSession(
 ): UseCaptureSession {
   const [session, setSession] = useState<CaptureSession | null>(null)
   const [status, setStatus] = useState<CaptureStatus>('idle')
+  const [privacyError, setPrivacyError] = useState<string | null>(null)
   const lastSourceRef = useRef<ContextSourceType>('clipboard')
-
-  const createSession = useCallback(
-    (sourceType: ContextSourceType): CaptureSession => {
-      return {
-        id: generateId(),
-        sourceType,
-        content: null,
-        screenshotPath: null,
-        sourceApp: null,
-        sourceAppBundleId: null,
-        windowTitle: null,
-        createdAt: Date.now(),
-        expiresAt: calculateExpiry(retainPolicy),
-        status: 'capturing',
-        userConfirmed: false,
-      }
-    },
-    [retainPolicy]
-  )
 
   const startCapture = useCallback(
     async (sourceType: ContextSourceType) => {
       lastSourceRef.current = sourceType
       setStatus('capturing')
-      const newSession = createSession(sourceType)
-      setSession(newSession)
+      setPrivacyError(null)
 
       try {
-        // 获取前台应用信息
-        const [appName, bundleId, windowTitle] = await invoke<[string | null, string | null, string | null]>(
-          'assistant_get_frontmost_app'
-        )
-
-        let content: string | null = null
-        let screenshotPath: string | null = null
+        // 根据来源类型调用不同的 Tauri 命令
+        let response: CaptureContextResponse
 
         switch (sourceType) {
           case 'selection':
-            // 尝试获取选中文本
-            content = await invoke<string | null>('assistant_get_selection')
+            response = await invoke<CaptureContextResponse>('assistant_get_selection')
             break
-
           case 'clipboard':
-            // 获取剪贴板内容
-            content = await invoke<string | null>('assistant_get_clipboard')
+            response = await invoke<CaptureContextResponse>('assistant_get_clipboard')
             break
-
           case 'screenshot':
-            // 截图需要用户框选，这里先获取全屏或等待用户操作
-            // TODO: 实现框选截图
-            screenshotPath = null
+            // 截图模式：先获取前台应用信息，然后让用户框选
+            response = await invoke<CaptureContextResponse>('assistant_get_frontmost_app_screenshot')
             break
-
           case 'paste':
-            // 粘贴模式：内容由用户手动输入
-            content = null
+            // 粘贴模式：创建空会话，等待用户粘贴
+            response = {
+              session_id: generateId(),
+              content: null,
+              sanitized_content: null,
+              source_app: null,
+              source_app_bundle_id: null,
+              window_title: null,
+              status: 'ready',
+              privacy_check: null,
+            }
             break
+          default:
+            throw new Error(`Unknown source type: ${sourceType}`)
         }
 
-        // 更新会话状态
-        const updatedSession: CaptureSession = {
-          ...newSession,
-          content,
-          screenshotPath,
-          sourceApp: appName,
-          sourceAppBundleId: bundleId,
-          windowTitle,
-          status: content || screenshotPath ? 'ready' : 'error',
+        // 创建会话
+        const newSession: CaptureSession = {
+          id: response.session_id,
+          sourceType,
+          content: response.content,
+          screenshotPath: null,
+          sourceApp: response.source_app,
+          sourceAppBundleId: response.source_app_bundle_id,
+          windowTitle: response.window_title,
+          createdAt: Date.now(),
+          expiresAt: calculateExpiry(retainPolicy),
+          status: response.status === 'ready' ? 'ready' : response.status === 'blocked' ? 'error' : 'capturing',
+          userConfirmed: false,
         }
-        setSession(updatedSession)
-        setStatus(updatedSession.status)
+
+        // 检查隐私检查结果
+        if (response.privacy_check && !response.privacy_check.allowed) {
+          setPrivacyError(response.privacy_check.reason || '内容被隐私策略阻止')
+          newSession.status = 'error'
+        }
+
+        setSession(newSession)
+        setStatus(newSession.status)
       } catch (err) {
         console.error('[assistant] Capture failed:', err)
         const errorSession: CaptureSession = {
-          ...newSession,
+          id: generateId(),
+          sourceType,
+          content: null,
+          screenshotPath: null,
+          sourceApp: null,
+          sourceAppBundleId: null,
+          windowTitle: null,
+          createdAt: Date.now(),
+          expiresAt: calculateExpiry(retainPolicy),
           status: 'error',
+          userConfirmed: false,
         }
         setSession(errorSession)
         setStatus('error')
+        setPrivacyError(err instanceof Error ? err.message : '采集失败')
       }
     },
-    [createSession]
+    [retainPolicy]
   )
 
   const updateContent = useCallback((content: string) => {
@@ -125,6 +149,7 @@ export function useCaptureSession(
   const cancelCapture = useCallback(() => {
     setSession(null)
     setStatus('idle')
+    setPrivacyError(null)
   }, [])
 
   const retryCapture = useCallback(async () => {
@@ -136,11 +161,13 @@ export function useCaptureSession(
   const clearSession = useCallback(() => {
     setSession(null)
     setStatus('idle')
+    setPrivacyError(null)
   }, [])
 
   return {
     session,
     status,
+    privacyError,
     startCapture,
     updateContent,
     confirmCapture,
