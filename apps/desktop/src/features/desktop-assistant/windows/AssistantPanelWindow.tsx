@@ -1,19 +1,15 @@
 /**
- * 桌面助手页面入口
- * 用于独立窗口或作为页面组件
+ * 桌面助手动作面板窗口
+ * 运行在独立的 assistant-panel Tauri 窗口中
  */
 import { useAssistantOverlay, useAssistantWindow, useCaptureSession } from '../hooks'
-import { AssistantDock, AssistantPanel, CapturePreview, ResultCard, ImportDialog } from '../components'
+import { AssistantPanel, CapturePreview, ResultCard, ImportDialog } from '../components'
 import type { AssistantAction, ImportConfig, ContextSourceType } from '../shared'
 
-export default function AssistantPage() {
+export default function AssistantPanelWindow() {
   const overlay = useAssistantOverlay()
   const windowManager = useAssistantWindow()
   const capture = useCaptureSession()
-
-  const handleDockClick = async () => {
-    await windowManager.togglePanel()
-  }
 
   const handleAction = async (action: AssistantAction) => {
     if (!capture.session?.content && action !== 'import') return
@@ -21,7 +17,6 @@ export default function AssistantPage() {
     overlay.setPanelStatus('loading')
 
     try {
-      // 根据动作类型调用不同的 Tauri 命令
       const { invoke } = await import('@tauri-apps/api/core')
 
       let result: { id: string; session_id: string; action: string; content: string; format: string }
@@ -83,7 +78,7 @@ export default function AssistantPage() {
     try {
       const { invoke } = await import('@tauri-apps/api/core')
 
-      const result = await invoke('assistant_import', {
+      await invoke('assistant_import', {
         sessionId: capture.session.id,
         content: capture.session.content,
         target: config.target,
@@ -91,7 +86,6 @@ export default function AssistantPage() {
         tags: config.tags || null,
       })
 
-      console.log('Import result:', result)
       overlay.reset()
       capture.clearSession()
       await windowManager.hidePanel()
@@ -102,7 +96,6 @@ export default function AssistantPage() {
   }
 
   const handlePasteFallback = () => {
-    // 切换到粘贴模式
     capture.clearSession()
     void capture.startCapture('paste')
   }
@@ -111,44 +104,41 @@ export default function AssistantPage() {
     void capture.startCapture(sourceType)
   }
 
-  return (
-    <div className="h-full">
-      {/* 悬浮球 - 仅在主窗口模式下显示 */}
-      <AssistantDock onClick={() => void handleDockClick()} />
+  const handleClose = async () => {
+    overlay.reset()
+    capture.clearSession()
+    await windowManager.hidePanel()
+  }
 
-      {/* 动作面板 */}
-      {windowManager.isPanelVisible && (
-        <div className="fixed right-20 top-1/2 z-50 -translate-y-1/2">
-          {!capture.session || capture.status === 'idle' ? (
-            <AssistantPanel
-              session={capture.session}
-              isLoading={capture.status === 'capturing'}
-              onAction={(action) => void handleAction(action)}
-              onSourceChange={handleSourceChange}
-              onClose={() => void windowManager.hidePanel()}
-            />
-          ) : capture.status === 'ready' && overlay.currentResult ? (
-            <ResultCard
-              result={overlay.currentResult}
-              onCopy={(content) => navigator.clipboard.writeText(content)}
-              onImport={() => handleImport({ target: 'note', preserveOriginal: false })}
-              onRetry={() => void handleAction('interpret')}
-            />
-          ) : (
-            <CapturePreview
-              session={capture.session}
-              privacyError={capture.privacyError}
-              onConfirm={capture.confirmCapture}
-              onCancel={capture.cancelCapture}
-              onRetry={() => void capture.retryCapture()}
-              onEdit={capture.updateContent}
-              onPasteFallback={handlePasteFallback}
-            />
-          )}
-        </div>
+  return (
+    <div className="h-full w-full overflow-hidden bg-transparent p-2">
+      {!capture.session || capture.status === 'idle' ? (
+        <AssistantPanel
+          session={capture.session}
+          isLoading={capture.status === 'capturing'}
+          onAction={(action) => void handleAction(action)}
+          onSourceChange={handleSourceChange}
+          onClose={() => void handleClose()}
+        />
+      ) : capture.status === 'ready' && overlay.currentResult ? (
+        <ResultCard
+          result={overlay.currentResult}
+          onCopy={(content) => navigator.clipboard.writeText(content)}
+          onImport={() => handleImport({ target: 'note', preserveOriginal: false })}
+          onRetry={() => void handleAction('interpret')}
+        />
+      ) : (
+        <CapturePreview
+          session={capture.session}
+          privacyError={capture.privacyError}
+          onConfirm={capture.confirmCapture}
+          onCancel={capture.cancelCapture}
+          onRetry={() => void capture.retryCapture()}
+          onEdit={capture.updateContent}
+          onPasteFallback={handlePasteFallback}
+        />
       )}
 
-      {/* 导入对话框 */}
       {overlay.currentSession?.userConfirmed && overlay.currentResult && (
         <ImportDialog
           content={overlay.currentResult.content}

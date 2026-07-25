@@ -40,7 +40,6 @@ const Writing = lazy(() => import("./pages/Writing"));
 const ResearchTheme = lazy(() => import("./pages/ResearchTheme"));
 const FocusApp = lazy(() => import("./pages/FocusLayout"));
 const ResearchPage = lazy(() => import("./features/research/pages/ResearchPage"));
-const AssistantPage = lazy(() => import("./features/desktop-assistant/pages/AssistantPage"));
 
 import LockScreen from "./features/appLock/LockScreen";
 import { useAppLock } from "./features/appLock/useAppLock";
@@ -103,8 +102,8 @@ export default function App() {
   const quickStart = useFirstRunQuickStart({ enabled: lockChecked && !locked });
 
   const openQuickStartSettings = () => {
-    // 首次引导跳转到设置时，确保落在「快速开始」分区。
-    writePersistentValue(SETTINGS_ACTIVE_SECTION_STORAGE_KEY, "guided");
+    // 首次引导跳转到设置时，确保落在「小妍」分区。
+    writePersistentValue(SETTINGS_ACTIVE_SECTION_STORAGE_KEY, "assistant");
     quickStart.dismiss();
     navigate("/settings");
   };
@@ -229,7 +228,6 @@ export default function App() {
             <Route path="/submission" element={<RouteErrorBoundary><Submission /></RouteErrorBoundary>} />
             <Route path="/experiment" element={<Navigate to={CODE_HARNESS_PATHS[codeHarness]} replace />} />
             <Route path="/research" element={<RouteErrorBoundary><ResearchPage /></RouteErrorBoundary>} />
-            <Route path="/assistant" element={<RouteErrorBoundary><AssistantPage /></RouteErrorBoundary>} />
             <Route path="/tools" element={<RouteErrorBoundary><Tools /></RouteErrorBoundary>} />
             <Route path="/code" element={<RouteErrorBoundary><Code /></RouteErrorBoundary>} />
             <Route path="/codex" element={<RouteErrorBoundary><Codex /></RouteErrorBoundary>} />

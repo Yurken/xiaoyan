@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Card, CardHeader, CardTitle } from '@research-copilot/ui'
 
 interface SectionProps {
   title: string
@@ -9,18 +10,18 @@ interface SectionProps {
 
 export function Section({ title, description, children, className = '' }: SectionProps) {
   return (
-    <section className={`rc-focus-card rounded-2xl p-5 ${className}`}>
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--rc-text)' }}>
-          {title}
-        </h2>
-        {description && (
-          <p className="mt-1 text-sm" style={{ color: 'var(--rc-text-muted)' }}>
-            {description}
-          </p>
-        )}
-      </div>
+    <Card className={className} padding="md">
+      <CardHeader className="mb-4 px-0 pt-0">
+        <div>
+          <CardTitle>{title}</CardTitle>
+          {description && (
+            <p className="mt-1 text-sm" style={{ color: 'var(--rc-text-muted)' }}>
+              {description}
+            </p>
+          )}
+        </div>
+      </CardHeader>
       {children}
-    </section>
+    </Card>
   )
 }

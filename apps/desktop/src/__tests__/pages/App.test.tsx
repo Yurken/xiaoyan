@@ -124,7 +124,7 @@ describe("App 路由与导航", () => {
   it("应包含所有导航项", async () => {
     renderWithRouter(<App />);
     await waitFor(() => {
-      const navLabels = ["首页", "规划", "对话", "综述", "论文", "写作", "知识", "DSH", "投稿", "工具", "设置"];
+      const navLabels = ["首页", "规划", "对话", "综述", "论文", "写作", "知识", "DSH", "研究", "投稿", "工具", "设置"];
       for (const label of navLabels) {
         expect(screen.getByLabelText(label)).toBeInTheDocument();
       }
@@ -149,6 +149,7 @@ describe("App 路由与导航", () => {
       expect(screen.getByLabelText("写作")).toHaveAttribute("href", "/writing");
       expect(screen.getByLabelText("知识")).toHaveAttribute("href", "/knowledge");
       expect(screen.getByLabelText("DSH")).toHaveAttribute("href", "/code");
+      expect(screen.getByLabelText("研究")).toHaveAttribute("href", "/research");
       expect(screen.getByLabelText("投稿")).toHaveAttribute("href", "/submission");
       expect(screen.getByLabelText("工具")).toHaveAttribute("href", "/tools");
       expect(screen.getByLabelText("设置")).toHaveAttribute("href", "/settings");

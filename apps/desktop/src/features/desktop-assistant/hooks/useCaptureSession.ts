@@ -71,10 +71,23 @@ export function useCaptureSession(
           case 'clipboard':
             response = await invoke<CaptureContextResponse>('assistant_get_clipboard')
             break
-          case 'screenshot':
-            // 截图模式：先获取前台应用信息，然后让用户框选
-            response = await invoke<CaptureContextResponse>('assistant_get_frontmost_app_screenshot')
+          case 'screenshot': {
+            // 截图模式：先获取前台应用信息，后续通过独立截图工具框选区域
+            const [sourceApp, sourceAppBundleId, windowTitle] = await invoke<
+              [string | null, string | null, string | null]
+            >('assistant_get_frontmost_app')
+            response = {
+              session_id: generateId(),
+              content: null,
+              sanitized_content: null,
+              source_app: sourceApp,
+              source_app_bundle_id: sourceAppBundleId,
+              window_title: windowTitle,
+              status: 'ready',
+              privacy_check: null,
+            }
             break
+          }
           case 'paste':
             // 粘贴模式：创建空会话，等待用户粘贴
             response = {

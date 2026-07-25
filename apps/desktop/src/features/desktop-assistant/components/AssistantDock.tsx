@@ -12,6 +12,12 @@ interface AssistantDockProps {
   onClick?: () => void
   onDragStart?: () => void
   onDragEnd?: () => void
+  /**
+   * 渲染模式：
+   * - floating：在主窗口内自由浮动（可拖动，位置持久化到 localStorage）
+   * - window：作为独立 Tauri 窗口的内容，填满窗口，不处理内部拖动
+   */
+  variant?: 'floating' | 'window'
 }
 
 interface Position {
@@ -39,7 +45,8 @@ function savePosition(pos: Position) {
   }
 }
 
-export function AssistantDock({ onClick, onDragStart, onDragEnd }: AssistantDockProps) {
+export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floating' }: AssistantDockProps) {
+  const isWindowMode = variant === 'window'
   const savedPos = loadPosition()
   const [position, setPosition] = useState<Position>(
     savedPos ?? { x: window.innerWidth - DOCK_SIZE - 20, y: window.innerHeight / 2 - DOCK_SIZE / 2 }
@@ -63,6 +70,12 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd }: AssistantDock
       // 右键不触发拖动
       if (e.button !== 0) return
 
+      // window 模式下点击即打开面板，不处理内部拖动
+      if (isWindowMode) {
+        onClick?.()
+        return
+      }
+
       e.preventDefault()
       e.stopPropagation()
 
@@ -76,12 +89,12 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd }: AssistantDock
         dockY: position.y,
       }
     },
-    [position, onDragStart]
+    [position, onDragStart, isWindowMode, onClick]
   )
 
   // 鼠标移动
   useEffect(() => {
-    if (!isDragging) return
+    if (!isDragging || isWindowMode) return
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!dragStartRef.current) return
@@ -125,21 +138,23 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd }: AssistantDock
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDragging, onClick, clampPosition, onDragEnd])
+  }, [isDragging, isWindowMode, onClick, clampPosition, onDragEnd])
 
   // 窗口大小变化时调整位置
   useEffect(() => {
+    if (isWindowMode) return
+
     const handleResize = () => {
       setPosition((pos) => clampPosition(pos))
     }
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [clampPosition])
+  }, [clampPosition, isWindowMode])
 
   return (
     <div
-      className="fixed z-50 flex items-center justify-center select-none"
+      className="z-50 flex items-center justify-center select-none"
       style={{
         width: DOCK_SIZE,
         height: DOCK_SIZE,
@@ -150,9 +165,10 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd }: AssistantDock
         boxShadow: isDragging
           ? '0 8px 24px rgba(10, 122, 255, 0.4)'
           : 'var(--rc-button-primary-shadow)',
-        cursor: isDragging ? 'grabbing' : 'grab',
-        left: position.x,
-        top: position.y,
+        cursor: isWindowMode ? 'pointer' : isDragging ? 'grabbing' : 'grab',
+        position: isWindowMode ? 'static' : 'fixed',
+        left: isWindowMode ? undefined : position.x,
+        top: isWindowMode ? undefined : position.y,
         transition: isDragging ? 'none' : 'box-shadow 0.2s ease',
         userSelect: 'none',
         WebkitUserSelect: 'none',

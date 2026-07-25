@@ -3,6 +3,7 @@
  */
 import { useState, useRef } from 'react'
 import { X, Upload, FileText } from 'lucide-react'
+import { Card, CardHeader, CardTitle, IconButton, Button, Input, Textarea } from '@research-copilot/ui'
 import { DEPTH_OPTIONS, LANGUAGE_OPTIONS } from '../shared'
 import type { BackendResearchQuestion } from '../services/backend'
 
@@ -80,104 +81,52 @@ export function NewResearchDialog({ show, onClose, onCreate }: NewResearchDialog
       style={{ background: 'var(--rc-modal-backdrop)' }}
       onClick={onClose}
     >
-      <div
-        className="rc-focus-card w-full max-w-lg rounded-2xl p-6"
+      <Card
+        className="w-full max-w-lg"
+        padding="md"
         style={{ maxHeight: '80vh', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--rc-text)' }}>
-            新建研究
-          </h2>
-          <button
-            onClick={onClose}
-            className="rc-icon-button"
-            style={{ width: 28, height: 28 }}
-          >
+        <CardHeader className="mb-4 px-0 pt-0">
+          <CardTitle>新建研究</CardTitle>
+          <IconButton size="sm" onClick={onClose}>
             <X size={14} />
-          </button>
-        </div>
+          </IconButton>
+        </CardHeader>
 
         <div className="space-y-4">
           {/* 研究标题 */}
-          <div>
-            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
-              研究标题 *
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-xl px-3 py-2 text-sm"
-              style={{
-                background: 'var(--rc-control-bg)',
-                border: '1px solid var(--rc-control-border)',
-                color: 'var(--rc-text)',
-                boxShadow: 'var(--rc-chip-inset-shadow)',
-              }}
-              placeholder="例如：大语言模型在学术写作中的应用"
-            />
-          </div>
+          <Input
+            label="研究标题 *"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="例如：大语言模型在学术写作中的应用"
+          />
 
           {/* 领域和子领域 */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
-                研究领域
-              </label>
-              <input
-                type="text"
-                value={field}
-                onChange={(e) => setField(e.target.value)}
-                className="w-full rounded-xl px-3 py-2 text-sm"
-                style={{
-                  background: 'var(--rc-control-bg)',
-                  border: '1px solid var(--rc-control-border)',
-                  color: 'var(--rc-text)',
-                  boxShadow: 'var(--rc-chip-inset-shadow)',
-                }}
-                placeholder="例如：计算机科学"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
-                子领域
-              </label>
-              <input
-                type="text"
-                value={subfield}
-                onChange={(e) => setSubfield(e.target.value)}
-                className="w-full rounded-xl px-3 py-2 text-sm"
-                style={{
-                  background: 'var(--rc-control-bg)',
-                  border: '1px solid var(--rc-control-border)',
-                  color: 'var(--rc-text)',
-                  boxShadow: 'var(--rc-chip-inset-shadow)',
-                }}
-                placeholder="例如：自然语言处理"
-              />
-            </div>
+            <Input
+              label="研究领域"
+              value={field}
+              onChange={(e) => setField(e.target.value)}
+              placeholder="例如：计算机科学"
+            />
+            <Input
+              label="子领域"
+              value={subfield}
+              onChange={(e) => setSubfield(e.target.value)}
+              placeholder="例如：自然语言处理"
+            />
           </div>
 
           {/* 研究描述 */}
-          <div>
-            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
-              研究描述
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full rounded-xl px-3 py-2 text-sm"
-              style={{
-                background: 'var(--rc-control-bg)',
-                border: '1px solid var(--rc-control-border)',
-                color: 'var(--rc-text)',
-                boxShadow: 'var(--rc-chip-inset-shadow)',
-              }}
-              placeholder="详细描述你的研究问题和目标..."
-            />
-          </div>
+          <Textarea
+            label="研究描述"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder="详细描述你的研究问题和目标..."
+          />
 
           {/* 研究深度 */}
           <div>
@@ -205,25 +154,14 @@ export function NewResearchDialog({ show, onClose, onCreate }: NewResearchDialog
 
           {/* 迭代次数和语言 */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
-                迭代次数
-              </label>
-              <input
-                type="number"
-                value={iterations}
-                onChange={(e) => setIterations(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                min={1}
-                max={10}
-                className="w-full rounded-xl px-3 py-2 text-sm"
-                style={{
-                  background: 'var(--rc-control-bg)',
-                  border: '1px solid var(--rc-control-border)',
-                  color: 'var(--rc-text)',
-                  boxShadow: 'var(--rc-chip-inset-shadow)',
-                }}
-              />
-            </div>
+            <Input
+              label="迭代次数"
+              type="number"
+              value={iterations}
+              onChange={(e) => setIterations(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+              min={1}
+              max={10}
+            />
             <div>
               <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
                 研究语言
@@ -253,7 +191,7 @@ export function NewResearchDialog({ show, onClose, onCreate }: NewResearchDialog
               参考材料（可选）
             </label>
             <div
-              className="cursor-pointer rounded-xl border-2 border-dashed p-4 text-center"
+              className="cursor-pointer rounded-2xl border-2 border-dashed p-4 text-center"
               style={{
                 borderColor: 'var(--rc-control-border)',
                 background: 'var(--rc-control-bg)',
@@ -302,22 +240,20 @@ export function NewResearchDialog({ show, onClose, onCreate }: NewResearchDialog
 
         {/* 提交按钮 */}
         <div className="mt-6 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rc-focus-btn-secondary"
-          >
+          <Button variant="secondary" size="sm" onClick={onClose}>
             取消
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            loading={isSubmitting}
+            disabled={!title.trim()}
             onClick={() => void handleSubmit()}
-            disabled={isSubmitting || !title.trim()}
-            className="rc-focus-cta"
-            style={{ opacity: isSubmitting || !title.trim() ? 0.5 : 1 }}
           >
             {isSubmitting ? '创建中...' : '创建研究'}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }

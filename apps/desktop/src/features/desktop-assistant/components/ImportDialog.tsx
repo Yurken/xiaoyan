@@ -4,6 +4,7 @@
  */
 import { useState } from 'react'
 import { X, FileText, Image, BookOpen, Clock, Tag } from 'lucide-react'
+import { Card, CardHeader, CardTitle, IconButton, Button, Input } from '@research-copilot/ui'
 import type { ImportTarget, ImportConfig } from '../shared'
 import { truncateText } from '../shared'
 
@@ -41,37 +42,22 @@ export function ImportDialog({ content, onConfirm, onCancel }: ImportDialogProps
       style={{ background: 'var(--rc-modal-backdrop)' }}
       onClick={onCancel}
     >
-      <div
-        className="rc-focus-card w-full max-w-sm overflow-hidden rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <Card className="w-full max-w-sm overflow-hidden" padding="none" onClick={(e) => e.stopPropagation()}>
         {/* 标题栏 */}
-        <div
-          className="flex items-center justify-between px-5 py-4"
-          style={{ borderBottom: '1px solid var(--rc-border)' }}
-        >
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--rc-text)' }}>
-            导入内容
-          </h3>
-          <button
-            onClick={onCancel}
-            className="rc-icon-button"
-            style={{ width: 28, height: 28 }}
-          >
+        <CardHeader className="px-5 py-4" style={{ borderBottom: '1px solid var(--rc-border)' }}>
+          <CardTitle className="text-sm">导入内容</CardTitle>
+          <IconButton size="sm" onClick={onCancel}>
             <X size={14} />
-          </button>
-        </div>
+          </IconButton>
+        </CardHeader>
 
         {/* 内容预览 */}
         <div className="px-5 pt-4">
-          <div
-            className="mb-4 rounded-xl p-3"
-            style={{ background: 'var(--rc-card-inset-bg)' }}
-          >
+          <Card variant="inset" padding="sm" className="mb-4">
             <p className="line-clamp-3 text-xs" style={{ color: 'var(--rc-text-muted)' }}>
               {truncateText(content, 200)}
             </p>
-          </div>
+          </Card>
         </div>
 
         {/* 导入目标选择 */}
@@ -119,20 +105,11 @@ export function ImportDialog({ content, onConfirm, onCancel }: ImportDialogProps
         <div className="px-5 pb-4">
           {/* 标题 */}
           <div className="mb-3">
-            <label className="mb-1 block text-xs" style={{ color: 'var(--rc-text-muted)' }}>
-              标题（可选）
-            </label>
-            <input
-              type="text"
+            <Input
+              label="标题（可选）"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="自定义标题..."
-              className="w-full rounded-lg px-3 py-2 text-sm"
-              style={{
-                background: 'var(--rc-control-bg)',
-                border: '1px solid var(--rc-control-border)',
-                color: 'var(--rc-text)',
-              }}
             />
           </div>
 
@@ -148,11 +125,12 @@ export function ImportDialog({ content, onConfirm, onCancel }: ImportDialogProps
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="学术, 翻译, 重要..."
-                className="w-full rounded-lg px-3 py-2 text-sm"
+                className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none"
                 style={{
                   background: 'var(--rc-control-bg)',
-                  border: '1px solid var(--rc-control-border)',
+                  borderColor: 'var(--rc-control-border)',
                   color: 'var(--rc-text)',
+                  boxShadow: 'var(--rc-control-shadow)',
                 }}
               />
             </div>
@@ -177,14 +155,11 @@ export function ImportDialog({ content, onConfirm, onCancel }: ImportDialogProps
           </div>
 
           {/* 确认按钮 */}
-          <button
-            onClick={handleConfirm}
-            className="rc-focus-cta w-full text-sm"
-          >
+          <Button variant="primary" size="sm" onClick={handleConfirm} className="w-full">
             确认导入
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }

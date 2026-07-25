@@ -15,6 +15,7 @@ import {
   Settings,
   X,
 } from 'lucide-react'
+import { Card, CardHeader, CardTitle, IconButton, Badge, Button } from '@research-copilot/ui'
 import { ASSISTANT_ACTIONS, CONTEXT_SOURCES, CAPTURE_STATUS_LABEL } from '../shared'
 import type { CaptureSession, AssistantAction, ContextSourceType } from '../shared'
 
@@ -61,16 +62,19 @@ export function AssistantPanel({
 
   const hasContent = !!session?.content
 
+  const statusVariant =
+    session?.status === 'ready'
+      ? 'success'
+      : session?.status === 'error'
+        ? 'danger'
+        : session?.status === 'capturing'
+          ? 'warning'
+          : 'default'
+
   return (
-    <div
-      className="rc-focus-card overflow-hidden"
-      style={{ width: 380, maxHeight: 520 }}
-    >
+    <Card className="w-[380px] overflow-hidden" padding="none">
       {/* 标题栏 */}
-      <div
-        className="flex items-center justify-between px-4 py-3"
-        style={{ borderBottom: '1px solid var(--rc-border)' }}
-      >
+      <CardHeader className="px-4 py-3" style={{ borderBottom: '1px solid var(--rc-border)' }}>
         <div className="flex items-center gap-2">
           <div
             className="flex h-6 w-6 items-center justify-center rounded-full"
@@ -78,50 +82,30 @@ export function AssistantPanel({
           >
             <span className="text-xs font-bold text-white">妍</span>
           </div>
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--rc-text)' }}>
-            小妍助手
-          </h3>
+          <CardTitle className="text-sm">小妍助手</CardTitle>
         </div>
         <div className="flex items-center gap-1">
           {onSettings && (
-            <button
-              onClick={onSettings}
-              className="rc-icon-button"
-              style={{ width: 28, height: 28 }}
-              title="设置"
-            >
+            <IconButton size="sm" onClick={onSettings} title="设置">
               <Settings size={14} />
-            </button>
+            </IconButton>
           )}
-          <button
-            onClick={onClose}
-            className="rc-icon-button"
-            style={{ width: 28, height: 28 }}
-            title="关闭"
-          >
+          <IconButton size="sm" onClick={onClose} title="关闭">
             <X size={14} />
-          </button>
+          </IconButton>
         </div>
-      </div>
+      </CardHeader>
 
       {/* 内容区域 */}
       <div className="p-4">
         {/* 上下文预览 */}
-        <div className="rc-focus-card-inset mb-4 rounded-xl p-3">
+        <Card variant="inset" padding="sm" className="mb-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
               当前内容
             </span>
             {session && (
-              <span
-                className="rounded-full px-2 py-0.5 text-xs"
-                style={{
-                  background: session.status === 'ready' ? 'var(--rc-badge-success-bg)' : 'var(--rc-chip-bg)',
-                  color: session.status === 'ready' ? 'var(--rc-badge-success-text)' : 'var(--rc-text-muted)',
-                }}
-              >
-                {CAPTURE_STATUS_LABEL[session.status]}
-              </span>
+              <Badge variant={statusVariant}>{CAPTURE_STATUS_LABEL[session.status]}</Badge>
             )}
           </div>
 
@@ -149,7 +133,7 @@ export function AssistantPanel({
               请先获取内容...
             </p>
           )}
-        </div>
+        </Card>
 
         {/* 来源选择 */}
         <div className="mb-4">
@@ -165,7 +149,7 @@ export function AssistantPanel({
                   key={source.type}
                   onClick={() => onSourceChange(source.type)}
                   disabled={isLoading}
-                  className="flex flex-col items-center gap-1 rounded-lg p-2 text-center transition-colors"
+                  className="flex flex-col items-center gap-1 rounded-xl p-2 text-center transition-colors"
                   style={{
                     background: isActive ? 'var(--rc-info-chip-bg)' : 'transparent',
                     color: isActive ? 'var(--rc-info-chip-text)' : 'var(--rc-text-muted)',
@@ -187,11 +171,12 @@ export function AssistantPanel({
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="可选：输入你的问题..."
-            className="w-full rounded-lg px-3 py-2 text-sm"
+            className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none"
             style={{
               background: 'var(--rc-control-bg)',
-              border: '1px solid var(--rc-control-border)',
+              borderColor: 'var(--rc-control-border)',
               color: 'var(--rc-text)',
+              boxShadow: 'var(--rc-control-shadow)',
             }}
           />
         </div>
@@ -206,25 +191,23 @@ export function AssistantPanel({
               const Icon = ACTION_ICONS[action.id]
               const isRunning = selectedAction === action.id && isLoading
               return (
-                <button
+                <Button
                   key={action.id}
-                  onClick={() => handleActionClick(action.id)}
+                  variant="primary"
+                  size="sm"
+                  loading={isRunning}
                   disabled={!hasContent || isLoading}
-                  className="rc-focus-cta flex items-center justify-center gap-2 text-sm"
-                  style={{ opacity: !hasContent || isLoading ? 0.5 : 1 }}
+                  onClick={() => handleActionClick(action.id)}
+                  className="flex items-center justify-center gap-2"
                 >
-                  {isRunning ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  ) : (
-                    <Icon size={14} />
-                  )}
+                  <Icon size={14} />
                   {action.label}
-                </button>
+                </Button>
               )
             })}
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   )
 }
