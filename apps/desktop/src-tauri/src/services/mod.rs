@@ -5,6 +5,7 @@ pub mod agent_runtime_service;
 pub mod agent_tool_service;
 pub mod chat_context_service;
 pub mod chat_request_policy;
+pub mod desktop_assistant;
 pub mod evidence_service;
 pub mod memory_checkpoint_service;
 pub mod memory_privacy_service;

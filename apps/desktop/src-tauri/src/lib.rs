@@ -32,6 +32,7 @@ mod opencode;
 mod opencode_process;
 mod pi_web;
 mod pi_web_process;
+mod platform;
 mod rag;
 mod repositories;
 mod semantic_scholar;
@@ -81,6 +82,13 @@ use commands::{
         code_write_file,
     },
     data_backup::{data_backup_export, data_backup_import},
+    desktop_assistant::{
+        assistant_capture_screen, assistant_check_permissions, assistant_chat,
+        assistant_cleanup, assistant_get_clipboard, assistant_get_frontmost_app,
+        assistant_get_selection, assistant_import, assistant_interpret,
+        assistant_request_accessibility, assistant_request_screen_recording,
+        assistant_translate,
+    },
     evidence::evidence_get_links,
     experiment::{
         experiment_add_attachment, experiment_create, experiment_create_snapshot,
@@ -330,6 +338,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             #[cfg(desktop)]
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -808,6 +817,19 @@ pub fn run() {
             research_context_get_recent_themes,
             research_context_get_theme_context,
             evidence_get_links,
+            // Desktop Assistant
+            assistant_check_permissions,
+            assistant_request_accessibility,
+            assistant_request_screen_recording,
+            assistant_get_selection,
+            assistant_get_clipboard,
+            assistant_capture_screen,
+            assistant_get_frontmost_app,
+            assistant_interpret,
+            assistant_translate,
+            assistant_chat,
+            assistant_import,
+            assistant_cleanup,
         ])
         .run(tauri::generate_context!());
 

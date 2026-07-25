@@ -59,6 +59,30 @@
         "resizable": true,
         "fullscreen": false,
         "acceptFirstMouse": true
+      },
+      {
+        "label": "assistant-dock",
+        "title": "",
+        "width": 60,
+        "height": 60,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "visible": false,
+        "skipTaskbar": true
+      },
+      {
+        "label": "assistant-panel",
+        "title": "小妍助手",
+        "width": 400,
+        "height": 500,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "visible": false,
+        "skipTaskbar": true
       }
     ],
     "security": {
