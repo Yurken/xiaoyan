@@ -486,6 +486,57 @@ pub fn run() {
                 }
             }
 
+            // 创建系统托盘图标
+            {
+                use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState};
+                use tauri::menu::{Menu, MenuItem};
+
+                // 创建托盘菜单
+                let show_item = MenuItem::with_id(app, "show", "显示窗口", true, None::<&str>)?;
+                let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+                // 获取图标
+                let icon = app.default_window_icon()
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("Failed to get default icon"))?;
+
+                // 创建托盘图标
+                let _tray = TrayIconBuilder::new()
+                    .icon(icon)
+                    .tooltip("小妍 - 研究助手")
+                    .menu(&menu)
+                    .on_menu_event(move |app, event| {
+                        match event.id.as_ref() {
+                            "show" => {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                            "quit" => {
+                                app.exit(0);
+                            }
+                            _ => {}
+                        }
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        if let tauri::tray::TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } = event
+                        {
+                            let app = tray.app_handle();
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    })
+                    .build(app)?;
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -498,6 +549,15 @@ pub fn run() {
                         let _ = services::sync_service::run_sync(&state, &app).await;
                     });
                 }
+            }
+
+            // 关闭窗口时隐藏而不是退出应用
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // 阻止默认的关闭行为（退出应用）
+                api.prevent_close();
+                // 隐藏窗口
+                let _ = window.hide();
+                append_diagnostic_log("window: hidden instead of closed");
             }
         })
         .invoke_handler(tauri::generate_handler![
