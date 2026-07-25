@@ -5,6 +5,8 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::platform::desktop_assistant::{get_platform_adapter, PlatformAdapter};
+
 /// 权限状态
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionStatus {
@@ -22,29 +24,25 @@ pub struct PermissionService;
 impl PermissionService {
     /// 检查所有权限状态
     pub async fn check_permissions() -> Result<PermissionStatus> {
-        // TODO: 实现 macOS 权限检查
-        // - Accessibility: AXIsProcessTrusted()
-        // - Screen Recording: CGPreflightScreenCaptureAccess()
+        let adapter = get_platform_adapter();
 
         Ok(PermissionStatus {
-            accessibility: false,
-            screen_recording: false,
+            accessibility: adapter.check_accessibility_permission(),
+            screen_recording: adapter.check_screen_recording_permission(),
             clipboard: true, // 剪贴板始终可用
         })
     }
 
     /// 请求辅助功能权限
     pub async fn request_accessibility() -> Result<bool> {
-        // TODO: 实现 macOS 辅助功能权限请求
-        // AXIsProcessTrustedWithOptions(kAXTrustedCheckOptionPrompt: true)
-        Ok(false)
+        let adapter = get_platform_adapter();
+        Ok(adapter.request_accessibility_permission())
     }
 
     /// 请求屏幕录制权限
     pub async fn request_screen_recording() -> Result<bool> {
-        // TODO: 实现 macOS 屏幕录制权限请求
-        // CGRequestScreenCaptureAccess()
-        Ok(false)
+        let adapter = get_platform_adapter();
+        Ok(adapter.request_screen_recording_permission())
     }
 
     /// 检查应用是否在禁止列表中
