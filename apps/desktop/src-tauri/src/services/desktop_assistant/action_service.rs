@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::llm::{LlmClient, LlmMessage};
+use super::permission_service::PermissionService;
 
 /// 助手动作类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +86,9 @@ impl ActionService {
         content: &str,
         question: Option<&str>,
     ) -> Result<ActionResult> {
+        // 对内容进行脱敏处理
+        let sanitized_content = PermissionService::sanitize_content(content);
+
         let system_prompt = "你是一位学术研究助手。请对以下内容进行学术解读。
 
 解读要求：
@@ -95,9 +99,9 @@ impl ActionService {
 请用 Markdown 格式输出，使用清晰的标题分隔各部分。";
 
         let user_prompt = if let Some(q) = question {
-            format!("请解读以下内容，并回答问题：{}\n\n---\n\n{}", q, content)
+            format!("请解读以下内容，并回答问题：{}\n\n---\n\n{}", q, sanitized_content)
         } else {
-            format!("请解读以下内容：\n\n---\n\n{}", content)
+            format!("请解读以下内容：\n\n---\n\n{}", sanitized_content)
         };
 
         let messages = vec![
@@ -147,9 +151,12 @@ impl ActionService {
             lang
         );
 
+        // 对内容进行脱敏处理
+        let sanitized_content = PermissionService::sanitize_content(content);
+
         let messages = vec![
             LlmMessage::system(&system_prompt),
-            LlmMessage::user(content),
+            LlmMessage::user(&sanitized_content),
         ];
 
         let start = std::time::Instant::now();
@@ -181,6 +188,9 @@ impl ActionService {
         context: &str,
         question: &str,
     ) -> Result<ActionResult> {
+        // 对内容进行脱敏处理
+        let sanitized_context = PermissionService::sanitize_content(context);
+
         let system_prompt = "你是一位学术研究助手。用户会提供一段上下文内容，并基于此提出问题。
 
 请根据上下文内容回答用户的问题。如果上下文中没有足够的信息，请如实说明。
@@ -194,7 +204,7 @@ impl ActionService {
 
         let user_prompt = format!(
             "上下文内容：\n\n---\n\n{}\n\n---\n\n我的问题：{}",
-            context, question
+            sanitized_context, question
         );
 
         let messages = vec![
@@ -236,16 +246,19 @@ impl ActionService {
         // 导入动作不需要调用 LLM，只需要记录和保存
         let result = match target_enum {
             ImportTarget::Note => {
-                // 实际保存在 command 层完成，这里返回确认信息
+                // 在 command 层完成实际保存
                 format!("已准备保存为知识笔记")
             }
             ImportTarget::Image => {
+                // 在 command 层完成图片保存
                 "截图已准备保存".to_string()
             }
             ImportTarget::Paper => {
+                // 在 command 层创建论文导入候选
                 "已准备添加到论文库".to_string()
             }
             ImportTarget::Later => {
+                // 在 command 层保存到稍后处理箱
                 "已准备放入稍后处理".to_string()
             }
         };
@@ -264,5 +277,42 @@ impl ActionService {
             }),
             created_at: chrono::Utc::now(),
         })
+    }
+
+    /// 保存图片到本地
+    pub fn save_image(
+        app_data_dir: &std::path::Path,
+        asset_id: &str,
+        image_data: &[u8],
+    ) -> Result<std::path::PathBuf> {
+        let image_dir = app_data_dir.join("assistant_images");
+        std::fs::create_dir_all(&image_dir)?;
+
+        let image_path = image_dir.join(format!("{}.png", asset_id));
+        std::fs::write(&image_path, image_data)?;
+
+        Ok(image_path)
+    }
+
+    /// 创建论文导入候选记录
+    pub async fn create_paper_candidate(
+        db: &sqlx::SqlitePool,
+        session_id: &str,
+        title: &str,
+        content_preview: &str,
+    ) -> Result<String> {
+        let candidate_id = Uuid::new_v4().to_string();
+
+        sqlx::query(
+            "INSERT INTO assistant_paper_candidates (id, session_id, title, content_preview, status, created_at) VALUES (?, ?, ?, ?, 'pending', datetime('now'))"
+        )
+        .bind(&candidate_id)
+        .bind(session_id)
+        .bind(title)
+        .bind(content_preview)
+        .execute(db)
+        .await?;
+
+        Ok(candidate_id)
     }
 }

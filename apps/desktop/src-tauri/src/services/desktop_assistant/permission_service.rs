@@ -171,6 +171,33 @@ impl PermissionService {
             content_sensitive,
         }
     }
+
+    /// 脱敏处理：移除敏感内容
+    pub fn sanitize_content(content: &str) -> String {
+        let mut sanitized = content.to_string();
+
+        // 移除邮箱地址
+        let email_regex = regex::Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap();
+        sanitized = email_regex.replace_all(&sanitized, "[EMAIL]").to_string();
+
+        // 移除电话号码（中国大陆）
+        let phone_regex = regex::Regex::new(r"(\+?86)?1[3-9]\d{9}").unwrap();
+        sanitized = phone_regex.replace_all(&sanitized, "[PHONE]").to_string();
+
+        // 移除信用卡号
+        let card_regex = regex::Regex::new(r"\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}").unwrap();
+        sanitized = card_regex.replace_all(&sanitized, "[CARD]").to_string();
+
+        // 移除身份证号
+        let id_regex = regex::Regex::new(r"\d{17}[\dXx]").unwrap();
+        sanitized = id_regex.replace_all(&sanitized, "[ID]").to_string();
+
+        // 移除 API Key 模式
+        let api_key_regex = regex::Regex::new(r"(?i)(api[_-]?key|token|secret|password)\s*[=:]\s*\S+").unwrap();
+        sanitized = api_key_regex.replace_all(&sanitized, "$1=[REDACTED]").to_string();
+
+        sanitized
+    }
 }
 
 #[cfg(test)]

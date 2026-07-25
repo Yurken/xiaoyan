@@ -70,6 +70,21 @@ impl CleanupService {
         .execute(db)
         .await?;
 
+        // 论文导入候选表
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS assistant_paper_candidates (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                content_preview TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                imported_at TEXT
+            )"
+        )
+        .execute(db)
+        .await?;
+
         Ok(())
     }
 
