@@ -32,6 +32,7 @@ const Writing = lazy(() => import("./pages/Writing"));
 const ResearchTheme = lazy(() => import("./pages/ResearchTheme"));
 const FocusApp = lazy(() => import("./pages/FocusLayout"));
 const ResearchPage = lazy(() => import("./features/research/pages/ResearchPage"));
+const AssistantPage = lazy(() => import("./features/desktop-assistant/pages/AssistantPage"));
 
 import LockScreen from "./features/appLock/LockScreen";
 import { useAppLock } from "./features/appLock/useAppLock";
@@ -213,6 +214,7 @@ export default function App() {
             <Route path="/submission" element={<RouteErrorBoundary><Submission /></RouteErrorBoundary>} />
             <Route path="/experiment" element={<RouteErrorBoundary><Experiment /></RouteErrorBoundary>} />
             <Route path="/research" element={<RouteErrorBoundary><ResearchPage /></RouteErrorBoundary>} />
+            <Route path="/assistant" element={<RouteErrorBoundary><AssistantPage /></RouteErrorBoundary>} />
             <Route path="/tools" element={<RouteErrorBoundary><Tools /></RouteErrorBoundary>} />
             <Route path="/code" element={<Navigate to="/experiment" replace />} />
             <Route path="/chat" element={<RouteErrorBoundary><Copilot /></RouteErrorBoundary>} />

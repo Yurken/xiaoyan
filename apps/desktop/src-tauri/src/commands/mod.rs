@@ -8,6 +8,7 @@ pub mod chat_tools;
 pub mod citation_graph;
 pub mod code;
 pub mod data_backup;
+pub mod desktop_assistant;
 pub mod evidence;
 pub mod experiment;
 pub mod export;
