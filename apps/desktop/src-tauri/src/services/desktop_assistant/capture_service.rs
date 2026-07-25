@@ -7,6 +7,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::platform::desktop_assistant::{get_platform_adapter, PlatformAdapter};
+
 /// 上下文来源类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -68,33 +70,32 @@ impl CaptureService {
 
     /// 获取选中文本
     pub async fn get_selection() -> Result<Option<String>> {
-        // TODO: 实现 macOS 辅助功能选区读取
-        // - 获取前台应用
-        // - 通过 AXUIElement 读取选中文本
-        Ok(None)
+        let adapter = get_platform_adapter();
+        adapter.get_selection()
     }
 
     /// 获取剪贴板内容
     pub async fn get_clipboard() -> Result<Option<String>> {
         // TODO: 实现剪贴板读取
+        // 可以使用 arboard crate 或 Tauri 的 clipboard 插件
         Ok(None)
     }
 
     /// 截取屏幕区域
     pub async fn capture_screen_region(
-        _x: i32,
-        _y: i32,
-        _width: u32,
-        _height: u32,
-    ) -> Result<Option<String>> {
-        // TODO: 实现 ScreenCaptureKit 区域截图
-        Ok(None)
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<u8>> {
+        let adapter = get_platform_adapter();
+        adapter.capture_screen_region(x, y, width, height)
     }
 
     /// 获取前台应用信息
     pub async fn get_frontmost_app() -> Result<(Option<String>, Option<String>, Option<String>)> {
-        // TODO: 实现前台应用信息获取
-        // 返回 (app_name, bundle_id, window_title)
-        Ok((None, None, None))
+        let adapter = get_platform_adapter();
+        let app = adapter.get_frontmost_app()?;
+        Ok((app.name, app.bundle_id, app.window_title))
     }
 }
