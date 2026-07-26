@@ -63,6 +63,7 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("chunk_size".into(), "800".into());
     m.insert("chunk_overlap".into(), "150".into());
     m.insert("rag_top_k".into(), "5".into());
+    m.insert("assistant_dock_enabled".into(), "false".into());
     m.insert("embedding_base_url".into(), "".into());
     m.insert("embedding_api_key".into(), "".into());
     m.insert("embedding_model".into(), "".into());

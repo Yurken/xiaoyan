@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Copy, Download, ExternalLink, Check, RotateCcw } from 'lucide-react'
 import { Card, CardHeader, CardTitle, IconButton, Badge, Button } from '@research-copilot/ui'
 import type { ActionResult } from '../shared'
+import { ASSISTANT_WINDOW_CARD_STYLE } from '../shared'
 
 interface ResultCardProps {
   result: ActionResult
@@ -25,11 +26,17 @@ export function ResultCard({ result, onCopy, onImport, onExpand, onRetry }: Resu
   }
 
   return (
-    <Card className="w-[380px] overflow-hidden" padding="none">
+    <Card className="w-full overflow-hidden" padding="none" style={ASSISTANT_WINDOW_CARD_STYLE}>
       {/* 标题栏 */}
-      <CardHeader className="px-4 py-3" style={{ borderBottom: '1px solid var(--rc-border)' }}>
-        <CardTitle className="text-sm">结果</CardTitle>
-        <Badge variant="success">完成</Badge>
+      <CardHeader
+        data-tauri-drag-region
+        className="cursor-grab px-4 py-3 active:cursor-grabbing"
+        style={{ borderBottom: '1px solid var(--rc-border)' }}
+      >
+        <CardTitle data-tauri-drag-region className="text-sm">结果</CardTitle>
+        <div data-tauri-drag-region>
+          <Badge variant="success">完成</Badge>
+        </div>
       </CardHeader>
 
       {/* 内容区域 */}

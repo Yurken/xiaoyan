@@ -9,6 +9,37 @@ pub mod macos;
 
 pub use trait_platform::PlatformAdapter;
 
+#[cfg(not(target_os = "macos"))]
+struct UnsupportedAdapter;
+
+#[cfg(not(target_os = "macos"))]
+impl PlatformAdapter for UnsupportedAdapter {
+    fn get_frontmost_app(&self) -> anyhow::Result<trait_platform::FrontmostApp> {
+        Err(anyhow::anyhow!("桌面悬浮助手目前仅支持 macOS"))
+    }
+
+    fn get_selection(&self) -> anyhow::Result<Option<String>> {
+        Err(anyhow::anyhow!("读取选区目前仅支持 macOS"))
+    }
+
+    fn capture_screen_interactive(&self) -> anyhow::Result<Vec<u8>> {
+        Err(anyhow::anyhow!("交互式截图目前仅支持 macOS"))
+    }
+
+    fn check_accessibility_permission(&self) -> bool {
+        false
+    }
+    fn request_accessibility_permission(&self) -> bool {
+        false
+    }
+    fn check_screen_recording_permission(&self) -> bool {
+        false
+    }
+    fn request_screen_recording_permission(&self) -> bool {
+        false
+    }
+}
+
 /// 获取当前平台的适配器
 pub fn get_platform_adapter() -> Box<dyn PlatformAdapter> {
     #[cfg(target_os = "macos")]
@@ -16,15 +47,8 @@ pub fn get_platform_adapter() -> Box<dyn PlatformAdapter> {
         Box::new(macos::MacOSAdapter)
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(not(target_os = "macos"))]
     {
-        // TODO: 实现 Windows 适配器
-        panic!("Windows adapter not implemented yet")
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        // TODO: 实现 Linux 适配器
-        panic!("Linux adapter not implemented yet")
+        Box::new(UnsupportedAdapter)
     }
 }

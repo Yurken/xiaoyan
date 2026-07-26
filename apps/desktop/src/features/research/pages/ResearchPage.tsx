@@ -3,7 +3,7 @@
  * 职责：组合 hook 和组件，不承载副作用
  */
 import React from 'react'
-import { ArrowRight, Trash2 } from 'lucide-react'
+import { AlertCircle, ArrowRight, RefreshCw, Trash2 } from 'lucide-react'
 import { Button, Card, IconButton } from '@research-copilot/ui'
 import { useResearchStore } from '../stores/researchStore'
 import { useResearchSession, useResearchWorkflow, useResearchProtocol, useResearchCandidates } from '../hooks'
@@ -17,21 +17,46 @@ import { ReportSection } from '../components/ReportSection'
 import { NewResearchDialog } from '../components/NewResearchDialog'
 import { normalizeResearchOutput, SESSION_STATUS_LABEL } from '../shared'
 import type { ResearchOutput } from '../shared'
+import { RESEARCH_API_BASE } from '../services/backend'
 
 function Welcome({
   sessionList,
   onSelectSession,
   onDeleteResearch,
   onShowNewResearch,
+  backendStatus,
+  backendError,
+  onRetryConnection,
 }: {
   sessionList: ReturnType<typeof useResearchSession>['sessionList']
   onSelectSession: (id: string) => void
   onDeleteResearch: (id: string) => void
   onShowNewResearch: () => void
+  backendStatus: ReturnType<typeof useResearchSession>['backendStatus']
+  backendError: string | null
+  onRetryConnection: () => void
 }) {
   return (
     <div className="flex h-full flex-col items-center justify-center p-5">
       <div className="w-full max-w-3xl">
+        {backendStatus === 'unavailable' && (
+          <Card padding="md" className="mb-6 flex items-start gap-3">
+            <AlertCircle className="mt-0.5 shrink-0" size={18} style={{ color: 'var(--rc-badge-danger-text)' }} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold" style={{ color: 'var(--rc-text)' }}>
+                研究服务未连接
+              </p>
+              <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--rc-text-muted)' }}>
+                研究工作台需要 SwanForge 服务。当前地址：{RESEARCH_API_BASE}
+                {backendError ? `（${backendError}）` : ''}
+              </p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={onRetryConnection}>
+              <RefreshCw size={14} />
+              重试
+            </Button>
+          </Card>
+        )}
         <div className="mb-8 text-center">
           <p className="rc-kicker">研究工作台</p>
           <h1
@@ -52,7 +77,12 @@ function Welcome({
             每一步都有记录，每个结论都能回到真实来源。
           </p>
           <div className="mt-6">
-            <Button variant="primary" size="md" onClick={onShowNewResearch}>
+            <Button
+              variant="primary"
+              size="md"
+              disabled={backendStatus !== 'ready'}
+              onClick={onShowNewResearch}
+            >
               开始一个新研究
               <ArrowRight size={16} />
             </Button>
@@ -246,6 +276,9 @@ export default function ResearchPage() {
           onSelectSession={(id) => void session.selectSession(id)}
           onDeleteResearch={handleDeleteResearch}
           onShowNewResearch={() => ui.setShowNewResearch(true)}
+          backendStatus={session.backendStatus}
+          backendError={session.backendError}
+          onRetryConnection={() => void session.retryConnection()}
         />
       )}
       <NewResearchDialog

@@ -4,9 +4,12 @@
  * 位置持久化到 localStorage
  */
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { COMPANION_BOX_SIZE, CompanionVisual } from '../../companion/CompanionRenderer'
+import { getCompanionDefinition } from '../../companion/petRegistry'
 
 const POSITION_KEY = 'assistant-dock-position'
-const DOCK_SIZE = 48
+const { width: DOCK_WIDTH, height: DOCK_HEIGHT } = COMPANION_BOX_SIZE.floating
+const XIAOYAN = getCompanionDefinition('xiaoyan')
 
 interface AssistantDockProps {
   onClick?: () => void
@@ -49,15 +52,18 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
   const isWindowMode = variant === 'window'
   const savedPos = loadPosition()
   const [position, setPosition] = useState<Position>(
-    savedPos ?? { x: window.innerWidth - DOCK_SIZE - 20, y: window.innerHeight / 2 - DOCK_SIZE / 2 }
+    savedPos ?? {
+      x: window.innerWidth - DOCK_WIDTH - 20,
+      y: window.innerHeight - DOCK_HEIGHT - 20,
+    }
   )
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; dockX: number; dockY: number } | null>(null)
 
   // 边界检查
   const clampPosition = useCallback((pos: Position): Position => {
-    const maxX = window.innerWidth - DOCK_SIZE
-    const maxY = window.innerHeight - DOCK_SIZE
+    const maxX = window.innerWidth - DOCK_WIDTH
+    const maxY = window.innerHeight - DOCK_HEIGHT
     return {
       x: Math.max(0, Math.min(pos.x, maxX)),
       y: Math.max(0, Math.min(pos.y, maxY)),
@@ -66,13 +72,26 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
 
   // 鼠标按下
   const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+    async (e: React.MouseEvent) => {
       // 右键不触发拖动
       if (e.button !== 0) return
 
-      // window 模式下点击即打开面板，不处理内部拖动
+      // 独立窗口模式交给系统拖动窗口；位置未变化时视为点击。
       if (isWindowMode) {
-        onClick?.()
+        e.preventDefault()
+        e.stopPropagation()
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window')
+          const currentWindow = getCurrentWindow()
+          const before = await currentWindow.outerPosition()
+          await currentWindow.startDragging()
+          const after = await currentWindow.outerPosition()
+          if (Math.abs(after.x - before.x) < 4 && Math.abs(after.y - before.y) < 4) {
+            onClick?.()
+          }
+        } catch {
+          onClick?.()
+        }
         return
       }
 
@@ -156,25 +175,24 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
     <div
       className="z-50 flex items-center justify-center select-none"
       style={{
-        width: DOCK_SIZE,
-        height: DOCK_SIZE,
-        borderRadius: '50%',
-        background: isDragging
-          ? 'linear-gradient(145deg, #2992FF, #0A7AFF)'
-          : 'var(--rc-button-primary-bg)',
-        boxShadow: isDragging
-          ? '0 8px 24px rgba(10, 122, 255, 0.4)'
-          : 'var(--rc-button-primary-shadow)',
+        width: DOCK_WIDTH,
+        height: DOCK_HEIGHT,
+        background: 'transparent',
+        boxShadow: 'none',
+        filter: 'none',
         cursor: isWindowMode ? 'pointer' : isDragging ? 'grabbing' : 'grab',
         position: isWindowMode ? 'static' : 'fixed',
         left: isWindowMode ? undefined : position.x,
         top: isWindowMode ? undefined : position.y,
-        transition: isDragging ? 'none' : 'box-shadow 0.2s ease',
+        transform: isDragging ? 'scale(0.94)' : 'scale(1)',
+        transition: isDragging ? 'none' : 'transform 160ms ease-out',
         userSelect: 'none',
         WebkitUserSelect: 'none',
       }}
       onMouseDown={handleMouseDown}
       role="button"
+      aria-label="打开小妍桌面助手"
+      title="小妍桌面助手"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -182,12 +200,12 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
         }
       }}
     >
-      <span
-        className="text-lg font-bold text-white pointer-events-none"
-        style={{ opacity: isDragging ? 0.9 : 1 }}
-      >
-        妍
-      </span>
+      <CompanionVisual
+        definition={XIAOYAN}
+        actionKey="idle"
+        inline={false}
+        opacity={isDragging ? 0.86 : 1}
+      />
     </div>
   )
 }

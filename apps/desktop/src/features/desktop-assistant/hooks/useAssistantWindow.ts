@@ -14,6 +14,7 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
 export interface UseAssistantWindow {
   isDockVisible: boolean
   isPanelVisible: boolean
+  refreshVisibility: () => Promise<void>
   showDock: () => Promise<void>
   hideDock: () => Promise<void>
   showPanel: () => Promise<void>
@@ -25,18 +26,25 @@ export function useAssistantWindow(): UseAssistantWindow {
   const [isDockVisible, setIsDockVisible] = useState(false)
   const [isPanelVisible, setIsPanelVisible] = useState(false)
 
-  // 初始化时检查窗口状态
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const visible = await invoke<boolean>('assistant_is_panel_visible')
-        setIsPanelVisible(visible)
-      } catch {
-        // 忽略错误
-      }
+  const refreshVisibility = useCallback(async () => {
+    try {
+      const [dockVisible, panelVisible] = await Promise.all([
+        invoke<boolean>('assistant_is_dock_visible'),
+        invoke<boolean>('assistant_is_panel_visible'),
+      ])
+      setIsDockVisible(dockVisible)
+      setIsPanelVisible(panelVisible)
+    } catch {
+      // 非 Tauri 环境或窗口尚未就绪时保留当前状态。
     }
-    void checkStatus()
   }, [])
+
+  // 初始化与主窗口重新聚焦时同步真实窗口状态。
+  useEffect(() => {
+    void refreshVisibility()
+    window.addEventListener('focus', refreshVisibility)
+    return () => window.removeEventListener('focus', refreshVisibility)
+  }, [refreshVisibility])
 
   const showDock = useCallback(async () => {
     try {
@@ -88,6 +96,7 @@ export function useAssistantWindow(): UseAssistantWindow {
   return {
     isDockVisible,
     isPanelVisible,
+    refreshVisibility,
     showDock,
     hideDock,
     showPanel,

@@ -3,7 +3,7 @@
  * 选择导入目标和配置
  */
 import { useState } from 'react'
-import { X, FileText, Image, BookOpen, Clock, Tag } from 'lucide-react'
+import { X, FileText, Image, Tag } from 'lucide-react'
 import { Card, CardHeader, CardTitle, IconButton, Button, Input } from '@research-copilot/ui'
 import type { ImportTarget, ImportConfig } from '../shared'
 import { truncateText } from '../shared'
@@ -17,8 +17,6 @@ interface ImportDialogProps {
 const IMPORT_TARGETS: { id: ImportTarget; label: string; description: string; icon: typeof FileText }[] = [
   { id: 'note', label: '知识笔记', description: '保存为可编辑的笔记', icon: FileText },
   { id: 'image', label: '图片资产', description: '保存截图到本地', icon: Image },
-  { id: 'paper', label: '论文导入', description: '添加到论文库', icon: BookOpen },
-  { id: 'later', label: '稍后处理', description: '放入待处理箱', icon: Clock },
 ]
 
 export function ImportDialog({ content, onConfirm, onCancel }: ImportDialogProps) {
@@ -26,6 +24,9 @@ export function ImportDialog({ content, onConfirm, onCancel }: ImportDialogProps
   const [title, setTitle] = useState('')
   const [tags, setTags] = useState('')
   const [preserveOriginal, setPreserveOriginal] = useState(false)
+  const availableTargets = content.startsWith('data:image/')
+    ? IMPORT_TARGETS
+    : IMPORT_TARGETS.filter((target) => target.id === 'note')
 
   const handleConfirm = () => {
     onConfirm({
@@ -66,7 +67,7 @@ export function ImportDialog({ content, onConfirm, onCancel }: ImportDialogProps
             选择目标
           </div>
           <div className="mb-4 grid grid-cols-2 gap-2">
-            {IMPORT_TARGETS.map((target) => {
+            {availableTargets.map((target) => {
               const Icon = target.icon
               const isSelected = selectedTarget === target.id
               return (

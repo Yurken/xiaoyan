@@ -16,6 +16,7 @@ mod citation_graph;
 mod code;
 mod commands;
 mod db;
+mod desktop_shell;
 mod graph_rag;
 mod journal_partitions;
 mod links;
@@ -74,7 +75,7 @@ use commands::{
         assistant_capture_screen, assistant_check_permissions, assistant_chat,
         assistant_cleanup, assistant_get_clipboard, assistant_get_frontmost_app,
         assistant_get_selection, assistant_hide_dock, assistant_hide_panel,
-        assistant_import, assistant_interpret, assistant_is_panel_visible,
+        assistant_import, assistant_interpret, assistant_is_dock_visible, assistant_is_panel_visible,
         assistant_request_accessibility, assistant_request_screen_recording,
         assistant_show_dock, assistant_show_panel, assistant_toggle_panel,
         assistant_translate,
@@ -488,56 +489,7 @@ pub fn run() {
                 }
             }
 
-            // 创建系统托盘图标
-            {
-                use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState};
-                use tauri::menu::{Menu, MenuItem};
-
-                // 创建托盘菜单
-                let show_item = MenuItem::with_id(app, "show", "显示窗口", true, None::<&str>)?;
-                let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-                let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
-
-                // 获取图标
-                let icon = app.default_window_icon()
-                    .cloned()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to get default icon"))?;
-
-                // 创建托盘图标
-                let _tray = TrayIconBuilder::new()
-                    .icon(icon)
-                    .tooltip("小妍 - 研究助手")
-                    .menu(&menu)
-                    .on_menu_event(move |app, event| {
-                        match event.id.as_ref() {
-                            "show" => {
-                                if let Some(window) = app.get_webview_window("main") {
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
-                                }
-                            }
-                            "quit" => {
-                                app.exit(0);
-                            }
-                            _ => {}
-                        }
-                    })
-                    .on_tray_icon_event(|tray, event| {
-                        if let tauri::tray::TrayIconEvent::Click {
-                            button: MouseButton::Left,
-                            button_state: MouseButtonState::Up,
-                            ..
-                        } = event
-                        {
-                            let app = tray.app_handle();
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                        }
-                    })
-                    .build(app)?;
-            }
+            desktop_shell::setup(app)?;
 
             Ok(())
         })
@@ -855,6 +807,7 @@ pub fn run() {
             assistant_show_panel,
             assistant_hide_panel,
             assistant_toggle_panel,
+            assistant_is_dock_visible,
             assistant_is_panel_visible,
         ])
         .run(tauri::generate_context!());

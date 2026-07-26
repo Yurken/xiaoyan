@@ -1,24 +1,13 @@
 /**
  * 桌面助手启动入口
- * 负责显示悬浮球窗口并注册全局快捷键
+ * 负责显示悬浮球和动作面板；全局快捷键由 Rust 在应用启动时注册。
  */
 
 /**
- * 显示桌面助手悬浮球并注册全局快捷键（Alt+Space）。
- * 在浏览器/测试环境中静默失败。
+ * 显示桌面助手悬浮球和动作面板。
  */
 export async function launchDesktopAssistant(): Promise<void> {
-  try {
-    const { invoke } = await import('@tauri-apps/api/core')
-
-    // 显示悬浮球窗口
-    await invoke('assistant_show_dock')
-
-    // 注册全局快捷键
-    await invoke('plugin:global-shortcut|register', {
-      shortcut: 'Alt+Space',
-    })
-  } catch (err) {
-    console.error('[assistant] Failed to launch desktop assistant:', err)
-  }
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke('assistant_show_dock')
+  await invoke('assistant_show_panel')
 }

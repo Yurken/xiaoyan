@@ -118,8 +118,14 @@ export default function WritingEditorContextMenu({
         style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}
       >
         <div className="flex items-center gap-2 text-xs font-bold text-ink-secondary">
-          <Sparkles className="h-3.5 w-3.5 text-apple-blue" />
-          <span>小妍助手</span>
+          <img
+            src="/xiaoyan-avatar.png"
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            className="h-5 w-5 rounded-full object-cover"
+          />
+          <span>小妍</span>
         </div>
         <button
           type="button"

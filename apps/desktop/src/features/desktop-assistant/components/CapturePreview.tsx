@@ -6,7 +6,7 @@
 import { Check, X, RotateCcw, AlertCircle, Shield } from 'lucide-react'
 import { Card, CardHeader, CardTitle, Badge, Button } from '@research-copilot/ui'
 import type { CaptureSession } from '../shared'
-import { CAPTURE_STATUS_LABEL, truncateText } from '../shared'
+import { ASSISTANT_WINDOW_CARD_STYLE, CAPTURE_STATUS_LABEL, truncateText } from '../shared'
 
 interface CapturePreviewProps {
   session: CaptureSession
@@ -28,6 +28,8 @@ export function CapturePreview({
   onPasteFallback,
 }: CapturePreviewProps) {
   const showPrivacyError = privacyError || session.status === 'error'
+  const isScreenshot = session.sourceType === 'screenshot'
+  const canConfirm = Boolean(session.content?.trim())
 
   const statusVariant =
     session.status === 'ready'
@@ -37,11 +39,17 @@ export function CapturePreview({
         : 'warning'
 
   return (
-    <Card className="w-[380px] overflow-hidden" padding="none">
+    <Card className="w-full overflow-hidden" padding="none" style={ASSISTANT_WINDOW_CARD_STYLE}>
       {/* 标题栏 */}
-      <CardHeader className="px-4 py-3" style={{ borderBottom: '1px solid var(--rc-border)' }}>
-        <CardTitle className="text-sm">内容预览</CardTitle>
-        <Badge variant={statusVariant}>{CAPTURE_STATUS_LABEL[session.status]}</Badge>
+      <CardHeader
+        data-tauri-drag-region
+        className="cursor-grab px-4 py-3 active:cursor-grabbing"
+        style={{ borderBottom: '1px solid var(--rc-border)' }}
+      >
+        <CardTitle data-tauri-drag-region className="text-sm">内容预览</CardTitle>
+        <div data-tauri-drag-region>
+          <Badge variant={statusVariant}>{CAPTURE_STATUS_LABEL[session.status]}</Badge>
+        </div>
       </CardHeader>
 
       {/* 内容区域 */}
@@ -83,9 +91,9 @@ export function CapturePreview({
         )}
 
         {/* 内容编辑 */}
-        {session.status === 'ready' && session.content && (
+        {session.status === 'ready' && !isScreenshot && (
           <textarea
-            value={session.content}
+            value={session.content ?? ''}
             onChange={(e) => onEdit(e.target.value)}
             className="mb-4 w-full rounded-2xl border px-4 py-3 text-sm outline-none"
             style={{
@@ -101,10 +109,10 @@ export function CapturePreview({
         )}
 
         {/* 截图预览 */}
-        {session.screenshotPath && (
+        {isScreenshot && session.screenshotPath && (
           <div className="mb-4">
             <img
-              src={`asset://localhost/${session.screenshotPath}`}
+              src={session.screenshotPath}
               alt="截图预览"
               className="w-full rounded-2xl"
               style={{ border: '1px solid var(--rc-border)' }}
@@ -133,7 +141,13 @@ export function CapturePreview({
         {!showPrivacyError && (
           <div className="flex gap-2">
             {session.status === 'ready' && (
-              <Button variant="primary" size="sm" onClick={onConfirm} className="flex-1">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onConfirm}
+                disabled={!canConfirm}
+                className="flex-1"
+              >
                 <Check size={14} />
                 确认使用
               </Button>

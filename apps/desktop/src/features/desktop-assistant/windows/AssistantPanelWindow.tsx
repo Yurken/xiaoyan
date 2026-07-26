@@ -2,18 +2,33 @@
  * 桌面助手动作面板窗口
  * 运行在独立的 assistant-panel Tauri 窗口中
  */
-import { useAssistantOverlay, useAssistantWindow, useCaptureSession } from '../hooks'
+import {
+  useAssistantOverlay,
+  useAssistantPanelAutoSize,
+  useAssistantWindow,
+  useCaptureSession,
+} from '../hooks'
 import { AssistantPanel, CapturePreview, ResultCard, ImportDialog } from '../components'
 import type { AssistantAction, ImportConfig, ContextSourceType } from '../shared'
+import { useEffect, useState } from 'react'
 
 export default function AssistantPanelWindow() {
   const overlay = useAssistantOverlay()
   const windowManager = useAssistantWindow()
   const capture = useCaptureSession()
+  const [importOpen, setImportOpen] = useState(false)
+  const [lastAction, setLastAction] = useState<Exclude<AssistantAction, 'import'>>('interpret')
+  const panelContentRef = useAssistantPanelAutoSize(importOpen ? 560 : 0)
 
-  const handleAction = async (action: AssistantAction) => {
-    if (!capture.session?.content && action !== 'import') return
+  const handleAction = async (action: AssistantAction, question?: string) => {
+    if (!capture.session?.content) return
+    if (action === 'import') {
+      setImportOpen(true)
+      return
+    }
 
+    setLastAction(action)
+    overlay.setError(null)
     overlay.setPanelStatus('loading')
 
     try {
@@ -26,7 +41,7 @@ export default function AssistantPanelWindow() {
           result = await invoke('assistant_interpret', {
             sessionId: capture.session?.id || 'temp',
             content: capture.session?.content || '',
-            question: null,
+            question: question || null,
           })
           break
         case 'translate':
@@ -40,16 +55,7 @@ export default function AssistantPanelWindow() {
           result = await invoke('assistant_chat', {
             sessionId: capture.session?.id || 'temp',
             context: capture.session?.content || '',
-            question: '请详细解释这段内容',
-          })
-          break
-        case 'import':
-          result = await invoke('assistant_import', {
-            sessionId: capture.session?.id || 'temp',
-            content: capture.session?.content || '',
-            target: 'note',
-            title: null,
-            tags: null,
+            question: question || '请详细解释这段内容',
           })
           break
         default:
@@ -61,7 +67,7 @@ export default function AssistantPanelWindow() {
         sessionId: result.session_id,
         action,
         content: result.content,
-        format: 'text',
+        format: result.format === 'markdown' || result.format === 'html' ? result.format : 'text',
         createdAt: Date.now(),
       })
       overlay.setPanelStatus('ready')
@@ -73,14 +79,15 @@ export default function AssistantPanelWindow() {
   }
 
   const handleImport = async (config: ImportConfig) => {
-    if (!capture.session?.content) return
+    const content = overlay.currentResult?.content ?? capture.session?.content
+    if (!capture.session || !content) return
 
     try {
       const { invoke } = await import('@tauri-apps/api/core')
 
       await invoke('assistant_import', {
         sessionId: capture.session.id,
-        content: capture.session.content,
+        content,
         target: config.target,
         title: config.title || null,
         tags: config.tags || null,
@@ -88,6 +95,7 @@ export default function AssistantPanelWindow() {
 
       overlay.reset()
       capture.clearSession()
+      setImportOpen(false)
       await windowManager.hidePanel()
     } catch (err) {
       console.error('[assistant] Import failed:', err)
@@ -101,33 +109,43 @@ export default function AssistantPanelWindow() {
   }
 
   const handleSourceChange = (sourceType: ContextSourceType) => {
+    overlay.setCurrentResult(null)
+    overlay.setError(null)
     void capture.startCapture(sourceType)
   }
 
   const handleClose = async () => {
     overlay.reset()
     capture.clearSession()
+    setImportOpen(false)
     await windowManager.hidePanel()
   }
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') void handleClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  })
+
+  const isLoading = capture.status === 'capturing' || overlay.panelStatus === 'loading'
+  const needsPreview = Boolean(capture.session && !capture.session.userConfirmed)
+
   return (
-    <div className="h-full w-full overflow-hidden bg-transparent p-2">
-      {!capture.session || capture.status === 'idle' ? (
-        <AssistantPanel
-          session={capture.session}
-          isLoading={capture.status === 'capturing'}
-          onAction={(action) => void handleAction(action)}
-          onSourceChange={handleSourceChange}
-          onClose={() => void handleClose()}
-        />
-      ) : capture.status === 'ready' && overlay.currentResult ? (
+    <div
+      ref={panelContentRef}
+      className="w-full overflow-y-auto"
+      style={{ maxHeight: 620, background: 'var(--rc-card-bg)' }}
+    >
+      {overlay.currentResult ? (
         <ResultCard
           result={overlay.currentResult}
-          onCopy={(content) => navigator.clipboard.writeText(content)}
-          onImport={() => handleImport({ target: 'note', preserveOriginal: false })}
-          onRetry={() => void handleAction('interpret')}
+          onCopy={(content) => void navigator.clipboard.writeText(content)}
+          onImport={() => setImportOpen(true)}
+          onRetry={() => void handleAction(lastAction)}
         />
-      ) : (
+      ) : needsPreview && capture.session ? (
         <CapturePreview
           session={capture.session}
           privacyError={capture.privacyError}
@@ -137,13 +155,22 @@ export default function AssistantPanelWindow() {
           onEdit={capture.updateContent}
           onPasteFallback={handlePasteFallback}
         />
+      ) : (
+        <AssistantPanel
+          session={capture.session}
+          isLoading={isLoading}
+          error={overlay.error}
+          onAction={(action, question) => void handleAction(action, question)}
+          onSourceChange={handleSourceChange}
+          onClose={() => void handleClose()}
+        />
       )}
 
-      {overlay.currentSession?.userConfirmed && overlay.currentResult && (
+      {importOpen && (overlay.currentResult?.content || capture.session?.content) && (
         <ImportDialog
-          content={overlay.currentResult.content}
+          content={overlay.currentResult?.content ?? capture.session?.content ?? ''}
           onConfirm={handleImport}
-          onCancel={() => overlay.setCurrentSession(null)}
+          onCancel={() => setImportOpen(false)}
         />
       )}
     </div>

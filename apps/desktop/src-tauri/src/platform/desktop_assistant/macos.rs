@@ -10,6 +10,12 @@ use std::process::Command;
 
 use super::trait_platform::{FrontmostApp, PlatformAdapter};
 
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+    fn CGRequestScreenCaptureAccess() -> bool;
+}
+
 /// macOS 平台适配器
 pub struct MacOSAdapter;
 
@@ -94,48 +100,27 @@ impl PlatformAdapter for MacOSAdapter {
         self.get_clipboard()
     }
 
-    fn capture_screen_region(
-        &self,
-        x: i32,
-        y: i32,
-        width: u32,
-        height: u32,
-    ) -> Result<Vec<u8>> {
-        // 使用 screencapture 命令行工具（macOS 内置）
-        // 这比 ScreenCaptureKit 更简单，但功能有限
-        let temp_path = std::env::temp_dir().join(format!(
-            "assistant_capture_{}.png",
-            uuid::Uuid::new_v4()
-        ));
-        let temp_path_str = temp_path.to_str().ok_or_else(|| anyhow!("Invalid temp path"))?;
+    fn capture_screen_interactive(&self) -> Result<Vec<u8>> {
+        let temp_path =
+            std::env::temp_dir().join(format!("assistant_capture_{}.png", uuid::Uuid::new_v4()));
+        let temp_path_str = temp_path
+            .to_str()
+            .ok_or_else(|| anyhow!("Invalid temporary capture path"))?;
 
-        // 使用 -R 参数截取指定区域
-        // -x 不播放声音
-        // -o 不显示浮动窗口
         let output = Command::new("screencapture")
-            .args([
-                "-x",           // 不播放声音
-                "-o",           // 不显示浮动窗口
-                "-R",           // 指定区域
-                &format!("{},{},{},{}", x, y, width, height),
-                temp_path_str,
-            ])
+            .args(["-i", "-s", "-x", temp_path_str])
             .output()
             .map_err(|e| anyhow!("Failed to run screencapture: {}", e))?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow!("Screen capture failed: {}", stderr));
+        if !output.status.success() || !temp_path.is_file() {
+            let _ = std::fs::remove_file(&temp_path);
+            return Err(anyhow!("截图已取消"));
         }
 
-        // 读取生成的截图
-        let image_data = std::fs::read(&temp_path)
-            .map_err(|e| anyhow!("Failed to read captured image: {}", e))?;
-
-        // 清理临时文件
+        let image_data =
+            std::fs::read(&temp_path).map_err(|e| anyhow!("Failed to read captured image: {}", e));
         let _ = std::fs::remove_file(&temp_path);
-
-        Ok(image_data)
+        image_data
     }
 
     fn check_accessibility_permission(&self) -> bool {
@@ -155,10 +140,7 @@ impl PlatformAdapter for MacOSAdapter {
             end tell
         "#;
 
-        let output = Command::new("osascript")
-            .arg("-e")
-            .arg(script)
-            .output();
+        let output = Command::new("osascript").arg("-e").arg(script).output();
 
         match output {
             Ok(out) => {
@@ -181,57 +163,38 @@ impl PlatformAdapter for MacOSAdapter {
     }
 
     fn check_screen_recording_permission(&self) -> bool {
-        // macOS 10.15+ 使用 ScreenCaptureKit 时会检查权限
-        // 这里使用一个简单的测试截图来检查
-        let test_path = std::env::temp_dir().join("permission_test.png");
-        let output = Command::new("screencapture")
-            .args(["-x", "-o", "-R", "0,0,1,1"])
-            .arg(test_path.to_str().unwrap_or_default())
-            .output();
-
-        let _ = std::fs::remove_file(&test_path);
-
-        match output {
-            Ok(out) => out.status.success(),
-            Err(_) => false,
-        }
+        // 只检查状态，不触发系统授权弹窗。
+        unsafe { CGPreflightScreenCaptureAccess() }
     }
 
     fn request_screen_recording_permission(&self) -> bool {
-        // 打开系统偏好设置的屏幕录制页面
-        let _ = Command::new("open")
-            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
-            .spawn();
-
-        // 等待用户授权后重新检查
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        self.check_screen_recording_permission()
+        if unsafe { CGRequestScreenCaptureAccess() } {
+            true
+        } else {
+            let _ = Command::new("open")
+                .arg(
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+                )
+                .spawn();
+            false
+        }
     }
 }
 
 impl MacOSAdapter {
     /// 使用 NSWorkspace 获取前台应用（备选方案）
     fn get_frontmost_app_via_nsworkspace(&self) -> Result<FrontmostApp> {
+        // NSWorkspace 不需要辅助功能权限；窗口标题在未授权时保持为空。
         let script = r#"
-            tell application "System Events"
-                set frontmostApp to first application process whose frontmost is true
-                set appName to name of frontmostApp
-                try
-                    set bundleId to bundle identifier of frontmostApp
-                on error
-                    set bundleId to ""
-                end try
-                try
-                    set windowTitle to name of front window of frontmostApp
-                on error
-                    set windowTitle to ""
-                end try
-                return appName & "|||" & bundleId & "|||" & windowTitle
-            end tell
+            ObjC.import('AppKit');
+            const app = $.NSWorkspace.sharedWorkspace.frontmostApplication;
+            const name = ObjC.unwrap(app.localizedName) || '';
+            const bundleId = ObjC.unwrap(app.bundleIdentifier) || '';
+            `${name}|||${bundleId}|||`;
         "#;
 
         let output = Command::new("osascript")
-            .arg("-e")
+            .args(["-l", "JavaScript", "-e"])
             .arg(script)
             .output()
             .map_err(|e| anyhow!("Failed to run osascript: {}", e))?;
@@ -273,11 +236,8 @@ impl MacOSAdapter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_get_frontmost_app() {
-        let adapter = MacOSAdapter;
         // 这个测试在 CI 中可能失败，因为它需要 GUI 环境
         // let result = adapter.get_frontmost_app();
         // assert!(result.is_ok());
@@ -285,7 +245,6 @@ mod tests {
 
     #[test]
     fn test_get_clipboard() {
-        let adapter = MacOSAdapter;
         // 这个测试在 CI 中可能失败
         // let result = adapter.get_clipboard();
         // assert!(result.is_ok());

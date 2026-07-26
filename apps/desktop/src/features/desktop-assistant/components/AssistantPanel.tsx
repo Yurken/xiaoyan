@@ -16,13 +16,19 @@ import {
   X,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, IconButton, Badge, Button } from '@research-copilot/ui'
-import { ASSISTANT_ACTIONS, CONTEXT_SOURCES, CAPTURE_STATUS_LABEL } from '../shared'
+import {
+  ASSISTANT_ACTIONS,
+  ASSISTANT_WINDOW_CARD_STYLE,
+  CONTEXT_SOURCES,
+  CAPTURE_STATUS_LABEL,
+} from '../shared'
 import type { CaptureSession, AssistantAction, ContextSourceType } from '../shared'
 
 interface AssistantPanelProps {
   session: CaptureSession | null
   isLoading?: boolean
-  onAction: (action: AssistantAction) => void
+  error?: string | null
+  onAction: (action: AssistantAction, question?: string) => void
   onSourceChange: (sourceType: ContextSourceType) => void
   onClose: () => void
   onSettings?: () => void
@@ -45,6 +51,7 @@ const SOURCE_ICONS: Record<ContextSourceType, typeof TextCursorInput> = {
 export function AssistantPanel({
   session,
   isLoading = false,
+  error,
   onAction,
   onSourceChange,
   onClose,
@@ -57,7 +64,7 @@ export function AssistantPanel({
     // paste 动作允许无内容时触发（用户可以粘贴）
     if (!session?.content && action !== 'import') return
     setSelectedAction(action)
-    onAction(action)
+    onAction(action, question.trim() || undefined)
   }
 
   const hasContent = !!session?.content
@@ -72,17 +79,22 @@ export function AssistantPanel({
           : 'default'
 
   return (
-    <Card className="w-[380px] overflow-hidden" padding="none">
+    <Card className="w-full overflow-hidden" padding="none" style={ASSISTANT_WINDOW_CARD_STYLE}>
       {/* 标题栏 */}
-      <CardHeader className="px-4 py-3" style={{ borderBottom: '1px solid var(--rc-border)' }}>
-        <div className="flex items-center gap-2">
-          <div
-            className="flex h-6 w-6 items-center justify-center rounded-full"
-            style={{ background: 'var(--rc-button-primary-bg)' }}
-          >
-            <span className="text-xs font-bold text-white">妍</span>
-          </div>
-          <CardTitle className="text-sm">小妍助手</CardTitle>
+      <CardHeader
+        data-tauri-drag-region
+        className="cursor-grab px-4 py-3 active:cursor-grabbing"
+        style={{ borderBottom: '1px solid var(--rc-border)' }}
+      >
+        <div data-tauri-drag-region className="flex min-w-0 flex-1 items-center gap-2">
+          <img
+            data-tauri-drag-region
+            src="/xiaoyan-avatar.png"
+            alt="小妍"
+            draggable={false}
+            className="h-7 w-7 shrink-0 rounded-full object-cover"
+          />
+          <CardTitle data-tauri-drag-region className="text-sm">小妍</CardTitle>
         </div>
         <div className="flex items-center gap-1">
           {onSettings && (
@@ -182,6 +194,16 @@ export function AssistantPanel({
         </div>
 
         {/* 动作按钮 */}
+        {error && (
+          <div
+            role="alert"
+            className="mb-4 rounded-xl px-3 py-2 text-xs"
+            style={{ background: 'var(--rc-badge-danger-bg)', color: 'var(--rc-badge-danger-text)' }}
+          >
+            {error}
+          </div>
+        )}
+
         <div>
           <div className="mb-2 text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
             选择动作
