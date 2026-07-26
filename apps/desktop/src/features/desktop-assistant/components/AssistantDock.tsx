@@ -6,6 +6,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { COMPANION_BOX_SIZE, CompanionVisual } from '../../companion/CompanionRenderer'
 import { getCompanionDefinition } from '../../companion/petRegistry'
+import { useCompanionLookDirection } from '../../companion/useCompanionLookDirection'
+import { useAssistantDockLookDirection } from '../hooks/useAssistantDockLookDirection'
 
 const POSITION_KEY = 'assistant-dock-position'
 const { width: DOCK_WIDTH, height: DOCK_HEIGHT } = COMPANION_BOX_SIZE.floating
@@ -59,6 +61,16 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
   )
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; dockX: number; dockY: number } | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const canLook = !isDragging
+    && XIAOYAN.renderer.kind === 'sprite-atlas'
+    && Boolean(XIAOYAN.renderer.lookDirections)
+  const windowLookDirectionIndex = useAssistantDockLookDirection(isWindowMode && canLook)
+  const floatingLookDirectionIndex = useCompanionLookDirection({
+    enabled: !isWindowMode && canLook,
+    targetRef: containerRef,
+  })
+  const lookDirectionIndex = isWindowMode ? windowLookDirectionIndex : floatingLookDirectionIndex
 
   // 边界检查
   const clampPosition = useCallback((pos: Position): Position => {
@@ -173,6 +185,7 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
 
   return (
     <div
+      ref={containerRef}
       className="z-50 flex items-center justify-center select-none"
       style={{
         width: DOCK_WIDTH,
@@ -205,6 +218,7 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
         actionKey="idle"
         inline={false}
         opacity={isDragging ? 0.86 : 1}
+        lookDirectionIndex={lookDirectionIndex}
       />
     </div>
   )

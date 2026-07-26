@@ -4,6 +4,7 @@ export { useCaptureSession } from './useCaptureSession'
 export { useAssistantPermissions } from './useAssistantPermissions'
 export { useAssistantPanelAutoSize } from './useAssistantPanelAutoSize'
 export { useAssistantDockVisibility } from './useAssistantDockVisibility'
+export { useAssistantDockLookDirection } from './useAssistantDockLookDirection'
 
 export type {
   UseAssistantOverlay,
