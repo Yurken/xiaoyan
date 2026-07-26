@@ -441,3 +441,32 @@ pub async fn assistant_is_dock_visible(app: tauri::AppHandle) -> Result<bool, St
         Ok(false)
     }
 }
+
+/// 桌面悬浮球注视目标
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DockLookTargetResponse {
+    pub cursor_x: f64,
+    pub cursor_y: f64,
+    pub window_x: i32,
+    pub window_y: i32,
+    pub window_width: u32,
+    pub window_height: u32,
+}
+
+/// 获取桌面悬浮球注视目标（全局光标位置 + 窗口位置）
+#[command]
+pub async fn assistant_get_dock_look_target(
+    window: tauri::WebviewWindow,
+) -> Result<DockLookTargetResponse, String> {
+    let cursor = window.cursor_position().map_err(|e| e.to_string())?;
+    let position = window.outer_position().map_err(|e| e.to_string())?;
+    let size = window.outer_size().map_err(|e| e.to_string())?;
+    Ok(DockLookTargetResponse {
+        cursor_x: cursor.x,
+        cursor_y: cursor.y,
+        window_x: position.x,
+        window_y: position.y,
+        window_width: size.width,
+        window_height: size.height,
+    })
+}
