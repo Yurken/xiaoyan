@@ -13,7 +13,10 @@ export default function AssistantDockWindow() {
   }
 
   return (
-    <div className="flex h-full w-full items-center justify-center overflow-hidden bg-transparent">
+    <div
+      className="flex h-full w-full items-center justify-center overflow-hidden bg-transparent"
+      style={{ background: 'transparent', boxShadow: 'none' }}
+    >
       <AssistantDock variant="window" onClick={() => void handleDockClick()} />
     </div>
   )

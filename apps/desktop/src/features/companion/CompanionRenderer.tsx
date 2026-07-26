@@ -29,7 +29,7 @@ function getFrameSequence(animation: SpriteAnimation, fallback: number[]) {
   return validFrames.length > 0 ? validFrames : [getInitialFrame(animation)];
 }
 
-const COMPANION_BOX_SIZE = {
+export const COMPANION_BOX_SIZE = {
   inline: { width: 72, height: 84 },
   floating: { width: 128, height: 136 },
 } as const;
@@ -60,15 +60,17 @@ function SpriteAtlasPet({
   inline,
   opacity,
   lookDirectionIndex,
+  size,
 }: {
   renderer: SpriteAtlasDefinition;
   animation: SpriteAnimation;
   inline: boolean;
   opacity: number;
   lookDirectionIndex?: number | null;
+  size?: number;
 }) {
   const [frame, setFrame] = useState(() => getInitialFrame(animation));
-  const width = inline ? SPRITE_VISUAL_WIDTH.inline : SPRITE_VISUAL_WIDTH.floating;
+  const width = size ?? (inline ? SPRITE_VISUAL_WIDTH.inline : SPRITE_VISUAL_WIDTH.floating);
   const height = Math.round(width * renderer.cellHeight / renderer.cellWidth);
   const lookDirections = renderer.lookDirections;
   const lookFrame = lookDirections && lookDirectionIndex != null
@@ -243,17 +245,19 @@ function StaticImagePet({
   renderer,
   inline,
   opacity,
+  size,
 }: {
   renderer: StaticImageDefinition;
   inline: boolean;
   opacity: number;
+  size?: number;
 }) {
   return (
     <img
       src={renderer.image}
       alt={renderer.alt}
       draggable={false}
-      width={inline ? STATIC_VISUAL_WIDTH.inline : STATIC_VISUAL_WIDTH.floating}
+      width={size ?? (inline ? STATIC_VISUAL_WIDTH.inline : STATIC_VISUAL_WIDTH.floating)}
       style={{
         maxHeight: inline ? COMPANION_BOX_SIZE.inline.height : COMPANION_BOX_SIZE.floating.height,
         height: "auto",
@@ -274,12 +278,14 @@ export function CompanionVisual({
   inline,
   opacity,
   lookDirectionIndex,
+  size,
 }: {
   definition: CompanionDefinition;
   actionKey: CompanionActionKey;
   inline: boolean;
   opacity: number;
   lookDirectionIndex?: number | null;
+  size?: number;
 }) {
   const assetKey = getCompanionAnimationKey(definition, actionKey);
   if (definition.renderer.kind === "sprite-atlas") {
@@ -291,11 +297,12 @@ export function CompanionVisual({
         inline={inline}
         opacity={opacity}
         lookDirectionIndex={lookDirectionIndex}
+        size={size}
       />
     );
   }
   if (definition.renderer.kind === "static-image") {
-    return <StaticImagePet renderer={definition.renderer} inline={inline} opacity={opacity} />;
+    return <StaticImagePet renderer={definition.renderer} inline={inline} opacity={opacity} size={size} />;
   }
   return <SvgSetPet renderer={definition.renderer} assetKey={assetKey} inline={inline} opacity={opacity} />;
 }

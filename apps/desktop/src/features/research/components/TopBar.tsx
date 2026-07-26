@@ -111,12 +111,23 @@ export function TopBar({ session, workflow, ui }: TopBarProps) {
             <Button variant="secondary" size="sm" onClick={() => setShowNewResearch(true)}>
               新建研究
             </Button>
-            <Button variant="primary" size="sm" onClick={() => void start(sessionId, false)}>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={llmReady !== true}
+              title={llmReady === false ? '研究服务的 LLM 尚未就绪' : undefined}
+              onClick={() => void start(sessionId, false)}
+            >
               <Play size={14} />
               运行
             </Button>
             {sessionStatus === 'failed' && (
-              <Button variant="secondary" size="sm" onClick={() => void start(sessionId, true)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={llmReady !== true}
+                onClick={() => void start(sessionId, true)}
+              >
                 <RotateCcw size={14} />
                 续跑
               </Button>

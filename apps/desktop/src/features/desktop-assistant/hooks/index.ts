@@ -1,7 +1,9 @@
 export { useAssistantOverlay } from './useAssistantOverlay'
 export { useAssistantWindow } from './useAssistantWindow'
 export { useCaptureSession } from './useCaptureSession'
-export { useAssistantShortcut } from './useAssistantShortcut'
+export { useAssistantPermissions } from './useAssistantPermissions'
+export { useAssistantPanelAutoSize } from './useAssistantPanelAutoSize'
+export { useAssistantDockVisibility } from './useAssistantDockVisibility'
 
 export type {
   UseAssistantOverlay,
@@ -12,5 +14,3 @@ export type {
 export type { UseAssistantWindow } from './useAssistantWindow'
 
 export type { UseCaptureSession } from './useCaptureSession'
-
-export type { UseAssistantShortcut } from './useAssistantShortcut'

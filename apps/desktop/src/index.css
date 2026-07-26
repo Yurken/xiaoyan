@@ -634,8 +634,10 @@
   background: transparent !important;
 }
 
-/* 悬浮球窗口只需要 60×60 的内容区域 */
+/* 桌面小妍与主窗口 floating 模型共用 128×136 画布。 */
 [data-tauri-window-label="assistant-dock"] #root {
-  width: 60px;
-  height: 60px;
+  width: 128px;
+  height: 136px;
+  box-shadow: none !important;
+  filter: none !important;
 }

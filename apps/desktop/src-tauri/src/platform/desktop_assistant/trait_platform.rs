@@ -12,14 +12,8 @@ pub trait PlatformAdapter: Send + Sync {
     /// 读取选中文本
     fn get_selection(&self) -> Result<Option<String>>;
 
-    /// 截取屏幕区域
-    fn capture_screen_region(
-        &self,
-        x: i32,
-        y: i32,
-        width: u32,
-        height: u32,
-    ) -> Result<Vec<u8>>;
+    /// 由系统提供交互式区域选择并返回 PNG 数据。
+    fn capture_screen_interactive(&self) -> Result<Vec<u8>>;
 
     /// 检查辅助功能权限
     fn check_accessibility_permission(&self) -> bool;

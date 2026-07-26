@@ -3,7 +3,7 @@
  * 职责：一次性采集会话、预览、重试、取消
  * 调用 Tauri 命令获取上下文，集成隐私检查
  */
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { CaptureSession, ContextSourceType, CaptureStatus } from '../shared'
 import { generateId, calculateExpiry } from '../shared'
 
@@ -72,20 +72,7 @@ export function useCaptureSession(
             response = await invoke<CaptureContextResponse>('assistant_get_clipboard')
             break
           case 'screenshot': {
-            // 截图模式：先获取前台应用信息，后续通过独立截图工具框选区域
-            const [sourceApp, sourceAppBundleId, windowTitle] = await invoke<
-              [string | null, string | null, string | null]
-            >('assistant_get_frontmost_app')
-            response = {
-              session_id: generateId(),
-              content: null,
-              sanitized_content: null,
-              source_app: sourceApp,
-              source_app_bundle_id: sourceAppBundleId,
-              window_title: windowTitle,
-              status: 'ready',
-              privacy_check: null,
-            }
+            response = await invoke<CaptureContextResponse>('assistant_capture_screen')
             break
           }
           case 'paste':
@@ -110,7 +97,7 @@ export function useCaptureSession(
           id: response.session_id,
           sourceType,
           content: response.content,
-          screenshotPath: null,
+          screenshotPath: sourceType === 'screenshot' ? response.content : null,
           sourceApp: response.source_app,
           sourceAppBundleId: response.source_app_bundle_id,
           windowTitle: response.window_title,
@@ -152,11 +139,14 @@ export function useCaptureSession(
   )
 
   const updateContent = useCallback((content: string) => {
-    setSession((prev) => (prev ? { ...prev, content } : null))
+    setSession((prev) => (prev ? { ...prev, content, status: 'ready' } : null))
+    setStatus('ready')
   }, [])
 
   const confirmCapture = useCallback(() => {
-    setSession((prev) => (prev ? { ...prev, userConfirmed: true } : null))
+    setSession((prev) =>
+      prev?.content?.trim() ? { ...prev, userConfirmed: true } : prev
+    )
   }, [])
 
   const cancelCapture = useCallback(() => {
@@ -176,6 +166,35 @@ export function useCaptureSession(
     setStatus('idle')
     setPrivacyError(null)
   }, [])
+
+  // 后端在快捷键、托盘或悬浮球唤起面板时立即发出采集请求。
+  // 面板此时不抢焦点，仍可读取第三方应用中的当前选区。
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    let disposed = false
+
+    const subscribe = async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event')
+        const stop = await listen<string>('assistant://capture-request', (event) => {
+          const source = event.payload as ContextSourceType
+          if (source === 'selection' || source === 'clipboard') {
+            void startCapture(source)
+          }
+        })
+        if (disposed) stop()
+        else unlisten = stop
+      } catch {
+        // 浏览器和单测环境没有 Tauri 事件总线。
+      }
+    }
+
+    void subscribe()
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [startCapture])
 
   return {
     session,

@@ -20,6 +20,8 @@ export interface ResearchSessionState {
   evidenceClaims: BackendSession['evidence_claims']
   sessionList: SessionSummary[]
   llmReady: boolean | null
+  backendStatus: 'checking' | 'ready' | 'unavailable'
+  backendError: string | null
 }
 
 export interface ResearchSessionActions {
@@ -29,6 +31,7 @@ export interface ResearchSessionActions {
   createResearch: (payload: BackendResearchQuestion, files: File[]) => Promise<void>
   deleteResearch: (sessionId: string) => Promise<void>
   refreshCandidates: () => Promise<void>
+  retryConnection: () => Promise<void>
 }
 
 export type UseResearchSession = ResearchSessionState & ResearchSessionActions
@@ -46,6 +49,8 @@ export function useResearchSession(): UseResearchSession {
   const [evidenceClaims, setEvidenceClaims] = useState<BackendSession['evidence_claims']>([])
   const [sessionList, setSessionList] = useState<SessionSummary[]>([])
   const [llmReady, setLlmReady] = useState<boolean | null>(null)
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'ready' | 'unavailable'>('checking')
+  const [backendError, setBackendError] = useState<string | null>(null)
 
   // 用于处理竞态的 ref
   const loadSessionRequestRef = useRef(0)
@@ -69,6 +74,21 @@ export function useResearchSession(): UseResearchSession {
       console.error('[research] failed to list sessions:', err)
     }
   }, [])
+
+  const checkConnection = useCallback(async () => {
+    setBackendStatus('checking')
+    setBackendError(null)
+    try {
+      const health = await backend.getHealth()
+      setLlmReady(health.llm_ready)
+      setBackendStatus('ready')
+      await loadSessionList()
+    } catch (err) {
+      setLlmReady(false)
+      setBackendStatus('unavailable')
+      setBackendError(err instanceof Error ? err.message : '研究服务连接失败')
+    }
+  }, [loadSessionList])
 
   const hydrateSession = useCallback((session: BackendSession) => {
     setSessionId(session.id)
@@ -112,15 +132,18 @@ export function useResearchSession(): UseResearchSession {
     const bootstrap = async () => {
       try {
         const health = await backend.getHealth()
-        if (!cancelled) {
-          setLlmReady(health.llm_ready)
-        }
-      } catch {
-        if (!cancelled) {
-          setLlmReady(false)
-        }
+        if (cancelled) return
+        setLlmReady(health.llm_ready)
+        setBackendStatus('ready')
+        setBackendError(null)
+        await loadSessionListRef.current()
+      } catch (err) {
+        if (cancelled) return
+        setLlmReady(false)
+        setBackendStatus('unavailable')
+        setBackendError(err instanceof Error ? err.message : '研究服务连接失败')
+        return
       }
-      await loadSessionListRef.current()
 
       // 从 URL hash 恢复上次查看的研究
       if (typeof window !== 'undefined') {
@@ -213,11 +236,14 @@ export function useResearchSession(): UseResearchSession {
     evidenceClaims,
     sessionList,
     llmReady,
+    backendStatus,
+    backendError,
     loadSessionList,
     selectSession,
     leaveSession,
     createResearch,
     deleteResearch,
     refreshCandidates,
+    retryConnection: checkConnection,
   }
 }

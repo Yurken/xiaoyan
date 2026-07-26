@@ -8,8 +8,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::platform::desktop_assistant::get_platform_adapter;
 use super::permission_service::{PermissionService, PrivacyCheckResult};
+use crate::platform::desktop_assistant::get_platform_adapter;
+use crate::platform::desktop_assistant::trait_platform::FrontmostApp;
 
 /// 上下文来源类型
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,7 +90,23 @@ impl CaptureService {
         let adapter = get_platform_adapter();
 
         // 获取前台应用信息
-        let frontmost_app = adapter.get_frontmost_app()?;
+        let frontmost_app = match adapter.get_frontmost_app() {
+            Ok(app) => app,
+            Err(_)
+                if matches!(
+                    source_type,
+                    ContextSourceType::Clipboard | ContextSourceType::Paste
+                ) =>
+            {
+                // 剪贴板和手动粘贴是用户显式提供的降级路径，不应被辅助功能权限阻断。
+                FrontmostApp {
+                    name: None,
+                    bundle_id: None,
+                    window_title: None,
+                }
+            }
+            Err(error) => return Err(error),
+        };
         let bundle_id = frontmost_app.bundle_id.clone();
         let window_title = frontmost_app.window_title.clone();
 
@@ -158,15 +175,17 @@ impl CaptureService {
         Ok(None)
     }
 
-    /// 截取屏幕区域
-    pub async fn capture_screen_region(
-        x: i32,
-        y: i32,
-        width: u32,
-        height: u32,
-    ) -> Result<Vec<u8>> {
-        let adapter = get_platform_adapter();
-        adapter.capture_screen_region(x, y, width, height)
+    /// 调用系统交互式区域选择。
+    pub async fn capture_screen_interactive() -> Result<Vec<u8>> {
+        tokio::task::spawn_blocking(|| {
+            let adapter = get_platform_adapter();
+            if !adapter.check_screen_recording_permission() {
+                return Err(anyhow!("需要屏幕录制权限才能截图"));
+            }
+            adapter.capture_screen_interactive()
+        })
+        .await
+        .map_err(|error| anyhow!("截图任务失败: {}", error))?
     }
 
     /// 获取前台应用信息

@@ -56,14 +56,8 @@ const DEFAULT_BLOCKED_APPS: &[&str] = &[
 
 /// 禁止采集的窗口标题关键词
 const BLOCKED_WINDOW_KEYWORDS: &[&str] = &[
-    "密码", "password", "登录", "login", "sign in",
-    "认证", "auth", "支付", "payment", "银行", "bank",
-];
-
-/// 敏感字段检测模式
-const SENSITIVE_FIELD_PATTERNS: &[&str] = &[
-    "password", "passwd", "secret", "token",
-    "api_key", "apikey", "access_key", "private_key",
+    "密码", "password", "登录", "login", "sign in", "认证", "auth", "支付", "payment", "银行",
+    "bank",
 ];
 
 /// 权限服务
@@ -96,14 +90,14 @@ impl PermissionService {
     /// 检查应用是否在禁止列表中
     pub fn is_app_blocked(bundle_id: &str, custom_blocked: &[String]) -> bool {
         // 检查默认禁止列表
-        let default_blocked = DEFAULT_BLOCKED_APPS.iter().any(|blocked| {
-            bundle_id.to_lowercase().contains(&blocked.to_lowercase())
-        });
+        let default_blocked = DEFAULT_BLOCKED_APPS
+            .iter()
+            .any(|blocked| bundle_id.to_lowercase().contains(&blocked.to_lowercase()));
 
         // 检查用户自定义禁止列表
-        let custom_blocked = custom_blocked.iter().any(|blocked| {
-            bundle_id.to_lowercase().contains(&blocked.to_lowercase())
-        });
+        let custom_blocked = custom_blocked
+            .iter()
+            .any(|blocked| bundle_id.to_lowercase().contains(&blocked.to_lowercase()));
 
         default_blocked || custom_blocked
     }
@@ -111,17 +105,20 @@ impl PermissionService {
     /// 检查窗口标题是否包含敏感关键词
     pub fn is_window_blocked(window_title: &str) -> bool {
         let lower_title = window_title.to_lowercase();
-        BLOCKED_WINDOW_KEYWORDS.iter().any(|keyword| {
-            lower_title.contains(&keyword.to_lowercase())
-        })
+        BLOCKED_WINDOW_KEYWORDS
+            .iter()
+            .any(|keyword| lower_title.contains(&keyword.to_lowercase()))
     }
 
     /// 检测内容是否包含敏感字段
     pub fn contains_sensitive_fields(content: &str) -> bool {
-        let lower_content = content.to_lowercase();
-        SENSITIVE_FIELD_PATTERNS.iter().any(|pattern| {
-            lower_content.contains(&pattern.to_lowercase())
-        })
+        let credential = regex::Regex::new(
+            r"(?i)(password|passwd|secret|api[_ -]?key|access[_ -]?key|private[_ -]?key|bearer)\s*[:=]\s*\S{4,}",
+        )
+        .expect("valid credential regex");
+        let private_key = regex::Regex::new(r"(?i)-----BEGIN [A-Z ]*PRIVATE KEY-----")
+            .expect("valid private key regex");
+        credential.is_match(content) || private_key.is_match(content)
     }
 
     /// 隐私检查：综合判断是否允许采集
@@ -177,7 +174,8 @@ impl PermissionService {
         let mut sanitized = content.to_string();
 
         // 移除邮箱地址
-        let email_regex = regex::Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap();
+        let email_regex =
+            regex::Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap();
         sanitized = email_regex.replace_all(&sanitized, "[EMAIL]").to_string();
 
         // 移除电话号码（中国大陆）
@@ -193,8 +191,11 @@ impl PermissionService {
         sanitized = id_regex.replace_all(&sanitized, "[ID]").to_string();
 
         // 移除 API Key 模式
-        let api_key_regex = regex::Regex::new(r"(?i)(api[_-]?key|token|secret|password)\s*[=:]\s*\S+").unwrap();
-        sanitized = api_key_regex.replace_all(&sanitized, "$1=[REDACTED]").to_string();
+        let api_key_regex =
+            regex::Regex::new(r"(?i)(api[_-]?key|token|secret|password)\s*[=:]\s*\S+").unwrap();
+        sanitized = api_key_regex
+            .replace_all(&sanitized, "$1=[REDACTED]")
+            .to_string();
 
         sanitized
     }
@@ -210,14 +211,8 @@ mod tests {
             "com.1password.1password",
             &[]
         ));
-        assert!(PermissionService::is_app_blocked(
-            "com.apple.Keychain",
-            &[]
-        ));
-        assert!(!PermissionService::is_app_blocked(
-            "com.apple.Safari",
-            &[]
-        ));
+        assert!(PermissionService::is_app_blocked("com.apple.Keychain", &[]));
+        assert!(!PermissionService::is_app_blocked("com.apple.Safari", &[]));
 
         // 自定义列表
         assert!(PermissionService::is_app_blocked(
@@ -241,8 +236,9 @@ mod tests {
         assert!(PermissionService::contains_sensitive_fields(
             "api_key=abc123"
         ));
+        assert!(!PermissionService::contains_sensitive_fields("Hello World"));
         assert!(!PermissionService::contains_sensitive_fields(
-            "Hello World"
+            "The model uses 512 context tokens for inference"
         ));
     }
 
@@ -268,12 +264,8 @@ mod tests {
         assert!(result.app_blocked);
 
         // 敏感窗口
-        let result = PermissionService::check_privacy(
-            Some("com.apple.Safari"),
-            Some("密码输入"),
-            None,
-            &[],
-        );
+        let result =
+            PermissionService::check_privacy(Some("com.apple.Safari"), Some("密码输入"), None, &[]);
         assert!(!result.allowed);
         assert!(result.window_blocked);
     }

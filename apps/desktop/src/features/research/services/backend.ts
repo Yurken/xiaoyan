@@ -14,7 +14,7 @@ import type {
 } from '../shared'
 
 // SwanForge 后端地址，可通过环境变量配置
-const API_BASE = import.meta.env.VITE_RESEARCH_API_URL || 'http://localhost:3001'
+export const RESEARCH_API_BASE = import.meta.env.VITE_RESEARCH_API_URL || 'http://localhost:3001'
 
 export interface BackendResearchQuestion {
   title: string
@@ -69,7 +69,7 @@ export interface HealthStatus {
 }
 
 export async function getHealth(): Promise<HealthStatus> {
-  const res = await fetch(`${API_BASE}/health`, { cache: 'no-store' })
+  const res = await fetch(`${RESEARCH_API_BASE}/health`, { cache: 'no-store' })
   if (!res.ok) throw new Error(`Health check failed: ${res.status}`)
   return res.json()
 }
@@ -78,7 +78,7 @@ let socket: Socket | null = null
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io(API_BASE, { transports: ['websocket', 'polling'] })
+    socket = io(RESEARCH_API_BASE, { transports: ['websocket', 'polling'] })
   }
   return socket
 }
@@ -111,7 +111,7 @@ export async function createSession(question: BackendResearchQuestion): Promise<
     iterations: question.iterations,
     language: question.language,
   }
-  const res = await fetch(`${API_BASE}/api/research`, {
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -121,37 +121,37 @@ export async function createSession(question: BackendResearchQuestion): Promise<
 }
 
 export async function runWorkflow(sessionId: string, resume = false): Promise<{ accepted: boolean; session_id: string; status: string; resume: boolean }> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}/run${resume ? '?resume=true' : ''}`, { method: 'POST' })
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}/run${resume ? '?resume=true' : ''}`, { method: 'POST' })
   if (!res.ok) throw new Error(`Failed to run workflow: ${res.status}`)
   return res.json()
 }
 
 export async function cancelWorkflow(sessionId: string): Promise<{ accepted: boolean; session_id: string; status: string }> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}/cancel`, { method: 'POST' })
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}/cancel`, { method: 'POST' })
   if (!res.ok) throw new Error(`Failed to cancel workflow: ${res.status}`)
   return res.json()
 }
 
 export async function getSession(sessionId: string): Promise<BackendSession> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}`)
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}`)
   if (!res.ok) throw new Error(`Failed to get session: ${res.status}`)
   return res.json()
 }
 
 export async function listSessions(): Promise<BackendSession[]> {
-  const res = await fetch(`${API_BASE}/api/research`, { cache: 'no-store' })
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research`, { cache: 'no-store' })
   if (!res.ok) throw new Error(`Failed to list sessions: ${res.status}`)
   return res.json()
 }
 
 export async function deleteSession(sessionId: string): Promise<{ deleted: boolean; session_id: string }> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}`, { method: 'DELETE' })
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`Failed to delete session: ${res.status}`)
   return res.json()
 }
 
 export async function sendDebateMessage(sessionId: string, content: string): Promise<unknown> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}/debate`, {
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}/debate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),
@@ -161,7 +161,7 @@ export async function sendDebateMessage(sessionId: string, content: string): Pro
 }
 
 export async function getOutput(sessionId: string): Promise<unknown> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}/output`)
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}/output`)
   if (!res.ok) throw new Error(`Failed to get output: ${res.status}`)
   return res.json()
 }
@@ -178,7 +178,7 @@ export async function upsertProtocol(
     protocol_version?: string
   }
 ): Promise<ResearchProtocol> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}/protocol`, {
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}/protocol`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(protocol),
@@ -188,7 +188,7 @@ export async function upsertProtocol(
 }
 
 export async function getCandidates(sessionId: string): Promise<CandidateOverview> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}/candidates`, { cache: 'no-store' })
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}/candidates`, { cache: 'no-store' })
   if (!res.ok) throw new Error(`Failed to get candidates: ${res.status}`)
   return res.json()
 }
@@ -200,7 +200,7 @@ export async function decideCandidate(
   operator: string,
   reason: string
 ): Promise<CandidateDecision> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}/candidates/${candidateId}/decision`, {
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}/candidates/${candidateId}/decision`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ decision, operator, reason }),
@@ -216,7 +216,7 @@ export async function createExperimentDraft(
   title?: string,
   design?: string
 ): Promise<ExperimentProtocol> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}/candidates/${candidateId}/experiment`, {
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}/candidates/${candidateId}/experiment`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ operator, title: title ?? '', design: design ?? '' }),
@@ -230,7 +230,7 @@ export async function freezeExperiment(
   experimentId: string,
   operator: string
 ): Promise<ExperimentProtocol> {
-  const res = await fetch(`${API_BASE}/api/research/${sessionId}/experiments/${experimentId}/freeze`, {
+  const res = await fetch(`${RESEARCH_API_BASE}/api/research/${sessionId}/experiments/${experimentId}/freeze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ operator }),
@@ -240,7 +240,7 @@ export async function freezeExperiment(
 }
 
 export function exportUrl(sessionId: string, format: 'markdown' | 'html' | 'docx'): string {
-  return `${API_BASE}/api/export/${sessionId}/${format}`
+  return `${RESEARCH_API_BASE}/api/export/${sessionId}/${format}`
 }
 
 export async function uploadFile(
@@ -249,7 +249,7 @@ export async function uploadFile(
 ): Promise<{ id: string; originalname: string; size: number; mimetype: string; chunks: number; text_length: number }> {
   const formData = new FormData()
   formData.append('file', file)
-  const res = await fetch(`${API_BASE}/api/upload/${sessionId}`, {
+  const res = await fetch(`${RESEARCH_API_BASE}/api/upload/${sessionId}`, {
     method: 'POST',
     body: formData,
   })

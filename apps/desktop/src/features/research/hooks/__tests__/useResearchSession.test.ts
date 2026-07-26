@@ -55,6 +55,21 @@ describe('useResearchSession', () => {
     expect(result.current.sessionList[0].title).toBe('Test')
   })
 
+  it('should expose an unavailable backend without making follow-up requests', async () => {
+    mockGetHealth.mockRejectedValue(new Error('Failed to fetch'))
+
+    const { result } = renderHook(() => useResearchSession())
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    expect(result.current.backendStatus).toBe('unavailable')
+    expect(result.current.backendError).toBe('Failed to fetch')
+    expect(result.current.llmReady).toBe(false)
+    expect(mockListSessions).not.toHaveBeenCalled()
+  })
+
   it('should handle selectSession with race condition', async () => {
     const session1 = { id: '1', question: { title: 'Session 1' }, status: 'idle', protocol: null, candidate_sets: [], candidate_decisions: [], experiment_protocols: [], papers: [], evidence_claims: [], workflow_steps: [], agent_runs: [], audit_events: [] }
     const session2 = { id: '2', question: { title: 'Session 2' }, status: 'idle', protocol: null, candidate_sets: [], candidate_decisions: [], experiment_protocols: [], papers: [], evidence_claims: [], workflow_steps: [], agent_runs: [], audit_events: [] }
