@@ -222,6 +222,18 @@ impl LlmClient {
         }
     }
 
+    pub fn resolved_chat_model(&self, model: Option<&str>) -> String {
+        model
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| match self {
+                Self::OpenAI { chat_model, .. } | Self::Anthropic { chat_model, .. } => {
+                    chat_model.clone()
+                }
+            })
+    }
+
     pub fn from_settings(s: &HashMap<String, String>) -> Result<Self> {
         let provider = s
             .get("llm_provider")
