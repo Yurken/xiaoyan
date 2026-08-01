@@ -72,13 +72,39 @@ use commands::{
     },
     data_backup::{data_backup_export, data_backup_import},
     desktop_assistant::{
-        assistant_capture_screen, assistant_check_permissions, assistant_chat,
-        assistant_cleanup, assistant_get_clipboard, assistant_get_dock_look_target,
-        assistant_get_frontmost_app, assistant_get_selection, assistant_hide_dock,
-        assistant_hide_panel, assistant_import, assistant_interpret, assistant_is_dock_visible,
+        assistant_capture_screen, assistant_check_permissions, assistant_cleanup,
+        assistant_clear_later_items, assistant_complete_permission_guide,
+        assistant_confirm_capture, assistant_create_paste_session, assistant_discard_capture,
+        assistant_get_clipboard, assistant_get_data_policy, assistant_get_dock_look_target,
+        assistant_get_frontmost_app, assistant_get_onboarding, assistant_get_privacy_preferences,
+        assistant_get_runtime_preferences, assistant_get_selection, assistant_get_shortcut,
+        assistant_get_shortcut_diagnostic, assistant_get_translation_preferences,
+        assistant_hide_dock, assistant_hide_panel, assistant_is_dock_visible,
         assistant_is_panel_visible, assistant_request_accessibility,
-        assistant_request_screen_recording, assistant_show_dock, assistant_show_panel,
-        assistant_toggle_panel, assistant_translate,
+        assistant_request_screen_recording, assistant_retry_shortcut, assistant_set_data_policy,
+        assistant_set_privacy_preferences, assistant_set_runtime_preferences,
+        assistant_set_shortcut, assistant_set_translation_preferences, assistant_show_dock,
+        assistant_show_panel, assistant_toggle_panel,
+    },
+    desktop_assistant_actions::{
+        assistant_cancel_action, assistant_chat, assistant_confirm_file_candidates,
+        assistant_create_file_candidates, assistant_discard_file_candidates, assistant_import,
+        assistant_interpret, assistant_list_knowledge_themes, assistant_stream_action,
+        assistant_translate,
+    },
+    desktop_assistant_assets::{
+        assistant_clear_private_data, assistant_delete_image_asset, assistant_list_image_assets,
+    },
+    desktop_assistant_inbox::{
+        assistant_inbox_convert_later, assistant_inbox_discard_file, assistant_inbox_discard_later,
+        assistant_inbox_discard_paper, assistant_inbox_import_file, assistant_inbox_import_paper,
+        assistant_inbox_list,
+    },
+    desktop_assistant_sessions::{assistant_open_conversation, assistant_promote_session},
+    desktop_assistant_source::{assistant_get_source_metadata, assistant_update_source_metadata},
+    desktop_assistant_terminology::{
+        assistant_delete_terminology_preference, assistant_list_terminology_preferences,
+        assistant_save_terminology_preference,
     },
     evidence::evidence_get_links,
     experiment::{
@@ -355,6 +381,17 @@ pub fn run() {
                 if let Err(e) = services::desktop_assistant::CleanupService::init_tables(&pool).await {
                     append_diagnostic_log(&format!("startup: failed to init assistant tables: {e}"));
                 }
+                match services::desktop_assistant::AssistantPreferenceService::load_runtime(&pool)
+                    .await
+                {
+                    Ok(preferences) => desktop_shell::configure_assistant_runtime(
+                        preferences.enabled,
+                        preferences.diagnostic_logging_enabled,
+                    ),
+                    Err(error) => append_diagnostic_log(&format!(
+                        "startup: failed to load assistant runtime preferences: {error}"
+                    )),
+                }
 
                 // 注入全局 token 用量落库连接池（供所有 LLM 调用累加用量）
                 token_usage::init(pool.clone());
@@ -382,6 +419,24 @@ pub fn run() {
 
                 let app_state = AppState::new(pool.clone(), settings);
                 handle.manage(app_state);
+
+                // 桌面助手只保留最小来源元数据；启动时及此后每小时清理过期会话。
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    tauri::async_runtime::spawn(async move {
+                        loop {
+                            if let Err(error) =
+                                services::desktop_assistant::CleanupService::cleanup_all(&state.db)
+                                    .await
+                            {
+                                desktop_shell::append_assistant_diagnostic_log(&format!(
+                                    "assistant: cleanup failed: {error}"
+                                ));
+                            }
+                            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+                        }
+                    });
+                }
 
                 // 小妍内部 Wiki：论文/笔记变更由持久化队列去抖后自动增量编译。
                 {
@@ -792,16 +847,57 @@ pub fn run() {
             assistant_check_permissions,
             assistant_request_accessibility,
             assistant_request_screen_recording,
+            assistant_get_onboarding,
+            assistant_complete_permission_guide,
+            assistant_get_shortcut,
+            assistant_set_shortcut,
+            assistant_get_shortcut_diagnostic,
+            assistant_retry_shortcut,
+            assistant_get_runtime_preferences,
+            assistant_set_runtime_preferences,
+            assistant_get_privacy_preferences,
+            assistant_set_privacy_preferences,
+            assistant_get_data_policy,
+            assistant_set_data_policy,
+            assistant_get_translation_preferences,
+            assistant_set_translation_preferences,
+            assistant_list_terminology_preferences,
+            assistant_save_terminology_preference,
+            assistant_delete_terminology_preference,
             assistant_get_selection,
             assistant_get_clipboard,
+            assistant_create_paste_session,
+            assistant_confirm_capture,
+            assistant_discard_capture,
             assistant_capture_screen,
             assistant_get_frontmost_app,
             assistant_get_dock_look_target,
+            assistant_list_knowledge_themes,
+            assistant_stream_action,
+            assistant_cancel_action,
             assistant_interpret,
             assistant_translate,
             assistant_chat,
             assistant_import,
+            assistant_create_file_candidates,
+            assistant_confirm_file_candidates,
+            assistant_discard_file_candidates,
+            assistant_list_image_assets,
+            assistant_delete_image_asset,
+            assistant_clear_private_data,
+            assistant_inbox_list,
+            assistant_inbox_convert_later,
+            assistant_inbox_discard_later,
+            assistant_inbox_import_paper,
+            assistant_inbox_discard_paper,
+            assistant_inbox_import_file,
+            assistant_inbox_discard_file,
+            assistant_promote_session,
+            assistant_open_conversation,
+            assistant_get_source_metadata,
+            assistant_update_source_metadata,
             assistant_cleanup,
+            assistant_clear_later_items,
             // Window control
             assistant_show_dock,
             assistant_hide_dock,
