@@ -15,20 +15,57 @@ import {
   Settings,
   X,
 } from 'lucide-react'
-import { Card, CardHeader, CardTitle, IconButton, Badge, Button } from '@research-copilot/ui'
+import {
+  Badge,
+  Button,
+  CapsuleTabs,
+  Card,
+  CardHeader,
+  CardTitle,
+  IconButton,
+} from '@research-copilot/ui'
+import { AssistantKnowledgeControls } from './AssistantKnowledgeControls'
 import {
   ASSISTANT_ACTIONS,
+  ASSISTANT_ACTION_CHARACTER_LIMITS,
+  ASSISTANT_INTERPRET_MODES,
+  ASSISTANT_TERMINOLOGY_STYLES,
+  ASSISTANT_TRANSLATION_LANGUAGES,
   ASSISTANT_WINDOW_CARD_STYLE,
   CONTEXT_SOURCES,
   CAPTURE_STATUS_LABEL,
+  countTextCharacters,
+  truncateText,
 } from '../shared'
-import type { CaptureSession, AssistantAction, ContextSourceType } from '../shared'
+import type {
+  AssistantAction,
+  AssistantActionOptions,
+  AssistantInterpretMode,
+  AssistantKnowledgeTheme,
+  AssistantTerminologyStyle,
+  AssistantTranslationPreferences,
+  AssistantTranslationTargetLanguage,
+  CaptureSession,
+  ContextSourceType,
+} from '../shared'
 
 interface AssistantPanelProps {
   session: CaptureSession | null
   isLoading?: boolean
   error?: string | null
-  onAction: (action: AssistantAction, question?: string) => void
+  onAction: (action: AssistantAction, options?: AssistantActionOptions) => void
+  translationPreferences: AssistantTranslationPreferences
+  translationPreferencesSaving?: boolean
+  onTranslationPreferencesChange: (
+    preferences: AssistantTranslationPreferences,
+  ) => void
+  knowledgeThemes: AssistantKnowledgeTheme[]
+  localKnowledgeEnabled: boolean
+  knowledgeThemeId: string
+  knowledgeLoading?: boolean
+  knowledgeError?: string | null
+  onLocalKnowledgeEnabledChange: (enabled: boolean) => void
+  onKnowledgeThemeChange: (themeId: string) => void
   onSourceChange: (sourceType: ContextSourceType) => void
   onClose: () => void
   onSettings?: () => void
@@ -53,21 +90,55 @@ export function AssistantPanel({
   isLoading = false,
   error,
   onAction,
+  translationPreferences,
+  translationPreferencesSaving = false,
+  onTranslationPreferencesChange,
+  knowledgeThemes,
+  localKnowledgeEnabled,
+  knowledgeThemeId,
+  knowledgeLoading = false,
+  knowledgeError,
+  onLocalKnowledgeEnabledChange,
+  onKnowledgeThemeChange,
   onSourceChange,
   onClose,
   onSettings,
 }: AssistantPanelProps) {
   const [selectedAction, setSelectedAction] = useState<AssistantAction | null>(null)
   const [question, setQuestion] = useState('')
+  const [interpretMode, setInterpretMode] =
+    useState<AssistantInterpretMode>('academic')
 
   const handleActionClick = (action: AssistantAction) => {
     // paste 动作允许无内容时触发（用户可以粘贴）
     if (!session?.content && action !== 'import') return
     setSelectedAction(action)
-    onAction(action, question.trim() || undefined)
+    const supportsKnowledge = action === 'interpret' || action === 'chat'
+    onAction(action, {
+      question: question.trim() || undefined,
+      interpretMode: action === 'interpret' ? interpretMode : undefined,
+      targetLanguage:
+        action === 'translate'
+          ? translationPreferences.target_language
+          : undefined,
+      terminologyStyle:
+        action === 'translate'
+          ? translationPreferences.terminology_style
+          : undefined,
+      localKnowledgeEnabled: supportsKnowledge
+        ? localKnowledgeEnabled
+        : undefined,
+      knowledgeThemeId:
+        supportsKnowledge && localKnowledgeEnabled
+          ? knowledgeThemeId
+          : undefined,
+    })
   }
 
   const hasContent = !!session?.content
+  const isImage = session?.content?.startsWith('data:image/') ?? false
+  const contentCharacters =
+    session?.content && !isImage ? countTextCharacters(session.content) : 0
 
   const statusVariant =
     session?.status === 'ready'
@@ -136,7 +207,13 @@ export function AssistantPanel({
               {session.sourceApp && (
                 <p className="mt-2 text-xs" style={{ color: 'var(--rc-text-muted)' }}>
                   来源：{session.sourceApp}
-                  {session.windowTitle && ` - ${session.windowTitle}`}
+                  {session.windowTitle && ` - ${truncateText(session.windowTitle, 50)}`}
+                </p>
+              )}
+              {!isImage && (
+                <p className="mt-1 text-xs" style={{ color: 'var(--rc-text-muted)' }}>
+                  {contentCharacters.toLocaleString('zh-CN')} 字符
+                  {session.contentTruncated && '；采集时已按 50,000 字符上限截断'}
                 </p>
               )}
             </>
@@ -175,6 +252,70 @@ export function AssistantPanel({
             })}
           </div>
         </div>
+
+        {/* 解读模板 */}
+        <div className="mb-4">
+          <div className="mb-2 text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
+            解读模式
+          </div>
+          <div className="overflow-x-auto pb-1">
+            <CapsuleTabs
+              compact
+              display="text"
+              options={ASSISTANT_INTERPRET_MODES}
+              value={interpretMode}
+              onChange={(value) => setInterpretMode(value as AssistantInterpretMode)}
+            />
+          </div>
+        </div>
+
+        {/* 翻译偏好 */}
+        <div className="mb-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
+              翻译偏好
+            </div>
+            {translationPreferencesSaving && (
+              <span className="text-[10px]" style={{ color: 'var(--rc-text-muted)' }}>
+                保存中…
+              </span>
+            )}
+          </div>
+          <div className="overflow-x-auto pb-1">
+            <CapsuleTabs
+              compact
+              display="text"
+              options={ASSISTANT_TRANSLATION_LANGUAGES}
+              value={translationPreferences.target_language}
+              onChange={(value) => onTranslationPreferencesChange({
+                ...translationPreferences,
+                target_language: value as AssistantTranslationTargetLanguage,
+              })}
+            />
+          </div>
+          <div className="overflow-x-auto pb-1">
+            <CapsuleTabs
+              compact
+              display="text"
+              options={ASSISTANT_TERMINOLOGY_STYLES}
+              value={translationPreferences.terminology_style}
+              onChange={(value) => onTranslationPreferencesChange({
+                ...translationPreferences,
+                terminology_style: value as AssistantTerminologyStyle,
+              })}
+            />
+          </div>
+        </div>
+
+        <AssistantKnowledgeControls
+          themes={knowledgeThemes}
+          enabled={localKnowledgeEnabled}
+          selectedThemeId={knowledgeThemeId}
+          loading={knowledgeLoading}
+          error={knowledgeError}
+          onEnabledChange={onLocalKnowledgeEnabledChange}
+          onThemeChange={onKnowledgeThemeChange}
+        />
 
         {/* 可选问题输入 */}
         <div className="mb-4">
@@ -223,11 +364,28 @@ export function AssistantPanel({
                   className="flex items-center justify-center gap-2"
                 >
                   <Icon size={14} />
-                  {action.label}
+                  <span>
+                    {action.label}
+                    {!isImage && (
+                      <span className="ml-1 text-[10px] opacity-75">
+                        · {action.maxCharacters.toLocaleString('zh-CN')} 字符
+                      </span>
+                    )}
+                  </span>
                 </Button>
               )
             })}
           </div>
+          {!isImage
+            && contentCharacters > ASSISTANT_ACTION_CHARACTER_LIMITS.interpret && (
+            <p
+              role="status"
+              className="mt-2 text-xs leading-5"
+              style={{ color: 'var(--rc-badge-warning-text)' }}
+            >
+              超过所选动作上限的部分不会发送；仅处理对应按钮标示的前若干字符。
+            </p>
+          )}
         </div>
       </div>
     </Card>

@@ -22,7 +22,7 @@ impl PlatformAdapter for UnsupportedAdapter {
         Err(anyhow::anyhow!("读取选区目前仅支持 macOS"))
     }
 
-    fn capture_screen_interactive(&self) -> anyhow::Result<Vec<u8>> {
+    fn capture_screen_interactive(&self) -> anyhow::Result<trait_platform::CapturedScreenshot> {
         Err(anyhow::anyhow!("交互式截图目前仅支持 macOS"))
     }
 

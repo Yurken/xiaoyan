@@ -1,7 +1,7 @@
 /**
  * 桌面助手设置分区
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   MonitorDot,
   Keyboard,
@@ -12,15 +12,49 @@ import {
   PanelTopOpen,
 } from 'lucide-react'
 import { Card, Button } from '@research-copilot/ui'
-import { useAssistantPermissions, useAssistantWindow } from '../desktop-assistant/hooks'
+import {
+  useAssistantPermissions,
+  useAssistantOnboarding,
+  useAssistantRuntimePreferences,
+  useAssistantShortcut,
+  useAssistantWindow,
+} from '../desktop-assistant/hooks'
+import {
+  AssistantDataPolicySection,
+  AssistantPermissionGuide,
+  AssistantPrivacyRulesSection,
+  AssistantRuntimeSettingsSection,
+} from '../desktop-assistant/components'
+import { formatAssistantShortcut } from '../desktop-assistant/shared'
 
 export default function DesktopAssistantSettingsSection() {
   const permissions = useAssistantPermissions()
   const assistant = useAssistantWindow()
+  const assistantShortcut = useAssistantShortcut()
+  const onboarding = useAssistantOnboarding()
+  const runtime = useAssistantRuntimePreferences()
   const [pendingAction, setPendingAction] = useState<'dock' | 'panel' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [shortcutDraft, setShortcutDraft] = useState('')
+  const [permissionGuideOpen, setPermissionGuideOpen] = useState(false)
+
+  useEffect(() => {
+    setShortcutDraft(assistantShortcut.shortcut)
+  }, [assistantShortcut.shortcut])
 
   const toggleDock = async () => {
+    if (!runtime.preferences.enabled) {
+      setActionError('桌面助手已关闭，请先启用总开关')
+      return
+    }
+    if (onboarding.loading) return
+    if (
+      !assistant.isDockVisible
+      && !onboarding.onboarding.permission_guide_completed
+    ) {
+      setPermissionGuideOpen(true)
+      return
+    }
     setPendingAction('dock')
     setActionError(null)
     try {
@@ -38,6 +72,10 @@ export default function DesktopAssistantSettingsSection() {
   }
 
   const togglePanel = async () => {
+    if (!runtime.preferences.enabled) {
+      setActionError('桌面助手已关闭，请先启用总开关')
+      return
+    }
     setPendingAction('panel')
     setActionError(null)
     try {
@@ -51,8 +89,43 @@ export default function DesktopAssistantSettingsSection() {
     }
   }
 
+  const saveShortcut = async () => {
+    const saved = await assistantShortcut.save(shortcutDraft)
+    if (!saved) setShortcutDraft(assistantShortcut.shortcut)
+  }
+
+  const applyRuntimePreferences = async (
+    next: typeof runtime.preferences,
+  ) => {
+    const saved = await runtime.save(next)
+    await Promise.all([
+      assistant.refreshVisibility(),
+      assistantShortcut.refresh(),
+    ])
+    return saved
+  }
+
+  const finishPermissionGuide = async () => {
+    const completed = await onboarding.completePermissionGuide()
+    if (!completed) return
+    setPermissionGuideOpen(false)
+    if (runtime.preferences.enabled && !assistant.isDockVisible) {
+      setPendingAction('dock')
+      await assistant.showDock()
+      await assistant.refreshVisibility()
+      setPendingAction(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <AssistantRuntimeSettingsSection
+        preferences={runtime.preferences}
+        loading={runtime.loading}
+        saving={runtime.saving}
+        error={runtime.error}
+        onChange={applyRuntimePreferences}
+      />
       <Card padding="md" className="space-y-4">
         <div className="flex items-center gap-3">
           <span
@@ -70,15 +143,17 @@ export default function DesktopAssistantSettingsSection() {
           <span
             className="ml-auto rounded-full px-2.5 py-1 text-xs font-medium"
             style={{
-              background: assistant.isDockVisible
+              background: runtime.preferences.enabled && assistant.isDockVisible
                 ? 'var(--rc-badge-success-bg)'
                 : 'var(--rc-badge-bg)',
-              color: assistant.isDockVisible
+              color: runtime.preferences.enabled && assistant.isDockVisible
                 ? 'var(--rc-badge-success-text)'
                 : 'var(--rc-badge-text)',
             }}
           >
-            {assistant.isDockVisible ? '在桌面上' : '在主窗口内'}
+            {!runtime.preferences.enabled
+              ? '已关闭'
+              : assistant.isDockVisible ? '在桌面上' : '在主窗口内'}
           </span>
         </div>
 
@@ -98,6 +173,10 @@ export default function DesktopAssistantSettingsSection() {
                 variant={assistant.isDockVisible ? 'secondary' : 'primary'}
                 size="sm"
                 loading={pendingAction === 'dock'}
+                disabled={
+                  !runtime.preferences.enabled
+                  || (!assistant.isDockVisible && onboarding.loading)
+                }
                 onClick={() => void toggleDock()}
               >
                 {assistant.isDockVisible ? '让小妍回到窗口' : '让小妍走到桌面'}
@@ -106,6 +185,7 @@ export default function DesktopAssistantSettingsSection() {
                 variant="secondary"
                 size="sm"
                 loading={pendingAction === 'panel'}
+                disabled={!runtime.preferences.enabled}
                 onClick={() => void togglePanel()}
               >
                 {assistant.isPanelVisible ? '关闭动作面板' : '打开动作面板'}
@@ -124,8 +204,77 @@ export default function DesktopAssistantSettingsSection() {
               <p className="text-sm font-semibold text-ink-primary">全局快捷键</p>
             </div>
             <p className="mt-1 text-xs leading-5 text-ink-secondary">
-              默认 Alt + Space 唤起动作面板。首次使用需授权辅助功能与屏幕录制权限。
+              点击输入框后按下新的组合键；若与其他应用冲突，会保留原快捷键。
             </p>
+            <div className="mt-3 flex gap-2">
+              <input
+                aria-label="桌面助手全局快捷键"
+                readOnly
+                disabled={!runtime.preferences.enabled}
+                value={assistantShortcut.loading ? '读取中…' : shortcutDraft}
+                onKeyDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  const shortcut = formatAssistantShortcut(event)
+                  if (shortcut) setShortcutDraft(shortcut)
+                }}
+                onFocus={(event) => event.currentTarget.select()}
+                className="min-w-0 flex-1 rounded-2xl border px-3 py-2 text-sm outline-none"
+                style={{
+                  background: 'var(--rc-control-bg)',
+                  borderColor: 'var(--rc-control-border)',
+                  color: 'var(--rc-text)',
+                  boxShadow: 'var(--rc-control-shadow)',
+                }}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={assistantShortcut.saving}
+                disabled={
+                  assistantShortcut.loading
+                  || !runtime.preferences.enabled
+                  || !shortcutDraft
+                  || shortcutDraft === assistantShortcut.shortcut
+                }
+                onClick={() => void saveShortcut()}
+              >
+                应用
+              </Button>
+            </div>
+            {assistantShortcut.diagnostic
+              && assistantShortcut.diagnostic.status !== 'healthy'
+              && assistantShortcut.diagnostic.status !== 'disabled' && (
+              <div
+                role="status"
+                className="mt-3 rounded-2xl px-3 py-2 text-xs leading-5"
+                style={{
+                  background: 'var(--rc-badge-warning-bg)',
+                  color: 'var(--rc-badge-warning-text)',
+                }}
+              >
+                <p className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{assistantShortcut.diagnostic.message}</span>
+                </p>
+                <p className="mt-1">
+                  请求：{assistantShortcut.diagnostic.requested_shortcut}
+                  {assistantShortcut.diagnostic.active_shortcut
+                    ? `；当前可用：${assistantShortcut.diagnostic.active_shortcut}`
+                    : '；当前没有可用的全局快捷键'}
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  loading={assistantShortcut.saving}
+                  className="mt-2"
+                  onClick={() => void assistantShortcut.retry()}
+                >
+                  重试注册
+                </Button>
+              </div>
+            )}
           </div>
 
           <div
@@ -150,7 +299,7 @@ export default function DesktopAssistantSettingsSection() {
               <p className="text-sm font-semibold text-ink-primary">隐私安全</p>
             </div>
             <p className="mt-1 text-xs leading-5 text-ink-secondary">
-              默认不采集密码管理器、金融与系统安全应用。所有内容在发送前均需用户确认。
+              默认不采集密码管理器、金融与系统安全应用，并在发送前展示完整预览。
             </p>
           </div>
 
@@ -197,10 +346,32 @@ export default function DesktopAssistantSettingsSection() {
           ))}
         </div>
 
-        {(permissions.error || actionError) && (
-          <p role="alert" className="text-xs text-red-500">{permissions.error || actionError}</p>
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setPermissionGuideOpen((open) => !open)}
+          >
+            {permissionGuideOpen ? '收起权限说明' : '查看权限用途说明'}
+          </Button>
+        </div>
+
+        {(permissions.error || onboarding.error || assistantShortcut.error || actionError) && (
+          <p role="alert" className="text-xs text-red-500">
+            {permissions.error || onboarding.error || assistantShortcut.error || actionError}
+          </p>
         )}
       </Card>
+      {permissionGuideOpen && (
+        <AssistantPermissionGuide
+          saving={onboarding.saving}
+          error={onboarding.error}
+          onFinish={finishPermissionGuide}
+        />
+      )}
+      <AssistantPrivacyRulesSection />
+      <AssistantDataPolicySection />
     </div>
   )
 }

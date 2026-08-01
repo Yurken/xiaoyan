@@ -6,7 +6,12 @@
 import { Check, X, RotateCcw, AlertCircle, Shield } from 'lucide-react'
 import { Card, CardHeader, CardTitle, Badge, Button } from '@research-copilot/ui'
 import type { CaptureSession } from '../shared'
-import { ASSISTANT_WINDOW_CARD_STYLE, CAPTURE_STATUS_LABEL, truncateText } from '../shared'
+import {
+  ASSISTANT_WINDOW_CARD_STYLE,
+  CAPTURE_STATUS_LABEL,
+  countTextCharacters,
+  truncateText,
+} from '../shared'
 
 interface CapturePreviewProps {
   session: CaptureSession
@@ -30,6 +35,9 @@ export function CapturePreview({
   const showPrivacyError = privacyError || session.status === 'error'
   const isScreenshot = session.sourceType === 'screenshot'
   const canConfirm = Boolean(session.content?.trim())
+  const currentCharacters = session.content ? countTextCharacters(session.content) : 0
+  const originalCharacters = session.originalCharacterCount ?? currentCharacters
+  const hasSensitiveRedactions = (session.sensitiveRedactionKinds?.length ?? 0) > 0
 
   const statusVariant =
     session.status === 'ready'
@@ -90,6 +98,44 @@ export function CapturePreview({
           </div>
         )}
 
+        {session.status === 'ready' && !isScreenshot && (
+          <div
+            className="mb-3 rounded-2xl px-3 py-2 text-xs leading-5"
+            style={{
+              background: session.contentTruncated
+                ? 'var(--rc-badge-warning-bg)'
+                : 'var(--rc-chip-inset-bg)',
+              color: session.contentTruncated
+                ? 'var(--rc-badge-warning-text)'
+                : 'var(--rc-text-muted)',
+            }}
+          >
+            <p>当前内容：{currentCharacters.toLocaleString('zh-CN')} 字符</p>
+            {session.contentTruncated && (
+              <p role="status">
+                原始内容共 {originalCharacters.toLocaleString('zh-CN')} 字符，已仅保留前{' '}
+                {currentCharacters.toLocaleString('zh-CN')} 字符。可缩小选区，或在主窗口处理完整文档。
+              </p>
+            )}
+          </div>
+        )}
+
+        {session.status === 'ready' && hasSensitiveRedactions && (
+          <div
+            role="alert"
+            className="mb-3 rounded-2xl px-3 py-2 text-xs leading-5"
+            style={{
+              background: 'var(--rc-badge-warning-bg)',
+              color: 'var(--rc-badge-warning-text)',
+            }}
+          >
+            <p className="font-medium">已默认遮盖疑似敏感片段</p>
+            <p>
+              检测到：{session.sensitiveRedactionKinds?.join('、')}。原值不会显示、保存或发送；请检查占位符后再次确认。
+            </p>
+          </div>
+        )}
+
         {/* 内容编辑 */}
         {session.status === 'ready' && !isScreenshot && (
           <textarea
@@ -111,6 +157,11 @@ export function CapturePreview({
         {/* 截图预览 */}
         {isScreenshot && session.screenshotPath && (
           <div className="mb-4">
+            {session.captureRegion ? (
+              <p className="mb-2 text-xs" style={{ color: 'var(--rc-text-muted)' }}>
+                截取范围：{session.captureRegion.width} × {session.captureRegion.height} 像素
+              </p>
+            ) : null}
             <img
               src={session.screenshotPath}
               alt="截图预览"
@@ -149,7 +200,11 @@ export function CapturePreview({
                 className="flex-1"
               >
                 <Check size={14} />
-                确认使用
+                {hasSensitiveRedactions
+                  ? session.sensitiveConfirmationArmed
+                    ? '确认发送遮盖内容'
+                    : '检查后继续'
+                  : '确认使用'}
               </Button>
             )}
             {session.status === 'error' && !privacyError && (

@@ -1,6 +1,7 @@
 //! 平台适配器 trait 定义
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 /// 平台适配器 trait
 ///
@@ -12,8 +13,8 @@ pub trait PlatformAdapter: Send + Sync {
     /// 读取选中文本
     fn get_selection(&self) -> Result<Option<String>>;
 
-    /// 由系统提供交互式区域选择并返回 PNG 数据。
-    fn capture_screen_interactive(&self) -> Result<Vec<u8>>;
+    /// 由系统提供交互式区域选择并返回 PNG 数据及可验证的像素范围。
+    fn capture_screen_interactive(&self) -> Result<CapturedScreenshot>;
 
     /// 检查辅助功能权限
     fn check_accessibility_permission(&self) -> bool;
@@ -37,4 +38,19 @@ pub struct FrontmostApp {
     pub bundle_id: Option<String>,
     /// 窗口标题
     pub window_title: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScreenshotRegion {
+    /// 系统截图工具未公开全局选区坐标时保持为空。
+    pub x: Option<i32>,
+    pub y: Option<i32>,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct CapturedScreenshot {
+    pub bytes: Vec<u8>,
+    pub region: ScreenshotRegion,
 }
