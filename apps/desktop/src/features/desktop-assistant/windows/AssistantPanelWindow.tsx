@@ -1,106 +1,98 @@
-/**
- * 桌面助手动作面板窗口
- * 运行在独立的 assistant-panel Tauri 窗口中
- */
 import {
   useAssistantOverlay,
+  useAssistantSession,
+  useAssistantTranslationPreferences,
+  useAssistantTerminologyPreferences,
+  useAssistantDataPolicy,
+  useAssistantFileCandidates,
+  useAssistantOnboarding,
   useAssistantPanelAutoSize,
+  useAssistantKnowledge,
+  useAssistantImport,
+  useAssistantPrivateDataClearSignal,
   useAssistantWindow,
   useCaptureSession,
 } from '../hooks'
-import { AssistantPanel, CapturePreview, ResultCard, ImportDialog } from '../components'
-import type { AssistantAction, ImportConfig, ContextSourceType } from '../shared'
-import { useEffect, useState } from 'react'
+import {
+  AssistantPanel,
+  AssistantPermissionGuide,
+  CapturePreview,
+  FileCandidateDialog,
+  ResultCard,
+  ImportDialog,
+} from '../components'
+import {
+  CONTEXT_SOURCES,
+  limitAssistantContent,
+  type AssistantAction,
+  type AssistantActionOptions,
+  type ContextSourceType,
+} from '../shared'
+import { defaultImportRetentionPolicy } from '../importShared'
+import { useCallback, useEffect } from 'react'
+import { FileUp } from 'lucide-react'
 
 export default function AssistantPanelWindow() {
   const overlay = useAssistantOverlay()
+  const actionStream = useAssistantSession()
+  const translationPreferences = useAssistantTranslationPreferences()
+  const terminologyPreferences = useAssistantTerminologyPreferences()
   const windowManager = useAssistantWindow()
-  const capture = useCaptureSession()
-  const [importOpen, setImportOpen] = useState(false)
-  const [lastAction, setLastAction] = useState<Exclude<AssistantAction, 'import'>>('interpret')
-  const panelContentRef = useAssistantPanelAutoSize(importOpen ? 560 : 0)
+  const dataPolicy = useAssistantDataPolicy()
+  const onboarding = useAssistantOnboarding()
+  const files = useAssistantFileCandidates()
+  const knowledge = useAssistantKnowledge()
+  const assistantImport = useAssistantImport()
+  const capture = useCaptureSession(
+    dataPolicy.loading || dataPolicy.policy.preview_required,
+    !onboarding.loading && onboarding.onboarding.permission_guide_completed,
+  )
+  const clearPrivateState = useCallback(() => {
+    files.clearTemporaryState()
+    actionStream.reset()
+    overlay.reset()
+    capture.clearSession()
+    assistantImport.close()
+  }, [actionStream, assistantImport, capture, files, overlay])
+  useAssistantPrivateDataClearSignal(clearPrivateState)
+  const fileDialogOpen = Boolean(
+    files.inspection || files.confirmedCandidates || files.error,
+  )
+  const panelContentRef = useAssistantPanelAutoSize(assistantImport.open || fileDialogOpen ? 560 : 0)
 
-  const handleAction = async (action: AssistantAction, question?: string) => {
+  const handleAction = async (
+    action: AssistantAction,
+    options?: AssistantActionOptions,
+  ) => {
     if (!capture.session?.content) return
     if (action === 'import') {
-      setImportOpen(true)
+      assistantImport.show()
       return
     }
+    const actionContent = limitAssistantContent(action, capture.session.content).content
 
-    setLastAction(action)
     overlay.setError(null)
-    overlay.setPanelStatus('loading')
-
-    try {
-      const { invoke } = await import('@tauri-apps/api/core')
-
-      let result: { id: string; session_id: string; action: string; content: string; format: string }
-
-      switch (action) {
-        case 'interpret':
-          result = await invoke('assistant_interpret', {
-            sessionId: capture.session?.id || 'temp',
-            content: capture.session?.content || '',
-            question: question || null,
-          })
-          break
-        case 'translate':
-          result = await invoke('assistant_translate', {
-            sessionId: capture.session?.id || 'temp',
-            content: capture.session?.content || '',
-            targetLang: null,
-          })
-          break
-        case 'chat':
-          result = await invoke('assistant_chat', {
-            sessionId: capture.session?.id || 'temp',
-            context: capture.session?.content || '',
-            question: question || '请详细解释这段内容',
-          })
-          break
-        default:
-          throw new Error(`Unknown action: ${action}`)
-      }
-
-      overlay.setCurrentResult({
-        id: result.id,
-        sessionId: result.session_id,
-        action,
-        content: result.content,
-        format: result.format === 'markdown' || result.format === 'html' ? result.format : 'text',
-        createdAt: Date.now(),
-      })
-      overlay.setPanelStatus('ready')
-    } catch (err) {
-      console.error('[assistant] Action failed:', err)
-      overlay.setError(err instanceof Error ? err.message : '动作执行失败')
-      overlay.setPanelStatus('error')
-    }
+    await actionStream.start({
+      action,
+      sessionId: capture.session.id,
+      content: actionContent,
+      question:
+        action === 'chat'
+          ? options?.question || '请详细解释这段内容'
+          : options?.question,
+      interpretMode: options?.interpretMode,
+      targetLang: options?.targetLanguage,
+      terminologyStyle: options?.terminologyStyle,
+      localKnowledgeEnabled: options?.localKnowledgeEnabled,
+      knowledgeThemeId: options?.knowledgeThemeId,
+    })
   }
 
-  const handleImport = async (config: ImportConfig) => {
-    const content = overlay.currentResult?.content ?? capture.session?.content
-    if (!capture.session || !content) return
-
-    try {
-      const { invoke } = await import('@tauri-apps/api/core')
-
-      await invoke('assistant_import', {
-        sessionId: capture.session.id,
-        content,
-        target: config.target,
-        title: config.title || null,
-        tags: config.tags || null,
-      })
-
-      overlay.reset()
-      capture.clearSession()
-      setImportOpen(false)
-      await windowManager.hidePanel()
-    } catch (err) {
-      console.error('[assistant] Import failed:', err)
-      overlay.setError(err instanceof Error ? err.message : '导入失败')
-    }
+  const handleImportSuccess = async () => {
+    actionStream.reset()
+    overlay.reset()
+    capture.clearSession()
+    await windowManager.hidePanel()
   }
 
   const handlePasteFallback = () => {
@@ -109,16 +101,25 @@ export default function AssistantPanelWindow() {
   }
 
   const handleSourceChange = (sourceType: ContextSourceType) => {
-    overlay.setCurrentResult(null)
+    actionStream.reset()
     overlay.setError(null)
     void capture.startCapture(sourceType)
   }
 
   const handleClose = async () => {
+    if (assistantImport.saving) return
+    if (files.inspection) await files.cancel()
+    files.clearConfirmation()
+    actionStream.reset()
     overlay.reset()
     capture.clearSession()
-    setImportOpen(false)
+    assistantImport.close()
     await windowManager.hidePanel()
+  }
+
+  const handlePermissionGuideFinish = async () => {
+    const completed = await onboarding.completePermissionGuide()
+    if (completed) void capture.startCapture('selection')
   }
 
   useEffect(() => {
@@ -129,21 +130,105 @@ export default function AssistantPanelWindow() {
     return () => window.removeEventListener('keydown', onKeyDown)
   })
 
-  const isLoading = capture.status === 'capturing' || overlay.panelStatus === 'loading'
+  const isLoading =
+    capture.status === 'capturing' || actionStream.status === 'streaming'
   const needsPreview = Boolean(capture.session && !capture.session.userConfirmed)
+  const needsPermissionGuide =
+    !onboarding.loading && !onboarding.onboarding.permission_guide_completed
+  const captureContextLabel = capture.session
+    ? CONTEXT_SOURCES.find((source) => source.type === capture.session?.sourceType)?.label
+      ?? '捕获内容'
+    : '捕获内容'
+  const captureSourceSummary = [
+    captureContextLabel,
+    capture.session?.sourceApp,
+    capture.session?.windowTitle,
+  ].filter(Boolean).join(' · ')
+  const importOriginalContent = actionStream.session?.includeCaptureContext === false
+    ? undefined
+    : capture.session?.content ?? undefined
+  const sessionThemeName = actionStream.result?.metadata?.knowledgeTheme
+    ?? knowledge.themes.find(
+      (theme) => theme.id === actionStream.session?.researchThemeId,
+    )?.name
 
   return (
     <div
       ref={panelContentRef}
-      className="w-full overflow-y-auto"
+      className="relative w-full overflow-y-auto"
       style={{ maxHeight: 620, background: 'var(--rc-card-bg)' }}
     >
-      {overlay.currentResult ? (
+      {fileDialogOpen ? (
+        <FileCandidateDialog
+          inspection={files.inspection}
+          confirmedCandidates={files.confirmedCandidates}
+          confirming={files.confirming}
+          error={files.error}
+          onConfirm={() => void files.confirm()}
+          onCancel={() => void files.cancel()}
+          onCloseConfirmation={files.clearConfirmation}
+        />
+      ) : needsPermissionGuide ? (
+        <AssistantPermissionGuide
+          saving={onboarding.saving}
+          error={onboarding.error}
+          onFinish={handlePermissionGuideFinish}
+        />
+      ) : actionStream.result ? (
         <ResultCard
-          result={overlay.currentResult}
+          result={actionStream.result}
+          sourceContent={capture.session?.content ?? undefined}
+          status={actionStream.status}
+          error={actionStream.error ?? overlay.error}
           onCopy={(content) => void navigator.clipboard.writeText(content)}
-          onImport={() => setImportOpen(true)}
-          onRetry={() => void handleAction(lastAction)}
+          onImport={assistantImport.show}
+          onStop={() => void actionStream.stop()}
+          onRetry={
+            actionStream.session?.includeCaptureContext
+              || actionStream.result.action === 'chat'
+              ? () => void actionStream.retry()
+              : undefined
+          }
+          conversationMessages={actionStream.historyMessages}
+          promotingSession={actionStream.promoting}
+          promotedConversationId={actionStream.session?.promotedConversationId}
+          promotionError={actionStream.promotionError}
+          onFollowUp={(question) => {
+            if (!capture.session?.content || !actionStream.session) return false
+            overlay.setError(null)
+            return actionStream.followUp({
+              captureSessionId: capture.session.id,
+              content: limitAssistantContent('chat', capture.session.content).content,
+              question,
+              localKnowledgeEnabled: actionStream.session.useLocalKnowledge,
+              knowledgeThemeId: actionStream.session.researchThemeId,
+            })
+          }}
+          onPromoteSession={() => {
+            if (!capture.session?.content) return null
+            return actionStream.promote({ context: capture.session.content })
+          }}
+          onOpenConversation={async () => {
+            const opened = await actionStream.openConversation()
+            if (opened) await handleClose()
+            return opened
+          }}
+          captureContextLabel={captureContextLabel}
+          includeCaptureContext={actionStream.session?.includeCaptureContext}
+          useLocalKnowledge={actionStream.session?.useLocalKnowledge}
+          hadLocalKnowledge={Boolean(actionStream.session?.researchThemeId)}
+          knowledgeThemeName={sessionThemeName}
+          onRemoveCaptureContext={actionStream.removeCaptureContext}
+          onRemoveLocalKnowledge={actionStream.removeLocalKnowledge}
+          terminologyPreferences={terminologyPreferences.preferences}
+          translationTargetLanguage={
+            actionStream.session?.translationTargetLanguage
+              ?? translationPreferences.preferences.target_language
+          }
+          terminologySaving={terminologyPreferences.saving}
+          terminologyError={terminologyPreferences.error}
+          onSaveTerminologyPreference={terminologyPreferences.save}
+          onRemoveTerminologyPreference={terminologyPreferences.remove}
         />
       ) : needsPreview && capture.session ? (
         <CapturePreview
@@ -159,18 +244,76 @@ export default function AssistantPanelWindow() {
         <AssistantPanel
           session={capture.session}
           isLoading={isLoading}
-          error={overlay.error}
-          onAction={(action, question) => void handleAction(action, question)}
+          error={overlay.error ?? translationPreferences.error}
+          translationPreferences={translationPreferences.preferences}
+          translationPreferencesSaving={translationPreferences.saving}
+          onTranslationPreferencesChange={(preferences) => {
+            void translationPreferences.save(preferences)
+          }}
+          knowledgeThemes={knowledge.themes}
+          localKnowledgeEnabled={knowledge.enabled}
+          knowledgeThemeId={knowledge.selectedThemeId}
+          knowledgeLoading={knowledge.loading}
+          knowledgeError={knowledge.error}
+          onLocalKnowledgeEnabledChange={knowledge.setKnowledgeEnabled}
+          onKnowledgeThemeChange={knowledge.selectTheme}
+          onAction={(action, options) => void handleAction(action, options)}
           onSourceChange={handleSourceChange}
           onClose={() => void handleClose()}
         />
       )}
 
-      {importOpen && (overlay.currentResult?.content || capture.session?.content) && (
+      {(files.dragActive || files.loading) && (
+        <div
+          role="status"
+          className="absolute inset-0 z-40 flex items-center justify-center rounded-3xl border-2 border-dashed p-6 text-center"
+          style={{
+            background: 'color-mix(in srgb, var(--rc-card-bg) 92%, transparent)',
+            borderColor: 'var(--rc-accent)',
+            color: 'var(--rc-accent)',
+          }}
+        >
+          <div>
+            <FileUp className="mx-auto h-8 w-8" />
+            <p className="mt-2 text-sm font-semibold">
+              {files.loading ? '正在安全检查文件…' : '松开以创建导入候选'}
+            </p>
+            <p className="mt-1 text-xs">
+              支持 PDF、PNG、JPEG、WebP、Markdown 和 TXT
+            </p>
+          </div>
+        </div>
+      )}
+
+      {assistantImport.open && capture.session?.content && (
         <ImportDialog
-          content={overlay.currentResult?.content ?? capture.session?.content ?? ''}
-          onConfirm={handleImport}
-          onCancel={() => setImportOpen(false)}
+          content={actionStream.result?.content ?? capture.session?.content ?? ''}
+          originalContent={importOriginalContent}
+          sourceLabel={captureSourceSummary}
+          themes={knowledge.themes}
+          defaultResearchThemeId={
+            actionStream.session?.researchThemeId ?? knowledge.selectedThemeId
+          }
+          defaultRetentionPolicy={defaultImportRetentionPolicy(
+            dataPolicy.policy.inbox_retention_days,
+          )}
+          saving={assistantImport.saving}
+          error={assistantImport.error}
+          onConfirm={(config) => {
+            const content = limitAssistantContent(
+              'import',
+              actionStream.result?.content ?? capture.session?.content ?? '',
+            ).content
+            void assistantImport.confirm({
+              sessionId: capture.session?.id ?? '',
+              content,
+              originalContent: importOriginalContent,
+              config,
+            }).then((imported) => {
+              if (imported) void handleImportSuccess()
+            })
+          }}
+          onCancel={assistantImport.close}
         />
       )}
     </div>
