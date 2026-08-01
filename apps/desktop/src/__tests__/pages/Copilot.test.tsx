@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { renderWithRouter } from "../helpers/render";
 import { getInvokeMock, resetInvokeMock } from "../mocks/tauri";
 import Copilot from "../../pages/Copilot";
@@ -29,6 +30,16 @@ function mockCopilotInvoke() {
       case "knowledge_list_interests":
         return [];
       case "skills_list":
+        return [];
+      case "chat_get_session":
+        return {
+          id: "assistant-session-1",
+          title: "桌面助手会话",
+          context_type: "general",
+          context_id: null,
+          messages: [],
+        };
+      case "chat_list_agent_runs":
         return [];
       default:
         return undefined;
@@ -81,5 +92,24 @@ describe("Copilot 页面", () => {
   it("应显示会话侧边栏", () => {
     renderWithRouter(<Copilot />);
     expect(screen.getByTestId("session-sidebar")).toBeInTheDocument();
+  });
+
+  it("应接续桌面助手刚保存、但列表尚未刷新的正式会话", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: "/chat",
+          state: { assistantConversationId: "assistant-session-1" },
+        }]}
+      >
+        <Copilot />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(getInvokeMock()).toHaveBeenCalledWith("chat_get_session", {
+        id: "assistant-session-1",
+      });
+    });
   });
 });

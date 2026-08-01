@@ -64,6 +64,7 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("chunk_overlap".into(), "150".into());
     m.insert("rag_top_k".into(), "5".into());
     m.insert("assistant_dock_enabled".into(), "false".into());
+    m.insert("assistant_shortcut".into(), "Alt+Space".into());
     m.insert("embedding_base_url".into(), "".into());
     m.insert("embedding_api_key".into(), "".into());
     m.insert("embedding_model".into(), "".into());
@@ -292,11 +293,14 @@ pub struct AppState {
     pub chat_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// Active translation stream handles keyed by request_id.
     pub translation_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
+    /// Active desktop-assistant action streams keyed by request_id.
+    pub assistant_action_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// Active code assistant stream handles keyed by request_id.
     pub code_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// Pending code tool permission senders keyed by permission_id.
-    pub code_permissions:
-        Arc<Mutex<HashMap<String, tokio::sync::oneshot::Sender<crate::code::CodePermissionDecision>>>>,
+    pub code_permissions: Arc<
+        Mutex<HashMap<String, tokio::sync::oneshot::Sender<crate::code::CodePermissionDecision>>>,
+    >,
     /// 串行化 WebDAV 同步：保证同一时刻只有一次同步在运行。
     pub sync_lock: Arc<Mutex<()>>,
     /// 同步状态，供前端订阅展示。
@@ -310,6 +314,7 @@ impl AppState {
             settings: Arc::new(RwLock::new(settings)),
             chat_handles: Arc::new(Mutex::new(HashMap::new())),
             translation_handles: Arc::new(Mutex::new(HashMap::new())),
+            assistant_action_handles: Arc::new(Mutex::new(HashMap::new())),
             code_handles: Arc::new(Mutex::new(HashMap::new())),
             code_permissions: Arc::new(Mutex::new(HashMap::new())),
             sync_lock: Arc::new(Mutex::new(())),

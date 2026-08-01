@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import CopilotComposer from "../features/copilot/CopilotComposer";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
@@ -25,6 +26,7 @@ import {
 import { useCopilotPaperContext } from "../features/copilot/useCopilotPaperContext";
 
 export default function Copilot({ hideFolders = false }: { hideFolders?: boolean }) {
+  const location = useLocation();
   const sessionListStorageKey = hideFolders
     ? "rc:copilot:session-list-mode:focus"
     : "rc:copilot:session-list-mode";
@@ -52,6 +54,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const memorySavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadSessionRequestRef = useRef(0);
   const restoredLastSessionRef = useRef(false);
+  const restoredAssistantHandoffRef = useRef<string | null>(null);
 
   const {
     attachments,
@@ -134,7 +137,24 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     if (loadSessionRequestRef.current === requestId) {
       chat.restoreLoadedSession(sessionData, runData);
     }
+    return sessionData;
   }, [sessions, chat]);
+
+  const assistantConversationId = (
+    location.state as { assistantConversationId?: string } | null
+  )?.assistantConversationId;
+  useEffect(() => {
+    if (!assistantConversationId || !sessions.sessionsLoaded) return;
+    if (restoredAssistantHandoffRef.current === assistantConversationId) return;
+    restoredAssistantHandoffRef.current = assistantConversationId;
+    restoredLastSessionRef.current = true;
+    const candidate = sessions.sessions.find(
+      (session) => session.id === assistantConversationId,
+    ) ?? ({ id: assistantConversationId } as ChatSession);
+    void handleLoadSession(candidate).then((loaded) => {
+      if (loaded) sessions.syncSession(loaded);
+    });
+  }, [assistantConversationId, handleLoadSession, sessions]);
 
   useEffect(() => {
     if (restoredLastSessionRef.current) return;

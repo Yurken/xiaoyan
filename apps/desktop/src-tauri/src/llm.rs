@@ -207,8 +207,7 @@ fn build_anthropic_messages_url(base_url: &str) -> String {
 pub(crate) fn anthropic_auth_header(base_url: &str, api_key: &str) -> (&'static str, String) {
     let lower = base_url.to_ascii_lowercase();
     let use_x_api_key = lower.contains("api.anthropic.com")
-        || (lower.contains("api.kimi.com/coding")
-            && !lower.trim_end_matches('/').ends_with("/v1"));
+        || (lower.contains("api.kimi.com/coding") && !lower.trim_end_matches('/').ends_with("/v1"));
     if use_x_api_key {
         ("x-api-key", api_key.to_string())
     } else {
@@ -217,6 +216,18 @@ pub(crate) fn anthropic_auth_header(base_url: &str, api_key: &str) -> (&'static 
 }
 
 impl LlmClient {
+    pub fn resolved_chat_model(&self, model: Option<&str>) -> String {
+        model
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| match self {
+                Self::OpenAI { chat_model, .. } | Self::Anthropic { chat_model, .. } => {
+                    chat_model.clone()
+                }
+            })
+    }
+
     pub fn from_settings(s: &HashMap<String, String>) -> Result<Self> {
         let provider = s
             .get("llm_provider")
@@ -420,10 +431,7 @@ impl LlmClient {
                     .get(model_key)
                     .map(|value| value.trim())
                     .unwrap_or_default();
-                return Ok((
-                    Self::build_scoped_client(base_url, api_key, model)?,
-                    true,
-                ));
+                return Ok((Self::build_scoped_client(base_url, api_key, model)?, true));
             }
         }
         Ok((Self::from_settings(s)?, false))
