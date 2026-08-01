@@ -8,9 +8,11 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::content_policy::{limit_text_chars, retained_window_title, MAX_CAPTURE_TEXT_CHARS};
 use super::permission_service::{PermissionService, PrivacyCheckResult};
 use crate::platform::desktop_assistant::get_platform_adapter;
 use crate::platform::desktop_assistant::trait_platform::FrontmostApp;
+use crate::platform::desktop_assistant::trait_platform::{CapturedScreenshot, ScreenshotRegion};
 
 /// 上下文来源类型
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,6 +22,17 @@ pub enum ContextSourceType {
     Clipboard,
     Screenshot,
     Paste,
+}
+
+impl ContextSourceType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Selection => "selection",
+            Self::Clipboard => "clipboard",
+            Self::Screenshot => "screenshot",
+            Self::Paste => "paste",
+        }
+    }
 }
 
 /// 采集状态
@@ -34,6 +47,19 @@ pub enum CaptureStatus {
     Blocked,
 }
 
+impl CaptureStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Idle => "idle",
+            Self::Capturing => "capturing",
+            Self::Ready => "ready",
+            Self::Processing => "processing",
+            Self::Error => "error",
+            Self::Blocked => "blocked",
+        }
+    }
+}
+
 /// 采集会话
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureSession {
@@ -44,6 +70,7 @@ pub struct CaptureSession {
     pub source_app: Option<String>,
     pub source_app_bundle_id: Option<String>,
     pub window_title: Option<String>,
+    pub capture_region: Option<ScreenshotRegion>,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     pub status: CaptureStatus,
@@ -57,12 +84,49 @@ pub struct CaptureSession {
 pub struct CaptureResult {
     pub session: CaptureSession,
     pub sanitized_content: Option<String>,
+    pub original_character_count: Option<usize>,
+    pub content_truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaptureConfirmationDecision {
+    pub confirmed: bool,
+    pub content: Option<String>,
+    pub reason: Option<String>,
+    pub privacy_check: PrivacyCheckResult,
 }
 
 /// 采集服务
 pub struct CaptureService;
 
 impl CaptureService {
+    pub fn prepare_confirmation(content: &str) -> CaptureConfirmationDecision {
+        let privacy_check = PermissionService::check_privacy(None, None, Some(content), &[], &[]);
+        if !privacy_check.allowed {
+            return CaptureConfirmationDecision {
+                confirmed: false,
+                content: None,
+                reason: privacy_check.reason.clone(),
+                privacy_check,
+            };
+        }
+        let sanitized = PermissionService::sanitize_content(content);
+        if privacy_check.content_redacted && sanitized != content {
+            return CaptureConfirmationDecision {
+                confirmed: false,
+                content: Some(sanitized),
+                reason: None,
+                privacy_check,
+            };
+        }
+        CaptureConfirmationDecision {
+            confirmed: true,
+            content: Some(content.to_string()),
+            reason: None,
+            privacy_check,
+        }
+    }
+
     /// 创建新的采集会话
     pub fn create_session(source_type: ContextSourceType, retain_hours: i64) -> CaptureSession {
         let now = Utc::now();
@@ -74,6 +138,7 @@ impl CaptureService {
             source_app: None,
             source_app_bundle_id: None,
             window_title: None,
+            capture_region: None,
             created_at: now,
             expires_at: now + chrono::Duration::hours(retain_hours),
             status: CaptureStatus::Capturing,
@@ -85,7 +150,9 @@ impl CaptureService {
     /// 获取上下文并执行隐私检查
     pub async fn get_context(
         source_type: &ContextSourceType,
+        allowed_apps: &[String],
         blocked_apps: &[String],
+        window_title_enabled: bool,
     ) -> Result<CaptureResult> {
         let adapter = get_platform_adapter();
 
@@ -110,13 +177,33 @@ impl CaptureService {
         let bundle_id = frontmost_app.bundle_id.clone();
         let window_title = frontmost_app.window_title.clone();
 
-        // 根据来源类型获取内容
         let mut session = Self::create_session(source_type.clone(), 24);
         session.source_app = frontmost_app.name;
         session.source_app_bundle_id = bundle_id.clone();
-        session.window_title = window_title.clone();
+        session.window_title = retained_window_title(window_title_enabled, window_title.as_deref());
 
-        let content = match source_type {
+        // 应用与窗口规则必须在读取选区或剪贴板之前执行，禁止路径不接触正文。
+        let preflight = PermissionService::check_privacy(
+            bundle_id.as_deref(),
+            window_title.as_deref(),
+            None,
+            allowed_apps,
+            blocked_apps,
+        );
+        if !preflight.allowed {
+            session.status = CaptureStatus::Blocked;
+            session.privacy_check = Some(preflight.clone());
+            session.window_title = None;
+            return Ok(CaptureResult {
+                session,
+                sanitized_content: None,
+                original_character_count: None,
+                content_truncated: false,
+            });
+        }
+
+        // 根据来源类型获取内容
+        let raw_content = match source_type {
             ContextSourceType::Selection => adapter.get_selection()?,
             ContextSourceType::Clipboard => Self::get_clipboard_content().await?,
             ContextSourceType::Screenshot => {
@@ -128,6 +215,17 @@ impl CaptureService {
             }
             ContextSourceType::Paste => None, // 粘贴模式由用户提供
         };
+        let (content, original_character_count, content_truncated) =
+            if let Some(raw_content) = raw_content {
+                let limited = limit_text_chars(&raw_content, MAX_CAPTURE_TEXT_CHARS);
+                (
+                    Some(limited.content),
+                    Some(limited.original_chars),
+                    limited.truncated,
+                )
+            } else {
+                (None, None, false)
+            };
 
         session.content = content.clone();
 
@@ -136,15 +234,20 @@ impl CaptureService {
             bundle_id.as_deref(),
             window_title.as_deref(),
             content.as_deref(),
+            allowed_apps,
             blocked_apps,
         );
 
         if !privacy_check.allowed {
             session.status = CaptureStatus::Blocked;
             session.privacy_check = Some(privacy_check.clone());
+            session.content = None;
+            session.window_title = None;
             return Ok(CaptureResult {
                 session,
                 sanitized_content: None,
+                original_character_count,
+                content_truncated,
             });
         }
 
@@ -155,6 +258,8 @@ impl CaptureService {
         Ok(CaptureResult {
             session,
             sanitized_content,
+            original_character_count,
+            content_truncated,
         })
     }
 
@@ -176,7 +281,7 @@ impl CaptureService {
     }
 
     /// 调用系统交互式区域选择。
-    pub async fn capture_screen_interactive() -> Result<Vec<u8>> {
+    pub async fn capture_screen_interactive() -> Result<CapturedScreenshot> {
         tokio::task::spawn_blocking(|| {
             let adapter = get_platform_adapter();
             if !adapter.check_screen_recording_permission() {
@@ -207,5 +312,21 @@ mod tests {
         assert_eq!(session.status, CaptureStatus::Capturing);
         assert!(session.content.is_none());
         assert!(session.privacy_check.is_none());
+    }
+
+    #[test]
+    fn confirmation_blocks_passwords_and_requires_redacted_pii_to_be_confirmed_again() {
+        let blocked = CaptureService::prepare_confirmation("password: correct-horse");
+        assert!(!blocked.confirmed);
+        assert!(blocked.content.is_none());
+        assert!(blocked.privacy_check.content_sensitive);
+
+        let redacted = CaptureService::prepare_confirmation("联系 me@example.com");
+        assert!(!redacted.confirmed);
+        assert_eq!(redacted.content.as_deref(), Some("联系 [EMAIL]"));
+        assert_eq!(redacted.privacy_check.redaction_kinds, vec!["邮箱"]);
+
+        let safe = CaptureService::prepare_confirmation("联系 [EMAIL]");
+        assert!(safe.confirmed);
     }
 }

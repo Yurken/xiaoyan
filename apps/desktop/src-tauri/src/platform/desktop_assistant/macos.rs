@@ -8,7 +8,7 @@
 use anyhow::{anyhow, Result};
 use std::process::Command;
 
-use super::trait_platform::{FrontmostApp, PlatformAdapter};
+use super::trait_platform::{CapturedScreenshot, FrontmostApp, PlatformAdapter, ScreenshotRegion};
 
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
@@ -62,10 +62,8 @@ impl PlatformAdapter for MacOSAdapter {
     }
 
     fn get_selection(&self) -> Result<Option<String>> {
-        // 方法1: 尝试使用 pbpaste 读取剪贴板（作为备选）
-        // 方法2: 使用 Accessibility API 读取选中文本
-
-        // 先尝试 Accessibility API
+        // 只读取 Accessibility 选区。剪贴板降级由采集会话层显式执行，
+        // 避免把剪贴板内容错误标记为“选中文本”。
         let script = r#"
             tell application "System Events"
                 try
@@ -96,11 +94,10 @@ impl PlatformAdapter for MacOSAdapter {
             }
         }
 
-        // 降级：使用剪贴板
-        self.get_clipboard()
+        Ok(None)
     }
 
-    fn capture_screen_interactive(&self) -> Result<Vec<u8>> {
+    fn capture_screen_interactive(&self) -> Result<CapturedScreenshot> {
         let temp_path =
             std::env::temp_dir().join(format!("assistant_capture_{}.png", uuid::Uuid::new_v4()));
         let temp_path_str = temp_path
@@ -120,7 +117,18 @@ impl PlatformAdapter for MacOSAdapter {
         let image_data =
             std::fs::read(&temp_path).map_err(|e| anyhow!("Failed to read captured image: {}", e));
         let _ = std::fs::remove_file(&temp_path);
-        image_data
+        let bytes = image_data?;
+        let image = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
+            .map_err(|error| anyhow!("无法读取截图尺寸: {error}"))?;
+        Ok(CapturedScreenshot {
+            bytes,
+            region: ScreenshotRegion {
+                x: None,
+                y: None,
+                width: image.width(),
+                height: image.height(),
+            },
+        })
     }
 
     fn check_accessibility_permission(&self) -> bool {
@@ -216,22 +224,6 @@ impl MacOSAdapter {
             Err(anyhow!("Failed to parse frontmost app info"))
         }
     }
-
-    /// 获取剪贴板内容
-    fn get_clipboard(&self) -> Result<Option<String>> {
-        let output = Command::new("pbpaste")
-            .output()
-            .map_err(|e| anyhow!("Failed to run pbpaste: {}", e))?;
-
-        if output.status.success() {
-            let text = String::from_utf8_lossy(&output.stdout).to_string();
-            if !text.is_empty() {
-                return Ok(Some(text));
-            }
-        }
-
-        Ok(None)
-    }
 }
 
 #[cfg(test)]
@@ -240,13 +232,6 @@ mod tests {
     fn test_get_frontmost_app() {
         // 这个测试在 CI 中可能失败，因为它需要 GUI 环境
         // let result = adapter.get_frontmost_app();
-        // assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_get_clipboard() {
-        // 这个测试在 CI 中可能失败
-        // let result = adapter.get_clipboard();
         // assert!(result.is_ok());
     }
 }
