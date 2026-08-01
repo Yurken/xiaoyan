@@ -6,6 +6,7 @@ import {
   FlaskConical,
   LayoutDashboard,
   Library,
+  Inbox,
   Map,
   MessageSquare,
   PenLine,
@@ -32,6 +33,7 @@ const Writing = lazy(() => import("./pages/Writing"));
 const ResearchTheme = lazy(() => import("./pages/ResearchTheme"));
 const FocusApp = lazy(() => import("./pages/FocusLayout"));
 const ResearchPage = lazy(() => import("./features/research/pages/ResearchPage"));
+const AssistantInbox = lazy(() => import("./pages/AssistantInbox"));
 
 import LockScreen from "./features/appLock/LockScreen";
 import { useAppLock } from "./features/appLock/useAppLock";
@@ -53,6 +55,7 @@ import { useInterestPlanEventBridge } from "./features/knowledge/useInterestPlan
 import QuickStartDialog from "./features/onboarding/QuickStartDialog";
 import { useFirstRunQuickStart } from "./features/onboarding/useFirstRunQuickStart";
 import { SETTINGS_ACTIVE_SECTION_STORAGE_KEY } from "./features/settings/pageConfig";
+import { useAssistantConversationHandoff } from "./features/desktop-assistant/hooks";
 import { writePersistentValue } from "./hooks/usePersistentStringState";
 
 const navItems = [
@@ -63,6 +66,7 @@ const navItems = [
   { to: "/papers", icon: FileText, label: "论文" },
   { to: "/writing", icon: PenLine, label: "写作" },
   { to: "/knowledge", icon: Library, label: "知识" },
+  { to: "/inbox", icon: Inbox, label: "收集箱" },
   { to: "/experiment", icon: FlaskConical, label: "实验" },
   { to: "/research", icon: Microscope, label: "研究" },
   { to: "/submission", icon: Send, label: "投稿" },
@@ -80,6 +84,7 @@ export default function App() {
   useInterestPlanEventBridge();
   useThemeInit();
   useKeyboardShortcuts();
+  useAssistantConversationHandoff();
   const location = useLocation();
   const navigate = useNavigate();
   const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());
@@ -219,6 +224,7 @@ export default function App() {
             <Route path="/xiaoyan" element={<Navigate to="/chat" replace />} />
             <Route path="/copilot" element={<Navigate to="/chat" replace />} />
             <Route path="/knowledge" element={<RouteErrorBoundary><Knowledge /></RouteErrorBoundary>} />
+            <Route path="/inbox" element={<RouteErrorBoundary><AssistantInbox /></RouteErrorBoundary>} />
             <Route path="/notes/:id" element={<RouteErrorBoundary><NoteReader /></RouteErrorBoundary>} />
             <Route path="/research-theme/:id" element={<RouteErrorBoundary><ResearchTheme /></RouteErrorBoundary>} />
             <Route path="/settings" element={<RouteErrorBoundary><Settings /></RouteErrorBoundary>} />

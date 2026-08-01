@@ -5,6 +5,7 @@ use crate::commands::memory::{
 };
 use crate::llm::LlmClient;
 use crate::rag::serialize_embedding;
+use crate::services::desktop_assistant::note_attachment_service::NoteAttachmentService;
 use crate::state::AppState;
 use regex::Regex;
 use serde_json::json;
@@ -386,20 +387,18 @@ pub async fn knowledge_move_note(
 }
 
 #[tauri::command]
-pub async fn knowledge_delete_note(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let existing = sqlx::query("SELECT title FROM knowledge_notes WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&state.db)
+pub async fn knowledge_delete_note(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    let title = NoteAttachmentService::delete_note_with_attachments(&state.db, &app_data_dir, &id)
         .await
-        .map_err(|e| e.to_string())?
-        .ok_or("未找到对应笔记。")?;
-
-    let title = existing.get::<String, _>("title");
-    sqlx::query("DELETE FROM knowledge_notes WHERE id = ?")
-        .bind(&id)
-        .execute(&state.db)
-        .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|error| error.to_string())?;
 
     let settings = state.settings.read().await.clone();
     if is_long_term_memory_enabled(&settings) {
