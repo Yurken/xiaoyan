@@ -8,7 +8,9 @@
 use anyhow::{anyhow, Result};
 use std::process::Command;
 
-use super::trait_platform::{CapturedScreenshot, FrontmostApp, PlatformAdapter, ScreenshotRegion};
+use super::trait_platform::{
+    CaptureRegionRequest, CapturedScreenshot, FrontmostApp, PlatformAdapter, ScreenshotRegion,
+};
 
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
@@ -125,6 +127,50 @@ impl PlatformAdapter for MacOSAdapter {
             region: ScreenshotRegion {
                 x: None,
                 y: None,
+                width: image.width(),
+                height: image.height(),
+            },
+        })
+    }
+
+    fn capture_screen_region(&self, region: &CaptureRegionRequest) -> Result<CapturedScreenshot> {
+        if region.width == 0 || region.height == 0 {
+            return Err(anyhow!("选区为空，请重新框选"));
+        }
+        let temp_path =
+            std::env::temp_dir().join(format!("assistant_capture_{}.png", uuid::Uuid::new_v4()));
+        let temp_path_str = temp_path
+            .to_str()
+            .ok_or_else(|| anyhow!("Invalid temporary capture path"))?;
+
+        // screencapture -R 接受 Quartz 全局逻辑坐标（点），覆盖跨显示器、
+        // Retina/非 Retina 与外屏位于主屏左侧/上方（负坐标）的场景。
+        let rect = format!(
+            "-R{},{},{},{}",
+            region.x, region.y, region.width, region.height
+        );
+        let output = Command::new("screencapture")
+            .args([&rect, "-x", temp_path_str])
+            .output()
+            .map_err(|e| anyhow!("Failed to run screencapture: {}", e))?;
+
+        if !output.status.success() || !temp_path.is_file() {
+            let _ = std::fs::remove_file(&temp_path);
+            return Err(anyhow!("区域截图失败，请重试"));
+        }
+
+        let image_data =
+            std::fs::read(&temp_path).map_err(|e| anyhow!("Failed to read captured image: {}", e));
+        let _ = std::fs::remove_file(&temp_path);
+        let bytes = image_data?;
+        // 像素宽高始终以实际 PNG 为准，保证 Retina 下可验证。
+        let image = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
+            .map_err(|error| anyhow!("无法读取截图尺寸: {error}"))?;
+        Ok(CapturedScreenshot {
+            bytes,
+            region: ScreenshotRegion {
+                x: Some(region.x),
+                y: Some(region.y),
                 width: image.width(),
                 height: image.height(),
             },

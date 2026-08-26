@@ -95,15 +95,21 @@ describe('useCaptureSession', () => {
       ...emptyCapture,
       session_id: 'screenshot-session',
       content: 'data:image/png;base64,iVBORw0KGgo=',
-      capture_region: { x: null, y: null, width: 1280, height: 720 },
+      capture_region: { x: -1280, y: 40, width: 1280, height: 720 },
     })
     const { result } = renderHook(() => useCaptureSession())
     await act(async () => {
       await result.current.startCapture('screenshot')
     })
+    // 系统交互式截图不返回坐标，须走自有跨显示器选区层命令。
+    expect(
+      getInvokeMock().mock.calls.some(
+        ([command]) => command === 'assistant_capture_screen_overlay',
+      ),
+    ).toBe(true)
     expect(result.current.session?.captureRegion).toEqual({
-      x: null,
-      y: null,
+      x: -1280,
+      y: 40,
       width: 1280,
       height: 720,
     })
