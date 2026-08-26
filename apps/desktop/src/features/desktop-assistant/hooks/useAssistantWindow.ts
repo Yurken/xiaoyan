@@ -1,6 +1,6 @@
 /**
  * 助手窗口管理 hook
- * 职责：调用 Tauri 命令控制悬浮球和面板窗口
+ * 职责：调用 Tauri 命令控制桌面小妍和面板窗口
  */
 import { useState, useCallback, useEffect } from 'react'
 
@@ -20,6 +20,8 @@ export interface UseAssistantWindow {
   showPanel: () => Promise<void>
   hidePanel: () => Promise<void>
   togglePanel: () => Promise<boolean>
+  /** 清除持久化站位并把桌面小妍恢复到默认位置；失败时抛错由调用方提示。 */
+  resetDockPlacement: () => Promise<void>
 }
 
 export function useAssistantWindow(): UseAssistantWindow {
@@ -93,6 +95,10 @@ export function useAssistantWindow(): UseAssistantWindow {
     }
   }, [])
 
+  const resetDockPlacement = useCallback(async () => {
+    await invoke('assistant_reset_dock_placement')
+  }, [])
+
   return {
     isDockVisible,
     isPanelVisible,
@@ -102,5 +108,6 @@ export function useAssistantWindow(): UseAssistantWindow {
     showPanel,
     hidePanel,
     togglePanel,
+    resetDockPlacement,
   }
 }

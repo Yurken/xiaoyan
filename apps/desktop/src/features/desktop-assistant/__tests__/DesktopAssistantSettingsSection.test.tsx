@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   showDock: vi.fn().mockResolvedValue(undefined),
   completeGuide: vi.fn().mockResolvedValue(true),
   refreshVisibility: vi.fn().mockResolvedValue(undefined),
+  resetDockPlacement: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('../hooks', () => ({
@@ -25,6 +26,7 @@ vi.mock('../hooks', () => ({
     showPanel: vi.fn(),
     hidePanel: vi.fn(),
     refreshVisibility: mocks.refreshVisibility,
+    resetDockPlacement: mocks.resetDockPlacement,
   }),
   useAssistantShortcut: () => ({
     shortcut: 'Alt+Space',
@@ -64,6 +66,7 @@ vi.mock('../components', () => ({
   AssistantPrivacyRulesSection: () => <div>应用规则</div>,
   AssistantDataPolicySection: () => <div>数据策略</div>,
   AssistantRuntimeSettingsSection: () => <div>运行设置</div>,
+  AssistantDirectShortcutsSection: () => <div>直达快捷键</div>,
 }))
 
 describe('DesktopAssistantSettingsSection', () => {
@@ -78,5 +81,13 @@ describe('DesktopAssistantSettingsSection', () => {
     await user.click(screen.getByRole('button', { name: '完成测试引导' }))
     await waitFor(() => expect(mocks.showDock).toHaveBeenCalledOnce())
     expect(mocks.completeGuide).toHaveBeenCalledOnce()
+  })
+
+  it('resets the dock placement from the settings entry', async () => {
+    const user = userEvent.setup()
+    render(<DesktopAssistantSettingsSection />)
+
+    await user.click(screen.getByRole('button', { name: '重置小妍位置' }))
+    await waitFor(() => expect(mocks.resetDockPlacement).toHaveBeenCalledOnce())
   })
 })

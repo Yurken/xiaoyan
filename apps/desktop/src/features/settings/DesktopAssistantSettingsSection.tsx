@@ -21,6 +21,7 @@ import {
 } from '../desktop-assistant/hooks'
 import {
   AssistantDataPolicySection,
+  AssistantDirectShortcutsSection,
   AssistantPermissionGuide,
   AssistantPrivacyRulesSection,
   AssistantRuntimeSettingsSection,
@@ -94,6 +95,15 @@ export default function DesktopAssistantSettingsSection() {
     if (!saved) setShortcutDraft(assistantShortcut.shortcut)
   }
 
+  const resetDockPosition = async () => {
+    setActionError(null)
+    try {
+      await assistant.resetDockPlacement()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
   const applyRuntimePreferences = async (
     next: typeof runtime.preferences,
   ) => {
@@ -135,7 +145,7 @@ export default function DesktopAssistantSettingsSection() {
             <MonitorDot className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-base font-semibold text-ink-primary">桌面悬浮助手</h2>
+            <h2 className="text-base font-semibold text-ink-primary">小妍桌面助手</h2>
             <p className="text-xs leading-5 text-ink-tertiary">
               让主窗口右下角的小妍走到桌面上，在任何应用旁边陪你解读、翻译与整理材料。
             </p>
@@ -283,11 +293,21 @@ export default function DesktopAssistantSettingsSection() {
           >
             <div className="flex items-center gap-2">
               <MousePointerClick className="h-4 w-4 text-[var(--rc-accent)]" />
-              <p className="text-sm font-semibold text-ink-primary">悬浮球</p>
+              <p className="text-sm font-semibold text-ink-primary">桌面小妍</p>
             </div>
             <p className="mt-1 text-xs leading-5 text-ink-secondary">
-              小妍本体就是拖动区域。单击打开动作面板，拖动后停在需要的位置，不带窗口背景或阴影。
+              小妍本体就是拖动区域。单击打开动作面板，拖动后吸附到最近的屏幕边缘并记住位置，换显示器后会自动迁移。
             </p>
+            <div className="mt-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!runtime.preferences.enabled}
+                onClick={() => void resetDockPosition()}
+              >
+                重置小妍位置
+              </Button>
+            </div>
           </div>
 
           <div
@@ -372,6 +392,7 @@ export default function DesktopAssistantSettingsSection() {
       )}
       <AssistantPrivacyRulesSection />
       <AssistantDataPolicySection />
+      <AssistantDirectShortcutsSection />
     </div>
   )
 }
