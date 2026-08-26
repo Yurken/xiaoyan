@@ -122,7 +122,7 @@ export function AssistantInboxWorkspace({ controller, assetsPanel }: AssistantIn
               <Inbox className="h-5 w-5 text-[var(--rc-accent)]" />
               <h1 className="text-xl font-semibold tracking-tight text-ink-primary">收集箱</h1>
             </div>
-            <p className="mt-1 text-sm text-ink-tertiary">整理悬浮助手暂存内容与已确认的拖入文件。</p>
+            <p className="mt-1 text-sm text-ink-tertiary">整理小妍桌面助手暂存内容与已确认的拖入文件。</p>
           </div>
           <div className="flex items-center gap-2">
             <label className="text-xs text-ink-tertiary" htmlFor="assistant-inbox-theme">归入主题</label>
@@ -158,7 +158,7 @@ export function AssistantInboxWorkspace({ controller, assetsPanel }: AssistantIn
           <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-black/10 text-center dark:border-white/10">
             <Inbox className="mb-3 h-9 w-9 text-ink-tertiary" />
             <p className="text-sm font-medium text-ink-secondary">收集箱已经清空</p>
-            <p className="mt-1 text-xs text-ink-tertiary">从悬浮助手选择“稍后处理”，或拖入文件即可在这里继续。</p>
+            <p className="mt-1 text-xs text-ink-tertiary">从小妍桌面助手选择“稍后处理”，或拖入文件即可在这里继续。</p>
           </div>
         ) : (
           <div className="space-y-8">

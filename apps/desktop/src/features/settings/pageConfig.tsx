@@ -41,7 +41,7 @@ export const SETTINGS_SECTIONS: Array<{
   {
     key: "desktop_assistant",
     label: "桌面助手",
-    description: "悬浮球、快捷键与采集设置",
+    description: "桌面小妍、快捷键与采集设置",
     icon: MonitorDot,
     color: "#34C759",
   },
