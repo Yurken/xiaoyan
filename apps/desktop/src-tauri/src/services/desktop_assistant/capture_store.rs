@@ -4,7 +4,8 @@ use anyhow::{anyhow, Result};
 use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
 
-use super::capture_service::CaptureSession;
+use super::capture_service::{CaptureSession, CaptureStatus};
+use super::metrics_service::{AssistantMetricsService, MetricEvent};
 
 pub struct CaptureStore;
 
@@ -70,6 +71,26 @@ impl CaptureStore {
         .bind(i64::from(session.user_confirmed))
         .execute(db)
         .await?;
+
+        // 匿名本地指标：只记录采集来源类型与结果状态；未开启统计时自动跳过。
+        let metric_status = match session.status {
+            CaptureStatus::Ready => Some("success"),
+            CaptureStatus::Error => Some("error"),
+            CaptureStatus::Blocked => Some("blocked"),
+            _ => None,
+        };
+        if let Some(status) = metric_status {
+            if let Ok(event) = MetricEvent::new(
+                "capture",
+                None,
+                Some(session.source_type.as_str()),
+                None,
+                None,
+                status,
+            ) {
+                AssistantMetricsService::record_quiet(db, event).await;
+            }
+        }
         Ok(())
     }
 
@@ -101,6 +122,17 @@ impl CaptureStore {
             Some(_) => Err(anyhow!("请先确认捕获内容")),
             None => Err(anyhow!("未找到对应的捕获会话")),
         }
+    }
+
+    /// 读取会话的采集来源类型，仅供匿名本地指标打点使用。
+    pub async fn session_source_type(db: &SqlitePool, session_id: &str) -> Result<Option<String>> {
+        let source_type = sqlx::query_scalar::<_, String>(
+            "SELECT source_type FROM assistant_capture_sessions WHERE id = ?",
+        )
+        .bind(session_id)
+        .fetch_optional(db)
+        .await?;
+        Ok(source_type)
     }
 
     pub async fn complete(db: &SqlitePool, session_id: &str) -> Result<()> {

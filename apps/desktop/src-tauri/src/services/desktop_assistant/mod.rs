@@ -19,11 +19,14 @@ pub mod inbox_service;
 #[cfg(test)]
 mod inbox_service_tests;
 pub mod knowledge_service;
+pub mod metrics_service;
 pub mod note_attachment_service;
 #[cfg(test)]
 mod note_attachment_service_tests;
 pub mod permission_service;
 pub mod preference_service;
+#[cfg(test)]
+mod privacy_redaction_tests;
 pub mod private_data_service;
 #[cfg(test)]
 mod private_data_service_tests;

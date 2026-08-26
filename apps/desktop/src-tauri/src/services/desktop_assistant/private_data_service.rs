@@ -35,6 +35,10 @@ impl AssistantPrivateDataService {
                 .await?
                 .rows_affected()
                 .min(u32::MAX as u64) as u32;
+        // 匿名本地指标同属助手私有数据，随一键清理一并删除。
+        sqlx::query("DELETE FROM assistant_metric_events")
+            .execute(&mut *transaction)
+            .await?;
         transaction.commit().await?;
 
         Ok(ClearedAssistantPrivateData {

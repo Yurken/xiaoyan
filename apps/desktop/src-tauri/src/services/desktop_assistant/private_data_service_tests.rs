@@ -59,6 +59,14 @@ async fn clears_private_ephemera_and_images_but_preserves_inbox_and_formal_impor
     .await
     .unwrap();
 
+    sqlx::query(
+        "INSERT INTO assistant_metric_events (event_type, status)
+         VALUES ('action', 'success')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
     let result = AssistantPrivateDataService::clear(&pool, &directory)
         .await
         .unwrap();
@@ -66,6 +74,13 @@ async fn clears_private_ephemera_and_images_but_preserves_inbox_and_formal_impor
     assert_eq!(result.image_assets, 1);
     assert_eq!(result.file_previews, 1);
     assert!(!asset_path.exists());
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM assistant_metric_events")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        0
+    );
     assert_eq!(
         sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM assistant_file_candidates WHERE status = 'pending'",
