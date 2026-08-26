@@ -89,6 +89,7 @@ function useWindowLabel(): WindowLabel {
 
 const AssistantDockWindow = lazy(() => import("./features/desktop-assistant/windows/AssistantDockWindow"));
 const AssistantPanelWindow = lazy(() => import("./features/desktop-assistant/windows/AssistantPanelWindow"));
+const CaptureOverlayWindow = lazy(() => import("./features/desktop-assistant/components/CaptureOverlay"));
 
 function WindowRoot() {
   const label = useWindowLabel();
@@ -98,6 +99,14 @@ function WindowRoot() {
       <div className="flex h-full items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-apple-blue border-t-transparent" />
       </div>
+    );
+  }
+
+  if (label.startsWith("assistant-capture-overlay")) {
+    return (
+      <Suspense fallback={<div className="h-full w-full" />}>
+        <CaptureOverlayWindow />
+      </Suspense>
     );
   }
 

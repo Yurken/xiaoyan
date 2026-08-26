@@ -12,7 +12,9 @@ use super::content_policy::{limit_text_chars, retained_window_title, MAX_CAPTURE
 use super::permission_service::{PermissionService, PrivacyCheckResult};
 use crate::platform::desktop_assistant::get_platform_adapter;
 use crate::platform::desktop_assistant::trait_platform::FrontmostApp;
-use crate::platform::desktop_assistant::trait_platform::{CapturedScreenshot, ScreenshotRegion};
+use crate::platform::desktop_assistant::trait_platform::{
+    CaptureRegionRequest, CapturedScreenshot, ScreenshotRegion,
+};
 
 /// 上下文来源类型
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -288,6 +290,19 @@ impl CaptureService {
                 return Err(anyhow!("需要屏幕录制权限才能截图"));
             }
             adapter.capture_screen_interactive()
+        })
+        .await
+        .map_err(|error| anyhow!("截图任务失败: {}", error))?
+    }
+
+    /// 按跨显示器选区层回传的全局逻辑选区截图，坐标随结果返回。
+    pub async fn capture_screen_region(region: CaptureRegionRequest) -> Result<CapturedScreenshot> {
+        tokio::task::spawn_blocking(move || {
+            let adapter = get_platform_adapter();
+            if !adapter.check_screen_recording_permission() {
+                return Err(anyhow!("需要屏幕录制权限才能截图"));
+            }
+            adapter.capture_screen_region(&region)
         })
         .await
         .map_err(|error| anyhow!("截图任务失败: {}", error))?

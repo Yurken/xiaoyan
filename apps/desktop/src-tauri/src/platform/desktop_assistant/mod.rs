@@ -15,7 +15,7 @@ struct UnsupportedAdapter;
 #[cfg(not(target_os = "macos"))]
 impl PlatformAdapter for UnsupportedAdapter {
     fn get_frontmost_app(&self) -> anyhow::Result<trait_platform::FrontmostApp> {
-        Err(anyhow::anyhow!("桌面悬浮助手目前仅支持 macOS"))
+        Err(anyhow::anyhow!("小妍桌面助手目前仅支持 macOS"))
     }
 
     fn get_selection(&self) -> anyhow::Result<Option<String>> {
@@ -24,6 +24,13 @@ impl PlatformAdapter for UnsupportedAdapter {
 
     fn capture_screen_interactive(&self) -> anyhow::Result<trait_platform::CapturedScreenshot> {
         Err(anyhow::anyhow!("交互式截图目前仅支持 macOS"))
+    }
+
+    fn capture_screen_region(
+        &self,
+        _region: &trait_platform::CaptureRegionRequest,
+    ) -> anyhow::Result<trait_platform::CapturedScreenshot> {
+        Err(anyhow::anyhow!("选区层截图目前仅支持 macOS"))
     }
 
     fn check_accessibility_permission(&self) -> bool {
