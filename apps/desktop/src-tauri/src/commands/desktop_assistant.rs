@@ -645,13 +645,13 @@ pub async fn assistant_clear_later_items(state: State<'_, AppState>) -> Result<u
 
 use tauri::Manager;
 
-/// 显示悬浮球窗口
+/// 显示桌面小妍角色窗口
 #[command]
 pub async fn assistant_show_dock(app: tauri::AppHandle) -> Result<(), String> {
     crate::desktop_shell::set_assistant_dock_visible(&app, true)
 }
 
-/// 隐藏悬浮球窗口
+/// 隐藏桌面小妍角色窗口
 #[command]
 pub async fn assistant_hide_dock(app: tauri::AppHandle) -> Result<(), String> {
     crate::desktop_shell::set_assistant_dock_visible(&app, false)
@@ -688,7 +688,7 @@ pub async fn assistant_is_panel_visible(app: tauri::AppHandle) -> Result<bool, S
     }
 }
 
-/// 获取悬浮小妍可见状态
+/// 获取桌面小妍可见状态
 #[command]
 pub async fn assistant_is_dock_visible(app: tauri::AppHandle) -> Result<bool, String> {
     if let Some(window) = app.get_webview_window("assistant-dock") {
@@ -698,7 +698,7 @@ pub async fn assistant_is_dock_visible(app: tauri::AppHandle) -> Result<bool, St
     }
 }
 
-/// 桌面悬浮球注视目标
+/// 桌面小妍注视目标
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DockLookTargetResponse {
     pub cursor_x: f64,
@@ -709,7 +709,7 @@ pub struct DockLookTargetResponse {
     pub window_height: u32,
 }
 
-/// 获取桌面悬浮球注视目标（全局光标位置 + 窗口位置）
+/// 获取桌面小妍注视目标（全局光标位置 + 窗口位置）
 #[command]
 pub async fn assistant_get_dock_look_target(
     window: tauri::WebviewWindow,
@@ -766,4 +766,617 @@ mod tests {
             Some("联系 researcher@example.com")
         );
     }
+}
+
+// ─── 匿名本地指标命令（P0-5）────────────────────────────────────────────────
+//
+// 只接受结构化枚举与计数，不接收任何文本载荷；详见 services/desktop_assistant/metrics_service.rs。
+
+use crate::services::desktop_assistant::metrics_service::{
+    AssistantMetricsPreferences, AssistantMetricsService, MetricsDailyBucket,
+    DEFAULT_OVERVIEW_DAYS,
+};
+
+/// 获取匿名本地指标开关（默认关闭）。
+#[command]
+pub async fn assistant_get_metrics_preferences(
+    state: State<'_, AppState>,
+) -> Result<AssistantMetricsPreferences, String> {
+    AssistantMetricsService::load_preferences(&state.db)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// 开关匿名本地指标；关闭时同步清空已存事件。
+#[command]
+pub async fn assistant_set_metrics_preferences(
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<AssistantMetricsPreferences, String> {
+    AssistantMetricsService::save_preferences(&state.db, enabled)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// 按天聚合的指标概览，供 KR 统计与设置区计数展示。
+#[command]
+pub async fn assistant_get_metrics_overview(
+    state: State<'_, AppState>,
+    days: Option<u16>,
+) -> Result<Vec<MetricsDailyBucket>, String> {
+    AssistantMetricsService::daily_overview(&state.db, days.unwrap_or(DEFAULT_OVERVIEW_DAYS))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// 复制动作打点。无参数设计使前端无法借此写入任何内容载荷。
+#[command]
+pub async fn assistant_record_copy(state: State<'_, AppState>) -> Result<(), String> {
+    AssistantMetricsService::record_quiet(
+        &state.db,
+        crate::services::desktop_assistant::metrics_service::MetricEvent {
+            event_type: "copy".to_string(),
+            action: None,
+            source_type: None,
+            target: None,
+            duration_ms: None,
+            status: "success".to_string(),
+        },
+    )
+    .await;
+    Ok(())
+}
+
+// ─── 站位与屏幕几何命令（P0-2）────────────────────────────────────────
+
+/// 显示器信息快照；坐标与尺寸为 Tauri 物理像素，与窗口 outer_position 一致。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantMonitorInfo {
+    pub name: Option<String>,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub scale_factor: f64,
+    pub is_primary: bool,
+}
+
+/// 窗口矩形快照（物理像素）。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct AssistantWindowFrame {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// 屏幕快照：显示器列表 + 桌面小妍当前位置，供前端做站位恢复与边缘吸附。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantScreenSnapshot {
+    pub monitors: Vec<AssistantMonitorInfo>,
+    pub dock_frame: Option<AssistantWindowFrame>,
+}
+
+/// 获取显示器列表与桌面小妍当前位置。
+#[command]
+pub async fn assistant_get_screen_snapshot(
+    app: tauri::AppHandle,
+) -> Result<AssistantScreenSnapshot, String> {
+    let primary = app.primary_monitor().map_err(|error| error.to_string())?;
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .map(|monitor| {
+            let is_primary = primary.as_ref().is_some_and(|primary| {
+                primary.name() == monitor.name()
+                    && primary.position() == monitor.position()
+                    && primary.size() == monitor.size()
+            });
+            let position = monitor.position();
+            let size = monitor.size();
+            AssistantMonitorInfo {
+                name: monitor.name().cloned(),
+                x: position.x,
+                y: position.y,
+                width: size.width,
+                height: size.height,
+                scale_factor: monitor.scale_factor(),
+                is_primary,
+            }
+        })
+        .collect();
+    let dock_frame = app
+        .get_webview_window("assistant-dock")
+        .and_then(|window| {
+            let position = window.outer_position().ok()?;
+            let size = window.outer_size().ok()?;
+            Some(AssistantWindowFrame {
+                x: position.x,
+                y: position.y,
+                width: size.width,
+                height: size.height,
+            })
+        });
+    Ok(AssistantScreenSnapshot {
+        monitors,
+        dock_frame,
+    })
+}
+
+/// 移动桌面小妍窗口；坐标会被保守夹取到所有显示器的最外圈边界内，
+/// 作为前端几何计算之外的安全网，保证窗口不会完全移出可见区域。
+#[command]
+pub async fn assistant_set_dock_position(
+    app: tauri::AppHandle,
+    x: i32,
+    y: i32,
+) -> Result<(), String> {
+    const MIN_VISIBLE_PX: i32 = 32;
+    let window = app
+        .get_webview_window("assistant-dock")
+        .ok_or_else(|| "Dock window not found".to_string())?;
+    let size = window.outer_size().map_err(|error| error.to_string())?;
+    let monitors = app.available_monitors().map_err(|error| error.to_string())?;
+    let (mut x, mut y) = (x, y);
+    if !monitors.is_empty() {
+        let min_x = monitors.iter().map(|m| m.position().x).min().unwrap_or(x);
+        let min_y = monitors.iter().map(|m| m.position().y).min().unwrap_or(y);
+        let max_x = monitors
+            .iter()
+            .map(|m| m.position().x + m.size().width as i32)
+            .max()
+            .unwrap_or(x);
+        let max_y = monitors
+            .iter()
+            .map(|m| m.position().y + m.size().height as i32)
+            .max()
+            .unwrap_or(y);
+        let lower_x = min_x - size.width as i32 + MIN_VISIBLE_PX;
+        let lower_y = min_y - size.height as i32 + MIN_VISIBLE_PX;
+        let upper_x = max_x - MIN_VISIBLE_PX;
+        let upper_y = max_y - MIN_VISIBLE_PX;
+        x = x.clamp(lower_x.min(upper_x), lower_x.max(upper_x));
+        y = y.clamp(lower_y.min(upper_y), lower_y.max(upper_y));
+    }
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .map_err(|error| error.to_string())
+}
+
+/// 读取持久化的桌面小妍站位。
+#[command]
+pub async fn assistant_get_dock_placement(
+    state: State<'_, AppState>,
+) -> Result<
+    Option<crate::services::desktop_assistant::preference_service::AssistantDockPlacement>,
+    String,
+> {
+    AssistantPreferenceService::load_dock_placement(&state.db)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// 保存桌面小妍站位（显示器标识 + 边缘 + 沿边缘偏移）。
+#[command]
+pub async fn assistant_save_dock_placement(
+    state: State<'_, AppState>,
+    monitor_id: String,
+    edge: String,
+    offset: i32,
+) -> Result<(), String> {
+    let monitor_id = monitor_id.trim().to_string();
+    if monitor_id.is_empty() || monitor_id.chars().count() > 256 {
+        return Err("显示器标识不能为空或超过 256 个字符".to_string());
+    }
+    if !matches!(edge.as_str(), "left" | "right" | "top" | "bottom") {
+        return Err("站位边缘仅支持 left/right/top/bottom".to_string());
+    }
+    if offset.abs() > 100_000 {
+        return Err("站位偏移超出允许范围".to_string());
+    }
+    AssistantPreferenceService::save_dock_placement(
+        &state.db,
+        &crate::services::desktop_assistant::preference_service::AssistantDockPlacement {
+            monitor_id,
+            edge,
+            offset,
+        },
+    )
+    .await
+    .map_err(|error| error.to_string())
+}
+
+/// 清除持久化站位并把桌面小妍恢复到默认位置。
+#[command]
+pub async fn assistant_reset_dock_placement(
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    AssistantPreferenceService::clear_dock_placement(&state.db)
+        .await
+        .map_err(|error| error.to_string())?;
+    crate::desktop_shell::reset_assistant_dock_position(&app);
+    Ok(())
+}
+
+// ─── 跨显示器选区层截图（全局坐标） ─────────────────────────────────────────
+
+use crate::platform::desktop_assistant::trait_platform::CaptureRegionRequest;
+
+/// 选区层窗口标签前缀：每台显示器一个透明选区窗口。
+pub const CAPTURE_OVERLAY_LABEL_PREFIX: &str = "assistant-capture-overlay";
+
+/// 选区等待超时，避免选区层异常退出后命令悬挂。
+const CAPTURE_OVERLAY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// 选区层过小判定（逻辑点），防止误触产生无意义截图。
+const CAPTURE_OVERLAY_MIN_LOGICAL_SIZE: u32 = 4;
+
+/// 同一时刻只允许一个等待中的选区截图；提交/取消命令通过该通道回传结果。
+static PENDING_CAPTURE_OVERLAY: std::sync::Mutex<
+    Option<tokio::sync::oneshot::Sender<Option<CaptureRegionRequest>>>,
+> = std::sync::Mutex::new(None);
+
+fn close_capture_overlay_windows(app: &tauri::AppHandle) {
+    for (label, window) in app.webview_windows() {
+        if label.starts_with(CAPTURE_OVERLAY_LABEL_PREFIX) {
+            let _ = window.close();
+        }
+    }
+}
+
+/// 为每台显示器创建一个全屏透明选区窗口（物理坐标换算为逻辑坐标后布局）。
+fn open_capture_overlay_windows(app: &tauri::AppHandle) -> Result<(), String> {
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| error.to_string())?;
+    if monitors.is_empty() {
+        return Err("未检测到可用显示器".to_string());
+    }
+    for (index, monitor) in monitors.iter().enumerate() {
+        let label = format!("{CAPTURE_OVERLAY_LABEL_PREFIX}-{index}");
+        if let Some(existing) = app.get_webview_window(&label) {
+            let _ = existing.close();
+        }
+        let scale = monitor.scale_factor();
+        let position = monitor.position();
+        let size = monitor.size();
+        tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App("index.html".into()))
+            .title("")
+            .decorations(false)
+            .transparent(true)
+            .shadow(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .resizable(false)
+            .accept_first_mouse(true)
+            .focused(index == 0)
+            .position(f64::from(position.x) / scale, f64::from(position.y) / scale)
+            .inner_size(
+                f64::from(size.width) / scale,
+                f64::from(size.height) / scale,
+            )
+            .build()
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+/// 通过自有跨显示器选区层截取屏幕区域，返回带全局逻辑坐标的截图会话。
+#[command]
+pub async fn assistant_capture_screen_overlay(
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Result<CaptureContextResponse, String> {
+    ensure_assistant_enabled()?;
+    let preferences = AssistantPreferenceService::load_privacy(&state.db)
+        .await
+        .map_err(|error| error.to_string())?;
+    let (source_app, source_app_bundle_id, window_title) = CaptureService::get_frontmost_app()
+        .await
+        .map_err(|e| e.to_string())?;
+    let privacy_check = PermissionService::check_privacy(
+        source_app_bundle_id.as_deref(),
+        window_title.as_deref(),
+        None,
+        &preferences.allowed_apps,
+        &preferences.blocked_apps,
+    );
+
+    let mut session = CaptureService::create_session(ContextSourceType::Screenshot, 24);
+    session.source_app = source_app;
+    session.source_app_bundle_id = source_app_bundle_id;
+    session.window_title =
+        retained_window_title(preferences.window_title_enabled, window_title.as_deref());
+    session.privacy_check = Some(privacy_check.clone());
+
+    if !privacy_check.allowed {
+        session.status = CaptureStatus::Blocked;
+        session.window_title = None;
+        return Ok(capture_response(CaptureResult {
+            session,
+            sanitized_content: None,
+            original_character_count: None,
+            content_truncated: false,
+        }));
+    }
+
+    if let Some(panel) = app.get_webview_window("assistant-panel") {
+        let _ = panel.hide();
+    }
+    if let Err(error) = open_capture_overlay_windows(&app) {
+        let _ = crate::desktop_shell::show_assistant_panel(&app, false);
+        return Err(error);
+    }
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<CaptureRegionRequest>>();
+    {
+        let mut pending = PENDING_CAPTURE_OVERLAY
+            .lock()
+            .map_err(|_| "选区状态异常".to_string())?;
+        *pending = Some(tx);
+    }
+    let selection = tokio::time::timeout(CAPTURE_OVERLAY_TIMEOUT, rx).await;
+
+    close_capture_overlay_windows(&app);
+    let _ = crate::desktop_shell::show_assistant_panel(&app, false);
+
+    let region = match selection {
+        Ok(Ok(Some(region))) => region,
+        Ok(Ok(None)) => return Err("截图已取消".to_string()),
+        _ => return Err("截图选区已超时，请重试".to_string()),
+    };
+    if region.width < CAPTURE_OVERLAY_MIN_LOGICAL_SIZE
+        || region.height < CAPTURE_OVERLAY_MIN_LOGICAL_SIZE
+    {
+        return Err("选区过小，请重新框选".to_string());
+    }
+
+    let capture = CaptureService::capture_screen_region(region)
+        .await
+        .map_err(|e| e.to_string())?;
+    if capture.bytes.len() > 20 * 1024 * 1024 {
+        return Err("截图超过 20 MB，请缩小选择区域后重试".to_string());
+    }
+    let data_url = format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(capture.bytes)
+    );
+
+    session.status = CaptureStatus::Ready;
+    session.content = Some(data_url);
+    session.capture_region = Some(capture.region);
+    CaptureStore::persist_metadata(&state.db, &session)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(capture_response(CaptureResult {
+        session,
+        sanitized_content: None,
+        original_character_count: None,
+        content_truncated: false,
+    }))
+}
+
+/// 选区层提交框选的全局逻辑选区。
+#[command]
+pub async fn assistant_capture_overlay_submit(region: CaptureRegionRequest) -> Result<(), String> {
+    let sender = PENDING_CAPTURE_OVERLAY
+        .lock()
+        .map_err(|_| "选区状态异常".to_string())?
+        .take();
+    match sender {
+        Some(tx) => {
+            let _ = tx.send(Some(region));
+            Ok(())
+        }
+        None => Err("没有等待中的截图选区".to_string()),
+    }
+}
+
+/// 选区层取消截图（Esc）。
+#[command]
+pub async fn assistant_capture_overlay_cancel() -> Result<(), String> {
+    let sender = PENDING_CAPTURE_OVERLAY
+        .lock()
+        .map_err(|_| "选区状态异常".to_string())?
+        .take();
+    if let Some(tx) = sender {
+        let _ = tx.send(None);
+    }
+    Ok(())
+}
+
+// ─── 直达动作快捷键（P1-1，PRD §16.2）──────────────────────────────────────
+//
+// 默认不注册；设置页开启后按动作持久化组合键与注册诊断，
+// 冲突处理复用主快捷键的“持久诊断 + 降级展示 + 重试入口”模式。
+
+/// 单个直达动作的快捷键状态。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantDirectShortcutStatus {
+    pub action: String,
+    /// 用户配置并持久化的组合键；None 表示未开启。
+    pub configured_shortcut: Option<String>,
+    /// 当前实际注册生效的组合键；None 表示未注册。
+    pub active_shortcut: Option<String>,
+    /// 最近一次注册失败诊断；无故障时为 None。
+    pub diagnostic: Option<AssistantShortcutDiagnostic>,
+}
+
+async fn direct_shortcut_status(
+    state: &AppState,
+    action: &str,
+) -> Result<AssistantDirectShortcutStatus, String> {
+    let mut shortcuts = AssistantPreferenceService::load_direct_shortcuts(&state.db)
+        .await
+        .map_err(|error| error.to_string())?;
+    let active = crate::desktop_shell::current_assistant_direct_shortcut(action);
+    let diagnostic =
+        AssistantPreferenceService::load_direct_shortcut_diagnostic(&state.db, action)
+            .await
+            .map_err(|error| error.to_string())?;
+    Ok(AssistantDirectShortcutStatus {
+        action: action.to_string(),
+        configured_shortcut: shortcuts.remove(action),
+        active_shortcut: (!active.is_empty()).then_some(active),
+        diagnostic,
+    })
+}
+
+async fn record_direct_shortcut_failure(
+    state: &AppState,
+    action: &str,
+    requested_shortcut: &str,
+    message: &str,
+) -> Result<(), String> {
+    let active_shortcut = crate::desktop_shell::current_assistant_direct_shortcut(action);
+    let diagnostic = AssistantShortcutDiagnostic {
+        status: if active_shortcut.is_empty() {
+            "error".to_string()
+        } else {
+            "degraded".to_string()
+        },
+        requested_shortcut: requested_shortcut.to_string(),
+        active_shortcut: (!active_shortcut.is_empty()).then_some(active_shortcut),
+        message: message.to_string(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    };
+    AssistantPreferenceService::save_direct_shortcut_diagnostic(&state.db, action, &diagnostic)
+        .await
+        .map_err(|error| format!("记录直达快捷键诊断失败：{error}"))
+}
+
+async fn set_and_persist_direct_shortcut(
+    state: &AppState,
+    app: &tauri::AppHandle,
+    action: &str,
+    shortcut: Option<&str>,
+) -> Result<AssistantDirectShortcutStatus, String> {
+    if !crate::services::desktop_assistant::preference_service::is_valid_direct_action(action) {
+        return Err(format!("不支持的直达动作：{action}"));
+    }
+    let previous = AssistantPreferenceService::load_direct_shortcuts(&state.db)
+        .await
+        .map_err(|error| error.to_string())?
+        .remove(action);
+    let registered = match crate::desktop_shell::set_assistant_direct_shortcut(app, action, shortcut)
+    {
+        Ok(registered) => registered,
+        Err(error) => {
+            let _ = record_direct_shortcut_failure(
+                state,
+                action,
+                shortcut.unwrap_or_default(),
+                &error,
+            )
+            .await;
+            return Err(error);
+        }
+    };
+    if let Err(error) =
+        AssistantPreferenceService::save_direct_shortcut(&state.db, action, registered.as_deref())
+            .await
+    {
+        let _ = crate::desktop_shell::set_assistant_direct_shortcut(
+            app,
+            action,
+            previous.as_deref(),
+        );
+        let message = format!("直达快捷键已注册但保存失败，已恢复原设置：{error}");
+        let _ = record_direct_shortcut_failure(
+            state,
+            action,
+            shortcut.unwrap_or_default(),
+            &message,
+        )
+        .await;
+        return Err(message);
+    }
+    AssistantPreferenceService::clear_direct_shortcut_diagnostic(&state.db, action)
+        .await
+        .map_err(|error| format!("直达快捷键已生效，但清除旧诊断失败：{error}"))?;
+    direct_shortcut_status(state, action).await
+}
+
+/// 获取三个直达动作的快捷键配置、注册状态与诊断。
+/// 助手被关闭再开启后，注册状态会丢失；此处对“已配置但未注册且无诊断”的
+/// 动作做一次静默恢复（典型场景就是总开关重新启用），明确失败过的仍需手动重试。
+#[command]
+pub async fn assistant_get_direct_shortcuts(
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+) -> Result<Vec<AssistantDirectShortcutStatus>, String> {
+    let mut statuses = Vec::new();
+    for action in crate::services::desktop_assistant::preference_service::DIRECT_SHORTCUT_ACTIONS {
+        let mut status = direct_shortcut_status(state.inner(), action).await?;
+        if crate::desktop_shell::assistant_enabled()
+            && status.configured_shortcut.is_some()
+            && status.active_shortcut.is_none()
+            && status.diagnostic.is_none()
+        {
+            let shortcut = status.configured_shortcut.clone().unwrap_or_default();
+            match crate::desktop_shell::set_assistant_direct_shortcut(
+                &app,
+                action,
+                Some(&shortcut),
+            ) {
+                Ok(_) => {
+                    let _ = AssistantPreferenceService::clear_direct_shortcut_diagnostic(
+                        &state.db, action,
+                    )
+                    .await;
+                    status.active_shortcut = Some(shortcut);
+                }
+                Err(error) => {
+                    let _ =
+                        record_direct_shortcut_failure(state.inner(), action, &shortcut, &error)
+                            .await;
+                    status = direct_shortcut_status(state.inner(), action).await?;
+                }
+            }
+        }
+        statuses.push(status);
+    }
+    Ok(statuses)
+}
+
+/// 开启（shortcut 为 Some）或关闭（None）某个直达动作的全局快捷键。
+/// 注册失败时保留原配置并记录诊断。
+#[command]
+pub async fn assistant_set_direct_shortcut(
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+    action: String,
+    shortcut: Option<String>,
+) -> Result<AssistantDirectShortcutStatus, String> {
+    ensure_assistant_enabled()?;
+    set_and_persist_direct_shortcut(state.inner(), &app, &action, shortcut.as_deref()).await
+}
+
+/// 重试最近失败的直达动作快捷键（优先诊断中记录的请求键位），成功后清除诊断。
+#[command]
+pub async fn assistant_retry_direct_shortcut(
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+    action: String,
+) -> Result<AssistantDirectShortcutStatus, String> {
+    ensure_assistant_enabled()?;
+    if !crate::services::desktop_assistant::preference_service::is_valid_direct_action(&action) {
+        return Err(format!("不支持的直达动作：{action}"));
+    }
+    let diagnostic =
+        AssistantPreferenceService::load_direct_shortcut_diagnostic(&state.db, &action)
+            .await
+            .map_err(|error| error.to_string())?;
+    let configured = AssistantPreferenceService::load_direct_shortcuts(&state.db)
+        .await
+        .map_err(|error| error.to_string())?
+        .remove(&action);
+    let target = diagnostic
+        .map(|diagnostic| diagnostic.requested_shortcut)
+        .filter(|shortcut| !shortcut.is_empty())
+        .or(configured)
+        .ok_or_else(|| "没有可重试的直达快捷键，请先录入新的组合键".to_string())?;
+    set_and_persist_direct_shortcut(state.inner(), &app, &action, Some(&target)).await
 }

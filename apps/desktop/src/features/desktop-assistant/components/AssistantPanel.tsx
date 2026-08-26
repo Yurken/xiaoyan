@@ -12,6 +12,7 @@ import {
   Clipboard,
   Camera,
   FileInput,
+  ScanText,
   Settings,
   X,
 } from 'lucide-react'
@@ -69,6 +70,12 @@ interface AssistantPanelProps {
   onSourceChange: (sourceType: ContextSourceType) => void
   onClose: () => void
   onSettings?: () => void
+  /** 截图识字：仅截图内容时展示（PRD P1-2） */
+  onExtractText?: () => void
+  extractTextRunning?: boolean
+  /** 自由输入（P1-3）：无采集内容时直接以问题开启临时对话 */
+  onFreeQuestionSubmit?: (question: string) => void
+  freeQuestionStarting?: boolean
 }
 
 const ACTION_ICONS: Record<AssistantAction, typeof BookOpen> = {
@@ -103,6 +110,10 @@ export function AssistantPanel({
   onSourceChange,
   onClose,
   onSettings,
+  onExtractText,
+  extractTextRunning = false,
+  onFreeQuestionSubmit,
+  freeQuestionStarting = false,
 }: AssistantPanelProps) {
   const [selectedAction, setSelectedAction] = useState<AssistantAction | null>(null)
   const [question, setQuestion] = useState('')
@@ -139,6 +150,14 @@ export function AssistantPanel({
   const isImage = session?.content?.startsWith('data:image/') ?? false
   const contentCharacters =
     session?.content && !isImage ? countTextCharacters(session.content) : 0
+
+  // 自由输入（P1-3）：无采集内容时，输入框直接开启临时对话。
+  const canSubmitFreeQuestion =
+    !hasContent && Boolean(onFreeQuestionSubmit) && Boolean(question.trim())
+  const handleFreeQuestionSubmit = () => {
+    if (!canSubmitFreeQuestion || isLoading || freeQuestionStarting) return
+    onFreeQuestionSubmit?.(question.trim())
+  }
 
   const statusVariant =
     session?.status === 'ready'
@@ -317,13 +336,21 @@ export function AssistantPanel({
           onThemeChange={onKnowledgeThemeChange}
         />
 
-        {/* 可选问题输入 */}
+        {/* 可选问题输入；无采集内容时可直接发起临时对话（P1-3） */}
         <div className="mb-4">
           <input
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="可选：输入你的问题..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleFreeQuestionSubmit()
+            }}
+            aria-label={hasContent ? '附加问题（可选）' : '输入问题，直接开始对话'}
+            placeholder={
+              hasContent
+                ? '可选：输入你的问题...'
+                : '输入问题即可直接开始对话，无需先采集内容'
+            }
             className="w-full rounded-2xl border px-4 py-2.5 text-sm outline-none"
             style={{
               background: 'var(--rc-control-bg)',
@@ -332,6 +359,19 @@ export function AssistantPanel({
               boxShadow: 'var(--rc-control-shadow)',
             }}
           />
+          {!hasContent && onFreeQuestionSubmit && (
+            <Button
+              variant="primary"
+              size="sm"
+              loading={freeQuestionStarting}
+              disabled={!canSubmitFreeQuestion || isLoading}
+              onClick={handleFreeQuestionSubmit}
+              className="mt-2 flex w-full items-center justify-center gap-2"
+            >
+              <MessageSquare size={14} />
+              <span>直接提问</span>
+            </Button>
+          )}
         </div>
 
         {/* 动作按钮 */}
@@ -349,6 +389,19 @@ export function AssistantPanel({
           <div className="mb-2 text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
             选择动作
           </div>
+          {isImage && onExtractText && (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={extractTextRunning}
+              disabled={!hasContent || isLoading}
+              onClick={onExtractText}
+              className="mb-2 flex w-full items-center justify-center gap-2"
+            >
+              <ScanText size={14} />
+              <span>提取文字（截图识字）</span>
+            </Button>
+          )}
           <div className="grid grid-cols-2 gap-2">
             {ASSISTANT_ACTIONS.map((action) => {
               const Icon = ACTION_ICONS[action.id]

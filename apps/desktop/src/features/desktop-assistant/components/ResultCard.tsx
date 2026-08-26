@@ -175,6 +175,8 @@ export function ResultCard({
             <div
               className="whitespace-pre-wrap text-sm"
               style={{ color: 'var(--rc-text)' }}
+              role={status === 'streaming' ? 'status' : undefined}
+              aria-live={status === 'streaming' ? 'polite' : undefined}
             >
               {result.content || (status === 'streaming' ? '正在生成…' : '暂未生成内容')}
             </div>
@@ -264,7 +266,7 @@ export function ResultCard({
             导入
           </Button>
           {onExpand && (
-            <IconButton size="sm" onClick={onExpand}>
+            <IconButton size="sm" onClick={onExpand} aria-label="展开结果">
               <ExternalLink size={14} />
             </IconButton>
           )}

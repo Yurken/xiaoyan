@@ -25,6 +25,22 @@ fn each_action_uses_the_prd_character_limit() {
     assert_eq!(AssistantAction::Import.max_text_chars(), 50_000);
 }
 
+#[tokio::test]
+async fn extract_text_rejects_non_image_content() {
+    let llm = LlmClient::OpenAI {
+        base_url: "https://example.test/v1".to_string(),
+        api_key: "test".to_string(),
+        chat_model: "test-model".to_string(),
+        embed_model: "test-embed".to_string(),
+    };
+    assert!(ActionService::extract_text(&llm, None, "session-1", "纯文本内容")
+        .await
+        .is_err());
+    assert!(ActionService::extract_text(&llm, None, "session-1", "data:text/plain;base64,SGVsbG8=")
+        .await
+        .is_err());
+}
+
 #[test]
 fn temporary_history_accepts_user_and_assistant_messages_only() {
     let history = validated_history_messages(&[

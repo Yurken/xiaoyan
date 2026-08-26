@@ -213,4 +213,105 @@ describe('useAssistantSession', () => {
       question: '只根据会话历史回答',
     }))
   })
+
+  it('keeps free-input sessions context-free across follow-up, retry and promote', async () => {
+    const { result } = renderHook(() => useAssistantSession())
+    await act(async () => {
+      await result.current.start({
+        action: 'chat',
+        sessionId: 'free-chat-session',
+        content: '',
+        question: '什么是图检索？',
+        includeCaptureContext: false,
+      })
+    })
+    expect(result.current.session).toMatchObject({
+      captureSessionId: 'free-chat-session',
+      includeCaptureContext: false,
+    })
+    const requestId = getInvokeMock().mock.calls.find(
+      ([command]) => command === 'assistant_stream_action',
+    )?.[1]?.requestId as string
+    act(() => {
+      emit('assistant:action-done', {
+        request_id: requestId,
+        result: {
+          id: 'answer-free',
+          session_id: 'free-chat-session',
+          action: 'chat',
+          content: '自由回答',
+          format: 'markdown',
+        },
+      })
+    })
+    await waitFor(() => expect(result.current.status).toBe('completed'))
+
+    await act(async () => {
+      await result.current.followUp({
+        captureSessionId: 'free-chat-session',
+        content: '',
+        question: '展开讲讲',
+      })
+    })
+    const streamCalls = getInvokeMock().mock.calls.filter(
+      ([command]) => command === 'assistant_stream_action',
+    )
+    expect(streamCalls[1]?.[1]).toEqual(expect.objectContaining({
+      action: 'chat',
+      content: '',
+      question: '展开讲讲',
+      includeCaptureContext: false,
+    }))
+
+    // 追问完成后才能重试；重试用最近一次的自由会话输入
+    act(() => {
+      emit('assistant:action-done', {
+        request_id: streamCalls[1]?.[1]?.requestId as string,
+        result: {
+          id: 'answer-free-2',
+          session_id: 'free-chat-session',
+          action: 'chat',
+          content: '追问回答',
+          format: 'markdown',
+        },
+      })
+    })
+    await waitFor(() => expect(result.current.status).toBe('completed'))
+
+    await act(async () => {
+      expect(await result.current.retry()).toBe(true)
+    })
+    const retryCall = getInvokeMock().mock.calls.filter(
+      ([command]) => command === 'assistant_stream_action',
+    )[2]
+    act(() => {
+      emit('assistant:action-done', {
+        request_id: retryCall?.[1]?.requestId as string,
+        result: {
+          id: 'answer-free-3',
+          session_id: 'free-chat-session',
+          action: 'chat',
+          content: '重试回答',
+          format: 'markdown',
+        },
+      })
+    })
+    await waitFor(() => expect(result.current.status).toBe('completed'))
+
+    let conversationId: string | null = null
+    await act(async () => {
+      conversationId = await result.current.promote({ context: '' })
+    })
+    expect(conversationId).toBe(result.current.session?.id)
+    expect(getInvokeMock()).toHaveBeenCalledWith(
+      'assistant_promote_session',
+      expect.objectContaining({
+        input: expect.objectContaining({
+          captureSessionId: 'free-chat-session',
+          context: '',
+          includeCaptureContext: false,
+        }),
+      }),
+    )
+  })
 })

@@ -35,7 +35,7 @@ export function AssistantRuntimeSettingsSection({
           <div>
             <h2 className="text-base font-semibold text-ink-primary">桌面助手总开关</h2>
             <p className="text-xs leading-5 text-ink-tertiary">
-              关闭后隐藏悬浮球和动作面板、注销全局快捷键，并阻止新的采集与模型动作。
+              关闭后隐藏桌面小妍和动作面板、注销全局快捷键，并阻止新的采集与模型动作。
             </p>
           </div>
         </div>
@@ -44,6 +44,7 @@ export function AssistantRuntimeSettingsSection({
           variant={preferences.enabled ? 'secondary' : 'primary'}
           size="sm"
           loading={loading || saving}
+          aria-pressed={preferences.enabled}
           onClick={() => void onChange({
             ...preferences,
             enabled: !preferences.enabled,
