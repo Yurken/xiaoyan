@@ -455,6 +455,45 @@ impl AssistantPreferenceService {
     }
 }
 
+// ─── 角色站位持久化 ──────────────────────────────────────────────────
+
+const DOCK_PLACEMENT_KEY: &str = "dock_placement";
+
+/// 桌面小妍站位：显示器标识 + 吸附边缘 + 沿边缘偏移（物理像素）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssistantDockPlacement {
+    pub monitor_id: String,
+    pub edge: String,
+    pub offset: i32,
+}
+
+impl AssistantPreferenceService {
+    pub async fn load_dock_placement(db: &SqlitePool) -> Result<Option<AssistantDockPlacement>> {
+        let value: Option<String> =
+            sqlx::query_scalar("SELECT value FROM assistant_preferences WHERE key = ?")
+                .bind(DOCK_PLACEMENT_KEY)
+                .fetch_optional(db)
+                .await?;
+        Ok(value.and_then(|value| serde_json::from_str(&value).ok()))
+    }
+
+    pub async fn save_dock_placement(
+        db: &SqlitePool,
+        placement: &AssistantDockPlacement,
+    ) -> Result<()> {
+        let value = serde_json::to_string(placement)?;
+        upsert_value(db, DOCK_PLACEMENT_KEY, &value).await
+    }
+
+    pub async fn clear_dock_placement(db: &SqlitePool) -> Result<()> {
+        sqlx::query("DELETE FROM assistant_preferences WHERE key = ?")
+            .bind(DOCK_PLACEMENT_KEY)
+            .execute(db)
+            .await?;
+        Ok(())
+    }
+}
+
 async fn upsert_value(db: &SqlitePool, key: &str, value: &str) -> Result<()> {
     sqlx::query(
         "INSERT INTO assistant_preferences (key, value, updated_at)
@@ -468,6 +507,107 @@ async fn upsert_value(db: &SqlitePool, key: &str, value: &str) -> Result<()> {
     .execute(db)
     .await?;
     Ok(())
+}
+
+// ─── 直达动作快捷键（P1-1，PRD §16.2）──────────────────────────────────────
+
+const DIRECT_SHORTCUTS_KEY: &str = "direct_shortcuts";
+const DIRECT_SHORTCUT_DIAGNOSTIC_KEY_PREFIX: &str = "direct_shortcut_diagnostic:";
+
+/// 可选直达动作；默认不注册，用户在设置页开启后才持久化组合键。
+pub const DIRECT_SHORTCUT_ACTIONS: [&str; 3] = ["interpret", "translate", "screenshot"];
+
+pub fn is_valid_direct_action(action: &str) -> bool {
+    DIRECT_SHORTCUT_ACTIONS.contains(&action)
+}
+
+fn direct_shortcut_diagnostic_key(action: &str) -> String {
+    format!("{DIRECT_SHORTCUT_DIAGNOSTIC_KEY_PREFIX}{action}")
+}
+
+impl AssistantPreferenceService {
+    /// 已开启的直达动作组合键（动作 → 快捷键）；未开启的动作不出现在映射中。
+    pub async fn load_direct_shortcuts(
+        db: &SqlitePool,
+    ) -> Result<std::collections::HashMap<String, String>> {
+        let value: Option<String> =
+            sqlx::query_scalar("SELECT value FROM assistant_preferences WHERE key = ?")
+                .bind(DIRECT_SHORTCUTS_KEY)
+                .fetch_optional(db)
+                .await?;
+        let raw = value
+            .and_then(|value| {
+                serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&value).ok()
+            })
+            .unwrap_or_default();
+        let mut shortcuts = std::collections::HashMap::new();
+        for (action, shortcut) in raw {
+            if !is_valid_direct_action(&action) {
+                continue;
+            }
+            if let Some(shortcut) =
+                shortcut.as_str().map(str::trim).filter(|value| !value.is_empty())
+            {
+                shortcuts.insert(action, shortcut.to_string());
+            }
+        }
+        Ok(shortcuts)
+    }
+
+    /// 开启（Some）或关闭（None）某个直达动作；返回更新后的完整映射。
+    pub async fn save_direct_shortcut(
+        db: &SqlitePool,
+        action: &str,
+        shortcut: Option<&str>,
+    ) -> Result<std::collections::HashMap<String, String>> {
+        if !is_valid_direct_action(action) {
+            return Err(anyhow!("不支持的直达动作：{action}"));
+        }
+        let mut shortcuts = Self::load_direct_shortcuts(db).await?;
+        match shortcut.map(str::trim).filter(|value| !value.is_empty()) {
+            Some(shortcut) => {
+                shortcuts.insert(action.to_string(), shortcut.to_string());
+            }
+            None => {
+                shortcuts.remove(action);
+            }
+        }
+        let value = serde_json::to_string(&shortcuts)?;
+        upsert_value(db, DIRECT_SHORTCUTS_KEY, &value).await?;
+        Ok(shortcuts)
+    }
+
+    pub async fn load_direct_shortcut_diagnostic(
+        db: &SqlitePool,
+        action: &str,
+    ) -> Result<Option<AssistantShortcutDiagnostic>> {
+        let value: Option<String> =
+            sqlx::query_scalar("SELECT value FROM assistant_preferences WHERE key = ?")
+                .bind(direct_shortcut_diagnostic_key(action))
+                .fetch_optional(db)
+                .await?;
+        Ok(value.and_then(|value| serde_json::from_str(&value).ok()))
+    }
+
+    pub async fn save_direct_shortcut_diagnostic(
+        db: &SqlitePool,
+        action: &str,
+        diagnostic: &AssistantShortcutDiagnostic,
+    ) -> Result<()> {
+        if !is_valid_direct_action(action) {
+            return Err(anyhow!("不支持的直达动作：{action}"));
+        }
+        let value = serde_json::to_string(diagnostic)?;
+        upsert_value(db, &direct_shortcut_diagnostic_key(action), &value).await
+    }
+
+    pub async fn clear_direct_shortcut_diagnostic(db: &SqlitePool, action: &str) -> Result<()> {
+        sqlx::query("DELETE FROM assistant_preferences WHERE key = ?")
+            .bind(direct_shortcut_diagnostic_key(action))
+            .execute(db)
+            .await?;
+        Ok(())
+    }
 }
 
 fn normalize_app_rules(items: Vec<String>) -> Result<Vec<String>> {
@@ -722,6 +862,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dock_placement_round_trips_ignores_malformed_values_and_can_be_cleared() {
+        let pool = setup().await;
+        assert!(AssistantPreferenceService::load_dock_placement(&pool)
+            .await
+            .unwrap()
+            .is_none());
+
+        let placement = AssistantDockPlacement {
+            monitor_id: "Built-in Retina Display".to_string(),
+            edge: "right".to_string(),
+            offset: 700,
+        };
+        AssistantPreferenceService::save_dock_placement(&pool, &placement)
+            .await
+            .unwrap();
+        assert_eq!(
+            AssistantPreferenceService::load_dock_placement(&pool)
+                .await
+                .unwrap(),
+            Some(placement)
+        );
+
+        sqlx::query("UPDATE assistant_preferences SET value = 'not-json' WHERE key = ?")
+            .bind(DOCK_PLACEMENT_KEY)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(AssistantPreferenceService::load_dock_placement(&pool)
+            .await
+            .unwrap()
+            .is_none());
+
+        AssistantPreferenceService::clear_dock_placement(&pool)
+            .await
+            .unwrap();
+        assert!(AssistantPreferenceService::load_dock_placement(&pool)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
     async fn translation_preferences_validate_and_round_trip() {
         let pool = setup().await;
         assert_eq!(
@@ -751,6 +933,99 @@ mod tests {
             AssistantPreferenceService::save_translation(&pool, "zh", "unknown")
                 .await
                 .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn direct_shortcuts_default_empty_and_round_trip_per_action() {
+        let pool = setup().await;
+        assert!(AssistantPreferenceService::load_direct_shortcuts(&pool)
+            .await
+            .unwrap()
+            .is_empty());
+
+        let saved = AssistantPreferenceService::save_direct_shortcut(&pool, "interpret", Some("Alt+1"))
+            .await
+            .unwrap();
+        assert_eq!(saved.get("interpret").map(String::as_str), Some("Alt+1"));
+        assert!(!saved.contains_key("translate"));
+
+        let saved = AssistantPreferenceService::save_direct_shortcut(&pool, "interpret", None)
+            .await
+            .unwrap();
+        assert!(!saved.contains_key("interpret"));
+        assert!(AssistantPreferenceService::load_direct_shortcuts(&pool)
+            .await
+            .unwrap()
+            .is_empty());
+
+        assert!(
+            AssistantPreferenceService::save_direct_shortcut(&pool, "unknown", Some("Alt+9"))
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn direct_shortcuts_ignore_unknown_actions_and_empty_values_on_load() {
+        let pool = setup().await;
+        upsert_value(
+            &pool,
+            DIRECT_SHORTCUTS_KEY,
+            r#"{"interpret":"Alt+1","unknown":"Alt+9","translate":"  "}"#,
+        )
+        .await
+        .unwrap();
+
+        let loaded = AssistantPreferenceService::load_direct_shortcuts(&pool)
+            .await
+            .unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded.get("interpret").map(String::as_str), Some("Alt+1"));
+    }
+
+    #[tokio::test]
+    async fn direct_shortcut_diagnostic_is_scoped_per_action_and_can_be_cleared() {
+        let pool = setup().await;
+        let diagnostic = AssistantShortcutDiagnostic {
+            status: "error".to_string(),
+            requested_shortcut: "Alt+1".to_string(),
+            active_shortcut: None,
+            message: "快捷键冲突".to_string(),
+            updated_at: "2026-08-26T00:00:00Z".to_string(),
+        };
+        AssistantPreferenceService::save_direct_shortcut_diagnostic(&pool, "interpret", &diagnostic)
+            .await
+            .unwrap();
+        assert_eq!(
+            AssistantPreferenceService::load_direct_shortcut_diagnostic(&pool, "interpret")
+                .await
+                .unwrap(),
+            Some(diagnostic)
+        );
+        assert!(AssistantPreferenceService::load_direct_shortcut_diagnostic(&pool, "translate")
+            .await
+            .unwrap()
+            .is_none());
+
+        AssistantPreferenceService::clear_direct_shortcut_diagnostic(&pool, "interpret")
+            .await
+            .unwrap();
+        assert!(AssistantPreferenceService::load_direct_shortcut_diagnostic(&pool, "interpret")
+            .await
+            .unwrap()
+            .is_none());
+
+        assert!(
+            AssistantPreferenceService::save_direct_shortcut_diagnostic(&pool, "unknown", &AssistantShortcutDiagnostic {
+                status: "error".to_string(),
+                requested_shortcut: "Alt+9".to_string(),
+                active_shortcut: None,
+                message: String::new(),
+                updated_at: "2026-08-26T00:00:00Z".to_string(),
+            })
+            .await
+            .is_err()
         );
     }
 }

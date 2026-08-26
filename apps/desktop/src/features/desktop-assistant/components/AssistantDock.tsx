@@ -1,6 +1,6 @@
 /**
- * 悬浮球组件
- * 常驻显示的小妍图标，可拖动，点击打开动作面板
+ * 桌面小妍角色组件
+ * 常驻显示的小妍角色形象，可拖动，点击打开动作面板
  * 位置持久化到 localStorage
  */
 import { useState, useRef, useCallback, useEffect } from 'react'
@@ -100,6 +100,9 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
           const after = await currentWindow.outerPosition()
           if (Math.abs(after.x - before.x) < 4 && Math.abs(after.y - before.y) < 4) {
             onClick?.()
+          } else {
+            // 窗口模式拖动结束后由调用方负责吸附与站位持久化。
+            onDragEnd?.()
           }
         } catch {
           onClick?.()
@@ -120,7 +123,7 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
         dockY: position.y,
       }
     },
-    [position, onDragStart, isWindowMode, onClick]
+    [position, onDragStart, isWindowMode, onClick, onDragEnd]
   )
 
   // 鼠标移动
@@ -204,11 +207,13 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
       }}
       onMouseDown={handleMouseDown}
       role="button"
-      aria-label="打开小妍桌面助手"
-      title="小妍桌面助手"
+      aria-label="桌面小妍"
+      title="桌面小妍"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
+          // 阻止空格滚动页面，保持按钮键盘行为一致。
+          e.preventDefault()
           onClick?.()
         }
       }}

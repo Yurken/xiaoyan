@@ -1,5 +1,6 @@
 //! Desktop shell integration: tray, assistant windows and global shortcut.
 
+use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex, OnceLock,
@@ -14,16 +15,21 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, S
 
 use crate::{
     services::{
-        desktop_assistant::preference_service::AssistantShortcutDiagnostic, settings_service,
+        desktop_assistant::preference_service::{
+            AssistantShortcutDiagnostic, DIRECT_SHORTCUT_ACTIONS,
+        },
+        settings_service,
     },
     state::AppState,
 };
 
 const DEFAULT_ASSISTANT_SHORTCUT: &str = "Alt+Space";
 const CAPTURE_REQUEST_EVENT: &str = "assistant://capture-request";
+const DIRECT_ACTION_EVENT: &str = "assistant://direct-action";
 const ASSISTANT_DOCK_WIDTH: i32 = 128;
 const ASSISTANT_DOCK_HEIGHT: i32 = 136;
 static REGISTERED_ASSISTANT_SHORTCUT: OnceLock<Mutex<String>> = OnceLock::new();
+static REGISTERED_DIRECT_SHORTCUTS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
 static ASSISTANT_ENABLED: AtomicBool = AtomicBool::new(true);
 static ASSISTANT_DIAGNOSTIC_LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
 
@@ -31,9 +37,31 @@ fn registered_shortcut() -> &'static Mutex<String> {
     REGISTERED_ASSISTANT_SHORTCUT.get_or_init(|| Mutex::new(String::new()))
 }
 
+fn registered_direct_shortcuts() -> &'static Mutex<HashMap<String, String>> {
+    REGISTERED_DIRECT_SHORTCUTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 fn handle_assistant_shortcut(app: &AppHandle, _shortcut: &Shortcut, event: ShortcutEvent) {
     if assistant_enabled() && event.state == ShortcutState::Pressed {
         let _ = toggle_assistant_panel(app);
+    }
+}
+
+/// 直达动作快捷键：按下时通知面板窗口跳过动作选择，并展示面板承载预览或结果。
+/// 选区仍在按键瞬间由现有采集管线读取一次，符合“用户主动触发”原则。
+fn handle_assistant_direct_shortcut(app: &AppHandle, action: &'static str, event: ShortcutEvent) {
+    if !assistant_enabled() || event.state != ShortcutState::Pressed {
+        return;
+    }
+    if let Err(error) = app.emit_to("assistant-panel", DIRECT_ACTION_EVENT, action) {
+        append_assistant_diagnostic_log(&format!(
+            "assistant: failed to emit direct action {action}: {error}"
+        ));
+    }
+    if let Err(error) = show_assistant_panel(app, false) {
+        append_assistant_diagnostic_log(&format!(
+            "assistant: failed to show panel for direct action {action}: {error}"
+        ));
     }
 }
 
@@ -82,6 +110,24 @@ pub fn deactivate_assistant(app: &AppHandle) -> Result<(), String> {
     };
     if shortcut_released {
         if let Ok(mut registered) = registered_shortcut().lock() {
+            registered.clear();
+        }
+    }
+
+    // 直达动作快捷键一并注销；处理器虽有 enabled 兜底，但不继续占用组合键。
+    let direct_shortcuts = registered_direct_shortcuts()
+        .lock()
+        .map(|shortcuts| shortcuts.clone())
+        .unwrap_or_default();
+    let mut direct_released = true;
+    for shortcut in direct_shortcuts.values() {
+        if let Err(error) = app.global_shortcut().unregister(shortcut.as_str()) {
+            errors.push(format!("注销直达快捷键 {shortcut} 失败：{error}"));
+            direct_released = false;
+        }
+    }
+    if direct_released {
+        if let Ok(mut registered) = registered_direct_shortcuts().lock() {
             registered.clear();
         }
     }
@@ -160,6 +206,90 @@ pub fn set_assistant_shortcut(app: &AppHandle, shortcut: &str) -> Result<String,
     Ok(shortcut)
 }
 
+/// 某个直达动作当前实际注册的组合键；未注册时返回空串。
+pub fn current_assistant_direct_shortcut(action: &str) -> String {
+    registered_direct_shortcuts()
+        .lock()
+        .map(|shortcuts| shortcuts.get(action).cloned().unwrap_or_default())
+        .unwrap_or_default()
+}
+
+/// 注册或注销直达动作快捷键（Some 注册 / None 注销）。
+/// 注册前校验与主快捷键及其他直达动作的冲突；失败时不改变现有注册状态。
+pub fn set_assistant_direct_shortcut(
+    app: &AppHandle,
+    action: &str,
+    shortcut: Option<&str>,
+) -> Result<Option<String>, String> {
+    let action_static: &'static str = DIRECT_SHORTCUT_ACTIONS
+        .iter()
+        .copied()
+        .find(|candidate| *candidate == action)
+        .ok_or_else(|| format!("不支持的直达动作：{action}"))?;
+
+    let normalized = match shortcut {
+        Some(shortcut) => Some(normalize_assistant_shortcut(shortcut)?),
+        None => None,
+    };
+
+    let previous = {
+        let shortcuts = registered_direct_shortcuts()
+            .lock()
+            .map_err(|_| "直达快捷键状态暂时不可用".to_string())?;
+        // 冲突检查：不允许与唤起面板快捷键或其他直达动作重复。
+        if let Some(candidate) = &normalized {
+            if current_assistant_shortcut() == *candidate {
+                return Err("与唤起动作面板的快捷键冲突，请换一个组合".to_string());
+            }
+            if let Some(other) = shortcuts
+                .iter()
+                .find(|(other_action, other_shortcut)| {
+                    other_action.as_str() != action && *other_shortcut == candidate
+                })
+                .map(|(other_action, _)| other_action.clone())
+            {
+                return Err(format!("与直达动作「{other}」的快捷键冲突，请换一个组合"));
+            }
+        }
+        shortcuts.get(action).cloned()
+    };
+
+    if previous == normalized {
+        return Ok(normalized);
+    }
+
+    if let Some(candidate) = &normalized {
+        app.global_shortcut()
+            .on_shortcut(candidate.as_str(), move |app, _shortcut, event| {
+                handle_assistant_direct_shortcut(app, action_static, event)
+            })
+            .map_err(|error| format!("快捷键注册失败，可能已被其他应用占用：{error}"))?;
+        if let Some(previous) = &previous {
+            if let Err(error) = app.global_shortcut().unregister(previous.as_str()) {
+                let _ = app.global_shortcut().unregister(candidate.as_str());
+                return Err(format!("替换旧快捷键失败：{error}"));
+            }
+        }
+    } else if let Some(previous) = &previous {
+        app.global_shortcut()
+            .unregister(previous.as_str())
+            .map_err(|error| format!("注销直达快捷键失败：{error}"))?;
+    }
+
+    let mut shortcuts = registered_direct_shortcuts()
+        .lock()
+        .map_err(|_| "直达快捷键状态暂时不可用".to_string())?;
+    match &normalized {
+        Some(candidate) => {
+            shortcuts.insert(action.to_string(), candidate.clone());
+        }
+        None => {
+            shortcuts.remove(action);
+        }
+    }
+    Ok(normalized)
+}
+
 pub fn show_assistant_panel(app: &AppHandle, request_capture: bool) -> Result<(), String> {
     if !assistant_enabled() {
         return Err("桌面助手已关闭，请先在设置中启用".to_string());
@@ -172,8 +302,112 @@ pub fn show_assistant_panel(app: &AppHandle, request_capture: bool) -> Result<()
         app.emit_to("assistant-panel", CAPTURE_REQUEST_EVENT, "selection")
             .map_err(|error| error.to_string())?;
     }
+    position_assistant_panel(app);
     // 不主动抢焦点，确保辅助功能读取的仍是第三方前台应用；用户点击面板后仍可正常交互。
     window.show().map_err(|error| error.to_string())
+}
+
+/// 面板在锚点附近的展开位置（均为物理像素坐标）：
+/// 水平方向默认向锚点左侧展开，放不下时翻转到右侧；
+/// 垂直方向默认与锚点顶部对齐向下展开，超出下边缘时向上翻转与锚点底部对齐；
+/// 最后夹取到显示器内，保证面板不会完全移出可见区域。
+fn panel_position_near_anchor(
+    anchor: (i32, i32, i32, i32),
+    monitor: (i32, i32, i32, i32),
+    panel: (i32, i32),
+    gap: i32,
+) -> (i32, i32) {
+    let (anchor_x, anchor_y, anchor_width, anchor_height) = anchor;
+    let (monitor_x, monitor_y, monitor_width, monitor_height) = monitor;
+    let (panel_width, panel_height) = panel;
+
+    let mut x = anchor_x - panel_width - gap;
+    if x < monitor_x {
+        x = anchor_x + anchor_width + gap;
+    }
+    let mut y = anchor_y;
+    if y + panel_height > monitor_y + monitor_height {
+        y = anchor_y + anchor_height - panel_height;
+    }
+
+    let max_x = monitor_x + monitor_width - panel_width;
+    let max_y = monitor_y + monitor_height - panel_height;
+    // 面板比显示器还大时钉在显示器原点，保证左上角可见。
+    let x = if max_x < monitor_x {
+        monitor_x
+    } else {
+        x.clamp(monitor_x, max_x)
+    };
+    let y = if max_y < monitor_y {
+        monitor_y
+    } else {
+        y.clamp(monitor_y, max_y)
+    };
+    (x, y)
+}
+
+fn point_in_monitor(point: (i32, i32), monitor: &tauri::Monitor) -> bool {
+    let position = monitor.position();
+    let size = monitor.size();
+    point.0 >= position.x
+        && point.0 < position.x + size.width as i32
+        && point.1 >= position.y
+        && point.1 < position.y + size.height as i32
+}
+
+/// 把动作面板定位到触发它所在的显示器：
+/// 桌面小妍可见时以它为锚点，否则以全局光标为锚点（快捷键触发场景）。
+fn position_assistant_panel(app: &AppHandle) {
+    const PANEL_ANCHOR_GAP: i32 = 12;
+    let Some(panel) = app.get_webview_window("assistant-panel") else {
+        return;
+    };
+    let Ok(panel_size) = panel.outer_size() else {
+        return;
+    };
+
+    let dock = app.get_webview_window("assistant-dock");
+    let dock_anchor = dock
+        .filter(|dock| dock.is_visible().unwrap_or(false))
+        .and_then(|dock| {
+            let position = dock.outer_position().ok()?;
+            let size = dock.outer_size().ok()?;
+            Some((position.x, position.y, size.width as i32, size.height as i32))
+        });
+    let anchor = dock_anchor.or_else(|| {
+        panel
+            .cursor_position()
+            .ok()
+            .map(|cursor| (cursor.x as i32, cursor.y as i32, 0, 0))
+    });
+    let Some(anchor) = anchor else {
+        return;
+    };
+
+    let anchor_center = (anchor.0 + anchor.2 / 2, anchor.1 + anchor.3 / 2);
+    let monitors = app.available_monitors().unwrap_or_default();
+    let monitor = monitors
+        .iter()
+        .find(|monitor| point_in_monitor(anchor_center, monitor))
+        .cloned()
+        .or_else(|| app.primary_monitor().ok().flatten());
+    let Some(monitor) = monitor else {
+        return;
+    };
+    let origin = monitor.position();
+    let size = monitor.size();
+    let (x, y) = panel_position_near_anchor(
+        anchor,
+        (
+            origin.x,
+            origin.y,
+            size.width as i32,
+            size.height as i32,
+        ),
+        (panel_size.width as i32, panel_size.height as i32),
+        PANEL_ANCHOR_GAP,
+    );
+    let _ = panel.set_position(PhysicalPosition::new(x, y));
 }
 
 pub fn toggle_assistant_panel(app: &AppHandle) -> Result<bool, String> {
@@ -303,6 +537,30 @@ fn persist_shortcut_diagnostic(
     }
 }
 
+fn persist_direct_shortcut_diagnostic(app: &AppHandle, action: &str, shortcut: &str, message: String) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let diagnostic = AssistantShortcutDiagnostic {
+        status: "error".to_string(),
+        requested_shortcut: shortcut.to_string(),
+        active_shortcut: None,
+        message,
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    };
+    if let Err(error) = tauri::async_runtime::block_on(
+        crate::services::desktop_assistant::AssistantPreferenceService::save_direct_shortcut_diagnostic(
+            &state.db,
+            action,
+            &diagnostic,
+        ),
+    ) {
+        append_assistant_diagnostic_log(&format!(
+            "assistant: failed to persist direct shortcut diagnostic: {error}"
+        ));
+    }
+}
+
 fn clear_shortcut_diagnostic_if_recovered(app: &AppHandle, recovered_shortcut: &str) {
     let Some(state) = app.try_state::<AppState>() else {
         return;
@@ -329,6 +587,40 @@ fn clear_shortcut_diagnostic_if_recovered(app: &AppHandle, recovered_shortcut: &
     }
 }
 
+/// 清除持久化站位后，把桌面小妍恢复到默认位置。
+pub fn reset_assistant_dock_position(app: &AppHandle) {
+    position_dock(app);
+}
+
+/// 桌面小妍当前是否仍在某台显示器的可见范围内（以窗口中心判定）。
+fn dock_on_any_monitor(app: &AppHandle) -> bool {
+    let Some(window) = app.get_webview_window("assistant-dock") else {
+        return false;
+    };
+    let (Ok(position), Ok(size)) = (window.outer_position(), window.outer_size()) else {
+        return false;
+    };
+    let center = (
+        position.x + size.width as i32 / 2,
+        position.y + size.height as i32 / 2,
+    );
+    app.available_monitors()
+        .map(|monitors| {
+            monitors
+                .iter()
+                .any(|monitor| point_in_monitor(center, monitor))
+        })
+        .unwrap_or(false)
+}
+
+/// 安全恢复：仅当桌面小妍已不在任何显示器内（如显示器断开）时才迁移回默认位置，
+/// 不打乱用户已持久化的站位。
+fn ensure_dock_on_screen(app: &AppHandle) {
+    if !dock_on_any_monitor(app) {
+        position_dock(app);
+    }
+}
+
 pub fn set_assistant_dock_visible(app: &AppHandle, visible: bool) -> Result<(), String> {
     if visible && !assistant_enabled() {
         return Err("桌面助手已关闭，请先在设置中启用".to_string());
@@ -338,7 +630,7 @@ pub fn set_assistant_dock_visible(app: &AppHandle, visible: bool) -> Result<(), 
         .ok_or_else(|| "Dock window not found".to_string())?;
 
     if visible {
-        position_dock(app);
+        ensure_dock_on_screen(app);
         window.show().map_err(|error| error.to_string())?;
     } else {
         window.hide().map_err(|error| error.to_string())?;
@@ -444,6 +736,29 @@ fn setup_assistant(app: &mut App) {
                 }
             }
         }
+
+        // 直达动作快捷键（P1-1）：默认不注册，仅恢复用户显式开启过的组合。
+        // 注册失败只记录按动作的诊断，不做键位回退，也不影响主快捷键。
+        let configured_direct = app
+            .try_state::<AppState>()
+            .map(|state| {
+                tauri::async_runtime::block_on(async {
+                    crate::services::desktop_assistant::AssistantPreferenceService::load_direct_shortcuts(
+                        &state.db,
+                    )
+                    .await
+                    .unwrap_or_default()
+                })
+            })
+            .unwrap_or_default();
+        for (action, shortcut) in configured_direct {
+            if let Err(error) = set_assistant_direct_shortcut(&handle, &action, Some(&shortcut)) {
+                append_assistant_diagnostic_log(&format!(
+                    "assistant: failed to register direct shortcut {action}={shortcut}: {error}"
+                ));
+                persist_direct_shortcut_diagnostic(&handle, &action, &shortcut, error);
+            }
+        }
     }
 }
 
@@ -517,7 +832,7 @@ pub fn setup(app: &mut App) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_assistant_shortcut;
+    use super::{normalize_assistant_shortcut, panel_position_near_anchor};
 
     #[test]
     fn assistant_shortcut_requires_modifier_and_key() {
@@ -528,5 +843,61 @@ mod tests {
         assert!(normalize_assistant_shortcut("Space").is_err());
         assert!(normalize_assistant_shortcut("Alt").is_err());
         assert!(normalize_assistant_shortcut("").is_err());
+    }
+
+    const MONITOR: (i32, i32, i32, i32) = (0, 0, 2560, 1440);
+    const PANEL: (i32, i32) = (400, 360);
+    const DOCK: (i32, i32) = (128, 136);
+
+    #[test]
+    fn panel_flips_left_when_anchor_is_near_the_right_edge() {
+        // 桌面小妍停在右下角：面板应向其左侧展开，并与小妍顶部对齐。
+        let anchor = (2560 - DOCK.0 - 16, 700, DOCK.0, DOCK.1);
+        let (x, y) = panel_position_near_anchor(anchor, MONITOR, PANEL, 12);
+        assert_eq!(x, anchor.0 - PANEL.0 - 12);
+        assert_eq!(y, 700);
+    }
+
+    #[test]
+    fn panel_flips_right_when_anchor_is_near_the_left_edge() {
+        let anchor = (0, 300, DOCK.0, DOCK.1);
+        let (x, y) = panel_position_near_anchor(anchor, MONITOR, PANEL, 12);
+        assert_eq!(x, anchor.0 + DOCK.0 + 12);
+        assert_eq!(y, 300);
+    }
+
+    #[test]
+    fn panel_flips_upward_when_anchor_is_near_the_bottom_edge() {
+        let anchor = (1200, 1440 - DOCK.1 - 8, DOCK.0, DOCK.1);
+        let (x, y) = panel_position_near_anchor(anchor, MONITOR, PANEL, 12);
+        assert_eq!(y, anchor.1 + DOCK.1 - PANEL.1);
+        assert!(y + PANEL.1 <= MONITOR.1 + MONITOR.3);
+        // 左右都有空间时保持默认向左展开
+        assert_eq!(x, anchor.0 - PANEL.0 - 12);
+    }
+
+    #[test]
+    fn panel_stays_inside_a_monitor_smaller_than_the_panel() {
+        let tiny_monitor = (100, 100, 320, 300);
+        let anchor = (100, 100, DOCK.0, DOCK.1);
+        let (x, y) = panel_position_near_anchor(anchor, tiny_monitor, PANEL, 12);
+        // 面板比显示器还大：钉在显示器原点，保证左上角可见
+        assert_eq!((x, y), (tiny_monitor.0, tiny_monitor.1));
+    }
+
+    #[test]
+    fn panel_uses_cursor_anchor_on_a_negative_coordinate_monitor() {
+        let left_monitor = (-1920, 0, 1920, 1080);
+        let cursor_anchor = (-100, 500, 0, 0);
+        let (x, y) = panel_position_near_anchor(cursor_anchor, left_monitor, PANEL, 12);
+        // 光标左侧仍有空间：默认向左展开并保持在该显示器内
+        assert_eq!(x, -100 - PANEL.0 - 12);
+        assert!(x >= left_monitor.0);
+        assert!(y >= left_monitor.1);
+        assert!(y + PANEL.1 <= left_monitor.1 + left_monitor.3);
+        // 光标贴近左边缘时翻转到右侧展开
+        let near_left = (-1900, 500, 0, 0);
+        let (flipped_x, _) = panel_position_near_anchor(near_left, left_monitor, PANEL, 12);
+        assert_eq!(flipped_x, -1900 + 12);
     }
 }

@@ -6,7 +6,7 @@ describe('AssistantDock', () => {
   it('uses the Xiaoyan character instead of a text placeholder', () => {
     render(<AssistantDock variant="window" />)
 
-    const dock = screen.getByRole('button', { name: '打开小妍桌面助手' })
+    const dock = screen.getByRole('button', { name: '桌面小妍' })
     expect(dock).toBeInTheDocument()
     expect(dock).toHaveStyle({
       width: '128px',
