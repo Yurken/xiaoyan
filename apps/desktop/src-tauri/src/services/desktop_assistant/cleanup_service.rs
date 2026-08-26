@@ -223,6 +223,9 @@ impl CleanupService {
         .execute(db)
         .await?;
 
+        // 匿名本地指标表：独立存储，不混入采集会话。
+        super::metrics_service::AssistantMetricsService::init_tables(db).await?;
+
         Ok(())
     }
 

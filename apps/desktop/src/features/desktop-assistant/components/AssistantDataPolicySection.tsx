@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Database, Eye, Trash2 } from 'lucide-react'
+import { AlertTriangle, BarChart3, Database, Eye, Trash2 } from 'lucide-react'
 import { Button, Card } from '@research-copilot/ui'
 import { useAssistantDataPolicy } from '../hooks/useAssistantDataPolicy'
-import type { AssistantDataPolicy } from '../shared'
+import { useAssistantMetrics } from '../hooks/useAssistantMetrics'
+import type { AssistantDataPolicy, AssistantMetricsDailyBucket } from '../shared'
 
 type RetentionValue = '1' | '7' | '30' | 'manual'
 
@@ -14,8 +15,33 @@ function valueToRetention(value: RetentionValue): AssistantDataPolicy['inbox_ret
   return value === 'manual' ? null : Number(value) as 1 | 7 | 30
 }
 
+const METRICS_EVENT_LABELS: Record<AssistantMetricsDailyBucket['event_type'], string> = {
+  capture: '采集',
+  action: '模型动作',
+  copy: '复制',
+  import: '导入',
+}
+
+/** 把按天聚合的桶汇总成“事件类别 → 成功/失败计数”，用于设置区的纯文本概览。 */
+function summarizeMetricsOverview(
+  overview: AssistantMetricsDailyBucket[],
+): Array<{ label: string; success: number; failed: number }> {
+  const totals = new Map<string, { success: number; failed: number }>()
+  for (const bucket of overview) {
+    const entry = totals.get(bucket.event_type) ?? { success: 0, failed: 0 }
+    if (bucket.status === 'success') entry.success += bucket.count
+    else entry.failed += bucket.count
+    totals.set(bucket.event_type, entry)
+  }
+  return Object.entries(METRICS_EVENT_LABELS).flatMap(([eventType, label]) => {
+    const entry = totals.get(eventType)
+    return entry ? [{ label, ...entry }] : []
+  })
+}
+
 export function AssistantDataPolicySection() {
   const dataPolicy = useAssistantDataPolicy()
+  const metrics = useAssistantMetrics()
   const [previewRequired, setPreviewRequired] = useState(true)
   const [retention, setRetention] = useState<RetentionValue>('7')
   const [message, setMessage] = useState<string | null>(null)
@@ -56,12 +82,13 @@ export function AssistantDataPolicySection() {
     if (!privateClearArmed) {
       setPrivateClearArmed(true)
       setClearArmed(false)
-      setMessage('再次点击以确认清除临时上下文、悬浮会话和全部已保存图片')
+      setMessage('再次点击以确认清除临时上下文、桌面临时会话和全部已保存图片')
       return
     }
     const result = await dataPolicy.clearPrivateData()
     setPrivateClearArmed(false)
     if (result) {
+      void metrics.reload()
       setMessage(
         `已清除 ${result.capture_sessions} 个采集上下文、${result.image_assets} 个图片资产`
         + (result.cancelled_actions > 0 ? `，并停止 ${result.cancelled_actions} 个生成任务` : ''),
@@ -176,6 +203,53 @@ export function AssistantDataPolicySection() {
       </div>
 
       <div
+        className="rounded-3xl px-4 py-4"
+        style={{
+          background: 'var(--rc-chip-inset-bg)',
+          boxShadow: 'var(--rc-chip-inset-shadow)',
+        }}
+      >
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            aria-label="启用匿名本地事件统计"
+            checked={metrics.preferences.enabled}
+            disabled={metrics.loading || metrics.saving}
+            onChange={(event) => void metrics.setEnabled(event.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded"
+          />
+          <span>
+            <span className="flex items-center gap-2 text-sm font-semibold text-ink-primary">
+              <BarChart3 className="h-4 w-4 text-[var(--rc-accent)]" />
+              匿名本地事件统计
+            </span>
+            <span className="mt-1 block text-xs leading-5 text-ink-secondary">
+              只在本地记录动作类别、采集来源类型、耗时和结果状态，用于评估助手是否好用；
+              绝不记录正文、OCR 文本、窗口标题、截图或应用名称，也不会上传。默认关闭，关闭时立即清空已有统计。
+            </span>
+          </span>
+        </label>
+        {metrics.preferences.enabled && (
+          <div className="mt-3 text-xs leading-5 text-ink-secondary" aria-live="polite">
+            {metrics.loading ? (
+              <p>正在读取统计…</p>
+            ) : metrics.overview.length === 0 ? (
+              <p>近 28 天还没有记录到事件。</p>
+            ) : (
+              <p>
+                近 28 天：
+                {summarizeMetricsOverview(metrics.overview)
+                  .map(({ label, success, failed }) =>
+                    failed > 0 ? `${label} ${success} 成功 / ${failed} 失败` : `${label} ${success} 次`)
+                  .join('；')}
+              </p>
+            )}
+          </div>
+        )}
+        {metrics.error && <p role="alert" className="mt-2 text-xs text-red-500">{metrics.error}</p>}
+      </div>
+
+      <div
         className="rounded-3xl border px-4 py-4"
         style={{
           borderColor: 'color-mix(in srgb, var(--rc-danger, #FF3B30) 32%, transparent)',
@@ -186,7 +260,7 @@ export function AssistantDataPolicySection() {
           <div>
             <p className="text-sm font-semibold text-ink-primary">清除助手私有数据</p>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-ink-secondary">
-              清除当前捕获上下文、临时多轮会话、未确认的拖入预览和全部已保存图片，并停止正在生成的助手任务。不会删除稍后处理箱、知识笔记及附件、论文、正式聊天或你的原文件。
+              清除当前捕获上下文、临时多轮会话、未确认的拖入预览、全部已保存图片和本地匿名统计，并停止正在生成的助手任务。不会删除稍后处理箱、知识笔记及附件、论文、正式聊天或你的原文件。
             </p>
           </div>
           <Button

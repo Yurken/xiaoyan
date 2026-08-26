@@ -20,6 +20,7 @@ describe('AssistantDataPolicySection', () => {
         return { preview_required: false, inbox_retention_days: null }
       }
       if (command === 'assistant_clear_later_items') return 2
+      if (command === 'assistant_get_metrics_preferences') return { enabled: false }
       throw new Error(`Unmocked invoke: ${command}`)
     })
 
@@ -46,6 +47,7 @@ describe('AssistantDataPolicySection', () => {
       if (command === 'assistant_get_data_policy') {
         return { preview_required: true, inbox_retention_days: 7 }
       }
+      if (command === 'assistant_get_metrics_preferences') return { enabled: false }
       if (command === 'assistant_clear_private_data') {
         return {
           capture_sessions: 2,
@@ -67,5 +69,40 @@ describe('AssistantDataPolicySection', () => {
     await user.click(screen.getByRole('button', { name: '确认清除助手私有数据' }))
     expect(getInvokeMock()).toHaveBeenCalledWith('assistant_clear_private_data')
     expect(await screen.findByText(/已清除 2 个采集上下文、3 个图片资产，并停止 1 个生成任务/)).toBeInTheDocument()
+  })
+
+  it('keeps anonymous metrics opt-in and renders a structured overview', async () => {
+    getInvokeMock().mockImplementation(async (command: string, args?: unknown) => {
+      if (command === 'assistant_get_data_policy') {
+        return { preview_required: true, inbox_retention_days: 7 }
+      }
+      if (command === 'assistant_get_metrics_preferences') return { enabled: true }
+      if (command === 'assistant_get_metrics_overview') {
+        return [
+          { day: '2026-08-25', event_type: 'action', status: 'success', count: 3 },
+          { day: '2026-08-25', event_type: 'action', status: 'error', count: 1 },
+          { day: '2026-08-26', event_type: 'copy', status: 'success', count: 2 },
+        ]
+      }
+      if (command === 'assistant_set_metrics_preferences') {
+        expect(args).toEqual({ enabled: false })
+        return { enabled: false }
+      }
+      throw new Error(`Unmocked invoke: ${command}`)
+    })
+
+    render(<AssistantDataPolicySection />)
+    const toggle = await screen.findByRole('checkbox', { name: '启用匿名本地事件统计' })
+    expect(toggle).toBeChecked()
+    expect(
+      await screen.findByText(/近 28 天：模型动作 3 成功 \/ 1 失败；复制 2 次/),
+    ).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(toggle)
+    expect(getInvokeMock()).toHaveBeenCalledWith('assistant_set_metrics_preferences', {
+      enabled: false,
+    })
+    await waitFor(() => expect(screen.queryByText(/近 28 天：/)).not.toBeInTheDocument())
   })
 })
