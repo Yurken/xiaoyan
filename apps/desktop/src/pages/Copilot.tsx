@@ -24,6 +24,11 @@ import {
   type CopilotHandoffDetail,
 } from "../features/copilot/copilotHandoff";
 import { useCopilotPaperContext } from "../features/copilot/useCopilotPaperContext";
+import CopilotCheckpointContextBar from "../features/copilot/CopilotCheckpointContextBar";
+import {
+  useApplyCopilotCheckpointHandoff,
+  useCopilotCheckpointHandoffState,
+} from "../features/copilot/useCopilotCheckpointHandoff";
 
 export default function Copilot({ hideFolders = false }: { hideFolders?: boolean }) {
   const location = useLocation();
@@ -39,6 +44,12 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   const sessions = useCopilotSessions();
   const [paperHandoff, setPaperHandoff] = useState(() => consumeCopilotPaperHandoff());
+  const {
+    handoff: checkpointHandoff,
+    setHandoff: setCheckpointHandoff,
+    activeHandoffRef: activeCheckpointHandoffRef,
+    clearHandoff: clearCheckpointHandoff,
+  } = useCopilotCheckpointHandoffState(location.state);
   const { chatMode, setChatMode } = useCopilotChatMode();
 
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -68,8 +79,12 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   // 拖拽文件到对话列即添加为附件（图片/文档由附件管线区分处理）。
   const chatDropZone = useCopilotDropZone(pickFromDrop);
 
-  const activeContextType = sessions.currentSession?.context_type || paperHandoff?.contextType;
-  const activeContextId = sessions.currentSession?.context_id || paperHandoff?.contextId;
+  const activeContextType = sessions.currentSession?.context_type
+    || checkpointHandoff?.contextType
+    || paperHandoff?.contextType;
+  const activeContextId = sessions.currentSession?.context_id
+    || checkpointHandoff?.contextId
+    || paperHandoff?.contextId;
   const persistedPaperTitle = useCopilotPaperContext(activeContextType, activeContextId);
   const chat = useCopilotChat({
     currentSession: sessions.currentSession,
@@ -104,23 +119,15 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     },
   });
 
-  // Sync chat reset with session changes
-  const handleNewChat = useCallback(() => {
-    loadSessionRequestRef.current += 1;
-    sessions.handleNewChat();
-    chat.resetChat();
-    setPaperHandoff(null);
-  }, [sessions, chat]);
-
   const appliedPaperHandoffRef = useRef(false);
   useEffect(() => {
-    if (!paperHandoff || appliedPaperHandoffRef.current) return;
+    if (!paperHandoff || checkpointHandoff || appliedPaperHandoffRef.current) return;
     appliedPaperHandoffRef.current = true;
     sessions.handleNewChat();
     chat.resetChat();
     chat.setInput(paperHandoff.prompt);
     restoredLastSessionRef.current = true;
-  }, [chat, paperHandoff, sessions]);
+  }, [chat, checkpointHandoff, paperHandoff, sessions]);
 
   const handleLoadSession = useCallback(async (session: ChatSession) => {
     const requestId = loadSessionRequestRef.current + 1;
@@ -156,8 +163,49 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     });
   }, [assistantConversationId, handleLoadSession, sessions]);
 
+  const markLastSessionRestored = useCallback(() => {
+    restoredLastSessionRef.current = true;
+  }, []);
+  const handleDismissCheckpointHandoff = useApplyCopilotCheckpointHandoff({
+    handoff: checkpointHandoff,
+    setHandoff: setCheckpointHandoff,
+    activeHandoffRef: activeCheckpointHandoffRef,
+    sessionsLoaded: sessions.sessionsLoaded,
+    sessions: sessions.sessions,
+    loadSession: handleLoadSession,
+    startNewSession: sessions.handleNewChat,
+    selectInterest: sessions.setSelectedInterestId,
+    syncSession: sessions.syncSession,
+    resetChat: chat.resetChat,
+    setInput: chat.setInput,
+    markLastSessionRestored,
+  });
+  const handleReviewCheckpoint = useCallback(async (status: "confirmed" | "corrected" | "withdrawn", note?: string) => {
+    if (!checkpointHandoff) return;
+    try {
+      await apiClient.memory.reviewCheckpoint(checkpointHandoff.id, status, note);
+      if (status === "withdrawn") {
+        handleDismissCheckpointHandoff();
+        return;
+      }
+      setCheckpointHandoff((current) => current ? { ...current, reviewStatus: status, reviewNote: note ?? current.reviewNote } : current);
+    } catch (error) {
+      sessions.setLoadError(formatErrorMessage(error));
+    }
+  }, [checkpointHandoff, handleDismissCheckpointHandoff, sessions, setCheckpointHandoff]);
+
+  // Sync chat reset with session changes
+  const handleNewChat = useCallback(() => {
+    loadSessionRequestRef.current += 1;
+    clearCheckpointHandoff();
+    sessions.handleNewChat();
+    chat.resetChat();
+    setPaperHandoff(null);
+  }, [chat, clearCheckpointHandoff, sessions]);
+
   useEffect(() => {
     if (restoredLastSessionRef.current) return;
+    if (checkpointHandoff) return;
     if (paperHandoff) return;
     if (!sessions.sessionsLoaded || sessions.currentSession) return;
     restoredLastSessionRef.current = true;
@@ -169,7 +217,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       return;
     }
     void handleLoadSession(lastSession);
-  }, [handleLoadSession, paperHandoff, sessions.currentSession, sessions.sessions, sessions.sessionsLoaded]);
+  }, [checkpointHandoff, handleLoadSession, paperHandoff, sessions.currentSession, sessions.sessions, sessions.sessionsLoaded]);
 
   const paperContextTitle = activeContextType === "paper"
     ? paperHandoff?.contextLabel || persistedPaperTitle || "当前论文"
@@ -331,6 +379,14 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                 handoff={paperHandoff}
                 onRemovePage={() => handleRemoveHandoffDetail("page")}
                 onRemoveSelection={() => handleRemoveHandoffDetail("selection")}
+              />
+            ) : null}
+
+            {checkpointHandoff ? (
+              <CopilotCheckpointContextBar
+                handoff={checkpointHandoff}
+                onDismiss={handleDismissCheckpointHandoff}
+                onReview={(status, note) => void handleReviewCheckpoint(status, note)}
               />
             ) : null}
 

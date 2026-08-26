@@ -191,10 +191,20 @@ export interface MockReviewInput {
 }
 
 export interface MockReviewerResult {
+  id: string;
   reviewer: string;
   content: string;
+  suggestions: string[];
   tags: string[];
   verdict: ReviewVerdict;
+}
+
+export type ReviewFeedbackStatus = "pending" | "adopted" | "ignored" | "done";
+
+export interface ReviewSuggestionFeedback {
+  itemKey: string;
+  status: ReviewFeedbackStatus;
+  reason: string;
 }
 
 export interface SubmissionDiagnosisReport {
@@ -225,12 +235,6 @@ export interface SubmissionRevisionTask {
   experimentTitle?: string;
   createdAt: Date;
   updatedAt: Date;
-}
-
-export interface SubmissionExperimentOption {
-  id: string;
-  title: string;
-  linkedSubmissionId?: string;
 }
 
 export interface ReviewFormState {
@@ -686,14 +690,5 @@ export function rowToRevisionTask(value: unknown): SubmissionRevisionTask {
     experimentTitle: optionalStringField(row, "experimentTitle"),
     createdAt: dateField(row, "createdAt") ?? new Date(),
     updatedAt: dateField(row, "updatedAt") ?? new Date(),
-  };
-}
-
-export function rowToSubmissionExperimentOption(value: unknown): SubmissionExperimentOption {
-  const row = asRow(value);
-  return {
-    id: stringField(row, "id"),
-    title: stringField(row, "title"),
-    linkedSubmissionId: optionalStringField(row, "linkedSubmissionId"),
   };
 }

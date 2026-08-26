@@ -5,6 +5,10 @@ import type {
   WorkbenchLinkAction,
   WorkbenchTone,
 } from "./shared";
+import {
+  createResearchCheckpointHandoff,
+  RESEARCH_CHECKPOINT_HANDOFF_KEY,
+} from "../research-context/checkpointHandoff";
 
 interface InterestCheckpointSummary {
   count: number;
@@ -40,16 +44,35 @@ function previewText(value: string, maxLength: number): string {
 }
 
 function latestCheckpoint(checkpoints: WorkbenchCheckpointItem[]): WorkbenchCheckpointItem | undefined {
-  return [...checkpoints].sort(
+  return checkpoints.filter((checkpoint) => checkpoint.reviewStatus !== "withdrawn").sort(
     (left, right) => toTimestamp(right.updatedAt || right.createdAt) - toTimestamp(left.updatedAt || left.createdAt),
   )[0];
 }
 
 function checkpointAction(checkpoint: WorkbenchCheckpointItem): WorkbenchLinkAction {
-  if (checkpoint.contextType === "paper" && checkpoint.contextId) {
-    return { label: "打开论文", to: `/papers?paper=${encodeURIComponent(checkpoint.contextId)}` };
-  }
-  return { label: "打开对话", to: "/chat" };
+  const handoff = createResearchCheckpointHandoff({
+    id: checkpoint.id,
+    sessionId: checkpoint.sessionId,
+    contextType: checkpoint.contextType,
+    contextId: checkpoint.contextId,
+    goal: checkpoint.goal,
+    summary: checkpoint.summary,
+    completedItems: checkpoint.completedItems,
+    openQuestions: checkpoint.openQuestions,
+    nextSteps: checkpoint.nextSteps,
+    status: checkpoint.status,
+    source: checkpoint.source ?? "chat",
+    assetSnapshot: checkpoint.assetSnapshot ?? {},
+    reviewStatus: checkpoint.reviewStatus ?? "pending",
+    reviewNote: checkpoint.reviewNote ?? "",
+    updatedAt: checkpoint.updatedAt || checkpoint.createdAt,
+  });
+
+  return {
+    label: checkpoint.status === "failed" ? "恢复任务" : "继续研究",
+    to: "/chat",
+    state: { [RESEARCH_CHECKPOINT_HANDOFF_KEY]: handoff },
+  };
 }
 
 function checkpointTone(checkpoint: WorkbenchCheckpointItem): WorkbenchTone {
@@ -82,7 +105,9 @@ export function summarizeInterestCheckpoints(
 }
 
 export function hasActionableCheckpoint(checkpoints: WorkbenchCheckpointItem[]): boolean {
-  return checkpoints.some((checkpoint) => actionableText(checkpoint).trim().length > 0);
+  return checkpoints.some(
+    (checkpoint) => checkpoint.reviewStatus !== "withdrawn" && actionableText(checkpoint).trim().length > 0,
+  );
 }
 
 export function buildCheckpointAgendaItem(
