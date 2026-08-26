@@ -533,4 +533,33 @@ describe('AssistantPanelWindow', () => {
       )
     })
   })
+
+  it('imports a free-chat result through its own confirmed backend session', async () => {
+    const user = userEvent.setup()
+    render(<AssistantPanelWindow />)
+
+    const input = await screen.findByRole('textbox', { name: '输入问题，直接开始对话' })
+    await user.type(input, '什么是图检索？')
+    await user.click(screen.getByRole('button', { name: '直接提问' }))
+    expect(await screen.findByText('Model explanation')).toBeInTheDocument()
+
+    // 自由会话没有采集内容，导入按钮也必须能打开导入弹窗，
+    // 且绑定自由会话自己已确认的后端 session_id，而不是误用旧捕获。
+    await user.click(screen.getByRole('button', { name: /^导入/ }))
+    expect(await screen.findByRole('heading', { name: '确认导入' })).toBeInTheDocument()
+    expect(screen.getByText('来源：自由提问')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '确认导入' }))
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(
+        'assistant_import',
+        expect.objectContaining({
+          sessionId: 'free-session',
+          content: 'Model explanation',
+          target: 'note',
+          originalContent: null,
+        }),
+      )
+    })
+  })
 })

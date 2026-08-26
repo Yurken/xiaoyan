@@ -178,6 +178,16 @@ export default function AssistantPanelWindow() {
   const importOriginalContent = actionStream.session?.includeCaptureContext === false
     ? undefined
     : capture.session?.content ?? undefined
+  // 导入必须绑定结果所属的后端会话：自由提问（P1-3）没有采集会话，
+  // 其已确认的后端 session_id 记录在临时会话的 captureSessionId 上；
+  // 仅在尚未启动动作（动作选择页直接导入）时才回退到当前采集会话。
+  const importSessionId =
+    actionStream.session?.captureSessionId ?? capture.session?.id ?? ''
+  const importableContent =
+    actionStream.result?.content ?? capture.session?.content ?? ''
+  const importSourceLabel = actionStream.session?.includeCaptureContext === false
+    ? '自由提问'
+    : captureSourceSummary
   const sessionThemeName = actionStream.result?.metadata?.knowledgeTheme
     ?? knowledge.themes.find(
       (theme) => theme.id === actionStream.session?.researchThemeId,
@@ -341,11 +351,11 @@ export default function AssistantPanelWindow() {
         </div>
       )}
 
-      {assistantImport.open && capture.session?.content && (
+      {assistantImport.open && importableContent && (
         <ImportDialog
-          content={actionStream.result?.content ?? capture.session?.content ?? ''}
+          content={importableContent}
           originalContent={importOriginalContent}
-          sourceLabel={captureSourceSummary}
+          sourceLabel={importSourceLabel}
           themes={knowledge.themes}
           defaultResearchThemeId={
             actionStream.session?.researchThemeId ?? knowledge.selectedThemeId
@@ -356,12 +366,9 @@ export default function AssistantPanelWindow() {
           saving={assistantImport.saving}
           error={assistantImport.error}
           onConfirm={(config) => {
-            const content = limitAssistantContent(
-              'import',
-              actionStream.result?.content ?? capture.session?.content ?? '',
-            ).content
+            const content = limitAssistantContent('import', importableContent).content
             void assistantImport.confirm({
-              sessionId: capture.session?.id ?? '',
+              sessionId: importSessionId,
               content,
               originalContent: importOriginalContent,
               config,
