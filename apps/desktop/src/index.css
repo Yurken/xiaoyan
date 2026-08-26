@@ -617,7 +617,7 @@
 
 /* ─── 桌面助手独立窗口样式 ───────────────────────────────────────────────── */
 
-/* 悬浮球窗口与面板窗口需要透明背景 */
+/* 桌面小妍角色窗口与面板窗口需要透明背景 */
 [data-tauri-window-label="assistant-dock"],
 [data-tauri-window-label="assistant-panel"] {
   background: transparent !important;

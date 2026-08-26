@@ -234,7 +234,7 @@ impl ImportService {
             .map(str::to_string)
             .unwrap_or_else(|| {
                 let preview: String = content.chars().take(50).collect();
-                format!("从悬浮助手导入 - {}", preview)
+                format!("从小妍桌面助手导入 - {}", preview)
             });
         let note_id = Uuid::new_v4().to_string();
         let tags_json = serde_json::to_string(tags.unwrap_or(&[]))?;
@@ -333,7 +333,7 @@ impl ImportService {
     ) -> Result<ImportedArtifact> {
         let paper_title = title.map(str::to_string).unwrap_or_else(|| {
             let preview: String = content.chars().take(100).collect();
-            format!("从悬浮助手导入 - {}", preview)
+            format!("从小妍桌面助手导入 - {}", preview)
         });
         let candidate_id = Uuid::new_v4().to_string();
         let content_preview: String = content.chars().take(500).collect();
