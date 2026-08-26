@@ -104,11 +104,10 @@ export function useCaptureSession(
   const [privacyError, setPrivacyError] = useState<string | null>(null)
   const [extractedFromImage, setExtractedFromImage] = useState(false)
   const lastSourceRef = useRef<ContextSourceType>('clipboard')
-  // 采集序号：每次发起采集递增，并发或过期的采集响应只允许最新一次落地，
-  // 避免旧响应覆盖新采集会话。
+  // 采集/会话 generation：每次发起采集、取消或清空时递增。
+  // - 并发或过期的采集响应只允许最新一次落地，避免旧响应覆盖新采集会话。
+  // - 已确认的直达动作在 await 期间用它检测会话是否已被替换/取消/清空。
   const captureSeqRef = useRef(0)
-  // 当前 session 状态对应的采集序号；直达动作在 await 期间用它检测会话是否已被替换。
-  const sessionSeqRef = useRef(0)
   // 直达动作（P1-1）：快捷键事件先记录预设动作，采集确认后跳过动作选择直接启动。
   // 用状态而非 ref，预览页可同步展示「确认后将直接执行」标识。
   const [pendingAction, setPendingAction] = useState<AssistantDirectAction | null>(null)
@@ -211,7 +210,6 @@ export function useCaptureSession(
           newSession.status = 'error'
         }
 
-        sessionSeqRef.current = captureSeq
         setSession(newSession)
         setStatus(newSession.status)
       } catch (err) {
@@ -232,7 +230,6 @@ export function useCaptureSession(
           userConfirmed: false,
         }
         setSession(errorSession)
-        sessionSeqRef.current = captureSeq
         setStatus('error')
         setPrivacyError(err instanceof Error ? err.message : '采集失败')
       }
@@ -362,7 +359,7 @@ export function useCaptureSession(
     setPendingAction(null)
 
     const sessionId = session.id
-    const sessionSeq = sessionSeqRef.current
+    const generation = captureSeqRef.current
     const content = limitAssistantContent(action, session.content).content
     void (async () => {
       let input: StartAssistantActionInput = { action, sessionId, content }
@@ -380,8 +377,9 @@ export function useCaptureSession(
           // 翻译偏好读取失败时使用后端默认目标语言。
         }
       }
-      // await 期间会话可能已被新采集替换；过期会话不再启动动作。
-      if (sessionSeqRef.current !== sessionSeq) return
+      // await 期间 generation 已被推进说明会话已被清空、取消或新采集替换，
+      // 过期动作不得再启动。
+      if (captureSeqRef.current !== generation) return
       // startAssistantDirectAction 返回 null（启动器未注册）或 Promise<boolean>，
       // 两者都要 await/判空；启动失败时保留已确认会话，用户仍可手动选择动作。
       const started = await startAssistantDirectAction(input)
@@ -392,7 +390,7 @@ export function useCaptureSession(
   }, [privacyError, session, pendingAction])
 
   const cancelCapture = useCallback(() => {
-    // 作废旧会话：进行中的采集响应落地时会被序号守卫丢弃，不会复活已取消的会话。
+    // 推进 generation：进行中的采集响应落地时会被丢弃，正在 await 的直达动作也会失效。
     captureSeqRef.current += 1
     if (session?.id) {
       void invoke<void>('assistant_discard_capture', { sessionId: session.id }).catch((error) => {
@@ -413,6 +411,7 @@ export function useCaptureSession(
   }, [session, startCapture])
 
   const clearSession = useCallback(() => {
+    // 推进 generation：正在 await 的直达动作立即失效，避免清空后仍启动旧动作。
     captureSeqRef.current += 1
     setPendingAction(null)
     setSession(null)
@@ -449,8 +448,8 @@ export function useCaptureSession(
               void startCapture('screenshot')
               return
             }
-            // 直达动作必须绑定本次新采集：先作废旧会话并让进行中的采集响应过期，
-            // 绝不能带着上次已确认的 session 直接启动动作。
+            // 直达动作必须绑定本次新采集：先推进 generation 使旧会话及正在 await 的
+            // 旧直达动作立即失效，再清空状态开始新采集。
             captureSeqRef.current += 1
             setSession(null)
             setStatus('idle')

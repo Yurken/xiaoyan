@@ -459,4 +459,157 @@ describe('useCaptureSession 直达动作', () => {
     unregister()
     warnSpy.mockRestore()
   })
+
+  it('does not start a stale translate action after clearSession while waiting for preferences', async () => {
+    const handlers = captureEventHandlers()
+    let resolvePreferences: ((value: unknown) => void) | null = null
+    getInvokeMock().mockImplementation(async (command: string, args?: unknown) => {
+      if (command === 'assistant_get_selection') {
+        return readyCaptureResponse('cap-clear', '清空前内容')
+      }
+      if (command === 'assistant_confirm_capture') {
+        return {
+          confirmed: true,
+          content: (args as { content: string }).content,
+          reason: null,
+          privacy_check: PRIVACY_ALLOWED,
+        }
+      }
+      if (command === 'assistant_get_translation_preferences') {
+        return new Promise((resolve) => {
+          resolvePreferences = resolve
+        })
+      }
+      throw new Error(`Unmocked invoke: ${command}`)
+    })
+    const starter = vi.fn(async (_input: StartAssistantActionInput) => true)
+    const unregister = registerAssistantDirectActionStarter(starter)
+
+    const { result } = renderHook(() => useCaptureSession(false, true))
+    await waitFor(() => expect(handlers.has('assistant://direct-action')).toBe(true))
+
+    await act(async () => {
+      handlers.get('assistant://direct-action')?.({ payload: 'translate' })
+    })
+    await waitFor(() => expect(result.current.session?.id).toBe('cap-clear'))
+
+    await act(async () => {
+      result.current.clearSession()
+    })
+    await act(async () => {
+      resolvePreferences?.({ target_language: 'en', terminology_style: 'original' })
+    })
+
+    await waitFor(() => expect(result.current.session).toBeNull())
+    expect(result.current.pendingAction).toBeNull()
+    expect(starter).not.toHaveBeenCalled()
+    unregister()
+  })
+
+  it('does not start a stale translate action after cancelCapture while waiting for preferences', async () => {
+    const handlers = captureEventHandlers()
+    let resolvePreferences: ((value: unknown) => void) | null = null
+    getInvokeMock().mockImplementation(async (command: string, args?: unknown) => {
+      if (command === 'assistant_get_selection') {
+        return readyCaptureResponse('cap-cancel', '取消前内容')
+      }
+      if (command === 'assistant_confirm_capture') {
+        return {
+          confirmed: true,
+          content: (args as { content: string }).content,
+          reason: null,
+          privacy_check: PRIVACY_ALLOWED,
+        }
+      }
+      if (command === 'assistant_get_translation_preferences') {
+        return new Promise((resolve) => {
+          resolvePreferences = resolve
+        })
+      }
+      throw new Error(`Unmocked invoke: ${command}`)
+    })
+    const starter = vi.fn(async (_input: StartAssistantActionInput) => true)
+    const unregister = registerAssistantDirectActionStarter(starter)
+
+    const { result } = renderHook(() => useCaptureSession(false, true))
+    await waitFor(() => expect(handlers.has('assistant://direct-action')).toBe(true))
+
+    await act(async () => {
+      handlers.get('assistant://direct-action')?.({ payload: 'translate' })
+    })
+    await waitFor(() => expect(result.current.session?.id).toBe('cap-cancel'))
+
+    await act(async () => {
+      result.current.cancelCapture()
+    })
+    await act(async () => {
+      resolvePreferences?.({ target_language: 'en', terminology_style: 'original' })
+    })
+
+    await waitFor(() => expect(result.current.session).toBeNull())
+    expect(result.current.pendingAction).toBeNull()
+    expect(starter).not.toHaveBeenCalled()
+    unregister()
+  })
+
+  it('replaces a translate action waiting for preferences when a newer direct action arrives', async () => {
+    const handlers = captureEventHandlers()
+    let resolveFirstPreferences: ((value: unknown) => void) | null = null
+    let selectionCalls = 0
+    getInvokeMock().mockImplementation(async (command: string, args?: unknown) => {
+      if (command === 'assistant_get_selection') {
+        selectionCalls += 1
+        if (selectionCalls === 1) {
+          return readyCaptureResponse('cap-first', '第一次内容')
+        }
+        return readyCaptureResponse('cap-second', '第二次内容')
+      }
+      if (command === 'assistant_confirm_capture') {
+        return {
+          confirmed: true,
+          content: (args as { content: string }).content,
+          reason: null,
+          privacy_check: PRIVACY_ALLOWED,
+        }
+      }
+      if (command === 'assistant_get_translation_preferences') {
+        return new Promise((resolve) => {
+          resolveFirstPreferences = resolve
+        })
+      }
+      throw new Error(`Unmocked invoke: ${command}`)
+    })
+    const starter = vi.fn(async (_input: StartAssistantActionInput) => true)
+    const unregister = registerAssistantDirectActionStarter(starter)
+
+    const { result } = renderHook(() => useCaptureSession(false, true))
+    await waitFor(() => expect(handlers.has('assistant://direct-action')).toBe(true))
+
+    await act(async () => {
+      handlers.get('assistant://direct-action')?.({ payload: 'translate' })
+    })
+    await waitFor(() => expect(result.current.session?.id).toBe('cap-first'))
+
+    await act(async () => {
+      handlers.get('assistant://direct-action')?.({ payload: 'interpret' })
+    })
+    await waitFor(() => expect(starter).toHaveBeenCalled())
+
+    expect(starter).toHaveBeenCalledTimes(1)
+    expect(starter).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'interpret',
+      sessionId: 'cap-second',
+      content: '第二次内容',
+    }))
+    expect(starter).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'translate' }),
+    )
+
+    await act(async () => {
+      resolveFirstPreferences?.({ target_language: 'en', terminology_style: 'original' })
+    })
+    expect(starter).toHaveBeenCalledTimes(1)
+    expect(result.current.session?.id).toBe('cap-second')
+    unregister()
+  })
 })
