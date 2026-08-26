@@ -7,7 +7,9 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::action_prompts::{translation_target_label, InterpretMode, TranslationTerminologyStyle};
+use super::action_prompts::{
+    translation_target_label, InterpretMode, TranslationTerminologyStyle, EXTRACT_TEXT_SYSTEM_PROMPT,
+};
 use super::content_policy::{
     limit_text_chars, MAX_CHAT_CONTEXT_CHARS, MAX_INTERPRET_TEXT_CHARS, MAX_NOTE_TEXT_CHARS,
     MAX_TRANSLATE_TEXT_CHARS,
@@ -82,6 +84,7 @@ pub enum AssistantAction {
     Translate,
     Chat,
     Import,
+    ExtractText,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +129,8 @@ impl AssistantAction {
             Self::Translate => MAX_TRANSLATE_TEXT_CHARS,
             Self::Chat => MAX_CHAT_CONTEXT_CHARS,
             Self::Import => MAX_NOTE_TEXT_CHARS,
+            // 提取文字只接受图片输入，文本上限不参与校验；此处仅为穷尽匹配。
+            Self::ExtractText => MAX_INTERPRET_TEXT_CHARS,
         }
     }
 }
@@ -413,6 +418,43 @@ impl ActionService {
             action: AssistantAction::Translate,
             content: result,
             format: "markdown".to_string(),
+            metadata: Some(metadata),
+            created_at: chrono::Utc::now(),
+        })
+    }
+
+    /// 执行截图识字（提取文字）动作。
+    /// 仅接受图片输入；OCR 文本按 PRD §19.4 视为不可信引用数据，
+    /// 提示词要求模型只做转录；低温采样保证逐字稳定。
+    pub async fn extract_text(
+        llm: &LlmClient,
+        model: Option<&str>,
+        session_id: &str,
+        content: &str,
+    ) -> Result<ActionResult> {
+        if !content.starts_with("data:image/") {
+            return Err(anyhow!("提取文字仅支持截图内容"));
+        }
+        let image = parse_image_data_url(content)?;
+        let messages = vec![
+            LlmMessage::system(EXTRACT_TEXT_SYSTEM_PROMPT),
+            LlmMessage::user_with_images(
+                "请提取这张用户主动截取的图片中的全部可见文字，原样输出。",
+                vec![image],
+            ),
+        ];
+
+        let start = std::time::Instant::now();
+        let result = llm.stream_chat(&messages, model, 0.2, |_| {}).await?;
+        let duration_ms = start.elapsed().as_millis() as u64;
+        let metadata = result_metadata(llm, model, &messages, &result, duration_ms, None);
+
+        Ok(ActionResult {
+            id: Uuid::new_v4().to_string(),
+            session_id: session_id.to_string(),
+            action: AssistantAction::ExtractText,
+            content: result,
+            format: "text".to_string(),
             metadata: Some(metadata),
             created_at: chrono::Utc::now(),
         })

@@ -48,7 +48,7 @@ export function AssistantSessionContextPanel({
           </span>
         ) : (
           <span className="text-[10px]" style={{ color: 'var(--rc-text-muted)' }}>
-            捕获内容已移除；已有回答仍保留
+            不包含捕获内容；已有回答仍保留
           </span>
         )}
 

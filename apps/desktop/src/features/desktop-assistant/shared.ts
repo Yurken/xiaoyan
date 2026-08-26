@@ -1,5 +1,5 @@
 /**
- * 桌面悬浮助手共享层：类型、常量、纯函数
+ * 小妍桌面助手共享层：类型、常量、纯函数
  * @module features/desktop-assistant/shared
  */
 
@@ -712,3 +712,487 @@ export const ASSISTANT_WINDOW_CARD_STYLE = {
   borderRadius: 0,
   boxShadow: 'none',
 } as const
+
+// ─── 窗口几何与角色站位 ──────────────────────────────────────────────
+
+/** 桌面小妍窗口默认尺寸（物理像素），与 tauri.conf.json 中 assistant-dock 一致。 */
+export const ASSISTANT_DOCK_DEFAULT_SIZE = { width: 128, height: 136 } as const
+
+/** 角色吸附的屏幕边缘。 */
+export type AssistantDockEdge = 'left' | 'right' | 'top' | 'bottom'
+
+/**
+ * 持久化的角色站位：显示器标识 + 吸附边缘 + 沿边缘偏移。
+ * 坐标统一使用 Tauri 物理像素，与 outer_position / set_position 一致。
+ */
+export interface AssistantDockPlacement {
+  monitor_id: string
+  edge: AssistantDockEdge
+  offset: number
+}
+
+/** 显示器信息快照（Rust assistant_get_screen_snapshot 返回，字段保持 snake_case）。 */
+export interface AssistantMonitorInfo {
+  name: string | null
+  x: number
+  y: number
+  width: number
+  height: number
+  scale_factor: number
+  is_primary: boolean
+}
+
+export interface AssistantWindowFrame {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface AssistantScreenSnapshot {
+  monitors: AssistantMonitorInfo[]
+  dock_frame: AssistantWindowFrame | null
+}
+
+/**
+ * 显示器标识：优先使用系统名称；无名显示器退回“分辨率@缩放”指纹。
+ * 指纹可能撞名（两台同型号外接屏），此时站位会在它们之间复用，属于可接受降级。
+ */
+export function assistantMonitorKey(monitor: AssistantMonitorInfo): string {
+  const name = monitor.name?.trim()
+  if (name) return name
+  return `${monitor.width}x${monitor.height}@${monitor.scale_factor}`
+}
+
+/** 找到包含指定点的显示器；都不包含时退回主显示器，再退回第一台。 */
+export function assistantMonitorForPoint(
+  point: { x: number; y: number },
+  monitors: AssistantMonitorInfo[],
+): AssistantMonitorInfo | null {
+  const containing = monitors.find(
+    (monitor) =>
+      point.x >= monitor.x
+      && point.x < monitor.x + monitor.width
+      && point.y >= monitor.y
+      && point.y < monitor.y + monitor.height,
+  )
+  return containing ?? monitors.find((monitor) => monitor.is_primary) ?? monitors[0] ?? null
+}
+
+/** 把窗口矩形夹取到显示器范围内，保证不会完全移出可见区域。 */
+export function clampFrameToMonitor(
+  frame: AssistantWindowFrame,
+  monitor: AssistantMonitorInfo,
+): AssistantWindowFrame {
+  const maxX = monitor.x + monitor.width - frame.width
+  const maxY = monitor.y + monitor.height - frame.height
+  // 窗口比显示器还大时钉在显示器原点，保证左上角可见。
+  const clamp = (value: number, min: number, max: number) =>
+    max < min ? min : Math.min(Math.max(value, min), max)
+  return {
+    ...frame,
+    x: Math.round(clamp(frame.x, monitor.x, maxX)),
+    y: Math.round(clamp(frame.y, monitor.y, maxY)),
+  }
+}
+
+/** 由窗口当前位置推导站位：吸附到最近边缘，偏移取沿边缘方向到显示器顶/左的距离。 */
+export function dockPlacementFromFrame(
+  frame: AssistantWindowFrame,
+  monitor: AssistantMonitorInfo,
+): AssistantDockPlacement {
+  const distances: ReadonlyArray<[AssistantDockEdge, number]> = [
+    ['left', frame.x - monitor.x],
+    ['right', monitor.x + monitor.width - (frame.x + frame.width)],
+    ['top', frame.y - monitor.y],
+    ['bottom', monitor.y + monitor.height - (frame.y + frame.height)],
+  ]
+  let edge: AssistantDockEdge = distances[0][0]
+  let nearest = distances[0][1]
+  for (const [candidate, distance] of distances) {
+    if (distance < nearest) {
+      edge = candidate
+      nearest = distance
+    }
+  }
+  const offset = edge === 'left' || edge === 'right'
+    ? frame.y - monitor.y
+    : frame.x - monitor.x
+  return {
+    monitor_id: assistantMonitorKey(monitor),
+    edge,
+    offset: Math.round(offset),
+  }
+}
+
+/** 由站位还原窗口位置：先按边缘与偏移摆放，再夹取到显示器内（分辨率缩小时安全收敛）。 */
+export function frameFromDockPlacement(
+  placement: AssistantDockPlacement,
+  monitor: AssistantMonitorInfo,
+  size: { width: number; height: number },
+): AssistantWindowFrame {
+  let x: number
+  let y: number
+  switch (placement.edge) {
+    case 'left':
+      x = monitor.x
+      y = monitor.y + placement.offset
+      break
+    case 'right':
+      x = monitor.x + monitor.width - size.width
+      y = monitor.y + placement.offset
+      break
+    case 'top':
+      x = monitor.x + placement.offset
+      y = monitor.y
+      break
+    case 'bottom':
+      x = monitor.x + placement.offset
+      y = monitor.y + monitor.height - size.height
+      break
+  }
+  return clampFrameToMonitor({ x, y, width: size.width, height: size.height }, monitor)
+}
+
+/**
+ * 解析站位并计算恢复位置：
+ * - 无站位时落在主显示器右下角（与 Rust 默认定位一致）；
+ * - 目标显示器不存在时迁移到主显示器（再退回第一台）；
+ * - 任何情况下都不会完全移出可见区域。
+ */
+export function resolveDockFrame(
+  placement: AssistantDockPlacement | null,
+  monitors: AssistantMonitorInfo[],
+  size: { width: number; height: number },
+): AssistantWindowFrame | null {
+  if (monitors.length === 0) return null
+  const fallback = monitors.find((monitor) => monitor.is_primary) ?? monitors[0]
+  const monitor = placement
+    ? monitors.find((candidate) => assistantMonitorKey(candidate) === placement.monitor_id)
+      ?? fallback
+    : fallback
+  if (!placement) {
+    return clampFrameToMonitor(
+      {
+        x: monitor.x + monitor.width - size.width - 16,
+        y: monitor.y + monitor.height - size.height - 20,
+        width: size.width,
+        height: size.height,
+      },
+      monitor,
+    )
+  }
+  return frameFromDockPlacement(placement, monitor, size)
+}
+
+const ASSISTANT_DOCK_EDGES: readonly AssistantDockEdge[] = ['left', 'right', 'top', 'bottom']
+
+/** 解析后端返回的站位数据；任何字段不合法都视为无站位。 */
+export function parseDockPlacement(raw: unknown): AssistantDockPlacement | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const candidate = raw as Record<string, unknown>
+  if (typeof candidate.monitor_id !== 'string' || candidate.monitor_id.trim() === '') {
+    return null
+  }
+  if (
+    typeof candidate.edge !== 'string'
+    || !ASSISTANT_DOCK_EDGES.includes(candidate.edge as AssistantDockEdge)
+  ) {
+    return null
+  }
+  if (typeof candidate.offset !== 'number' || !Number.isFinite(candidate.offset)) {
+    return null
+  }
+  return {
+    monitor_id: candidate.monitor_id,
+    edge: candidate.edge as AssistantDockEdge,
+    offset: Math.round(candidate.offset),
+  }
+}
+
+/** 序列化站位，供调试与跨层传递使用（后端持久化由 Rust 完成）。 */
+export function serializeDockPlacement(placement: AssistantDockPlacement): string {
+  return JSON.stringify({
+    monitor_id: placement.monitor_id,
+    edge: placement.edge,
+    offset: Math.round(placement.offset),
+  })
+}
+
+// ─── 匿名本地指标（P0-5）────────────────────────────────────────────────
+
+/** 匿名本地指标开关（默认关闭，遵循隐私优先惯例） */
+export interface AssistantMetricsPreferences {
+  enabled: boolean
+}
+
+/** 按天聚合的匿名指标计数，只含结构化字段，绝不含内容载荷 */
+export interface AssistantMetricsDailyBucket {
+  day: string
+  event_type: 'capture' | 'action' | 'copy' | 'import'
+  status: 'success' | 'error' | 'blocked' | 'cancelled'
+  count: number
+}
+
+// ─── 截图选区层（Capture Overlay）几何换算纯函数（P0-6）──────────────────────
+//
+// 坐标约定：全局逻辑坐标以主屏左上角为原点、y 轴向下；外屏位于主屏左侧/上方时
+// 原点为负值。像素坐标 = （逻辑坐标 - 显示器逻辑原点） × 显示器缩放比例，
+// 相对该显示器自身的截图图像。截图 PNG 的可验证像素宽高始终以实际图像为准。
+
+/** 显示器在全局逻辑坐标系中的位置、逻辑尺寸与缩放比例 */
+export interface CaptureOverlayDisplay {
+  x: number
+  y: number
+  width: number
+  height: number
+  scaleFactor: number
+}
+
+/** 逻辑坐标矩形（点，x/y 可为负） */
+export interface CaptureLogicalRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** 显示器截图图像内的像素矩形 */
+export interface CapturePixelRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** 全局选区在某台显示器上的裁剪结果（跨屏裁剪） */
+export interface CaptureDisplayCrop {
+  display: CaptureOverlayDisplay
+  /** 裁剪区域的全局逻辑坐标 */
+  logical: CaptureLogicalRect
+  /** 裁剪区域在该显示器截图图像内的像素坐标 */
+  pixel: CapturePixelRect
+}
+
+/** 选区层允许的最小逻辑尺寸（点），小于该尺寸视为误触 */
+export const CAPTURE_OVERLAY_MIN_LOGICAL_SIZE = 4
+
+/** 拖动起止点归一化为正宽高的矩形（支持任意方向拖动） */
+export function normalizeDragRect(
+  startX: number,
+  startY: number,
+  currentX: number,
+  currentY: number,
+): CaptureLogicalRect {
+  return {
+    x: Math.min(startX, currentX),
+    y: Math.min(startY, currentY),
+    width: Math.abs(currentX - startX),
+    height: Math.abs(currentY - startY),
+  }
+}
+
+/** 选区窗口内的局部逻辑矩形 → 全局逻辑矩形（加上显示器逻辑原点，可为负） */
+export function localRectToGlobal(
+  rect: CaptureLogicalRect,
+  display: CaptureOverlayDisplay,
+): CaptureLogicalRect {
+  return {
+    x: rect.x + display.x,
+    y: rect.y + display.y,
+    width: rect.width,
+    height: rect.height,
+  }
+}
+
+/** 全局逻辑矩形 → 选区窗口内的局部逻辑矩形（减去显示器逻辑原点） */
+export function globalRectToLocal(
+  rect: CaptureLogicalRect,
+  display: CaptureOverlayDisplay,
+): CaptureLogicalRect {
+  return {
+    x: rect.x - display.x,
+    y: rect.y - display.y,
+    width: rect.width,
+    height: rect.height,
+  }
+}
+
+/** 两个逻辑矩形的交集；不相交时返回 null（跨屏裁剪的基础运算） */
+export function intersectLogicalRects(
+  a: CaptureLogicalRect,
+  b: CaptureLogicalRect,
+): CaptureLogicalRect | null {
+  const x = Math.max(a.x, b.x)
+  const y = Math.max(a.y, b.y)
+  const right = Math.min(a.x + a.width, b.x + b.width)
+  const bottom = Math.min(a.y + a.height, b.y + b.height)
+  if (right <= x || bottom <= y) return null
+  return { x, y, width: right - x, height: bottom - y }
+}
+
+/** 显示器的全局逻辑边界 */
+export function displayLogicalBounds(display: CaptureOverlayDisplay): CaptureLogicalRect {
+  return { x: display.x, y: display.y, width: display.width, height: display.height }
+}
+
+/** 全局逻辑矩形 → 指定显示器截图图像内的像素矩形（缩放比例换算） */
+export function logicalRectToDisplayPixels(
+  rect: CaptureLogicalRect,
+  display: CaptureOverlayDisplay,
+): CapturePixelRect {
+  return {
+    x: Math.round((rect.x - display.x) * display.scaleFactor),
+    y: Math.round((rect.y - display.y) * display.scaleFactor),
+    width: Math.round(rect.width * display.scaleFactor),
+    height: Math.round(rect.height * display.scaleFactor),
+  }
+}
+
+/** 逻辑尺寸 → 像素尺寸（用于选区层的尺寸提示） */
+export function pixelSizeForLogicalRect(
+  rect: CaptureLogicalRect,
+  scaleFactor: number,
+): { width: number; height: number } {
+  return {
+    width: Math.round(rect.width * scaleFactor),
+    height: Math.round(rect.height * scaleFactor),
+  }
+}
+
+/**
+ * 跨屏裁剪：把全局逻辑选区按每台显示器的边界切开，
+ * 返回各显示器上的逻辑裁剪区域与对应的像素裁剪区域。
+ */
+export function clipRectAcrossDisplays(
+  rect: CaptureLogicalRect,
+  displays: CaptureOverlayDisplay[],
+): CaptureDisplayCrop[] {
+  const crops: CaptureDisplayCrop[] = []
+  for (const display of displays) {
+    const logical = intersectLogicalRects(rect, displayLogicalBounds(display))
+    if (!logical) continue
+    crops.push({
+      display,
+      logical,
+      pixel: logicalRectToDisplayPixels(logical, display),
+    })
+  }
+  return crops
+}
+
+/** 所有显示器逻辑边界的包围盒（用于把选区约束在虚拟屏幕内） */
+export function displaysBoundingBox(
+  displays: CaptureOverlayDisplay[],
+): CaptureLogicalRect | null {
+  if (displays.length === 0) return null
+  let left = Infinity
+  let top = Infinity
+  let right = -Infinity
+  let bottom = -Infinity
+  for (const display of displays) {
+    left = Math.min(left, display.x)
+    top = Math.min(top, display.y)
+    right = Math.max(right, display.x + display.width)
+    bottom = Math.max(bottom, display.y + display.height)
+  }
+  return { x: left, y: top, width: right - left, height: bottom - top }
+}
+
+/** 把全局逻辑选区约束到所有显示器的包围盒内；完全在屏幕外时返回 null */
+export function clampRectToDisplays(
+  rect: CaptureLogicalRect,
+  displays: CaptureOverlayDisplay[],
+): CaptureLogicalRect | null {
+  const bounds = displaysBoundingBox(displays)
+  if (!bounds) return null
+  return intersectLogicalRects(rect, bounds)
+}
+
+/** 选区是否达到可提交的最小尺寸 */
+export function isCaptureSelectionLargeEnough(rect: CaptureLogicalRect): boolean {
+  return (
+    rect.width >= CAPTURE_OVERLAY_MIN_LOGICAL_SIZE
+    && rect.height >= CAPTURE_OVERLAY_MIN_LOGICAL_SIZE
+  )
+}
+
+// ─── 截图识字（提取文字） ────────────────────────────────────────────────────
+
+/**
+ * OCR 结果的固定提示文案。
+ * PRD §7.2 F3：图像 OCR 与视觉模型结果必须标示「识别可能有误」。
+ */
+export const ASSISTANT_EXTRACT_TEXT_NOTICE = '识别可能有误'
+
+/** 提取文字动作的指标/命令标识（与 Rust metrics 白名单一致） */
+export const ASSISTANT_EXTRACT_TEXT_ACTION = 'extract_text' as const
+
+/**
+ * `assistant_extract_text` 命令的响应。
+ * 独立于 ActionResult：extract_text 不属于四首发动作联合类型。
+ */
+export interface AssistantExtractTextResponse {
+  id: string
+  session_id: string
+  action: string
+  content: string
+  format: string
+  metadata: ActionResultMetadata | null
+}
+
+// ─── 直达动作快捷键（P1-1，PRD §16.2）───────────────────────────────────────
+
+/** 可选直达动作：跳过面板动作选择步骤，一键进入对应流程。 */
+export type AssistantDirectAction = 'interpret' | 'translate' | 'screenshot'
+
+export interface AssistantDirectActionConfig {
+  id: AssistantDirectAction
+  label: string
+  description: string
+  /** 设置页推荐的默认键位；仅建议，默认不注册。 */
+  suggestedShortcut: string
+}
+
+/**
+ * 直达动作列表。默认键位对标豆包 Alt+1/Alt+2 的效率：
+ * 数字键远离主快捷键 Alt+Space，误触率低且单手可达。
+ */
+export const ASSISTANT_DIRECT_ACTIONS: ReadonlyArray<AssistantDirectActionConfig> = [
+  {
+    id: 'interpret',
+    label: '直接解读当前选区',
+    description: '读取当前选区并直接开始解读，跳过动作选择',
+    suggestedShortcut: 'Alt+1',
+  },
+  {
+    id: 'translate',
+    label: '直接翻译当前选区',
+    description: '读取当前选区并按翻译偏好直接开始翻译',
+    suggestedShortcut: 'Alt+2',
+  },
+  {
+    id: 'screenshot',
+    label: '开始框选截图',
+    description: '直接打开跨屏选区层框选截图',
+    suggestedShortcut: 'Alt+3',
+  },
+]
+
+/** Rust 在直达快捷键按下时发往面板窗口的事件名。 */
+export const ASSISTANT_DIRECT_ACTION_EVENT = 'assistant://direct-action'
+
+/** 单个直达动作的快捷键状态（Rust assistant_get_direct_shortcuts 返回）。 */
+export interface AssistantDirectShortcutStatus {
+  action: AssistantDirectAction
+  /** 用户配置并持久化的组合键；null 表示未开启。 */
+  configured_shortcut: string | null
+  /** 当前实际注册生效的组合键；null 表示未注册。 */
+  active_shortcut: string | null
+  /** 最近一次注册失败诊断；无故障时为 null。 */
+  diagnostic: AssistantShortcutDiagnostic | null
+}
+
+export function isAssistantDirectAction(value: unknown): value is AssistantDirectAction {
+  return value === 'interpret' || value === 'translate' || value === 'screenshot'
+}

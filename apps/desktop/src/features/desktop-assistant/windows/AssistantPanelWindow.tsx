@@ -11,7 +11,10 @@ import {
   useAssistantImport,
   useAssistantPrivateDataClearSignal,
   useAssistantWindow,
+  useAssistantExtractText,
+  useAssistantFreeChat,
   useCaptureSession,
+  recordAssistantCopyMetric,
 } from '../hooks'
 import {
   AssistantPanel,
@@ -47,6 +50,8 @@ export default function AssistantPanelWindow() {
     dataPolicy.loading || dataPolicy.policy.preview_required,
     !onboarding.loading && onboarding.onboarding.permission_guide_completed,
   )
+  const extractText = useAssistantExtractText()
+  const freeChat = useAssistantFreeChat()
   const clearPrivateState = useCallback(() => {
     files.clearTemporaryState()
     actionStream.reset()
@@ -106,6 +111,29 @@ export default function AssistantPanelWindow() {
     void capture.startCapture(sourceType)
   }
 
+  // 截图识字：OCR 文本进入可编辑预览，用户确认前不会发送给模型。
+  const handleExtractText = async () => {
+    const session = capture.session
+    if (!session?.content?.startsWith('data:image/')) return
+    overlay.setError(null)
+    const text = await extractText.extractText(session.id, session.content)
+    if (text) capture.applyExtractedText(text)
+  }
+
+  // 自由输入（P1-3）：无采集内容时直接开启 chat 临时会话；
+  // 建会话、脱敏确认、总开关与指标打点均复用现有命令管线。
+  const handleFreeQuestion = async (question: string) => {
+    if (actionStream.status === 'streaming') return
+    overlay.setError(null)
+    const input = await freeChat.startFreeChat({
+      question,
+      localKnowledgeEnabled: knowledge.enabled,
+      knowledgeThemeId: knowledge.enabled ? knowledge.selectedThemeId : undefined,
+    })
+    if (!input) return
+    await actionStream.start(input)
+  }
+
   const handleClose = async () => {
     if (assistantImport.saving) return
     if (files.inspection) await files.cancel()
@@ -131,7 +159,10 @@ export default function AssistantPanelWindow() {
   })
 
   const isLoading =
-    capture.status === 'capturing' || actionStream.status === 'streaming'
+    capture.status === 'capturing'
+    || actionStream.status === 'streaming'
+    || extractText.extracting
+    || freeChat.starting
   const needsPreview = Boolean(capture.session && !capture.session.userConfirmed)
   const needsPermissionGuide =
     !onboarding.loading && !onboarding.onboarding.permission_guide_completed
@@ -180,7 +211,10 @@ export default function AssistantPanelWindow() {
           sourceContent={capture.session?.content ?? undefined}
           status={actionStream.status}
           error={actionStream.error ?? overlay.error}
-          onCopy={(content) => void navigator.clipboard.writeText(content)}
+          onCopy={(content) => {
+            void navigator.clipboard.writeText(content)
+            void recordAssistantCopyMetric()
+          }}
           onImport={assistantImport.show}
           onStop={() => void actionStream.stop()}
           onRetry={
@@ -194,19 +228,30 @@ export default function AssistantPanelWindow() {
           promotedConversationId={actionStream.session?.promotedConversationId}
           promotionError={actionStream.promotionError}
           onFollowUp={(question) => {
-            if (!capture.session?.content || !actionStream.session) return false
+            const temporarySession = actionStream.session
+            if (!temporarySession) return false
+            const captureContent = capture.session?.content
+            // 自由输入会话没有采集内容；其余会话必须带采集内容才能追问。
+            if (temporarySession.includeCaptureContext && !captureContent) return false
             overlay.setError(null)
             return actionStream.followUp({
-              captureSessionId: capture.session.id,
-              content: limitAssistantContent('chat', capture.session.content).content,
+              captureSessionId: temporarySession.captureSessionId,
+              content: captureContent
+                ? limitAssistantContent('chat', captureContent).content
+                : '',
               question,
-              localKnowledgeEnabled: actionStream.session.useLocalKnowledge,
-              knowledgeThemeId: actionStream.session.researchThemeId,
+              localKnowledgeEnabled: temporarySession.useLocalKnowledge,
+              knowledgeThemeId: temporarySession.researchThemeId,
             })
           }}
           onPromoteSession={() => {
-            if (!capture.session?.content) return null
-            return actionStream.promote({ context: capture.session.content })
+            if (
+              actionStream.session?.includeCaptureContext !== false
+              && !capture.session?.content
+            ) {
+              return null
+            }
+            return actionStream.promote({ context: capture.session?.content ?? '' })
           }}
           onOpenConversation={async () => {
             const opened = await actionStream.openConversation()
@@ -234,6 +279,8 @@ export default function AssistantPanelWindow() {
         <CapturePreview
           session={capture.session}
           privacyError={capture.privacyError}
+          extractedFromImage={capture.extractedFromImage}
+          pendingAction={capture.pendingAction}
           onConfirm={capture.confirmCapture}
           onCancel={capture.cancelCapture}
           onRetry={() => void capture.retryCapture()}
@@ -244,7 +291,16 @@ export default function AssistantPanelWindow() {
         <AssistantPanel
           session={capture.session}
           isLoading={isLoading}
-          error={overlay.error ?? translationPreferences.error}
+          error={
+            overlay.error
+            ?? extractText.error
+            ?? translationPreferences.error
+            ?? freeChat.error
+          }
+          onExtractText={() => void handleExtractText()}
+          extractTextRunning={extractText.extracting}
+          onFreeQuestionSubmit={(question) => void handleFreeQuestion(question)}
+          freeQuestionStarting={freeChat.starting}
           translationPreferences={translationPreferences.preferences}
           translationPreferencesSaving={translationPreferences.saving}
           onTranslationPreferencesChange={(preferences) => {

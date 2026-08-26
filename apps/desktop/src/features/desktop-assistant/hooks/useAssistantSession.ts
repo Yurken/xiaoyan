@@ -5,6 +5,7 @@ import type {
   AssistantSessionMessage,
   AssistantTemporarySession,
 } from '../shared'
+import { registerAssistantDirectActionStarter } from '../directActionBridge'
 import {
   useAssistantActionStream,
   type StartAssistantActionInput,
@@ -111,7 +112,8 @@ export function useAssistantSession() {
       status: 'streaming',
       researchThemeId: input.knowledgeThemeId,
       useLocalKnowledge: Boolean(input.localKnowledgeEnabled),
-      includeCaptureContext: true,
+      // 自由输入（P1-3）等无采集上下文的会话显式传入 false。
+      includeCaptureContext: input.includeCaptureContext ?? true,
       translationTargetLanguage: input.targetLang,
       messages: [{
         id: `${temporarySessionId}-user-1`,
@@ -122,6 +124,10 @@ export function useAssistantSession() {
     })
     return actionStream.start({ ...input, history: [] })
   }, [actionStream])
+
+  // 直达动作（P1-1）：把动作启动器注册到面板窗口级桥接模块，
+  // 采集管线在直达快捷键采集确认后跳过动作选择直接调用 start。
+  useEffect(() => registerAssistantDirectActionStarter(start), [start])
 
   const followUp = useCallback(async (input: FollowUpInput) => {
     const question = input.question.trim()

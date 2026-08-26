@@ -170,7 +170,35 @@ describe('AssistantPanelWindow', () => {
           format: 'text',
         }
       }
-      if (command === 'assistant_confirm_capture') return undefined
+      if (command === 'assistant_create_paste_session') {
+        return {
+          session_id: 'free-session',
+          content: null,
+          sanitized_content: null,
+          source_app: null,
+          source_app_bundle_id: null,
+          window_title: null,
+          status: 'ready',
+          privacy_check: { allowed: true },
+        }
+      }
+      if (command === 'assistant_confirm_capture') {
+        return {
+          confirmed: true,
+          content: (args?.content as string) ?? null,
+          reason: null,
+          privacy_check: {
+            allowed: true,
+            reason: null,
+            app_blocked: false,
+            app_not_allowed: false,
+            window_blocked: false,
+            content_sensitive: false,
+            content_redacted: false,
+            redaction_kinds: [],
+          },
+        }
+      }
       return undefined
     })
   })
@@ -403,7 +431,7 @@ describe('AssistantPanelWindow', () => {
     )
 
     await user.click(screen.getByRole('button', { name: '移除捕获内容' }))
-    expect(screen.getByText(/捕获内容已移除/)).toBeInTheDocument()
+    expect(screen.getByText(/不包含捕获内容/)).toBeInTheDocument()
     await user.type(screen.getByRole('textbox', { name: '继续追问' }), '证据是什么？')
     await user.click(screen.getByRole('button', { name: '发送追问' }))
     await waitFor(() => {
@@ -442,6 +470,66 @@ describe('AssistantPanelWindow', () => {
       expect(invokeMock).toHaveBeenCalledWith(
         'assistant_open_conversation',
         expect.objectContaining({ conversationId: expect.any(String) }),
+      )
+    })
+  })
+
+  it('starts a temporary chat from free input without captured content', async () => {
+    const user = userEvent.setup()
+    render(<AssistantPanelWindow />)
+
+    const input = await screen.findByRole('textbox', { name: '输入问题，直接开始对话' })
+    await user.type(input, '什么是图检索？')
+    await user.click(screen.getByRole('button', { name: '直接提问' }))
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith('assistant_create_paste_session')
+      expect(invokeMock).toHaveBeenCalledWith('assistant_confirm_capture', {
+        sessionId: 'free-session',
+        content: '什么是图检索？',
+      })
+      expect(invokeMock).toHaveBeenCalledWith(
+        'assistant_stream_action',
+        expect.objectContaining({
+          action: 'chat',
+          sessionId: 'free-session',
+          content: '',
+          question: '什么是图检索？',
+          includeCaptureContext: false,
+        }),
+      )
+    })
+    expect(await screen.findByText('Model explanation')).toBeInTheDocument()
+
+    // 自由会话的追问不依赖采集内容
+    await user.type(screen.getByRole('textbox', { name: '继续追问' }), '展开讲讲')
+    await user.click(screen.getByRole('button', { name: '发送追问' }))
+    await waitFor(() => {
+      const streamCalls = invokeMock.mock.calls.filter(
+        ([command]) => command === 'assistant_stream_action',
+      )
+      expect(streamCalls).toHaveLength(2)
+      expect(streamCalls[1]?.[1]).toEqual(expect.objectContaining({
+        action: 'chat',
+        sessionId: 'free-session',
+        content: '',
+        question: '展开讲讲',
+        includeCaptureContext: false,
+      }))
+    })
+
+    // 无采集内容也可保存为正式会话
+    await user.click(screen.getByRole('button', { name: '保存为正式会话' }))
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(
+        'assistant_promote_session',
+        expect.objectContaining({
+          input: expect.objectContaining({
+            captureSessionId: 'free-session',
+            context: '',
+            includeCaptureContext: false,
+          }),
+        }),
       )
     })
   })

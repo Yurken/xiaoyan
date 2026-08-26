@@ -18,10 +18,33 @@ use crate::services::desktop_assistant::import_service::{AssistantImportOptions,
 use crate::services::desktop_assistant::knowledge_service::{
     AssistantKnowledgeContext, AssistantKnowledgeService, AssistantKnowledgeTheme,
 };
+use crate::services::desktop_assistant::metrics_service::{
+    AssistantMetricsService, MetricEvent,
+};
 use crate::services::desktop_assistant::terminology_service::AssistantTerminologyService;
 use crate::state::AppState;
 
 use super::desktop_assistant::ensure_assistant_enabled;
+
+/// 匿名本地指标：动作完成/失败打点。失败绝不阻断主流程。
+async fn record_action_metric(
+    db: &sqlx::SqlitePool,
+    action: &'static str,
+    source_type: Option<&str>,
+    started: std::time::Instant,
+    ok: bool,
+) {
+    AssistantMetricsService::record_quiet(
+        db,
+        MetricEvent::action_result(
+            action,
+            source_type,
+            started.elapsed().as_millis() as u64,
+            ok,
+        ),
+    )
+    .await;
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionResultResponse {
@@ -39,6 +62,7 @@ fn action_response(result: ActionResult) -> ActionResultResponse {
         AssistantAction::Translate => "translate",
         AssistantAction::Chat => "chat",
         AssistantAction::Import => "import",
+        AssistantAction::ExtractText => "extract_text",
     };
     ActionResultResponse {
         id: result.id,
@@ -85,6 +109,7 @@ fn parse_stream_action(action: &str) -> Result<AssistantAction, String> {
         "translate" => Ok(AssistantAction::Translate),
         "chat" => Ok(AssistantAction::Chat),
         "import" => Err("导入不是生成动作，无需流式执行".to_string()),
+        "extract_text" => Err("提取文字是非流式动作，请使用 assistant_extract_text".to_string()),
         _ => Err("不支持的助手动作".to_string()),
     }
 }
@@ -155,6 +180,11 @@ pub async fn assistant_interpret(
         .map_err(|error| error.to_string())?;
     let settings = state.settings.read().await.clone();
     let (llm, model) = assistant_action_client(&settings, &content)?;
+    let started = std::time::Instant::now();
+    let source_type = CaptureStore::session_source_type(&state.db, &session_id)
+        .await
+        .ok()
+        .flatten();
     let result = ActionService::interpret(
         &llm,
         model.as_deref(),
@@ -165,9 +195,17 @@ pub async fn assistant_interpret(
         None,
     )
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string());
+    record_action_metric(
+        &state.db,
+        "interpret",
+        source_type.as_deref(),
+        started,
+        result.is_ok(),
+    )
+    .await;
 
-    Ok(action_response(result))
+    Ok(action_response(result?))
 }
 
 #[command]
@@ -191,6 +229,11 @@ pub async fn assistant_translate(
     )
     .await
     .map_err(|error| error.to_string())?;
+    let started = std::time::Instant::now();
+    let source_type = CaptureStore::session_source_type(&state.db, &session_id)
+        .await
+        .ok()
+        .flatten();
     let result = ActionService::translate(
         &llm,
         model.as_deref(),
@@ -201,9 +244,17 @@ pub async fn assistant_translate(
         &terminology_preferences,
     )
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string());
+    record_action_metric(
+        &state.db,
+        "translate",
+        source_type.as_deref(),
+        started,
+        result.is_ok(),
+    )
+    .await;
 
-    Ok(action_response(result))
+    Ok(action_response(result?))
 }
 
 #[command]
@@ -219,6 +270,11 @@ pub async fn assistant_chat(
         .map_err(|error| error.to_string())?;
     let settings = state.settings.read().await.clone();
     let (llm, model) = assistant_action_client(&settings, &context)?;
+    let started = std::time::Instant::now();
+    let source_type = CaptureStore::session_source_type(&state.db, &session_id)
+        .await
+        .ok()
+        .flatten();
     let result = ActionService::chat(
         &llm,
         model.as_deref(),
@@ -230,9 +286,54 @@ pub async fn assistant_chat(
         None,
     )
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string());
+    record_action_metric(
+        &state.db,
+        "chat",
+        source_type.as_deref(),
+        started,
+        result.is_ok(),
+    )
+    .await;
 
-    Ok(action_response(result))
+    Ok(action_response(result?))
+}
+
+#[command]
+pub async fn assistant_extract_text(
+    state: State<'_, AppState>,
+    session_id: String,
+    content: String,
+) -> Result<ActionResultResponse, String> {
+    ensure_assistant_enabled()?;
+    // 与截图动作一致：预览确认前不允许发送模型（PRD §12 / §F5）。
+    CaptureStore::require_confirmed(&state.db, &session_id)
+        .await
+        .map_err(|error| error.to_string())?;
+    if !content.starts_with("data:image/") {
+        return Err("提取文字仅支持截图内容".to_string());
+    }
+    let settings = state.settings.read().await.clone();
+    // 复用 §19.1 视觉模型路由（桌面助手视觉/OCR 覆盖配置），不引入新依赖。
+    let (llm, model) = assistant_action_client(&settings, &content)?;
+    let started = std::time::Instant::now();
+    let source_type = CaptureStore::session_source_type(&state.db, &session_id)
+        .await
+        .ok()
+        .flatten();
+    let result = ActionService::extract_text(&llm, model.as_deref(), &session_id, &content)
+        .await
+        .map_err(|e| e.to_string());
+    record_action_metric(
+        &state.db,
+        "extract_text",
+        source_type.as_deref(),
+        started,
+        result.is_ok(),
+    )
+    .await;
+
+    Ok(action_response(result?))
 }
 
 #[command]
@@ -289,6 +390,19 @@ pub async fn assistant_stream_action(
     let handles = state.assistant_action_handles.clone();
     let stream_id = request_id.clone();
     let history = history.unwrap_or_default();
+    let metrics_db = state.db.clone();
+    let metrics_action: &'static str = match &action {
+        AssistantAction::Interpret => "interpret",
+        AssistantAction::Translate => "translate",
+        AssistantAction::Chat => "chat",
+        AssistantAction::Import => unreachable!("import is rejected before spawning"),
+        AssistantAction::ExtractText => unreachable!("extract_text is rejected before spawning"),
+    };
+    let metrics_source_type = CaptureStore::session_source_type(&state.db, &session_id)
+        .await
+        .ok()
+        .flatten();
+    let metrics_started = std::time::Instant::now();
 
     let handle = tokio::spawn(async move {
         let delta_id = stream_id.clone();
@@ -341,8 +455,12 @@ pub async fn assistant_stream_action(
                 .await
             }
             AssistantAction::Import => unreachable!("import is rejected before spawning"),
+            AssistantAction::ExtractText => {
+                unreachable!("extract_text is rejected before spawning")
+            }
         };
 
+        let ok = result.is_ok();
         match result {
             Ok(result) => {
                 let _ = app.emit(
@@ -363,6 +481,14 @@ pub async fn assistant_stream_action(
                 );
             }
         }
+        record_action_metric(
+            &metrics_db,
+            metrics_action,
+            metrics_source_type.as_deref(),
+            metrics_started,
+            ok,
+        )
+        .await;
         handles.lock().await.remove(&stream_id);
     });
 
@@ -391,6 +517,18 @@ pub async fn assistant_cancel_action(
         .remove(request_id.trim())
     {
         handle.abort();
+        AssistantMetricsService::record_quiet(
+            &state.db,
+            MetricEvent {
+                event_type: "action".to_string(),
+                action: None,
+                source_type: None,
+                target: None,
+                duration_ms: None,
+                status: "cancelled".to_string(),
+            },
+        )
+        .await;
     }
     Ok(())
 }
@@ -411,6 +549,11 @@ pub async fn assistant_import(
 ) -> Result<ActionResultResponse, String> {
     ensure_assistant_enabled()?;
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let started = std::time::Instant::now();
+    let source_type = CaptureStore::session_source_type(&state.db, &session_id)
+        .await
+        .ok()
+        .flatten();
     let result = ImportService::import(
         &state.db,
         &app_data_dir,
@@ -427,9 +570,21 @@ pub async fn assistant_import(
         },
     )
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string());
+    let ok = result.is_ok();
+    // target 是结构化枚举值；白名单外的值会被校验拒绝，事件直接丢弃。
+    if let Ok(event) = MetricEvent::new(
+        "import",
+        None,
+        source_type.as_deref(),
+        Some(&target),
+        Some(started.elapsed().as_millis() as u64),
+        if ok { "success" } else { "error" },
+    ) {
+        AssistantMetricsService::record_quiet(&state.db, event).await;
+    }
 
-    Ok(action_response(result))
+    Ok(action_response(result?))
 }
 
 #[command]
@@ -467,6 +622,13 @@ pub async fn assistant_discard_file_candidates(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stream_action_rejects_extract_text() {
+        // 提取文字是非流式动作，走 assistant_extract_text 命令。
+        assert!(parse_stream_action("extract_text").is_err());
+        assert!(parse_stream_action("interpret").is_ok());
+    }
 
     #[test]
     fn knowledge_query_prefers_explicit_question_and_limits_length() {

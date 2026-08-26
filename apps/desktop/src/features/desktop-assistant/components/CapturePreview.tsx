@@ -3,10 +3,12 @@
  * 显示获取到的上下文内容，支持编辑和确认
  * 支持隐私错误展示和降级入口
  */
-import { Check, X, RotateCcw, AlertCircle, Shield } from 'lucide-react'
+import { Check, X, RotateCcw, AlertCircle, Shield, ScanText, Zap } from 'lucide-react'
 import { Card, CardHeader, CardTitle, Badge, Button } from '@research-copilot/ui'
-import type { CaptureSession } from '../shared'
+import type { AssistantDirectAction, CaptureSession } from '../shared'
 import {
+  ASSISTANT_ACTIONS,
+  ASSISTANT_EXTRACT_TEXT_NOTICE,
   ASSISTANT_WINDOW_CARD_STYLE,
   CAPTURE_STATUS_LABEL,
   countTextCharacters,
@@ -16,6 +18,10 @@ import {
 interface CapturePreviewProps {
   session: CaptureSession
   privacyError: string | null
+  /** 文本来自截图 OCR 时展示「识别可能有误」标注并允许编辑（PRD §7.2 F3） */
+  extractedFromImage?: boolean
+  /** 直达快捷键（P1-1）预设的动作；存在时提示确认后将跳过动作选择直接执行 */
+  pendingAction?: AssistantDirectAction | null
   onConfirm: () => void
   onCancel: () => void
   onRetry: () => void
@@ -26,6 +32,8 @@ interface CapturePreviewProps {
 export function CapturePreview({
   session,
   privacyError,
+  extractedFromImage = false,
+  pendingAction = null,
   onConfirm,
   onCancel,
   onRetry,
@@ -34,6 +42,7 @@ export function CapturePreview({
 }: CapturePreviewProps) {
   const showPrivacyError = privacyError || session.status === 'error'
   const isScreenshot = session.sourceType === 'screenshot'
+  const showTextEditor = !isScreenshot || extractedFromImage
   const canConfirm = Boolean(session.content?.trim())
   const currentCharacters = session.content ? countTextCharacters(session.content) : 0
   const originalCharacters = session.originalCharacterCount ?? currentCharacters
@@ -64,7 +73,7 @@ export function CapturePreview({
       <div className="p-4">
         {/* 隐私错误提示 */}
         {showPrivacyError && privacyError && (
-          <Card variant="flat" padding="sm" className="mb-4" style={{ background: 'var(--rc-badge-danger-bg)' }}>
+          <Card variant="flat" padding="sm" className="mb-4" style={{ background: 'var(--rc-badge-danger-bg)' }} role="alert">
             <div className="flex items-start gap-3">
               <Shield size={20} style={{ color: 'var(--rc-badge-danger-text)', flexShrink: 0, marginTop: 2 }} />
               <div>
@@ -90,6 +99,26 @@ export function CapturePreview({
           </Card>
         )}
 
+        {/* 直达动作（P1-1）：提示确认后将跳过动作选择直接执行预设动作 */}
+        {pendingAction && !showPrivacyError && (
+          <div
+            role="status"
+            className="mb-3 flex items-center gap-2 rounded-2xl px-3 py-2 text-xs leading-5"
+            style={{
+              background: 'var(--rc-info-chip-bg)',
+              color: 'var(--rc-info-chip-text)',
+            }}
+          >
+            <Zap size={14} style={{ flexShrink: 0 }} />
+            <p>
+              确认后将直接执行：
+              {ASSISTANT_ACTIONS.find((action) => action.id === pendingAction)?.label
+                ?? pendingAction}
+              ，无需再选择动作
+            </p>
+          </div>
+        )}
+
         {/* 来源信息 */}
         {session.sourceApp && !showPrivacyError && (
           <div className="mb-3 text-xs" style={{ color: 'var(--rc-text-muted)' }}>
@@ -98,7 +127,7 @@ export function CapturePreview({
           </div>
         )}
 
-        {session.status === 'ready' && !isScreenshot && (
+        {session.status === 'ready' && showTextEditor && (
           <div
             className="mb-3 rounded-2xl px-3 py-2 text-xs leading-5"
             style={{
@@ -120,6 +149,23 @@ export function CapturePreview({
           </div>
         )}
 
+        {/* OCR 提取结果必须标注「识别可能有误」（PRD §7.2 F3） */}
+        {session.status === 'ready' && extractedFromImage && (
+          <div
+            role="status"
+            className="mb-3 flex items-start gap-2 rounded-2xl px-3 py-2 text-xs leading-5"
+            style={{
+              background: 'var(--rc-badge-warning-bg)',
+              color: 'var(--rc-badge-warning-text)',
+            }}
+          >
+            <ScanText size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+            <p>
+              以下为截图提取的文字，{ASSISTANT_EXTRACT_TEXT_NOTICE}，请核对编辑后再确认；确认前不会发送给模型。
+            </p>
+          </div>
+        )}
+
         {session.status === 'ready' && hasSensitiveRedactions && (
           <div
             role="alert"
@@ -137,10 +183,11 @@ export function CapturePreview({
         )}
 
         {/* 内容编辑 */}
-        {session.status === 'ready' && !isScreenshot && (
+        {session.status === 'ready' && showTextEditor && (
           <textarea
             value={session.content ?? ''}
             onChange={(e) => onEdit(e.target.value)}
+            aria-label="预览内容（可编辑）"
             className="mb-4 w-full rounded-2xl border px-4 py-3 text-sm outline-none"
             style={{
               background: 'var(--rc-control-bg)',
@@ -173,7 +220,7 @@ export function CapturePreview({
 
         {/* 通用错误状态 */}
         {session.status === 'error' && !privacyError && (
-          <Card variant="flat" padding="sm" className="mb-4" style={{ background: 'var(--rc-badge-danger-bg)' }}>
+          <Card variant="flat" padding="sm" className="mb-4" style={{ background: 'var(--rc-badge-danger-bg)' }} role="alert">
             <div className="flex items-start gap-2">
               <AlertCircle size={16} style={{ color: 'var(--rc-badge-danger-text)', flexShrink: 0 }} />
               <div>

@@ -195,4 +195,30 @@ describe('ResultCard', () => {
     await user.click(screen.getByRole('button', { name: '删除术语偏好：retrieval' }))
     expect(onRemove).toHaveBeenCalledWith('retrieval', 'zh')
   })
+
+  it('labels the expand icon button for screen readers', () => {
+    render(
+      <ResultCard
+        result={streamingResult}
+        status="completed"
+        onCopy={vi.fn()}
+        onImport={vi.fn()}
+        onExpand={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: '展开结果' })).toBeInTheDocument()
+  })
+
+  it('marks the streaming placeholder as a polite live region', () => {
+    render(
+      <ResultCard
+        result={{ ...streamingResult, content: '' }}
+        status="streaming"
+        onCopy={vi.fn()}
+        onImport={vi.fn()}
+        onStop={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('正在生成…')
+  })
 })
