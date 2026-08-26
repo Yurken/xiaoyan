@@ -310,4 +310,153 @@ describe('useCaptureSession 直达动作', () => {
     expect(starter).not.toHaveBeenCalled()
     unregister()
   })
+
+  it('binds the direct action to the fresh capture instead of a previously confirmed session', async () => {
+    const handlers = captureEventHandlers()
+    let captureSessionId = 'cap-old'
+    let captureContent = '旧采集内容'
+    getInvokeMock().mockImplementation(async (command: string, args?: unknown) => {
+      if (command === 'assistant_get_selection') {
+        return readyCaptureResponse(captureSessionId, captureContent)
+      }
+      if (command === 'assistant_confirm_capture') {
+        return {
+          confirmed: true,
+          content: (args as { content: string }).content,
+          reason: null,
+          privacy_check: PRIVACY_ALLOWED,
+        }
+      }
+      throw new Error(`Unmocked invoke: ${command}`)
+    })
+    const starter = vi.fn(async (_input: StartAssistantActionInput) => true)
+    const unregister = registerAssistantDirectActionStarter(starter)
+
+    const { result } = renderHook(() => useCaptureSession(false, true))
+    await waitFor(() => expect(handlers.has('assistant://direct-action')).toBe(true))
+
+    // 先完成一次旧采集并确认，模拟上次遗留的已确认会话。
+    await act(async () => {
+      await result.current.startCapture('selection')
+    })
+    await waitFor(() => expect(result.current.session?.userConfirmed).toBe(true))
+    expect(result.current.session?.id).toBe('cap-old')
+
+    // 直达动作到达后必须重新采集，动作只能绑定本次新会话与新内容。
+    captureSessionId = 'cap-new'
+    captureContent = '新采集内容'
+    await act(async () => {
+      handlers.get('assistant://direct-action')?.({ payload: 'interpret' })
+    })
+
+    await waitFor(() => expect(starter).toHaveBeenCalled())
+    expect(starter).toHaveBeenCalledTimes(1)
+    expect(starter).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'interpret',
+      sessionId: 'cap-new',
+      content: '新采集内容',
+    }))
+    expect(starter).not.toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'cap-old' }),
+    )
+    unregister()
+  })
+
+  it('discards a stale capture response when a newer direct action supersedes it', async () => {
+    const handlers = captureEventHandlers()
+    const discarded: string[] = []
+    let selectionCalls = 0
+    let holdFirstSelection: ((value: unknown) => void) | null = null
+    getInvokeMock().mockImplementation(async (command: string, args?: unknown) => {
+      if (command === 'assistant_get_selection') {
+        selectionCalls += 1
+        if (selectionCalls === 1) {
+          return new Promise((resolve) => {
+            holdFirstSelection = resolve
+          })
+        }
+        return readyCaptureResponse('cap-new', '第二次采集内容')
+      }
+      if (command === 'assistant_confirm_capture') {
+        return {
+          confirmed: true,
+          content: (args as { content: string }).content,
+          reason: null,
+          privacy_check: PRIVACY_ALLOWED,
+        }
+      }
+      if (command === 'assistant_get_translation_preferences') {
+        return { target_language: 'en', terminology_style: 'original' }
+      }
+      if (command === 'assistant_discard_capture') {
+        discarded.push((args as { sessionId: string }).sessionId)
+        return undefined
+      }
+      throw new Error(`Unmocked invoke: ${command}`)
+    })
+    const starter = vi.fn(async (_input: StartAssistantActionInput) => true)
+    const unregister = registerAssistantDirectActionStarter(starter)
+
+    const { result } = renderHook(() => useCaptureSession(false, true))
+    await waitFor(() => expect(handlers.has('assistant://direct-action')).toBe(true))
+
+    await act(async () => {
+      handlers.get('assistant://direct-action')?.({ payload: 'interpret' })
+    })
+    // 第一次采集尚未返回时，第二次直达动作到达并发起新采集。
+    await act(async () => {
+      handlers.get('assistant://direct-action')?.({ payload: 'translate' })
+    })
+    // 第一次（已过期）的采集响应随后才落地。
+    await act(async () => {
+      holdFirstSelection?.(readyCaptureResponse('cap-stale', '过期内容'))
+    })
+
+    await waitFor(() => expect(starter).toHaveBeenCalled())
+    expect(discarded).toContain('cap-stale')
+    expect(starter).toHaveBeenCalledTimes(1)
+    expect(starter).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'translate',
+      sessionId: 'cap-new',
+      content: '第二次采集内容',
+    }))
+    expect(result.current.session?.id).toBe('cap-new')
+    unregister()
+  })
+
+  it('keeps the confirmed session for manual action selection when the starter fails', async () => {
+    const handlers = captureEventHandlers()
+    getInvokeMock().mockImplementation(async (command: string, args?: unknown) => {
+      if (command === 'assistant_get_selection') {
+        return readyCaptureResponse('cap-fail', '需要解读的内容')
+      }
+      if (command === 'assistant_confirm_capture') {
+        return {
+          confirmed: true,
+          content: (args as { content: string }).content,
+          reason: null,
+          privacy_check: PRIVACY_ALLOWED,
+        }
+      }
+      throw new Error(`Unmocked invoke: ${command}`)
+    })
+    const starter = vi.fn(async (_input: StartAssistantActionInput) => false)
+    const unregister = registerAssistantDirectActionStarter(starter)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useCaptureSession(false, true))
+    await waitFor(() => expect(handlers.has('assistant://direct-action')).toBe(true))
+
+    await act(async () => {
+      handlers.get('assistant://direct-action')?.({ payload: 'interpret' })
+    })
+
+    await waitFor(() => expect(starter).toHaveBeenCalled())
+    // 启动失败：清除预设动作但保留已确认会话，用户仍可手动选择动作。
+    await waitFor(() => expect(result.current.pendingAction).toBeNull())
+    expect(result.current.session?.id).toBe('cap-fail')
+    expect(result.current.session?.userConfirmed).toBe(true)
+    unregister()
+    warnSpy.mockRestore()
+  })
 })
