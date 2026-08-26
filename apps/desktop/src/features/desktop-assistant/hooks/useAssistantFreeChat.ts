@@ -17,6 +17,7 @@ interface CreatePasteSessionResponse {
 
 interface FreeChatConfirmationResponse {
   confirmed: boolean
+  content: string | null
   reason: string | null
   privacy_check: {
     allowed: boolean
@@ -66,7 +67,7 @@ export function useAssistantFreeChat(): UseAssistantFreeChat {
       )
       sessionId = created.session_id
       // 问题文本即待发送内容，先走与采集内容一致的脱敏确认。
-      const confirmation = await invoke<FreeChatConfirmationResponse>(
+      let confirmation = await invoke<FreeChatConfirmationResponse>(
         'assistant_confirm_capture',
         { sessionId, content: trimmed },
       )
@@ -75,16 +76,34 @@ export function useAssistantFreeChat(): UseAssistantFreeChat {
         await discardSession(sessionId)
         return null
       }
+      let question = trimmed
       if (!confirmation.confirmed) {
-        setError('问题包含疑似敏感片段，已按隐私策略阻止发送，请修改后重试')
-        await discardSession(sessionId)
-        return null
+        // 普通 PII 已被遮盖：复用 confirmation.content 走二次确认（与采集预览一致），
+        // 而不是直接丢弃会话让用户无路可走。
+        const redacted = confirmation.content?.trim()
+        if (redacted) {
+          confirmation = await invoke<FreeChatConfirmationResponse>(
+            'assistant_confirm_capture',
+            { sessionId, content: redacted },
+          )
+          if (confirmation.privacy_check.allowed && confirmation.confirmed) {
+            question = redacted
+          } else {
+            setError(confirmation.reason || '问题包含不可发送的敏感字段，请修改后重试')
+            await discardSession(sessionId)
+            return null
+          }
+        } else {
+          setError(confirmation.reason || '问题包含不可发送的敏感字段，请修改后重试')
+          await discardSession(sessionId)
+          return null
+        }
       }
       return {
         action: 'chat',
         sessionId,
         content: '',
-        question: trimmed,
+        question,
         localKnowledgeEnabled,
         knowledgeThemeId,
         includeCaptureContext: false,

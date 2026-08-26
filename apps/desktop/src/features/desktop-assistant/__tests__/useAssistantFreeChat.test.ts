@@ -88,21 +88,76 @@ describe('useAssistantFreeChat', () => {
     })
   })
 
-  it('blocks questions that would be redacted instead of sending silently', async () => {
-    getInvokeMock().mockImplementation(async (command: string) => {
+  it('re-confirms the redacted content and sends the masked question instead of blocking', async () => {
+    getInvokeMock().mockImplementation(async (command: string, args?: unknown) => {
       if (command === 'assistant_create_paste_session') {
         return { session_id: 'redacted-session' }
       }
       if (command === 'assistant_confirm_capture') {
+        const content = (args as { content: string }).content
+        if (content === '联系 researcher@example.com') {
+          return {
+            ...confirmedResponse,
+            confirmed: false,
+            content: '联系 [EMAIL]',
+            privacy_check: {
+              ...confirmedResponse.privacy_check,
+              content_redacted: true,
+              redaction_kinds: ['邮箱'],
+            },
+          }
+        }
+        // 二次确认：遮盖后的内容与采集预览的再次确认一致。
+        expect(content).toBe('联系 [EMAIL]')
+        return { ...confirmedResponse, content: '联系 [EMAIL]' }
+      }
+      throw new Error(`Unmocked invoke: ${command}`)
+    })
+
+    const { result } = renderHook(() => useAssistantFreeChat())
+    let input: Awaited<ReturnType<typeof result.current.startFreeChat>> = null
+    await act(async () => {
+      input = await result.current.startFreeChat({ question: '联系 researcher@example.com' })
+    })
+
+    expect(input).toEqual(expect.objectContaining({
+      action: 'chat',
+      sessionId: 'redacted-session',
+      question: '联系 [EMAIL]',
+      includeCaptureContext: false,
+    }))
+    expect(result.current.error).toBeNull()
+    expect(getInvokeMock()).not.toHaveBeenCalledWith(
+      'assistant_discard_capture',
+      expect.anything(),
+    )
+  })
+
+  it('discards the session when the redacted content is still rejected', async () => {
+    getInvokeMock().mockImplementation(async (command: string, args?: unknown) => {
+      if (command === 'assistant_create_paste_session') {
+        return { session_id: 'redacted-session' }
+      }
+      if (command === 'assistant_confirm_capture') {
+        const content = (args as { content: string }).content
+        if (content === '联系 researcher@example.com') {
+          return {
+            ...confirmedResponse,
+            confirmed: false,
+            content: '联系 [EMAIL]',
+            privacy_check: {
+              ...confirmedResponse.privacy_check,
+              content_redacted: true,
+              redaction_kinds: ['邮箱'],
+            },
+          }
+        }
         return {
           ...confirmedResponse,
           confirmed: false,
-          content: '联系 [EMAIL]',
-          privacy_check: {
-            ...confirmedResponse.privacy_check,
-            content_redacted: true,
-            redaction_kinds: ['邮箱'],
-          },
+          content: null,
+          reason: '内容包含敏感字段',
+          privacy_check: { ...confirmedResponse.privacy_check, allowed: false },
         }
       }
       if (command === 'assistant_discard_capture') return undefined
@@ -116,7 +171,7 @@ describe('useAssistantFreeChat', () => {
     })
 
     expect(input).toBeNull()
-    expect(result.current.error).toContain('疑似敏感片段')
+    expect(result.current.error).toBe('内容包含敏感字段')
     expect(getInvokeMock()).toHaveBeenCalledWith('assistant_discard_capture', {
       sessionId: 'redacted-session',
     })
