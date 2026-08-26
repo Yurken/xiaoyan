@@ -109,6 +109,7 @@ vi.mock("../../hooks/usePersistentStringState", () => ({
 
 describe("App 路由与导航", () => {
   beforeEach(() => {
+    localStorage.clear();
     resetInvokeMock();
     mockInvoke({
       "get_lock_status": { locked: false },
@@ -126,7 +127,7 @@ describe("App 路由与导航", () => {
   it("应包含所有导航项", async () => {
     renderWithRouter(<App />);
     await waitFor(() => {
-      const navLabels = ["首页", "规划", "对话", "综述", "论文", "写作", "知识", "收集箱", "实验", "研究", "DSH", "投稿", "工具", "设置"];
+      const navLabels = ["首页", "规划", "对话", "综述", "论文", "写作", "知识", "DSH", "收集箱", "实验", "研究", "投稿", "工具", "设置"];
       for (const label of navLabels) {
         expect(screen.getByLabelText(label)).toBeInTheDocument();
       }
@@ -161,9 +162,40 @@ describe("App 路由与导航", () => {
       expect(screen.getByLabelText("实验")).toHaveAttribute("href", "/experiment");
       expect(screen.getByLabelText("研究")).toHaveAttribute("href", "/research");
       expect(screen.getByLabelText("DSH")).toHaveAttribute("href", "/code");
+      expect(screen.getByLabelText("收集箱")).toHaveAttribute("href", "/inbox");
+      expect(screen.getByLabelText("研究")).toHaveAttribute("href", "/research");
       expect(screen.getByLabelText("投稿")).toHaveAttribute("href", "/submission");
       expect(screen.getByLabelText("工具")).toHaveAttribute("href", "/tools");
       expect(screen.getByLabelText("设置")).toHaveAttribute("href", "/settings");
     });
+  });
+
+  it("代码助手切换为 Codex 后侧栏显示 Codex", async () => {
+    window.localStorage.setItem("rc:code-harness-provider", "codex");
+    renderWithRouter(<App />);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Codex")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("Codex")).toHaveAttribute("href", "/codex");
+    expect(screen.getByLabelText("Codex").querySelector(".codex-icon")).toBeInTheDocument();
+    expect(screen.queryByLabelText("DSH")).not.toBeInTheDocument();
+  });
+
+  it("代码助手切换为 OpenCode 后侧栏显示 OpenCode", async () => {
+    window.localStorage.setItem("rc:code-harness-provider", "opencode");
+    renderWithRouter(<App />);
+    await waitFor(() => expect(screen.getByLabelText("OpenCode")).toBeInTheDocument());
+    expect(screen.getByLabelText("OpenCode")).toHaveAttribute("href", "/opencode");
+    expect(screen.getByLabelText("OpenCode").querySelector(".opencode-icon")).toBeInTheDocument();
+    expect(screen.queryByLabelText("DSH")).not.toBeInTheDocument();
+  });
+
+  it("代码助手切换为 Pi Web 后侧栏显示 Pi Web", async () => {
+    window.localStorage.setItem("rc:code-harness-provider", "pi");
+    renderWithRouter(<App />);
+    await waitFor(() => expect(screen.getByLabelText("Pi Web")).toBeInTheDocument());
+    expect(screen.getByLabelText("Pi Web")).toHaveAttribute("href", "/pi");
+    expect(screen.getByLabelText("Pi Web").querySelector(".pi-web-icon")).toBeInTheDocument();
+    expect(screen.queryByLabelText("DSH")).not.toBeInTheDocument();
   });
 });

@@ -6,6 +6,12 @@ use tokio::{
     time::{timeout, Duration},
 };
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 const DSH_SUPERVISOR_SOURCE: &str = include_str!("dsh_supervisor.mjs");
 
 struct BundledDshPaths {
@@ -63,6 +69,8 @@ pub fn launch_command(
         DshRuntimeMode::Bundled => {
             let paths = bundled_paths(app)?;
             let mut command = Command::new(paths.node);
+            #[cfg(windows)]
+            command.creation_flags(CREATE_NO_WINDOW);
             command
                 .args(["--input-type=module", "--eval", DSH_SUPERVISOR_SOURCE])
                 .arg("xiaoyan-dsh-supervisor")
@@ -77,6 +85,8 @@ pub fn launch_command(
                     .as_deref()
                     .expect("validated external executable"),
             );
+            #[cfg(windows)]
+            command.creation_flags(CREATE_NO_WINDOW);
             command.stdin(Stdio::null()).kill_on_drop(true);
             command
         }
@@ -88,7 +98,9 @@ pub fn launch_command(
         command.args(["--profile", config.profile.as_str()]);
     }
     command
-        .args(["--host", "127.0.0.1", "--port", "0"])
+        // `--no-open` 要求 DSH >= 0.1.1：新版 web 子命令默认打开系统浏览器，
+        // 小妍在应用内 iframe 展示 Web UI，必须抑制浏览器弹出。
+        .args(["--host", "127.0.0.1", "--port", "0", "--no-open"])
         .current_dir(workspace)
         .env("DSH_HOME", data_home)
         .env("DSH_TELEMETRY_DISABLED", "1")

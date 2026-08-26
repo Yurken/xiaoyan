@@ -1,5 +1,7 @@
 use crate::append_diagnostic_log;
-use crate::dsh_api_config::{resolve_xiaoyan_api, write_dsh_api_configuration, DshApiImportResult};
+use crate::dsh_api_config::{
+    resolve_xiaoyan_api, write_dsh_api_configuration, DshApiImportResult, fetch_available_models,
+};
 use crate::dsh_process::{bundled_available, format_exit_error, launch_command, stop_child};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -458,10 +460,11 @@ pub async fn dsh_runtime_start(
 #[tauri::command]
 pub async fn dsh_runtime_stop(
     app: AppHandle,
-    state: State<'_, DshRuntimeState>,
+    runtime_state: State<'_, DshRuntimeState>,
+    app_state: State<'_, AppState>,
 ) -> Result<DshRuntimeSnapshot, String> {
-    {
-        let mut inner = state.inner.lock().await;
+    let data_home = {
+        let mut inner = runtime_state.inner.lock().await;
         inner.generation = inner.generation.wrapping_add(1);
         inner.phase = DshPhase::Stopped;
         inner.url = None;
@@ -469,9 +472,11 @@ pub async fn dsh_runtime_stop(
         if let Some(child) = inner.child.take() {
             stop_child(child).await?;
         }
-    }
+        runtime_state.data_home(&inner.config)
+    };
+    crate::dsh_usage::collect_usage(&data_home, &app_state.db).await;
     append_diagnostic_log("dsh: runtime stopped");
-    Ok(snapshot(&app, state.inner()).await)
+    Ok(snapshot(&app, runtime_state.inner()).await)
 }
 
 #[tauri::command]
@@ -509,7 +514,9 @@ pub async fn dsh_runtime_import_xiaoyan_api(
 ) -> Result<DshApiImportResult, String> {
     let profile = {
         let settings = app_state.settings.read().await;
-        resolve_xiaoyan_api(&settings)?
+        let mut profile = resolve_xiaoyan_api(&settings)?;
+        profile.models = fetch_available_models(&profile).await;
+        profile
     };
     let result = {
         let mut inner = runtime_state.inner.lock().await;

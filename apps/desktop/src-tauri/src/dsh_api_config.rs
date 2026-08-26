@@ -1,5 +1,6 @@
 use crate::llm::LlmClient;
 use serde::Serialize;
+use serde_json::Value as JsonValue;
 use serde_yaml::{Mapping, Value};
 use std::{
     collections::HashMap,
@@ -11,13 +12,18 @@ use uuid::Uuid;
 
 const DSH_ROUTE: &str = "xiaoyan";
 const DSH_CREDENTIAL_REF: &str = "XIAOYAN_API_KEY";
+/// 对齐 DSH >= 0.1.1 credentials-local 的 DOCUMENT_VERSION：新版解析器只接受
+/// version/refs/records 三个顶层键，引用必须写在 refs 下
+/// （vendor/deepseek-harness/packages/credentials/credentials-local/src/index.ts）。
+const DSH_CREDENTIALS_DOCUMENT_VERSION: u64 = 1;
 
 #[derive(Clone)]
 pub(crate) struct XiaoyanApiProfile {
-    protocol: &'static str,
-    base_url: String,
-    api_key: String,
-    model: String,
+    pub(crate) protocol: &'static str,
+    pub(crate) base_url: String,
+    pub(crate) api_key: String,
+    pub(crate) model: String,
+    pub models: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -88,6 +94,7 @@ pub(crate) fn resolve_xiaoyan_api(
         base_url: base_url.trim().trim_end_matches('/').to_string(),
         api_key: api_key.trim().to_string(),
         model: model.trim().to_string(),
+        models: vec![model.trim().to_string()],
     })
 }
 
@@ -98,6 +105,74 @@ fn normalize_anthropic_base_url(base_url: &str) -> String {
         .unwrap_or(trimmed)
         .trim_end_matches('/')
         .to_string()
+}
+
+/// 查询远端可用的模型列表。失败时回退到当前默认模型，避免阻塞 DSH 配置写入。
+pub(crate) async fn fetch_available_models(profile: &XiaoyanApiProfile) -> Vec<String> {
+    let url = match profile.protocol {
+        "openai-completions" => format!("{}/models", profile.base_url),
+        "anthropic-messages" => format!("{}/v1/models", profile.base_url),
+        _ => return vec![profile.model.clone()],
+    };
+
+    let client = reqwest::Client::new();
+    let request = match profile.protocol {
+        "openai-completions" => client.get(&url).bearer_auth(&profile.api_key),
+        "anthropic-messages" => client
+            .get(&url)
+            .header("x-api-key", &profile.api_key)
+            .header("anthropic-version", "2023-06-01"),
+        _ => return vec![profile.model.clone()],
+    };
+
+    match request.send().await {
+        Ok(response) if response.status().is_success() => {
+            match response.json::<JsonValue>().await {
+                Ok(json) => {
+                    let mut ids: Vec<String> = json
+                        .get("data")
+                        .and_then(JsonValue::as_array)
+                        .map(|items| {
+                            items
+                                .iter()
+                                .filter_map(|item| {
+                                    item.get("id").and_then(JsonValue::as_str).map(String::from)
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+
+                    if ids.is_empty() {
+                        ids.push(profile.model.clone());
+                    } else {
+                        // 保持当前默认模型在首位，DSH 默认选中它
+                        ids.retain(|id| id != &profile.model);
+                        ids.insert(0, profile.model.clone());
+                    }
+                    return ids;
+                }
+                Err(error) => {
+                    crate::append_diagnostic_log(&format!(
+                        "[dsh_api_config] parse models response failed: {error}"
+                    ));
+                }
+            }
+        }
+        Ok(response) => {
+            crate::append_diagnostic_log(&format!(
+                "[dsh_api_config] fetch models returned {} for {}",
+                response.status(),
+                url
+            ));
+        }
+        Err(error) => {
+            crate::append_diagnostic_log(&format!(
+                "[dsh_api_config] fetch models failed: {error}"
+            ));
+        }
+    }
+
+    vec![profile.model.clone()]
 }
 
 pub(crate) fn write_dsh_api_configuration(
@@ -126,25 +201,41 @@ pub(crate) fn write_dsh_api_configuration(
 
 fn render_credentials(path: &Path, profile: &XiaoyanApiProfile) -> Result<String, String> {
     let mut root = read_yaml_mapping(path, "DSH 凭据")?;
-    root.insert(
+    let version_key = Value::String("version".to_string());
+    let refs_key = Value::String("refs".to_string());
+    // 已是 versioned 布局：version/records 等既有内容原样保留，只在 refs 内合并。
+    // 旧 flat 布局（DSH < 0.1.1 写出、尚未被 DSH 启动迁移）：顶层键即引用，
+    // 全部搬入 refs，避免新版解析器抛 unknown top-level key。
+    let mut refs = if root.contains_key(&version_key) {
+        mapping_value(root.remove(&refs_key), "DSH 凭据的 refs")?
+    } else {
+        std::mem::take(&mut root)
+    };
+    refs.insert(
         Value::String(DSH_CREDENTIAL_REF.to_string()),
         Value::String(profile.api_key.clone()),
     );
+    root.insert(
+        version_key,
+        Value::Number(DSH_CREDENTIALS_DOCUMENT_VERSION.into()),
+    );
+    root.insert(refs_key, Value::Mapping(refs));
     serialize_yaml(root, "DSH 凭据")
 }
 
 fn render_settings(path: &Path, profile: &XiaoyanApiProfile) -> Result<String, String> {
     let mut root = read_yaml_mapping(path, "DSH 模型配置")?;
 
-    let mut model = Mapping::new();
-    model.insert(
-        Value::String("id".to_string()),
-        Value::String(profile.model.clone()),
-    );
-    model.insert(
-        Value::String("name".to_string()),
-        Value::String(profile.model.clone()),
-    );
+    let models: Vec<Value> = profile
+        .models
+        .iter()
+        .map(|id| {
+            let mut model = Mapping::new();
+            model.insert(Value::String("id".to_string()), Value::String(id.clone()));
+            model.insert(Value::String("name".to_string()), Value::String(id.clone()));
+            Value::Mapping(model)
+        })
+        .collect();
 
     let mut route = Mapping::new();
     route.insert(
@@ -165,7 +256,7 @@ fn render_settings(path: &Path, profile: &XiaoyanApiProfile) -> Result<String, S
     );
     route.insert(
         Value::String("models".to_string()),
-        Value::Sequence(vec![Value::Mapping(model)]),
+        Value::Sequence(models),
     );
 
     let section_key = Value::String("llm-pi-ai".to_string());
@@ -349,6 +440,7 @@ mod tests {
             base_url: "https://gateway.example/v1".to_string(),
             api_key: "test-secret".to_string(),
             model: "research-model".to_string(),
+            models: vec!["research-model".to_string()],
         };
 
         let result = write_dsh_api_configuration(&directory, &profile)
@@ -373,10 +465,135 @@ mod tests {
             settings["llm-pi-ai"]["providers"]["xiaoyan"]["models"][0]["id"].as_str(),
             Some("research-model")
         );
-        assert_eq!(credentials["OTHER_API_KEY"].as_str(), Some("keep-me"));
+        assert_eq!(credentials["version"].as_u64(), Some(1));
         assert_eq!(
-            credentials[DSH_CREDENTIAL_REF].as_str(),
+            credentials["refs"]["OTHER_API_KEY"].as_str(),
+            Some("keep-me")
+        );
+        assert_eq!(
+            credentials["refs"][DSH_CREDENTIAL_REF].as_str(),
             Some("test-secret")
+        );
+        assert!(credentials.get("OTHER_API_KEY").is_none());
+        assert!(credentials.get(DSH_CREDENTIAL_REF).is_none());
+
+        fs::remove_dir_all(directory).expect("clean test directory");
+    }
+
+    #[test]
+    fn writes_versioned_credentials_layout_for_a_fresh_data_home() {
+        let directory = test_dir();
+        let profile = XiaoyanApiProfile {
+            protocol: "openai-completions",
+            base_url: "https://gateway.example/v1".to_string(),
+            api_key: "test-secret".to_string(),
+            model: "research-model".to_string(),
+            models: vec!["research-model".to_string()],
+        };
+
+        write_dsh_api_configuration(&directory, &profile)
+            .expect("configuration should be written");
+        let credentials: Value = serde_yaml::from_str(
+            &fs::read_to_string(directory.join(".credentials.yaml")).expect("read credentials"),
+        )
+        .expect("parse credentials");
+
+        assert_eq!(
+            credentials["version"].as_u64(),
+            Some(DSH_CREDENTIALS_DOCUMENT_VERSION)
+        );
+        assert_eq!(
+            credentials["refs"][DSH_CREDENTIAL_REF].as_str(),
+            Some("test-secret")
+        );
+        assert!(credentials.get(DSH_CREDENTIAL_REF).is_none());
+
+        fs::remove_dir_all(directory).expect("clean test directory");
+    }
+
+    #[test]
+    fn migrates_flat_legacy_credentials_into_the_refs_section() {
+        let directory = test_dir();
+        fs::create_dir_all(&directory).expect("test directory");
+        fs::write(
+            directory.join(".credentials.yaml"),
+            "OTHER_API_KEY: keep-me\nTHIRD_PARTY_TOKEN: keep-too\n",
+        )
+        .expect("seed flat credentials");
+        let profile = XiaoyanApiProfile {
+            protocol: "openai-completions",
+            base_url: "https://gateway.example/v1".to_string(),
+            api_key: "test-secret".to_string(),
+            model: "research-model".to_string(),
+            models: vec!["research-model".to_string()],
+        };
+
+        write_dsh_api_configuration(&directory, &profile)
+            .expect("configuration should be written");
+        let credentials: Value = serde_yaml::from_str(
+            &fs::read_to_string(directory.join(".credentials.yaml")).expect("read credentials"),
+        )
+        .expect("parse credentials");
+
+        assert_eq!(credentials["version"].as_u64(), Some(1));
+        assert_eq!(
+            credentials["refs"]["OTHER_API_KEY"].as_str(),
+            Some("keep-me")
+        );
+        assert_eq!(
+            credentials["refs"]["THIRD_PARTY_TOKEN"].as_str(),
+            Some("keep-too")
+        );
+        assert_eq!(
+            credentials["refs"][DSH_CREDENTIAL_REF].as_str(),
+            Some("test-secret")
+        );
+        assert!(credentials.get("OTHER_API_KEY").is_none());
+        assert!(credentials.get("THIRD_PARTY_TOKEN").is_none());
+
+        fs::remove_dir_all(directory).expect("clean test directory");
+    }
+
+    #[test]
+    fn merges_refs_and_preserves_records_in_a_versioned_credentials_file() {
+        let directory = test_dir();
+        fs::create_dir_all(&directory).expect("test directory");
+        fs::write(
+            directory.join(".credentials.yaml"),
+            "version: 1\nrefs:\n  OTHER_API_KEY: keep-me\nrecords:\n  other-provider/default:\n    kind: grant\n    payload:\n      token: opaque\n",
+        )
+        .expect("seed versioned credentials");
+        let profile = XiaoyanApiProfile {
+            protocol: "openai-completions",
+            base_url: "https://gateway.example/v1".to_string(),
+            api_key: "test-secret".to_string(),
+            model: "research-model".to_string(),
+            models: vec!["research-model".to_string()],
+        };
+
+        write_dsh_api_configuration(&directory, &profile)
+            .expect("configuration should be written");
+        let credentials: Value = serde_yaml::from_str(
+            &fs::read_to_string(directory.join(".credentials.yaml")).expect("read credentials"),
+        )
+        .expect("parse credentials");
+
+        assert_eq!(credentials["version"].as_u64(), Some(1));
+        assert_eq!(
+            credentials["refs"]["OTHER_API_KEY"].as_str(),
+            Some("keep-me")
+        );
+        assert_eq!(
+            credentials["refs"][DSH_CREDENTIAL_REF].as_str(),
+            Some("test-secret")
+        );
+        assert_eq!(
+            credentials["records"]["other-provider/default"]["kind"].as_str(),
+            Some("grant")
+        );
+        assert_eq!(
+            credentials["records"]["other-provider/default"]["payload"]["token"].as_str(),
+            Some("opaque")
         );
 
         fs::remove_dir_all(directory).expect("clean test directory");
