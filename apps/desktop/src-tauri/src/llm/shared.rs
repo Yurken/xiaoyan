@@ -12,6 +12,26 @@ pub(super) fn compact_preview(text: &str, max_chars: usize) -> String {
         .join(" ")
 }
 
+/// 诊断日志只保留 endpoint 的 scheme/host/port/path，永不写入用户信息、查询参数或片段。
+pub(super) fn safe_endpoint_for_diagnostics(endpoint: &str) -> String {
+    let Ok(url) = reqwest::Url::parse(endpoint.trim()) else {
+        return "[invalid endpoint hidden]".to_string();
+    };
+    let Some(host) = url.host_str() else {
+        return "[invalid endpoint hidden]".to_string();
+    };
+    let host = if host.contains(':') {
+        format!("[{host}]")
+    } else {
+        host.to_string()
+    };
+    let port = url
+        .port()
+        .map(|value| format!(":{value}"))
+        .unwrap_or_default();
+    format!("{}://{}{}{}", url.scheme(), host, port, url.path())
+}
+
 /// 将视觉模型的网关错误转换为可操作的中文提示；未知错误保留原文供排查。
 pub(crate) fn explain_vision_error(error: &str, model: Option<&str>) -> String {
     let lower = error.to_ascii_lowercase();
@@ -20,6 +40,7 @@ pub(crate) fn explain_vision_error(error: &str, model: Option<&str>) -> String {
     if lower.contains("no endpoints found that support image input")
         || lower.contains("does not support image input")
         || lower.contains("image input is not supported")
+        || error.contains("不支持图片输入")
     {
         let target = model
             .map(|value| format!("视觉模型「{}」", value))
@@ -232,20 +253,17 @@ pub(super) fn extract_anthropic_response_text(
         })
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "none".to_string());
-    let preview = compact_preview(&json.to_string(), 320);
-
     Err(anyhow!(
-        "{}: 响应中未找到可读取的文本内容。stop_reason={}, content_types={}, body={}",
+        "{}: 响应中未找到可读取的文本内容。stop_reason={}, content_types={}",
         label,
         stop_reason,
-        block_types,
-        preview
+        block_types
     ))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::explain_vision_error;
+    use super::{explain_vision_error, safe_endpoint_for_diagnostics};
 
     #[test]
     fn explains_unsupported_image_input_with_next_step() {
@@ -263,5 +281,15 @@ mod tests {
             explain_vision_error("unexpected upstream failure", None),
             "unexpected upstream failure"
         );
+    }
+
+    #[test]
+    fn diagnostic_endpoint_drops_credentials_query_and_fragment() {
+        let safe = safe_endpoint_for_diagnostics(
+            "https://user:password@example.com/v1?api_key=secret#token",
+        );
+        assert_eq!(safe, "https://example.com/v1");
+        assert!(!safe.contains("secret"));
+        assert!(!safe.contains("password"));
     }
 }
