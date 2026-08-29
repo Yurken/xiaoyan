@@ -84,8 +84,7 @@ use commands::{
     },
     data_backup::{data_backup_export, data_backup_import},
     desktop_assistant::{
-        assistant_capture_overlay_cancel, assistant_capture_overlay_submit,
-        assistant_capture_screen, assistant_capture_screen_overlay, assistant_check_permissions,
+        assistant_capture_screen, assistant_check_permissions,
         assistant_cleanup,
         assistant_clear_later_items, assistant_complete_permission_guide,
         assistant_confirm_capture, assistant_create_paste_session, assistant_discard_capture,
@@ -108,6 +107,12 @@ use commands::{
         assistant_set_runtime_preferences,
         assistant_set_shortcut, assistant_set_translation_preferences, assistant_show_dock,
         assistant_show_panel, assistant_toggle_panel,
+    },
+    desktop_assistant_capture_overlay::{
+        assistant_capture_overlay_cancel, assistant_capture_overlay_drag_cancel,
+        assistant_capture_overlay_drag_end, assistant_capture_overlay_drag_move,
+        assistant_capture_overlay_drag_start, assistant_capture_overlay_submit,
+        assistant_capture_screen_overlay,
     },
     desktop_assistant_actions::{
         assistant_cancel_action, assistant_chat, assistant_confirm_file_candidates,
@@ -936,6 +941,10 @@ pub fn run() {
             assistant_capture_screen_overlay,
             assistant_capture_overlay_submit,
             assistant_capture_overlay_cancel,
+            assistant_capture_overlay_drag_start,
+            assistant_capture_overlay_drag_move,
+            assistant_capture_overlay_drag_end,
+            assistant_capture_overlay_drag_cancel,
             assistant_get_frontmost_app,
             assistant_get_dock_look_target,
             assistant_list_knowledge_themes,

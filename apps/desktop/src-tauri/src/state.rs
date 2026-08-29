@@ -295,6 +295,9 @@ pub struct AppState {
     pub translation_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// Active desktop-assistant action streams keyed by request_id.
     pub assistant_action_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
+    /// 跨显示器截图选区的唯一请求与拖动协调器。
+    pub capture_overlay:
+        Arc<crate::services::desktop_assistant::capture_overlay_drag::CaptureOverlayCoordinator>,
     /// Active code assistant stream handles keyed by request_id.
     pub code_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// Pending code tool permission senders keyed by permission_id.
@@ -315,6 +318,9 @@ impl AppState {
             chat_handles: Arc::new(Mutex::new(HashMap::new())),
             translation_handles: Arc::new(Mutex::new(HashMap::new())),
             assistant_action_handles: Arc::new(Mutex::new(HashMap::new())),
+            capture_overlay: Arc::new(
+                crate::services::desktop_assistant::capture_overlay_drag::CaptureOverlayCoordinator::default(),
+            ),
             code_handles: Arc::new(Mutex::new(HashMap::new())),
             code_permissions: Arc::new(Mutex::new(HashMap::new())),
             sync_lock: Arc::new(Mutex::new(())),

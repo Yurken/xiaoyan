@@ -12,6 +12,7 @@ pub mod data_backup;
 pub mod desktop_assistant;
 pub mod desktop_assistant_actions;
 pub mod desktop_assistant_assets;
+pub mod desktop_assistant_capture_overlay;
 pub mod desktop_assistant_inbox;
 pub mod desktop_assistant_sessions;
 pub mod desktop_assistant_source;

@@ -4,6 +4,7 @@
 
 mod action_prompts;
 pub mod action_service;
+pub mod capture_overlay_drag;
 pub mod capture_service;
 pub mod capture_store;
 pub mod cleanup_service;
