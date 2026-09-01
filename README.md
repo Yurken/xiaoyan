@@ -27,7 +27,7 @@
   <a href="CHANGELOG.md">更新日志</a>
 </p>
 
-> 当前版本：**v0.5.5**。小妍仍处于快速迭代阶段，升级前建议备份重要数据。
+> 当前版本：**v0.5.4**。小妍仍处于快速迭代阶段，升级前建议备份重要数据。
 
 ## 为什么选择小妍
 
@@ -55,7 +55,7 @@
 | 数据与同步 | 本地数据库、加密配置导出、备份恢复及可选的加密同步 |
 
 <details>
-<summary><strong>查看 v0.5.5 主要更新</strong></summary>
+<summary><strong>查看 v0.5.4 主要更新</strong></summary>
 
 - 新增 Codex、OpenCode 和 Pi 代码助手工作区，可与 DSH 自由切换
 - Codex、OpenCode 和 Pi 支持按需安装官方运行时或使用本机已有版本
