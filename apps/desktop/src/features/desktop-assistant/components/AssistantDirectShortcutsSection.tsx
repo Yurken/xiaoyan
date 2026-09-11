@@ -79,6 +79,7 @@ export function AssistantDirectShortcutsSection() {
           const status = directShortcuts.statuses.find((item) => item.action === config.id)
           const enabled = Boolean(status?.configured_shortcut)
           const saving = directShortcuts.savingAction === config.id
+          const controlsLocked = directShortcuts.loading || directShortcuts.busy
           const diagnostic = status?.diagnostic
           const showDiagnostic = Boolean(
             diagnostic
@@ -105,7 +106,7 @@ export function AssistantDirectShortcutsSection() {
                   variant={enabled ? 'secondary' : 'primary'}
                   size="sm"
                   loading={saving}
-                  disabled={directShortcuts.loading}
+                  disabled={controlsLocked}
                   onClick={() => void toggle(config.id, enabled)}
                 >
                   {enabled ? '关闭' : `开启（${suggestedShortcut(config.id)}）`}
@@ -117,7 +118,7 @@ export function AssistantDirectShortcutsSection() {
                   <input
                     aria-label={`${config.label}快捷键`}
                     readOnly
-                    disabled={saving}
+                    disabled={controlsLocked}
                     value={directShortcuts.loading ? '读取中…' : drafts[config.id]}
                     onKeyDown={(event) => {
                       event.preventDefault()
@@ -141,7 +142,7 @@ export function AssistantDirectShortcutsSection() {
                     size="sm"
                     loading={saving}
                     disabled={
-                      directShortcuts.loading
+                      controlsLocked
                       || !drafts[config.id]
                       || drafts[config.id] === status?.configured_shortcut
                     }
@@ -176,6 +177,7 @@ export function AssistantDirectShortcutsSection() {
                     variant="secondary"
                     size="sm"
                     loading={saving}
+                    disabled={controlsLocked}
                     className="mt-2"
                     onClick={() => void directShortcuts.retry(config.id)}
                   >
