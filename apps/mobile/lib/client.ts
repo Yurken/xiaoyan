@@ -8,94 +8,31 @@ import {
   type ApiProbeResult,
 } from "../features/connectivity/shared";
 
+import { createSessionStore } from "../features/auth/sessionStore";
+
 export type { ApiProbeResult };
 
-const API_URL_STORAGE_KEY = "api_url";
-const ACCESS_TOKEN_KEY = "auth_access_token";
-const REFRESH_TOKEN_KEY = "auth_refresh_token";
-const LEGACY_ACCESS_TOKEN_KEY = "auth_token";
+const sessionStore = createSessionStore(
+  { getItem: (key) => AsyncStorage.getItem(key), setItem: (key, value) => AsyncStorage.setItem(key, value) },
+  {
+    getItem: (key) => SecureStore.getItemAsync(key),
+    setItem: (key, value) => SecureStore.setItemAsync(key, value),
+    deleteItem: (key) => SecureStore.deleteItemAsync(key),
+  },
+  defaultApiUrl(Platform.OS, process.env.EXPO_PUBLIC_API_URL),
+);
 
-const getToken = (): string | null => {
-  return _cachedAccessToken;
-};
-
-let _cachedAccessToken: string | null = null;
-let _cachedRefreshToken: string | null = null;
-let _cachedBaseUrl = fallbackApiUrl();
-const authListeners = new Set<() => void>();
-
-function notifyAuthState() {
-  for (const listener of authListeners) {
-    listener();
-  }
-}
-
-function setCachedTokens(accessToken: string | null, refreshToken: string | null) {
-  const wasAuthenticated = _cachedAccessToken !== null;
-  _cachedAccessToken = accessToken;
-  _cachedRefreshToken = refreshToken;
-  const isAuthenticated = _cachedAccessToken !== null;
-  if (wasAuthenticated !== isAuthenticated) {
-    notifyAuthState();
-  }
-}
-
-export function getIsAuthenticated(): boolean {
-  return _cachedAccessToken !== null;
-}
-
-export function subscribeAuthState(listener: () => void): () => void {
-  authListeners.add(listener);
-  return () => {
-    authListeners.delete(listener);
-  };
-}
-
-function fallbackApiUrl() {
-  return defaultApiUrl(Platform.OS, process.env.EXPO_PUBLIC_API_URL);
-}
+export const initializeClient = sessionStore.initialize;
+export const getSessionSnapshot = sessionStore.getSnapshot;
+export const subscribeAuthState = sessionStore.subscribe;
+export const getIsAuthenticated = () => sessionStore.getSnapshot().authenticated;
+export const getApiBaseUrl = () => sessionStore.getSnapshot().baseUrl;
+export const setApiBaseUrl = sessionStore.setBaseUrl;
+export const saveAuthTokens = sessionStore.saveTokens;
+export const clearToken = sessionStore.clearTokens;
 
 function resolveApiUrl(input: string) {
-  return normalizeApiUrl(input, fallbackApiUrl());
-}
-
-export async function loadToken() {
-  const [access, refresh, legacy] = await Promise.all([
-    SecureStore.getItemAsync(ACCESS_TOKEN_KEY),
-    SecureStore.getItemAsync(REFRESH_TOKEN_KEY),
-    SecureStore.getItemAsync(LEGACY_ACCESS_TOKEN_KEY),
-  ]);
-  const nextAccess = access ?? legacy;
-  setCachedTokens(nextAccess, refresh);
-  if (legacy && !access) {
-    await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, legacy);
-    await SecureStore.deleteItemAsync(LEGACY_ACCESS_TOKEN_KEY);
-  }
-}
-
-export async function loadApiBaseUrl() {
-  const stored = await AsyncStorage.getItem(API_URL_STORAGE_KEY);
-  if (!stored) {
-    _cachedBaseUrl = fallbackApiUrl();
-    return _cachedBaseUrl;
-  }
-  try {
-    _cachedBaseUrl = resolveApiUrl(stored);
-  } catch {
-    _cachedBaseUrl = fallbackApiUrl();
-  }
-  return _cachedBaseUrl;
-}
-
-export function getApiBaseUrl() {
-  return _cachedBaseUrl;
-}
-
-export async function setApiBaseUrl(url: string) {
-  const next = resolveApiUrl(url);
-  _cachedBaseUrl = next;
-  await AsyncStorage.setItem(API_URL_STORAGE_KEY, next);
-  return next;
+  return normalizeApiUrl(input, getApiBaseUrl());
 }
 
 export async function probeApiBaseUrl(
@@ -163,32 +100,9 @@ export async function probeApiBaseUrl(
   }
 }
 
-export async function saveAuthTokens(accessToken: string, refreshToken: string) {
-  setCachedTokens(accessToken, refreshToken);
-  await Promise.all([
-    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken),
-    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken),
-  ]);
-}
-
-/** Saves access token only; existing refresh token is left intact. */
-export async function saveToken(token: string) {
-  setCachedTokens(token, _cachedRefreshToken);
-  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
-}
-
-export async function clearToken() {
-  setCachedTokens(null, null);
-  await Promise.all([
-    SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
-    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
-    SecureStore.deleteItemAsync(LEGACY_ACCESS_TOKEN_KEY),
-  ]);
-}
-
 export const apiClient = createClient({
   get baseURL() {
-    return _cachedBaseUrl;
+    return getApiBaseUrl();
   },
-  getToken,
+  getToken: sessionStore.getToken,
 });

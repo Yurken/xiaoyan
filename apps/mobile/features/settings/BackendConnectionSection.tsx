@@ -52,6 +52,7 @@ export function BackendConnectionSection() {
       </View>
 
       <Text style={styles.hint}>{hint}</Text>
+      <Text style={styles.hint}>更换后端地址后需要重新登录。</Text>
 
       <Text style={styles.inputLabel}>API 地址</Text>
       <TextInput
