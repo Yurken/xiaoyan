@@ -6,10 +6,12 @@
 
 ## 环境
 
-- Node >= 18
+- Node >= 20.19.4（与 React Native 0.81.5 `package.json` engines 一致）
 - pnpm 9
 - JDK 17
 - Android SDK
+
+当前技术基线：Expo SDK 54 / React Native 0.81.5，Android `targetSdk` / `compileSdk` API 36，支持 16 KB 页面。
 
 ## 安装与检查
 

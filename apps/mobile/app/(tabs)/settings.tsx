@@ -51,7 +51,7 @@ export default function SettingsScreen() {
           <View style={styles.divider} />
           <InfoRow label="版本" value="0.6.0-dev.1" />
           <View style={styles.divider} />
-          <InfoRow label="平台" value="Expo SDK 52 · React Native" />
+          <InfoRow label="平台" value="Expo SDK 54 · React Native" />
           <View style={styles.divider} />
           <InfoRow label="数据" value="本地存储 · WebDAV 同步" />
         </NmCard>
