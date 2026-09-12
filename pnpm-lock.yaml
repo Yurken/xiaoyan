@@ -217,15 +217,33 @@ importers:
       '@types/react':
         specifier: ~18.3.12
         version: 18.3.28
+      '@typescript-eslint/parser':
+        specifier: ^8.65.0
+        version: 8.65.0(eslint@9.39.4(jiti@1.21.7))(typescript@5.9.3)
       babel-preset-expo:
         specifier: ~12.0.0
         version: 12.0.12(@babel/core@7.29.0)(@babel/preset-env@7.29.2(@babel/core@7.29.0))(babel-plugin-react-compiler@1.0.0)
       eas-cli:
         specifier: ^20.1.0
         version: 20.1.0(@types/node@22.19.15)(typescript@5.9.3)
+      eslint:
+        specifier: ^9
+        version: 9.39.4(jiti@1.21.7)
+      eslint-plugin-react-hooks:
+        specifier: ^5.2.0
+        version: 5.2.0(eslint@9.39.4(jiti@1.21.7))
+      globals:
+        specifier: ^14.0.0
+        version: 14.0.0
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.65.0
+        version: 8.65.0(eslint@9.39.4(jiti@1.21.7))(typescript@5.9.3)
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@22.19.15)(jsdom@26.1.0)(vite@6.4.1(@types/node@22.19.15)(jiti@1.21.7)(lightningcss@1.27.0)(terser@5.46.1)(yaml@2.6.0))
 
   apps/web:
     dependencies:
@@ -329,6 +347,10 @@ importers:
       '@research-copilot/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@22.19.15)(jsdom@26.1.0)(vite@6.4.1(@types/node@22.19.15)(jiti@1.21.7)(lightningcss@1.27.0)(terser@5.46.1)(yaml@2.6.0))
 
   packages/config: {}
 

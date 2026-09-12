@@ -8,6 +8,7 @@ import { router } from "expo-router";
 import { NmCard } from "../../components/NmCard";
 import { NmButton } from "../../components/NmButton";
 import type { Paper } from "@research-copilot/types";
+import type { PaperDetailSource } from "./usePaperDetail";
 
 const STATUS_CONFIG = {
   analyzed:  { icon: "checkmark-circle" as const, color: "#34C759", label: "已分析" },
@@ -47,10 +48,10 @@ function buildTags(paper: Paper) {
   return tags;
 }
 
-function SectionHeader({ title, icon }: { title: string; icon: string }) {
+function SectionHeader({ title, icon }: { title: string; icon: keyof typeof Ionicons.glyphMap }) {
   return (
     <View style={styles.sectionHeader}>
-      <Ionicons name={icon as any} size={18} color="#007AFF" />
+      <Ionicons name={icon} size={18} color="#007AFF" />
       <Text style={styles.sectionTitle}>{title}</Text>
     </View>
   );
@@ -70,14 +71,20 @@ export function PaperDetailView({
   paper,
   loading,
   error,
+  source,
+  analyzing,
+  canAnalyze,
   onReload,
   onAnalyze,
 }: {
   paper: Paper | null;
   loading: boolean;
   error: string | null;
-  onReload: () => void;
-  onAnalyze: () => void;
+  source: PaperDetailSource;
+  analyzing: boolean;
+  canAnalyze: boolean;
+  onReload: () => void | Promise<void>;
+  onAnalyze: () => void | Promise<void>;
 }) {
   if (loading) {
     return (
@@ -100,7 +107,7 @@ export function PaperDetailView({
           </View>
           <Text style={styles.emptyTitle}>加载失败</Text>
           <Text style={styles.emptyText}>{error ?? "未找到该论文"}</Text>
-          <NmButton variant="secondary" size="sm" onPress={onReload}>
+          <NmButton variant="secondary" size="sm" onPress={() => { void onReload(); }}>
             重试
           </NmButton>
         </View>
@@ -122,6 +129,12 @@ export function PaperDetailView({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {source === "synced" ? (
+          <View style={styles.syncedBanner}>
+            <Text style={styles.syncedText}>WebDAV 同步副本 · 只读</Text>
+          </View>
+        ) : null}
+
         {/* Meta */}
         <NmCard style={styles.metaCard}>
           <Text style={styles.paperTitle}>{paper.title}</Text>
@@ -157,9 +170,10 @@ export function PaperDetailView({
               variant="primary"
               size="md"
               style={{ marginTop: 12 }}
-              onPress={onAnalyze}
+              disabled={!canAnalyze || analyzing}
+              onPress={() => { void onAnalyze(); }}
             >
-              小妍分析
+              {!canAnalyze ? "只读" : analyzing ? "分析中…" : "小妍分析"}
             </NmButton>
           )}
           {paper.status === "analyzing" && (
@@ -256,6 +270,16 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20 },
   bottomSpacer: { height: 40 },
+
+  syncedBanner: {
+    marginTop: 4,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(0, 122, 255, 0.16)",
+  },
+  syncedText: { fontSize: 13, color: "#64B5F6", fontWeight: "500" },
 
   metaCard: { marginTop: 4, padding: 16, gap: 10 },
   paperTitle: { fontSize: 20, fontWeight: "700", color: "#F5F7FA", lineHeight: 28 },

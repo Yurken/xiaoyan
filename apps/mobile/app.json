@@ -43,6 +43,6 @@
       "typedRoutes": true,
       "tsconfigPaths": false
     },
-    "jsEngine": "jsc"
+    "jsEngine": "hermes"
   }
 }

@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
   TextInput,
@@ -6,36 +5,19 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { NmCard } from "../../components/NmCard";
-import { getRecords } from "../../features/sync/localStore";
+import { useKnowledgeNotes } from "../../features/knowledge/useKnowledgeNotes";
 import type { KnowledgeNote } from "@research-copilot/types";
 
 export default function KnowledgeScreen() {
-  const [notes, setNotes] = useState<KnowledgeNote[]>([]);
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async (quiet = false) => {
-    if (!quiet) setLoading(true);
-    try {
-      // 数据来自 WebDAV 同步下来的本地缓存（桌面端生成 → 同步 → 本机查阅）。
-      const all = await getRecords<KnowledgeNote>("knowledge_notes");
-      const keyword = search.trim().toLowerCase();
-      setNotes(
-        keyword
-          ? all.filter(
-              (note) =>
-                note.title?.toLowerCase().includes(keyword) || note.content?.toLowerCase().includes(keyword),
-            )
-          : all,
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [search]);
-
-  useEffect(() => { load(); }, [load]);
+  const {
+    notes,
+    search,
+    setSearch,
+    loading,
+    refreshing,
+    error,
+    refresh,
+  } = useKnowledgeNotes();
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -48,7 +30,6 @@ export default function KnowledgeScreen() {
         </View>
       </View>
 
-      {/* Search */}
       <View style={styles.searchWrap}>
         <Ionicons name="search" size={16} color="#5F6B7A" style={styles.searchIcon} />
         <TextInput
@@ -61,7 +42,12 @@ export default function KnowledgeScreen() {
         />
       </View>
 
-      {/* Content */}
+      {error ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#007AFF" />
@@ -86,7 +72,7 @@ export default function KnowledgeScreen() {
             numColumns={2}
             columnWrapperStyle={{ gap: 12 }}
             refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); load(true); }}
+            onRefresh={() => { void refresh(); }}
             renderItem={({ item }: { item: KnowledgeNote }) => (
               <View style={styles.noteItem}>
                 <NmCard style={styles.noteCard}>
@@ -110,6 +96,16 @@ const styles = StyleSheet.create({
   header:      { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
   title:       { fontSize: 28, fontWeight: "700", color: "#F5F7FA" },
   subtitle:    { fontSize: 14, color: "#5F6B7A", marginTop: 2 },
+
+  errorBanner: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,59,48,0.16)",
+  },
+  errorText: { fontSize: 13, color: "#FFB4A8", fontWeight: "500" },
 
   searchWrap: {
     flexDirection: "row",

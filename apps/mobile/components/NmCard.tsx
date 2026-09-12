@@ -1,4 +1,4 @@
-import { View, ViewStyle, StyleSheet } from "react-native";
+import { View, type ViewStyle, StyleSheet } from "react-native";
 
 interface NmCardProps {
   children: React.ReactNode;
