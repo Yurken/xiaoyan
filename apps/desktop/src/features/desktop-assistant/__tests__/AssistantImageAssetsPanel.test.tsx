@@ -28,7 +28,8 @@ describe('AssistantImageAssetsPanel', () => {
     const user = userEvent.setup()
     const value = controller()
     render(<AssistantImageAssetsPanel controller={value} />)
-    expect(screen.getByText('image/png · 2.0 KB · 2026/7/30 18:00:00')).toBeInTheDocument()
+    const createdAt = new Date('2026-07-30T10:00:00Z').toLocaleString('zh-CN')
+    expect(screen.getByText(`image/png · 2.0 KB · ${createdAt}`)).toBeInTheDocument()
     expect(screen.getByText('1280 × 720 像素')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '编辑 结果图 的来源' }))
