@@ -1,5 +1,5 @@
 import "./lib/readableStreamAsyncIteratorPolyfill";
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
@@ -53,13 +53,91 @@ document.addEventListener("dragstart", handleDragStart);
 window.addEventListener("error", handleWindowError);
 window.addEventListener("unhandledrejection", handleUnhandledRejection);
 
+type WindowLabel = "main" | "assistant-dock" | "assistant-panel" | null;
+
+function useWindowLabel(): WindowLabel {
+  const [label, setLabel] = useState<WindowLabel>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const detect = async () => {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const currentLabel = getCurrentWindow().label;
+        if (!cancelled) {
+          setLabel(currentLabel as WindowLabel);
+          document.documentElement.setAttribute("data-tauri-window-label", currentLabel);
+        }
+      } catch {
+        // 非 Tauri 环境（浏览器、测试）默认走主窗口
+        if (!cancelled) {
+          setLabel("main");
+        }
+      }
+    };
+
+    void detect();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return label;
+}
+
+const AssistantDockWindow = lazy(() => import("./features/desktop-assistant/windows/AssistantDockWindow"));
+const AssistantPanelWindow = lazy(() => import("./features/desktop-assistant/windows/AssistantPanelWindow"));
+const CaptureOverlayWindow = lazy(() => import("./features/desktop-assistant/components/CaptureOverlay"));
+
+function WindowRoot() {
+  const label = useWindowLabel();
+
+  if (label === null) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-apple-blue border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (label.startsWith("assistant-capture-overlay")) {
+    return (
+      <Suspense fallback={<div className="h-full w-full" />}>
+        <CaptureOverlayWindow />
+      </Suspense>
+    );
+  }
+
+  if (label === "assistant-dock") {
+    return (
+      <Suspense fallback={<div className="h-full w-full" />}>
+        <AssistantDockWindow />
+      </Suspense>
+    );
+  }
+
+  if (label === "assistant-panel") {
+    return (
+      <Suspense fallback={<div className="h-full w-full" />}>
+        <AssistantPanelWindow />
+      </Suspense>
+    );
+  }
+
+  return (
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  );
+}
+
 const root = createRoot(document.getElementById("root")!);
 root.render(
   <StrictMode>
     <AppErrorBoundary>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <WindowRoot />
     </AppErrorBoundary>
   </StrictMode>
 );

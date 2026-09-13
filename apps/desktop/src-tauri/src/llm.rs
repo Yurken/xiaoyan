@@ -12,6 +12,7 @@ use self::shared::{
     build_anthropic_tools, build_anthropic_user_messages,
     build_message_array as build_message_array_impl,
     extract_anthropic_response_text as extract_anthropic_response_text_impl,
+    safe_endpoint_for_diagnostics,
 };
 use self::transport::{
     append_sse_chunk, drain_sse_payloads, ensure_http_success, format_http_error,
@@ -216,6 +217,18 @@ pub(crate) fn anthropic_auth_header(base_url: &str, api_key: &str) -> (&'static 
 }
 
 impl LlmClient {
+    pub fn resolved_chat_model(&self, model: Option<&str>) -> String {
+        model
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| match self {
+                Self::OpenAI { chat_model, .. } | Self::Anthropic { chat_model, .. } => {
+                    chat_model.clone()
+                }
+            })
+    }
+
     pub fn base_url(&self) -> &str {
         match self {
             Self::OpenAI { base_url, .. } | Self::Anthropic { base_url, .. } => base_url,
@@ -742,7 +755,7 @@ impl LlmClient {
                 });
                 crate::append_diagnostic_log(&format!(
                     "[llm][test] url={}/chat/completions model={}",
-                    base_url.trim_end_matches('/'),
+                    safe_endpoint_for_diagnostics(base_url).trim_end_matches('/'),
                     chat_model,
                 ));
                 let resp = client
@@ -777,7 +790,7 @@ impl LlmClient {
                 });
                 crate::append_diagnostic_log(&format!(
                     "[llm][test] url={} model={} auth_header={}",
-                    build_anthropic_messages_url(base_url),
+                    safe_endpoint_for_diagnostics(&build_anthropic_messages_url(base_url)),
                     chat_model,
                     anthropic_auth_header(base_url, "").0,
                 ));
@@ -987,7 +1000,7 @@ async fn openai_chat(
     });
     crate::append_diagnostic_log(&format!(
         "[llm][request] url={}/chat/completions model={} temperature={} max_tokens={} messages_count={}",
-        base_url.trim_end_matches('/'),
+        safe_endpoint_for_diagnostics(base_url).trim_end_matches('/'),
         model,
         temperature,
         max_tokens,
@@ -1177,7 +1190,7 @@ async fn anthropic_chat(
     }
     crate::append_diagnostic_log(&format!(
         "[llm][request] url={} model={} temperature={} max_tokens={} messages_count={}",
-        build_anthropic_messages_url(base_url),
+        safe_endpoint_for_diagnostics(&build_anthropic_messages_url(base_url)),
         model,
         temperature,
         max_tokens,

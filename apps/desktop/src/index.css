@@ -614,3 +614,30 @@
     opacity: 0.6;
   }
 }
+
+/* ─── 桌面助手独立窗口样式 ───────────────────────────────────────────────── */
+
+/* 桌面小妍角色窗口与面板窗口需要透明背景 */
+[data-tauri-window-label="assistant-dock"],
+[data-tauri-window-label="assistant-panel"] {
+  background: transparent !important;
+}
+
+[data-tauri-window-label="assistant-dock"] body,
+[data-tauri-window-label="assistant-panel"] body {
+  background: transparent !important;
+  overflow: hidden;
+}
+
+[data-tauri-window-label="assistant-dock"] #root,
+[data-tauri-window-label="assistant-panel"] #root {
+  background: transparent !important;
+}
+
+/* 桌面小妍与主窗口 floating 模型共用 128×136 画布。 */
+[data-tauri-window-label="assistant-dock"] #root {
+  width: 128px;
+  height: 136px;
+  box-shadow: none !important;
+  filter: none !important;
+}

@@ -14,5 +14,7 @@
     <string>zh-Hans</string>
     <string>en</string>
   </array>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>用于在您主动唤起桌面助手时读取当前应用的选中文本和窗口信息。</string>
 </dict>
 </plist>

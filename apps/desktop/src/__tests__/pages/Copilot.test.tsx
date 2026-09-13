@@ -94,6 +94,25 @@ describe("Copilot 页面", () => {
     expect(screen.getByTestId("session-sidebar")).toBeInTheDocument();
   });
 
+  it("应接续桌面助手刚保存、但列表尚未刷新的正式会话", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: "/chat",
+          state: { assistantConversationId: "assistant-session-1" },
+        }]}
+      >
+        <Copilot />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(getInvokeMock()).toHaveBeenCalledWith("chat_get_session", {
+        id: "assistant-session-1",
+      });
+    });
+  });
+
   it("应恢复 checkpoint 原会话并预填可编辑的续接请求", async () => {
     render(
       <MemoryRouter
@@ -175,5 +194,24 @@ describe("Copilot 页面", () => {
       expect(screen.getByTestId("composer")).toHaveTextContent("重建任务上下文");
     });
     expect(screen.getByTestId("checkpoint-context-bar")).toHaveTextContent("恢复未完成研究");
+  });
+
+  it("应接续桌面助手刚保存、但列表尚未刷新的正式会话", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: "/chat",
+          state: { assistantConversationId: "assistant-session-1" },
+        }]}
+      >
+        <Copilot />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(getInvokeMock()).toHaveBeenCalledWith("chat_get_session", {
+        id: "assistant-session-1",
+      });
+    });
   });
 });

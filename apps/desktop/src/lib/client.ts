@@ -508,6 +508,8 @@ export const knowledgeApi = {
     invoke("knowledge_generate_plan", { id, startStep: startStep ?? null }),
   listNotes: (search?: string): Promise<KnowledgeNote[]> =>
     invoke("knowledge_list_notes", { search: search ?? null }),
+  getNote: (id: string): Promise<KnowledgeNote> =>
+    invoke("knowledge_get_note", { id }),
   listNotesBySource: (source_type: string, source_id: string): Promise<KnowledgeNote[]> =>
     invoke("knowledge_list_notes_by_source", { sourceType: source_type, sourceId: source_id }),
   createNote: (data: {
@@ -526,12 +528,14 @@ export const knowledgeApi = {
       sourceType: data.source_type ?? null,
       sourceId: data.source_id ?? null,
     }),
-  updateNote: (id: string, data: { title?: string; content?: string; tags?: string[] }): Promise<KnowledgeNote> =>
+  updateNote: (id: string, data: { title?: string; content?: string; tags?: string[]; research_interest_id?: string }): Promise<KnowledgeNote> =>
     invoke("knowledge_update_note", {
       id,
       title: data.title ?? null,
       content: data.content ?? null,
       tags: data.tags ?? null,
+      moveInterest: Object.prototype.hasOwnProperty.call(data, "research_interest_id"),
+      researchInterestId: data.research_interest_id ?? null,
     }),
   moveNote: (id: string, research_interest_id?: string): Promise<KnowledgeNote> =>
     invoke("knowledge_move_note", {

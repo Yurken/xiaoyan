@@ -65,6 +65,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   const memorySavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadSessionRequestRef = useRef(0);
   const restoredLastSessionRef = useRef(false);
+  const restoredAssistantHandoffRef = useRef<string | null>(null);
 
   const {
     attachments,
@@ -145,6 +146,22 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     }
     return sessionData;
   }, [sessions, chat]);
+
+  const assistantConversationId = (
+    location.state as { assistantConversationId?: string } | null
+  )?.assistantConversationId;
+  useEffect(() => {
+    if (!assistantConversationId || !sessions.sessionsLoaded) return;
+    if (restoredAssistantHandoffRef.current === assistantConversationId) return;
+    restoredAssistantHandoffRef.current = assistantConversationId;
+    restoredLastSessionRef.current = true;
+    const candidate = sessions.sessions.find(
+      (session) => session.id === assistantConversationId,
+    ) ?? ({ id: assistantConversationId } as ChatSession);
+    void handleLoadSession(candidate).then((loaded) => {
+      if (loaded) sessions.syncSession(loaded);
+    });
+  }, [assistantConversationId, handleLoadSession, sessions]);
 
   const markLastSessionRestored = useCallback(() => {
     restoredLastSessionRef.current = true;

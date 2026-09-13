@@ -32,7 +32,7 @@ function SectionHeader({ title, count }: { title: string; count?: number }) {
 }
 
 export default function HomeScreen() {
-  const { interests, recentPapers, loading, refreshing, refresh } = useWorkbench();
+  const { interests, recentPapers, loading, refreshing, refresh, source, error } = useWorkbench();
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -40,7 +40,11 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { void refresh(); }}
+            tintColor={colors.accent}
+          />
         }
       >
         {/* 问候 */}
@@ -48,6 +52,22 @@ export default function HomeScreen() {
           <Text style={styles.hello}>{PRODUCT_NAME}</Text>
           <Text style={styles.helloSub}>{MAIN_ASSISTANT_NAME}陪你做科研，从规划到综述</Text>
         </View>
+
+        {source === "synced" ? (
+          <View style={styles.syncedBanner}>
+            <Text style={styles.syncedText}>正在浏览 WebDAV 同步副本 · 只读</Text>
+          </View>
+        ) : null}
+        {source === "mixed" ? (
+          <View style={styles.mixedBanner}>
+            <Text style={styles.mixedText}>部分内容来自同步副本</Text>
+          </View>
+        ) : null}
+        {source === "unavailable" || error ? (
+          <View style={[styles.errorBanner, source === "unavailable" ? styles.errorBannerRed : styles.errorBannerOrange]}>
+            <Text style={styles.errorText}>{error ?? "暂时无法加载工作台"}</Text>
+          </View>
+        ) : null}
 
         {/* 快捷入口 */}
         <View style={styles.actionsRow}>
@@ -153,6 +173,31 @@ const styles = StyleSheet.create({
   greeting: { marginBottom: 20 },
   hello: { fontSize: 28, fontWeight: "800", color: colors.textPrimary },
   helloSub: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
+  syncedBanner: {
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(0,122,255,0.16)",
+  },
+  syncedText: { fontSize: 13, color: "#64B5FF", fontWeight: "500" },
+  mixedBanner: {
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,159,67,0.16)",
+  },
+  mixedText: { fontSize: 13, color: "#FFB26B", fontWeight: "500" },
+  errorBanner: {
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  errorBannerRed: { backgroundColor: "rgba(255,59,48,0.16)" },
+  errorBannerOrange: { backgroundColor: "rgba(255,159,67,0.16)" },
+  errorText: { fontSize: 13, color: "#FFB4A8", fontWeight: "500" },
 
   actionsRow: { flexDirection: "row", gap: 12, marginBottom: 4 },
   actionItem: { flex: 1 },

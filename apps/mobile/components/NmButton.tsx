@@ -1,8 +1,8 @@
 import {
   TouchableOpacity,
   Text,
-  ViewStyle,
-  TextStyle,
+  type ViewStyle,
+  type TextStyle,
   StyleSheet,
   ActivityIndicator,
   View,
