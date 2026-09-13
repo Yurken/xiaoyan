@@ -709,7 +709,7 @@ export function calculateExpiry(retainPolicy: 'session' | '24h' | 'permanent'): 
 /** The independent assistant window and its root card are one visual surface. */
 export const ASSISTANT_WINDOW_CARD_STYLE = {
   border: 'none',
-  borderRadius: 0,
+  borderRadius: 'inherit',
   boxShadow: 'none',
 } as const
 

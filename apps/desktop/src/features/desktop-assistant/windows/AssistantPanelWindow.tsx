@@ -196,7 +196,7 @@ export default function AssistantPanelWindow() {
   return (
     <div
       ref={panelContentRef}
-      className="relative w-full overflow-y-auto"
+      className="assistant-panel-surface relative w-full overflow-y-auto"
       style={{ maxHeight: 620, background: 'var(--rc-card-bg)' }}
     >
       {fileDialogOpen ? (

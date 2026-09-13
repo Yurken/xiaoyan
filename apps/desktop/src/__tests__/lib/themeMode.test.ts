@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   getThemePreference,
+  getSystemTheme,
   getTheme,
   setTheme,
   applyTheme,
@@ -90,6 +91,18 @@ describe("watchSystemTheme", () => {
     const stop = watchSystemTheme(cb);
     sys.triggerChange();
     expect(cb).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it("独立助手面板可忽略应用偏好并始终跟随系统", () => {
+    const sys = mockSystemPrefersDark(true);
+    setTheme("light");
+    const cb = vi.fn();
+    const stop = watchSystemTheme(cb, { alwaysFollowSystem: true });
+    sys.triggerChange();
+    expect(getSystemTheme()).toBe("dark");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(cb).toHaveBeenCalledWith("dark");
     stop();
   });
 });

@@ -50,7 +50,6 @@ import {
   LAYOUT_MODE_CHANGE_EVENT,
   type LayoutMode,
 } from "./lib/layoutMode";
-import { useThemeInit } from "./hooks/useThemeInit";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useAutoUpdate } from "./lib/useAutoUpdate";
 import { IS_MACOS_DESKTOP } from "./lib/windowChrome";
@@ -92,7 +91,6 @@ function LandscapeFocusRouteRedirect() {
 export default function App() {
   const autoUpdate = useAutoUpdate();
   useInterestPlanEventBridge();
-  useThemeInit();
   useKeyboardShortcuts();
   useAssistantConversationHandoff();
   const location = useLocation();

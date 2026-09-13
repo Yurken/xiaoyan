@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import AppErrorBoundary from "./components/AppErrorBoundary";
+import { useThemeInit } from "./hooks/useThemeInit";
 import "./index.css";
 
 // 生产环境下禁止文本选择，开发环境允许复制文字
@@ -93,6 +94,7 @@ const CaptureOverlayWindow = lazy(() => import("./features/desktop-assistant/com
 
 function WindowRoot() {
   const label = useWindowLabel();
+  useThemeInit({ followSystem: label === "assistant-panel" });
 
   if (label === null) {
     return (
