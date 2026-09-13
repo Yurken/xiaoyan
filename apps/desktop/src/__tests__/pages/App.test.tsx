@@ -83,9 +83,6 @@ vi.mock("../../components/RouteErrorBoundary", () => ({
 }));
 
 // Mock hooks
-vi.mock("../../hooks/useThemeInit", () => ({
-  useThemeInit: () => {},
-}));
 vi.mock("../../hooks/useKeyboardShortcuts", () => ({
   useKeyboardShortcuts: () => {},
 }));

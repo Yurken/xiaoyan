@@ -3,7 +3,7 @@ const KEY = "rc_theme";
 export type ThemeMode = "light" | "dark";
 export type ThemePreference = ThemeMode | "auto";
 
-function systemTheme(): ThemeMode {
+export function getSystemTheme(): ThemeMode {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
@@ -15,7 +15,7 @@ export function getThemePreference(): ThemePreference {
 
 export function getTheme(): ThemeMode {
   const pref = getThemePreference();
-  return pref === "auto" ? systemTheme() : pref;
+  return pref === "auto" ? getSystemTheme() : pref;
 }
 
 export function setTheme(pref: ThemePreference): void {
@@ -31,12 +31,15 @@ export function applyTheme(mode: ThemeMode): void {
   document.documentElement.setAttribute("data-theme", mode);
 }
 
-/** 监听系统主题变化，仅在用户选择"跟随系统"时生效，返回取消监听函数 */
-export function watchSystemTheme(callback: (mode: ThemeMode) => void): () => void {
+/** 监听系统主题变化；独立窗口可选择始终跟随系统。 */
+export function watchSystemTheme(
+  callback: (mode: ThemeMode) => void,
+  options: { alwaysFollowSystem?: boolean } = {},
+): () => void {
   const mq = window.matchMedia("(prefers-color-scheme: dark)");
   const handler = () => {
-    if (getThemePreference() === "auto") {
-      const mode = systemTheme();
+    if (options.alwaysFollowSystem || getThemePreference() === "auto") {
+      const mode = getSystemTheme();
       applyTheme(mode);
       callback(mode);
     }

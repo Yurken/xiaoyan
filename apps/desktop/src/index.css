@@ -634,6 +634,23 @@
   background: transparent !important;
 }
 
+/* 助手面板由透明系统窗口承载，圆角与主题表面由 WebView 内容统一绘制。 */
+[data-tauri-window-label="assistant-panel"] #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 24px;
+}
+
+[data-tauri-window-label="assistant-panel"] .assistant-panel-surface {
+  max-height: 100% !important;
+  border: 1px solid color-mix(in srgb, var(--rc-border) 84%, transparent);
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0 rgb(var(--rc-text-rgb) / 0.06),
+    inset 0 -1px 0 rgb(var(--rc-bg-rgb) / 0.18);
+}
+
 /* 桌面小妍与主窗口 floating 模型共用 128×136 画布。 */
 [data-tauri-window-label="assistant-dock"] #root {
   width: 128px;
