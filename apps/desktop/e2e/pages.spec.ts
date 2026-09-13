@@ -202,6 +202,19 @@ test.describe("知识库页面", () => {
   });
 });
 
+test.describe("文件中转站", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(TAURI_MOCK_SCRIPT);
+    await page.goto("/inbox");
+  });
+
+  test("应显示拖入与剪贴板两种暂存入口", async ({ page }) => {
+    await expect(page.getByRole("heading", { name: "文件中转站" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /粘贴剪贴板/ })).toBeVisible();
+    await expect(page.getByText(/拖到桌面小妍会直接暂存/)).toBeVisible();
+  });
+});
+
 test.describe("综述页面", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(TAURI_MOCK_SCRIPT);

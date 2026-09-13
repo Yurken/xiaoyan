@@ -134,6 +134,12 @@ const MOCK_INVOKE_RESULTS = {
 
   // Active researcher
   active_researcher_findings: { findings: [], unread_count: 0 },
+
+  // Desktop assistant inbox / file shelf
+  assistant_file_shelf_list: [],
+  assistant_inbox_list: { later_items: [], paper_candidates: [], file_candidates: [] },
+  assistant_list_knowledge_themes: [],
+  assistant_list_image_assets: [],
 };
 
 export const TAURI_MOCK_SCRIPT = `

@@ -12,6 +12,9 @@ pub mod content_policy;
 pub mod file_candidate_service;
 #[cfg(test)]
 mod file_candidate_service_tests;
+pub mod file_shelf_service;
+#[cfg(test)]
+mod file_shelf_service_tests;
 pub mod image_asset_service;
 #[cfg(test)]
 mod image_asset_service_tests;
