@@ -129,4 +129,53 @@ describe('useResearchSession', () => {
     expect(result.current.sessionId).toBeNull()
     expect(result.current.sessionStatus).toBe('idle')
   })
+
+  it('rolls back a new session when an attachment upload fails', async () => {
+    mockCreateSession.mockResolvedValue({
+      id: 'new-session',
+      question: { title: 'New research' },
+      status: 'idle',
+      protocol: null,
+      candidate_sets: [],
+      candidate_decisions: [],
+      experiment_protocols: [],
+      papers: [],
+      evidence_claims: [],
+    })
+    mockUploadFile.mockRejectedValue(new Error('upload unavailable'))
+    mockDeleteSession.mockResolvedValue(undefined)
+    const file = new File(['paper'], 'paper.txt', { type: 'text/plain' })
+    const { result } = renderHook(() => useResearchSession())
+
+    await act(async () => {
+      await expect(
+        result.current.createResearch(
+          {
+            title: 'New research',
+            field: '',
+            subfield: '',
+            description: '',
+            depth: 'standard',
+            iterations: 3,
+            language: 'zh',
+          },
+          [file]
+        )
+      ).rejects.toThrow('附件「paper.txt」上传失败：upload unavailable')
+    })
+
+    expect(mockDeleteSession).toHaveBeenCalledWith('new-session')
+    expect(result.current.sessionId).toBeNull()
+  })
+
+  it('propagates deletion failures to the caller', async () => {
+    mockDeleteSession.mockRejectedValue(new Error('delete unavailable'))
+    const { result } = renderHook(() => useResearchSession())
+
+    await act(async () => {
+      await expect(result.current.deleteResearch('session-1')).rejects.toThrow('delete unavailable')
+    })
+
+    expect(mockListSessions).toHaveBeenCalledTimes(1)
+  })
 })

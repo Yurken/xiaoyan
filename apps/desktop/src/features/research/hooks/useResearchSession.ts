@@ -185,7 +185,15 @@ export function useResearchSession(): UseResearchSession {
         try {
           await backend.uploadFile(session.id, file)
         } catch (err) {
-          console.error('[research] upload failed:', err)
+          const uploadMessage = err instanceof Error ? err.message : String(err)
+          try {
+            await backend.deleteSession(session.id)
+          } catch (cleanupError) {
+            console.error('[research] failed to roll back session after upload failure:', cleanupError)
+            await loadSessionList()
+            throw new Error(`附件「${file.name}」上传失败，且未能撤销已创建的研究：${uploadMessage}`)
+          }
+          throw new Error(`附件「${file.name}」上传失败：${uploadMessage}`)
         }
       }
       hydrateSession(session)
@@ -196,16 +204,11 @@ export function useResearchSession(): UseResearchSession {
 
   const deleteResearch = useCallback(
     async (sid: string) => {
-      try {
-        await backend.deleteSession(sid)
-        if (sessionId === sid) {
-          leaveSession()
-        } else {
-          await loadSessionList()
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        console.error(`[research] delete failed: ${message}`)
+      await backend.deleteSession(sid)
+      if (sessionId === sid) {
+        leaveSession()
+      } else {
+        await loadSessionList()
       }
     },
     [sessionId, leaveSession, loadSessionList]

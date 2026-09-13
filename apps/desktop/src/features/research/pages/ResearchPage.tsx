@@ -230,8 +230,14 @@ export default function ResearchPage() {
   }
 
   const handleDeleteResearch = async (id: string) => {
-    await session.deleteResearch(id)
-    workflow.log('研究已删除', 'warning')
+    try {
+      await session.deleteResearch(id)
+      workflow.log('研究已删除', 'warning')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      workflow.log(`删除研究失败：${message}`, 'error')
+      alert(`删除研究失败：${message}`)
+    }
   }
 
   return (

@@ -60,7 +60,7 @@ export function NewResearchDialog({ show, onClose, onCreate }: NewResearchDialog
       onClose()
     } catch (err) {
       console.error('Failed to create research:', err)
-      alert('创建失败，请重试')
+      alert(err instanceof Error ? err.message : '创建失败，请重试')
     } finally {
       setIsSubmitting(false)
     }
