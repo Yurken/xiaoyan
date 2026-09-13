@@ -268,8 +268,7 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                           ))}
                         </div>
                       )}
-                      <div className="rounded-2xl px-3 py-1.5 text-xs"
-                        style={{ background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)", color: "#FFFFFF" }}>
+                      <div className="rc-user-message rounded-2xl px-3 py-1.5 text-xs">
                         <p className="rc-selectable whitespace-pre-wrap leading-relaxed">
                           {parsedUserMessage.text || DEFAULT_ATTACHMENT_PROMPT}
                         </p>
