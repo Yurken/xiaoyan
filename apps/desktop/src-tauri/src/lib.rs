@@ -20,6 +20,7 @@ mod codex_process;
 mod codex_web;
 mod commands;
 mod db;
+mod desktop_shell;
 mod dsh;
 mod dsh_api_config;
 mod dsh_process;
@@ -34,6 +35,7 @@ mod opencode_process;
 mod pi_web;
 mod pi_web_api_config;
 mod pi_web_process;
+mod platform;
 mod rag;
 mod repositories;
 mod runtime_installer;
@@ -84,6 +86,58 @@ use commands::{
         code_write_file,
     },
     data_backup::{data_backup_export, data_backup_import},
+    desktop_assistant::{
+        assistant_capture_screen, assistant_check_permissions,
+        assistant_cleanup,
+        assistant_clear_later_items, assistant_complete_permission_guide,
+        assistant_confirm_capture, assistant_create_paste_session, assistant_discard_capture,
+        assistant_get_clipboard, assistant_get_data_policy, assistant_get_dock_look_target,
+        assistant_get_dock_placement,
+        assistant_get_direct_shortcuts,
+        assistant_get_frontmost_app, assistant_get_metrics_overview,
+        assistant_get_metrics_preferences, assistant_get_onboarding,
+        assistant_get_privacy_preferences,
+        assistant_get_runtime_preferences, assistant_get_selection, assistant_get_screen_snapshot,
+        assistant_get_shortcut,
+        assistant_get_shortcut_diagnostic, assistant_get_translation_preferences,
+        assistant_hide_dock, assistant_hide_panel, assistant_is_dock_visible,
+        assistant_is_panel_visible, assistant_record_copy, assistant_request_accessibility,
+        assistant_reset_dock_placement,
+        assistant_request_screen_recording, assistant_retry_direct_shortcut,
+        assistant_retry_shortcut, assistant_save_dock_placement,
+        assistant_set_data_policy, assistant_set_direct_shortcut, assistant_set_dock_position,
+        assistant_set_metrics_preferences, assistant_set_privacy_preferences,
+        assistant_set_runtime_preferences,
+        assistant_set_shortcut, assistant_set_translation_preferences, assistant_show_dock,
+        assistant_show_panel, assistant_toggle_panel,
+    },
+    desktop_assistant_capture_overlay::{
+        assistant_capture_overlay_cancel, assistant_capture_overlay_drag_cancel,
+        assistant_capture_overlay_drag_end, assistant_capture_overlay_drag_move,
+        assistant_capture_overlay_drag_start, assistant_capture_overlay_submit,
+        assistant_capture_screen_overlay,
+    },
+    desktop_assistant_actions::{
+        assistant_cancel_action, assistant_chat, assistant_confirm_file_candidates,
+        assistant_create_file_candidates, assistant_discard_file_candidates,
+        assistant_extract_text, assistant_import,
+        assistant_interpret, assistant_list_knowledge_themes, assistant_stream_action,
+        assistant_translate,
+    },
+    desktop_assistant_assets::{
+        assistant_clear_private_data, assistant_delete_image_asset, assistant_list_image_assets,
+    },
+    desktop_assistant_inbox::{
+        assistant_inbox_convert_later, assistant_inbox_discard_file, assistant_inbox_discard_later,
+        assistant_inbox_discard_paper, assistant_inbox_import_file, assistant_inbox_import_paper,
+        assistant_inbox_list,
+    },
+    desktop_assistant_sessions::{assistant_open_conversation, assistant_promote_session},
+    desktop_assistant_source::{assistant_get_source_metadata, assistant_update_source_metadata},
+    desktop_assistant_terminology::{
+        assistant_delete_terminology_preference, assistant_list_terminology_preferences,
+        assistant_save_terminology_preference,
+    },
     evidence::evidence_get_links,
     experiment::{
         experiment_add_attachment, experiment_create, experiment_create_snapshot,
@@ -115,8 +169,9 @@ use commands::{
     },
     knowledge_ideas::knowledge_ideas_from_materials,
     knowledge_notes::{
-        knowledge_create_note, knowledge_delete_note, knowledge_import_zip, knowledge_list_notes,
-        knowledge_list_notes_by_source, knowledge_move_note, knowledge_update_note,
+        knowledge_create_note, knowledge_delete_note, knowledge_get_note, knowledge_import_zip,
+        knowledge_list_notes, knowledge_list_notes_by_source, knowledge_move_note,
+        knowledge_update_note,
     },
     memory::{
         memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list,
@@ -341,6 +396,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             #[cfg(desktop)]
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -370,6 +426,22 @@ pub fn run() {
                 // Init SQLite
                 let pool = db::init_db(&app_data_dir).await.expect("failed to init DB");
 
+                // 初始化桌面助手数据库表
+                if let Err(e) = services::desktop_assistant::CleanupService::init_tables(&pool).await {
+                    append_diagnostic_log(&format!("startup: failed to init assistant tables: {e}"));
+                }
+                match services::desktop_assistant::AssistantPreferenceService::load_runtime(&pool)
+                    .await
+                {
+                    Ok(preferences) => desktop_shell::configure_assistant_runtime(
+                        preferences.enabled,
+                        preferences.diagnostic_logging_enabled,
+                    ),
+                    Err(error) => append_diagnostic_log(&format!(
+                        "startup: failed to load assistant runtime preferences: {error}"
+                    )),
+                }
+
                 // 注入全局 token 用量落库连接池（供所有 LLM 调用累加用量）
                 token_usage::init(pool.clone());
 
@@ -396,6 +468,24 @@ pub fn run() {
 
                 let app_state = AppState::new(pool.clone(), settings);
                 handle.manage(app_state);
+
+                // 桌面助手只保留最小来源元数据；启动时及此后每小时清理过期会话。
+                {
+                    let state = handle.state::<AppState>().inner().clone();
+                    tauri::async_runtime::spawn(async move {
+                        loop {
+                            if let Err(error) =
+                                services::desktop_assistant::CleanupService::cleanup_all(&state.db)
+                                    .await
+                            {
+                                desktop_shell::append_assistant_diagnostic_log(&format!(
+                                    "assistant: cleanup failed: {error}"
+                                ));
+                            }
+                            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+                        }
+                    });
+                }
 
                 // 小妍内部 Wiki：论文/笔记变更由持久化队列去抖后自动增量编译。
                 {
@@ -503,6 +593,8 @@ pub fn run() {
                 }
             }
 
+            desktop_shell::setup(app)?;
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -515,6 +607,15 @@ pub fn run() {
                         let _ = services::sync_service::run_sync(&state, &app).await;
                     });
                 }
+            }
+
+            // 关闭窗口时隐藏而不是退出应用
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // 阻止默认的关闭行为（退出应用）
+                api.prevent_close();
+                // 隐藏窗口
+                let _ = window.hide();
+                append_diagnostic_log("window: hidden instead of closed");
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -629,6 +730,7 @@ pub fn run() {
             knowledge_generate_plan,
             knowledge_list_notes,
             knowledge_list_notes_by_source,
+            knowledge_get_note,
             knowledge_create_note,
             knowledge_update_note,
             knowledge_move_note,
@@ -836,6 +938,90 @@ pub fn run() {
             research_context_get_recent_themes,
             research_context_get_theme_context,
             evidence_get_links,
+            // Desktop Assistant
+            assistant_check_permissions,
+            assistant_request_accessibility,
+            assistant_request_screen_recording,
+            assistant_get_onboarding,
+            assistant_complete_permission_guide,
+            assistant_get_shortcut,
+            assistant_set_shortcut,
+            assistant_get_shortcut_diagnostic,
+            assistant_retry_shortcut,
+            assistant_get_direct_shortcuts,
+            assistant_set_direct_shortcut,
+            assistant_retry_direct_shortcut,
+            assistant_get_runtime_preferences,
+            assistant_set_runtime_preferences,
+            assistant_get_privacy_preferences,
+            assistant_set_privacy_preferences,
+            assistant_get_data_policy,
+            assistant_set_data_policy,
+            assistant_get_translation_preferences,
+            assistant_set_translation_preferences,
+            assistant_list_terminology_preferences,
+            assistant_save_terminology_preference,
+            assistant_delete_terminology_preference,
+            assistant_get_selection,
+            assistant_get_clipboard,
+            assistant_create_paste_session,
+            assistant_confirm_capture,
+            assistant_discard_capture,
+            assistant_capture_screen,
+            assistant_capture_screen_overlay,
+            assistant_capture_overlay_submit,
+            assistant_capture_overlay_cancel,
+            assistant_capture_overlay_drag_start,
+            assistant_capture_overlay_drag_move,
+            assistant_capture_overlay_drag_end,
+            assistant_capture_overlay_drag_cancel,
+            assistant_get_frontmost_app,
+            assistant_get_dock_look_target,
+            assistant_list_knowledge_themes,
+            assistant_stream_action,
+            assistant_cancel_action,
+            assistant_interpret,
+            assistant_translate,
+            assistant_chat,
+            assistant_extract_text,
+            assistant_import,
+            assistant_create_file_candidates,
+            assistant_confirm_file_candidates,
+            assistant_discard_file_candidates,
+            assistant_list_image_assets,
+            assistant_delete_image_asset,
+            assistant_clear_private_data,
+            assistant_inbox_list,
+            assistant_inbox_convert_later,
+            assistant_inbox_discard_later,
+            assistant_inbox_import_paper,
+            assistant_inbox_discard_paper,
+            assistant_inbox_import_file,
+            assistant_inbox_discard_file,
+            assistant_promote_session,
+            assistant_open_conversation,
+            assistant_get_source_metadata,
+            assistant_update_source_metadata,
+            assistant_cleanup,
+            assistant_clear_later_items,
+            assistant_get_metrics_preferences,
+            assistant_set_metrics_preferences,
+            assistant_get_metrics_overview,
+            assistant_record_copy,
+            // Window control
+            assistant_show_dock,
+            assistant_hide_dock,
+            assistant_show_panel,
+            assistant_hide_panel,
+            assistant_toggle_panel,
+            assistant_is_dock_visible,
+            assistant_is_panel_visible,
+            // Dock placement & screen geometry
+            assistant_get_screen_snapshot,
+            assistant_set_dock_position,
+            assistant_get_dock_placement,
+            assistant_save_dock_placement,
+            assistant_reset_dock_placement,
         ])
         .run(tauri::generate_context!());
 

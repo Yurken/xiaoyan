@@ -1,5 +1,3 @@
-
-
 <p align="center">
   <img src="apps/desktop/public/xiaoyan_poster.png" alt="小妍 — AI 科研工作台" width="760" />
 </p>
@@ -27,7 +25,7 @@
   <a href="CHANGELOG.md">更新日志</a>
 </p>
 
-> 当前版本：**v0.5.4**。小妍仍处于快速迭代阶段，升级前建议备份重要数据。
+> 当前版本：**v0.6.0-dev.1**。小妍仍处于快速迭代阶段，升级前建议备份重要数据。
 
 ## 为什么选择小妍
 
@@ -55,14 +53,19 @@
 | 数据与同步 | 本地数据库、加密配置导出、备份恢复及可选的加密同步 |
 
 <details>
-<summary><strong>查看 v0.5.4 主要更新</strong></summary>
+<summary><strong>查看 v0.6.0-dev.1 主要更新</strong></summary>
 
-- 代码工作区改为直接运行 DeepSeek 官方 Harness
+- 代码工作区改为直接运行 DeepSeek 官方 Harness，并新增 Codex、OpenCode 与 Pi Web 可选代码助手
 - 支持内置锁定版与本机外部 DSH，并可配置小妍 API
-- Codex、OpenCode、Pi 和 DSH 均可一键同步小妍主模型 API
 - DSH 运行状态、重启和停止操作改为悬浮工具条
 - DSH 首发已覆盖稳定启停、状态同步和 iframe 内小妍视线跟随
 - 发布流水线按平台构建并校验 DSH 与 Node 运行时
+- macOS 新增独立小妍桌面助手，可通过桌面小妍形象、系统托盘或 `Option + Space` 唤起
+- 支持读取当前选区、剪贴板、手动粘贴与交互式框选截图，并在发送前确认内容
+- 可直接解读、翻译、追问或导入为知识笔记；截图任务复用视觉模型配置
+- 新增辅助功能与屏幕录制权限状态引导、敏感应用拦截和临时截图清理
+- 新增研究工作台，用统一流程组织问题、候选方案、证据、实验与报告
+- 关闭主窗口后应用继续驻留系统托盘，可从托盘重新打开或退出
 
 </details>
 
@@ -95,7 +98,7 @@ pnpm dev:desktop
 pnpm type-check       # 全工作区类型检查
 pnpm lint             # 全工作区 lint
 pnpm test             # 单元与组件测试
-pnpm test:e2e         # 桌面端端到端测试（首次运行需安装 Playwright 浏览器：`pnpm --dir apps/desktop exec playwright install --with-deps`）
+pnpm test:e2e         # 桌面端端到端测试
 pnpm build:desktop    # 构建桌面应用
 pnpm harness:sources:update # 更新四套 Harness 的官方源码指针
 ```
@@ -109,6 +112,8 @@ pnpm harness:sources:update # 更新四套 Harness 的官方源码指针
 3. 需要联网检索时，再配置 Tavily 等搜索服务。
 
 配置优先级为：`Agent 覆盖 → 任务分工 → 默认执行模型 → 主模型`。API Key 不应写入仓库文件或提交到 Issue；请只通过应用设置或本机环境变量提供。
+
+研究工作台当前使用独立的 SwanForge 服务，默认连接 `http://localhost:3001`。源码构建时可通过 `VITE_RESEARCH_API_URL` 指向已部署的服务；桌面端会在服务或其 LLM 未就绪时明确提示并禁用运行操作。
 
 ## 技术架构
 
@@ -137,6 +142,8 @@ packages/
 ```
 
 桌面端是核心产品，新能力默认先在桌面端实现。详细设计见 [桌面端系统介绍](docs/system-introduction-desktop.md)、[开发原则](docs/development-principles.md) 与 [小妍持续进化规划](docs/xiaoyan-continuous-evolution-plan.md)。
+
+小妍如何通过研究续接、上下文、记忆、评测和模型升级持续变得更好，见 [小妍持续进化规划](docs/xiaoyan-continuous-evolution-plan.md)。每次 Codex 开发模型升级都必须先做固定评测，再同步迭代规划、代码与测试。
 
 小妍内部 LLM Wiki 的自动整理流程、数据模型和检索边界见 [LLM Wiki 与混合检索](docs/llm-wiki-and-hybrid-retrieval.md)。
 

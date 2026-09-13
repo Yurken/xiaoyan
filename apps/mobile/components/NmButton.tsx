@@ -1,12 +1,13 @@
 import {
   TouchableOpacity,
   Text,
-  ViewStyle,
-  TextStyle,
+  type ViewStyle,
+  type TextStyle,
   StyleSheet,
   ActivityIndicator,
   View,
 } from "react-native";
+import { colors } from "../features/theme";
 
 interface NmButtonProps {
   onPress?: () => void;
@@ -52,7 +53,7 @@ export function NmButton({
         {loading && (
           <ActivityIndicator
             size="small"
-            color={variant === "primary" ? "#FFFFFF" : "#007AFF"}
+            color={variant === "primary" ? colors.highlight : colors.accent}
             style={{ marginRight: 6 }}
           />
         )}
@@ -95,22 +96,22 @@ const styles = StyleSheet.create({
   lg: { paddingHorizontal: 24, paddingVertical: 14 },
 
   primary: {
-    backgroundColor: "#007AFF",
-    shadowColor: "#0062CC",
+    backgroundColor: colors.accent,
+    shadowColor: colors.accentStrong,
     shadowOffset: { width: 3, height: 3 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 6,
   },
   secondary: {
-    backgroundColor: "#141A23",
-    shadowColor: "#000000",
+    backgroundColor: colors.bg,
+    shadowColor: colors.shadow,
     shadowOffset: { width: 3, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: "rgba(60,74,92,0.7)",
+    borderColor: colors.highlight,
   },
   ghost: {
     backgroundColor: "transparent",
@@ -120,7 +121,7 @@ const styles = StyleSheet.create({
   text: { fontWeight: "600", fontSize: 15 },
   textSm: { fontSize: 13 },
   textLg: { fontSize: 17 },
-  textPrimary:   { color: "#FFFFFF" },
-  textSecondary: { color: "#E6ECF5" },
-  textGhost:     { color: "#007AFF" },
+  textPrimary:   { color: colors.highlight },
+  textSecondary: { color: colors.textSecondary },
+  textGhost:     { color: colors.accent },
 });

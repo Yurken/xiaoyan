@@ -65,6 +65,8 @@ pub fn default_settings() -> HashMap<String, String> {
     m.insert("chunk_size".into(), "800".into());
     m.insert("chunk_overlap".into(), "150".into());
     m.insert("rag_top_k".into(), "5".into());
+    m.insert("assistant_dock_enabled".into(), "false".into());
+    m.insert("assistant_shortcut".into(), "Alt+Space".into());
     m.insert("embedding_base_url".into(), "".into());
     m.insert("embedding_api_key".into(), "".into());
     m.insert("embedding_model".into(), "".into());
@@ -335,6 +337,13 @@ pub struct AppState {
     pub chat_stream_meta: Arc<StdMutex<HashMap<String, Arc<ChatStreamMeta>>>>,
     /// Active translation stream handles keyed by request_id.
     pub translation_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
+    /// Active desktop-assistant action streams keyed by request_id.
+    pub assistant_action_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
+    /// Serializes stream registration with user-triggered private-data clearing.
+    pub assistant_action_lifecycle: Arc<RwLock<()>>,
+    /// 跨显示器截图选区的唯一请求与拖动协调器。
+    pub capture_overlay:
+        Arc<crate::services::desktop_assistant::capture_overlay_drag::CaptureOverlayCoordinator>,
     /// Active code assistant stream handles keyed by request_id.
     pub code_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// Pending code tool permission senders keyed by permission_id.
@@ -367,6 +376,11 @@ impl AppState {
             chat_handles: Arc::new(Mutex::new(HashMap::new())),
             chat_stream_meta: Arc::new(StdMutex::new(HashMap::new())),
             translation_handles: Arc::new(Mutex::new(HashMap::new())),
+            assistant_action_handles: Arc::new(Mutex::new(HashMap::new())),
+            assistant_action_lifecycle: Arc::new(RwLock::new(())),
+            capture_overlay: Arc::new(
+                crate::services::desktop_assistant::capture_overlay_drag::CaptureOverlayCoordinator::default(),
+            ),
             code_handles: Arc::new(Mutex::new(HashMap::new())),
             code_permissions: Arc::new(Mutex::new(HashMap::new())),
             sync_lock: Arc::new(Mutex::new(())),

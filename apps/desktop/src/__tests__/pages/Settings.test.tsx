@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS } from "../../features/settings/pageConfig";
 import Settings from "../../pages/Settings";
 
 // Settings.tsx 内联渲染胶囊导航并直接消费 SETTINGS_SECTIONS，因此 pageConfig 不做
-// mock，让真实的分区元数据（标签/key/默认 guided）参与渲染；下面只 mock 重型
+// mock，让真实的分区元数据（标签/key/默认 assistant）参与渲染；下面只 mock 重型
 // section 组件与依赖后端的 feature hook，避免触发真实网络/Tauri 调用。
 
 vi.mock("../../features/settings/useSettingsController", () => ({
@@ -117,9 +117,13 @@ vi.mock("../../features/settings/useDataBackup", () => ({
   }),
 }));
 
+vi.mock("../../features/desktop-assistant/launch", () => ({
+  launchDesktopAssistant: vi.fn(),
+}));
+
 // 各分区内容组件（默认导出）替换为占位，隔离其内部副作用。
-vi.mock("../../features/settings/TaskSetupSection", () => ({
-  default: () => <div data-testid="task-setup">引导配置</div>,
+vi.mock("../../features/settings/DesktopAssistantSettingsSection", () => ({
+  default: () => <div data-testid="desktop-assistant-settings">桌面助手设置</div>,
 }));
 vi.mock("../../features/settings/AssistantSettingsSection", () => ({
   default: () => <div data-testid="assistant-settings">助手设置</div>,
@@ -160,29 +164,29 @@ describe("Settings 页面", () => {
     localStorage.clear();
   });
 
-  it("应渲染设置页面（默认显示引导分区）", async () => {
+  it("应渲染设置页面（默认显示小妍分区）", async () => {
     render(<Settings />);
     await waitFor(() => {
-      expect(screen.getByTestId("task-setup")).toBeInTheDocument();
+      expect(screen.getByTestId("assistant-settings")).toBeInTheDocument();
     });
   });
 
   it("应显示导航栏所有分区标签", () => {
     render(<Settings />);
-    expect(screen.getByText("快速开始")).toBeInTheDocument();
+    expect(screen.getByText("桌面助手")).toBeInTheDocument();
     expect(screen.getByText("小妍")).toBeInTheDocument();
     expect(screen.getByText("界面布局")).toBeInTheDocument();
     expect(screen.getByText("数据与配置")).toBeInTheDocument();
     expect(screen.getByText("升级与日志")).toBeInTheDocument();
   });
 
-  it("点击「小妍」分区应切换到助手设置内容", async () => {
+  it("点击「桌面助手」分区应切换到桌面助手设置内容", async () => {
     render(<Settings />);
-    fireEvent.click(screen.getByText("小妍"));
+    fireEvent.click(screen.getByText("桌面助手"));
     await waitFor(() => {
-      expect(screen.getByTestId("assistant-settings")).toBeInTheDocument();
+      expect(screen.getByTestId("desktop-assistant-settings")).toBeInTheDocument();
     });
-    expect(screen.queryByTestId("task-setup")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("assistant-settings")).not.toBeInTheDocument();
   });
 
   it("点击「升级与日志」分区应切换到关于内容", async () => {

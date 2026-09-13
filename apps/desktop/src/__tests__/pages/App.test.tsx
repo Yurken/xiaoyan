@@ -26,6 +26,9 @@ vi.mock("../../pages/Copilot", () => ({
 vi.mock("../../pages/Knowledge", () => ({
   default: () => <div data-testid="knowledge-page">知识</div>,
 }));
+vi.mock("../../pages/AssistantInbox", () => ({
+  default: () => <div data-testid="assistant-inbox-page">收集箱</div>,
+}));
 vi.mock("../../pages/Settings", () => ({
   default: () => <div data-testid="settings-page">设置</div>,
 }));
@@ -124,7 +127,7 @@ describe("App 路由与导航", () => {
   it("应包含所有导航项", async () => {
     renderWithRouter(<App />);
     await waitFor(() => {
-      const navLabels = ["首页", "规划", "对话", "综述", "论文", "写作", "知识", "DSH", "投稿", "工具", "设置"];
+      const navLabels = ["首页", "规划", "对话", "综述", "论文", "写作", "知识", "DSH", "收集箱", "实验", "研究", "投稿", "工具", "设置"];
       for (const label of navLabels) {
         expect(screen.getByLabelText(label)).toBeInTheDocument();
       }
@@ -138,6 +141,13 @@ describe("App 路由与导航", () => {
     });
   });
 
+  it("应开放桌面助手收集箱路由", async () => {
+    renderWithRouter(<App />, { initialEntries: ["/inbox"] });
+    await waitFor(() => {
+      expect(screen.getByTestId("assistant-inbox-page")).toBeInTheDocument();
+    });
+  });
+
   it("导航项应有正确的链接目标", async () => {
     renderWithRouter(<App />);
     await waitFor(() => {
@@ -148,7 +158,12 @@ describe("App 路由与导航", () => {
       expect(screen.getByLabelText("论文")).toHaveAttribute("href", "/papers");
       expect(screen.getByLabelText("写作")).toHaveAttribute("href", "/writing");
       expect(screen.getByLabelText("知识")).toHaveAttribute("href", "/knowledge");
+      expect(screen.getByLabelText("收集箱")).toHaveAttribute("href", "/inbox");
+      expect(screen.getByLabelText("实验")).toHaveAttribute("href", "/experiment");
+      expect(screen.getByLabelText("研究")).toHaveAttribute("href", "/research");
       expect(screen.getByLabelText("DSH")).toHaveAttribute("href", "/code");
+      expect(screen.getByLabelText("收集箱")).toHaveAttribute("href", "/inbox");
+      expect(screen.getByLabelText("研究")).toHaveAttribute("href", "/research");
       expect(screen.getByLabelText("投稿")).toHaveAttribute("href", "/submission");
       expect(screen.getByLabelText("工具")).toHaveAttribute("href", "/tools");
       expect(screen.getByLabelText("设置")).toHaveAttribute("href", "/settings");

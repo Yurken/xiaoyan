@@ -6,8 +6,9 @@ import {
 } from "../../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import type { ChatSession, ResearchInterest } from "@research-copilot/types";
+import { COPILOT_LAST_SESSION_KEY } from "./sessionKeys";
 
-export const COPILOT_LAST_SESSION_KEY = "rc:copilot:last-session-id";
+export { COPILOT_LAST_SESSION_KEY } from "./sessionKeys";
 
 export function useCopilotSessions() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);

@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   segmentItem: { flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center" },
   segmentActive: { backgroundColor: colors.accent },
   segmentText: { fontSize: 14, fontWeight: "600", color: colors.textSecondary },
-  segmentTextActive: { color: "#FFFFFF" },
+  segmentTextActive: { color: colors.highlight },
 
   sectionTitle: { flexDirection: "row", alignItems: "center", gap: 8 },
   sectionTitleText: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
@@ -223,11 +223,11 @@ const styles = StyleSheet.create({
   warnMark: { fontSize: 13, color: colors.warning, lineHeight: 19 },
   bulletText: { flex: 1, fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
 
-  futureItem: { backgroundColor: "rgba(52,199,89,0.1)", borderRadius: 12, padding: 11 },
+  futureItem: { backgroundColor: colors.successSoft, borderRadius: 12, padding: 11 },
   futureName: { fontSize: 14, fontWeight: "600", color: colors.success },
   futureReason: { fontSize: 12, color: colors.textSecondary, marginTop: 3, lineHeight: 18 },
 
-  takeaway: { borderColor: "rgba(0,122,255,0.4)", backgroundColor: "rgba(0,122,255,0.08)" },
+  takeaway: { borderColor: colors.accentBorder, backgroundColor: colors.accentFaint },
 
   paperCard: { gap: 7 },
   paperHead: { flexDirection: "row", gap: 6 },
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   paperBadges: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   badge: { backgroundColor: colors.bgCardInset, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   badgeText: { fontSize: 11, color: colors.textSecondary },
-  badgeCite: { backgroundColor: "rgba(52,199,89,0.15)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  badgeCite: { backgroundColor: colors.successSoft, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   badgeCiteText: { fontSize: 11, color: colors.success },
   paperAbstract: { fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
   pdfLink: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },

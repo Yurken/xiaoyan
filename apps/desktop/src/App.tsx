@@ -3,14 +3,17 @@ import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "reac
 import {
   BookOpen,
   FileText,
+  FlaskConical,
   LayoutDashboard,
   Library,
+  Inbox,
   Map,
   MessageSquare,
   PenLine,
   Send,
   Settings as SettingsIcon,
   Wrench,
+  Microscope,
 } from "lucide-react";
 import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import { useCodeHarnessProvider } from "./features/code-harness/useCodeHarnessProvider";
@@ -31,6 +34,7 @@ const Knowledge = lazy(() => import("./pages/Knowledge"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Tools = lazy(() => import("./pages/Tools"));
 const Submission = lazy(() => import("./pages/Submission"));
+const Experiment = lazy(() => import("./pages/Experiment"));
 const Code = lazy(() => import("./pages/Code"));
 const Codex = lazy(() => import("./pages/Codex"));
 const OpenCode = lazy(() => import("./pages/OpenCode"));
@@ -38,6 +42,9 @@ const PiWeb = lazy(() => import("./pages/PiWeb"));
 const Writing = lazy(() => import("./pages/Writing"));
 const ResearchTheme = lazy(() => import("./pages/ResearchTheme"));
 const FocusApp = lazy(() => import("./pages/FocusLayout"));
+const ResearchPage = lazy(() => import("./features/research/pages/ResearchPage"));
+const AssistantInbox = lazy(() => import("./pages/AssistantInbox"));
+
 import LockScreen from "./features/appLock/LockScreen";
 import { useAppLock } from "./features/appLock/useAppLock";
 import { apiClient } from "./lib/client";
@@ -58,6 +65,7 @@ import { useInterestPlanEventBridge } from "./features/knowledge/useInterestPlan
 import QuickStartDialog from "./features/onboarding/QuickStartDialog";
 import { useFirstRunQuickStart } from "./features/onboarding/useFirstRunQuickStart";
 import { SETTINGS_ACTIVE_SECTION_STORAGE_KEY } from "./features/settings/pageConfig";
+import { useAssistantConversationHandoff } from "./features/desktop-assistant/hooks";
 import { writePersistentValue } from "./hooks/usePersistentStringState";
 
 function buildNavItems(provider: CodeHarnessProvider) {
@@ -73,6 +81,9 @@ function buildNavItems(provider: CodeHarnessProvider) {
     { to: "/writing", icon: PenLine, label: "写作" },
     { to: "/knowledge", icon: Library, label: "知识" },
     codeItem,
+    { to: "/inbox", icon: Inbox, label: "收集箱" },
+    { to: "/experiment", icon: FlaskConical, label: "实验" },
+    { to: "/research", icon: Microscope, label: "研究" },
     { to: "/submission", icon: Send, label: "投稿" },
     { to: "/tools", icon: Wrench, label: "工具" },
     { to: "/settings", icon: SettingsIcon, label: "设置" },
@@ -89,6 +100,7 @@ export default function App() {
   useInterestPlanEventBridge();
   useThemeInit();
   useKeyboardShortcuts();
+  useAssistantConversationHandoff();
   const location = useLocation();
   const navigate = useNavigate();
   const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());
@@ -98,8 +110,8 @@ export default function App() {
   const quickStart = useFirstRunQuickStart({ enabled: lockChecked && !locked });
 
   const openQuickStartSettings = () => {
-    // 首次引导跳转到设置时，确保落在「快速开始」分区。
-    writePersistentValue(SETTINGS_ACTIVE_SECTION_STORAGE_KEY, "guided");
+    // 首次引导跳转到设置时，确保落在「小妍」分区。
+    writePersistentValue(SETTINGS_ACTIVE_SECTION_STORAGE_KEY, "assistant");
     quickStart.dismiss();
     navigate("/settings");
   };
@@ -222,7 +234,8 @@ export default function App() {
             <Route path="/papers/:id/reader" element={<RouteErrorBoundary><PaperReader /></RouteErrorBoundary>} />
             <Route path="/writing" element={<RouteErrorBoundary><Writing /></RouteErrorBoundary>} />
             <Route path="/submission" element={<RouteErrorBoundary><Submission /></RouteErrorBoundary>} />
-            <Route path="/experiment" element={<Navigate to={CODE_HARNESS_PATHS[codeHarness]} replace />} />
+            <Route path="/experiment" element={<RouteErrorBoundary><Experiment /></RouteErrorBoundary>} />
+            <Route path="/research" element={<RouteErrorBoundary><ResearchPage /></RouteErrorBoundary>} />
             <Route path="/tools" element={<RouteErrorBoundary><Tools /></RouteErrorBoundary>} />
             <Route path="/code" element={<RouteErrorBoundary><Code /></RouteErrorBoundary>} />
             <Route path="/codex" element={<RouteErrorBoundary><Codex /></RouteErrorBoundary>} />
@@ -232,6 +245,7 @@ export default function App() {
             <Route path="/xiaoyan" element={<Navigate to="/chat" replace />} />
             <Route path="/copilot" element={<Navigate to="/chat" replace />} />
             <Route path="/knowledge" element={<RouteErrorBoundary><Knowledge /></RouteErrorBoundary>} />
+            <Route path="/inbox" element={<RouteErrorBoundary><AssistantInbox /></RouteErrorBoundary>} />
             <Route path="/notes/:id" element={<RouteErrorBoundary><NoteReader /></RouteErrorBoundary>} />
             <Route path="/research-theme/:id" element={<RouteErrorBoundary><ResearchTheme /></RouteErrorBoundary>} />
             <Route path="/settings" element={<RouteErrorBoundary><Settings /></RouteErrorBoundary>} />

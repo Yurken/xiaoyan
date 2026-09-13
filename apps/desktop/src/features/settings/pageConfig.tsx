@@ -1,22 +1,22 @@
 import type { ComponentType } from "react";
 import {
   Brain,
-  Compass,
   Database,
   Info,
   LayoutDashboard,
   Layers3,
+  MonitorDot,
   Zap,
 } from "lucide-react";
 import type { AppSettings } from "@research-copilot/types";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE } from "../../lib/paperTags";
 
-// 设置页当前分区的持久化 key，导航到「快速开始」分区时也会写入它。
+// 设置页当前分区的持久化 key。
 export const SETTINGS_ACTIVE_SECTION_STORAGE_KEY = "rc:settings:active-section";
 
 export type SettingsSectionKey =
-  | "guided"
   | "assistant"
+  | "desktop_assistant"
   | "paper_tags"
   | "skills"
   | "history"
@@ -32,18 +32,18 @@ export const SETTINGS_SECTIONS: Array<{
   color: string;
 }> = [
   {
-    key: "guided",
-    label: "快速开始",
-    description: "三步完成初始配置",
-    icon: Compass,
-    color: "#34C759",
-  },
-  {
     key: "assistant",
     label: "小妍",
     description: "连接方式、默认模型与任务分工",
     icon: Brain,
     color: "#AF52DE",
+  },
+  {
+    key: "desktop_assistant",
+    label: "桌面助手",
+    description: "桌面小妍、快捷键与采集设置",
+    icon: MonitorDot,
+    color: "#34C759",
   },
   {
     key: "paper_tags",

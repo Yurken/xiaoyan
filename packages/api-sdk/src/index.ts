@@ -18,6 +18,9 @@ import type {
   AppSettings,
   AgentRun,
 } from "@research-copilot/types";
+import { parseChatStreamSse } from "./parseChatStreamSse";
+
+export { parseChatStreamSse };
 
 export interface ClientConfig {
   baseURL: string;
@@ -61,34 +64,40 @@ export async function* streamChat(
     headers,
     body: JSON.stringify(body),
   });
-  if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-  const reader = res.body.getReader();
+  const stream = res.body;
+  const canReadIncrementally =
+    stream != null && typeof stream.getReader === "function";
+
+  if (!canReadIncrementally) {
+    const text = await res.text();
+    for (const chunk of parseChatStreamSse(text)) {
+      yield chunk;
+    }
+    return;
+  }
+
+  const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
 
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      buffer += decoder.decode();
+      for (const chunk of parseChatStreamSse(buffer)) {
+        yield chunk;
+      }
+      break;
+    }
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
     for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      try {
-        const json = JSON.parse(line.slice(6));
-        if (json.session_id) yield { type: "session_id", value: json.session_id };
-        if (json.request_id) yield { type: "request_id", value: json.request_id };
-        if (json.plan) yield { type: "plan", value: json.plan };
-        if (json.agent_start) yield { type: "agent_start", value: json.agent_start };
-        if (json.agent_complete) yield { type: "agent_complete", value: json.agent_complete };
-        if (json.agent_error) yield { type: "agent_error", value: json.agent_error };
-        if (json.searching || json.query) yield { type: "searching", query: String(json.searching ?? json.query) };
-        if (json.delta) yield { type: "delta", value: String(json.delta).replace(/\\n/g, "\n") };
-        if (json.sources) yield { type: "sources", value: json.sources };
-        if (json.error) yield { type: "error", value: json.error };
-        if (json.done) yield { type: "done" };
-      } catch {}
+      for (const chunk of parseChatStreamSse(line)) {
+        yield chunk;
+      }
     }
   }
 }

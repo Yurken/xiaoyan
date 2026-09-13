@@ -2,7 +2,7 @@
   "expo": {
     "name": "小妍",
     "slug": "research-copilot",
-    "version": "0.5.4",
+    "version": "0.6.0-dev.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "research-copilot",
@@ -21,6 +21,11 @@
       "versionCode": 5,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ]
     },
     "web": {
@@ -37,16 +42,14 @@
           "color": "#007AFF",
           "sounds": []
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-sqlite"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "tsconfigPaths": false
     },
-    "extra": {
-      "eas": {
-        "projectId": "YOUR_EAS_PROJECT_ID"
-      }
-    },
-    "jsEngine": "jsc"
+    "jsEngine": "hermes"
   }
 }
