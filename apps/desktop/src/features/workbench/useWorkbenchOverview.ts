@@ -1,56 +1,147 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { safeListen } from "../../lib/tauriEvent";
-import { apiClient, submissionApi } from "../../lib/client";
-import { rowToWorkbenchCheckpoint } from "./shared";
-import { buildHomeModel, EMPTY_HOME, type HomeModel } from "./home/shared";
+import { apiClient, formatErrorMessage, submissionApi } from "../../lib/client";
+import {
+  type SubmissionOverviewStats,
+  type WorkbenchOverviewModel,
+  type WorkbenchOverviewSource,
+  type WorkbenchOverviewText,
+  rowToWorkbenchCheckpoint,
+} from "./shared";
+import { buildWorkbenchOverviewModel } from "./model";
+import { buildSourceSummary } from "./sourceSummary";
 
-export function useWorkbenchOverview() {
-  const [model, setModel] = useState<HomeModel>(EMPTY_HOME);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const generation = useRef(0);
+interface WorkbenchOverviewState {
+  model: WorkbenchOverviewModel | null;
+  loading: boolean;
+  error: string;
+}
 
-  const refresh = useCallback(async () => {
-    const request = ++generation.current;
-    setLoading(true);
-    const [papers, interests, notes, sessions, checkpoints, submission] = await Promise.allSettled([
-      apiClient.papers.list(0, 100),
-      apiClient.knowledge.listInterests(),
-      apiClient.knowledge.listNotes(),
-      apiClient.chat.listSessions(),
-      apiClient.memory.listCheckpoints(8),
-      submissionApi.stats(),
-    ]);
-    if (request !== generation.current) return;
-    const failed = [papers, interests, notes, sessions, checkpoints, submission].some((result) => result.status === "rejected");
-    setModel(buildHomeModel({
-      papers: papers.status === "fulfilled" ? papers.value : [],
-      interests: interests.status === "fulfilled" ? interests.value : [],
-      notes: notes.status === "fulfilled" ? notes.value : [],
-      sessions: sessions.status === "fulfilled" ? sessions.value : [],
-      checkpoints: checkpoints.status === "fulfilled" ? checkpoints.value.checkpoints.map(rowToWorkbenchCheckpoint) : [],
-      submission: submission.status === "fulfilled" ? submission.value : { active: 0, pendingReviews: 0, upcomingDdls: [] },
-    }));
-    setError(failed ? "部分近期记录暂时无法读取，你仍可直接开始工作。" : "");
-    setLoading(false);
-  }, []);
+function applyGeneratedText(
+  model: WorkbenchOverviewModel,
+  text: Partial<WorkbenchOverviewText>,
+): WorkbenchOverviewModel {
+  let changed = false;
+  const next: WorkbenchOverviewModel = { ...model };
+  const heroTitle = text.heroTitle?.trim();
+  const heroDescription = text.heroDescription?.trim();
+  const summaryItems = text.summaryItems
+    ?.map((item) => ({
+      title: item.title.trim(),
+      description: item.description.trim(),
+    }))
+    .filter((item) => item.title && item.description);
+
+  if (heroTitle) {
+    next.heroTitle = heroTitle;
+    changed = true;
+  }
+  if (heroDescription) {
+    next.heroDescription = heroDescription;
+    changed = true;
+  }
+  if (summaryItems?.length === 3) {
+    next.summaryItems = summaryItems;
+    changed = true;
+  }
+
+  return changed ? { ...next, aiGenerated: true } : model;
+}
+
+export function useWorkbenchOverview(): WorkbenchOverviewState {
+  const [state, setState] = useState<WorkbenchOverviewState>({
+    model: null,
+    loading: true,
+    error: "",
+  });
 
   useEffect(() => {
-    void refresh();
-    const cleanups: Array<() => void> = [];
-    let mounted = true;
-    for (const event of ["interest:plan", "interest:status", "knowledge:note_created"]) {
-      void safeListen(event, () => { void refresh(); }).then((cleanup) => {
-        if (mounted) cleanups.push(cleanup);
-        else cleanup();
-      });
-    }
-    return () => {
-      mounted = false;
-      generation.current += 1;
-      cleanups.forEach((cleanup) => cleanup());
-    };
-  }, [refresh]);
+    let cancelled = false;
 
-  return { model, loading, error, refresh };
+    const loadOverview = () => {
+      Promise.all([
+        apiClient.papers.list(0, 100),
+        apiClient.knowledge.listInterests(),
+        apiClient.knowledge.listNotes(),
+        apiClient.chat.listSessions(),
+        apiClient.memory.listCheckpoints(8).catch(() => ({ checkpoints: [] })),
+        submissionApi.stats().catch<SubmissionOverviewStats>(() => ({
+          active: 0,
+          pendingReviews: 0,
+          upcomingDdls: [],
+        })),
+        apiClient.workbench.getOverviewTextCache().catch(() => null),
+      ])
+        .then(([papers, interests, notes, sessions, checkpointResult, submission, cachedText]) => {
+          if (cancelled) return;
+
+          const source: WorkbenchOverviewSource = {
+            papers,
+            interests,
+            notes,
+            sessions,
+            checkpoints: checkpointResult.checkpoints.map(rowToWorkbenchCheckpoint),
+            submission,
+          };
+
+          const baseModel = buildWorkbenchOverviewModel(source);
+          const model = cachedText ? applyGeneratedText(baseModel, cachedText) : baseModel;
+          setState({ model, loading: false, error: "" });
+
+          const summary = buildSourceSummary(source);
+          void apiClient.workbench
+            .generateOverviewText(JSON.stringify(summary))
+            .then((aiText) => {
+              if (cancelled) return;
+              setState((current) => {
+                if (!current.model) return current;
+                return {
+                  ...current,
+                  model: applyGeneratedText(current.model, aiText),
+                };
+              });
+            })
+            .catch((err) => { console.warn("Failed to apply AI suggestion:", err); });
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          setState({
+            model: null,
+            loading: false,
+            error: formatErrorMessage(error),
+          });
+        });
+    };
+
+    loadOverview();
+    let unlistenPlan: (() => void) | undefined;
+    let unlistenStatus: (() => void) | undefined;
+    let mounted = true;
+
+    void safeListen("interest:plan", loadOverview).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
+      unlistenPlan = cleanup;
+    });
+    void safeListen("interest:status", loadOverview).then((cleanup) => {
+      if (!mounted) {
+        cleanup();
+        return;
+      }
+      unlistenStatus = cleanup;
+    });
+
+    return () => {
+      cancelled = true;
+      mounted = false;
+      unlistenPlan?.();
+      unlistenStatus?.();
+      unlistenPlan = undefined;
+      unlistenStatus = undefined;
+    };
+  }, []);
+
+  return state;
 }
