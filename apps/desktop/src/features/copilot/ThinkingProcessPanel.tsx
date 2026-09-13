@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
-  Brain,
   ChevronDown,
   Clock3,
   Loader2,
@@ -34,6 +33,7 @@ export default function ThinkingProcessPanel({
 }: ThinkingProcessPanelProps) {
   // 默认折叠：只展示「思考中 / 已思考」概览，用户需要时再点开看推理与步骤。
   const [expanded, setExpanded] = useState(false);
+  const detailId = useId();
 
   const hasReasoning = thought.trim().length > 0;
   const hasPlan = plan.length > 0;
@@ -65,70 +65,45 @@ export default function ThinkingProcessPanel({
   const useTimelineView = hasExecutionWaves && hasRuns;
 
   return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{
-        background: "var(--rc-elevated)",
-        boxShadow: "var(--rc-inset-shadow)",
-      }}
-    >
-      {/* Header */}
+    <section aria-label="思考过程">
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-black/[0.02]"
+        aria-controls={detailId}
+        aria-expanded={expanded}
+        className="-ml-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 py-1 text-left text-ink-tertiary transition-colors hover:bg-black/[0.025] hover:text-ink-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/35"
       >
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          {isThinking ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin text-ink-tertiary flex-shrink-0" />
-          ) : (
-            <Brain className="w-3.5 h-3.5 text-ink-tertiary flex-shrink-0" />
-          )}
-          <span className="text-xs font-semibold text-ink-secondary truncate">
-            {isThinking ? "思考中" : "已思考"}
-            {progressText}
+        {isThinking ? (
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden="true" />
+        ) : null}
+        <span className="text-xs font-medium">
+          {isThinking ? "思考中" : "已思考"}
+          {progressText}
+        </span>
+        {hasRoutingDecision ? (
+          <span className="text-[11px]">· {decision?.selected.length ?? 0} 个能力</span>
+        ) : null}
+        {isSearching ? (
+          <span className="inline-flex items-center gap-1 text-[11px] text-apple-blue">
+            <Search className="h-2.5 w-2.5" aria-hidden="true" />
+            搜索中
           </span>
-        </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {hasRoutingDecision && (
-            <span
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
-              style={{
-                background: "rgba(175,82,222,0.08)",
-                color: "#AF52DE",
-              }}
-            >
-              {decision?.selected.length ?? 0} 个能力已调度
-            </span>
-          )}
-          {isSearching && (
-            <span
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
-              style={{ background: "rgba(0,122,255,0.08)", color: "#007AFF" }}
-            >
-              <Search className="w-2.5 h-2.5" />
-              搜索中
-            </span>
-          )}
-          <ChevronDown
-            className="w-3.5 h-3.5 text-ink-tertiary transition-transform duration-200"
-            style={{
-              transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-            }}
-          />
-        </div>
+        ) : null}
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 ${expanded ? "rotate-180" : ""}`}
+          aria-hidden="true"
+        />
       </button>
 
-      {/* Body */}
       {expanded && (
-        <div className="px-3 pb-3 space-y-3">
+        <div
+          id={detailId}
+          className="ml-1 space-y-3 border-l border-black/[0.08] pb-1 pl-3"
+        >
           {/* Searching indicator */}
           {isSearching && (
-            <div
-              className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
-              style={{ background: "rgba(0,122,255,0.06)", color: "#007AFF" }}
-            >
-              <Loader2 className="w-3 h-3 animate-spin" />
+            <div className="flex items-center gap-2 text-xs text-apple-blue">
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
               正在搜索：{searchingQuery}
             </div>
           )}
@@ -154,20 +129,9 @@ export default function ThinkingProcessPanel({
 
           {/* Reasoning content */}
           {hasReasoning && (
-            <div>
-              <div className="mb-1.5 text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">
-                思考过程
-              </div>
-              <div
-                className="rounded-xl px-3 py-2.5 text-xs leading-5 whitespace-pre-wrap text-ink-secondary"
-                style={{
-                  background: "var(--rc-surface)",
-                  boxShadow: "var(--rc-inset-shadow)",
-                }}
-              >
-                {thought}
-              </div>
-            </div>
+            <p className="whitespace-pre-wrap text-xs leading-5 text-ink-secondary">
+              {thought}
+            </p>
           )}
 
           {/* Plan steps with detailed cards */}
@@ -197,11 +161,7 @@ export default function ThinkingProcessPanel({
                   return (
                     <div
                       key={`${step.agent_name}-${index}`}
-                      className="rounded-xl px-3 py-2"
-                      style={{
-                        background: "var(--rc-surface)",
-                        boxShadow: "var(--rc-inset-shadow)",
-                      }}
+                      className="border-t border-black/[0.06] py-2 first:border-t-0"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-semibold text-ink-primary">
@@ -243,6 +203,6 @@ export default function ThinkingProcessPanel({
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }

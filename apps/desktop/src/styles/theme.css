@@ -18,6 +18,12 @@
   --rc-text-soft-rgb: 199 208 220;
   --rc-text-muted: #8D99AA;
   --rc-text-muted-rgb: 141 153 170;
+  --rc-chat-user-bg: rgba(10, 132, 255, 0.18);
+  --rc-chat-user-text: #EAF4FF;
+  --rc-chat-user-shadow: none;
+  --rc-code-block-bg: #0B0F15;
+  --rc-code-block-border: rgba(255, 255, 255, 0.1);
+  --rc-code-block-text: #E8EDF5;
   --rc-page-wash: none;
   --rc-inset-shadow: inset 1px 1px 3px rgba(5, 7, 11, 0.8), inset -1px -1px 3px #1A2230;
   --rc-raised-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.2), 6px 6px 16px #05070B, -4px -4px 12px #171E28;
@@ -137,6 +143,12 @@ html[data-theme="light"] {
   --rc-text-soft-rgb: 60 70 85;
   --rc-text-muted: #6B7480;
   --rc-text-muted-rgb: 107 116 128;
+  --rc-chat-user-bg: #E8F3FC;
+  --rc-chat-user-text: #123251;
+  --rc-chat-user-shadow: none;
+  --rc-code-block-bg: #E7EDF3;
+  --rc-code-block-border: rgba(60, 70, 85, 0.16);
+  --rc-code-block-text: #243247;
   --rc-page-wash: none;
   --rc-inset-shadow: inset 1px 1px 3px rgba(200, 205, 211, 0.8), inset -1px -1px 3px #FFFFFF;
   --rc-raised-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), inset 2px 2px 4px #FFFFFF, 6px 6px 14px rgba(200, 205, 211, 0.7), -6px -6px 14px #FFFFFF;

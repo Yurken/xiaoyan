@@ -335,6 +335,12 @@
     padding-right: clamp(0.25rem, 1.4vw, 1.5rem);
   }
 
+  .rc-user-message {
+    background: var(--rc-chat-user-bg);
+    color: var(--rc-chat-user-text);
+    box-shadow: var(--rc-chat-user-shadow);
+  }
+
   .rc-chat-markdown.prose {
     font-size: 14px;
     line-height: 1.68;
@@ -459,6 +465,8 @@
   }
 
   .rc-chat-markdown.prose :where(pre code) {
+    background: transparent;
+    color: var(--rc-code-block-text);
     line-height: 1.55;
   }
 

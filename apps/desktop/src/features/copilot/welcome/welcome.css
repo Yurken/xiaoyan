@@ -15,7 +15,6 @@
 .copilot-conversation.is-empty .copilot-composer { padding: 0; }
 .copilot-welcome-heading { margin-bottom: 26px; }
 .copilot-welcome-heading h1 { color: var(--rc-text); font-size: clamp(24px, 2.6vw, 32px); line-height: 1.35; letter-spacing: -.025em; font-weight: 600; }
-.copilot-composer-surface:focus-within { outline: 1px solid var(--rc-accent); outline-offset: 3px; }
 .copilot-suggestions { display: flex; align-items: center; gap: 12px; min-height: 64px; margin-top: 10px; }
 .copilot-suggestion-label { flex-shrink: 0; color: var(--rc-text-muted); font-size: 12px; }
 .copilot-suggestion { min-width: 0; flex: 1; text-align: left; color: var(--rc-text-soft); font-size: 13px; line-height: 1.6; opacity: 1; transition: opacity 240ms ease; }
