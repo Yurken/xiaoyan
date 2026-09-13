@@ -1,3 +1,4 @@
+import { colors } from "../theme";
 import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { NmCard } from "../../components/NmCard";
@@ -16,12 +17,12 @@ const STATUS_COPY: Record<ApiConnectionStatus, string> = {
 };
 
 const STATUS_COLOR: Record<ApiConnectionStatus, string> = {
-  idle: "#9AA7B8",
-  connected: "#34C759",
-  auth_required: "#0A84FF",
-  incompatible: "#FF3B30",
-  timeout: "#FF9F0A",
-  network: "#FF3B30",
+  idle: colors.textSecondary,
+  connected: colors.success,
+  auth_required: colors.accent,
+  incompatible: colors.danger,
+  timeout: colors.warning,
+  network: colors.danger,
 };
 
 const STATUS_ICON: Record<ApiConnectionStatus, keyof typeof Ionicons.glyphMap> = {
@@ -46,7 +47,7 @@ export function BackendConnectionSection() {
     <NmCard style={styles.card}>
       <View style={styles.sectionHeader}>
         <View style={styles.sectionIcon}>
-          <Ionicons name="server-outline" size={18} color="#007AFF" />
+          <Ionicons name="server-outline" size={18} color={colors.accent} />
         </View>
         <Text style={styles.sectionTitle}>后端连接</Text>
       </View>
@@ -60,7 +61,7 @@ export function BackendConnectionSection() {
         value={input}
         onChangeText={setInput}
         placeholder="http://10.0.2.2:8000"
-        placeholderTextColor="#5F6B7A"
+        placeholderTextColor={colors.textMuted}
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="url"
@@ -80,7 +81,7 @@ export function BackendConnectionSection() {
         <Ionicons
           name={checking ? "sync-outline" : "save-outline"}
           size={16}
-          color="#FFFFFF"
+          color={colors.highlight}
           style={styles.btnIcon}
         />
         <Text style={styles.saveBtnText}>{checking ? "检测中…" : "保存并检测"}</Text>
@@ -106,40 +107,40 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: "rgba(0,122,255,0.1)",
+    backgroundColor: colors.accentSubtle,
     alignItems: "center",
     justifyContent: "center",
   },
-  sectionTitle: { fontSize: 16, fontWeight: "600", color: "#F5F7FA" },
-  hint: { fontSize: 12, color: "#5F6B7A", lineHeight: 18 },
-  inputLabel: { fontSize: 12, fontWeight: "500", color: "#5F6B7A", marginLeft: 4 },
+  sectionTitle: { fontSize: 16, fontWeight: "600", color: colors.textPrimary },
+  hint: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+  inputLabel: { fontSize: 12, fontWeight: "500", color: colors.textMuted, marginLeft: 4 },
   input: {
-    backgroundColor: "#0F141C",
+    backgroundColor: colors.bgInput,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 11,
     fontSize: 15,
-    color: "#F5F7FA",
+    color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: "rgba(60,74,92,0.5)",
+    borderColor: colors.border,
   },
   inputDisabled: { opacity: 0.55 },
-  savedUrl: { fontSize: 12, color: "#9AA7B8" },
+  savedUrl: { fontSize: 12, color: colors.textSecondary },
   saveBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.accent,
     borderRadius: 14,
     paddingVertical: 12,
-    shadowColor: "#0062CC",
+    shadowColor: colors.accentStrong,
     shadowOffset: { width: 2, height: 3 },
     shadowOpacity: 0.35,
     shadowRadius: 6,
   },
   saveBtnDisabled: { opacity: 0.55 },
   btnIcon: { marginRight: 6 },
-  saveBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  saveBtnText: { color: colors.highlight, fontSize: 15, fontWeight: "600" },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   statusText: { fontSize: 13, fontWeight: "600" },
   message: { fontSize: 12, lineHeight: 18 },

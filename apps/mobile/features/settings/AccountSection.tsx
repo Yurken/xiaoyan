@@ -1,3 +1,4 @@
+import { colors } from "../theme";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -11,7 +12,7 @@ export function AccountSection() {
     <NmCard style={styles.card}>
       <View style={styles.sectionHeader}>
         <View style={styles.sectionIcon}>
-          <Ionicons name="person-circle-outline" size={18} color="#007AFF" />
+          <Ionicons name="person-circle-outline" size={18} color={colors.accent} />
         </View>
         <Text style={styles.sectionTitle}>账号</Text>
       </View>
@@ -28,7 +29,7 @@ export function AccountSection() {
             <Ionicons
               name={loading ? "sync-outline" : "log-out-outline"}
               size={18}
-              color="#FFFFFF"
+              color={colors.highlight}
               style={{ marginRight: 6 }}
             />
             <Text style={styles.actionBtnText}>{loading ? "处理中" : "退出登录"}</Text>
@@ -41,7 +42,7 @@ export function AccountSection() {
             onPress={() => router.push("/login")}
             activeOpacity={0.8}
           >
-            <Ionicons name="log-in-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Ionicons name="log-in-outline" size={18} color={colors.highlight} style={{ marginRight: 6 }} />
             <Text style={styles.actionBtnText}>登录 / 注册</Text>
           </TouchableOpacity>
           <Text style={styles.hint}>登录后可使用需要认证的后端能力</Text>
@@ -60,27 +61,27 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: "rgba(0,122,255,0.1)",
+    backgroundColor: colors.accentSubtle,
     alignItems: "center",
     justifyContent: "center",
   },
-  sectionTitle: { fontSize: 16, fontWeight: "600", color: "#F5F7FA" },
-  statusText: { fontSize: 14, fontWeight: "500", color: "#34C759" },
-  hint: { fontSize: 12, color: "#5F6B7A", textAlign: "center" },
+  sectionTitle: { fontSize: 16, fontWeight: "600", color: colors.textPrimary },
+  statusText: { fontSize: 14, fontWeight: "500", color: colors.success },
+  hint: { fontSize: 12, color: colors.textMuted, textAlign: "center" },
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.accent,
     borderRadius: 14,
     paddingVertical: 12,
-    shadowColor: "#0062CC",
+    shadowColor: colors.accentStrong,
     shadowOffset: { width: 2, height: 3 },
     shadowOpacity: 0.35,
     shadowRadius: 6,
   },
-  logoutBtn: { backgroundColor: "#FF3B30", shadowColor: "#C1271D" },
+  logoutBtn: { backgroundColor: colors.danger, shadowColor: colors.dangerStrong },
   btnDisabled: { opacity: 0.6 },
-  actionBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
-  errorText: { fontSize: 12, color: "#FF3B30", textAlign: "center" },
+  actionBtnText: { color: colors.highlight, fontSize: 15, fontWeight: "600" },
+  errorText: { fontSize: 12, color: colors.danger, textAlign: "center" },
 });

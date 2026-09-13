@@ -1,3 +1,4 @@
+import { colors } from "../../features/theme";
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -37,7 +38,7 @@ export default function PapersScreen() {
           <Text style={styles.title}>论文库</Text>
         </View>
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -67,7 +68,7 @@ export default function PapersScreen() {
           <Text style={styles.errorText}>{error}</Text>
           {dismissable ? (
             <TouchableOpacity onPress={clearError} hitSlop={8}>
-              <Ionicons name="close" size={16} color="#FFB4A8" />
+              <Ionicons name="close" size={16} color={colors.danger} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -76,7 +77,7 @@ export default function PapersScreen() {
       {papers.length === 0 ? (
         <View style={styles.center}>
           <View style={styles.emptyIcon}>
-            <Ionicons name="document-text-outline" size={40} color="#5F6B7A" />
+            <Ionicons name="document-text-outline" size={40} color={colors.textMuted} />
           </View>
           <Text style={styles.emptyTitle}>暂无论文</Text>
           <Text style={styles.emptyText}>在桌面端导入 PDF 后即可在此浏览，小妍会帮你分析论文内容</Text>
@@ -107,7 +108,7 @@ export default function PapersScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#090B10" },
+  screen: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -116,17 +117,17 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
   },
-  title:    { fontSize: 28, fontWeight: "700", color: "#F5F7FA" },
-  subtitle: { fontSize: 14, color: "#5F6B7A", marginTop: 2 },
+  title:    { fontSize: 28, fontWeight: "700", color: colors.textPrimary },
+  subtitle: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
   syncedBanner: {
     marginHorizontal: 20,
     marginBottom: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "rgba(0,122,255,0.16)",
+    backgroundColor: colors.accentSoft,
   },
-  syncedText: { fontSize: 13, color: "#64B5FF", fontWeight: "500" },
+  syncedText: { fontSize: 13, color: colors.accentStrong, fontWeight: "500" },
   errorBanner: {
     marginHorizontal: 20,
     marginBottom: 10,
@@ -137,9 +138,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  errorBannerRed: { backgroundColor: "rgba(255,59,48,0.16)" },
-  errorBannerOrange: { backgroundColor: "rgba(255,159,67,0.16)" },
-  errorText: { flex: 1, fontSize: 13, color: "#FFB4A8", fontWeight: "500" },
+  errorBannerRed: { backgroundColor: colors.dangerSoft },
+  errorBannerOrange: { backgroundColor: colors.warningSoft },
+  errorText: { flex: 1, fontSize: 13, color: colors.danger, fontWeight: "500" },
   list: { paddingHorizontal: 20, paddingBottom: 20 },
   paperItem: { marginBottom: 12 },
   center:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
@@ -147,12 +148,12 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 24,
-    backgroundColor: "#141A23",
+    backgroundColor: colors.bgCard,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(60,74,92,0.5)",
+    borderColor: colors.border,
   },
-  emptyTitle: { fontSize: 17, fontWeight: "600", color: "#9AA7B8" },
-  emptyText:  { fontSize: 14, color: "#5F6B7A", textAlign: "center", paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 17, fontWeight: "600", color: colors.textSecondary },
+  emptyText:  { fontSize: 14, color: colors.textMuted, textAlign: "center", paddingHorizontal: 40 },
 });

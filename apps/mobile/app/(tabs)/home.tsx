@@ -18,8 +18,8 @@ const ACTIONS: {
   tint: string;
   route: string;
 }[] = [
-  { key: "planner", title: "研究规划", desc: "梳理学习路径", icon: "map-outline", tint: "#007AFF", route: "/planner" },
-  { key: "survey", title: "文献综述", desc: "检索并生成综述", icon: "library-outline", tint: "#34C759", route: "/survey" },
+  { key: "planner", title: "研究规划", desc: "梳理学习路径", icon: "map-outline", tint: colors.accent, route: "/planner" },
+  { key: "survey", title: "文献综述", desc: "检索并生成综述", icon: "library-outline", tint: colors.success, route: "/survey" },
 ];
 
 function SectionHeader({ title, count }: { title: string; count?: number }) {
@@ -178,26 +178,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "rgba(0,122,255,0.16)",
+    backgroundColor: colors.accentSoft,
   },
-  syncedText: { fontSize: 13, color: "#64B5FF", fontWeight: "500" },
+  syncedText: { fontSize: 13, color: colors.accentStrong, fontWeight: "500" },
   mixedBanner: {
     marginBottom: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "rgba(255,159,67,0.16)",
+    backgroundColor: colors.warningSoft,
   },
-  mixedText: { fontSize: 13, color: "#FFB26B", fontWeight: "500" },
+  mixedText: { fontSize: 13, color: colors.warning, fontWeight: "500" },
   errorBanner: {
     marginBottom: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
   },
-  errorBannerRed: { backgroundColor: "rgba(255,59,48,0.16)" },
-  errorBannerOrange: { backgroundColor: "rgba(255,159,67,0.16)" },
-  errorText: { fontSize: 13, color: "#FFB4A8", fontWeight: "500" },
+  errorBannerRed: { backgroundColor: colors.dangerSoft },
+  errorBannerOrange: { backgroundColor: colors.warningSoft },
+  errorText: { fontSize: 13, color: colors.danger, fontWeight: "500" },
 
   actionsRow: { flexDirection: "row", gap: 12, marginBottom: 4 },
   actionItem: { flex: 1 },

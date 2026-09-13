@@ -1,3 +1,4 @@
+import { colors } from "../../features/theme";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -39,8 +40,8 @@ export default function SettingsScreen() {
         {/* About */}
         <NmCard style={styles.card}>
           <View style={styles.sectionHeader}>
-            <View style={[styles.sectionIcon, { backgroundColor: "rgba(175,82,222,0.12)" }]}>
-              <Ionicons name="information-circle-outline" size={18} color="#AF52DE" />
+            <View style={[styles.sectionIcon, { backgroundColor: colors.purpleSoft }]}>
+              <Ionicons name="information-circle-outline" size={18} color={colors.purple} />
             </View>
             <Text style={styles.sectionTitle}>关于</Text>
           </View>
@@ -61,23 +62,23 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen:  { flex: 1, backgroundColor: "#090B10" },
+  screen:  { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20, paddingBottom: 40, gap: 16 },
   header:  { paddingTop: 16 },
-  title:   { fontSize: 28, fontWeight: "700", color: "#F5F7FA" },
-  subtitle:{ fontSize: 14, color: "#5F6B7A", marginTop: 2 },
+  title:   { fontSize: 28, fontWeight: "700", color: colors.textPrimary },
+  subtitle:{ fontSize: 14, color: colors.textMuted, marginTop: 2 },
 
   card: { gap: 14 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   sectionIcon: {
     width: 36, height: 36, borderRadius: 12,
-    backgroundColor: "rgba(0,122,255,0.1)",
+    backgroundColor: colors.accentSubtle,
     alignItems: "center", justifyContent: "center",
   },
-  sectionTitle: { fontSize: 16, fontWeight: "600", color: "#F5F7FA" },
+  sectionTitle: { fontSize: 16, fontWeight: "600", color: colors.textPrimary },
 
   infoRow:  { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 2 },
-  infoLabel:{ fontSize: 14, color: "#5F6B7A" },
-  infoValue:{ fontSize: 14, fontWeight: "500", color: "#9AA7B8" },
-  divider:  { height: 1, backgroundColor: "rgba(60,74,92,0.4)", marginVertical: 6 },
+  infoLabel:{ fontSize: 14, color: colors.textMuted },
+  infoValue:{ fontSize: 14, fontWeight: "500", color: colors.textSecondary },
+  divider:  { height: 1, backgroundColor: colors.borderLight, marginVertical: 6 },
 });

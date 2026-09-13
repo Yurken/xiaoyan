@@ -1,3 +1,4 @@
+import { colors } from "../../features/theme";
 import { useRef, useEffect } from "react";
 import {
   View, Text, TextInput, FlatList, StyleSheet,
@@ -44,11 +45,11 @@ export default function XiaoYanScreen() {
               style={[styles.headerBtn, showSessions && styles.headerBtnActive]}
               onPress={toggleSessions}
             >
-              <Ionicons name="time-outline" size={20} color={showSessions ? "#007AFF" : "#5F6B7A"} />
+              <Ionicons name="time-outline" size={20} color={showSessions ? colors.accent : colors.textMuted} />
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.headerBtn} onPress={newChat}>
-            <Ionicons name="add" size={22} color="#007AFF" />
+            <Ionicons name="add" size={22} color={colors.accent} />
           </TouchableOpacity>
         </View>
       </View>
@@ -71,18 +72,18 @@ export default function XiaoYanScreen() {
       >
         {loadingSession ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#007AFF" />
+            <ActivityIndicator size="large" color={colors.accent} />
           </View>
         ) : messages.length === 0 && !showSessions ? (
           <View style={styles.welcome}>
             <View style={styles.welcomeIcon}>
-              <Ionicons name="sparkles" size={36} color="#007AFF" />
+              <Ionicons name="sparkles" size={36} color={colors.accent} />
             </View>
             <Text style={styles.welcomeTitle}>{MAIN_ASSISTANT_WELCOME_TITLE}</Text>
             <Text style={styles.welcomeText}>{MAIN_ASSISTANT_WELCOME_DESCRIPTION}</Text>
             {sessions.length > 0 && (
               <TouchableOpacity style={styles.historyBtn} onPress={toggleSessions}>
-                <Ionicons name="time-outline" size={16} color="#007AFF" />
+                <Ionicons name="time-outline" size={16} color={colors.accent} />
                 <Text style={styles.historyBtnText}>查看历史对话 ({sessions.length})</Text>
               </TouchableOpacity>
             )}
@@ -126,7 +127,7 @@ export default function XiaoYanScreen() {
               value={input}
               onChangeText={setInput}
               placeholder={MAIN_ASSISTANT_INPUT_PLACEHOLDER}
-              placeholderTextColor="#5F6B7A"
+              placeholderTextColor={colors.textMuted}
               multiline
               maxLength={2000}
               returnKeyType="send"
@@ -138,8 +139,8 @@ export default function XiaoYanScreen() {
               disabled={!input.trim() || sending}
             >
               {sending
-                ? <ActivityIndicator size="small" color="#FFFFFF" />
-                : <Ionicons name="arrow-up" size={20} color="#FFFFFF" />}
+                ? <ActivityIndicator size="small" color={colors.highlight} />
+                : <Ionicons name="arrow-up" size={20} color={colors.highlight} />}
             </TouchableOpacity>
           </View>
         )}
@@ -149,49 +150,49 @@ export default function XiaoYanScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#090B10" },
+  screen: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
   },
-  title: { fontSize: 28, fontWeight: "700", color: "#F5F7FA" },
-  subtitle: { fontSize: 14, color: "#5F6B7A", marginTop: 2 },
+  title: { fontSize: 28, fontWeight: "700", color: colors.textPrimary },
+  subtitle: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
   headerActions: { flexDirection: "row", gap: 8 },
   headerBtn: {
-    width: 40, height: 40, borderRadius: 14, backgroundColor: "#141A23",
+    width: 40, height: 40, borderRadius: 14, backgroundColor: colors.bgCard,
     alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(60,74,92,0.7)",
+    borderWidth: 1, borderColor: colors.border,
   },
-  headerBtnActive: { borderColor: "rgba(0,122,255,0.4)" },
+  headerBtnActive: { borderColor: colors.accentBorder },
   syncedBanner: {
     marginHorizontal: 20, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 8, backgroundColor: "rgba(0,122,255,0.16)",
+    borderRadius: 8, backgroundColor: colors.accentSoft,
   },
-  syncedText: { fontSize: 13, color: "#64B5FF", fontWeight: "500" },
+  syncedText: { fontSize: 13, color: colors.accentStrong, fontWeight: "500" },
   unavailableBanner: {
     marginHorizontal: 20, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 8, backgroundColor: "rgba(255,159,67,0.16)",
+    borderRadius: 8, backgroundColor: colors.warningSoft,
   },
-  unavailableText: { fontSize: 13, color: "#FFB26B", fontWeight: "500" },
+  unavailableText: { fontSize: 13, color: colors.warning, fontWeight: "500" },
   welcome: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingBottom: 80 },
   welcomeIcon: {
-    width: 72, height: 72, borderRadius: 24, backgroundColor: "#141A23",
+    width: 72, height: 72, borderRadius: 24, backgroundColor: colors.bgCard,
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#007AFF", shadowOffset: { width: 3, height: 3 },
+    shadowColor: colors.accent, shadowOffset: { width: 3, height: 3 },
     shadowOpacity: 0.3, shadowRadius: 8,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.8)",
+    borderWidth: 1, borderColor: colors.highlightBorder,
   },
-  welcomeTitle: { fontSize: 20, fontWeight: "700", color: "#F5F7FA" },
-  welcomeText: { fontSize: 14, color: "#5F6B7A", textAlign: "center", paddingHorizontal: 40 },
+  welcomeTitle: { fontSize: 20, fontWeight: "700", color: colors.textPrimary },
+  welcomeText: { fontSize: 14, color: colors.textMuted, textAlign: "center", paddingHorizontal: 40 },
   historyBtn: {
     flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8,
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12,
-    backgroundColor: "rgba(0,122,255,0.1)",
+    backgroundColor: colors.accentSubtle,
   },
-  historyBtnText: { fontSize: 14, color: "#007AFF", fontWeight: "500" },
+  historyBtnText: { fontSize: 14, color: colors.accent, fontWeight: "500" },
   sessionList: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
-  sessionListTitle: { fontSize: 15, fontWeight: "600", color: "#5F6B7A", marginBottom: 12, paddingHorizontal: 4 },
-  sessionError: { fontSize: 13, color: "#FF3B30", marginBottom: 12, paddingHorizontal: 4 },
+  sessionListTitle: { fontSize: 15, fontWeight: "600", color: colors.textMuted, marginBottom: 12, paddingHorizontal: 4 },
+  sessionError: { fontSize: 13, color: colors.danger, marginBottom: 12, paddingHorizontal: 4 },
   messageList: { paddingHorizontal: 16, paddingVertical: 12 },
   messageItem: { marginBottom: 16 },
   inputBar: {
@@ -199,17 +200,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
   },
   textInput: {
-    flex: 1, backgroundColor: "#0F141C", borderRadius: 20,
-    paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: "#F5F7FA",
-    maxHeight: 120, borderWidth: 1, borderColor: "rgba(60,74,92,0.5)",
+    flex: 1, backgroundColor: colors.bgInput, borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.textPrimary,
+    maxHeight: 120, borderWidth: 1, borderColor: colors.border,
   },
   sendBtn: {
-    width: 44, height: 44, borderRadius: 16, backgroundColor: "#007AFF",
+    width: 44, height: 44, borderRadius: 16, backgroundColor: colors.accent,
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#0062CC", shadowOffset: { width: 2, height: 3 },
+    shadowColor: colors.accentStrong, shadowOffset: { width: 2, height: 3 },
     shadowOpacity: 0.4, shadowRadius: 6,
   },
   sendBtnDisabled: { opacity: 0.4 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  emptyText: { fontSize: 14, color: "#5F6B7A", textAlign: "center", paddingTop: 24 },
+  emptyText: { fontSize: 14, color: colors.textMuted, textAlign: "center", paddingTop: 24 },
 });

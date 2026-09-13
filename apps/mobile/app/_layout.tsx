@@ -1,3 +1,4 @@
+import { colors } from "../features/theme";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
@@ -22,7 +23,7 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style="light" backgroundColor="#090B10" />
+      <StatusBar style="dark" backgroundColor={colors.bg} />
       {state === "ready" ? (
         <Stack screenOptions={{ headerShown: false }} />
       ) : (

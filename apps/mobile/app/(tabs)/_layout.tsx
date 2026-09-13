@@ -1,3 +1,4 @@
+import { colors } from "../../features/theme";
 import type { ComponentProps } from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,13 +28,13 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#007AFF",
-        tabBarInactiveTintColor: "#5F6B7A",
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: "#141A23",
+          backgroundColor: colors.bgCard,
           borderTopWidth: 0,
           elevation: 0,
-          shadowColor: "#000",
+          shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.3,
           shadowRadius: 8,

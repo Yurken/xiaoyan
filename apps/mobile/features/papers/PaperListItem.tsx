@@ -1,3 +1,4 @@
+import { colors } from "../theme";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { NmCard } from "../../components/NmCard";
@@ -5,28 +6,28 @@ import { NmButton } from "../../components/NmButton";
 import type { Paper } from "@research-copilot/types";
 
 const STATUS_CONFIG = {
-  analyzed:  { icon: "checkmark-circle" as const, color: "#34C759", label: "已分析" },
-  analyzing: { icon: "hourglass"         as const, color: "#007AFF", label: "处理中" },
-  failed:    { icon: "close-circle"      as const, color: "#FF3B30", label: "失败"   },
-  pending:   { icon: "ellipse-outline"   as const, color: "#5F6B7A", label: "待分析" },
+  analyzed:  { icon: "checkmark-circle" as const, color: colors.success, label: "已分析" },
+  analyzing: { icon: "hourglass"         as const, color: colors.accent, label: "处理中" },
+  failed:    { icon: "close-circle"      as const, color: colors.danger, label: "失败"   },
+  pending:   { icon: "ellipse-outline"   as const, color: colors.textMuted, label: "待分析" },
 };
 
 const CCF_COLORS: Record<string, { bg: string; text: string }> = {
-  A: { bg: "#2D1518", text: "#FF6B6B" },
-  B: { bg: "#2D1F12", text: "#FF9F43" },
-  C: { bg: "#1A1830", text: "#A29BFE" },
+  A: colors.tagA,
+  B: colors.tagB,
+  C: colors.tagC,
 };
 
 const INDEX_TAGS: Record<string, { bg: string; text: string }> = {
-  SCI:  { bg: "#122A1E", text: "#4ADE80" },
-  SSCI: { bg: "#122A1E", text: "#4ADE80" },
-  EI:   { bg: "#122A1E", text: "#4ADE80" },
+  SCI: colors.tagSCI,
+  SSCI: colors.tagSCI,
+  EI: colors.tagSCI,
 };
 
 function buildTags(paper: Paper): Array<{ label: string; bg: string; text: string }> {
   const tags: Array<{ label: string; bg: string; text: string }> = [];
   if (paper.ccf_rating) {
-    const c = CCF_COLORS[paper.ccf_rating] ?? { bg: "#12202E", text: "#60A5FA" };
+    const c = CCF_COLORS[paper.ccf_rating] ?? colors.tagCasQ;
     tags.push({ label: `CCF ${paper.ccf_rating}`, bg: c.bg, text: c.text });
   }
   if (paper.wos_indexes) {
@@ -36,13 +37,13 @@ function buildTags(paper: Paper): Array<{ label: string; bg: string; text: strin
     }
   }
   if (paper.jcr_quartile) {
-    tags.push({ label: paper.jcr_quartile, bg: "#1A1830", text: "#A29BFE" });
+    tags.push({ label: paper.jcr_quartile, ...colors.tagQuartile });
   }
   if (paper.cas_quartile) {
-    tags.push({ label: `中科院${paper.cas_quartile}`, bg: "#12202E", text: "#60A5FA" });
+    tags.push({ label: `中科院${paper.cas_quartile}`, ...colors.tagCasQ });
   }
   if (paper.cas_top) {
-    tags.push({ label: "顶刊", bg: "#2D1518", text: "#FF6B6B" });
+    tags.push({ label: "顶刊", ...colors.tagTop });
   }
   return tags;
 }
@@ -118,7 +119,7 @@ const styles = StyleSheet.create({
   paperCard: { padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
   paperTouchable: { flex: 1 },
   paperInfo: { flex: 1 },
-  paperTitle: { fontSize: 16, fontWeight: "600", color: "#F5F7FA", lineHeight: 22 },
+  paperTitle: { fontSize: 16, fontWeight: "600", color: colors.textPrimary, lineHeight: 22 },
   tagsRow:   { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 6 },
   tag: {
     paddingHorizontal: 6,
@@ -127,20 +128,20 @@ const styles = StyleSheet.create({
   },
   tagText:   { fontSize: 11, fontWeight: "600" },
   paperMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
-  paperDate: { fontSize: 12, color: "#5F6B7A" },
+  paperDate: { fontSize: 12, color: colors.textMuted },
   statusBadge: { flexDirection: "row", alignItems: "center", gap: 3 },
   paperStatus: { fontSize: 12, fontWeight: "500" },
   analyzeBtn: { flexShrink: 0 },
   progressBar: {
     height: 3,
     borderRadius: 2,
-    backgroundColor: "rgba(0,122,255,0.15)",
+    backgroundColor: colors.accentLight,
     marginTop: 8,
     overflow: "hidden",
   },
   progressFill: {
     height: 3,
     borderRadius: 2,
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.accent,
   },
 });

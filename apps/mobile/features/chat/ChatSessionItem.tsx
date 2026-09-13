@@ -1,3 +1,4 @@
+import { colors } from "../theme";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { ChatSession } from "@research-copilot/types";
@@ -21,7 +22,7 @@ export function ChatSessionItem({
         <Ionicons
           name="chatbubble-ellipses"
           size={14}
-          color={isActive ? "#007AFF" : "#5F6B7A"}
+          color={isActive ? colors.accent : colors.textMuted}
         />
       </View>
       <View style={styles.sessionInfo}>
@@ -45,23 +46,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 14,
     marginBottom: 6,
-    backgroundColor: "#141A23",
+    backgroundColor: colors.bgCard,
     borderWidth: 1,
-    borderColor: "rgba(60,74,92,0.35)",
+    borderColor: colors.borderLight,
   },
   sessionItemActive: {
-    borderColor: "rgba(0,122,255,0.4)",
+    borderColor: colors.accentBorder,
   },
   sessionIcon: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: "rgba(0,122,255,0.08)",
+    backgroundColor: colors.accentFaint,
     alignItems: "center",
     justifyContent: "center",
   },
   sessionInfo: { flex: 1 },
-  sessionTitle: { fontSize: 14, fontWeight: "500", color: "#9AA7B8" },
-  sessionTitleActive: { color: "#007AFF" },
-  sessionDate: { fontSize: 12, color: "#5F6B7A", marginTop: 2 },
+  sessionTitle: { fontSize: 14, fontWeight: "500", color: colors.textSecondary },
+  sessionTitleActive: { color: colors.accent },
+  sessionDate: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
 });

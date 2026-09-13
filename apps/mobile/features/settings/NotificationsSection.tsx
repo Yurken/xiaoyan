@@ -1,3 +1,4 @@
+import { colors } from "../theme";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { NmCard } from "../../components/NmCard";
@@ -23,7 +24,7 @@ export function NotificationsSection() {
     <NmCard style={styles.card}>
       <View style={styles.sectionHeader}>
         <View style={styles.sectionIcon}>
-          <Ionicons name="notifications-outline" size={18} color="#FF9F0A" />
+          <Ionicons name="notifications-outline" size={18} color={colors.warning} />
         </View>
         <Text style={styles.sectionTitle}>通知</Text>
       </View>
@@ -46,7 +47,7 @@ export function NotificationsSection() {
           disabled={loading}
           activeOpacity={0.8}
         >
-          <Ionicons name="paper-plane-outline" size={16} color="#FFFFFF" style={styles.btnIcon} />
+          <Ionicons name="paper-plane-outline" size={16} color={colors.highlight} style={styles.btnIcon} />
           <Text style={styles.actionBtnText}>发送测试通知</Text>
         </TouchableOpacity>
       ) : (
@@ -56,7 +57,7 @@ export function NotificationsSection() {
           disabled={loading}
           activeOpacity={0.8}
         >
-          <Ionicons name="notifications-outline" size={16} color="#FFFFFF" style={styles.btnIcon} />
+          <Ionicons name="notifications-outline" size={16} color={colors.highlight} style={styles.btnIcon} />
           <Text style={styles.actionBtnText}>启用通知</Text>
         </TouchableOpacity>
       )}
@@ -73,29 +74,29 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: "rgba(255,159,10,0.12)",
+    backgroundColor: colors.warningSoft,
     alignItems: "center",
     justifyContent: "center",
   },
-  sectionTitle: { fontSize: 16, fontWeight: "600", color: "#F5F7FA" },
-  statusText: { fontSize: 14, fontWeight: "500", color: "#9AA7B8" },
-  statusGranted: { color: "#34C759" },
-  statusDenied: { color: "#FF9F0A" },
-  hint: { fontSize: 12, color: "#5F6B7A", lineHeight: 18 },
+  sectionTitle: { fontSize: 16, fontWeight: "600", color: colors.textPrimary },
+  statusText: { fontSize: 14, fontWeight: "500", color: colors.textSecondary },
+  statusGranted: { color: colors.success },
+  statusDenied: { color: colors.warning },
+  hint: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.accent,
     borderRadius: 14,
     paddingVertical: 12,
-    shadowColor: "#0062CC",
+    shadowColor: colors.accentStrong,
     shadowOffset: { width: 2, height: 3 },
     shadowOpacity: 0.35,
     shadowRadius: 6,
   },
   btnDisabled: { opacity: 0.55 },
   btnIcon: { marginRight: 6 },
-  actionBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
-  message: { fontSize: 12, color: "#9AA7B8", textAlign: "center" },
+  actionBtnText: { color: colors.highlight, fontSize: 15, fontWeight: "600" },
+  message: { fontSize: 12, color: colors.textSecondary, textAlign: "center" },
 });

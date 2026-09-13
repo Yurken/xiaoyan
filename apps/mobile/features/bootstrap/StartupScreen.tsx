@@ -1,3 +1,4 @@
+import { colors } from "../theme";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export function StartupScreen({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
@@ -13,7 +14,7 @@ export function StartupScreen({ failed, onRetry }: { failed: boolean; onRetry: (
         </>
       ) : (
         <>
-          <ActivityIndicator color="#007AFF" />
+          <ActivityIndicator color={colors.accent} />
           <Text style={styles.message}>正在恢复连接和登录设置…</Text>
         </>
       )}
@@ -22,8 +23,8 @@ export function StartupScreen({ failed, onRetry }: { failed: boolean; onRetry: (
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#090B10", alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
-  title: { color: "#F5F7FA", fontSize: 16, textAlign: "center" },
-  message: { color: "#9AA7B8", fontSize: 14, textAlign: "center" },
-  button: { backgroundColor: "#007AFF", paddingVertical: 12, paddingHorizontal: 28, borderRadius: 14 },
+  screen: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
+  title: { color: colors.textPrimary, fontSize: 16, textAlign: "center" },
+  message: { color: colors.textSecondary, fontSize: 14, textAlign: "center" },
+  button: { backgroundColor: colors.accent, paddingVertical: 12, paddingHorizontal: 28, borderRadius: 14 },
 });

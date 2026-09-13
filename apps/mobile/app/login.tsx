@@ -1,3 +1,4 @@
+import { colors } from "../features/theme";
 import { useState } from "react";
 import {
   View, Text, TextInput, StyleSheet,
@@ -40,7 +41,7 @@ export default function LoginScreen() {
         {/* Close */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
-            <Ionicons name="close" size={20} color="#5F6B7A" />
+            <Ionicons name="close" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -48,7 +49,7 @@ export default function LoginScreen() {
           {/* Brand */}
           <View style={styles.brand}>
             <View style={styles.brandIcon}>
-              <Ionicons name="sparkles" size={32} color="#007AFF" />
+              <Ionicons name="sparkles" size={32} color={colors.accent} />
             </View>
             <Text style={styles.brandName}>{PRODUCT_NAME}</Text>
             <Text style={styles.brandDesc}>{MAIN_ASSISTANT_WELCOME_TITLE}</Text>
@@ -63,7 +64,7 @@ export default function LoginScreen() {
                 value={email}
                 onChangeText={setEmail}
                 placeholder="your@email.com"
-                placeholderTextColor="#5F6B7A"
+                placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 autoComplete="email"
@@ -78,7 +79,7 @@ export default function LoginScreen() {
                   value={password}
                   onChangeText={setPassword}
                   placeholder="••••••••"
-                  placeholderTextColor="#5F6B7A"
+                  placeholderTextColor={colors.textMuted}
                   secureTextEntry={!showPassword}
                   autoComplete={isRegister ? "new-password" : "password"}
                 />
@@ -89,7 +90,7 @@ export default function LoginScreen() {
                   <Ionicons
                     name={showPassword ? "eye-off-outline" : "eye-outline"}
                     size={18}
-                    color="#5F6B7A"
+                    color={colors.textMuted}
                   />
                 </TouchableOpacity>
               </View>
@@ -98,7 +99,7 @@ export default function LoginScreen() {
             {/* Error */}
             {error ? (
               <View style={styles.errorRow}>
-                <Ionicons name="alert-circle" size={14} color="#FF3B30" />
+                <Ionicons name="alert-circle" size={14} color={colors.danger} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
@@ -111,7 +112,7 @@ export default function LoginScreen() {
               activeOpacity={0.8}
             >
               {loading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color={colors.highlight} />
               ) : (
                 <Text style={styles.submitBtnText}>
                   {isRegister ? "注册" : "登录"}
@@ -139,7 +140,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen:   { flex: 1, backgroundColor: "#090B10" },
+  screen:   { flex: 1, backgroundColor: colors.bg },
   keyboard: { flex: 1 },
 
   header: {
@@ -151,10 +152,10 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 36, height: 36,
     borderRadius: 12,
-    backgroundColor: "#141A23",
+    backgroundColor: colors.bgCard,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(60,74,92,0.7)",
+    borderColor: colors.border,
   },
 
   body: { flex: 1, paddingHorizontal: 24, justifyContent: "center", gap: 22 },
@@ -162,30 +163,30 @@ const styles = StyleSheet.create({
   brand: { alignItems: "center", gap: 8 },
   brandIcon: {
     width: 64, height: 64, borderRadius: 20,
-    backgroundColor: "#141A23",
+    backgroundColor: colors.bgCard,
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#007AFF",
+    shadowColor: colors.accent,
     shadowOffset: { width: 3, height: 3 },
     shadowOpacity: 0.3, shadowRadius: 8,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1, borderColor: colors.highlightBorder,
   },
-  brandName: { fontSize: 20, fontWeight: "700", color: "#F5F7FA" },
-  brandDesc:  { fontSize: 13, color: "#5F6B7A" },
+  brandName: { fontSize: 20, fontWeight: "700", color: colors.textPrimary },
+  brandDesc:  { fontSize: 13, color: colors.textMuted },
 
   // Form
   formCard: { padding: 20, gap: 16 },
 
   inputGroup: { gap: 6 },
-  inputLabel: { fontSize: 12, fontWeight: "500", color: "#5F6B7A", marginLeft: 4 },
+  inputLabel: { fontSize: 12, fontWeight: "500", color: colors.textMuted, marginLeft: 4 },
   input: {
-    backgroundColor: "#0F141C",
+    backgroundColor: colors.bgInput,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: "#F5F7FA",
+    color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: "rgba(60,74,92,0.5)",
+    borderColor: colors.border,
   },
 
   passwordWrap: { position: "relative" },
@@ -197,22 +198,22 @@ const styles = StyleSheet.create({
   },
 
   errorRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  errorText: { fontSize: 13, color: "#FF3B30" },
+  errorText: { fontSize: 13, color: colors.danger },
 
   submitBtn: {
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.accent,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",
-    shadowColor: "#0062CC",
+    shadowColor: colors.accentStrong,
     shadowOffset: { width: 2, height: 3 },
     shadowOpacity: 0.35, shadowRadius: 6,
   },
   submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
+  submitBtnText: { color: colors.highlight, fontSize: 16, fontWeight: "600" },
 
   switchBtn: { alignItems: "center", paddingVertical: 4 },
-  switchText: { fontSize: 14, color: "#007AFF" },
+  switchText: { fontSize: 14, color: colors.accent },
 
-  serverInfo: { fontSize: 12, color: "#5F6B7A", textAlign: "center" },
+  serverInfo: { fontSize: 12, color: colors.textMuted, textAlign: "center" },
 });
