@@ -41,6 +41,20 @@ fn registered_direct_shortcuts() -> &'static Mutex<HashMap<String, String>> {
     REGISTERED_DIRECT_SHORTCUTS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+fn conflicting_direct_action(
+    shortcuts: &HashMap<String, String>,
+    candidate: &str,
+    excluded_action: Option<&str>,
+) -> Option<String> {
+    shortcuts
+        .iter()
+        .find(|(action, shortcut)| {
+            excluded_action.map_or(true, |excluded| action.as_str() != excluded)
+                && shortcut.as_str() == candidate
+        })
+        .map(|(action, _)| action.clone())
+}
+
 fn handle_assistant_shortcut(app: &AppHandle, _shortcut: &Shortcut, event: ShortcutEvent) {
     if assistant_enabled() && event.state == ShortcutState::Pressed {
         let _ = toggle_assistant_panel(app);
@@ -150,7 +164,7 @@ fn normalize_assistant_shortcut(shortcut: &str) -> Result<String, String> {
         .map(str::trim)
         .filter(|token| !token.is_empty())
         .collect::<Vec<_>>();
-    let has_modifier = tokens.iter().any(|token| {
+    let is_modifier = |token: &&str| {
         matches!(
             token.to_ascii_lowercase().as_str(),
             "alt"
@@ -166,8 +180,10 @@ fn normalize_assistant_shortcut(shortcut: &str) -> Result<String, String> {
                 | "cmdorctrl"
                 | "cmdorcontrol"
         )
-    });
-    if tokens.len() < 2 || !has_modifier {
+    };
+    let has_modifier = tokens.iter().any(is_modifier);
+    let has_regular_key = tokens.iter().any(|token| !is_modifier(token));
+    if tokens.len() < 2 || !has_modifier || !has_regular_key {
         return Err("快捷键必须包含至少一个修饰键和一个普通按键".to_string());
     }
 
@@ -184,6 +200,13 @@ pub fn current_assistant_shortcut() -> String {
 pub fn set_assistant_shortcut(app: &AppHandle, shortcut: &str) -> Result<String, String> {
     let shortcut = normalize_assistant_shortcut(shortcut)?;
     let current = current_assistant_shortcut();
+    let direct_shortcuts = registered_direct_shortcuts()
+        .lock()
+        .map_err(|_| "直达快捷键状态暂时不可用".to_string())?;
+    if let Some(action) = conflicting_direct_action(&direct_shortcuts, &shortcut, None) {
+        return Err(format!("与直达动作「{action}」的快捷键冲突，请换一个组合"));
+    }
+    drop(direct_shortcuts);
     if current == shortcut {
         return Ok(shortcut);
     }
@@ -241,12 +264,8 @@ pub fn set_assistant_direct_shortcut(
             if current_assistant_shortcut() == *candidate {
                 return Err("与唤起动作面板的快捷键冲突，请换一个组合".to_string());
             }
-            if let Some(other) = shortcuts
-                .iter()
-                .find(|(other_action, other_shortcut)| {
-                    other_action.as_str() != action && *other_shortcut == candidate
-                })
-                .map(|(other_action, _)| other_action.clone())
+            if let Some(other) =
+                conflicting_direct_action(&shortcuts, candidate, Some(action))
             {
                 return Err(format!("与直达动作「{other}」的快捷键冲突，请换一个组合"));
             }
@@ -832,7 +851,11 @@ pub fn setup(app: &mut App) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_assistant_shortcut, panel_position_near_anchor};
+    use std::collections::HashMap;
+
+    use super::{
+        conflicting_direct_action, normalize_assistant_shortcut, panel_position_near_anchor,
+    };
 
     #[test]
     fn assistant_shortcut_requires_modifier_and_key() {
@@ -842,7 +865,24 @@ mod tests {
         );
         assert!(normalize_assistant_shortcut("Space").is_err());
         assert!(normalize_assistant_shortcut("Alt").is_err());
+        assert!(normalize_assistant_shortcut("Alt+Shift").is_err());
         assert!(normalize_assistant_shortcut("").is_err());
+    }
+
+    #[test]
+    fn assistant_shortcut_detects_direct_action_conflicts() {
+        let shortcuts = HashMap::from([
+            ("interpret".to_string(), "Alt+1".to_string()),
+            ("translate".to_string(), "Alt+2".to_string()),
+        ]);
+        assert_eq!(
+            conflicting_direct_action(&shortcuts, "Alt+1", None).as_deref(),
+            Some("interpret")
+        );
+        assert_eq!(
+            conflicting_direct_action(&shortcuts, "Alt+1", Some("interpret")),
+            None
+        );
     }
 
     const MONITOR: (i32, i32, i32, i32) = (0, 0, 2560, 1440);
