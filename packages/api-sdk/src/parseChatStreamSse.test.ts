@@ -45,6 +45,30 @@ describe("parseChatStreamSse", () => {
     ]);
   });
 
+  it("maps tool results and routing decisions", () => {
+    const toolResult = {
+      tool_name: "search_papers",
+      tool_id: "tool-1",
+      result: "found 3 papers",
+      result_id: "result-1",
+    };
+    const routingDecision = {
+      policy: "balanced",
+      selected: ["planner", "survey"],
+      reasoning: "needs evidence",
+      execution_waves: [["planner"], ["survey"]],
+    };
+    const text = [
+      `data: ${JSON.stringify({ tool_result: toolResult })}`,
+      `data: ${JSON.stringify({ routing_decision: routingDecision })}`,
+    ].join("\n");
+
+    expect(parseChatStreamSse(text)).toEqual([
+      { type: "tool_result", ...toolResult },
+      { type: "routing_decision", value: routingDecision },
+    ]);
+  });
+
   it("accepts data: without a space after the colon", () => {
     expect(parseChatStreamSse('data:{"delta":"x"}')).toEqual([{ type: "delta", value: "x" }]);
   });

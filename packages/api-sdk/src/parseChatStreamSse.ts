@@ -7,6 +7,13 @@ function mapJsonToChunks(json: {
   agent_start?: unknown;
   agent_complete?: unknown;
   agent_error?: unknown;
+  tool_result?: {
+    tool_name?: unknown;
+    tool_id?: unknown;
+    result?: unknown;
+    result_id?: unknown;
+  };
+  routing_decision?: ChatStreamChunk extends { type: "routing_decision"; value: infer V } ? V : never;
   searching?: unknown;
   query?: unknown;
   delta?: unknown;
@@ -21,6 +28,20 @@ function mapJsonToChunks(json: {
   if (json.agent_start) chunks.push({ type: "agent_start", value: json.agent_start as never });
   if (json.agent_complete) chunks.push({ type: "agent_complete", value: json.agent_complete as never });
   if (json.agent_error) chunks.push({ type: "agent_error", value: json.agent_error as never });
+  if (json.tool_result) {
+    chunks.push({
+      type: "tool_result",
+      tool_name: String(json.tool_result.tool_name ?? ""),
+      tool_id: String(json.tool_result.tool_id ?? ""),
+      result: String(json.tool_result.result ?? ""),
+      ...(json.tool_result.result_id === undefined
+        ? {}
+        : { result_id: String(json.tool_result.result_id) }),
+    });
+  }
+  if (json.routing_decision) {
+    chunks.push({ type: "routing_decision", value: json.routing_decision });
+  }
   if (json.searching || json.query) {
     chunks.push({ type: "searching", query: String(json.searching ?? json.query) });
   }
