@@ -1,0 +1,33 @@
+.copilot-conversation {
+  display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0;
+  overflow: hidden; container-type: inline-size;
+}
+.copilot-messages { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.copilot-composer-slot { flex-shrink: 0; min-width: 0; }
+.copilot-conversation.is-empty {
+  overflow-y: auto; padding: clamp(44px, 9vh, 96px) 24px 32px;
+  --copilot-composer-bg: var(--rc-card-bg);
+  --copilot-composer-shadow: var(--rc-card-shadow);
+  --copilot-composer-min-height: 180px;
+}
+.copilot-conversation.is-empty > * { width: 100%; max-width: 804px; margin-left: auto; margin-right: auto; flex-shrink: 0; }
+.copilot-conversation.is-empty .copilot-messages { flex: 0 0 auto; }
+.copilot-conversation.is-empty .copilot-composer { padding: 0; }
+.copilot-welcome-heading { margin-bottom: 26px; }
+.copilot-welcome-heading h1 { color: var(--rc-text); font-size: clamp(24px, 2.6vw, 32px); line-height: 1.35; letter-spacing: -.025em; font-weight: 600; }
+.copilot-composer-surface:focus-within { outline: 1px solid var(--rc-accent); outline-offset: 3px; }
+.copilot-suggestions { display: flex; align-items: center; gap: 12px; min-height: 64px; margin-top: 10px; }
+.copilot-suggestion-label { flex-shrink: 0; color: var(--rc-text-muted); font-size: 12px; }
+.copilot-suggestion { min-width: 0; flex: 1; text-align: left; color: var(--rc-text-soft); font-size: 13px; line-height: 1.6; opacity: 1; transition: opacity 240ms ease; }
+.copilot-suggestion:hover { color: var(--rc-accent); }
+.copilot-suggestion.is-fading { opacity: 0; }
+.copilot-suggestion:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 4px; }
+/* The outer composer owns the focus boundary in both flat and neumorphic themes. */
+html[data-style="modern-minimal"] .copilot-composer textarea,
+html[data-style="modern-minimal"] .copilot-composer textarea:focus { border: 0 !important; box-shadow: none !important; }
+@container (max-width: 560px) {
+  .copilot-suggestions { flex-wrap: wrap; gap: 8px; padding-top: 8px; }
+  .copilot-suggestion { flex-basis: calc(100% - 50px); min-height: 44px; }
+  .copilot-suggestions > div { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .copilot-suggestion { transition: none; } }

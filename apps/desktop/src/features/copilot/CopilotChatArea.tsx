@@ -9,12 +9,10 @@ import {
   Zap,
 } from "lucide-react";
 import { MarkdownRenderer } from "@research-copilot/ui";
-import { MAIN_ASSISTANT_WELCOME_DESCRIPTION, MAIN_ASSISTANT_WELCOME_DESCRIPTION_DIRECT, MAIN_ASSISTANT_WELCOME_TITLE } from "@research-copilot/types";
 import ThinkingProcessPanel from "./ThinkingProcessPanel";
 import { ToolActionCard } from "./ToolActionCard";
 import { ArtifactCard } from "../artifacts/ArtifactCard";
 import { CopilotSourceLinks } from "./CopilotSourceLinks";
-import appLogo from "../../assets/xiaoyanv.svg";
 import { parseCopilotMessageContent } from "./shared";
 import { openLink } from "../../lib/links";
 import type { AgentPlanStep, AgentRun, ChatMessage, ChatMode, RoutingDecision } from "@research-copilot/types";
@@ -68,7 +66,7 @@ interface CopilotChatAreaProps {
 
 export function CopilotChatArea(props: CopilotChatAreaProps) {
   const {
-    messages, chatMode, agentRuns, plan, routingDecision, activeAssistantId, sending, searchingQuery,
+    messages, agentRuns, plan, routingDecision, activeAssistantId, sending, searchingQuery,
     loadError, editingMessageId, editText, copiedId, sessionId,
     onClearError, onCopy, onRetry, onStartEdit, onSaveEdit, onCancelEdit,
     onEditTextChange,
@@ -87,6 +85,8 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
 
   const displayedRuns = [...agentRuns].sort((a, b) => a.order_index - b.order_index);
 
+  if (messages.length === 0 && !loadError) return null;
+
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4 relative rc-copilot-chat-area">
       {loadError && (
@@ -100,18 +100,6 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
             <button type="button" aria-label="关闭错误提示" onClick={onClearError} className="rounded-lg p-0.5 text-apple-red/70 transition-colors hover:bg-apple-red/10 hover:text-apple-red">
               <X className="h-3.5 w-3.5" />
             </button>
-          </div>
-        </div>
-      )}
-
-      {messages.length === 0 && (
-        <div className="flex flex-col items-center justify-center h-full gap-4 pb-12">
-          <img src={appLogo} alt="小妍" draggable={false} className="w-20 h-20 object-contain"
-            style={{ WebkitMaskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)", maskImage: "radial-gradient(circle at center, #000 82%, transparent 100%)" }}
-          />
-          <div className="text-center max-w-md">
-            <p className="font-semibold text-ink-primary">{MAIN_ASSISTANT_WELCOME_TITLE}</p>
-            <p className="text-sm text-ink-tertiary mt-2 leading-6">{chatMode === "direct" ? MAIN_ASSISTANT_WELCOME_DESCRIPTION_DIRECT : MAIN_ASSISTANT_WELCOME_DESCRIPTION}</p>
           </div>
         </div>
       )}

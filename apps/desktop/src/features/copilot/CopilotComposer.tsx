@@ -106,7 +106,7 @@ export default function CopilotComposer({
   };
 
   return (
-    <div className="px-3 pb-3 pt-2 relative">
+    <div className="copilot-composer px-3 pb-3 pt-2 relative">
       <div className="space-y-2.5">
         {/* 附件卡片 - 固定尺寸，在输入框上方 */}
         {attachments.length > 0 && (
@@ -157,11 +157,12 @@ export default function CopilotComposer({
 
         {/* 输入框 + 内嵌按钮栏 */}
         <div
-          className="rounded-3xl flex flex-col"
+          className="copilot-composer-surface rounded-3xl flex flex-col"
           style={{
             height: composerHeight,
-            background: "var(--rc-surface)",
-            boxShadow: "var(--rc-inset-shadow)",
+            minHeight: "var(--copilot-composer-min-height, 80px)",
+            background: "var(--copilot-composer-bg, var(--rc-surface))",
+            boxShadow: "var(--copilot-composer-shadow, var(--rc-inset-shadow))",
           }}
         >
           {/* 拖拽调整高度 */}
@@ -218,9 +219,11 @@ export default function CopilotComposer({
               </div>
             )}
             <textarea
+              aria-label="发给小妍的问题"
               value={input}
               onChange={(event) => onInputChange(event.target.value)}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.keyCode === 229) return;
                 if (slashOpen) {
                   if (event.key === "ArrowDown") {
                     event.preventDefault();
@@ -244,7 +247,7 @@ export default function CopilotComposer({
                     return;
                   }
                 }
-                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && canSubmit) {
                   event.preventDefault();
                   void onSubmit();
                 }
@@ -314,12 +317,9 @@ export default function CopilotComposer({
               title={sending ? "终止生成" : "发送消息（⌘ / Ctrl + Enter）"}
               className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
-                background: sending ? "#FF3B30" : "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                boxShadow: sending || canSubmit
-                  ? sending
-                    ? "2px 2px 7px rgba(215,45,38,0.28)"
-                    : "3px 3px 8px rgba(0,62,204,0.35), -2px -2px 6px rgba(58,155,255,0.2)"
-                  : "none",
+                background: sending ? "var(--rc-button-danger-bg)" : "var(--rc-button-primary-bg)",
+                color: sending ? "var(--rc-on-primary, #fff)" : "var(--rc-button-primary-text)",
+                boxShadow: sending ? "var(--rc-button-danger-shadow)" : canSubmit ? "var(--rc-button-primary-shadow)" : "none",
               }}
             >
               {sending ? <Square className="w-3.5 h-3.5 fill-current" /> : <ArrowUp className="w-4 h-4" />}
