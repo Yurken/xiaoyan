@@ -339,6 +339,8 @@ pub struct AppState {
     pub translation_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     /// Active desktop-assistant action streams keyed by request_id.
     pub assistant_action_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
+    /// Serializes stream registration with user-triggered private-data clearing.
+    pub assistant_action_lifecycle: Arc<RwLock<()>>,
     /// 跨显示器截图选区的唯一请求与拖动协调器。
     pub capture_overlay:
         Arc<crate::services::desktop_assistant::capture_overlay_drag::CaptureOverlayCoordinator>,
@@ -375,6 +377,7 @@ impl AppState {
             chat_stream_meta: Arc::new(StdMutex::new(HashMap::new())),
             translation_handles: Arc::new(Mutex::new(HashMap::new())),
             assistant_action_handles: Arc::new(Mutex::new(HashMap::new())),
+            assistant_action_lifecycle: Arc::new(RwLock::new(())),
             capture_overlay: Arc::new(
                 crate::services::desktop_assistant::capture_overlay_drag::CaptureOverlayCoordinator::default(),
             ),

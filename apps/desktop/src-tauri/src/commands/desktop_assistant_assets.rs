@@ -55,6 +55,18 @@ pub async fn assistant_clear_private_data(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<AssistantPrivateDataClearResult, String> {
+    // Block new stream registrations, then stop and join every active stream
+    // before deleting rows so no cancelled task can write private metrics later.
+    let _clear_guard = state.assistant_action_lifecycle.write().await;
+    let actions = std::mem::take(&mut *state.assistant_action_handles.lock().await);
+    let cancelled_actions = actions.len().min(u32::MAX as usize) as u32;
+    for handle in actions.values() {
+        handle.abort();
+    }
+    for (_, handle) in actions {
+        let _ = handle.await;
+    }
+
     let app_data_dir = app
         .path()
         .app_data_dir()
@@ -62,13 +74,6 @@ pub async fn assistant_clear_private_data(
     let cleared = AssistantPrivateDataService::clear(&state.db, &app_data_dir)
         .await
         .map_err(|error| error.to_string())?;
-
-    let mut actions = state.assistant_action_handles.lock().await;
-    let cancelled_actions = actions.len().min(u32::MAX as usize) as u32;
-    for (_, handle) in actions.drain() {
-        handle.abort();
-    }
-    drop(actions);
 
     let result = AssistantPrivateDataClearResult {
         capture_sessions: cleared.capture_sessions,

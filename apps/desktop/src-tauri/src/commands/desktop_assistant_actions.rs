@@ -355,6 +355,9 @@ pub async fn assistant_stream_action(
     include_capture_context: bool,
 ) -> Result<String, String> {
     ensure_assistant_enabled()?;
+    // A clear operation takes the write side of this lock. Holding the read side
+    // until registration prevents a prepared stream from appearing after clear.
+    let registration_guard = state.assistant_action_lifecycle.read().await;
     CaptureStore::require_confirmed(&state.db, &session_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -502,6 +505,8 @@ pub async fn assistant_stream_action(
     {
         handles.remove(&request_id);
     }
+    drop(handles);
+    drop(registration_guard);
     Ok(request_id)
 }
 
