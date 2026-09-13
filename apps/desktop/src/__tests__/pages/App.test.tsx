@@ -38,9 +38,6 @@ vi.mock("../../pages/Tools", () => ({
 vi.mock("../../pages/Submission", () => ({
   default: () => <div data-testid="submission-page">投稿</div>,
 }));
-vi.mock("../../pages/Experiment", () => ({
-  default: () => <div data-testid="experiment-page">实验</div>,
-}));
 vi.mock("../../pages/Writing", () => ({
   default: () => <div data-testid="writing-page">写作</div>,
 }));
@@ -127,10 +124,12 @@ describe("App 路由与导航", () => {
   it("应包含所有导航项", async () => {
     renderWithRouter(<App />);
     await waitFor(() => {
-      const navLabels = ["首页", "规划", "对话", "综述", "论文", "写作", "知识", "DSH", "收集箱", "实验", "研究", "投稿", "工具", "设置"];
+      const navLabels = ["首页", "规划", "对话", "综述", "论文", "写作", "知识", "DSH", "收集箱", "投稿", "工具", "设置"];
       for (const label of navLabels) {
         expect(screen.getByLabelText(label)).toBeInTheDocument();
       }
+      expect(screen.queryByLabelText("实验")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("研究")).not.toBeInTheDocument();
     });
   });
 
@@ -159,14 +158,18 @@ describe("App 路由与导航", () => {
       expect(screen.getByLabelText("写作")).toHaveAttribute("href", "/writing");
       expect(screen.getByLabelText("知识")).toHaveAttribute("href", "/knowledge");
       expect(screen.getByLabelText("收集箱")).toHaveAttribute("href", "/inbox");
-      expect(screen.getByLabelText("实验")).toHaveAttribute("href", "/experiment");
-      expect(screen.getByLabelText("研究")).toHaveAttribute("href", "/research");
       expect(screen.getByLabelText("DSH")).toHaveAttribute("href", "/code");
       expect(screen.getByLabelText("收集箱")).toHaveAttribute("href", "/inbox");
-      expect(screen.getByLabelText("研究")).toHaveAttribute("href", "/research");
       expect(screen.getByLabelText("投稿")).toHaveAttribute("href", "/submission");
       expect(screen.getByLabelText("工具")).toHaveAttribute("href", "/tools");
       expect(screen.getByLabelText("设置")).toHaveAttribute("href", "/settings");
+    });
+  });
+
+  it.each(["/experiment", "/research"])("隐藏页面 %s 应回到首页", async (path) => {
+    renderWithRouter(<App />, { initialEntries: [path] });
+    await waitFor(() => {
+      expect(screen.getByTestId("home-page")).toBeInTheDocument();
     });
   });
 
