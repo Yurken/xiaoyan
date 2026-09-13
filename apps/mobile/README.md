@@ -52,6 +52,15 @@ pnpm --dir apps/mobile run android
 - preview：输出 APK
 - production：输出 AAB
 
+## GitHub Actions APK
+
+`Android APK` 流水线会在涉及移动端的 PR、`master` 更新时自动运行，也可在 GitHub Actions 中手动触发。流水线会先执行移动端 lint、类型检查和测试，再通过仓库内的 Gradle Wrapper 构建 `assembleRelease`，并上传：
+
+- `xiaoyan-android-preview.apk`
+- `xiaoyan-android-preview.apk.sha256`
+
+产物保留 14 天。当前 Android release 构建沿用仓库内的 debug keystore，适合内部安装验证；应用商店发布继续使用 EAS production 配置和正式签名。
+
 ## 常见排障
 
 - **连接失败**：确认另行部署的兼容服务已启动，地址对模拟器/真机可达；模拟器 debug 用 `http://10.0.2.2:8000`，真机用局域网或 HTTPS 公网地址；正式构建用 HTTPS。在设置页先测连通再保存。

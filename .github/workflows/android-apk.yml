@@ -1,0 +1,86 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master, main]
+    paths:
+      - ".github/workflows/android-apk.yml"
+      - "apps/mobile/**"
+      - "packages/api-sdk/**"
+      - "packages/types/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+  push:
+    branches: [master, main]
+    paths:
+      - ".github/workflows/android-apk.yml"
+      - "apps/mobile/**"
+      - "packages/api-sdk/**"
+      - "packages/types/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build Android Preview APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate mobile workspace
+        run: |
+          pnpm --filter @research-copilot/mobile lint
+          pnpm --filter @research-copilot/mobile type-check
+          pnpm --filter @research-copilot/mobile test
+
+      - name: Build installable APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p artifacts
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk artifacts/xiaoyan-android-preview.apk
+          sha256sum artifacts/xiaoyan-android-preview.apk > artifacts/xiaoyan-android-preview.apk.sha256
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: xiaoyan-android-preview-${{ github.run_number }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
