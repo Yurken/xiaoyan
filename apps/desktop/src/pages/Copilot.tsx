@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
+import { useCopilotHomePrompt } from "../features/copilot/useCopilotHomePrompt";
 import CopilotComposer from "../features/copilot/CopilotComposer";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
 import { CopilotChatArea } from "../features/copilot/CopilotChatArea";
@@ -119,15 +120,31 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     },
   });
 
+  const hasHomePrompt = useCopilotHomePrompt({
+    prepare: (prompt) => {
+      restoredLastSessionRef.current = true;
+      loadSessionRequestRef.current += 1;
+      clearCheckpointHandoff();
+      setPaperHandoff(null);
+      sessions.handleNewChat();
+      sessions.setSelectedInterestId("");
+      chat.resetChat();
+      chat.setInput(prompt);
+    },
+    input: chat.input,
+    ready: !sessions.currentSession && !paperHandoff && !checkpointHandoff && !sessions.selectedInterestId,
+    send: chat.handleSend,
+  });
+
   const appliedPaperHandoffRef = useRef(false);
   useEffect(() => {
-    if (!paperHandoff || checkpointHandoff || appliedPaperHandoffRef.current) return;
+    if (hasHomePrompt || !paperHandoff || checkpointHandoff || appliedPaperHandoffRef.current) return;
     appliedPaperHandoffRef.current = true;
     sessions.handleNewChat();
     chat.resetChat();
     chat.setInput(paperHandoff.prompt);
     restoredLastSessionRef.current = true;
-  }, [chat, checkpointHandoff, paperHandoff, sessions]);
+  }, [chat, checkpointHandoff, hasHomePrompt, paperHandoff, sessions]);
 
   const handleLoadSession = useCallback(async (session: ChatSession) => {
     const requestId = loadSessionRequestRef.current + 1;
@@ -167,7 +184,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     restoredLastSessionRef.current = true;
   }, []);
   const handleDismissCheckpointHandoff = useApplyCopilotCheckpointHandoff({
-    handoff: checkpointHandoff,
+    handoff: hasHomePrompt ? null : checkpointHandoff,
     setHandoff: setCheckpointHandoff,
     activeHandoffRef: activeCheckpointHandoffRef,
     sessionsLoaded: sessions.sessionsLoaded,

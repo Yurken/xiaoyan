@@ -24,8 +24,7 @@ describe("Home 页面", () => {
     mockUseWorkbenchOverview.mockReturnValue({ model: EMPTY_HOME, loading: true, error: "", refresh: vi.fn() });
     renderWithRouter(<Home />);
     expect(screen.getByText("正在读取近期工作…")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /读一篇论文/ })).toHaveAttribute("href", "/papers");
-    expect(screen.getByRole("link", { name: /写一段文稿/ })).toHaveAttribute("href", "/writing");
+    expect(screen.getByRole("textbox", { name: "发给小妍的问题" })).toBeEnabled();
   });
 
   it("失败时保留工作入口且不误报暂无提醒，并支持重试", () => {
@@ -45,15 +44,37 @@ describe("Home 页面", () => {
     });
     renderWithRouter(<><Home /><Destination /></>);
     expect(screen.getAllByText("论文消融分析")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("link", { name: "继续对话" }));
+    fireEvent.click(screen.getByRole("link", { name: /论文消融分析/ }));
     expect(screen.getByTestId("destination")).toHaveTextContent('"assistantConversationId":"session-1"');
+    expect(screen.getByTestId("destination")).toHaveTextContent('"path":"/chat"');
+  });
+
+  it("建议填入草稿，发送时携带问题开启新对话", () => {
+    renderWithRouter(<><Home /><Destination /></>);
+    fireEvent.click(screen.getByRole("button", { name: "帮我把一个模糊的选题，变成可以验证的研究问题" }));
+    const input = screen.getByRole("textbox", { name: "发给小妍的问题" });
+    expect(input).toHaveValue("帮我把一个模糊的选题，变成可以验证的研究问题");
+    fireEvent.change(input, { target: { value: "  研究问题\n需要对照实验  " } });
+    fireEvent.click(screen.getByRole("button", { name: "发送给小妍" }));
+    expect(screen.getByTestId("destination")).toHaveTextContent('"homePrompt":"研究问题\\n需要对照实验"');
+    expect(screen.getByTestId("destination")).toHaveTextContent('"path":"/chat"');
+  });
+
+  it("中文输入法确认和 Shift Enter 不触发发送", () => {
+    renderWithRouter(<><Home /><Destination /></>);
+    const input = screen.getByRole("textbox", { name: "发给小妍的问题" });
+    fireEvent.change(input, { target: { value: "研究" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    expect(screen.getByTestId("destination")).toHaveTextContent('"path":"/"');
+    fireEvent.keyDown(input, { key: "Enter" });
     expect(screen.getByTestId("destination")).toHaveTextContent('"path":"/chat"');
   });
 
   it("空状态提供开始入口，不制造进度指标", () => {
     renderWithRouter(<Home />);
-    expect(screen.getByText("还没想清楚，也可以开始。")).toBeInTheDocument();
-    expect(screen.getByText("暂无待处理提醒。")).toBeInTheDocument();
+    expect(screen.getByText("今天想弄清什么？")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "待处理提醒" })).not.toBeInTheDocument();
     expect(screen.queryByText("今日推进")).not.toBeInTheDocument();
   });
 });
