@@ -93,7 +93,7 @@ describe('AssistantDataPolicySection', () => {
 
     render(<AssistantDataPolicySection />)
     const toggle = await screen.findByRole('checkbox', { name: '启用匿名本地事件统计' })
-    expect(toggle).toBeChecked()
+    await waitFor(() => expect(toggle).toBeChecked())
     expect(
       await screen.findByText(/近 28 天：模型动作 3 成功 \/ 1 失败；复制 2 次/),
     ).toBeInTheDocument()
