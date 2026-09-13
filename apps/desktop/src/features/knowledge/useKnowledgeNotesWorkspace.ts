@@ -33,7 +33,6 @@ export function useKnowledgeNotesWorkspace({
   const [notes, setNotes] = useState<KnowledgeNote[]>(initialNotes ?? []);
   const [interests, setInterests] = useState<ResearchInterest[]>(initialInterests ?? []);
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(!initialNotes);
   const [error, setError] = useState("");
 
@@ -56,11 +55,11 @@ export function useKnowledgeNotesWorkspace({
   }, [initialInterests]);
 
   useEffect(() => {
-    if (!initialNotes || debouncedSearch) return;
+    if (!initialNotes) return;
     setNotes(initialNotes);
     setLoading(false);
     setError("");
-  }, [debouncedSearch, initialNotes]);
+  }, [initialNotes]);
 
   useEffect(() => {
     if (initialInterests) return;
@@ -80,17 +79,12 @@ export function useKnowledgeNotesWorkspace({
   }, [initialInterests]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 350);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => {
-    if (!debouncedSearch && initialNotes) return;
+    if (initialNotes) return;
 
     let cancelled = false;
     setLoading(true);
 
-    apiClient.knowledge.listNotes(debouncedSearch || undefined)
+    apiClient.knowledge.listNotes()
       .then((data) => {
         if (!cancelled) {
           setNotes(data);
@@ -108,40 +102,22 @@ export function useKnowledgeNotesWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [debouncedSearch, initialNotes]);
+  }, [initialNotes]);
 
   const interestMap = useMemo(
     () => Object.fromEntries(interests.map((item) => [item.id, item])),
     [interests],
   );
 
-  const scopedNotes = useMemo(
-    () => researchInterestId
-      ? notes.filter((note) => note.research_interest_id === researchInterestId)
-      : notes,
-    [notes, researchInterestId],
-  );
-
-  const noteGroups = useMemo(() => {
-    const visibleInterests = researchInterestId
-      ? interests.filter((interest) => interest.id === researchInterestId)
-      : interests;
-
-    return visibleInterests.map((interest) => ({
-      key: interest.id,
-      title: interest.folder_name?.trim() || interest.topic,
-      subtitle: interest.topic,
-      notes: scopedNotes.filter((note) => note.research_interest_id === interest.id),
-    }));
-  }, [interests, researchInterestId, scopedNotes]);
-
-  const ungroupedNotes = useMemo(() => {
-    if (researchInterestId) return [];
+  const scopedNotes = useMemo(() => {
+    const normalizedSearch = search.trim().toLocaleLowerCase();
     return notes.filter((note) => {
-      if (!note.research_interest_id) return true;
-      return !(note.research_interest_id in interestMap);
+      if (researchInterestId && note.research_interest_id !== researchInterestId) return false;
+      if (!normalizedSearch) return true;
+      return [note.title, note.content, ...(note.tags ?? [])]
+        .some((value) => value.toLocaleLowerCase().includes(normalizedSearch));
     });
-  }, [interestMap, notes, researchInterestId]);
+  }, [notes, researchInterestId, search]);
 
   const createNote = useCallback(async (draft: CreateKnowledgeNoteInput) => {
     try {
@@ -178,33 +154,15 @@ export function useKnowledgeNotesWorkspace({
     try {
       clearError();
       const title = draft.title.trim();
-      const content = draft.content.trim();
-      await apiClient.knowledge.updateNote(id, { title, content });
-      const moved = await apiClient.knowledge.moveNote(id, draft.research_interest_id || undefined);
-      setNotes((prev) => prev.map((note) => (note.id === id ? moved : note)));
+      const content = draft.content;
+      const saved = await apiClient.knowledge.updateNote(id, {
+        title,
+        content,
+        research_interest_id: draft.research_interest_id,
+      });
+      setNotes((prev) => prev.map((note) => (note.id === id ? saved : note)));
       syncGraphSnapshot();
-      return moved;
-    } catch (nextError) {
-      throw setErrorFromUnknown(nextError);
-    }
-  }, [clearError, setErrorFromUnknown, syncGraphSnapshot]);
-
-  const deleteInterestGroup = useCallback(async (interestId: string, deleteAll: boolean) => {
-    try {
-      clearError();
-      if (deleteAll) {
-        await apiClient.knowledge.deleteInterestBundle(interestId);
-        setNotes((prev) => prev.filter((note) => note.research_interest_id !== interestId));
-      } else {
-        await apiClient.knowledge.deleteInterestOnly(interestId);
-        setNotes((prev) => prev.map((note) => (
-          note.research_interest_id === interestId
-            ? { ...note, research_interest_id: undefined }
-            : note
-        )));
-      }
-      setInterests((prev) => prev.filter((interest) => interest.id !== interestId));
-      syncGraphSnapshot();
+      return saved;
     } catch (nextError) {
       throw setErrorFromUnknown(nextError);
     }
@@ -247,12 +205,9 @@ export function useKnowledgeNotesWorkspace({
     clearError,
     interestMap,
     scopedNotes,
-    noteGroups,
-    ungroupedNotes,
     createNote,
     deleteNote,
     saveNote,
-    deleteInterestGroup,
     clipWebPage,
     importZip,
   };

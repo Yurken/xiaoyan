@@ -76,9 +76,8 @@ export default function NoteReader() {
     let cancelled = false;
     (async () => {
       try {
-        const notes = await knowledgeApi.listNotes();
+        const found = await knowledgeApi.getNote(id);
         if (cancelled) return;
-        const found = notes.find((n) => n.id === id) ?? null;
         if (found) {
           setNote(found);
           setTitle(found.title);
@@ -121,11 +120,11 @@ export default function NoteReader() {
         });
       } else {
         if (!note || !id) return;
-        await knowledgeApi.updateNote(id, { title: title.trim(), content });
-        // Move note if topic changed
-        if (researchInterestId !== (note.research_interest_id ?? "")) {
-          await knowledgeApi.moveNote(id, researchInterestId || undefined);
-        }
+        await knowledgeApi.updateNote(id, {
+          title: title.trim(),
+          content,
+          research_interest_id: researchInterestId,
+        });
         setNote((prev) => prev ? { ...prev, title: title.trim(), content, research_interest_id: researchInterestId || undefined } : prev);
         setDirty(false);
         flashToast("已保存");

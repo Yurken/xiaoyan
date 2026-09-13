@@ -166,8 +166,9 @@ use commands::{
     },
     knowledge_ideas::knowledge_ideas_from_materials,
     knowledge_notes::{
-        knowledge_create_note, knowledge_delete_note, knowledge_import_zip, knowledge_list_notes,
-        knowledge_list_notes_by_source, knowledge_move_note, knowledge_update_note,
+        knowledge_create_note, knowledge_delete_note, knowledge_get_note, knowledge_import_zip,
+        knowledge_list_notes, knowledge_list_notes_by_source, knowledge_move_note,
+        knowledge_update_note,
     },
     memory::{
         memory_add, memory_build_context, memory_clear_auto, memory_delete, memory_list,
@@ -713,6 +714,7 @@ pub fn run() {
             knowledge_generate_plan,
             knowledge_list_notes,
             knowledge_list_notes_by_source,
+            knowledge_get_note,
             knowledge_create_note,
             knowledge_update_note,
             knowledge_move_note,
