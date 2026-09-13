@@ -1,32 +1,57 @@
+import { useMemo } from "react";
 import { FileText, Loader2, Plus, Search } from "lucide-react";
 import { clsx } from "clsx";
-import { Button, Input } from "@research-copilot/ui";
-import type { KnowledgeNote } from "@research-copilot/types";
+import { Button, Input, Select } from "@research-copilot/ui";
+import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
+import { interestFolderName } from "../../../lib/interestUtils";
+import type { NotesScope } from "./shared";
 
-export default function NoteTitleList({
-  notes,
-  selectedId,
-  search,
-  loading,
-  onSearchChange,
-  onSelect,
-  onCreate,
-}: {
+interface NotesSidebarProps {
   notes: KnowledgeNote[];
+  interests: ResearchInterest[];
+  scope: NotesScope;
   selectedId: string | null;
   search: string;
   loading: boolean;
+  showScopeFilter: boolean;
+  onScopeChange: (scope: NotesScope) => void;
   onSearchChange: (value: string) => void;
   onSelect: (note: KnowledgeNote) => void;
   onCreate: () => void;
-}) {
+}
+
+export default function NotesSidebar({
+  notes,
+  interests,
+  scope,
+  selectedId,
+  search,
+  loading,
+  showScopeFilter,
+  onScopeChange,
+  onSearchChange,
+  onSelect,
+  onCreate,
+}: NotesSidebarProps) {
+  const scopeOptions = useMemo(() => [
+    { value: "all", label: "全部笔记" },
+    { value: "unfiled", label: "未归档" },
+    ...interests.map((interest) => ({
+      value: `interest:${interest.id}`,
+      label: `研究主题 · ${interestFolderName(interest)}`,
+    })),
+  ], [interests]);
+
   return (
-    <section className="flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-3xl border" style={{
-      background: "var(--rc-bg)",
-      borderColor: "var(--rc-border)",
-      boxShadow: "var(--rc-card-flat-shadow)",
-    }}>
-      <div className="space-y-3 p-4">
+    <section
+      className="flex min-h-[560px] min-w-0 flex-col rounded-3xl border"
+      style={{
+        background: "var(--rc-bg)",
+        borderColor: "var(--rc-border)",
+        boxShadow: "var(--rc-card-flat-shadow)",
+      }}
+    >
+      <div className="space-y-3 p-4 pb-3">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-ink-primary">笔记</h2>
@@ -37,6 +62,17 @@ export default function NoteTitleList({
             新建
           </Button>
         </div>
+
+        {showScopeFilter ? (
+          <Select
+            aria-label="筛选笔记范围"
+            prefix="范围："
+            value={scope}
+            options={scopeOptions}
+            onChange={(value) => onScopeChange(value as NotesScope)}
+          />
+        ) : null}
+
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
           <Input

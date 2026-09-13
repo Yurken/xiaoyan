@@ -7,8 +7,7 @@ import WebClipDialog from "../WebClipDialog";
 import { useKnowledgeNotesWorkspace } from "../useKnowledgeNotesWorkspace";
 import { useNotesExport } from "../useNotesExport";
 import NoteDocumentPane from "./NoteDocumentPane";
-import NotesNavigation from "./NotesNavigation";
-import NoteTitleList from "./NoteTitleList";
+import NotesSidebar from "./NotesSidebar";
 import { compareNotesByUpdatedAt, type NoteDraft, type NotesScope } from "./shared";
 
 interface NotesWorkspaceProps {
@@ -143,21 +142,16 @@ export default function NotesWorkspace({
         </div>
       ) : null}
 
-      <div className={hideFolders
-        ? "grid min-w-0 gap-5 md:grid-cols-[250px_minmax(0,1fr)]"
-        : "grid min-w-0 gap-5 md:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[190px_270px_minmax(0,1fr)]"
-      }>
-        {!hideFolders ? (
-          <div className="hidden min-w-0 pt-2 xl:block">
-            <NotesNavigation interests={interests} scope={scope} onScopeChange={(nextScope) => { setScope(nextScope); setSearch(""); }} />
-          </div>
-        ) : null}
-
-        <NoteTitleList
+      <div className="grid min-w-0 gap-5 md:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
+        <NotesSidebar
           notes={visibleNotes}
+          interests={interests}
+          scope={scope}
           selectedId={selectedId}
           search={search}
           loading={loading}
+          showScopeFilter={!hideFolders && !researchInterestId}
+          onScopeChange={(nextScope) => { setScope(nextScope); setSearch(""); }}
           onSearchChange={setSearch}
           onSelect={handleSelect}
           onCreate={handleCreate}
