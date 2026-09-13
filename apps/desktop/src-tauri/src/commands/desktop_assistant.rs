@@ -837,6 +837,10 @@ pub struct AssistantMonitorInfo {
     pub y: i32,
     pub width: u32,
     pub height: u32,
+    pub work_x: i32,
+    pub work_y: i32,
+    pub work_width: u32,
+    pub work_height: u32,
     pub scale_factor: f64,
     pub is_primary: bool,
 }
@@ -875,12 +879,17 @@ pub async fn assistant_get_screen_snapshot(
             });
             let position = monitor.position();
             let size = monitor.size();
+            let work_area = monitor.work_area();
             AssistantMonitorInfo {
                 name: monitor.name().cloned(),
                 x: position.x,
                 y: position.y,
                 width: size.width,
                 height: size.height,
+                work_x: work_area.position.x,
+                work_y: work_area.position.y,
+                work_width: work_area.size.width,
+                work_height: work_area.size.height,
                 scale_factor: monitor.scale_factor(),
                 is_primary,
             }
@@ -904,40 +913,50 @@ pub async fn assistant_get_screen_snapshot(
     })
 }
 
-/// 移动桌面小妍窗口；坐标会被保守夹取到所有显示器的最外圈边界内，
-/// 作为前端几何计算之外的安全网，保证窗口不会完全移出可见区域。
+/// 移动桌面小妍窗口；坐标会夹取到目标显示器的可用区域内，
+/// 作为前端几何计算之外的安全网，避开系统菜单栏与 Dock。
 #[command]
 pub async fn assistant_set_dock_position(
     app: tauri::AppHandle,
     x: i32,
     y: i32,
 ) -> Result<(), String> {
-    const MIN_VISIBLE_PX: i32 = 32;
     let window = app
         .get_webview_window("assistant-dock")
         .ok_or_else(|| "Dock window not found".to_string())?;
     let size = window.outer_size().map_err(|error| error.to_string())?;
-    let monitors = app.available_monitors().map_err(|error| error.to_string())?;
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| error.to_string())?;
     let (mut x, mut y) = (x, y);
-    if !monitors.is_empty() {
-        let min_x = monitors.iter().map(|m| m.position().x).min().unwrap_or(x);
-        let min_y = monitors.iter().map(|m| m.position().y).min().unwrap_or(y);
-        let max_x = monitors
-            .iter()
-            .map(|m| m.position().x + m.size().width as i32)
-            .max()
-            .unwrap_or(x);
-        let max_y = monitors
-            .iter()
-            .map(|m| m.position().y + m.size().height as i32)
-            .max()
-            .unwrap_or(y);
-        let lower_x = min_x - size.width as i32 + MIN_VISIBLE_PX;
-        let lower_y = min_y - size.height as i32 + MIN_VISIBLE_PX;
-        let upper_x = max_x - MIN_VISIBLE_PX;
-        let upper_y = max_y - MIN_VISIBLE_PX;
-        x = x.clamp(lower_x.min(upper_x), lower_x.max(upper_x));
-        y = y.clamp(lower_y.min(upper_y), lower_y.max(upper_y));
+    let center = (x + size.width as i32 / 2, y + size.height as i32 / 2);
+    let target_monitor = monitors
+        .iter()
+        .find(|monitor| {
+            let position = monitor.position();
+            let monitor_size = monitor.size();
+            center.0 >= position.x
+                && center.0 < position.x + monitor_size.width as i32
+                && center.1 >= position.y
+                && center.1 < position.y + monitor_size.height as i32
+        })
+        .cloned()
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .or_else(|| monitors.first().cloned());
+    if let Some(monitor) = target_monitor {
+        let work_area = monitor.work_area();
+        let max_x = work_area.position.x + work_area.size.width as i32 - size.width as i32;
+        let max_y = work_area.position.y + work_area.size.height as i32 - size.height as i32;
+        x = if max_x < work_area.position.x {
+            work_area.position.x
+        } else {
+            x.clamp(work_area.position.x, max_x)
+        };
+        y = if max_y < work_area.position.y {
+            work_area.position.y
+        } else {
+            y.clamp(work_area.position.y, max_y)
+        };
     }
     window
         .set_position(tauri::PhysicalPosition::new(x, y))

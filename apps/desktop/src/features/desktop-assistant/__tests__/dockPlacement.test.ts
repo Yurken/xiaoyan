@@ -20,6 +20,10 @@ const primary: AssistantMonitorInfo = {
   y: 0,
   width: 2560,
   height: 1440,
+  work_x: 0,
+  work_y: 48,
+  work_width: 2560,
+  work_height: 1296,
   scale_factor: 2,
   is_primary: true,
 }
@@ -30,6 +34,10 @@ const side: AssistantMonitorInfo = {
   y: -200,
   width: 1920,
   height: 1080,
+  work_x: 2560,
+  work_y: -200,
+  work_width: 1920,
+  work_height: 1080,
   scale_factor: 1,
   is_primary: false,
 }
@@ -40,6 +48,10 @@ const unnamed: AssistantMonitorInfo = {
   y: 0,
   width: 1920,
   height: 1080,
+  work_x: 0,
+  work_y: 0,
+  work_width: 1920,
+  work_height: 1080,
   scale_factor: 1,
   is_primary: true,
 }
@@ -67,15 +79,15 @@ describe('assistantMonitorForPoint', () => {
 
 describe('dockPlacementFromFrame', () => {
   it('snaps to the nearest edge and records the offset along it', () => {
-    // 主显示器右下角：距右 16、距下 20 → 右边缘，偏移为距顶距离
+    // 主显示器可用区域右下角：距右 16、距下 20 → 右边缘。
     const placement = dockPlacementFromFrame(
-      { x: 2560 - SIZE.width - 16, y: 1440 - SIZE.height - 20, ...SIZE },
+      { x: 2560 - SIZE.width - 16, y: 1344 - SIZE.height - 20, ...SIZE },
       primary,
     )
     expect(placement).toEqual({
       monitor_id: 'Built-in Retina Display',
       edge: 'right',
-      offset: 1440 - SIZE.height - 20,
+      offset: 1344 - SIZE.height - 20,
     })
   })
 
@@ -114,10 +126,10 @@ describe('frameFromDockPlacement', () => {
       edge: 'right' as const,
       offset: 1300,
     }
-    const shrunk: AssistantMonitorInfo = { ...primary, height: 800 }
+    const shrunk: AssistantMonitorInfo = { ...primary, height: 800, work_height: 752 }
     expect(frameFromDockPlacement(placement, shrunk, SIZE)).toEqual({
       x: 2560 - SIZE.width,
-      y: 800 - SIZE.height,
+      y: 48 + 752 - SIZE.height,
       ...SIZE,
     })
   })
@@ -127,10 +139,10 @@ describe('clampFrameToMonitor', () => {
   it('keeps frames inside the monitor and tolerates windows larger than the screen', () => {
     expect(
       clampFrameToMonitor({ x: -50, y: 2000, ...SIZE }, primary),
-    ).toEqual({ x: 0, y: 1440 - SIZE.height, ...SIZE })
+    ).toEqual({ x: 0, y: 1344 - SIZE.height, ...SIZE })
     expect(
       clampFrameToMonitor({ x: 500, y: 500, width: 4000, height: 2000 }, primary),
-    ).toEqual({ x: 0, y: 0, width: 4000, height: 2000 })
+    ).toEqual({ x: 0, y: 48, width: 4000, height: 2000 })
   })
 })
 
@@ -153,10 +165,10 @@ describe('resolveDockFrame', () => {
     })
   })
 
-  it('uses the primary monitor bottom-right corner when no placement exists', () => {
+  it('uses the primary monitor work area and stays above the system Dock', () => {
     expect(resolveDockFrame(null, [side, primary], SIZE)).toEqual({
       x: 2560 - SIZE.width - 16,
-      y: 1440 - SIZE.height - 20,
+      y: 1344 - SIZE.height - 20,
       ...SIZE,
     })
   })
