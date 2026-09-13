@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { HOME_SUGGESTIONS, SUGGESTION_FADE_MS, SUGGESTION_HOLD_MS } from "./shared";
+import { COPILOT_SUGGESTIONS, SUGGESTION_FADE_MS, SUGGESTION_HOLD_MS } from "./shared";
 
 /** Keep the current suggestion stable while the user reads, focuses, or writes. */
-export function useHomeSuggestions(busy: boolean) {
+export function useCopilotSuggestions(busy: boolean) {
   const manual = useRef(false);
   const [index, setIndex] = useState(0);
   const [fading, setFading] = useState(false);
@@ -26,7 +26,7 @@ export function useHomeSuggestions(busy: boolean) {
 
   const next = useCallback(() => {
     manual.current = true;
-    if (reducedMotion) setIndex((value) => (value + 1) % HOME_SUGGESTIONS.length);
+    if (reducedMotion) setIndex((value) => (value + 1) % COPILOT_SUGGESTIONS.length);
     else setFading(true);
   }, [reducedMotion]);
 
@@ -40,11 +40,11 @@ export function useHomeSuggestions(busy: boolean) {
     if (!fading) return;
     if ((busy && !manual.current) || hidden) { setFading(false); return; }
     const timer = window.setTimeout(() => {
-      setIndex((value) => (value + 1) % HOME_SUGGESTIONS.length);
+      setIndex((value) => (value + 1) % COPILOT_SUGGESTIONS.length);
       setFading(false);
     }, reducedMotion ? 0 : SUGGESTION_FADE_MS);
     return () => window.clearTimeout(timer);
   }, [busy, fading, hidden, reducedMotion]);
 
-  return { suggestion: HOME_SUGGESTIONS[index], fading, paused, setPaused, next };
+  return { suggestion: COPILOT_SUGGESTIONS[index], fading, paused, setPaused, next };
 }

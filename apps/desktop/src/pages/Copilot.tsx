@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
-import { useCopilotHomePrompt } from "../features/copilot/useCopilotHomePrompt";
+import CopilotConversationWorkspace from "../features/copilot/welcome/CopilotConversationWorkspace";
 import CopilotComposer from "../features/copilot/CopilotComposer";
 import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
 import { CopilotChatArea } from "../features/copilot/CopilotChatArea";
@@ -120,31 +120,15 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     },
   });
 
-  const hasHomePrompt = useCopilotHomePrompt({
-    prepare: (prompt) => {
-      restoredLastSessionRef.current = true;
-      loadSessionRequestRef.current += 1;
-      clearCheckpointHandoff();
-      setPaperHandoff(null);
-      sessions.handleNewChat();
-      sessions.setSelectedInterestId("");
-      chat.resetChat();
-      chat.setInput(prompt);
-    },
-    input: chat.input,
-    ready: !sessions.currentSession && !paperHandoff && !checkpointHandoff && !sessions.selectedInterestId,
-    send: chat.handleSend,
-  });
-
   const appliedPaperHandoffRef = useRef(false);
   useEffect(() => {
-    if (hasHomePrompt || !paperHandoff || checkpointHandoff || appliedPaperHandoffRef.current) return;
+    if (!paperHandoff || checkpointHandoff || appliedPaperHandoffRef.current) return;
     appliedPaperHandoffRef.current = true;
     sessions.handleNewChat();
     chat.resetChat();
     chat.setInput(paperHandoff.prompt);
     restoredLastSessionRef.current = true;
-  }, [chat, checkpointHandoff, hasHomePrompt, paperHandoff, sessions]);
+  }, [chat, checkpointHandoff, paperHandoff, sessions]);
 
   const handleLoadSession = useCallback(async (session: ChatSession) => {
     const requestId = loadSessionRequestRef.current + 1;
@@ -184,7 +168,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     restoredLastSessionRef.current = true;
   }, []);
   const handleDismissCheckpointHandoff = useApplyCopilotCheckpointHandoff({
-    handoff: hasHomePrompt ? null : checkpointHandoff,
+    handoff: checkpointHandoff,
     setHandoff: setCheckpointHandoff,
     activeHandoffRef: activeCheckpointHandoffRef,
     sessionsLoaded: sessions.sessionsLoaded,
@@ -407,51 +391,60 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
               />
             ) : null}
 
-            <CopilotChatArea
-              messages={chat.messages}
-              chatMode={chatMode}
-              agentRuns={chat.agentRuns}
-              plan={chat.plan}
-              routingDecision={chat.routingDecision}
-              activeAssistantId={chat.activeAssistantId}
-              sending={chat.sending}
-              searchingQuery={chat.searchingQuery}
-              loadError={sessions.loadError || chat.loadError}
-              editingMessageId={editingMessageId}
-              editText={editText}
-              copiedId={copiedId}
-              sessionId={sessions.currentSession?.id}
-              onClearError={() => { sessions.setLoadError(""); chat.setLoadError(""); }}
-              onCopy={handleCopy}
-              onRetry={chat.retry}
-              onStartEdit={handleStartEdit}
-              onSaveEdit={handleSaveEdit}
-              onCancelEdit={handleCancelEdit}
-              onEditTextChange={setEditText}
-            />
+            <CopilotConversationWorkspace
+              empty={chat.messages.length === 0 && !chat.sending}
+              draft={chat.input}
+              onSuggestion={chat.setInput}
+              chatArea={
+                <CopilotChatArea
+                  messages={chat.messages}
+                  chatMode={chatMode}
+                  agentRuns={chat.agentRuns}
+                  plan={chat.plan}
+                  routingDecision={chat.routingDecision}
+                  activeAssistantId={chat.activeAssistantId}
+                  sending={chat.sending}
+                  searchingQuery={chat.searchingQuery}
+                  loadError={sessions.loadError || chat.loadError}
+                  editingMessageId={editingMessageId}
+                  editText={editText}
+                  copiedId={copiedId}
+                  sessionId={sessions.currentSession?.id}
+                  onClearError={() => { sessions.setLoadError(""); chat.setLoadError(""); }}
+                  onCopy={handleCopy}
+                  onRetry={chat.retry}
+                  onStartEdit={handleStartEdit}
+                  onSaveEdit={handleSaveEdit}
+                  onCancelEdit={handleCancelEdit}
+                  onEditTextChange={setEditText}
+                />
+              }
 
-            <CopilotComposer
-              chatMode={chatMode}
-              onChatModeChange={(mode) => {
-                setChatMode(mode);
-                if (mode === "task" && chat.messages.length > 0) {
-                  chat.setSidebarCollapsed(false);
-                }
-              }}
-              input={chat.input}
-              onInputChange={chat.setInput}
-              onSubmit={chat.handleSend}
-              onCancel={chat.stopGenerating}
-              sending={chat.sending}
-              uploadingAttachments={uploadingAttachments}
-              attachments={attachments}
-              onPasteImages={addImageFiles}
-              removeAttachment={removeAttachment}
-              skills={skills}
-              selectedSkillId={selectedSkillId}
-              onSelectedSkillChange={setSelectedSkillId}
-              skillLocked={skillLocked}
-              onSkillLockedChange={setSkillLocked}
+              composer={
+                <CopilotComposer
+                  chatMode={chatMode}
+                  onChatModeChange={(mode) => {
+                    setChatMode(mode);
+                    if (mode === "task" && chat.messages.length > 0) {
+                      chat.setSidebarCollapsed(false);
+                    }
+                  }}
+                  input={chat.input}
+                  onInputChange={chat.setInput}
+                  onSubmit={chat.handleSend}
+                  onCancel={chat.stopGenerating}
+                  sending={chat.sending}
+                  uploadingAttachments={uploadingAttachments}
+                  attachments={attachments}
+                  onPasteImages={addImageFiles}
+                  removeAttachment={removeAttachment}
+                  skills={skills}
+                  selectedSkillId={selectedSkillId}
+                  onSelectedSkillChange={setSelectedSkillId}
+                  skillLocked={skillLocked}
+                  onSkillLockedChange={setSkillLocked}
+                />
+              }
             />
           </div>
         </div>

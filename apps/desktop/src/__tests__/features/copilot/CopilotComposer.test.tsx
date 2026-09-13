@@ -41,6 +41,12 @@ describe("CopilotComposer", () => {
     expect(props.onSubmit).toHaveBeenCalledTimes(2);
   });
 
+  it("中文输入法确认不触发快捷键发送", () => {
+    const props = renderComposer();
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter", metaKey: true, isComposing: true });
+    expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
   it("生成中将发送按钮替换为终止按钮", () => {
     const props = renderComposer({ sending: true });
 
