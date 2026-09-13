@@ -13,6 +13,7 @@ import type { UseAssistantInbox } from '../hooks/useAssistantInbox'
 interface AssistantInboxWorkspaceProps {
   controller: UseAssistantInbox
   assetsPanel?: ReactNode
+  embedded?: boolean
 }
 
 function formatBytes(bytes: number | null) {
@@ -93,7 +94,7 @@ function Card({ icon, title, meta, children, actions }: {
   )
 }
 
-export function AssistantInboxWorkspace({ controller, assetsPanel }: AssistantInboxWorkspaceProps) {
+export function AssistantInboxWorkspace({ controller, assetsPanel, embedded = false }: AssistantInboxWorkspaceProps) {
   const {
     overview,
     themes,
@@ -114,9 +115,9 @@ export function AssistantInboxWorkspace({ controller, assetsPanel }: AssistantIn
     + overview.file_candidates.length
 
   return (
-    <div className="rc-app-page h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl space-y-7 pb-10">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className={embedded ? '' : 'rc-app-page h-full overflow-y-auto'}>
+      <div className={embedded ? 'space-y-7' : 'mx-auto max-w-5xl space-y-7 pb-10'}>
+        {!embedded ? <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <Inbox className="h-5 w-5 text-[var(--rc-accent)]" />
@@ -145,7 +146,35 @@ export function AssistantInboxWorkspace({ controller, assetsPanel }: AssistantIn
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
-        </header>
+        </header> : (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-ink-primary">研究收集与归档</h2>
+              <p className="mt-1 text-xs text-ink-tertiary">把中转内容进一步转为论文、笔记或长期图片资产。</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-ink-tertiary" htmlFor="assistant-inbox-theme">归入主题</label>
+              <select
+                id="assistant-inbox-theme"
+                value={selectedThemeId}
+                onChange={(event) => setSelectedThemeId(event.target.value)}
+                className="rc-dropdown-trigger min-w-44 rounded-xl border px-3 py-2 text-sm text-ink-primary"
+              >
+                <option value="">不指定（保留已有主题）</option>
+                {themes.map((theme) => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
+              </select>
+              <button
+                type="button"
+                aria-label="刷新研究收集"
+                onClick={() => { void reload() }}
+                disabled={loading}
+                className="rc-icon-button h-9 w-9"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {error ? <div role="alert" className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-300">{error}</div> : null}
         {notice ? <div role="status" className="rounded-xl bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">{notice}</div> : null}
@@ -157,8 +186,8 @@ export function AssistantInboxWorkspace({ controller, assetsPanel }: AssistantIn
         ) : total === 0 ? (
           <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-black/10 text-center dark:border-white/10">
             <Inbox className="mb-3 h-9 w-9 text-ink-tertiary" />
-            <p className="text-sm font-medium text-ink-secondary">收集箱已经清空</p>
-            <p className="mt-1 text-xs text-ink-tertiary">从小妍桌面助手选择“稍后处理”，或拖入文件即可在这里继续。</p>
+            <p className="text-sm font-medium text-ink-secondary">{embedded ? '暂无待归档内容' : '收集箱已经清空'}</p>
+            <p className="mt-1 text-xs text-ink-tertiary">{embedded ? '需要长期保存时，再把中转文件转入论文库或知识库。' : '从小妍桌面助手选择“稍后处理”，或拖入文件即可在这里继续。'}</p>
           </div>
         ) : (
           <div className="space-y-8">

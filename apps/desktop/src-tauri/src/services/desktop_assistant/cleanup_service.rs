@@ -202,6 +202,29 @@ impl CleanupService {
         .execute(db)
         .await?;
 
+        // 文件中转站保存独立副本，避免源文件被移动或删除后中转项失效。
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS assistant_file_shelf_items (
+                id TEXT PRIMARY KEY,
+                file_name TEXT NOT NULL,
+                stored_path TEXT NOT NULL,
+                original_path TEXT,
+                is_directory INTEGER NOT NULL DEFAULT 0,
+                size_bytes INTEGER NOT NULL DEFAULT 0,
+                source_type TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                last_copied_at TEXT
+            )",
+        )
+        .execute(db)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_assistant_file_shelf_created
+             ON assistant_file_shelf_items(created_at DESC)",
+        )
+        .execute(db)
+        .await?;
+
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS assistant_note_attachments (
                 id TEXT PRIMARY KEY,

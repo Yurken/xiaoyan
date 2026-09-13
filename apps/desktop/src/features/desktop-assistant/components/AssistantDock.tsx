@@ -17,6 +17,11 @@ interface AssistantDockProps {
   onClick?: () => void
   onDragStart?: () => void
   onDragEnd?: () => void
+  onPasteFiles?: () => void
+  fileDropActive?: boolean
+  fileShelfBusy?: boolean
+  fileShelfCount?: number
+  fileShelfFeedback?: string | null
   /**
    * 渲染模式：
    * - floating：在主窗口内自由浮动（可拖动，位置持久化到 localStorage）
@@ -50,7 +55,17 @@ function savePosition(pos: Position) {
   }
 }
 
-export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floating' }: AssistantDockProps) {
+export function AssistantDock({
+  onClick,
+  onDragStart,
+  onDragEnd,
+  onPasteFiles,
+  fileDropActive = false,
+  fileShelfBusy = false,
+  fileShelfCount = 0,
+  fileShelfFeedback = null,
+  variant = 'floating',
+}: AssistantDockProps) {
   const isWindowMode = variant === 'window'
   const savedPos = loadPosition()
   const [position, setPosition] = useState<Position>(
@@ -208,9 +223,20 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
       onMouseDown={handleMouseDown}
       role="button"
       aria-label="桌面小妍"
-      title="桌面小妍"
+      title="拖入文件暂存 · 复制文件后右键粘贴"
       tabIndex={0}
+      onContextMenu={(event) => {
+        if (!onPasteFiles) return
+        event.preventDefault()
+        event.stopPropagation()
+        onPasteFiles()
+      }}
       onKeyDown={(e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v' && onPasteFiles) {
+          e.preventDefault()
+          onPasteFiles()
+          return
+        }
         if (e.key === 'Enter' || e.key === ' ') {
           // 阻止空格滚动页面，保持按钮键盘行为一致。
           e.preventDefault()
@@ -225,6 +251,28 @@ export function AssistantDock({ onClick, onDragStart, onDragEnd, variant = 'floa
         opacity={isDragging ? 0.86 : 1}
         lookDirectionIndex={lookDirectionIndex}
       />
+      {fileShelfCount > 0 ? (
+        <span
+          className="pointer-events-none absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold text-white"
+          style={{ background: 'var(--rc-accent)', boxShadow: '0 3px 10px rgba(0, 122, 255, 0.28)' }}
+          aria-label={`文件中转站有 ${fileShelfCount} 项`}
+        >
+          {fileShelfCount > 99 ? '99+' : fileShelfCount}
+        </span>
+      ) : null}
+      {fileDropActive || fileShelfBusy || fileShelfFeedback ? (
+        <span
+          className="pointer-events-none absolute bottom-1 left-1/2 max-w-[122px] -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold"
+          style={{
+            background: fileDropActive ? 'var(--rc-accent)' : 'var(--rc-card-bg)',
+            border: '1px solid var(--rc-card-outline)',
+            boxShadow: 'var(--rc-card-flat-shadow-sm)',
+            color: fileDropActive ? 'white' : 'var(--rc-text)',
+          }}
+        >
+          {fileDropActive ? '松手暂存' : fileShelfBusy ? '正在保管…' : fileShelfFeedback}
+        </span>
+      ) : null}
     </div>
   )
 }

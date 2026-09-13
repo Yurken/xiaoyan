@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { AssistantDock } from '../components/AssistantDock'
 
 describe('AssistantDock', () => {
@@ -17,5 +17,14 @@ describe('AssistantDock', () => {
     })
     expect(screen.getByRole('img', { name: '小妍' })).toBeInTheDocument()
     expect(screen.queryByText('妍')).not.toBeInTheDocument()
+  })
+
+  it('accepts copied Finder files from the companion context action', () => {
+    const onPasteFiles = vi.fn()
+    render(<AssistantDock variant="window" fileShelfCount={3} onPasteFiles={onPasteFiles} />)
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: '桌面小妍' }))
+    expect(onPasteFiles).toHaveBeenCalledOnce()
+    expect(screen.getByText('3')).toBeInTheDocument()
   })
 })
