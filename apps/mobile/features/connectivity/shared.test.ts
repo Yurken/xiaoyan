@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultApiUrl, normalizeApiUrl } from "./shared";
+import { canPersistApiProbe, defaultApiUrl, normalizeApiUrl } from "./shared";
 
 const ANDROID_DEFAULT = "http://10.0.2.2:8000";
 const OTHER_DEFAULT = "http://localhost:8000";
@@ -64,5 +64,15 @@ describe("normalizeApiUrl", () => {
     { input: "https://user:secret@api.example.com/v1", label: "user:pass credential" },
   ])("rejects $label", ({ input }) => {
     expect(() => normalizeApiUrl(input, FALLBACK)).toThrow();
+  });
+});
+
+describe("canPersistApiProbe", () => {
+  it("only accepts reachable compatible backends", () => {
+    expect(canPersistApiProbe("connected")).toBe(true);
+    expect(canPersistApiProbe("auth_required")).toBe(true);
+    expect(canPersistApiProbe("incompatible")).toBe(false);
+    expect(canPersistApiProbe("timeout")).toBe(false);
+    expect(canPersistApiProbe("network")).toBe(false);
   });
 });

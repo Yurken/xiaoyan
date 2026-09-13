@@ -4,7 +4,11 @@ import {
   probeApiBaseUrl,
   setApiBaseUrl,
 } from "../../lib/client";
-import { normalizeApiUrl, type ApiProbeStatus } from "./shared";
+import {
+  canPersistApiProbe,
+  normalizeApiUrl,
+  type ApiProbeStatus,
+} from "./shared";
 
 export type ApiConnectionStatus = ApiProbeStatus | "idle";
 
@@ -41,13 +45,16 @@ export function useApiConnection() {
     setChecking(true);
 
     try {
-      const stored = await setApiBaseUrl(normalized);
-      const result = await probeApiBaseUrl(stored);
+      const result = await probeApiBaseUrl(normalized);
       if (!mountedRef.current) return;
-      setSavedUrl(stored);
-      setInput(stored);
       setStatus(result.status);
       setMessage(result.message);
+      if (canPersistApiProbe(result.status)) {
+        const stored = await setApiBaseUrl(normalized);
+        if (!mountedRef.current) return;
+        setSavedUrl(stored);
+        setInput(stored);
+      }
     } catch (error) {
       if (!mountedRef.current) return;
       setStatus("network");

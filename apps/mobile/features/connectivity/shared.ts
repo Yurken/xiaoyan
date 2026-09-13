@@ -11,6 +11,10 @@ export type ApiProbeResult = {
   httpStatus: number | null;
 };
 
+export function canPersistApiProbe(status: ApiProbeStatus): boolean {
+  return status === "connected" || status === "auth_required";
+}
+
 const ANDROID_DEFAULT_API_URL = "http://10.0.2.2:8000";
 const DEFAULT_API_URL = "http://localhost:8000";
 
